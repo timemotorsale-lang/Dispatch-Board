@@ -63,6 +63,16 @@
 :global(html[data-app-theme="dark"]) .simpleCard h3,:global(html[data-app-theme="dark"]) .quickEntryHeader h3,:global(html[data-app-theme="dark"]) .simpleFacts dd,:global(html[data-app-theme="dark"]) .progressWorkspace header h2,:global(html[data-app-theme="dark"]) .progressHistory article h3,:global(html[data-app-theme="dark"]) .repairReleaseNow h3,:global(html[data-app-theme="dark"]) .repairReleaseCard h3,:global(html[data-app-theme="dark"]) .repairResult header h2{color:var(--ink)}
 :global(html[data-app-theme="dark"]) .simpleCard p,:global(html[data-app-theme="dark"]) .quickSteps span,:global(html[data-app-theme="dark"]) .simpleFacts dt,:global(html[data-app-theme="dark"]) .simpleInstructions,:global(html[data-app-theme="dark"]) .progressWorkspace header p,:global(html[data-app-theme="dark"]) .progressGrid label,:global(html[data-app-theme="dark"]) .progressActions small,:global(html[data-app-theme="dark"]) .progressHistory article p,:global(html[data-app-theme="dark"]) .progressHistory article small,:global(html[data-app-theme="dark"]) .progressHistory aside time,:global(html[data-app-theme="dark"]) .repairReleaseNow p,:global(html[data-app-theme="dark"]) .repairResult header p{color:var(--muted)}
 :global(html[data-app-theme="dark"]) .quickSteps li,:global(html[data-app-theme="dark"]) .repairUpdateModeHint,:global(html[data-app-theme="dark"]) .progressGrid input,:global(html[data-app-theme="dark"]) .progressGrid select,:global(html[data-app-theme="dark"]) .progressGrid textarea,:global(html[data-app-theme="dark"]) .secondaryAction{border-color:var(--app-border-strong,#344a64);background:var(--app-surface-soft,#14253a);color:var(--ink)}
+:global(html[data-app-theme="dark"]) .clearanceHeader,:global(html[data-app-theme="dark"]) .clearanceStage,:global(html[data-app-theme="dark"]) .clearanceList,:global(html[data-app-theme="dark"]) .clearanceGate,:global(html[data-app-theme="dark"]) .clearanceEditor,:global(html[data-app-theme="dark"]) .clearanceRow{border-color:var(--line);background:var(--app-surface,#101f31);color:var(--ink);box-shadow:none}
+:global(html[data-app-theme="dark"]) .clearanceList header,:global(html[data-app-theme="dark"]) .clearanceRow:hover,:global(html[data-app-theme="dark"]) .clearanceRowActive{border-color:var(--line);background:var(--app-surface-soft,#14253a)}
+:global(html[data-app-theme="dark"]) .clearanceHeader p,:global(html[data-app-theme="dark"]) .clearanceHeader aside span,:global(html[data-app-theme="dark"]) .clearanceStage p,:global(html[data-app-theme="dark"]) .clearanceRow small,:global(html[data-app-theme="dark"]) .clearanceGate p,:global(html[data-app-theme="dark"]) .clearanceEditor p{color:var(--muted)}
+:global(html[data-app-theme="dark"]) .clearanceHeader aside strong,:global(html[data-app-theme="dark"]) .clearanceList header span,:global(html[data-app-theme="dark"]) .clearanceGate span{color:#9db8ff}
+:global(html[data-app-theme="dark"]) .clearanceStage h4,:global(html[data-app-theme="dark"]) .clearanceRow strong,:global(html[data-app-theme="dark"]) .clearanceGate h4,:global(html[data-app-theme="dark"]) .clearanceEditor h4{color:var(--ink)}
+:global(html[data-app-theme="dark"]) .clearanceStageDone{border-color:rgba(74,222,128,.34);background:rgba(34,197,94,.12)}
+:global(html[data-app-theme="dark"]) .clearanceStageCurrent{border-color:#6f8cff;background:rgba(96,165,250,.16)}
+:global(html[data-app-theme="dark"]) .clearanceCheck,:global(html[data-app-theme="dark"]) .clearanceRow b,:global(html[data-app-theme="dark"]) .clearanceStage span,:global(html[data-app-theme="dark"]) .clearanceGate button:disabled,:global(html[data-app-theme="dark"]) .resultButtons button{border-color:var(--app-border-strong,#344a64);color:var(--ink);background:var(--app-surface-soft,#14253a)}
+:global(html[data-app-theme="dark"]) .clearanceStageDone span{color:#dcfce7;background:rgba(34,197,94,.22)}
+:global(html[data-app-theme="dark"]) .clearanceStageCurrent span,:global(html[data-app-theme="dark"]) .resultButtons .resultActive{color:#fff;background:#4f6df5}
 :global(html[data-app-theme="dark"]) .repairUpdateModeHint strong{color:var(--ink)}
 :global(html[data-app-theme="dark"]) .repairUpdateModeHint span{color:var(--muted)}
 :global(html[data-app-theme="dark"]) .repairUpdateModeHint b{border:1px solid rgba(74,222,128,.34);color:#dcfce7;background:rgba(34,197,94,.12)}
@@ -84,6 +94,55 @@
 .quickSteps li{display:grid;gap:4px;border:1px solid #e0e8f2;border-radius:8px;padding:10px;background:#fff}
 .quickSteps strong{color:#244da8;font-size:.72rem;text-transform:uppercase}
 .quickSteps span{color:#5c6f86;font-size:.72rem;line-height:1.4}
+.clearanceReview{display:grid;gap:12px;margin-bottom:12px}
+.clearanceHeader{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;border:1px solid #d9e3ef;border-radius:10px;padding:14px;background:#fbfdff}
+.clearanceHeader h3{margin:2px 0 4px;font-size:.95rem}
+.clearanceHeader p{margin:0;color:#5c6f86;font-size:.72rem;line-height:1.45}
+.clearanceHeader aside{display:grid;justify-items:end;border-left:1px solid #dfe7f1;padding-left:18px}
+.clearanceHeader aside strong{color:#244da8;font-size:1.4rem;line-height:1}
+.clearanceHeader aside span{color:#65758a;font-size:.72rem;font-weight:850}
+.clearanceTimeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.clearanceStage{display:grid;gap:5px;min-height:116px;border:1px solid #dfe7f1;border-radius:8px;padding:10px;background:#fff}
+.clearanceStage span{width:max-content;border-radius:999px;padding:3px 7px;color:#66768a;background:#eef2f7;font-size:.66rem;font-weight:900;text-transform:uppercase}
+.clearanceStage h4{margin:0;color:#263b58;font-size:.76rem}
+.clearanceStage p{margin:0;color:#61738a;font-size:.7rem;line-height:1.35}
+.clearanceStageDone{border-color:#bddfcb;background:#f5fbf7}
+.clearanceStageDone span{color:#16683f;background:#dbf3e5}
+.clearanceStageCurrent{border-color:#b9c9ef;background:#f4f7ff;box-shadow:inset 0 -3px var(--blue)}
+.clearanceStageCurrent span{color:#fff;background:var(--blue)}
+.clearanceStageLocked{background:#fafbfd}
+.clearanceGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.38fr);gap:10px}
+.clearanceList,.clearanceGate,.clearanceEditor{border:1px solid #d9e3ef;border-radius:10px;background:#fff}
+.clearanceList{display:grid;gap:0;overflow:hidden}
+.clearanceList header{display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid #e5ecf4;padding:10px 12px;background:#f8fbff}
+.clearanceList header span{color:#315eb5;font-size:.72rem;font-weight:900;text-transform:uppercase}
+.clearanceList header strong{color:#53667e;font-size:.72rem}
+.clearanceRow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:0;border-top:1px solid #edf2f7;padding:10px 12px;color:inherit;background:#fff;text-align:left;cursor:pointer;font:inherit}
+.clearanceRow:first-of-type{border-top:0}
+.clearanceRow:hover,.clearanceRowActive{background:#f4f7ff}
+.clearanceCheck{display:grid;width:28px;height:28px;place-items:center;border-radius:50%;color:#315eb5;background:#edf3ff;font-size:.78rem;font-weight:950}
+.clearanceRow[aria-pressed=true] .clearanceCheck{color:#fff;background:#23805a}
+.clearanceRow[aria-pressed=false] .clearanceCheck{border:2px solid #b9c7d8;background:#fff}
+.clearanceCheck svg{width:15px}
+.clearanceRow span:nth-child(2){display:grid;gap:2px}
+.clearanceRow strong{font-size:.74rem}
+.clearanceRow small{color:#65758a;font-size:.7rem;line-height:1.35}
+.clearanceRow em{color:#315eb5;font-size:.68rem;font-style:normal;font-weight:800}
+.clearanceRow b{border-radius:999px;padding:4px 7px;color:#53667e;background:#edf2f7;font-size:.66rem;text-transform:uppercase}
+.clearanceGate{display:grid;align-content:start;gap:8px;padding:13px;background:linear-gradient(180deg,#fff,#f7fbff)}
+.clearanceGate span{color:#315eb5;font-size:.72rem;font-weight:900;text-transform:uppercase}
+.clearanceGate h4{margin:0;font-size:.85rem}
+.clearanceGate p{margin:0;color:#5c6f86;font-size:.72rem;line-height:1.45}
+.clearanceGate button{min-height:38px;border:1px solid var(--blue);border-radius:7px;padding:0 12px;color:#fff;background:var(--blue);font-size:.72rem;font-weight:850}
+.clearanceGate button:disabled{border-color:#c8d4e3;color:#78869a;background:#eef2f7}
+.clearanceEditor{display:grid;gap:10px;padding:13px}
+.clearanceEditor summary{cursor:pointer;list-style:none;color:#315eb5;font-size:.72rem;font-weight:900;text-transform:uppercase}
+.clearanceEditor summary::-webkit-details-marker{display:none}
+.clearanceEditor h4{margin:2px 0 3px;font-size:.85rem}
+.clearanceEditor p{margin:0;color:#5c6f86;font-size:.72rem;line-height:1.4}
+.resultButtons{display:flex;flex-wrap:wrap;gap:7px}
+.resultButtons button{min-height:32px;border:1px solid #c7d3e1;border-radius:999px;padding:0 10px;color:#3b4d66;background:#fff;font:inherit;font-size:.68rem;font-weight:900;text-transform:uppercase}
+.resultButtons .resultActive{border-color:#208057;color:#fff;background:#208057}
 .simpleFacts{display:grid;gap:8px;margin:0}
 .simpleFacts div{display:grid;gap:3px;border:1px solid #e0e7f0;border-radius:8px;padding:10px;background:#fff}
 .simpleFacts dt{color:#66798f;font-size:.72rem;font-weight:800;text-transform:uppercase}
@@ -256,7 +315,8 @@
 .authorizationGuardrailBlocked{border-color:#efc4bd;color:#8e3428;background:#fff4f2}
 @media(max-width:850px){.outcomeChoices,.repairResultFields,.progressGrid{grid-template-columns:1fr}.sendToQcAction{justify-self:stretch}.wideField{grid-column:auto}.progressWorkspace header,.progressActions,.progressHistory article,.qcReadyBanner{display:grid}.progressHistory aside{justify-items:start}.progressPrimaryActions{display:grid}}
 @media(max-width:1000px){.quickSteps{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){.quickSteps{grid-template-columns:1fr}}
+@media(max-width:1000px){.clearanceTimeline{grid-template-columns:repeat(2,minmax(0,1fr))}.clearanceGrid{grid-template-columns:1fr}}
+@media(max-width:620px){.quickSteps{grid-template-columns:1fr}.clearanceHeader{grid-template-columns:1fr}.clearanceHeader aside{justify-items:start;border-left:0;border-top:1px solid #dfe7f1;padding:10px 0 0}.clearanceTimeline{grid-template-columns:1fr}.clearanceRow{grid-template-columns:auto minmax(0,1fr)}.clearanceRow b{grid-column:2}.resultButtons button{flex:1 1 45%}}
 @media(max-width:1100px){.vendorAlgorithmGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.vendorAlgorithmGrid{grid-template-columns:1fr}.vendorRouteActive header{grid-template-columns:1fr}.vendorRouteActive b{width:max-content}}
 @media(max-width:650px){.staffNow,.notice{grid-template-columns:1fr;display:grid}.staffNow>a,.primaryJumpAction,.notice a,.inlineNavAction{width:100%}}

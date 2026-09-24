@@ -84,7 +84,12 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Current Shop Stage");
     expect(html).toContain("Viewing Stage 1 of 16");
     expect(html).toContain("Service / Recon Job Intake");
+    expect(html).toContain("Approved Stage 1 Checklist");
     expect(html).toContain("Inventory-to-Shop Handoff Summary");
+    expect(html).toContain("Source handoff facts present");
+    expect(html).toContain("Vehicle identity verified");
+    expect(html).toContain("Source record tied to this work");
+    expect(html).toContain("Duplicate guard reviewed");
     expect(html).toContain("Inventory Lifecycle is the source of entry");
     expect(html).toContain("Vehicle Identity Intelligence");
     expect(html).toContain("Verify the vehicle before Stage 1 can be trusted");
@@ -106,13 +111,13 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("No governed stage events yet");
   });
 
-  it("renders Stage 2 with only the official Scope Builder link and unlock checklist", () => {
+  it("renders Stage 2 with the approved Scope Builder clearance checklist", () => {
     const stageTwoItem = { ...item, shopLifecycleStage: "JOB_SCOPE_DEFINITION" as const, shopLifecycleLabel: "Job Scope Definition", shopLifecycleOrder: 2 };
     const stageTwoLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "JOB_SCOPE_DEFINITION" as const, nextAction: "Define the job scope" } };
     const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageTwoItem} lifecycleWorkspace={stageTwoLifecycle} />);
 
-    expect(html).toContain("Scope Builder");
-    expect(html).toContain("Official Stage 2 Tool");
+    expect(html).toContain("Scope Builder Clearance");
+    expect(html).toContain("Approved Stage 2 Checklist");
     expect(html).toContain("Open Scope Builder");
     expect(html).toContain("/vehicles/shop-recon/ro-1/scope-builder");
     expect(html).toContain("Reason selected");
@@ -122,6 +127,7 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Risk check completed");
     expect(html).toContain("Approval owner named");
     expect(html).toContain("Scope reviewed and ready");
+    expect(html).toContain("Check when done");
     expect(html).not.toContain("What is the shop allowed to do?");
   });
 

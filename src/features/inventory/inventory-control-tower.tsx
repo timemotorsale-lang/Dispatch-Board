@@ -222,7 +222,7 @@ export function InventoryControlTower({
         <Link href="/vehicles/inventory/units">Vehicles</Link>
         <Link href="/vehicles/acquisition-appraisal">Acquisition</Link>
         <Link href="/vehicles/inventory-to-frontline">Recon</Link>
-        <Link href="/vehicles/shop-recon">Shop Work</Link>
+        <Link href="/vehicles/recon-repair-advisor">Recon / Repair</Link>
         <Link href="/vehicles/parts-operations">Parts</Link>
         <Link href="/vehicles/parts-operations?view=purchase-orders">Purchase Orders</Link>
         <Link href="/vehicles/inventory/units?view=locations">Locations</Link>
@@ -346,7 +346,7 @@ export function InventoryControlTower({
             <FlowLane label="Retail Inventory" nodes={flowNodes} tone="retail" />
             <FlowLane
               label="Shop / Recon"
-              nodes={shopNodes.map((node) => ({ ...node, href: "/vehicles/shop-recon" }))}
+              nodes={shopNodes.map((node) => ({ ...node, href: "/vehicles/recon-repair-advisor" }))}
               tone="shop"
             />
             <FlowLane

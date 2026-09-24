@@ -86,6 +86,17 @@ type EstimateDraft = {
   presentedAt: string;
   expiresAt: string;
 };
+type ClearanceResult = "PASS" | "ADVISORY" | "FAIL" | "NOT_APPLICABLE";
+type ClearanceStatus = "CLEARED" | "NEEDS_PROOF" | "REQUIRED" | "NOT_CHECKED" | "OPTIONAL";
+type ClearanceItem = {
+  detail: string;
+  key: string;
+  label: string;
+  proof: string;
+  required: boolean;
+  result: ClearanceResult;
+  status: ClearanceStatus;
+};
 
 const local = (value: string) => { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 const daysAfter = (value: string | Date, days: number) => local(new Date(new Date(value).getTime() + days * 86_400_000).toISOString());
@@ -207,6 +218,14 @@ const vendorSteps = [
   { label: "Repair and return", icon: Truck },
   { label: "Dealership QC", icon: ClipboardCheck },
 ] as const;
+const inspectionClearanceSeed: ClearanceItem[] = [
+  { detail: "Customer concern, keys, VIN, mileage, and intake notes are available.", key: "INTAKE_IDENTITY", label: "Intake identity", proof: "Repair order and vehicle identity are open", required: true, result: "PASS", status: "CLEARED" },
+  { detail: "Exterior, interior, underhood, and visible condition were checked.", key: "GENERAL_CONDITION", label: "General condition", proof: "Walkaround complete", required: true, result: "PASS", status: "CLEARED" },
+  { detail: "Photos, scan result, measurement, or plain note supports the finding.", key: "INSPECTION_PROOF", label: "Inspection proof", proof: "", required: true, result: "ADVISORY", status: "NEEDS_PROOF" },
+  { detail: "Safety items and warning lights are clear enough to choose the next path.", key: "SAFETY_WARNING_LIGHTS", label: "Safety / warning lights", proof: "", required: true, result: "PASS", status: "REQUIRED" },
+  { detail: "The team knows whether this needs diagnosis, bodywork scope, or vendor work.", key: "REPAIR_PATH_READY", label: "Repair path decision", proof: "", required: true, result: "PASS", status: "NOT_CHECKED" },
+  { detail: "Extra customer concern, cosmetic note, or optional shop observation.", key: "OPTIONAL_NOTE", label: "Optional note", proof: "", required: false, result: "NOT_APPLICABLE", status: "OPTIONAL" },
+];
 
 export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false }: { initial: Model; returnTo?: string; vendorFollowUp?: boolean }) {
   const [model, setModel] = useState(initial);
@@ -223,6 +242,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const firstReleaseLine = firstAuthorizedLaborLines.find((line) => !firstExistingKeys.has(line.key)) ?? firstAuthorizedLaborLines[0];
   const [repairPath, setRepairPath] = useState<RepairPath>(vendorFollowUp && activeVendorWork(first) ? "DIRECT_BODY" : defaultRepairPath(first));
   const [inspection, setInspection] = useState({ templateCode: "GENERAL_DVI", templateVersion: 1, startedAt: defaultTime ? local(defaultTime) : "", completedAt: defaultTime ? local(defaultTime) : "", summary: "", itemKey: "GENERAL_CONDITION", itemLabel: "General condition", itemResult: "PASS", measurement: "", itemNotes: "", evidence: "" });
+  const [clearanceItems, setClearanceItems] = useState<ClearanceItem[]>(() => inspectionClearanceSeed.map((item) => ({ ...item })));
+  const [activeClearanceKey, setActiveClearanceKey] = useState("INSPECTION_PROOF");
   const [diagnosis, setDiagnosis] = useState({ concern: first?.serviceVisit.concernSummary ?? "", symptoms: "", testName: "", testResult: "", evidence: "", cause: "", uncertainty: "MEDIUM", recommendation: "", proposedCorrection: "", technicianUserId: initial.users[0]?.id ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "" });
   const [directScope, setDirectScope] = useState({ concern: first?.serviceVisit.concernSummary ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "", evidence: "", ...bodyworkRepairDefaults(first?.serviceVisit.concernSummary), scopeType: "BODYWORK", technicianUserId: initial.users[0]?.id ?? "", uncertainty: "LOW", whyNoDiagnosis: "Visible body or collision damage can move directly to scope, estimate, parts, and repair without troubleshooting diagnostics." });
   const [vendorWork, setVendorWork] = useState({ approvalStatus: "NEEDS_DOCUMENTATION", customerVisibleSummary: "", directFromSource: false, evidence: "", expectedReturnAt: "", internalNotes: "", lastUpdateSummary: "Outside vendor route created from repair planning.", nextAction: "Confirm vendor received the vehicle, estimate or scope, parts needs, and expected return.", nextFollowUpAt: "", scope: first?.serviceVisit.concernSummary ?? "", sentAt: defaultTime ? local(defaultTime) : "", sentFrom: "Dealership", status: "AT_VENDOR", transportMethod: "Internal transport", vendorName: "", workType: "BODY_SHOP" });
@@ -345,6 +366,44 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const visibleLaborGuideOptions = laborGuideNeedle ? laborGuideOptions.filter((option) => `${option.title} ${option.source} ${option.description} ${option.plannedCorrection} ${option.workTypeCode}`.toLowerCase().includes(laborGuideNeedle)) : laborGuideOptions;
   const laborGuideHref = selected ? `/diagnostics/labor-guide?${new URLSearchParams({ query: laborGuideQuery || latestDiagnosis?.proposedCorrection || selected.serviceVisit.concernSummary, repairOrderId: selected.id, returnLabel: "Return to estimate", returnTo: `/vehicles/shop-planning?repairOrderId=${selected.id}#estimate` }).toString()}` : "/diagnostics/labor-guide";
   const quickEstimateOptions = visibleLaborGuideOptions.slice(0, 4);
+  const activeClearanceItem = clearanceItems.find((item) => item.key === activeClearanceKey) ?? clearanceItems[0];
+  const clearanceRequired = clearanceItems.filter((item) => item.required);
+  const clearedRequiredCount = clearanceRequired.filter((item) => item.status === "CLEARED").length;
+  const stageClearanceReady = clearedRequiredCount === clearanceRequired.length;
+  const clearanceBlockers = clearanceRequired.filter((item) => item.status !== "CLEARED");
+  const setActiveClearance = (item: ClearanceItem) => {
+    setActiveClearanceKey(item.key);
+    setInspection((value) => ({
+      ...value,
+      evidence: item.proof || value.evidence,
+      itemKey: item.key,
+      itemLabel: item.label,
+      itemResult: item.result,
+      summary: value.summary || item.detail,
+    }));
+  };
+  const updateClearance = (key: string, patch: Partial<ClearanceItem>) => {
+    setClearanceItems((items) => items.map((item) => item.key === key ? { ...item, ...patch } : item));
+    if (key === activeClearanceKey) {
+      setInspection((value) => ({
+        ...value,
+        evidence: patch.proof ?? value.evidence,
+        itemResult: patch.result ?? value.itemResult,
+      }));
+    }
+  };
+  const toggleClearance = (item: ClearanceItem) => {
+    const nextStatus = item.status === "CLEARED" ? item.required ? "REQUIRED" : "OPTIONAL" : "CLEARED";
+    updateClearance(item.key, { status: nextStatus });
+    setActiveClearance(item);
+  };
+  const clearanceStages = [
+    { detail: selected.serviceVisit.concernSummary, label: "Stage 1 - Intake", state: "Clear", tone: "done" },
+    { detail: `${clearedRequiredCount} of ${clearanceRequired.length} required items cleared`, label: "Stage 2 - Inspection", state: stageClearanceReady ? "Clear" : "Active", tone: stageClearanceReady ? "done" : "current" },
+    { detail: latestDiagnosis ? latestDiagnosis.proposedCorrection : "Unlock after inspection clearance", label: "Stage 3 - Diagnosis", state: latestDiagnosis ? "Clear" : "Locked", tone: latestDiagnosis ? "done" : "locked" },
+    { detail: latestEstimate ? `${money(latestEstimate.totalCents)} estimate version ${latestEstimate.version}` : "Estimate and approval stay gated", label: "Stage 4 - Estimate / Approval", state: accepted ? "Clear" : latestEstimate ? "Needs approval" : "Locked", tone: accepted ? "done" : "locked" },
+    { detail: hasRepairJob ? `${selected.repairJobs.length} repair job${selected.repairJobs.length === 1 ? "" : "s"} created` : "Repair release waits for authorization", label: "Stage 5 - Repair Ready", state: hasRepairJob ? "Clear" : "Locked", tone: hasRepairJob ? "done" : "locked" },
+  ];
   const staffNext = !selected ? null : currentVendorWork
     ? vendorNeedsInternalCompletion
       ? !followUpScopeReady
@@ -1087,49 +1146,88 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 
       <div className={styles.commandGrid}>
         <main className={styles.workflow}>
-          <WorkflowStep editing={editingStep === 1} editDisabled={busy || (editingStep !== null && editingStep !== 1)} onEdit={() => beginDraftEdit(1)} onCancel={cancelEditing} complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} subtitle="Capture what was checked, the result, the finding, and proof. Save once." title="Inspection entry">
-            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_INSPECTION", { templateCode: inspection.templateCode, templateVersion: inspection.templateVersion, templateSnapshot: { code: inspection.templateCode, version: inspection.templateVersion }, startedAt: inspection.startedAt, completedAt: inspection.completedAt, summary: inspection.summary, items: [{ key: inspection.itemKey, label: inspection.itemLabel, result: inspection.itemResult, measurement: inspection.measurement, notes: inspection.itemNotes, evidence: inspection.evidence.split(",").map((value) => value.trim()).filter(Boolean) }] }, "Record a versioned digital vehicle inspection."); }}>
-              <div className={styles.quickEntryHeader}>
-                <span className={styles.simpleEyebrow}>Inspection entry</span>
-                <h3>Write the finding in four plain steps</h3>
-                <ol className={styles.quickSteps}>
-                  <li><strong>Check</strong><span>Area, concern, or system inspected.</span></li>
-                  <li><strong>Result</strong><span>Pass, advisory, fail, or not applicable.</span></li>
-                  <li><strong>Finding</strong><span>What you saw, heard, measured, or confirmed.</span></li>
-                  <li><strong>Proof</strong><span>Photo, scan, video, note, or measurement.</span></li>
-                </ol>
+          <WorkflowStep editing={editingStep === 1} editDisabled={busy || (editingStep !== null && editingStep !== 1)} onEdit={() => beginDraftEdit(1)} onCancel={cancelEditing} complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} showEditControls={false} subtitle="Check the required items, add proof only where needed, then unlock the next stage." title="Stage 1-5 clearance checklist">
+            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_INSPECTION", { templateCode: inspection.templateCode, templateVersion: inspection.templateVersion, templateSnapshot: { code: inspection.templateCode, version: inspection.templateVersion }, startedAt: inspection.startedAt, completedAt: inspection.completedAt, summary: inspection.summary || clearanceItems.filter((item) => item.status === "CLEARED").map((item) => item.label).join(", "), items: clearanceItems.map((item) => ({ key: item.key, label: item.label, result: item.result, measurement: item.required ? "" : "Optional", notes: item.detail, evidence: [item.proof].filter(Boolean) })) }, "Record a versioned digital vehicle inspection."); }}>
+              <div className={styles.clearanceReview}>
+                <header className={styles.clearanceHeader}>
+                  <div>
+                    <span className={styles.simpleEyebrow}>Adopted checklist flow</span>
+                    <h3>Check what is cleared. The app locks what is not ready.</h3>
+                    <p>This replaces the long inspection-entry form for the normal Stage 1 and Stage 2 workflow. Staff only open details when proof or a note is needed.</p>
+                  </div>
+                  <aside>
+                    <strong>{clearedRequiredCount}/{clearanceRequired.length}</strong>
+                    <span>required cleared</span>
+                  </aside>
+                </header>
+                <div className={styles.clearanceTimeline} aria-label="Stage clearance overview">
+                  {clearanceStages.map((stage) => <article className={`${styles.clearanceStage} ${stage.tone === "done" ? styles.clearanceStageDone : stage.tone === "current" ? styles.clearanceStageCurrent : styles.clearanceStageLocked}`} key={stage.label}>
+                    <span>{stage.state}</span>
+                    <h4>{stage.label}</h4>
+                    <p>{stage.detail}</p>
+                  </article>)}
+                </div>
+                <div className={styles.clearanceGrid}>
+                  <section className={styles.clearanceList} aria-label="Inspection clearance items">
+                    <header>
+                      <span>Stage 2 - Inspection</span>
+                      <strong>{stageClearanceReady ? "Ready for diagnosis" : `${clearanceBlockers.length} item${clearanceBlockers.length === 1 ? "" : "s"} still open`}</strong>
+                    </header>
+                    {clearanceItems.map((item) => <button aria-pressed={item.status === "CLEARED"} className={`${styles.clearanceRow} ${item.key === activeClearanceKey ? styles.clearanceRowActive : ""}`} key={item.key} onClick={() => toggleClearance(item)} type="button">
+                      <span className={styles.clearanceCheck}>{item.status === "CLEARED" ? <Check /> : item.required ? "" : "+"}</span>
+                      <span><strong>{item.label}</strong><small>{item.detail}</small>{item.proof ? <em>{item.proof}</em> : null}</span>
+                      <b>{format(item.status)}</b>
+                    </button>)}
+                  </section>
+                  <aside className={styles.clearanceGate}>
+                    <span>{stageClearanceReady ? "Next step open" : "Next step locked"}</span>
+                    <h4>{stageClearanceReady ? "Diagnosis can begin" : "Finish the required clearance items"}</h4>
+                    <p>{stageClearanceReady ? "All required inspection blockers are cleared. Saving this review records the current inspection version for the repair order." : `${clearanceBlockers.map((item) => item.label).join(", ")} still need attention before staff should advance.`}</p>
+                    <button disabled={!stageClearanceReady || busy} type="submit">{stageClearanceReady ? "Save and unlock diagnosis" : "Unlock diagnosis"}</button>
+                  </aside>
+                </div>
+                {activeClearanceItem ? <details className={styles.clearanceEditor}>
+                  <summary>Add proof or change result for {activeClearanceItem.label}</summary>
+                  <div>
+                    <h4>{activeClearanceItem.label}</h4>
+                    <p>{activeClearanceItem.detail}</p>
+                  </div>
+                  <div className={styles.resultButtons} aria-label="Clearance state">
+                    {(["CLEARED", "NEEDS_PROOF", "REQUIRED", "NOT_CHECKED"] as ClearanceStatus[]).map((status) => <button className={activeClearanceItem.status === status ? styles.resultActive : ""} key={status} onClick={() => updateClearance(activeClearanceItem.key, { status })} type="button">{format(status)}</button>)}
+                  </div>
+                  <FormGrid>
+                    <Field label="Result">
+                      <select value={activeClearanceItem.result} onChange={(event) => updateClearance(activeClearanceItem.key, { result: event.target.value as ClearanceResult })}>
+                        {["PASS", "ADVISORY", "FAIL", "NOT_APPLICABLE"].map((value) => <option key={value}>{value}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Proof or quick note">
+                      <input placeholder="Photo, scan, video, measurement, or note" value={activeClearanceItem.proof} onChange={(event) => updateClearance(activeClearanceItem.key, { proof: event.target.value })} />
+                    </Field>
+                  </FormGrid>
+                </details> : null}
               </div>
-              <FormGrid>
-                <Field label="Area checked">
-                  <input placeholder="Example: General condition, brakes, front suspension, body damage" value={inspection.itemLabel} onChange={(event) => setInspection((value) => ({ ...value, itemLabel: event.target.value }))} />
-                </Field>
-                <Field label="Result">
-                  <select value={inspection.itemResult} onChange={(event) => setInspection((value) => ({ ...value, itemResult: event.target.value }))}>
-                    {["PASS", "ADVISORY", "FAIL", "NOT_APPLICABLE"].map((value) => <option key={value}>{value}</option>)}
-                  </select>
-                </Field>
-                <Field label="Measurement or quick note (optional)">
-                  <input placeholder="Example: 4 mm, 12.4V, cracked, no reading" value={inspection.measurement} onChange={(event) => setInspection((value) => ({ ...value, measurement: event.target.value }))} />
-                </Field>
-                <Field label="Finding" wide>
-                  <textarea placeholder="Write the finding in plain language so the next person immediately understands the condition." value={inspection.summary} onChange={(event) => setInspection((value) => ({ ...value, summary: event.target.value }))} />
-                </Field>
-                <Field label="Proof" wide>
-                  <input placeholder="Example: photos, scan results, auction notes, walkaround video" value={inspection.evidence} onChange={(event) => setInspection((value) => ({ ...value, evidence: event.target.value }))} />
-                </Field>
-                <Field label="Extra inspection notes (optional)" wide>
-                  <textarea placeholder="Anything the team should know that does not fit in the main finding." value={inspection.itemNotes} onChange={(event) => setInspection((value) => ({ ...value, itemNotes: event.target.value }))} />
-                </Field>
-              </FormGrid>
               <details className={styles.advancedDetails}>
-                <summary>Advanced details</summary>
+                <summary>System details for uncommon inspection notes</summary>
                 <FormGrid>
+                  <Field label="Area checked">
+                    <input placeholder="Example: General condition, brakes, front suspension, body damage" value={inspection.itemLabel} onChange={(event) => setInspection((value) => ({ ...value, itemLabel: event.target.value }))} />
+                  </Field>
+                  <Field label="Measurement or quick note (optional)">
+                    <input placeholder="Example: 4 mm, 12.4V, cracked, no reading" value={inspection.measurement} onChange={(event) => setInspection((value) => ({ ...value, measurement: event.target.value }))} />
+                  </Field>
+                  <Field label="Proof references">
+                    <input placeholder="Example: photos, scan results, auction notes, walkaround video" value={inspection.evidence} onChange={(event) => setInspection((value) => ({ ...value, evidence: event.target.value }))} />
+                  </Field>
+                  <Field label="Extra inspection notes (optional)" wide>
+                    <textarea placeholder="Anything the team should know that does not fit in the main finding." value={inspection.itemNotes} onChange={(event) => setInspection((value) => ({ ...value, itemNotes: event.target.value }))} />
+                  </Field>
                   <Field label="Started"><input type="datetime-local" value={inspection.startedAt} onChange={(event) => setInspection((value) => ({ ...value, startedAt: event.target.value }))} /></Field>
                   <Field label="Completed"><input type="datetime-local" value={inspection.completedAt} onChange={(event) => setInspection((value) => ({ ...value, completedAt: event.target.value }))} /></Field>
                   <Field label="Template code"><input value={inspection.templateCode} onChange={(event) => setInspection((value) => ({ ...value, templateCode: event.target.value }))} /></Field>
                 </FormGrid>
               </details>
-              <Submit busy={busy}>Save inspection finding</Submit>
+              <Submit busy={busy} disabled={!stageClearanceReady}>Save checklist and unlock next stage</Submit>
             </form>
           </WorkflowStep>
 
@@ -1537,8 +1635,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   </section>;
 }
 
-function WorkflowStep({ children, complete, icon, number, open, subtitle, title, editing, editDisabled, onEdit, onCancel }: { children: ReactNode; complete: boolean; icon: ReactNode; number: number; open: boolean; subtitle: string; title: string; editing: boolean; editDisabled: boolean; onEdit: () => void; onCancel: () => void }) {
-  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open || editing}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{editing ? "Editing draft" : complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}><div className={styles.estimateLineActions}><button type="button" disabled={editDisabled} onClick={editing ? onCancel : onEdit}>{editing ? "Cancel edits" : "Update this stage"}</button><small>{editing ? "Edit the form below, then use its save action. Cancel restores the draft from before editing." : "History stays saved automatically. Use the existing approval checks when the scope changes."}</small></div>{children}</div></details>;
+function WorkflowStep({ children, complete, icon, number, open, subtitle, title, editing, editDisabled, onEdit, onCancel, showEditControls = true }: { children: ReactNode; complete: boolean; icon: ReactNode; number: number; open: boolean; subtitle: string; title: string; editing: boolean; editDisabled: boolean; onEdit: () => void; onCancel: () => void; showEditControls?: boolean }) {
+  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open || editing}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{editing ? "Editing draft" : complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}>{showEditControls ? <div className={styles.estimateLineActions}><button type="button" disabled={editDisabled} onClick={editing ? onCancel : onEdit}>{editing ? "Cancel edits" : "Update this stage"}</button><small>{editing ? "Edit the form below, then use its save action. Cancel restores the draft from before editing." : "History stays saved automatically. Use the existing approval checks when the scope changes."}</small></div> : null}{children}</div></details>;
 }
 function FormGrid({ children }: { children: ReactNode }) { return <div className={styles.formGrid}>{children}</div>; }
 function Field({ children, label, wide = false }: { children: ReactNode; label: string; wide?: boolean }) { return <label className={wide ? styles.wide : ""}><span>{label}</span>{children}</label>; }

@@ -65,4 +65,22 @@ describe("vehicle registry workspace", () => {
     expect(html).toContain("/vehicles/veh-1/workbench");
     expect(html).toContain("Preview here");
   });
+
+  it("shows the active search as a filtered vehicle match count", () => {
+    const html = renderToStaticMarkup(
+      <VehicleRegistryWorkspace
+        initial={{
+          items: [],
+          page: 1,
+          pageSize: 25,
+          total: 0,
+          totalPages: 1,
+        }}
+        initialQuery="2025 Toyota Sienna"
+      />
+    );
+
+    expect(html).toContain('0 vehicle matches for &quot;2025 Toyota Sienna&quot;');
+    expect(html).toContain("No matching vehicle found");
+  });
 });

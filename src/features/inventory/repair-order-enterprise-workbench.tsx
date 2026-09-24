@@ -819,7 +819,7 @@ export function RepairOrderEnterpriseWorkbench({
         ? {
             href: `/vehicles/shop-recon/${encodeURIComponent(order.id)}?${new URLSearchParams({ returnTo: planningReturn })}`,
             label: "Start Detail / Prep",
-            nextAction: "Open the Shop & Recon workspace for detail, cleanup, and frontline-prep execution.",
+            nextAction: "Open Recon / Repair Advisor for detail, cleanup, and frontline-prep execution.",
             summary: "Use a recon package path when the work is preparation rather than mechanical diagnosis."
           }
         : selectedReconPath === "INSPECTION_ONLY"
@@ -2041,7 +2041,7 @@ export function RepairOrderEnterpriseWorkbench({
       </div>
       </details>
       ) : null}
-      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
+      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
     </section>
   );
 }

@@ -579,7 +579,7 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
       <header className="parts-operations-header">
         <div>
           {returnTo ? <Link href={returnTo}>&larr; {returnLabel ?? "Return to source workspace"}</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showPartsReturn ? <BackToPartsWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
-          <p><Link href={returnTo ?? "/vehicles/inventory"}>Inventory Lifecycle</Link><span>/</span><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><span>/</span>Parts Operations</p>
+          <p><Link href={returnTo ?? "/vehicles/inventory"}>Inventory Lifecycle</Link><span>/</span><Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link><span>/</span>Parts Operations</p>
           <h1>Parts Operations</h1>
           <small>Demand, sourcing, custody, availability, and recovery control</small>
         </div>

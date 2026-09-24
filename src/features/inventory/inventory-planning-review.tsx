@@ -585,7 +585,7 @@ function RapidReconUpdateCard({ blocker, busy, completedWork, nextAction, remain
       <Field label="Next action"><input maxLength={500} onChange={event => setNextAction(event.target.value)} value={nextAction} /></Field>
       <Field label="Blocker / note"><input maxLength={500} onChange={event => setBlocker(event.target.value)} value={blocker} /></Field>
     </div>
-    <div className={styles.inlineActions}><button className={styles.primaryButton} disabled={busy || !completedWork.trim() || !nextAction.trim()} onClick={() => void save()} type="button">{busy ? "Saving..." : "Save recon update"}</button><Link className={styles.secondaryButton} href="/vehicles/shop-recon">Open Shop Recon</Link></div>
+    <div className={styles.inlineActions}><button className={styles.primaryButton} disabled={busy || !completedWork.trim() || !nextAction.trim()} onClick={() => void save()} type="button">{busy ? "Saving..." : "Save recon update"}</button><Link className={styles.secondaryButton} href="/vehicles/recon-repair-advisor">Open Recon / Repair Advisor</Link></div>
     {latest ? <p className={styles.good}>Latest: {latest.status.replaceAll("_", " ").toLowerCase()} by {latest.actorName} — {latest.completedWork}{latest.remainingWork ? ` Remaining: ${latest.remainingWork}` : ""}</p> : <p className={styles.warning}>No saved recon update yet for this vehicle.</p>}
   </section>;
 }

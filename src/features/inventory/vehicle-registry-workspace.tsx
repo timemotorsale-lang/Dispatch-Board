@@ -470,6 +470,7 @@ export function VehicleRegistryWorkspace({
 
   const duplicateCases = selected ? [...selected.duplicateCasesAsPrimary, ...selected.duplicateCasesAsCandidate].filter((item) => item.status === "OPEN") : [];
   const mutationNotice = registryLocked || isMutationDisabled(notice);
+  const activeQuery = query.trim();
 
   return (
     <section className="page-stack">
@@ -506,7 +507,7 @@ export function VehicleRegistryWorkspace({
           <button className="button button-primary" disabled={busy} type="submit">Search and open</button>
         </form>
         <p>
-          {list.total} canonical vehicles · page {list.page} of {list.totalPages}
+          {activeQuery ? `${list.total} vehicle match${list.total === 1 ? "" : "es"} for "${activeQuery}"` : `${list.total} canonical vehicles`} · page {list.page} of {list.totalPages}
           {list.items.length === 1 ? " · single match opens automatically" : ""}
         </p>
       </section>
@@ -529,7 +530,7 @@ export function VehicleRegistryWorkspace({
                   <button className="button button-secondary" disabled={busy} onClick={() => void load(item.id)} type="button">Preview here</button>
                 </div>
               </article>
-            )) : <div className="vehicle-map-empty"><h3>No vehicle found here yet</h3><p>If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one.</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
+            )) : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
           </div>
         </section>
 

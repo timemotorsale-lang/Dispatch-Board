@@ -330,7 +330,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/coo-workbook", title: "Vehicle Operations Lead Workbook", description: "Daily operating checklist, review-before-approval context, and report draft workspace.", icon: ClipboardList },
     { href: "/my-tasks?workspace=vehicle-operations-lead", title: "My Vehicle Work", description: "Assigned vehicle operations work and next actions.", icon: UserRoundCheck },
     { href: "/vehicles/inventory", title: "Inventory Flow", description: "Move units through acquisition, recon, merchandising, and readiness.", icon: RefreshCw },
-    { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, bottlenecks, repair status, and QC readiness.", icon: Wrench },
+    { href: "/vehicles/recon-repair-advisor", title: "Recon / Repair Advisor", description: "One repair and recon workspace for blockers, parts, vendors, QC, and next action.", icon: Wrench, activePaths: ["/vehicles/shop-recon"] },
     { href: "/vehicles/outside-vendors", title: "Outside Vendors", description: "Vendor profiles, offsite work, billing readiness, and QC accountability.", icon: Building2 },
     { href: "/vehicles/parts-operations", title: "Parts Runner", description: "Parts demand, pickup, receiving, returns, and constrained work.", icon: BriefcaseBusiness },
     { href: "/vehicles/workflows/add-vehicle", title: "Receive Vehicle", description: "Start vehicle intake, custody, keys, photos, and lot placement.", icon: CarFront },
@@ -338,7 +338,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   ],
   SERVICE: [
     { href: "/vehicles/coo-workbook", title: "Service Operations Workbook", description: "Daily operating checklist and review-before-approval context.", icon: ClipboardList },
-    { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, capacity, constraints, and completion risk.", icon: Wrench },
+    { href: "/vehicles/recon-repair-advisor", title: "Recon / Repair Advisor", description: "One repair and recon workspace for blockers, parts, vendors, QC, and next action.", icon: Wrench, activePaths: ["/vehicles/shop-recon"] },
     { href: "/vehicles/outside-vendors", title: "Outside Vendors", description: "Vendor jobs, estimates, invoice follow-up, and return/QC status.", icon: Building2 },
     { href: "/vehicles/claims-desk", title: "Claims Desk", description: "Start, find, or resume insurance claims before opening the claim workspace.", icon: ClipboardList, activePaths: ["/vehicles/claims-desk", "/vehicles/claims-workspace"] },
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open and coordinate governed repair orders.", icon: ClipboardCheck },
@@ -351,7 +351,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles", title: "Inventory Home", description: "Inventory operating picture and priority work.", icon: House, matchExact: true },
     { href: "/vehicles/coo-workbook", title: "Inventory Workbook", description: "Daily operating checklist and cross-workspace report draft.", icon: ClipboardList },
     { href: "/vehicles/inventory", title: "Inventory Lifecycle", description: "Acquisition through sale, transfer, or disposition.", icon: RefreshCw },
-    { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Inventory recon status and readiness constraints.", icon: Wrench },
+    { href: "/vehicles/recon-repair-advisor", title: "Recon / Repair Advisor", description: "Inventory recon status, blockers, repair readiness, and next action.", icon: Wrench, activePaths: ["/vehicles/shop-recon"] },
     { href: "/vehicles/outside-vendors", title: "Outside Vendors", description: "Offsite partner work, billing readiness, and vendor performance.", icon: Building2 },
     { href: "/vehicles/parts-operations", title: "Parts Readiness", description: "Parts demand affecting inventory completion.", icon: BriefcaseBusiness },
     { href: "/manager-review?scope=inventory", title: "Reviews", description: "Inventory work awaiting review or approval.", icon: ShieldCheck }

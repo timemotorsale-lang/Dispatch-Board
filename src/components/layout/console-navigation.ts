@@ -70,16 +70,10 @@ const inventoryItems: NavigationItem[] = [
     icon: Building2
   },
   {
-    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/recon-repair-advisor", "/vehicles/claims-desk", "/vehicles/claims-workspace", "/vehicles/comebacks"],
-    href: "/vehicles/shop-recon",
-    title: "Shop & Recon",
-    description: "Daily production, capacity, constraints, and parts readiness.",
-    icon: Wrench
-  },
-  {
+    activePaths: ["/vehicles/recon-repair-advisor", "/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/claims-desk", "/vehicles/claims-workspace", "/vehicles/comebacks"],
     href: "/vehicles/recon-repair-advisor",
-    title: "Recon/Repair Advisor",
-    description: "Prototype cockpit for Rapid Recon-style vehicle execution.",
+    title: "Recon / Repair Advisor",
+    description: "One repair and recon advisor workspace for blockers, parts, vendors, QC, and next action.",
     icon: MessageSquareText
   },
   {

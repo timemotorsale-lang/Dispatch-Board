@@ -24,7 +24,7 @@ const globalTabs: Tab[] = [
   { href: "/vehicles/workflows/add-vehicle", label: "Add Vehicle", icon: Plus },
   { href: "/vehicles/coo-workbook", label: "Inventory Workbook", icon: ClipboardList },
   { href: "/vehicles/outside-vendors", label: "Outside Vendors", icon: Building2 },
-  { href: "/vehicles/shop-recon", label: "Shop & Recon", icon: Wrench },
+  { href: "/vehicles/recon-repair-advisor", label: "Recon / Repair Advisor", icon: Wrench, activePaths: ["/vehicles/shop-recon", "/vehicles/advisor"] },
   { href: "/vehicles/repair-workbench", label: "Repair Workbench", icon: ClipboardList, activePaths: ["/vehicles/repair-orders"] },
   { href: "/vehicles/parts-operations", label: "Parts", icon: PackageOpen, activePaths: ["/vehicles/parts", "/vehicles/parts-counter", "/vehicles/parts-receiving"] },
   { href: "/vehicles/quality-control", label: "Quality Control", icon: ShieldCheck },
