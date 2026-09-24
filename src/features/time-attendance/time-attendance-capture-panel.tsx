@@ -88,7 +88,9 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       : state.allowedActions[0],
     [state.allowedActions, state.nextPrimaryAction]
   );
-  const secondaryActions = state.allowedActions.filter((action) => action !== primaryAction);
+  const punchActions = state.allowedActions.filter((action) => action === "CLOCK_IN" || action === "CLOCK_OUT");
+  const topActions = punchActions.length ? punchActions : primaryAction ? [primaryAction] : [];
+  const secondaryActions = state.allowedActions.filter((action) => !topActions.includes(action));
   const unavailable = Boolean(state.unavailableReason);
   const elapsedMinutes = state.session ? Math.max(0, Math.floor((now - new Date(state.session.openedAt).getTime()) / 60_000)) : 0;
 
@@ -131,12 +133,12 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
   }
 
   return (
-    <article className={styles.panel}>
+    <article className={`${styles.panel} ${styles.captureHeroPanel}`}>
       <div className={styles.panelHeader}>
         <div>
-          <span className={styles.sectionEyebrow}>My time actions</span>
-          <h2>Record today&apos;s time</h2>
-          <p>Use exact time. Corrections are handled separately so the original punch trail stays intact.</p>
+          <span className={styles.sectionEyebrow}>Clock in / clock out</span>
+          <h2>{state.statusLabel}</h2>
+          <p>The main punch buttons stay here at the top. Use exact time; corrections stay separate.</p>
         </div>
         <span className={state.state === "NONE" ? styles.chipNeutral : state.state === "ON_MEAL" ? styles.chipWarning : styles.chipGood}>
           {state.statusLabel}
@@ -155,16 +157,21 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       </div>
 
       <div className={styles.captureCommand} aria-label="Time capture actions">
-        {primaryAction ? (
-          <button
-            className={styles.capturePrimary}
-            disabled={isPending}
-            onClick={() => submitAction(primaryAction)}
-            type="button"
-          >
-            {iconFor(primaryAction)}
-            {actionLabels[primaryAction]}
-          </button>
+        {topActions.length ? (
+          <div className={styles.capturePunchActions}>
+            {topActions.map((action) => (
+              <button
+                className={action === "CLOCK_OUT" ? styles.captureClockOut : styles.capturePrimary}
+                disabled={isPending}
+                key={action}
+                onClick={() => submitAction(action)}
+                type="button"
+              >
+                {iconFor(action)}
+                {actionLabels[action]}
+              </button>
+            ))}
+          </div>
         ) : (
           <p className={styles.captureError}>
             <AlertTriangle size={16} aria-hidden="true" />
@@ -178,23 +185,23 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       </div>
 
       {secondaryActions.length ? (
-        <details className={styles.captureMoreActions}>
-          <summary>Other available actions</summary>
+        <div className={styles.captureMoreActions}>
+          <strong>Meal and break actions</strong>
           <div className={styles.captureActions}>
-            {secondaryActions.map((action) => (
-              <button
-                className={styles.captureSecondary}
-                disabled={isPending}
-                key={action}
-                onClick={() => submitAction(action)}
-                type="button"
-              >
-                {iconFor(action)}
-                {actionLabels[action]}
-              </button>
-            ))}
+          {secondaryActions.map((action) => (
+            <button
+              className={styles.captureSecondary}
+              disabled={isPending}
+              key={action}
+              onClick={() => submitAction(action)}
+              type="button"
+            >
+              {iconFor(action)}
+              {actionLabels[action]}
+            </button>
+          ))}
           </div>
-        </details>
+        </div>
       ) : null}
 
       {unavailable ? (
