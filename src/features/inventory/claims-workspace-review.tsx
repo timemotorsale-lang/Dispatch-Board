@@ -36,9 +36,9 @@ const readiness = [
 ] as const;
 
 const fallbackTasks = [
-  { actionLabel: "Record carrier call", detail: "Call the carrier, capture adjuster name, phone, email, and approval status.", dueLabel: "Today", ownerRole: "Service advisor", status: "ready", title: "Find adjuster contact" },
-  { actionLabel: "Send authorization", detail: "Repair handoff is blocked until authorization is complete.", dueLabel: "Today", ownerRole: "Service advisor", status: "ready", title: "Get customer authorization" },
-  { actionLabel: "Upload photos", detail: "Visible damage photos and closeups.", dueLabel: "Today", ownerRole: "Intake staff", status: "ready", title: "Take damage photos" }
+  { actionLabel: "Record carrier call", detail: "Call the carrier, capture adjuster name, phone, email, and approval status.", dueLabel: "Today", id: "fallback-carrier-call", ownerRole: "Service advisor", status: "ready", title: "Find adjuster contact" },
+  { actionLabel: "Send authorization", detail: "Repair handoff is blocked until authorization is complete.", dueLabel: "Today", id: "fallback-authorization", ownerRole: "Service advisor", status: "ready", title: "Get customer authorization" },
+  { actionLabel: "Upload photos", detail: "Visible damage photos and closeups.", dueLabel: "Today", id: "fallback-photos", ownerRole: "Intake staff", status: "ready", title: "Take damage photos" }
 ] as const;
 
 const fallbackBillingRecovery: ClaimReadModel["billingRecovery"] = {
@@ -280,6 +280,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   });
   if (repairTaskVehicle) repairTaskContext.set("vehicleReference", repairTaskVehicle);
   const startRepairTaskHref = `/tasks/intake?${repairTaskContext.toString()}`;
+  const repairWorkflowTaskHref = model?.associatedRepairTask?.href ?? startRepairTaskHref;
+  const repairWorkflowTaskActionLabel = model?.associatedRepairTask ? "Open associated task" : "Create start repairs task";
+  const repairWorkflowTaskDetail = model?.associatedRepairTask
+    ? `${model.associatedRepairTask.title} is already tied to this claim. Open it to keep repair progress centralized.`
+    : "Create a task for the repair start so authorization, approved scope, owner, and first action stay tied to this claim.";
   const appointmentContext = new URLSearchParams({
     action: "new",
     reason: model?.nextAction.reason ?? "Claim follow-up from Claims Workspace.",
@@ -599,7 +604,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                     <span>{task.detail}</span>
                     <small>{task.ownerRole} - {task.dueLabel}</small>
                   </div>
-                  <button onClick={() => openExtraTool(toolForTask(task))} type="button">{task.actionLabel}</button>
+                  {task.id === "task-repair-handoff" ? (
+                    <Link href={repairWorkflowTaskHref}>{repairWorkflowTaskActionLabel}</Link>
+                  ) : (
+                    <button onClick={() => openExtraTool(toolForTask(task))} type="button">{task.actionLabel}</button>
+                  )}
                 </article>
               ))}
             </div>
@@ -1297,9 +1306,9 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                   <form action={requestHandoff} className={`${styles.executionForm} ${styles.timelineForm}`}>
                     <strong>Repair workflow</strong>
                     <div className={styles.repairTaskLinkCard}>
-                      <span>After approval</span>
-                      <p>Open a task for the repair start so authorization, approved scope, owner, and first action stay tied to this claim.</p>
-                      <Link href={startRepairTaskHref}>Open start repairs task</Link>
+                      <span>{model?.associatedRepairTask ? "Associated task found" : "After approval"}</span>
+                      <p>{repairWorkflowTaskDetail}</p>
+                      <Link href={repairWorkflowTaskHref}>{repairWorkflowTaskActionLabel}</Link>
                     </div>
                     <label className={styles.noteField}>
                       <span>Handoff or exception reason</span>

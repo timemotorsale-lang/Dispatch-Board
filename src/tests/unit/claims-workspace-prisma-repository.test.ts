@@ -16,7 +16,11 @@ type EvidenceRow = {
   claimId: string;
   createdAt: Date;
   createdByUserId: string;
+  documentLibraryId?: string | null;
+  extractedText?: string | null;
+  fileName?: string | null;
   id: string;
+  notes?: string | null;
   relationshipTargets: string[];
   status: string;
   title: string;
@@ -26,12 +30,23 @@ type ClaimFindInput = { where: { id?: string; organizationId: string } };
 type ClaimUpdateInput = { data: Partial<ClaimRow> & { version?: { increment: number } }; where: { id: string } };
 type ActivityCreateInput = { data: ActivityRow };
 type EvidenceCreateInput = { data: EvidenceRow };
+type TaskRow = {
+  customerReference: string | null;
+  description: string;
+  id: string;
+  status: string;
+  title: string;
+  updatedAt: Date;
+  vehicleReference: string | null;
+  workflowArea: string;
+};
 type FakePrisma = ReturnType<typeof fakePrisma>;
 
 function fakePrisma() {
   const claims: ClaimRow[] = [];
   const evidence: EvidenceRow[] = [];
   const activities: ActivityRow[] = [];
+  const tasks: TaskRow[] = [];
   const hydrate = (claim: ClaimRow) => ({
     ...claim,
     activities: activities.filter((item) => item.claimId === claim.id).sort((left, right) => right.at.getTime() - left.at.getTime()),
@@ -79,6 +94,15 @@ function fakePrisma() {
         evidence.push(data);
         return data;
       }
+    },
+    task: {
+      create: (data: TaskRow) => {
+        tasks.push(data);
+        return data;
+      },
+      findMany: async () =>
+        tasks.filter((task) => task.status !== "COMPLETED" && task.workflowArea === "SERVICE_ADVISOR")
+          .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
     }
   };
   return prisma;
@@ -133,5 +157,21 @@ describe("Prisma claims workspace repository", () => {
     const reloaded = await repository.findClaimById(claim.id);
     expect(reloaded?.activities[0]).toMatchObject({ action: "CLAIM_NOTE" });
     expect((await repository.listClaims())[0].claim.version).toBeGreaterThan(1);
+
+    prisma.task.create({
+      customerReference: "Database Customer",
+      description: "Open the repair-start task for claim DB-10001 after authorization.",
+      id: "task-claim-repair",
+      status: "IN_PROGRESS",
+      title: "Start approved repairs for Database Customer",
+      updatedAt: new Date("2026-09-17T20:07:00.000Z"),
+      vehicleReference: "2018 Toyota Camry",
+      workflowArea: "SERVICE_ADVISOR"
+    });
+    await expect(repository.findAssociatedRepairTask?.(created)).resolves.toMatchObject({
+      href: "/tasks/task-claim-repair",
+      id: "task-claim-repair",
+      title: "Start approved repairs for Database Customer"
+    });
   });
 });

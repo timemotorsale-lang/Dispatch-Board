@@ -30624,12 +30624,17 @@ body,
 .topbar-actions {
   flex: 1 1 auto;
   justify-content: flex-end;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .ccc-search-shell {
   flex: 1 1 220px;
   max-width: min(430px, 28vw);
+}
+
+.ccc-search-shell .topbar-search-popover {
+  z-index: 80;
+  width: min(520px, calc(100vw - 48px));
 }
 
 .ccc-search-trigger {

@@ -1,9 +1,11 @@
 import { createLocalPrivateDocumentStorageAdapter, type DocumentObjectStorageAdapter } from "./storage-adapter";
+import { join } from "node:path";
 
 export type DocumentStorageCloudProvider = "S3" | "AZURE_BLOB" | "SHAREPOINT" | "BOX";
 
 export type DocumentStorageRuntime = {
   adapter?: DocumentObjectStorageAdapter;
+  localPrivateRoot: string | null;
   organizationId: string;
   readiness: {
     blockers: string[];
@@ -28,16 +30,24 @@ function cloudProvider(value: string | undefined) {
     : null;
 }
 
+function defaultLocalStorageRoot(env: NodeJS.ProcessEnv, provider: DocumentStorageCloudProvider | null) {
+  if (provider) return "";
+  if (text(env.DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK).toLowerCase() === "true") return "";
+  if (text(env.NODE_ENV) === "production") return "";
+  return join(process.cwd(), ".dispatch-board-data", "document-library");
+}
+
 export function resolveDocumentStorageRuntimeFromEnv(env: NodeJS.ProcessEnv = process.env): DocumentStorageRuntime {
   const organizationId = text(env.DOCUMENT_LIBRARY_ORGANIZATION_ID) || "default-org";
-  const localRoot = text(env.DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT);
   const provider = cloudProvider(env.DOCUMENT_LIBRARY_CLOUD_PROVIDER);
+  const localRoot = text(env.DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT) || defaultLocalStorageRoot(env, provider);
   const cloudBucket = text(env.DOCUMENT_LIBRARY_CLOUD_BUCKET);
   const cloudRegion = text(env.DOCUMENT_LIBRARY_CLOUD_REGION);
 
   if (localRoot) {
     return {
       adapter: createLocalPrivateDocumentStorageAdapter({ rootDir: localRoot }),
+      localPrivateRoot: localRoot,
       organizationId,
       readiness: {
         blockers: [],
@@ -56,6 +66,7 @@ export function resolveDocumentStorageRuntimeFromEnv(env: NodeJS.ProcessEnv = pr
       ...(!cloudRegion && provider !== "SHAREPOINT" && provider !== "BOX" ? ["DOCUMENT_LIBRARY_CLOUD_REGION is required for this cloud object provider."] : [])
     ];
     return {
+      localPrivateRoot: null,
       organizationId,
       readiness: {
         blockers,
@@ -69,6 +80,7 @@ export function resolveDocumentStorageRuntimeFromEnv(env: NodeJS.ProcessEnv = pr
   }
 
   return {
+    localPrivateRoot: null,
     organizationId,
     readiness: {
       blockers: ["No document byte storage root or cloud object provider is configured; uploads will remain metadata-only staged references."],

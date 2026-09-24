@@ -32,8 +32,18 @@ describe("document library storage config", () => {
     expect(runtime.readiness.blockers).toContain("DOCUMENT_LIBRARY_CLOUD_BUCKET is required for cloud object storage.");
   });
 
-  it("falls back to staging-only mode when no byte storage is configured", () => {
+  it("uses local private fallback storage outside production when no byte storage is configured", () => {
     const runtime = resolveDocumentStorageRuntimeFromEnv({});
+
+    expect(runtime.adapter?.provider).toBe("LOCAL_PRIVATE");
+    expect(runtime.readiness).toMatchObject({
+      mode: "LOCAL_PRIVATE",
+      readyForByteStorage: true
+    });
+  });
+
+  it("falls back to staging-only mode in production when no byte storage is configured", () => {
+    const runtime = resolveDocumentStorageRuntimeFromEnv({ NODE_ENV: "production" });
 
     expect(runtime.adapter).toBeUndefined();
     expect(runtime.readiness).toMatchObject({

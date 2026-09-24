@@ -19,6 +19,55 @@ function contentType(value: string | null | undefined) {
   return value?.trim() || "application/octet-stream";
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function wantsHtml(request: Request) {
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/html") && !accept.includes("application/json");
+}
+
+function unavailableDocumentPage(message: string, status: number) {
+  const title = status === 404 ? "Claim evidence was not found" : "Original document is not available";
+  return new NextResponse(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      :root { color-scheme: light; font-family: Arial, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f5f7fb; color: #172033; }
+      main { width: min(560px, calc(100vw - 32px)); padding: 28px; background: #fff; border: 1px solid #dbe4ef; border-radius: 12px; box-shadow: 0 18px 48px rgba(15, 23, 42, .12); }
+      h1 { margin: 0 0 10px; font-size: 24px; }
+      p { margin: 0 0 16px; color: #52647c; line-height: 1.55; }
+      button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 8px; background: #4054d6; color: white; font-weight: 700; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(message)}</p>
+      <p>The claim evidence summary is still saved in the workspace. Re-upload the file after document storage is available to open the original here.</p>
+      <button type="button" onclick="window.close()">Close tab</button>
+    </main>
+  </body>
+</html>`, {
+    headers: {
+      "cache-control": "private, no-store",
+      "content-type": "text/html; charset=utf-8",
+      "x-content-type-options": "nosniff"
+    },
+    status
+  });
+}
+
 function localObjectKey(reference: string) {
   return reference.startsWith("local-private://") ? reference.slice("local-private://".length) : "";
 }
@@ -41,7 +90,33 @@ function resolveInsideRoot(rootDir: string, objectKey: string) {
   return target;
 }
 
-export async function GET(_: Request, context: { params: Promise<{ claimId: string; evidenceId: string }> }) {
+function fallbackLocalDocument(input: {
+  claim: { claimNumber?: string; customerName: string; id: string };
+  contentType: string;
+  documentLibraryId: string;
+  fileName: string;
+  organizationId: string;
+}) {
+  const objectKey = buildDocumentObjectKey({
+    documentId: input.documentLibraryId,
+    fileName: input.fileName,
+    organizationId: input.organizationId,
+    owner: {
+      id: input.claim.id,
+      label: input.claim.claimNumber ? `Claim #${input.claim.claimNumber}` : input.claim.customerName,
+      type: "CLAIM"
+    },
+    version: 1
+  });
+  return {
+    contentType: input.contentType,
+    fileName: input.fileName,
+    storageProvider: "INTERNAL",
+    storageReference: `local-private://${objectKey}`
+  };
+}
+
+export async function GET(request: Request, context: { params: Promise<{ claimId: string; evidenceId: string }> }) {
   const { claimId, evidenceId } = await context.params;
   try {
     await getCurrentUser();
@@ -54,7 +129,7 @@ export async function GET(_: Request, context: { params: Promise<{ claimId: stri
     }
 
     const runtime = resolveDocumentStorageRuntimeFromEnv();
-    const localRoot = process.env.DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT?.trim();
+    const localRoot = runtime.localPrivateRoot;
     let document: { contentType: string | null; fileName: string; storageProvider: string; storageReference: string } | null = null;
     try {
       document = await prisma.documentLibraryDocument.findFirst({
@@ -78,25 +153,24 @@ export async function GET(_: Request, context: { params: Promise<{ claimId: stri
         if (!localRoot || runtime.readiness.mode !== "LOCAL_PRIVATE" || !evidence.fileName) {
           throw new ClaimsWorkspaceError("CLAIM_INVALID", "Original document storage is not available in this database yet. Re-upload after document storage migrations are applied.");
         }
-        const objectKey = buildDocumentObjectKey({
-          documentId: evidence.documentLibraryId,
-          fileName: evidence.fileName,
-          organizationId: runtime.organizationId,
-          owner: {
-            id: aggregate.claim.id,
-            label: aggregate.claim.claimNumber ? `Claim #${aggregate.claim.claimNumber}` : aggregate.claim.customerName,
-            type: "CLAIM"
-          },
-          version: 1
-        });
-        document = {
+        document = fallbackLocalDocument({
+          claim: aggregate.claim,
           contentType: inferContentType(evidence.fileName),
+          documentLibraryId: evidence.documentLibraryId,
           fileName: evidence.fileName,
-          storageProvider: "INTERNAL",
-          storageReference: `local-private://${objectKey}`
-        };
+          organizationId: runtime.organizationId
+        });
       }
       if (!document) throw caught;
+    }
+    if (!document && localRoot && runtime.readiness.mode === "LOCAL_PRIVATE" && evidence.fileName) {
+      document = fallbackLocalDocument({
+        claim: aggregate.claim,
+        contentType: inferContentType(evidence.fileName),
+        documentLibraryId: evidence.documentLibraryId,
+        fileName: evidence.fileName,
+        organizationId: runtime.organizationId
+      });
     }
     if (!document) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Stored document was not found.");
 
@@ -123,10 +197,14 @@ export async function GET(_: Request, context: { params: Promise<{ claimId: stri
     const status = error instanceof ClaimsWorkspaceError
       ? error.code === "CLAIM_NOT_FOUND" ? 404 : error.code === "AUTHENTICATION_REQUIRED" ? 401 : 409
       : 500;
+    const message = error instanceof Error ? error.message : "Claim evidence content could not be opened.";
+    if (wantsHtml(request)) {
+      return unavailableDocumentPage(message, status);
+    }
     return NextResponse.json({
       code: error instanceof ClaimsWorkspaceError ? error.code : undefined,
       contractVersion: CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION,
-      error: error instanceof Error ? error.message : "Claim evidence content could not be opened.",
+      error: message,
       retryable: false
     }, { status });
   }

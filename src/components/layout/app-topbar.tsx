@@ -32,6 +32,15 @@ type AppTopbarProps = {
   user: AuthenticatedUser;
 };
 
+type TopbarOperationalResult = {
+  detail: string;
+  href: string;
+  id: string;
+  label: string;
+  status: string | null;
+  type: string;
+};
+
 function safeReturnTo(value: string | null) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : null;
 }
@@ -118,6 +127,9 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     : breadcrumb;
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [operationalResults, setOperationalResults] = useState<TopbarOperationalResult[]>([]);
+  const [operationalSearchBusy, setOperationalSearchBusy] = useState(false);
+  const [operationalSearchError, setOperationalSearchError] = useState("");
   const [searchText, setSearchText] = useState("");
   const query = searchText.trim().toLowerCase();
   const uniqueNavigationItems = navigationItems.filter(
@@ -172,6 +184,48 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   useEffect(() => {
     if (isSearchOpen) searchInputRef.current?.focus();
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    const rawQuery = searchText.trim();
+    if (!isSearchOpen || rawQuery.length < 2) {
+      setOperationalResults([]);
+      setOperationalSearchBusy(false);
+      setOperationalSearchError("");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setOperationalSearchBusy(true);
+      setOperationalSearchError("");
+      const returnTo = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+      const parameters = new URLSearchParams({
+        limit: "6",
+        q: rawQuery,
+        returnTo,
+        types: "VEHICLE,CUSTOMER,REPAIR_ORDER,REPAIR_JOB,WORK_ITEM,CLAIM"
+      });
+      fetch(`/api/vehicle-discovery/search?${parameters.toString()}`, { signal: controller.signal })
+        .then(async (response) => {
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(payload?.error ?? "Operational search failed.");
+          setOperationalResults(Array.isArray(payload?.results) ? payload.results : []);
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setOperationalResults([]);
+          setOperationalSearchError(error instanceof Error ? error.message : "Operational search failed.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setOperationalSearchBusy(false);
+        });
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [isSearchOpen, pathname, searchParams, searchText]);
 
   return (
     <header className="app-topbar ccc-topbar">
@@ -254,7 +308,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
           </button>
           {isSearchOpen ? (
             <div className="topbar-popover topbar-search-popover">
-              <div className="topbar-popover-header"><strong>Quick search</strong><span>Jump to a live Dispatch area.</span></div>
+              <div className="topbar-popover-header"><strong>Quick search</strong><span>Jump to a live Dispatch area or record.</span></div>
               <label className="topbar-search-field">
                 <Search size={16} />
                 <input aria-label="Search navigation" placeholder="Search Dispatch…" ref={searchInputRef} type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} />
@@ -264,7 +318,15 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
                   <Link className="topbar-popover-link" href={entry.href} key={entry.href} onClick={() => setIsSearchOpen(false)}>
                     <strong>{entry.title}</strong><span>{entry.description}</span>
                   </Link>
-                )) : <p className="topbar-popover-empty">No matching live areas found.</p>}
+                )) : null}
+                {operationalResults.length ? operationalResults.map((entry) => (
+                  <Link className="topbar-popover-link" href={entry.href} key={`${entry.type}-${entry.id}`} onClick={() => setIsSearchOpen(false)}>
+                    <strong>{entry.label}</strong><span>{entry.type.replaceAll("_", " ")} · {entry.status ?? "Open"} · {entry.detail}</span>
+                  </Link>
+                )) : null}
+                {operationalSearchBusy ? <p className="topbar-popover-empty">Searching live records...</p> : null}
+                {operationalSearchError ? <p className="topbar-popover-empty">{operationalSearchError}</p> : null}
+                {!quickResults.length && !operationalResults.length && !operationalSearchBusy && !operationalSearchError ? <p className="topbar-popover-empty">No matching live areas or records found.</p> : null}
               </div>
             </div>
           ) : null}

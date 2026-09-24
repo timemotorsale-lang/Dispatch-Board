@@ -108,6 +108,9 @@ describe("claims workspace service", () => {
 
   it("attaches evidence and allows repair handoff only after required gates pass", async () => {
     const repository = createInMemoryClaimsWorkspaceRepository([]);
+    repository.findAssociatedRepairTask = async (aggregate) => aggregate.claim.claimNumber === "MN-60002"
+      ? { href: "/tasks/task-repair-start", id: "task-repair-start", status: "IN_PROGRESS", title: "Start approved repairs for Ready Customer" }
+      : null;
     const created = await createInsuranceClaim(actor, {
       carrierName: "Progressive",
       claimNumber: "MN-60002",
@@ -144,6 +147,11 @@ describe("claims workspace service", () => {
     expect(ready.handoff.allowed).toBe(true);
     expect(ready.primaryBlocker).toBe("Ready for repair order");
     expect(ready.executionTasks[0].title).toBe("Move to repair handoff");
+    expect(ready.associatedRepairTask).toMatchObject({
+      href: "/tasks/task-repair-start",
+      id: "task-repair-start",
+      title: "Start approved repairs for Ready Customer"
+    });
 
     const handedOff = await requestClaimHandoff(actor, claimId, {}, { repository });
     expect(handedOff.claim.stage).toBe("REPAIR_HANDOFF");
@@ -220,6 +228,63 @@ describe("claims workspace service", () => {
     });
     expect(model.billingRecovery.summary.approvedAmountLabel).toBe("$4,812.44");
     expect(model.billingRecovery.payerSplit[0].amountLabel).toBe("$4,812.44");
+  });
+
+  it("does not treat vehicle years or upload dates in estimate names as approved repair amounts", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      carrierName: "Progressive",
+      claimNumber: "MN-67003",
+      customerName: "Filename Estimate Customer",
+      description: "Front body damage.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-ESTIMATE-002"
+    }, { repository });
+
+    const model = await attachClaimEvidence(actor, created.readModel.claim.id, {
+      category: "ESTIMATE",
+      fileName: "2021 Honda CR-V Gray - Estimate from Insurance.pdf",
+      notes: "2021 Honda CR-V Gray - Estimate from Insurance.pdf - 9/23/2026, 8:52:31 PM",
+      relationshipTargets: ["CLAIM", "REPAIR_ORDER"],
+      status: "RECEIVED",
+      title: "2021 Honda CR-V Gray - Estimate from Insurance.pdf"
+    }, { repository });
+
+    expect(model.estimateReview).toMatchObject({
+      approvedAmountCents: null,
+      approvedAmountLabel: "Estimate attached - amount review needed",
+      confidence: "NEEDS_REVIEW",
+      status: "REVIEW_NEEDED"
+    });
+  });
+
+  it("reads approved repair amount from extracted uploaded document text", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      carrierName: "Progressive",
+      claimNumber: "MN-67004",
+      customerName: "Extracted Estimate Customer",
+      description: "Front body damage.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-ESTIMATE-003"
+    }, { repository });
+
+    const model = await attachClaimEvidence(actor, created.readModel.claim.id, {
+      category: "ESTIMATE",
+      extractedText: "Insurance estimate. Approved repair amount $6,642.31. Deductible $500.",
+      fileName: "2021 Honda CR-V Gray - Estimate from Insurance.pdf",
+      notes: "Uploaded from claim evidence.",
+      relationshipTargets: ["CLAIM", "REPAIR_ORDER"],
+      status: "RECEIVED",
+      title: "2021 Honda CR-V Gray - Estimate from Insurance.pdf"
+    }, { repository });
+
+    expect(model.estimateReview).toMatchObject({
+      approvedAmountCents: 664231,
+      approvedAmountLabel: "$6,642.31",
+      confidence: "HIGH",
+      status: "AMOUNT_FOUND"
+    });
   });
 
   it("recognizes an estimate uploaded through another evidence port", async () => {

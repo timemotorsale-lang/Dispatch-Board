@@ -5,12 +5,14 @@ describe("enterprise discovery, knowledge, and controlled output domain", () => 
   it("normalizes bounded search and ranks exact identifiers above contains matches", () => {
     expect(normalizeOperationalSearch({ query: "  RO-101  ", limit: 500, types: "vehicle,repair_order,invalid" })).toEqual({ query: "RO-101", limit: 100, types: ["VEHICLE", "REPAIR_ORDER"] });
     expect(scoreOperationalSearchResult("RO-101", { repairOrderNumber: "RO-101", description: "Inspect RO-101" }).score).toBeGreaterThan(scoreOperationalSearchResult("RO-101", { description: "Inspect RO-101" }).score);
+    expect(scoreOperationalSearchResult("MN-70002", { claimNumber: "MN-70002", description: "Claim MN-70002" }).score).toBeGreaterThan(scoreOperationalSearchResult("MN-70002", { description: "Claim MN-70002" }).score);
     const ranked = rankOperationalSearchResults([
       { id: "low", type: "VEHICLE", label: "Low", detail: "", status: null, href: "/", matchedFields: ["model"], score: 25 },
       { id: "high", type: "REPAIR_ORDER", label: "High", detail: "", status: null, href: "/", matchedFields: ["repairOrderNumber"], score: 120 }
     ], 1);
     expect(ranked[0].id).toBe("high");
     expect(normalizeOperationalSearch({ query: "inspection" }).types).toContain("WORK_ITEM");
+    expect(normalizeOperationalSearch({ query: "claim" }).types).toContain("CLAIM");
   });
 
   it("requires reference-only knowledge to use safe HTTPS and a publisher checksum", () => {

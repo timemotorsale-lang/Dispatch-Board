@@ -12,6 +12,7 @@ import {
 import { DocumentLibraryError } from "@/server/document-library/domain";
 import { executeDocumentLibraryAction } from "@/server/document-library/service";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
+import { extractDocumentText } from "@/server/document-library/text-extraction";
 import { stageDocumentLibraryUpload } from "@/server/document-library/upload-service";
 
 function statusForCode(code: string | undefined) {
@@ -49,7 +50,17 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
       const category = text(form.get("category")) || "ESTIMATE";
       const title = text(form.get("title")) || file.name;
       const reason = text(form.get("reason")) || text(form.get("notes")) || `Claim evidence uploaded for ${title}.`;
+      const extracted = await extractDocumentText({
+        bytes,
+        contentType: file.type || "application/pdf",
+        fileName: file.name
+      });
+      const notes = [
+        reason,
+        ...extracted.warnings.map((warning) => `Extraction note: ${warning}`)
+      ].join("\n");
       const storageRuntime = resolveDocumentStorageRuntimeFromEnv();
+      const documentId = `doc-claim-${checksumSha256.slice(0, 12)}`;
       const staged = await stageDocumentLibraryUpload(user, {
         bytes,
         checksumSha256,
@@ -65,11 +76,13 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         fileName: file.name,
         sizeBytes: file.size
       }, {
+        documentIdFactory: () => documentId,
         organizationId: storageRuntime.organizationId,
         storageAdapter: storageRuntime.adapter
       });
       const createdDocument = await executeDocumentLibraryAction(user, {
         action: "CREATE_DOCUMENT",
+        documentId,
         documentType: staged.storagePolicy.classification.documentType,
         fileName: staged.storageDraft.fileName,
         idempotencyKey: `claim-evidence:${claimId}:${checksumSha256}`,
@@ -85,13 +98,14 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         }
       });
       const commandResult = "command" in createdDocument ? createdDocument.command : undefined;
-      const documentId = commandResult?.document?.id;
+      const createdDocumentId = commandResult?.document?.id;
       return NextResponse.json(
         await attachClaimEvidence(user, claimId, {
           category,
-          documentLibraryId: documentId,
+          documentLibraryId: createdDocumentId,
+          extractedText: extracted.text,
           fileName: file.name,
-          notes: reason,
+          notes,
           relationshipTargets: relationshipTargets(text(form.get("relationshipTargets"))) as Array<"CLAIM" | "CUSTOMER" | "VEHICLE" | "REPAIR_ORDER">,
           status: text(form.get("status")) || "RECEIVED",
           title

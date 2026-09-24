@@ -83,6 +83,7 @@ export type ClaimEvidenceRecord = {
   createdAt: string;
   createdByUserId: string;
   documentLibraryId?: string;
+  extractedText?: string;
   fileName?: string;
   id: string;
   notes?: string;
@@ -222,8 +223,16 @@ export type ClaimExecutionTask = {
   title: string;
 };
 
+export type ClaimAssociatedRepairTask = {
+  href: string;
+  id: string;
+  status: string;
+  title: string;
+};
+
 export type ClaimReadModel = {
   activities: ClaimActivityRecord[];
+  associatedRepairTask?: ClaimAssociatedRepairTask;
   billingRecovery: ClaimBillingRecovery;
   checklist: ClaimChecklistItem[];
   claim: InsuranceClaimRecord;
@@ -344,6 +353,7 @@ export type ClaimsWorkspaceRepository = {
   addActivity(claimId: string, activity: ClaimActivityRecord): Promise<void>;
   addEvidence(claimId: string, evidence: ClaimEvidenceRecord): Promise<ClaimWorkspaceAggregate>;
   createClaim(claim: InsuranceClaimRecord): Promise<ClaimWorkspaceAggregate>;
+  findAssociatedRepairTask?(aggregate: ClaimWorkspaceAggregate): Promise<ClaimAssociatedRepairTask | null>;
   findClaimById(claimId: string): Promise<ClaimWorkspaceAggregate | null>;
   listClaims(): Promise<ClaimWorkspaceAggregate[]>;
   updateClaim(claimId: string, update: Partial<InsuranceClaimRecord>): Promise<ClaimWorkspaceAggregate>;
@@ -384,6 +394,7 @@ export type ClaimCreateInput = {
 export type ClaimEvidenceInput = {
   category?: unknown;
   documentLibraryId?: unknown;
+  extractedText?: unknown;
   fileName?: unknown;
   notes?: unknown;
   relationshipTargets?: unknown;
@@ -861,7 +872,9 @@ export async function getClaimWorkspaceReadModel(
     ? await repository.findClaimById(claimId)
     : (await repository.listClaims())[0] ?? null;
   if (!aggregate) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
-  return toClaimReadModel(aggregate, await repository.listClaims());
+  return toClaimReadModel(aggregate, await repository.listClaims(), {
+    associatedRepairTask: await repository.findAssociatedRepairTask?.(aggregate) ?? undefined
+  });
 }
 
 export async function createInsuranceClaim(
@@ -1000,7 +1013,11 @@ export async function requestClaimHandoff(
   return toClaimReadModel(refreshed);
 }
 
-function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWorkspaceAggregate[] = [aggregate]): ClaimReadModel {
+function toClaimReadModel(
+  aggregate: ClaimWorkspaceAggregate,
+  allClaims: ClaimWorkspaceAggregate[] = [aggregate],
+  options: { associatedRepairTask?: ClaimAssociatedRepairTask } = {}
+): ClaimReadModel {
   const checklist = buildChecklist(aggregate);
   const handoffBlockers = repairHandoffBlockers(aggregate, checklist);
   const primaryBlocker = classifyPrimaryBlocker(aggregate, checklist, handoffBlockers);
@@ -1010,6 +1027,7 @@ function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWo
   const estimateReview = buildEstimateReview(aggregate);
   return {
     activities: aggregate.activities,
+    associatedRepairTask: options.associatedRepairTask,
     billingRecovery: buildBillingRecovery(aggregate, checklist, estimateReview),
     carrierTracker: buildCarrierTracker(aggregate),
     checklist,
@@ -1313,7 +1331,7 @@ function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateR
     };
   }
 
-  const evidenceText = [estimate.title, estimate.fileName, estimate.notes].filter(Boolean).join(" ");
+  const evidenceText = [estimate.extractedText, estimate.notes, estimate.title, estimate.fileName].filter(Boolean).join(" ");
   const approvedAmountCents = extractApprovedAmountCents(evidenceText);
   const amountFound = approvedAmountCents !== null;
 
@@ -1340,8 +1358,9 @@ function isEstimateEvidence(item: ClaimEvidenceRecord) {
 
 function extractApprovedAmountCents(value: string) {
   const normalized = value.replace(/\s+/g, " ");
-  const targeted = normalized.match(/(?:approved|allowed|net|total|estimate|repair|supplement)[^$0-9]{0,40}\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/i);
-  const amountText = targeted?.[1] ?? [...normalized.matchAll(/\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/g)]
+  const currencyPattern = String.raw`\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)`;
+  const targeted = normalized.match(new RegExp(String.raw`(?:approved|allowed|net|total|repair amount|supplement amount|carrier total)[^$0-9]{0,40}${currencyPattern}(?![0-9])`, "i"));
+  const amountText = targeted?.[1] ?? [...normalized.matchAll(new RegExp(String.raw`\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)(?![0-9])`, "g"))]
     .map((match) => match[1])
     .map((candidate) => moneyTextToCents(candidate))
     .filter((candidate) => candidate >= 100_00)
@@ -1590,6 +1609,7 @@ function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "
   if (!title) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Evidence title is required.");
   const status = choice(raw.status ?? "RECEIVED", ["RECEIVED", "NOT_APPLICABLE", "BLOCKED", "EXCEPTION_ACCEPTED"] as const, "Evidence status");
   const inferredCategory = inferEvidenceCategory(selectedCategory, {
+    extractedText: text(raw.extractedText, 60_000),
     fileName: text(raw.fileName),
     notes: text(raw.notes),
     title
@@ -1597,6 +1617,7 @@ function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "
   return {
     category: inferredCategory,
     documentLibraryId: text(raw.documentLibraryId),
+    extractedText: text(raw.extractedText, 60_000),
     fileName: text(raw.fileName),
     notes: text(raw.notes),
     relationshipTargets: relationshipTargets(raw.relationshipTargets),
@@ -1607,7 +1628,7 @@ function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "
 
 function inferEvidenceCategory(
   selectedCategory: ClaimEvidenceCategory,
-  evidence: Pick<ClaimEvidenceRecord, "fileName" | "notes" | "title">
+  evidence: Pick<ClaimEvidenceRecord, "extractedText" | "fileName" | "notes" | "title">
 ): ClaimEvidenceCategory {
   const haystack = evidenceSearchText(evidence);
   if (/estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary estimate/i.test(haystack)) return "ESTIMATE";
@@ -1617,8 +1638,8 @@ function inferEvidenceCategory(
   return selectedCategory;
 }
 
-function evidenceSearchText(evidence: Pick<ClaimEvidenceRecord, "fileName" | "notes" | "title">) {
-  return [evidence.title, evidence.fileName, evidence.notes].filter(Boolean).join(" ");
+function evidenceSearchText(evidence: Pick<ClaimEvidenceRecord, "extractedText" | "fileName" | "notes" | "title">) {
+  return [evidence.title, evidence.fileName, evidence.notes, evidence.extractedText].filter(Boolean).join(" ");
 }
 
 function normalizeExecutionUpdate(raw: ClaimExecutionUpdateInput): Partial<InsuranceClaimRecord> {
@@ -1691,8 +1712,8 @@ function choice<const T extends readonly string[]>(value: unknown, allowed: T, l
   throw new ClaimsWorkspaceError("CLAIM_INVALID", `${label} is invalid.`);
 }
 
-function text(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+function text(value: unknown, maxLength = 500) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
 function vehicleSummary(claim: InsuranceClaimRecord) {

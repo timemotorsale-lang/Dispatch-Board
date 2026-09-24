@@ -104,6 +104,7 @@ export type DocumentLibraryCommand =
     }
   | {
       action: "CREATE_DOCUMENT";
+      documentId?: string;
       documentType: string;
       fileName: string;
       idempotencyKey: string;

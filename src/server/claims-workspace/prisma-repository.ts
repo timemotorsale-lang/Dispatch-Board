@@ -1,5 +1,6 @@
 import type {
   ClaimActivityRecord,
+  ClaimAssociatedRepairTask,
   ClaimEvidenceCategory,
   ClaimEvidenceRecord,
   ClaimEvidenceStatus,
@@ -59,6 +60,7 @@ type InsuranceClaimEvidenceRow = {
   createdAt: Date;
   createdByUserId: string;
   documentLibraryId: string | null;
+  extractedText: string | null;
   fileName: string | null;
   id: string;
   notes: string | null;
@@ -75,6 +77,16 @@ type InsuranceClaimActivityRow = {
   id: string;
 };
 
+type AssociatedRepairTaskRow = {
+  customerReference: string | null;
+  description: string;
+  id: string;
+  status: string;
+  title: string;
+  updatedAt: Date;
+  vehicleReference: string | null;
+};
+
 type PrismaLikeClient = {
   insuranceClaim: {
     create(input: unknown): Promise<InsuranceClaimRow>;
@@ -87,6 +99,9 @@ type PrismaLikeClient = {
   };
   insuranceClaimEvidence: {
     create(input: unknown): Promise<unknown>;
+  };
+  task: {
+    findMany(input: unknown): Promise<AssociatedRepairTaskRow[]>;
   };
   $transaction?<T>(callback: (tx: PrismaLikeClient) => Promise<T>): Promise<T>;
 };
@@ -150,6 +165,7 @@ export function createPrismaClaimsWorkspaceRepository(input: {
             createdAt: new Date(evidence.createdAt),
             createdByUserId: evidence.createdByUserId,
             documentLibraryId: evidence.documentLibraryId || null,
+            extractedText: evidence.extractedText || null,
             fileName: evidence.fileName || null,
             id: evidence.id,
             notes: evidence.notes || null,
@@ -218,6 +234,10 @@ export function createPrismaClaimsWorkspaceRepository(input: {
         include: includeAggregate
       }));
     },
+    async findAssociatedRepairTask(aggregate) {
+      const task = await findAssociatedRepairTask(prisma, aggregate);
+      return task;
+    },
     async findClaimById(claimId) {
       const row = await prisma.insuranceClaim.findFirst({
         include: includeAggregate,
@@ -273,6 +293,77 @@ export function createPrismaClaimsWorkspaceRepository(input: {
       }));
     }
   };
+}
+
+async function findAssociatedRepairTask(
+  prisma: PrismaLikeClient,
+  aggregate: ClaimWorkspaceAggregate
+): Promise<ClaimAssociatedRepairTask | null> {
+  const claim = aggregate.claim;
+  const vehicleLabel = [claim.vehicleYear, claim.vehicleMake, claim.vehicleModel].filter(Boolean).join(" ");
+  const exactTerms = [claim.claimNumber, claim.id, claim.linkedRepairOrderId].filter(isSearchTerm);
+  const referenceTerms = [claim.vehicleVin, claim.vehicleStockNumber, vehicleLabel, claim.customerName].filter(isSearchTerm);
+  const terms = [...new Set([...exactTerms, ...referenceTerms])];
+  if (!terms.length) return null;
+
+  const candidates = await prisma.task.findMany({
+    orderBy: [{ updatedAt: "desc" }],
+    select: {
+      customerReference: true,
+      description: true,
+      id: true,
+      status: true,
+      title: true,
+      updatedAt: true,
+      vehicleReference: true
+    },
+    take: 25,
+    where: {
+      status: { not: "COMPLETED" },
+      workflowArea: "SERVICE_ADVISOR",
+      OR: terms.flatMap((term) => [
+        { title: { contains: term, mode: "insensitive" } },
+        { description: { contains: term, mode: "insensitive" } },
+        { customerReference: { contains: term, mode: "insensitive" } },
+        { vehicleReference: { contains: term, mode: "insensitive" } }
+      ])
+    }
+  });
+
+  const best = candidates
+    .map((task) => ({ score: associatedRepairTaskScore(task, exactTerms, referenceTerms), task }))
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || right.task.updatedAt.getTime() - left.task.updatedAt.getTime())[0]?.task;
+
+  return best ? {
+    href: `/tasks/${encodeURIComponent(best.id)}`,
+    id: best.id,
+    status: best.status,
+    title: best.title
+  } : null;
+}
+
+function associatedRepairTaskScore(task: AssociatedRepairTaskRow, exactTerms: string[], referenceTerms: string[]) {
+  const title = task.title.toLowerCase();
+  const description = task.description.toLowerCase();
+  const customerReference = (task.customerReference ?? "").toLowerCase();
+  const vehicleReference = (task.vehicleReference ?? "").toLowerCase();
+  const haystack = `${title} ${description} ${customerReference} ${vehicleReference}`;
+  let score = /repair|authorization|handoff|approved|claim/i.test(`${task.title} ${task.description}`) ? 10 : 0;
+  for (const term of exactTerms) {
+    if (haystack.includes(term.toLowerCase())) score += 60;
+  }
+  for (const term of referenceTerms) {
+    const normalized = term.toLowerCase();
+    if (vehicleReference.includes(normalized)) score += 25;
+    else if (customerReference.includes(normalized)) score += 20;
+    else if (haystack.includes(normalized)) score += 12;
+  }
+  return score;
+}
+
+function isSearchTerm(value: string | undefined): value is string {
+  return Boolean(value && value.trim().length >= 3);
 }
 
 function toAggregate(row: InsuranceClaimRow): ClaimWorkspaceAggregate {
@@ -336,6 +427,7 @@ function toEvidence(row: InsuranceClaimEvidenceRow): ClaimEvidenceRecord {
     createdAt: row.createdAt.toISOString(),
     createdByUserId: row.createdByUserId,
     documentLibraryId: row.documentLibraryId ?? undefined,
+    extractedText: row.extractedText ?? undefined,
     fileName: row.fileName ?? undefined,
     id: row.id,
     notes: row.notes ?? undefined,
