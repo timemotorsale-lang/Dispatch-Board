@@ -1,5 +1,11 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { inflateSync } from "node:zlib";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 export type DocumentTextExtractionResult = {
   method: "PDF_TEXT" | "PLAIN_TEXT" | "OCR_TEXT" | "OCR_FAILED" | "OCR_UNAVAILABLE" | "UNSUPPORTED";
@@ -17,12 +23,23 @@ function decodeUtf8(bytes: Uint8Array) {
 
 function normalizeExtractedText(value: string) {
   return value
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, " ")
     .replace(/\\r/g, "\n")
     .replace(/\r/g, "\n")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
     .slice(0, 60_000);
+}
+
+function hasMeaningfulText(value: string) {
+  const text = normalizeExtractedText(value);
+  if (text.length < 20) return false;
+  const letters = text.match(/[A-Za-z]/g)?.length ?? 0;
+  const digits = text.match(/[0-9]/g)?.length ?? 0;
+  const words = text.match(/[A-Za-z]{3,}/g)?.length ?? 0;
+  const moneyLike = /\$?\s*[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|\$\s*[0-9]+(?:\.[0-9]{2})?/.test(text);
+  return words >= 8 || moneyLike && letters >= 4 || letters + digits >= 80 && words >= 3;
 }
 
 function decodePdfLiteralString(value: string) {
@@ -110,13 +127,100 @@ function stringsFromPdfContent(content: string) {
   return extracted.join(" ");
 }
 
-function extractPdfText(bytes: Uint8Array): DocumentTextExtractionResult {
+function pdfOcrEnabled() {
+  return (process.env.DOCUMENT_TEXT_PDF_OCR_MODE ?? process.env.DOCUMENT_TEXT_OCR_MODE ?? "enabled").trim().toLowerCase() !== "disabled";
+}
+
+async function renderPdfPagesForOcr(bytes: Uint8Array) {
+  const root = await mkdtemp(join(tmpdir(), "dispatch-pdf-ocr-"));
+  const inputPath = join(root, "input.pdf");
+  const outputPrefix = join(root, "page");
+  await writeFile(inputPath, bytes);
+  const renderer = process.env.DOCUMENT_TEXT_PDF_RENDERER_PATH?.trim() || "pdftoppm";
+  const maxPages = Math.max(1, Math.min(10, Number(process.env.DOCUMENT_TEXT_PDF_OCR_MAX_PAGES) || 3));
+  await execFileAsync(renderer, [
+    "-png",
+    "-r",
+    process.env.DOCUMENT_TEXT_PDF_OCR_DPI?.trim() || "220",
+    "-f",
+    "1",
+    "-l",
+    String(maxPages),
+    inputPath,
+    outputPrefix
+  ], { windowsHide: true });
+  const files = (await readdir(root))
+    .filter((file) => /^page-\d+\.png$/i.test(file))
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  return { files: files.map((file) => join(root, file)), root };
+}
+
+async function ocrPdfPages(
+  input: { bytes: Uint8Array; contentType: string; fileName: string },
+  dependencies: DocumentTextExtractionDependencies
+): Promise<DocumentTextExtractionResult> {
+  if (!pdfOcrEnabled() && !dependencies.recognizeImageText) {
+    return {
+      method: "OCR_UNAVAILABLE",
+      text: "",
+      warnings: ["PDF OCR is disabled. Set DOCUMENT_TEXT_PDF_OCR_MODE=enabled to OCR PDFs with unreadable embedded text."]
+    };
+  }
+
+  let rendered: { files: string[]; root: string } | null = null;
+  try {
+    rendered = await renderPdfPagesForOcr(input.bytes);
+    const pageTexts: string[] = [];
+    for (const file of rendered.files) {
+      const pageBytes = await readFile(file);
+      const pageText = await (dependencies.recognizeImageText ?? recognizeImageText)({
+        bytes: pageBytes,
+        contentType: "image/png",
+        fileName: file
+      });
+      if (pageText.trim()) pageTexts.push(pageText);
+    }
+    const text = normalizeExtractedText(pageTexts.join("\n\n"));
+    return {
+      method: text ? "OCR_TEXT" : "OCR_FAILED",
+      text,
+      warnings: text ? ["PDF embedded text was unreadable, so OCR was used."] : ["PDF OCR ran, but no readable text was found."]
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "PDF OCR failed.";
+    return {
+      method: "OCR_FAILED",
+      text: "",
+      warnings: [`PDF OCR could not read this file: ${message}`]
+    };
+  } finally {
+    if (rendered) await rm(rendered.root, { force: true, recursive: true });
+  }
+}
+
+async function extractPdfText(
+  input: { bytes: Uint8Array; contentType: string; fileName: string },
+  dependencies: DocumentTextExtractionDependencies
+): Promise<DocumentTextExtractionResult> {
+  const bytes = input.bytes;
   const pdfText = Buffer.from(bytes).toString("binary");
   const streams = inflatePdfStreams(pdfText);
   const extracted = normalizeExtractedText([
     stringsFromPdfContent(pdfText),
     ...streams.map(stringsFromPdfContent)
   ].join("\n"));
+  if (!hasMeaningfulText(extracted)) {
+    const ocrResult = await ocrPdfPages(input, dependencies);
+    if (ocrResult.text) return ocrResult;
+    return {
+      method: "PDF_TEXT",
+      text: extracted,
+      warnings: [
+        "Embedded PDF text was missing or unreadable.",
+        ...ocrResult.warnings
+      ]
+    };
+  }
   return {
     method: "PDF_TEXT",
     text: extracted,
@@ -130,10 +234,11 @@ function ocrEnabled() {
 
 async function recognizeImageText(input: { bytes: Uint8Array; contentType: string; fileName: string }) {
   const { createWorker, PSM } = await import("tesseract.js");
+  const defaultLangPath = join(process.cwd(), "node_modules", "@tesseract.js-data", "eng", "4.0.0_best_int");
   const worker = await createWorker(process.env.DOCUMENT_TEXT_OCR_LANGUAGES?.trim() || "eng", undefined, {
     cachePath: process.env.DOCUMENT_TEXT_OCR_CACHE_PATH?.trim() || join(process.cwd(), ".dispatch-board-data", "tesseract-cache"),
     ...(process.env.DOCUMENT_TEXT_OCR_CORE_PATH?.trim() ? { corePath: process.env.DOCUMENT_TEXT_OCR_CORE_PATH.trim() } : {}),
-    ...(process.env.DOCUMENT_TEXT_OCR_LANG_PATH?.trim() ? { langPath: process.env.DOCUMENT_TEXT_OCR_LANG_PATH.trim() } : {}),
+    langPath: process.env.DOCUMENT_TEXT_OCR_LANG_PATH?.trim() || defaultLangPath,
     ...(process.env.DOCUMENT_TEXT_OCR_WORKER_PATH?.trim() ? { workerPath: process.env.DOCUMENT_TEXT_OCR_WORKER_PATH.trim() } : {})
   });
   try {
@@ -184,7 +289,7 @@ export async function extractDocumentText(input: {
 }, dependencies: DocumentTextExtractionDependencies = {}): Promise<DocumentTextExtractionResult> {
   const contentType = input.contentType.toLowerCase();
   const fileName = input.fileName.toLowerCase();
-  if (contentType.includes("pdf") || fileName.endsWith(".pdf")) return extractPdfText(input.bytes);
+  if (contentType.includes("pdf") || fileName.endsWith(".pdf")) return extractPdfText(input, dependencies);
   if (contentType.startsWith("text/") || fileName.endsWith(".txt")) {
     return { method: "PLAIN_TEXT", text: normalizeExtractedText(decodeUtf8(input.bytes)), warnings: [] };
   }

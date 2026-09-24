@@ -30,3 +30,4 @@ test-results/
 blob-report/
 .worktrees/
 .codex-runtime/unified-crm-*.log
+.dispatch-board-data/

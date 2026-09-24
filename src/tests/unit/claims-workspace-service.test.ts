@@ -287,6 +287,40 @@ describe("claims workspace service", () => {
     });
   });
 
+  it("prefers estimate summary totals over OCR table row counts", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      carrierName: "Grinnell Mutual",
+      claimNumber: "MN-67005",
+      customerName: "OCR Estimate Customer",
+      description: "Door shell estimate.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-ESTIMATE-004"
+    }, { repository });
+
+    const model = await attachClaimEvidence(actor, created.readModel.claim.id, {
+      category: "ESTIMATE",
+      extractedText: [
+        "Line # Description Operation Type Total Units CEG Type Number Qty Total Price Tax",
+        "1 100089 L Frt Door Shell Remove Body 5.2 New 67050-TLA-A10ZZ 1 $1,816.47 Yes",
+        "Parts Total Costs Amount Paint Materials $463.50",
+        "Gross Totals Amount Gross Total $6,608.98",
+        "Net Estimate Total"
+      ].join("\n"),
+      fileName: "2021 Honda CR-V Gray - Estimate from Insurance.pdf",
+      notes: "Extraction note: PDF embedded text was unreadable, so OCR was used.",
+      relationshipTargets: ["CLAIM", "REPAIR_ORDER"],
+      status: "RECEIVED",
+      title: "2021 Honda CR-V Gray - Estimate from Insurance.pdf"
+    }, { repository });
+
+    expect(model.estimateReview).toMatchObject({
+      approvedAmountCents: 660898,
+      approvedAmountLabel: "$6,608.98",
+      status: "AMOUNT_FOUND"
+    });
+  });
+
   it("recognizes an estimate uploaded through another evidence port", async () => {
     const repository = createInMemoryClaimsWorkspaceRepository([]);
     const created = await createInsuranceClaim(actor, {

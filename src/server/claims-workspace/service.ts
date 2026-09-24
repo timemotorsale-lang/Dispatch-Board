@@ -1359,8 +1359,12 @@ function isEstimateEvidence(item: ClaimEvidenceRecord) {
 function extractApprovedAmountCents(value: string) {
   const normalized = value.replace(/\s+/g, " ");
   const currencyPattern = String.raw`\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)`;
-  const targeted = normalized.match(new RegExp(String.raw`(?:approved|allowed|net|total|repair amount|supplement amount|carrier total)[^$0-9]{0,40}${currencyPattern}(?![0-9])`, "i"));
-  const amountText = targeted?.[1] ?? [...normalized.matchAll(new RegExp(String.raw`\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)(?![0-9])`, "g"))]
+  const summaryLabels = String.raw`(?:approved(?: repair)? amount|allowed amount|net estimate total|estimate total|gross total|carrier total|repair total|total repair|supplement amount)`;
+  const targeted = [...normalized.matchAll(new RegExp(String.raw`${summaryLabels}[^$0-9]{0,80}${currencyPattern}(?![0-9])`, "gi"))]
+    .map((match) => moneyTextToCents(match[1]))
+    .filter((candidate) => candidate >= 100_00)
+    .sort((left, right) => right - left)[0];
+  const amountText = targeted ?? [...normalized.matchAll(new RegExp(String.raw`\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)(?![0-9])`, "g"))]
     .map((match) => match[1])
     .map((candidate) => moneyTextToCents(candidate))
     .filter((candidate) => candidate >= 100_00)
