@@ -113,12 +113,13 @@ export function executeDocumentLibraryCommand(input: {
   };
 
   if (command.action === "CREATE_DOCUMENT") {
+    const requestedDocumentId = command.documentId?.trim();
     const document: DocumentRecord = {
       auditTrail: [],
       createdAt: at,
       documentType: command.documentType.trim(),
       fileName: command.fileName.trim(),
-      id: `doc-manual-${state.documents.length + 1}`,
+      id: requestedDocumentId || `doc-manual-${state.documents.length + 1}`,
       legalHold: false,
       owner: { ...command.owner },
       providerReferences: [],
@@ -129,6 +130,7 @@ export function executeDocumentLibraryCommand(input: {
       storage: { ...command.storage }
     };
     if (!document.documentType || !document.fileName) throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Document type and file name are required.");
+    if (state.documents.some((item) => item.id === document.id)) throw new DocumentLibraryError("DOCUMENT_LIBRARY_IDEMPOTENCY_CONFLICT", "Document id is already in use.");
 
     let packetRecord: PacketRecord | undefined;
     state = { ...state, documents: [...state.documents, appendAudit(document, audit({ action: "DOCUMENT_CREATED", actorId: input.actorId, at, idempotencyKey, note: reason!, subjectId: document.id }))] };

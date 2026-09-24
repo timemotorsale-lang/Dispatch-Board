@@ -9,6 +9,7 @@ vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentU
 import { POST as CREATE_CLAIM } from "@/app/api/claims-workspace/claims/route";
 import { PATCH as UPDATE_CLAIM } from "@/app/api/claims-workspace/claims/[claimId]/route";
 import { POST as ATTACH_EVIDENCE } from "@/app/api/claims-workspace/claims/[claimId]/evidence/route";
+import { GET as OPEN_EVIDENCE_CONTENT } from "@/app/api/claims-workspace/claims/[claimId]/evidence/[evidenceId]/content/route";
 import { POST as REQUEST_HANDOFF } from "@/app/api/claims-workspace/claims/[claimId]/handoff/route";
 import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspace/repository-factory";
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
@@ -134,10 +135,18 @@ describe("claims workspace API routes", () => {
     const payload = await response.json();
     expect(payload.evidence[0]).toMatchObject({
       category: "ESTIMATE",
-      documentLibraryId: expect.stringMatching(/^doc-manual-/),
+      documentLibraryId: expect.stringMatching(/^doc-claim-/),
       fileName: "carrier-estimate.pdf",
       title: "Carrier estimate"
     });
+    const contentResponse = await OPEN_EVIDENCE_CONTENT(new Request(`http://local/api/claims-workspace/claims/${claimId}/evidence/${payload.evidence[0].id}/content`, {
+      headers: { accept: "application/pdf" }
+    }), {
+      params: Promise.resolve({ claimId, evidenceId: payload.evidence[0].id })
+    });
+    expect(contentResponse.status).toBe(200);
+    expect(contentResponse.headers.get("content-type")).toBe("application/pdf");
+    await expect(contentResponse.text()).resolves.toBe("estimate bytes");
     const library = await getDocumentLibrary({
       duties: { all: [], direct: [], roleDefaults: [] },
       email: "advisor@example.com",

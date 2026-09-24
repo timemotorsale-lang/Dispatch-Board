@@ -227,6 +227,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
     }
     return {
       action,
+      documentId: stringField(input, "documentId") || undefined,
       documentType: stringField(input, "documentType"),
       fileName: stringField(input, "fileName"),
       idempotencyKey: commandIdempotencyKey(input),

@@ -9454,6 +9454,7 @@ model InsuranceClaimEvidence {
   title               String
   status              String
   documentLibraryId   String?
+  extractedText       String?
   fileName            String?
   notes               String?
   relationshipTargets Json           @default("[]")
