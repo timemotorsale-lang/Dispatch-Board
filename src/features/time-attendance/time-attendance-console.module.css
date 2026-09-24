@@ -1839,6 +1839,178 @@
   padding: 16px;
 }
 
+:global(html[data-app-theme="dark"]) .console {
+  color: #edf4ff;
+}
+
+:global(html[data-app-theme="dark"]) .panel,
+:global(html[data-app-theme="dark"]) .reviewRail,
+:global(html[data-app-theme="dark"]) .teamPanel,
+:global(html[data-app-theme="dark"]) .commandPanel,
+:global(html[data-app-theme="dark"]) .commandSearch,
+:global(html[data-app-theme="dark"]) .workflowRail,
+:global(html[data-app-theme="dark"]) .mobileJumpRail,
+:global(html[data-app-theme="dark"]) .workflowDisclosure,
+:global(html[data-app-theme="dark"]) .inboxLauncher {
+  background: #101f31;
+  border-color: #293b52;
+  box-shadow: none;
+  color: #edf4ff;
+}
+
+:global(html[data-app-theme="dark"]) .captureHeroPanel {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.2);
+}
+
+:global(html[data-app-theme="dark"]) .panelHeader h2,
+:global(html[data-app-theme="dark"]) .teamHeader h2,
+:global(html[data-app-theme="dark"]) .commandCopy h2,
+:global(html[data-app-theme="dark"]) .inboxLauncher h2,
+:global(html[data-app-theme="dark"]) .commandSearchResults strong,
+:global(html[data-app-theme="dark"]) .captureStatus strong,
+:global(html[data-app-theme="dark"]) .timeSummary strong,
+:global(html[data-app-theme="dark"]) .commandMetrics dd,
+:global(html[data-app-theme="dark"]) .payrollMetrics strong,
+:global(html[data-app-theme="dark"]) .hardeningMetrics strong,
+:global(html[data-app-theme="dark"]) .managerReviewMetrics strong,
+:global(html[data-app-theme="dark"]) .managerReviewEmpty strong,
+:global(html[data-app-theme="dark"]) .auditFacts dd,
+:global(html[data-app-theme="dark"]) .timelineItem strong,
+:global(html[data-app-theme="dark"]) .exceptionRow strong,
+:global(html[data-app-theme="dark"]) .queueItem h3,
+:global(html[data-app-theme="dark"]) .teamRow strong {
+  color: #f8fbff;
+}
+
+:global(html[data-app-theme="dark"]) .panelHeader p,
+:global(html[data-app-theme="dark"]) .teamHeader p,
+:global(html[data-app-theme="dark"]) .commandCopy p,
+:global(html[data-app-theme="dark"]) .inboxLauncher p,
+:global(html[data-app-theme="dark"]) .commandSearchResults small,
+:global(html[data-app-theme="dark"]) .commandSearchResults p,
+:global(html[data-app-theme="dark"]) .timelineItem p,
+:global(html[data-app-theme="dark"]) .exceptionRow p,
+:global(html[data-app-theme="dark"]) .queueItem p,
+:global(html[data-app-theme="dark"]) .teamRow small,
+:global(html[data-app-theme="dark"]) .cardContextLine,
+:global(html[data-app-theme="dark"]) .captureStatus span,
+:global(html[data-app-theme="dark"]) .timeSummary span,
+:global(html[data-app-theme="dark"]) .commandMetrics dt,
+:global(html[data-app-theme="dark"]) .commandSearchResults span,
+:global(html[data-app-theme="dark"]) .payrollMetrics span,
+:global(html[data-app-theme="dark"]) .payrollControls label span,
+:global(html[data-app-theme="dark"]) .hardeningMetrics span,
+:global(html[data-app-theme="dark"]) .managerReviewMetrics span,
+:global(html[data-app-theme="dark"]) .auditFacts dt,
+:global(html[data-app-theme="dark"]) .workflowRail span,
+:global(html[data-app-theme="dark"]) .mobileJumpRail span {
+  color: #afbed2;
+}
+
+:global(html[data-app-theme="dark"]) .commandSearch label,
+:global(html[data-app-theme="dark"]) .commandSearch input,
+:global(html[data-app-theme="dark"]) .payrollControls input,
+:global(html[data-app-theme="dark"]) .correctionForm input,
+:global(html[data-app-theme="dark"]) .correctionForm select,
+:global(html[data-app-theme="dark"]) .correctionForm textarea,
+:global(html[data-app-theme="dark"]) .timeOffForm input,
+:global(html[data-app-theme="dark"]) .timeOffForm select,
+:global(html[data-app-theme="dark"]) .timeOffForm textarea,
+:global(html[data-app-theme="dark"]) .attestationForm textarea {
+  background: #14253a;
+  border-color: #344a64;
+  color: #edf4ff;
+}
+
+:global(html[data-app-theme="dark"]) .commandSearch input::placeholder,
+:global(html[data-app-theme="dark"]) .payrollControls input::placeholder,
+:global(html[data-app-theme="dark"]) .correctionForm input::placeholder,
+:global(html[data-app-theme="dark"]) .correctionForm textarea::placeholder,
+:global(html[data-app-theme="dark"]) .timeOffForm input::placeholder,
+:global(html[data-app-theme="dark"]) .timeOffForm textarea::placeholder,
+:global(html[data-app-theme="dark"]) .attestationForm textarea::placeholder {
+  color: #7f8da3;
+}
+
+:global(html[data-app-theme="dark"]) .captureStatus div,
+:global(html[data-app-theme="dark"]) .timeSummary div,
+:global(html[data-app-theme="dark"]) .commandMetrics div,
+:global(html[data-app-theme="dark"]) .commandSearchResults a,
+:global(html[data-app-theme="dark"]) .commandSearchResults p,
+:global(html[data-app-theme="dark"]) .payrollMetrics div,
+:global(html[data-app-theme="dark"]) .hardeningMetrics div,
+:global(html[data-app-theme="dark"]) .managerReviewMetrics div,
+:global(html[data-app-theme="dark"]) .hardeningGate,
+:global(html[data-app-theme="dark"]) .payrollBlockers div,
+:global(html[data-app-theme="dark"]) .managerReviewEmpty,
+:global(html[data-app-theme="dark"]) .managerReviewTableRow,
+:global(html[data-app-theme="dark"]) .auditFacts div,
+:global(html[data-app-theme="dark"]) .attestationStatement,
+:global(html[data-app-theme="dark"]) .timelineItem,
+:global(html[data-app-theme="dark"]) .exceptionRow,
+:global(html[data-app-theme="dark"]) .policyCard,
+:global(html[data-app-theme="dark"]) .queueItem,
+:global(html[data-app-theme="dark"]) .teamRow,
+:global(html[data-app-theme="dark"]) .cardContextLine span,
+:global(html[data-app-theme="dark"]) .captureMoreActions,
+:global(html[data-app-theme="dark"]) .inboxNotice,
+:global(html[data-app-theme="dark"]) .mvpNote {
+  background: #14253a;
+  border-color: #344a64;
+  color: #edf4ff;
+}
+
+:global(html[data-app-theme="dark"]) .mvpNote,
+:global(html[data-app-theme="dark"]) .inboxNotice p,
+:global(html[data-app-theme="dark"]) .inboxNotice small,
+:global(html[data-app-theme="dark"]) .hardeningGate p,
+:global(html[data-app-theme="dark"]) .hardeningGate small,
+:global(html[data-app-theme="dark"]) .payrollBlockers p,
+:global(html[data-app-theme="dark"]) .managerReviewEmpty p,
+:global(html[data-app-theme="dark"]) .managerReviewTableRow p,
+:global(html[data-app-theme="dark"]) .managerReviewTableRow small,
+:global(html[data-app-theme="dark"]) .attestationStatement {
+  color: #b9c8dc;
+}
+
+:global(html[data-app-theme="dark"]) .chip,
+:global(html[data-app-theme="dark"]) .chipNeutral,
+:global(html[data-app-theme="dark"]) .ghostAction,
+:global(html[data-app-theme="dark"]) .captureSecondary,
+:global(html[data-app-theme="dark"]) .captureRefresh,
+:global(html[data-app-theme="dark"]) .payrollActions button,
+:global(html[data-app-theme="dark"]) .managerReviewOpen,
+:global(html[data-app-theme="dark"]) .auditAction,
+:global(html[data-app-theme="dark"]) .workflowRail a,
+:global(html[data-app-theme="dark"]) .mobileJumpRail a {
+  background: #17283c;
+  border-color: #344a64;
+  color: #dbeafe;
+}
+
+:global(html[data-app-theme="dark"]) .chipGood {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+:global(html[data-app-theme="dark"]) .chipWarning {
+  background: rgba(249, 115, 22, 0.16);
+  color: #fdba74;
+}
+
+:global(html[data-app-theme="dark"]) .chipDanger {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+
+:global(html[data-app-theme="dark"]) .workflowRail a:hover,
+:global(html[data-app-theme="dark"]) .mobileJumpRail a:hover,
+:global(html[data-app-theme="dark"]) .commandSearchResults a:hover {
+  background: #1d3450;
+  color: #ffffff;
+}
+
 @media (max-width: 1100px) {
   .hero,
   .bodyGrid,
