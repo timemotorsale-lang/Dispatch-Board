@@ -66,7 +66,7 @@ function RepairWorkbenchUnavailable({
   return (
     <section className={`page-stack ${styles.directory}`}>
       <header className={`page-copy ${styles.hero}`}>
-        <span className="eyebrow">Shop &amp; Recon</span>
+        <span className="eyebrow">Recon / Repair Advisor</span>
         <h1>Repair Workbench needs attention</h1>
         <p>
           The workbench could not finish loading its repair-order data. Your saved work was not
@@ -283,8 +283,8 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
           <Link className="pill pill-secondary" href={returnTo ?? "/vehicles/inventory"}>
             Inventory Lifecycle
           </Link>
-          <Link className="pill pill-secondary" href="/vehicles/shop-recon">
-            ← Shop &amp; Recon
+          <Link className="pill pill-secondary" href="/vehicles/recon-repair-advisor">
+            Recon / Repair Advisor
           </Link>
           <Link className="pill pill-primary" href={intakeHref}>
             {params.vehicleId ? `Create repair order for ${contextName}` : "Check In Vehicle"}

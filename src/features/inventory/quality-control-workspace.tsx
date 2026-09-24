@@ -823,7 +823,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
               <strong>Inspector queue</strong>
               <span>Prioritize ready work, failed rechecks, and evidence-blocked repairs.</span>
             </div>
-            <Link href="/vehicles/shop-recon">Shop picture</Link>
+            <Link href="/vehicles/recon-repair-advisor">Recon / repair picture</Link>
           </header>
           <div>
             {vendorQcRows.map(({ order: queueOrder, work }) => (
@@ -860,7 +860,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                 <CheckCircle2 />
                 <strong>No vehicles ready for QC right now.</strong>
                 <span>{evidenceBlocked.length} evidence-blocked · {partsBlocked.length} parts-blocked · {failedJobs.length} recheck item(s)</span>
-                <Link href="/vehicles/shop-recon">Review shop flow</Link>
+                <Link href="/vehicles/recon-repair-advisor">Review recon / repair flow</Link>
               </div>
             )}
           </div>

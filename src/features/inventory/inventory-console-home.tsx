@@ -160,7 +160,7 @@ export function InventoryConsoleHome({
       ? [{ href: `/vehicles/parts-operations?${new URLSearchParams({ returnTo: home, returnLabel: "Back to Inventory Manager" })}`, id: "parts", label: "Parts", meta: `${data.operational.parts.unreservedUnits} unreserved unit(s)`, title: `${data.operational.parts.waitingDemands} parts constraint(s) need coordination`, tone: "dependency" }]
       : []),
     ...(data.operational?.shop.blocked
-      ? [{ href: `/vehicles/shop-recon?${new URLSearchParams({ returnTo: home })}`, id: "shop", label: "Shop", meta: "Cross-team dependency", title: `${data.operational.shop.blocked} shop blocker(s) affecting flow`, tone: "urgent" }]
+      ? [{ href: `/vehicles/recon-repair-advisor?${new URLSearchParams({ returnTo: home })}`, id: "shop", label: "Recon / Repair", meta: "Cross-team dependency", title: `${data.operational.shop.blocked} repair blocker(s) affecting flow`, tone: "urgent" }]
       : []),
   ].slice(0, 4);
   const firstName = userName.trim().split(/\s+/)[0] || "there";
@@ -238,7 +238,7 @@ export function InventoryConsoleHome({
         <div>{groupedLifecycle.map((stage) => <Link className={stage.blocked || stage.overdue ? styles.stageRisk : ""} href={`/vehicles/inventory?${new URLSearchParams({ stage: stage.stage, returnTo: home })}`} key={stage.label}><stage.Icon /><span><strong>{stage.label}</strong><small>{stage.averageDays ? `${stage.averageDays.toFixed(1)} average days` : "No active stage time"}</small></span><b>{stage.count}</b>{stage.blocked || stage.overdue ? <em>{stage.blocked ? `${stage.blocked} blocked` : `${stage.overdue} overdue`}</em> : <em>On flow</em>}</Link>)}</div>
       </section>
 
-      {highVolume ? <section aria-label="High-volume operating signals" className={styles.volumeSignals}><header><div><p>Expanded operations</p><h2>High-volume signals</h2><span>Cross-team capacity and throughput remain visible while the queue stays actionable.</span></div></header><div><Link href="/vehicles/shop-recon"><Wrench /><span>Shop work<strong>{data.operational?.shop.active ?? "—"}</strong><small>{data.operational?.shop.blocked ?? 0} blocked</small></span></Link><Link href={`/vehicles/parts-operations?${new URLSearchParams({ returnTo: home })}`}><Truck /><span>Parts demand<strong>{data.operational?.parts.waitingDemands ?? "—"}</strong><small>{data.operational?.parts.unreservedUnits ?? 0} unreserved</small></span></Link><Link href="/manager-review?scope=inventory"><ShieldCheck /><span>Decisions<strong>{data.reviews.approvals + data.reviews.reviews}</strong><small>Approvals and reviews</small></span></Link><Link href="/activity?scope=inventory"><Gauge /><span>24-hour flow<strong>{data.operational?.throughput.inventoryTransitions ?? "—"}</strong><small>Inventory transitions</small></span></Link></div></section> : null}
+      {highVolume ? <section aria-label="High-volume operating signals" className={styles.volumeSignals}><header><div><p>Expanded operations</p><h2>High-volume signals</h2><span>Cross-team capacity and throughput remain visible while the queue stays actionable.</span></div></header><div><Link href="/vehicles/recon-repair-advisor"><Wrench /><span>Recon / repair<strong>{data.operational?.shop.active ?? "—"}</strong><small>{data.operational?.shop.blocked ?? 0} blocked</small></span></Link><Link href={`/vehicles/parts-operations?${new URLSearchParams({ returnTo: home })}`}><Truck /><span>Parts demand<strong>{data.operational?.parts.waitingDemands ?? "—"}</strong><small>{data.operational?.parts.unreservedUnits ?? 0} unreserved</small></span></Link><Link href="/manager-review?scope=inventory"><ShieldCheck /><span>Decisions<strong>{data.reviews.approvals + data.reviews.reviews}</strong><small>Approvals and reviews</small></span></Link><Link href="/activity?scope=inventory"><Gauge /><span>24-hour flow<strong>{data.operational?.throughput.inventoryTransitions ?? "—"}</strong><small>Inventory transitions</small></span></Link></div></section> : null}
 
       <details className={styles.tools}>
         <summary><span><Settings2 /><b>More inventory tools</b><small>Planning, analysis, disposition, saved views, reports, and audit history.</small></span><strong>Show tools</strong></summary>
@@ -246,7 +246,7 @@ export function InventoryConsoleHome({
           <Link href="/vehicles/acquisition-appraisal">Acquisition &amp; appraisal</Link>
           <Link href="/vehicles/control-tower">Aging &amp; cost exposure</Link>
           <Link href="/vehicles/disposition-wholesale">Disposition &amp; wholesale</Link>
-          <Link href="/vehicles/shop-recon">Shop &amp; Recon</Link>
+          <Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link>
           <Link href="/vehicles/parts-operations">Parts operations</Link>
           <Link href="/reports?scope=inventory">Reports &amp; exports</Link>
           <Link href="/activity?scope=inventory">Inventory event history</Link>

@@ -52,7 +52,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     key: "SERVICE",
     label: "Service Operations",
     description: "Shop production, dispatch, repair orders, parts, and quality.",
-    landingRoute: "/vehicles/shop-recon",
+    landingRoute: "/vehicles/recon-repair-advisor",
     roleNames: ["Service Department Manager"],
     dutyTerms: ["service production", "shop management", "shop dispatch"]
   },
@@ -172,6 +172,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/vehicles/coo-workbook", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/vehicles/parts", workspaces: ["PARTS", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/recon-repair-advisor", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-recon", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-planning", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/outside-vendors", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },

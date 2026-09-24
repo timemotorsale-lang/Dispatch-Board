@@ -284,7 +284,7 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
         <section>
           <header><CarFront /><div><strong>Start or route work</strong><span>Check-in, intake, and governed RO creation.</span></div></header>
           <Link href={withReturnTo("/vehicles/repair-orders?intakeSource=WALK_IN")}>Check in vehicle <ArrowRight /></Link>
-          <Link href={withReturnTo("/vehicles/shop-recon")}>Shop & recon board <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-workbench")}>Open repair workbench <ArrowRight /></Link>
         </section>
 
         <section className="rra-principles">

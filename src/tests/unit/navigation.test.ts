@@ -212,8 +212,7 @@ describe("enterprise shell navigation", () => {
       "Inventory Lifecycle",
       "Inventory Workbook",
       "Outside Vendors",
-      "Shop & Recon",
-      "Recon/Repair Advisor",
+      "Recon / Repair Advisor",
       "Repair Workbench",
       "Claims Desk",
       "Reviews",
@@ -221,7 +220,7 @@ describe("enterprise shell navigation", () => {
       "Reports",
       "Administration"
     ]);
-    expect(inventoryConsole?.items.find((item) => item.title === "Shop & Recon")?.href).toBe("/vehicles/shop-recon");
+    expect(inventoryConsole?.items.find((item) => item.title === "Recon / Repair Advisor")?.href).toBe("/vehicles/recon-repair-advisor");
     expect(inventoryConsole?.items.find((item) => item.title === "Repair Workbench")?.href).toBe("/vehicles/repair-workbench");
     expect(getConsoleNavigation("/vehicles/coo-workbook", manager)).toMatchObject({
       badge: "Review",
@@ -253,7 +252,7 @@ describe("enterprise shell navigation", () => {
       "Vehicle Operations Lead Workbook",
       "My Vehicle Work",
       "Inventory Flow",
-      "Shop & Recon",
+      "Recon / Repair Advisor",
       "Outside Vendors",
       "Parts Runner",
       "Receive Vehicle",
@@ -261,7 +260,7 @@ describe("enterprise shell navigation", () => {
     ]);
     expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
       "Service Operations Workbook",
-      "Shop & Recon",
+      "Recon / Repair Advisor",
       "Outside Vendors",
       "Claims Desk",
       "Repair Orders",
@@ -274,7 +273,7 @@ describe("enterprise shell navigation", () => {
       "Inventory Home",
       "Inventory Workbook",
       "Inventory Lifecycle",
-      "Shop & Recon",
+      "Recon / Repair Advisor",
       "Outside Vendors",
       "Parts Readiness",
       "Reviews"

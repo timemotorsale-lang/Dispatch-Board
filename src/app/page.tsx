@@ -84,13 +84,13 @@ const sections: MobileSection[] = [
     cards: [
       { accent: "blue", description: "Inventory operating home.", href: "/vehicles", icon: CarFront, label: "Inventory", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SALES"] },
       { accent: "green", description: "Start vehicle intake and custody.", href: "/vehicles/workflows/add-vehicle", icon: UserPlus, label: "Vehicle Intake", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "OPERATIONS_COORDINATOR"] },
-      { accent: "gold", description: "Recon flow, status, and bottlenecks.", href: "/vehicles/shop-recon", icon: Wrench, label: "Recon", permissions: ["INVENTORY", "SERVICE", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
+      { accent: "gold", description: "One repair and recon advisor workspace.", href: "/vehicles/recon-repair-advisor", icon: Wrench, label: "Recon / Repair", permissions: ["INVENTORY", "SERVICE", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
       { accent: "violet", description: "Photos, listing, and sale readiness.", href: "/tasks?department=ADVERTISING", icon: Sparkles, label: "Photos / Listings", permissions: ["INVENTORY", "MARKETING", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] }
     ]
   },
   {
-    actionHref: "/vehicles/shop-recon",
-    actionLabel: "Shop",
+    actionHref: "/vehicles/recon-repair-advisor",
+    actionLabel: "Recon / Repair",
     title: "Service / Shop",
     cards: [
       { accent: "blue", description: "Open repair orders and governed work.", href: "/vehicles/repair-workbench", icon: ClipboardCheck, label: "Work Orders", permissions: ["SERVICE", "TECHNICIAN", "ADVISOR", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },

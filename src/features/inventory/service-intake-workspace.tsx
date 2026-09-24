@@ -224,7 +224,7 @@ export function buildServiceIntakeCompletionLinks(repairOrderId: string, returnT
   const repairWorkbenchHref = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}`;
   return {
     repairWorkbenchHref,
-    returnHref: returnTo ? appendRepairOrderContext(returnTo, repairOrderId) : "/vehicles/shop-recon",
+    returnHref: returnTo ? appendRepairOrderContext(returnTo, repairOrderId) : "/vehicles/recon-repair-advisor",
     shopDispatchHref: `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(repairOrderId)}`,
   };
 }
@@ -1138,14 +1138,14 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       <p>{created.reused ? "Existing repair order found" : "Check-in complete"}</p>
       <h1>{created.repairOrderNumber}</h1>
       <span>{isDealershipInventory ? selectedInventoryUnit?.inventoryNumber ?? "Dealership inventory" : selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
-      <div className="sic-success-summary"><strong>{created.reused ? "One synchronized vehicle card" : "Ready for intake review"}</strong><span>{created.reused ? "This VIN already had an open repair card, so all location, vendor, repair, QC, and handoff work stays on that record." : "The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop & Recon."}</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={completionLinks.repairWorkbenchHref}>Continue working this RO <ChevronRight /></Link><Link href={completionLinks.shopDispatchHref}>Open Shop Dispatch</Link>{returnTo ? <Link href={completionLinks.returnHref}>Return to source workspace</Link> : null}<Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
+      <div className="sic-success-summary"><strong>{created.reused ? "One synchronized vehicle card" : "Ready for intake review"}</strong><span>{created.reused ? "This VIN already had an open repair card, so all location, vendor, repair, QC, and handoff work stays on that record." : "The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Recon / Repair Advisor."}</span></div>
+      <div className="sic-success-actions"><Link className="primary" href={completionLinks.repairWorkbenchHref}>Continue working this RO <ChevronRight /></Link><Link href={completionLinks.shopDispatchHref}>Open Shop Dispatch</Link>{returnTo ? <Link href={completionLinks.returnHref}>Return to source workspace</Link> : null}<Link href="/vehicles/recon-repair-advisor">Return to Recon / Repair Advisor</Link></div>
     </section>;
   }
 
   return <form className="service-intake-shell sic-reference-v2" noValidate onSubmit={submit} ref={formRef}>
     <header className="sic-header">
-      <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/shop-recon"}>{returnTo ? "← Back to Labor Guide" : "← Back to Shop & Recon"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
+      <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/recon-repair-advisor"}>{returnTo ? "← Back to Labor Guide" : "← Back to Recon / Repair Advisor"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
       <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>
     </header>
 

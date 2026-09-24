@@ -28,7 +28,7 @@ describe("role landing and record routing", () => {
   it("routes each primary role to its approved landing", () => {
     expect(getDefaultLandingRoute(user(["General Manager"]))).toBe("/manager-workspace");
     expect(getDefaultLandingRoute(user(["Vehicle Operations Lead"]))).toBe("/vehicles?workspace=vehicle-operations-lead");
-    expect(getDefaultLandingRoute(user(["Service Department Manager"]))).toBe("/vehicles/shop-recon");
+    expect(getDefaultLandingRoute(user(["Service Department Manager"]))).toBe("/vehicles/recon-repair-advisor");
     expect(getDefaultLandingRoute(user(["Inventory Manager"]))).toBe("/vehicles");
     expect(getDefaultLandingRoute(user(["Service Advisor"]))).toBe("/vehicles/advisor");
     expect(getDefaultLandingRoute(user(["Mechanic"]))).toBe("/my-tasks");

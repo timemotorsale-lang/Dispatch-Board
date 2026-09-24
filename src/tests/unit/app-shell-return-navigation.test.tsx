@@ -214,7 +214,7 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).toContain("managerMode=COO");
   });
 
-  it("keeps the Service Operations sidebar throughout manager-contained Shop and Recon", () => {
+  it("keeps the Service Operations sidebar throughout manager-contained recon and repair work", () => {
     currentPathname = "/vehicles/shop-recon/repair-order-1";
     currentSearchParams = new URLSearchParams("workspaceContext=MANAGEMENT&managerMode=WORK&returnTo=%2Fmanager-workspace%3Fmode%3Dwork");
 
@@ -226,7 +226,7 @@ describe("application shell Sales Console return navigation", () => {
 
     expect(markup).toContain("app-frame-console-sidebar");
     expect(markup).toContain('aria-label="Service Operations navigation"');
-    expect(markup).toContain("Shop &amp; Recon");
+    expect(markup).toContain("Recon / Repair Advisor");
     expect(markup).toContain("Shop Dispatch");
     expect(markup).toContain("managerMode=WORK");
   });

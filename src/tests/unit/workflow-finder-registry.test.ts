@@ -11,8 +11,8 @@ describe("workflow finder registry", () => {
     expect(titlesFor("inventory lifcycle")).toContain("Inventory Lifecycle");
   });
 
-  it("finds Shop & Recon from plain-language wording", () => {
-    expect(titlesFor("shop and recon")).toContain("Shop & Recon");
+  it("routes Shop & Recon wording to the unified Recon / Repair Advisor workspace", () => {
+    expect(titlesFor("shop and recon")).toContain("Recon / Repair Advisor");
   });
 
   it("finds workbook capabilities as a family", () => {

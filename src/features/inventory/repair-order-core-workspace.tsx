@@ -31,15 +31,16 @@ const local = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset()
 const vehicleLabel = (item: Item) => [item.vehicle.year, item.vehicle.make, item.vehicle.model].filter(Boolean).join(" ");
 const readable = (value: string) => value.toLowerCase().replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 
-export function RepairOrderCoreWorkspace({ initial, initialDraft, options }: {
+export function RepairOrderCoreWorkspace({ initial, initialDraft, initialSearch = "", options }: {
   initial: List;
   initialDraft?: { concernSummary?: string; intakeSource?: string; vehicleId?: string };
+  initialSearch?: string;
   options: Options;
 }) {
   const now = new Date();
   const preparedVehicle = options.vehicles.some((vehicle) => vehicle.id === initialDraft?.vehicleId) ? initialDraft?.vehicleId : "";
   const [list, setList] = useState(initial);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialSearch);
   const [notice, setNotice] = useState(initialDraft?.vehicleId ? "Service intake is ready. Confirm the remaining details." : "");
   const [busy, setBusy] = useState(false);
   const [showCreate, setShowCreate] = useState(Boolean(initialDraft?.vehicleId));
@@ -120,7 +121,7 @@ export function RepairOrderCoreWorkspace({ initial, initialDraft, options }: {
         <label className="form-field"><span>Find an RO, vehicle, customer, or stock number</span><input value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         <button className="button button-primary" disabled={busy}>Search</button>
       </form>
-      <p>{list.total} open repair orders</p>
+      <p>{query.trim() ? `${list.total} repair order${list.total === 1 ? "" : "s"} matching "${query.trim()}"` : `${list.total} open repair orders`}</p>
     </section>
 
     <section className="panel-card page-stack">

@@ -13,6 +13,12 @@ describe("vehicle registry route", () => {
     const response = await GET(new Request("http://localhost/api/vehicles?query=Honda&page=2&pageSize=10"));
     expect(response.status).toBe(200); expect(mocks.listVehicleRegistry).toHaveBeenCalledWith(actor, { page: "2", pageSize: "10", query: "Honda" });
   });
+  it("accepts q as the vehicle search parameter used by console links", async () => {
+    mocks.listVehicleRegistry.mockResolvedValue({ items: [], page: 1, pageSize: 25, total: 0, totalPages: 1 });
+    const response = await GET(new Request("http://localhost/api/vehicles?q=2025%20Toyota%20Sienna"));
+    expect(response.status).toBe(200);
+    expect(mocks.listVehicleRegistry).toHaveBeenCalledWith(actor, { page: null, pageSize: null, query: "2025 Toyota Sienna" });
+  });
   it("returns 201 for a new idempotent create and 200 for a replay", async () => {
     const payload = { vehicleNumber: "TMS-1" }; mocks.createRegistryVehicle.mockResolvedValueOnce({ duplicate: false, result: { id: "vehicle-1" }, version: 1 }).mockResolvedValueOnce({ duplicate: true, result: { id: "vehicle-1" }, version: 1 });
     const first = await POST(new Request("http://localhost/api/vehicles", { method: "POST", body: JSON.stringify(payload) })); const replay = await POST(new Request("http://localhost/api/vehicles", { method: "POST", body: JSON.stringify(payload) }));
