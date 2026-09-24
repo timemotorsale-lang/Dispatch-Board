@@ -17,6 +17,7 @@ import {
   FileText,
   FolderPlus,
   LockKeyhole,
+  UploadCloud,
   Search,
   ShieldCheck,
   Sparkles,
@@ -91,6 +92,7 @@ type DocumentLibraryModel = {
     url: string | null;
   }>;
   reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
+  smartIntake?: SmartIntakeRecord[];
   storageRollout?: {
     durableRepository?: {
       enabled: boolean;
@@ -135,6 +137,22 @@ type DocumentLibraryModel = {
   };
 };
 
+type SmartIntakeRecord = {
+  classification: string;
+  classificationConfidence: number;
+  classificationLabel: string;
+  contentType: string | null;
+  createdAt: string;
+  extractedFields: Array<{ confidence: number; key: string; label: string; sensitive: boolean; value: string }>;
+  extractionMethod: string;
+  fileName: string;
+  id: string;
+  reviewStatus: string;
+  routingTarget: string;
+  sensitiveFieldKeys: string[];
+  warnings: string[];
+};
+
 type DocumentLibraryLandingProps = {
   error?: string | null;
   initialLibrary: DocumentLibraryModel | null;
@@ -163,6 +181,17 @@ type DocumentLibraryActionResponse = {
     rollbackPosture: string;
     state: string;
     subjectId: string;
+  };
+};
+
+type DocumentLibraryUploadResponse = {
+  error?: string;
+  smartIntake?: SmartIntakeRecord | null;
+  storageDraft?: {
+    contentType: string;
+    fileName: string;
+    reference: string;
+    sizeBytes: number;
   };
 };
 
@@ -256,6 +285,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const [notice, setNotice] = useState(error ?? "Document console ready.");
   const [actionReason, setActionReason] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [providerPreview, setProviderPreview] = useState<DocumentLibraryActionResponse["providerAction"] | null>(null);
   const [intake, setIntake] = useState({
     documentType: "CUSTOMER_AUTHORIZATION",
@@ -383,6 +413,8 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     });
   }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
   const assistantWorkQueue = useMemo(() => library?.intelligence?.recommendations.slice(0, 5) ?? [], [library]);
+  const smartIntakeQueue = useMemo(() => library?.smartIntake ?? [], [library]);
+  const selectedSmartIntake = smartIntakeQueue[0] ?? null;
 
   function runAssistantTask(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
     openIntelligenceRecommendation(recommendation);
@@ -586,6 +618,52 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     }
   }
 
+  async function uploadSmartIntakeFile(file: File | null) {
+    if (!file) return;
+    setUploadBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("console", "DOCUMENT_LIBRARY");
+      form.append("ownerId", intake.ownerId || "smart-intake-review");
+      form.append("ownerLabel", intake.ownerLabel || "Smart intake review");
+      form.append("ownerType", intake.ownerType);
+      form.append("reason", intake.reason || "Smart document intake OCR review.");
+      const response = await fetch("/api/document-library/uploads", {
+        body: form,
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as DocumentLibraryUploadResponse | null;
+      if (!response.ok) {
+        setNotice(result?.error ?? "Smart intake upload could not be read.");
+        return;
+      }
+      const smartDraft = result?.smartIntake;
+      if (smartDraft) {
+        setLibraryState((current) => current ? {
+          ...current,
+          smartIntake: [smartDraft, ...(current.smartIntake ?? []).filter((item) => item.id !== smartDraft.id)]
+        } : current);
+        setIntake((current) => ({
+          ...current,
+          documentType: smartDraft.classification === "BUSINESS_CARD" ? "BUSINESS_CARD" :
+            smartDraft.classification === "GOVERNMENT_ID" ? "GOVERNMENT_ID" :
+              smartDraft.classification === "INSURANCE_ESTIMATE" ? "INSURANCE_ESTIMATE" : current.documentType,
+          fileName: result.storageDraft?.fileName ?? file.name,
+          reference: result.storageDraft?.reference ?? current.reference,
+          sensitivity: smartDraft.sensitiveFieldKeys.length > 0 ? "RESTRICTED" : current.sensitivity
+        }));
+        setNotice(`${smartDraft.classificationLabel} read with ${smartDraft.classificationConfidence}% confidence. Review before saving to a record.`);
+        return;
+      }
+      setNotice("File uploaded, but no smart intake draft was produced.");
+    } catch {
+      setNotice("Smart intake upload could not reach the document service.");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
   if (!library) {
     return (
       <section className={styles.page} aria-labelledby="document-library-title">
@@ -622,6 +700,79 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{summary.reviewItems}</strong><span>Review items</span></article>
         <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
         <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
+        <article><strong>{smartIntakeQueue.length}</strong><span>Smart drafts</span></article>
+      </section>
+
+      <section className={styles.smartIntakePanel} aria-label="Smart document intake">
+        <header>
+          <div>
+            <span><UploadCloud size={16} />Smart intake</span>
+            <h2>Read IDs and business cards</h2>
+            <p>Upload a card, ID, estimate, or unknown document. OCR drafts fields for review without updating customer or vendor records automatically.</p>
+          </div>
+          <StatusBadge label={selectedSmartIntake?.reviewStatus ?? "READY"} tone={selectedSmartIntake ? statusTone(selectedSmartIntake.reviewStatus) : "success"} />
+        </header>
+        <div className={styles.smartIntakeGrid}>
+          <label className={styles.smartUploadBox}>
+            <UploadCloud size={23} />
+            <span>{uploadBusy ? "Reading file..." : "Upload image or PDF"}</span>
+            <small>ID, business card, estimate, PDF, PNG, JPG, or WebP</small>
+            <input accept="application/pdf,image/*,text/plain" disabled={uploadBusy} onChange={(event) => void uploadSmartIntakeFile(event.currentTarget.files?.[0] ?? null)} type="file" />
+          </label>
+          <div className={styles.smartDraftList}>
+            {smartIntakeQueue.slice(0, 4).map((draft) => (
+              <article key={draft.id}>
+                <div>
+                  <strong>{draft.classificationLabel}</strong>
+                  <span>{draft.fileName}</span>
+                  <small>{formatLabel(draft.routingTarget)} · {draft.extractionMethod}</small>
+                </div>
+                <StatusBadge label={`${draft.classificationConfidence}%`} tone={draft.classificationConfidence >= 70 ? "success" : "warning"} />
+              </article>
+            ))}
+            {smartIntakeQueue.length === 0 ? (
+              <article>
+                <div>
+                  <strong>No smart drafts yet</strong>
+                  <span>Upload a file to classify and extract fields.</span>
+                  <small>Drafts stay in review until a person confirms them.</small>
+                </div>
+                <StatusBadge label="EMPTY" />
+              </article>
+            ) : null}
+          </div>
+          <aside className={styles.smartFieldReview}>
+            {selectedSmartIntake ? (
+              <>
+                <h3>{selectedSmartIntake.classificationLabel}</h3>
+                <p>{selectedSmartIntake.warnings[0] ?? "Review each field before using it in another record."}</p>
+                <dl>
+                  {selectedSmartIntake.extractedFields.length > 0 ? selectedSmartIntake.extractedFields.map((item) => (
+                    <div key={item.key}>
+                      <dt>{item.label}{item.sensitive ? " · restricted" : ""}</dt>
+                      <dd>{item.value}</dd>
+                      <small>{item.confidence}% confidence</small>
+                    </div>
+                  )) : (
+                    <div>
+                      <dt>No fields found</dt>
+                      <dd>Route to document review.</dd>
+                      <small>Low-confidence or unreadable file</small>
+                    </div>
+                  )}
+                </dl>
+              </>
+            ) : (
+              <>
+                <h3>Review before routing</h3>
+                <p>IDs are treated as restricted. Business cards route to contact review. Unknown files stay in document review.</p>
+                <dl>
+                  <div><dt>Enterprise guardrail</dt><dd>No automatic customer/vendor creation</dd><small>Human confirmation required</small></div>
+                </dl>
+              </>
+            )}
+          </aside>
+        </div>
       </section>
 
       <section className={styles.docAssistantQueue} aria-label="Document assistant work queue">

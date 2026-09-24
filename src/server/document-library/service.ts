@@ -34,6 +34,7 @@ import {
 } from "./storage-platform";
 import { evaluateDocumentStorageReleaseGate } from "./storage-rollout";
 import { syncDocumentLibraryDurableRollout, type DocumentLibraryLiveRolloutDependencies } from "./live-rollout";
+import { listSmartDocumentIntakeRecords } from "./smart-intake";
 
 type Dependencies = {
   liveRollout?: DocumentLibraryLiveRolloutDependencies;
@@ -295,6 +296,10 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
     dependencies: { ...dependencies.liveRollout, durableRepositoryEnabled },
     state
   });
+  const smartIntake = await listSmartDocumentIntakeRecords({
+    organizationId: dependencies.liveRollout?.organizationId ?? "default-org",
+    take: 20
+  }).catch(() => []);
 
   return {
     archivePreviews,
@@ -318,6 +323,7 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
         requirementId: requirement.id,
         state: requirement.state
       }))),
+    smartIntake,
     storageRollout: {
       gate: evaluateDocumentStorageReleaseGate(buildDocumentStorageRolloutEvidence({
         actor: user,

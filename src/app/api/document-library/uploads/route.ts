@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     const storage = resolveDocumentStorageRuntimeFromEnv();
     return NextResponse.json(await stageDocumentLibraryUpload(await getCurrentUser(), await payloadFromRequest(request), {
       organizationId: storage.organizationId,
+      persistSmartIntake: true,
       storageAdapter: storage.adapter
     }));
   } catch (error) {

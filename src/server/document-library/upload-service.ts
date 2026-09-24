@@ -5,10 +5,12 @@ import { DOCUMENT_LIBRARY_CONTRACT_VERSION, DocumentLibraryError } from "./domai
 import type { DocumentObjectStorageAdapter } from "./storage-adapter";
 import { resolveDocumentStoragePolicy, type DispatchDocumentStorageContext } from "./storage-policy";
 import { validateDocumentUpload, type DocumentUploadCandidate } from "./storage-platform";
+import { analyzeSmartDocumentIntake, persistSmartDocumentIntakeRecord, type SmartDocumentIntakeRecord } from "./smart-intake";
 
 export type DocumentLibraryUploadDependencies = {
   documentIdFactory?: () => string;
   organizationId?: string;
+  persistSmartIntake?: boolean;
   storageAdapter?: DocumentObjectStorageAdapter;
   version?: number;
 };
@@ -90,11 +92,12 @@ export async function stageDocumentLibraryUpload(
     throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", storagePolicy.blockers.join(" "));
   }
   const version = dependencies.version ?? 1;
+  const documentId = dependencies.documentIdFactory?.() ?? `doc-upload-${checksum.slice(0, 12)}`;
   const storedObject = dependencies.storageAdapter && bytes
     ? await dependencies.storageAdapter.writeObject({
       bytes,
       contentType: validation.normalized.contentType,
-      documentId: dependencies.documentIdFactory?.() ?? `doc-upload-${checksum.slice(0, 12)}`,
+      documentId,
       expectedChecksumSha256: candidate.checksumSha256,
       fileName: validation.normalized.fileName,
       organizationId: dependencies.organizationId ?? "default-org",
@@ -102,9 +105,34 @@ export async function stageDocumentLibraryUpload(
       version
     })
     : null;
+  let smartIntake: SmartDocumentIntakeRecord | null = null;
+  if (bytes && dependencies.persistSmartIntake === true) {
+    const context = parseStorageContext(value);
+    const draft = await analyzeSmartDocumentIntake({
+      bytes,
+      contentType: validation.normalized.contentType,
+      fileName: validation.normalized.fileName
+    });
+    smartIntake = await persistSmartDocumentIntakeRecord({
+      draft,
+      metadata: {
+        contentType: validation.normalized.contentType,
+        createdByUserId: user.id,
+        documentId: null,
+        fileName: validation.normalized.fileName,
+        organizationId: dependencies.organizationId ?? "default-org",
+        ownerId: storagePolicy.owner.id,
+        ownerLabel: storagePolicy.owner.label,
+        ownerType: storagePolicy.owner.type,
+        sourceConsole: context.console,
+        storageReference: storedObject?.reference ?? `internal://documents/staged/${checksum}/${encodeURIComponent(validation.normalized.fileName)}`
+      }
+    });
+  }
 
   return {
     contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
+    smartIntake,
     stagedBy: user.id,
     storedObject,
     storageAuditEvent: storedObject ? {
