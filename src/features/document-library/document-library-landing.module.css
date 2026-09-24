@@ -482,6 +482,11 @@
   color: var(--document-info);
 }
 
+.neutral {
+  background: var(--document-surface-soft);
+  color: var(--document-muted);
+}
+
 .packetDetail {
   grid-area: detail;
   display: grid;
@@ -2774,12 +2779,252 @@
   font-size: 13px;
 }
 
+.smartIntakePanel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--document-surface);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, .06);
+}
+
+:global(html[data-app-theme="dark"]) .smartIntakePanel {
+  box-shadow: none;
+}
+
+.smartIntakePanel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.smartIntakePanel header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--document-accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.smartIntakePanel h2,
+.smartIntakePanel h3 {
+  margin: 0;
+  color: var(--document-text);
+}
+
+.smartIntakePanel header p,
+.smartFieldReview p {
+  margin: 4px 0 0;
+  color: var(--document-muted);
+  font-size: 13px;
+}
+
+.smartIntakeGrid {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(260px, .9fr) minmax(320px, 1.2fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.smartScanner {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.scannerToolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(96px, 1fr);
+  gap: 7px;
+}
+
+.scannerToolbar button,
+.scannerToolbar select,
+.scannerCamera footer button,
+.scannerPreview footer button {
+  min-height: 38px;
+  border: 1px solid var(--document-line-strong);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: var(--document-surface);
+  color: var(--document-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.scannerToolbar .activeScannerMode,
+.scannerCamera footer button:first-child,
+.scannerPreview footer button:first-child {
+  border-color: var(--document-accent);
+  background: var(--document-accent);
+  color: #fff;
+}
+
+.scannerCamera,
+.scannerPreview {
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  background: #07111f;
+}
+
+.scannerCamera video,
+.scannerPreview img {
+  display: block;
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+}
+
+.scannerCamera > span {
+  position: absolute;
+  inset: 28px;
+  border: 2px solid rgba(255, 255, 255, .82);
+  border-radius: 8px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .2);
+  pointer-events: none;
+}
+
+.scannerCamera footer,
+.scannerPreview footer {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scannerPreview footer {
+  position: static;
+  padding: 10px;
+  background: var(--document-surface);
+}
+
+.smartScanner canvas {
+  display: none;
+}
+
+.smartScanner > p {
+  margin: 0;
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.smartUploadBox {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 180px;
+  border: 1px dashed var(--document-line-strong);
+  border-radius: 8px;
+  padding: 18px;
+  background: var(--document-surface-soft);
+  color: var(--document-text);
+  text-align: center;
+  cursor: pointer;
+}
+
+.smartUploadBox svg {
+  color: var(--document-accent);
+}
+
+.smartUploadBox span {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.smartUploadBox small {
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
+.smartUploadBox input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.smartDraftList,
+.smartFieldReview,
+.smartFieldReview dl {
+  display: grid;
+  gap: 9px;
+}
+
+.smartDraftList article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 10px;
+  background: var(--document-surface-soft);
+}
+
+.smartDraftList strong,
+.smartFieldReview dt {
+  display: block;
+  color: var(--document-text);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.smartDraftList span,
+.smartDraftList small,
+.smartFieldReview dd,
+.smartFieldReview small {
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
+.smartFieldReview {
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--document-surface-soft);
+}
+
+.smartFieldReview dl {
+  margin: 0;
+}
+
+.smartFieldReview div {
+  display: grid;
+  grid-template-columns: minmax(110px, .65fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 8px;
+  background: var(--document-surface);
+}
+
+.smartFieldReview dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1280px) {
   .docConsoleHero,
   .docConsoleLayout,
   .docWorkGrid,
   .docPacketGrid,
-  .docProviderGrid {
+  .docProviderGrid,
+  .smartIntakeGrid {
     grid-template-columns: 1fr;
   }
 
@@ -2811,13 +3056,15 @@
   .docRolloutGrid,
   .docRolloutMilestones,
   .docRolloutEvidence dl,
-  .docAuditTimeline article {
+  .docAuditTimeline article,
+  .smartFieldReview div {
     grid-template-columns: 1fr;
   }
 
   .docAssistantQueue header,
   .docIntelligenceCenter header,
-  .docRolloutPanel header {
+  .docRolloutPanel header,
+  .smartIntakePanel header {
     grid-template-columns: 1fr;
   }
 
@@ -2831,5 +3078,11 @@
 
   .docHeroActions a {
     width: 100%;
+  }
+
+  .scannerToolbar,
+  .scannerCamera footer,
+  .scannerPreview footer {
+    grid-template-columns: 1fr;
   }
 }

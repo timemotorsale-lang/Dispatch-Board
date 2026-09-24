@@ -17,6 +17,7 @@ import {
   FileText,
   FolderPlus,
   LockKeyhole,
+  UploadCloud,
   Search,
   ShieldCheck,
   Sparkles,
@@ -24,7 +25,7 @@ import {
   UserRound,
   Wrench
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import type { DocumentRecord, DocumentSensitivity, DocumentStatus, ReviewDecision } from "@/server/document-library/domain";
 
@@ -91,6 +92,7 @@ type DocumentLibraryModel = {
     url: string | null;
   }>;
   reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
+  smartIntake?: SmartIntakeRecord[];
   storageRollout?: {
     durableRepository?: {
       enabled: boolean;
@@ -135,6 +137,22 @@ type DocumentLibraryModel = {
   };
 };
 
+type SmartIntakeRecord = {
+  classification: string;
+  classificationConfidence: number;
+  classificationLabel: string;
+  contentType: string | null;
+  createdAt: string;
+  extractedFields: Array<{ confidence: number; key: string; label: string; sensitive: boolean; value: string }>;
+  extractionMethod: string;
+  fileName: string;
+  id: string;
+  reviewStatus: string;
+  routingTarget: string;
+  sensitiveFieldKeys: string[];
+  warnings: string[];
+};
+
 type DocumentLibraryLandingProps = {
   error?: string | null;
   initialLibrary: DocumentLibraryModel | null;
@@ -166,7 +184,20 @@ type DocumentLibraryActionResponse = {
   };
 };
 
+type DocumentLibraryUploadResponse = {
+  error?: string;
+  smartIntake?: SmartIntakeRecord | null;
+  storageDraft?: {
+    contentType: string;
+    fileName: string;
+    reference: string;
+    sizeBytes: number;
+  };
+};
+
 type WorklistKey = "ALL" | "NEEDS_REVIEW" | "LEGAL_HOLD" | "PROVIDER_REFS" | "ARCHIVE_CANDIDATES";
+type ScannerMode = "UPLOAD" | "CAMERA" | "PREVIEW";
+type ScannerDocumentKind = "AUTO" | "BUSINESS_CARD" | "GOVERNMENT_ID" | "DOCUMENT";
 
 const documentCategories = [
   { icon: UserRound, key: "CUSTOMER", label: "Customer", match: ["CUSTOMER", "CUSTOMER_AUTHORIZATION"] },
@@ -256,7 +287,15 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const [notice, setNotice] = useState(error ?? "Document console ready.");
   const [actionReason, setActionReason] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [scannerMode, setScannerMode] = useState<ScannerMode>("UPLOAD");
+  const [scannerKind, setScannerKind] = useState<ScannerDocumentKind>("AUTO");
+  const [scannerNotice, setScannerNotice] = useState("Use upload, or open the camera scanner on a phone or tablet.");
+  const [capturedImageUrl, setCapturedImageUrl] = useState("");
   const [providerPreview, setProviderPreview] = useState<DocumentLibraryActionResponse["providerAction"] | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
   const [intake, setIntake] = useState({
     documentType: "CUSTOMER_AUTHORIZATION",
     fileName: "",
@@ -383,6 +422,13 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     });
   }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
   const assistantWorkQueue = useMemo(() => library?.intelligence?.recommendations.slice(0, 5) ?? [], [library]);
+  const smartIntakeQueue = useMemo(() => library?.smartIntake ?? [], [library]);
+  const selectedSmartIntake = smartIntakeQueue[0] ?? null;
+
+  useEffect(() => () => {
+    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+  }, [capturedImageUrl]);
 
   function runAssistantTask(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
     openIntelligenceRecommendation(recommendation);
@@ -586,6 +632,135 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     }
   }
 
+  async function uploadSmartIntakeFile(file: File | null, source: "UPLOAD" | "MOBILE_SCANNER" = "UPLOAD") {
+    if (!file) return;
+    setUploadBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("console", "DOCUMENT_LIBRARY");
+      form.append("intent", source);
+      form.append("purpose", scannerKind === "AUTO" ? "Smart document intake OCR review." : `Mobile scanner ${scannerKind.toLowerCase().replaceAll("_", " ")} review.`);
+      form.append("ownerId", intake.ownerId || "smart-intake-review");
+      form.append("ownerLabel", intake.ownerLabel || "Smart intake review");
+      form.append("ownerType", intake.ownerType);
+      form.append("reason", intake.reason || "Smart document intake OCR review.");
+      const response = await fetch("/api/document-library/uploads", {
+        body: form,
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as DocumentLibraryUploadResponse | null;
+      if (!response.ok) {
+        setNotice(result?.error ?? "Smart intake upload could not be read.");
+        return;
+      }
+      const smartDraft = result?.smartIntake;
+      if (smartDraft) {
+        setLibraryState((current) => current ? {
+          ...current,
+          smartIntake: [smartDraft, ...(current.smartIntake ?? []).filter((item) => item.id !== smartDraft.id)]
+        } : current);
+        setIntake((current) => ({
+          ...current,
+          documentType: smartDraft.classification === "BUSINESS_CARD" ? "BUSINESS_CARD" :
+            smartDraft.classification === "GOVERNMENT_ID" ? "GOVERNMENT_ID" :
+              smartDraft.classification === "INSURANCE_ESTIMATE" ? "INSURANCE_ESTIMATE" : current.documentType,
+          fileName: result.storageDraft?.fileName ?? file.name,
+          reference: result.storageDraft?.reference ?? current.reference,
+          sensitivity: smartDraft.sensitiveFieldKeys.length > 0 ? "RESTRICTED" : current.sensitivity
+        }));
+        setNotice(`${smartDraft.classificationLabel} read with ${smartDraft.classificationConfidence}% confidence. Review before saving to a record.`);
+        setScannerNotice(`${smartDraft.classificationLabel} sent to review with ${smartDraft.classificationConfidence}% confidence.`);
+        if (source === "MOBILE_SCANNER") {
+          if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+          setCapturedImageUrl("");
+          setScannerMode("UPLOAD");
+        }
+        return;
+      }
+      setNotice("File uploaded, but no smart intake draft was produced.");
+    } catch {
+      setNotice("Smart intake upload could not reach the document service.");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  function stopScannerCamera() {
+    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    scannerStreamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }
+
+  async function startScannerCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerNotice("Camera scanning is not available in this browser. Use upload instead.");
+      return;
+    }
+    try {
+      stopScannerCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          height: { ideal: 1440 },
+          width: { ideal: 1920 }
+        }
+      });
+      scannerStreamRef.current = stream;
+      setScannerMode("CAMERA");
+      setScannerNotice("Center the document, avoid glare, then capture.");
+      requestAnimationFrame(() => {
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play();
+      });
+    } catch {
+      setScannerNotice("Camera permission was blocked or unavailable. Use upload instead.");
+    }
+  }
+
+  function retakeScannerImage() {
+    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+    setCapturedImageUrl("");
+    void startScannerCamera();
+  }
+
+  async function captureScannerImage() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
+      setScannerNotice("Camera is still warming up. Try capture again in a moment.");
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setScannerNotice("Could not prepare the capture. Use upload instead.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    if (!blob) {
+      setScannerNotice("Could not capture the image. Try again.");
+      return;
+    }
+    stopScannerCamera();
+    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+    setCapturedImageUrl(URL.createObjectURL(blob));
+    setScannerMode("PREVIEW");
+    setScannerNotice(blob.size < 120_000 ? "Image captured, but it may be low detail. Retake if the text looks soft." : "Image captured. Review it before sending to OCR.");
+  }
+
+  async function submitScannerImage() {
+    if (!capturedImageUrl) return;
+    const response = await fetch(capturedImageUrl);
+    const blob = await response.blob();
+    const file = new File([blob], `mobile-scan-${Date.now()}.jpg`, { type: "image/jpeg" });
+    await uploadSmartIntakeFile(file, "MOBILE_SCANNER");
+  }
+
   if (!library) {
     return (
       <section className={styles.page} aria-labelledby="document-library-title">
@@ -622,6 +797,113 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{summary.reviewItems}</strong><span>Review items</span></article>
         <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
         <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
+        <article><strong>{smartIntakeQueue.length}</strong><span>Smart drafts</span></article>
+      </section>
+
+      <section className={styles.smartIntakePanel} aria-label="Smart document intake">
+        <header>
+          <div>
+            <span><UploadCloud size={16} />Smart intake</span>
+            <h2>Read IDs and business cards</h2>
+            <p>Upload or scan a card, ID, estimate, or unknown document. OCR drafts fields for review without updating customer or vendor records automatically.</p>
+          </div>
+          <StatusBadge label={selectedSmartIntake?.reviewStatus ?? "READY"} tone={selectedSmartIntake ? statusTone(selectedSmartIntake.reviewStatus) : "success"} />
+        </header>
+        <div className={styles.smartIntakeGrid}>
+          <div className={styles.smartScanner}>
+            <div className={styles.scannerToolbar}>
+              <button className={scannerMode === "UPLOAD" ? styles.activeScannerMode : ""} onClick={() => { stopScannerCamera(); setScannerMode("UPLOAD"); }} type="button">Upload</button>
+              <button className={scannerMode === "CAMERA" || scannerMode === "PREVIEW" ? styles.activeScannerMode : ""} onClick={() => void startScannerCamera()} type="button">Scan</button>
+              <select aria-label="Scan document type" onChange={(event) => setScannerKind(event.target.value as ScannerDocumentKind)} value={scannerKind}>
+                <option value="AUTO">Auto</option>
+                <option value="BUSINESS_CARD">Business card</option>
+                <option value="GOVERNMENT_ID">ID</option>
+                <option value="DOCUMENT">Document</option>
+              </select>
+            </div>
+            {scannerMode === "CAMERA" ? (
+              <div className={styles.scannerCamera}>
+                <video muted playsInline ref={videoRef} />
+                <span aria-hidden="true" />
+                <footer>
+                  <button disabled={uploadBusy} onClick={() => void captureScannerImage()} type="button">Capture</button>
+                  <button onClick={() => { stopScannerCamera(); setScannerMode("UPLOAD"); setScannerNotice("Camera closed. Upload is still available."); }} type="button">Close</button>
+                </footer>
+              </div>
+            ) : scannerMode === "PREVIEW" ? (
+              <div className={styles.scannerPreview}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img alt="Captured document preview" src={capturedImageUrl} />
+                <footer>
+                  <button disabled={uploadBusy} onClick={() => void submitScannerImage()} type="button">{uploadBusy ? "Reading..." : "Send to OCR"}</button>
+                  <button disabled={uploadBusy} onClick={() => void retakeScannerImage()} type="button">Retake</button>
+                </footer>
+              </div>
+            ) : (
+              <label className={styles.smartUploadBox}>
+                <UploadCloud size={23} />
+                <span>{uploadBusy ? "Reading file..." : "Upload image or PDF"}</span>
+                <small>ID, business card, estimate, PDF, PNG, JPG, or WebP</small>
+                <input accept="application/pdf,image/*,text/plain" disabled={uploadBusy} onChange={(event) => void uploadSmartIntakeFile(event.currentTarget.files?.[0] ?? null)} type="file" />
+              </label>
+            )}
+            <canvas ref={canvasRef} />
+            <p>{scannerNotice}</p>
+          </div>
+          <div className={styles.smartDraftList}>
+            {smartIntakeQueue.slice(0, 4).map((draft) => (
+              <article key={draft.id}>
+                <div>
+                  <strong>{draft.classificationLabel}</strong>
+                  <span>{draft.fileName}</span>
+                  <small>{formatLabel(draft.routingTarget)} · {draft.extractionMethod}</small>
+                </div>
+                <StatusBadge label={`${draft.classificationConfidence}%`} tone={draft.classificationConfidence >= 70 ? "success" : "warning"} />
+              </article>
+            ))}
+            {smartIntakeQueue.length === 0 ? (
+              <article>
+                <div>
+                  <strong>No smart drafts yet</strong>
+                  <span>Upload a file to classify and extract fields.</span>
+                  <small>Drafts stay in review until a person confirms them.</small>
+                </div>
+                <StatusBadge label="EMPTY" />
+              </article>
+            ) : null}
+          </div>
+          <aside className={styles.smartFieldReview}>
+            {selectedSmartIntake ? (
+              <>
+                <h3>{selectedSmartIntake.classificationLabel}</h3>
+                <p>{selectedSmartIntake.warnings[0] ?? "Review each field before using it in another record."}</p>
+                <dl>
+                  {selectedSmartIntake.extractedFields.length > 0 ? selectedSmartIntake.extractedFields.map((item) => (
+                    <div key={item.key}>
+                      <dt>{item.label}{item.sensitive ? " · restricted" : ""}</dt>
+                      <dd>{item.value}</dd>
+                      <small>{item.confidence}% confidence</small>
+                    </div>
+                  )) : (
+                    <div>
+                      <dt>No fields found</dt>
+                      <dd>Route to document review.</dd>
+                      <small>Low-confidence or unreadable file</small>
+                    </div>
+                  )}
+                </dl>
+              </>
+            ) : (
+              <>
+                <h3>Review before routing</h3>
+                <p>IDs are treated as restricted. Business cards route to contact review. Unknown files stay in document review.</p>
+                <dl>
+                  <div><dt>Enterprise guardrail</dt><dd>No automatic customer/vendor creation</dd><small>Human confirmation required</small></div>
+                </dl>
+              </>
+            )}
+          </aside>
+        </div>
       </section>
 
       <section className={styles.docAssistantQueue} aria-label="Document assistant work queue">
