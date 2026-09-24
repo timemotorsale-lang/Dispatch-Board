@@ -1,9 +1,14 @@
 import { inflateSync } from "node:zlib";
+import { join } from "node:path";
 
 export type DocumentTextExtractionResult = {
-  method: "PDF_TEXT" | "PLAIN_TEXT" | "OCR_UNAVAILABLE" | "UNSUPPORTED";
+  method: "PDF_TEXT" | "PLAIN_TEXT" | "OCR_TEXT" | "OCR_FAILED" | "OCR_UNAVAILABLE" | "UNSUPPORTED";
   text: string;
   warnings: string[];
+};
+
+export type DocumentTextExtractionDependencies = {
+  recognizeImageText?: (input: { bytes: Uint8Array; contentType: string; fileName: string }) => Promise<string>;
 };
 
 function decodeUtf8(bytes: Uint8Array) {
@@ -119,11 +124,64 @@ function extractPdfText(bytes: Uint8Array): DocumentTextExtractionResult {
   };
 }
 
+function ocrEnabled() {
+  return (process.env.DOCUMENT_TEXT_OCR_MODE ?? "enabled").trim().toLowerCase() !== "disabled";
+}
+
+async function recognizeImageText(input: { bytes: Uint8Array; contentType: string; fileName: string }) {
+  const { createWorker, PSM } = await import("tesseract.js");
+  const worker = await createWorker(process.env.DOCUMENT_TEXT_OCR_LANGUAGES?.trim() || "eng", undefined, {
+    cachePath: process.env.DOCUMENT_TEXT_OCR_CACHE_PATH?.trim() || join(process.cwd(), ".dispatch-board-data", "tesseract-cache"),
+    ...(process.env.DOCUMENT_TEXT_OCR_CORE_PATH?.trim() ? { corePath: process.env.DOCUMENT_TEXT_OCR_CORE_PATH.trim() } : {}),
+    ...(process.env.DOCUMENT_TEXT_OCR_LANG_PATH?.trim() ? { langPath: process.env.DOCUMENT_TEXT_OCR_LANG_PATH.trim() } : {}),
+    ...(process.env.DOCUMENT_TEXT_OCR_WORKER_PATH?.trim() ? { workerPath: process.env.DOCUMENT_TEXT_OCR_WORKER_PATH.trim() } : {})
+  });
+  try {
+    await worker.setParameters({
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: PSM.AUTO
+    });
+    const result = await worker.recognize(Buffer.from(input.bytes));
+    return normalizeExtractedText(result.data.text ?? "");
+  } finally {
+    await worker.terminate();
+  }
+}
+
+async function extractImageText(
+  input: { bytes: Uint8Array; contentType: string; fileName: string },
+  dependencies: DocumentTextExtractionDependencies
+): Promise<DocumentTextExtractionResult> {
+  if (!ocrEnabled() && !dependencies.recognizeImageText) {
+    return {
+      method: "OCR_UNAVAILABLE",
+      text: "",
+      warnings: ["Image OCR is disabled. Set DOCUMENT_TEXT_OCR_MODE=enabled to read text from image uploads."]
+    };
+  }
+
+  try {
+    const text = normalizeExtractedText(await (dependencies.recognizeImageText ?? recognizeImageText)(input));
+    return {
+      method: text ? "OCR_TEXT" : "OCR_FAILED",
+      text,
+      warnings: text ? [] : ["OCR ran, but no readable text was found in this image."]
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OCR failed.";
+    return {
+      method: "OCR_FAILED",
+      text: "",
+      warnings: [`OCR could not read this image: ${message}`]
+    };
+  }
+}
+
 export async function extractDocumentText(input: {
   bytes: Uint8Array;
   contentType: string;
   fileName: string;
-}): Promise<DocumentTextExtractionResult> {
+}, dependencies: DocumentTextExtractionDependencies = {}): Promise<DocumentTextExtractionResult> {
   const contentType = input.contentType.toLowerCase();
   const fileName = input.fileName.toLowerCase();
   if (contentType.includes("pdf") || fileName.endsWith(".pdf")) return extractPdfText(input.bytes);
@@ -131,11 +189,7 @@ export async function extractDocumentText(input: {
     return { method: "PLAIN_TEXT", text: normalizeExtractedText(decodeUtf8(input.bytes)), warnings: [] };
   }
   if (contentType.startsWith("image/")) {
-    return {
-      method: "OCR_UNAVAILABLE",
-      text: "",
-      warnings: ["Image OCR is not configured in this runtime yet. The file was stored, but text could not be read automatically."]
-    };
+    return extractImageText(input, dependencies);
   }
   return { method: "UNSUPPORTED", text: "", warnings: ["This file type does not support automatic text extraction yet."] };
 }

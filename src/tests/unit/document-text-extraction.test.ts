@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { deflateSync } from "node:zlib";
 
 import { extractDocumentText } from "@/server/document-library/text-extraction";
@@ -17,6 +17,10 @@ endobj
 }
 
 describe("document text extraction", () => {
+  afterEach(() => {
+    delete process.env.DOCUMENT_TEXT_OCR_MODE;
+  });
+
   it("extracts embedded text from PDF content streams", async () => {
     const result = await extractDocumentText({
       bytes: minimalPdfWithText("Approved repair amount $6,642.31"),
@@ -29,7 +33,24 @@ describe("document text extraction", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("flags image uploads when OCR is not configured", async () => {
+  it("uses the configured OCR engine for image uploads", async () => {
+    const result = await extractDocumentText({
+      bytes: Uint8Array.from([137, 80, 78, 71]),
+      contentType: "image/png",
+      fileName: "estimate.png"
+    }, {
+      recognizeImageText: async () => "Approved repair amount $6,642.31"
+    });
+
+    expect(result).toMatchObject({
+      method: "OCR_TEXT",
+      text: "Approved repair amount $6,642.31",
+      warnings: []
+    });
+  });
+
+  it("flags image uploads when OCR is disabled", async () => {
+    process.env.DOCUMENT_TEXT_OCR_MODE = "disabled";
     const result = await extractDocumentText({
       bytes: Uint8Array.from([137, 80, 78, 71]),
       contentType: "image/png",
@@ -40,6 +61,6 @@ describe("document text extraction", () => {
       method: "OCR_UNAVAILABLE",
       text: ""
     });
-    expect(result.warnings[0]).toContain("Image OCR is not configured");
+    expect(result.warnings[0]).toContain("Image OCR is disabled");
   });
 });
