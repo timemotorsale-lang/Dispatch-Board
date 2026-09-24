@@ -141,6 +141,24 @@ const hardeningReadiness: TimeAttendanceHardeningPilotReadiness = {
 };
 
 describe("time attendance console release UX", () => {
+  it("puts clock actions at the top of employee views", () => {
+    const markup = renderToStaticMarkup(
+      <TimeAttendanceConsole
+        activeView="today"
+        captureState={captureState}
+        density="calm"
+        hardeningReadiness={hardeningReadiness}
+        managerReviewQueue={managerReviewQueue}
+        model={model}
+        payrollReadiness={payrollReadiness}
+      />
+    );
+
+    expect(markup.indexOf("Clock in / clock out")).toBeLessThan(markup.indexOf("Time card command bar"));
+    expect(markup).toContain("Clock out");
+    expect(markup).toContain("Meal and break actions");
+  });
+
   it("renders command search, responsive jumps, manager bulk approval, and audit affordances", () => {
     const markup = renderToStaticMarkup(
       <TimeAttendanceConsole

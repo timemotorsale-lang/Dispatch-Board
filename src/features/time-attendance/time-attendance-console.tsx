@@ -164,6 +164,8 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
         <div className={styles.captureError} role="alert"><AlertTriangle size={16} />Live card data is unavailable: {model.unavailableReason}. Punch capture reports its availability separately.</div>
       ) : null}
 
+      {isEmployeeView ? <div id="capture-actions"><TimeAttendanceCapturePanel initialState={captureState} /></div> : null}
+
       <TimeAttendanceCommandBar items={commandItems} />
 
       <section className={styles.commandPanel} id="command-summary" aria-label="Time card command summary">
@@ -207,7 +209,6 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
         <div className={styles.bodyGrid}>
           <div className={styles.mainStack}>
           {activeView === "policies" ? <PolicyAdministrationPanel /> : null}
-          {isEmployeeView ? <div id="capture-actions"><TimeAttendanceCapturePanel initialState={captureState} /></div> : null}
 
           {isEmployeeView ? <article className={styles.panel} id="time-card-summary">
             <div className={styles.panelHeader}>

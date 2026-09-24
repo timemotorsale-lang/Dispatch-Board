@@ -466,6 +466,11 @@
   padding: 13px;
 }
 
+.captureHeroPanel {
+  border-color: #bfdbfe;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12);
+}
+
 .panelHeader,
 .teamHeader,
 .exceptionRow,
@@ -986,8 +991,14 @@
 .captureCommand {
   align-items: center;
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(260px, 1fr) auto;
   gap: 8px;
+}
+
+.capturePunchActions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
 .captureActions {
@@ -998,6 +1009,7 @@
 }
 
 .capturePrimary,
+.captureClockOut,
 .captureSecondary,
 .captureRefresh {
   align-items: center;
@@ -1015,10 +1027,17 @@
 }
 
 .capturePrimary {
+  background: #1d4ed8;
+  color: white;
+  font-size: 1.05rem;
+  min-height: 58px;
+}
+
+.captureClockOut {
   background: #0f172a;
   color: white;
-  font-size: 0.94rem;
-  min-height: 46px;
+  font-size: 1.05rem;
+  min-height: 58px;
 }
 
 .captureSecondary,
@@ -1034,6 +1053,7 @@
 }
 
 .capturePrimary:disabled,
+.captureClockOut:disabled,
 .captureSecondary:disabled,
 .captureRefresh:disabled {
   cursor: wait;
@@ -1043,21 +1063,22 @@
 .captureMoreActions {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  display: grid;
+  gap: 10px;
   margin-top: 10px;
   overflow: hidden;
+  padding: 10px;
 }
 
-.captureMoreActions summary {
+.captureMoreActions strong {
   color: #475569;
-  cursor: pointer;
   font-size: 0.82rem;
   font-weight: 900;
-  padding: 10px 12px;
 }
 
 .captureMoreActions .captureActions {
-  border-top: 1px solid #e2e8f0;
-  padding: 10px;
+  border-top: 0;
+  padding: 0;
 }
 
 .captureNotice,
