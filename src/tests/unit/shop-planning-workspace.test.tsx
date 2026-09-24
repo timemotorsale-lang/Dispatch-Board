@@ -69,9 +69,12 @@ describe("Shop Planning diagnostic release workspace", () => {
     const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-2" />);
     expect(markup).toContain("Bodywork repair mission");
     expect(markup).toContain("Vehicle selected for bodywork repair");
+    expect(markup).toContain("Fast scope confirmation");
     expect(markup).toContain("Bodywork repair path");
     expect(markup).toContain("Why diagnosis is not required");
-    expect(markup).toContain("Save bodywork repair scope");
+    expect(markup).toContain("Confirm scope and unlock estimate");
+    expect(markup).toContain("Scope details for unusual bodywork cases");
+    expect(markup).toContain("Estimate line details");
     expect(markup).toContain("Direct repair summary (required)");
     expect(markup).toContain("Prepare a bodywork repair estimate from the documented visible damage.");
     expect(markup).toContain("Repair the documented bodywork damage, then verify panel fit, finish, and repair quality.");

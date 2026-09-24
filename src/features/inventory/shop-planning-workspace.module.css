@@ -166,6 +166,8 @@
 .estimateLineList p{margin:4px 0;color:#5c6f86;font-size:.72rem;line-height:1.5}
 .estimateLineList small{color:#6b7c91;font-size:.72rem;font-weight:800}
 .estimateEntryCard{display:grid;gap:12px;margin:0 0 12px;border:1px solid #cddbf0;border-left:4px solid var(--blue);border-radius:11px;padding:14px;background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:0 4px 14px rgba(24,48,82,.05)}
+.estimateEntryCard>summary{cursor:pointer;list-style:none;color:#315eb5;font-size:.72rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.estimateEntryCard>summary::-webkit-details-marker{display:none}
 .estimateEntryCard header{display:grid;gap:4px}
 .estimateEntryCard header span{color:#315eb5;font-size:.72rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
 .estimateEntryCard h3{margin:0;color:#17233c;font-size:.92rem}
