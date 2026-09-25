@@ -281,27 +281,28 @@
   }
 
   .mobileCard {
+    align-items: center;
     background: #fff;
     border: 1px solid #cbd9ec;
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: 0 10px 24px rgb(15 42 84 / 7%);
     color: #10233f;
     display: grid;
-    gap: 7px;
-    min-height: 148px;
-    padding: 13px;
+    gap: 10px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    min-height: 76px;
+    padding: 10px;
     text-decoration: none;
   }
 
   .mobileCard > span {
     align-items: center;
-    align-self: start;
-    border-radius: 14px;
+    border-radius: 10px;
     color: #fff;
     display: inline-flex;
-    height: 46px;
+    height: 40px;
     justify-content: center;
-    width: 46px;
+    width: 40px;
   }
 
   .mobileCard[data-accent="blue"] > span { background: #2563eb; }
@@ -311,22 +312,19 @@
   .mobileCard[data-accent="violet"] > span { background: #6d28d9; }
   .mobileCard[data-accent="slate"] > span { background: #334155; }
 
-  .mobileCard > strong {
-    color: #071735;
-    font-size: 24px;
-    letter-spacing: -.04em;
-    line-height: .95;
-  }
-
   .mobileCard > b {
     color: #071735;
-    font-size: 16px;
+    display: block;
+    font-size: 14px;
     line-height: 1.15;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
-  .mobileCard > small {
-    color: #405169;
-    font-size: 12px;
-    line-height: 1.35;
+  .mobileCard > b strong {
+    display: block;
+    font-size: 16px;
+    letter-spacing: -.02em;
+    line-height: 1.05;
   }
 }

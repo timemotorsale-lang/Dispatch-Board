@@ -1,0 +1,5 @@
+import { MobileCaptureTool } from "@/features/mobile-capture/mobile-capture-tool";
+
+export default function CapturePage() {
+  return <MobileCaptureTool />;
+}

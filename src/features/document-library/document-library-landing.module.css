@@ -2837,6 +2837,10 @@
   min-width: 0;
 }
 
+.scannerFullscreen {
+  min-width: 0;
+}
+
 .scannerToolbar {
   display: grid;
   grid-template-columns: 1fr 1fr minmax(96px, 1fr);
@@ -3084,5 +3088,54 @@
   .scannerCamera footer,
   .scannerPreview footer {
     grid-template-columns: 1fr;
+  }
+
+  .scannerFullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0;
+    min-height: 100dvh;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    background: #050b14;
+  }
+
+  .scannerFullscreen .scannerToolbar {
+    grid-template-columns: 1fr 1fr minmax(92px, 1fr);
+    padding-bottom: 10px;
+  }
+
+  .scannerFullscreen .scannerCamera,
+  .scannerFullscreen .scannerPreview {
+    min-height: 0;
+    border: 0;
+    border-radius: 16px;
+  }
+
+  .scannerFullscreen .scannerCamera video,
+  .scannerFullscreen .scannerPreview img {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .scannerFullscreen .scannerCamera footer,
+  .scannerFullscreen .scannerPreview footer {
+    grid-template-columns: 1fr 1fr;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+  }
+
+  .scannerFullscreen .scannerPreview footer {
+    position: absolute;
+    padding: 0;
+    background: transparent;
+  }
+
+  .scannerFullscreen > p {
+    padding-top: 10px;
+    color: rgba(255, 255, 255, .78);
   }
 }
