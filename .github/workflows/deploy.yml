@@ -24,8 +24,22 @@ jobs:
     name: Verify
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/dispatch_board_test?schema=public
       CRON_SECRET: ci-build-placeholder
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: dispatch_board_test
+          POSTGRES_USER: build
+          POSTGRES_PASSWORD: build
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U build -d dispatch_board_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -38,6 +52,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare database
+        run: |
+          npm run db:generate
+          npm run db:migrate:deploy
 
       - name: Lint
         run: npm run lint
