@@ -23,6 +23,9 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
+      CRON_SECRET: ci-build-placeholder
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -46,9 +49,6 @@ jobs:
         run: npm test
 
       - name: Build
-        env:
-          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
-          CRON_SECRET: ci-build-placeholder
         run: npm run build
 
   deploy:
