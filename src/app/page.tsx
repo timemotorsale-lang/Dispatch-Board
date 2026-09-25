@@ -174,10 +174,8 @@ export default async function HomePage() {
                 const Icon = card.icon;
                 return (
                   <Link className={styles.mobileCard} data-accent={card.accent} href={card.href} key={`${section.title}-${card.href}-${card.label}`}>
-                    <span><Icon size={23} /></span>
-                    {card.count ? <strong>{card.count}</strong> : null}
-                    <b>{card.label}</b>
-                    <small>{card.description}</small>
+                    <span><Icon size={22} /></span>
+                    <b>{card.count ? <><strong>{card.count}</strong> {card.label}</> : card.label}</b>
                   </Link>
                 );
               })}
