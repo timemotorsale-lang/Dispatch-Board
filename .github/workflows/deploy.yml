@@ -16,6 +16,7 @@ permissions:
 
 env:
   NODE_VERSION: "24"
+  NODE_OPTIONS: --max-old-space-size=4096
   DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/Dispatch-Board' }}
 
 jobs:
