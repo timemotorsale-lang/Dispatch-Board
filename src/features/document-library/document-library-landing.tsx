@@ -810,7 +810,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
           <StatusBadge label={selectedSmartIntake?.reviewStatus ?? "READY"} tone={selectedSmartIntake ? statusTone(selectedSmartIntake.reviewStatus) : "success"} />
         </header>
         <div className={styles.smartIntakeGrid}>
-          <div className={styles.smartScanner}>
+          <div className={`${styles.smartScanner} ${scannerMode === "CAMERA" || scannerMode === "PREVIEW" ? styles.scannerFullscreen : ""}`}>
             <div className={styles.scannerToolbar}>
               <button className={scannerMode === "UPLOAD" ? styles.activeScannerMode : ""} onClick={() => { stopScannerCamera(); setScannerMode("UPLOAD"); }} type="button">Upload</button>
               <button className={scannerMode === "CAMERA" || scannerMode === "PREVIEW" ? styles.activeScannerMode : ""} onClick={() => void startScannerCamera()} type="button">Scan</button>

@@ -1,0 +1,310 @@
+.page {
+  min-height: 100dvh;
+  padding: 14px;
+  background: #eef4ff;
+  color: #10233f;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.header a,
+.header span {
+  border: 1px solid #c4d3ea;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff;
+  color: #284a87;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.hero,
+.toolPanel,
+.kindPanel,
+.actions,
+.sentPanel {
+  border: 1px solid #cbd9ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgb(15 42 84 / 8%);
+}
+
+.hero {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.hero span,
+.sentPanel span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #415ad6;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.toolPanel h2,
+.sentPanel h2 {
+  margin: 0;
+  color: #07142c;
+}
+
+.hero p,
+.sentPanel p {
+  margin: 0;
+  color: #56657a;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.toolPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.destinationGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.destinationGrid button,
+.kindPanel button,
+.actions button,
+.actions label,
+.sentActions button,
+.sentActions a,
+.previewOverlay button,
+.cameraOverlay button {
+  border: 1px solid #cbd9ec;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #10233f;
+  font: inherit;
+  font-weight: 950;
+}
+
+.destinationGrid button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 10px;
+  text-align: left;
+}
+
+.selectedDestination,
+.kindPanel .selectedKind {
+  border-color: #4658d4;
+  background: #eef2ff;
+  color: #263fb8;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  color: #52627a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.field input {
+  min-height: 48px;
+  border: 1px solid #cbd9ec;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #fff;
+  color: #10233f;
+  font: inherit;
+  font-weight: 800;
+}
+
+.kindPanel {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px;
+  overflow-x: auto;
+}
+
+.kindPanel button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.actions button,
+.actions label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 56px;
+}
+
+.actions button:first-child {
+  border-color: #4658d4;
+  background: #4658d4;
+  color: #fff;
+}
+
+.actions input,
+.nativeCameraInput {
+  display: none;
+}
+
+.cameraOverlay,
+.previewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: #050b14;
+}
+
+.cameraOverlay video,
+.previewOverlay img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.cameraOverlay > span {
+  position: absolute;
+  inset: 64px 28px 118px;
+  border: 2px solid rgba(255, 255, 255, .86);
+  border-radius: 16px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .24);
+  pointer-events: none;
+}
+
+.cameraOverlay footer,
+.previewOverlay footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.previewOverlay footer {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.cameraOverlay button,
+.previewOverlay button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  border-color: rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+}
+
+.cameraOverlay button:first-child,
+.previewOverlay button:first-child {
+  border-color: #4658d4;
+  background: #4658d4;
+}
+
+.sentPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+}
+
+.sentPanel > svg {
+  color: #16834f;
+}
+
+.sentPanel dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.sentPanel dl div {
+  border: 1px solid #d9e3f3;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f8fbff;
+}
+
+.sentPanel dt {
+  color: #52627a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sentPanel dd {
+  margin: 4px 0 0;
+  font-weight: 900;
+}
+
+.sentActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sentActions button,
+.sentActions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  text-decoration: none;
+}
+
+.sentActions button {
+  border-color: #4658d4;
+  background: #4658d4;
+  color: #fff;
+}
+
+.page canvas {
+  display: none;
+}
+
+@media (min-width: 760px) {
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}

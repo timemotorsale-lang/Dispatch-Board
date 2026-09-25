@@ -4,6 +4,7 @@ import {
   Bell,
   BriefcaseBusiness,
   CalendarDays,
+  Camera,
   CarFront,
   ClipboardCheck,
   ClipboardList,
@@ -59,6 +60,7 @@ const sections: MobileSection[] = [
       { accent: "blue", count: "Open", description: "Assigned work and next actions.", href: "/my-tasks", icon: ClipboardCheck, label: "My Tasks" },
       { accent: "gold", count: "Today", description: "Appointments and promises due today.", href: "/appointments", icon: CalendarDays, label: "Appointments" },
       { accent: "red", count: "Live", description: "Active board work and operating pressure.", href: "/board", icon: Gauge, label: "Today's Board" },
+      { accent: "violet", count: "Scan", description: "Open camera capture for photos, IDs, cards, and documents.", href: "/capture", icon: Camera, label: "Photos" },
       { accent: "green", description: "Log a quick update or route a new action.", href: "/tasks/intake", icon: ClipboardList, label: "Quick Ops Log" },
       { accent: "violet", description: "Signals, updates, and recent movement.", href: "/activity", icon: Activity, label: "Activity" },
       { accent: "slate", description: "Approvals and stuck work needing help.", href: "/manager-review", icon: ShieldCheck, label: "Manager Review", managerOnly: true }
