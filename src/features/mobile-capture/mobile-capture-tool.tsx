@@ -25,6 +25,16 @@ type CaptureDestinationKey = "CUSTOMER" | "VEHICLE" | "CLAIM" | "REPAIR_ORDER" |
 type CaptureKindKey = "AUTO" | "PHOTO" | "ID" | "BUSINESS_CARD" | "ESTIMATE" | "DOCUMENT";
 type CaptureMode = "READY" | "CAMERA" | "PREVIEW" | "SENT";
 
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const ACCEPTED_UPLOAD_TYPES = new Set([
+  "application/pdf",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "text/plain"
+]);
+
 type SmartField = {
   key: string;
   label: string;
@@ -147,6 +157,7 @@ export function MobileCaptureTool() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const cameraUploadRef = useRef<HTMLInputElement | null>(null);
+  const fileUploadRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const destination = useMemo(
@@ -165,9 +176,32 @@ export function MobileCaptureTool() {
     if (videoRef.current) videoRef.current.srcObject = null;
   }
 
+  function clearFileInputs() {
+    if (cameraUploadRef.current) cameraUploadRef.current.value = "";
+    if (fileUploadRef.current) fileUploadRef.current.value = "";
+  }
+
+  function resetCapturedImage() {
+    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+    setCapturedImageUrl("");
+  }
+
+  function validateFile(file: File) {
+    if (file.size <= 0) return "That file appears to be empty.";
+    if (file.size > MAX_UPLOAD_BYTES) return "That file is too large. Use a file under 25 MB.";
+    if (file.type && !ACCEPTED_UPLOAD_TYPES.has(file.type)) return "Use a PDF, image, or text file.";
+    return "";
+  }
+
   async function startCamera() {
+    if (busy) return;
     setResult(null);
     setNotice("Opening camera...");
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setNotice("Live camera requires a secure phone browser. Opening the phone camera picker instead.");
+      cameraUploadRef.current?.click();
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       setNotice("Live camera is not available here. Opening the phone camera picker instead.");
       cameraUploadRef.current?.click();
@@ -198,6 +232,7 @@ export function MobileCaptureTool() {
   }
 
   async function captureImage() {
+    if (busy) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
@@ -218,7 +253,7 @@ export function MobileCaptureTool() {
       return;
     }
     stopCamera();
-    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
+    resetCapturedImage();
     setCapturedImageUrl(URL.createObjectURL(blob));
     setMode("PREVIEW");
     setNotice("Review the image, then send it to the selected destination.");
@@ -231,15 +266,22 @@ export function MobileCaptureTool() {
   }
 
   function retake() {
-    if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
-    setCapturedImageUrl("");
+    resetCapturedImage();
     void startCamera();
   }
 
   async function sendFile(file: File | null) {
     if (!file) return;
+    if (busy) return;
+    const validationError = validateFile(file);
+    if (validationError) {
+      clearFileInputs();
+      setNotice(validationError);
+      return;
+    }
     setBusy(true);
     setResult(null);
+    setNotice(`Sending to ${destination.label} review...`);
     try {
       const ownerLabel = reference.trim() || `${destination.label} mobile capture inbox`;
       const form = new FormData();
@@ -265,8 +307,8 @@ export function MobileCaptureTool() {
       setResult(body);
       setMode("SENT");
       setNotice(body?.smartIntake ? `${body.smartIntake.classificationLabel} sent to ${destination.label} review.` : `Capture sent to ${destination.label} review.`);
-      if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
-      setCapturedImageUrl("");
+      resetCapturedImage();
+      clearFileInputs();
     } catch {
       setNotice("Capture could not reach the document service.");
     } finally {
@@ -275,6 +317,7 @@ export function MobileCaptureTool() {
   }
 
   async function sendCapture() {
+    if (busy) return;
     if (!capturedImageUrl) return;
     const response = await fetch(capturedImageUrl);
     const blob = await response.blob();
@@ -295,7 +338,7 @@ export function MobileCaptureTool() {
           <span><Camera size={16} /> Capture</span>
           <h1 id="mobile-capture-title">Scan and send</h1>
         </div>
-        <p>{notice}</p>
+        <p aria-live="polite">{notice}</p>
       </section>
 
       <section className={styles.toolPanel} aria-label="Capture destination">
@@ -306,8 +349,10 @@ export function MobileCaptureTool() {
             return (
               <button
                 className={item.key === destinationKey ? styles.selectedDestination : ""}
+                disabled={busy || mode === "CAMERA" || mode === "PREVIEW"}
                 key={item.key}
                 onClick={() => setDestinationKey(item.key)}
+                aria-pressed={item.key === destinationKey}
                 type="button"
               >
                 <Icon size={20} />
@@ -318,24 +363,28 @@ export function MobileCaptureTool() {
         </div>
         <label className={styles.field}>
           <span>{destination.prompt}</span>
-          <input onChange={(event) => setReference(event.target.value)} placeholder="Leave blank to send to review inbox" value={reference} />
+          <input disabled={busy} maxLength={120} onChange={(event) => setReference(event.target.value)} placeholder="Leave blank to send to review inbox" value={reference} />
         </label>
         <label className={styles.field}>
           <span>Note</span>
-          <input onChange={(event) => setNote(event.target.value)} placeholder="Optional short reason or instruction" value={note} />
+          <input disabled={busy} maxLength={180} onChange={(event) => setNote(event.target.value)} placeholder="Optional short reason or instruction" value={note} />
         </label>
+        <div className={styles.routeSummary}>
+          <DestinationIcon size={18} />
+          <span>{reference.trim() ? `Ready for ${destination.label}: ${reference.trim()}` : `No exact ${destination.label.toLowerCase()} selected. This will land in ${destination.label} review.`}</span>
+        </div>
       </section>
 
       <section className={styles.kindPanel} aria-label="Capture type">
         {captureKinds.map((item) => (
-          <button className={item.key === captureKind ? styles.selectedKind : ""} key={item.key} onClick={() => setCaptureKind(item.key)} type="button">
+          <button aria-pressed={item.key === captureKind} className={item.key === captureKind ? styles.selectedKind : ""} disabled={busy} key={item.key} onClick={() => setCaptureKind(item.key)} type="button">
             {item.key === "ID" ? <IdCard size={16} /> : null}
             {item.label}
           </button>
         ))}
       </section>
 
-      <section className={styles.actions} aria-label="Capture actions">
+      <section aria-busy={busy} className={styles.actions} aria-label="Capture actions">
         <button disabled={busy} onClick={() => void startCamera()} type="button"><Camera size={20} /> Scan / photo</button>
         <input
           accept="image/*"
@@ -349,7 +398,7 @@ export function MobileCaptureTool() {
         <label>
           <UploadCloud size={20} />
           Upload
-          <input accept="application/pdf,image/*,text/plain" disabled={busy} onChange={(event) => void sendFile(event.currentTarget.files?.[0] ?? null)} type="file" />
+          <input accept="application/pdf,image/*,text/plain" disabled={busy} onChange={(event) => void sendFile(event.currentTarget.files?.[0] ?? null)} ref={fileUploadRef} type="file" />
         </label>
       </section>
 
