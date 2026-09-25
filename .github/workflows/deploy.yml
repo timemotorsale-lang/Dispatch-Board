@@ -18,14 +18,57 @@ env:
   NODE_VERSION: "24"
   NODE_OPTIONS: --max-old-space-size=4096
   DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/Dispatch-Board' }}
+  CI_DATABASE_URL: postgresql://build:build@127.0.0.1:5432/dispatch_board_test?schema=public
+  CI_CRON_SECRET: ci-build-placeholder
 
 jobs:
-  verify:
-    name: Verify
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/dispatch_board_test?schema=public
-      CRON_SECRET: ci-build-placeholder
+      DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+      CRON_SECRET: ${{ env.CI_CRON_SECRET }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+      CRON_SECRET: ${{ env.CI_CRON_SECRET }}
     services:
       postgres:
         image: postgres:17-bookworm
@@ -58,14 +101,27 @@ jobs:
           npm run db:generate
           npm run db:migrate:deploy
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
       - name: Test
         run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+      CRON_SECRET: ${{ env.CI_CRON_SECRET }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build
         run: npm run build
@@ -73,7 +129,11 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    needs: verify
+    needs:
+      - lint
+      - typecheck
+      - test
+      - build
     environment: production
     steps:
       - name: Connect to Tailscale
