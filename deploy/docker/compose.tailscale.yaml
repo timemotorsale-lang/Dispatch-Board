@@ -1,14 +1,10 @@
-# Tailscale deployment override.
+# Legacy Tailscale override.
 #
-# This publishes Next.js only on the Ubuntu host's loopback interface so
-# Tailscale Serve can terminate trusted HTTPS without exposing the application
-# to the LAN or public internet. Caddy remains available in the base stack for
-# non-Tailscale deployments but is disabled here.
+# The main compose.yaml is now Tailscale-private by default and already binds
+# Next.js to the Ubuntu host's loopback interface. This file is kept so older
+# deploy commands that include it continue to render the same app port binding.
 
 services:
   app:
     ports:
       - "127.0.0.1:3000:3000"
-
-  caddy:
-    profiles: ["public-proxy"]
