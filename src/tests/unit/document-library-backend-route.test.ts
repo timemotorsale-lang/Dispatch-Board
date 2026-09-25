@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn()
@@ -10,7 +10,18 @@ import { POST } from "@/app/api/document-library/actions/route";
 import { GET } from "@/app/api/document-library/route";
 import { POST as UPLOAD_POST } from "@/app/api/document-library/uploads/route";
 
+const originalDisableLocalFallback = process.env.DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK;
+
 describe("document library backend routes", () => {
+  afterEach(() => {
+    if (typeof originalDisableLocalFallback === "string") {
+      process.env.DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK = originalDisableLocalFallback;
+      return;
+    }
+
+    delete process.env.DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK;
+  });
+
   it("returns the document library read model", async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "manager@example.test", id: "manager-1", isActive: true, name: "Manager", roles: ["General Manager"] });
 
@@ -126,6 +137,7 @@ describe("document library backend routes", () => {
   });
 
   it("stages governed upload metadata for document-library staff", async () => {
+    process.env.DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK = "true";
     mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "advisor@example.test", id: "staff-1", isActive: true, name: "Advisor", roles: ["Service Advisor"] });
 
     const response = await UPLOAD_POST(new Request("http://dispatch.local/api/document-library/uploads", {

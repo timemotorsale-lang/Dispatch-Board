@@ -141,8 +141,8 @@ function formWeekday(value: string) {
 }
 
 function publicPdfBytes(templatePath: string) {
-  const safePath = templatePath.replace(/^\/+/, "").replaceAll("/", "\\");
-  return readFileSync(join(process.cwd(), "public", safePath.replace(/^public\\/, "")));
+  const safePath = templatePath.replace(/^\/+/, "").replace(/^public\//, "");
+  return readFileSync(join(process.cwd(), "public", safePath));
 }
 
 async function filledPdfBase64(templatePath: string, fieldValues: Record<string, string>) {

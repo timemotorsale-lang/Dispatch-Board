@@ -32,7 +32,7 @@ describe("Manager Workspace", () => {
     expect(html).toContain("COO Workbook");
     expect(html).toContain("Inventory Manager");
     expect(html).toContain("Service Advisor");
-    expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("Recon / Repair Advisor");
     expect(html).toContain("Exception brief");
     expect(html).toContain("Customers needing attention");
     expect(html).toContain("Open customer queue");
