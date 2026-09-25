@@ -27,6 +27,7 @@ Example:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dispatch_board?schema=public"
 CRON_SECRET="replace-with-a-long-random-secret"
 NEXT_DIST_DIR=".next-local"
+CRM_NEXT="OFF"
 ```
 
 ### Required variables
@@ -37,6 +38,8 @@ NEXT_DIST_DIR=".next-local"
   Protects the scheduled generation endpoint at `/api/cron/generate-board`.
 - `NEXT_DIST_DIR`
   Optional override for the Next.js build cache directory. The local default in this repo is `.next-local` to reduce Windows and OneDrive file-lock issues.
+- `CRM_NEXT`
+  Controls the Customer Console at `/crm-next`. It fails closed when unset or `OFF`, which shows the protected Customer Console fallback. Set it in the server deployment environment to `REVIEW` to open the current safe Customer Console preview, or `DOGFOOD`/`PILOT`/`LIVE`/`ACTIVE` for dogfood mode.
 
 ### Optional local test variables
 
@@ -159,6 +162,19 @@ Production checklist for auto-generation:
 3. Set the desired generation time, timezone, and business days in `/settings`.
 4. Follow the scheduler deployment runbook before relying on autonomous generation or concern evaluation.
 5. Record the first live validation using the first-live validation workflow after the configured local generation time.
+
+### Customer Console server setup
+
+Customer Console / CRM Next is intentionally protected by the `CRM_NEXT` environment variable. If `/crm-next` opens locally but the server says "Customer Console is protected right now," the deployed server is missing this variable or has it set to `OFF`.
+
+To open Customer Console on the server:
+
+1. Set `CRM_NEXT=REVIEW` in the deployment environment.
+2. Redeploy or restart the app so the server process reads the new variable.
+3. Sign in as a Management or Sales workspace user.
+4. Open `/crm-next` again.
+
+Rollback is simple: set `CRM_NEXT=OFF` or remove the variable, then redeploy/restart. Customer Archive and older customer tools remain available.
 
 Use the scheduler verification contract as the meaning baseline for what you should expect to see:
 
