@@ -91,12 +91,12 @@ function WorkflowReviewLauncher() {
             </>
           );
           return workflow.href ? (
-            <Link href={workflow.href} key={workflow.title} role="option">
+            <Link aria-selected="false" href={workflow.href} key={workflow.title} role="option">
               {content}
               <ArrowRight aria-hidden="true" size={14} />
             </Link>
           ) : (
-            <span className="dispatch-workflow-review-disabled" key={workflow.title} role="option">
+            <span aria-selected="false" className="dispatch-workflow-review-disabled" key={workflow.title} role="option">
               {content}
             </span>
           );

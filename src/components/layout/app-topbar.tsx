@@ -132,6 +132,10 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const [operationalSearchError, setOperationalSearchError] = useState("");
   const [searchText, setSearchText] = useState("");
   const query = searchText.trim().toLowerCase();
+  const canSearchOperationalRecords = isSearchOpen && query.length >= 2;
+  const visibleOperationalResults = canSearchOperationalRecords ? operationalResults : [];
+  const visibleOperationalSearchBusy = canSearchOperationalRecords && operationalSearchBusy;
+  const visibleOperationalSearchError = canSearchOperationalRecords ? operationalSearchError : "";
   const uniqueNavigationItems = navigationItems.filter(
     (entry, index, items) => items.findIndex((item) => item.href === entry.href) === index
   );
@@ -188,9 +192,6 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   useEffect(() => {
     const rawQuery = searchText.trim();
     if (!isSearchOpen || rawQuery.length < 2) {
-      setOperationalResults([]);
-      setOperationalSearchBusy(false);
-      setOperationalSearchError("");
       return;
     }
 
@@ -319,14 +320,14 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
                     <strong>{entry.title}</strong><span>{entry.description}</span>
                   </Link>
                 )) : null}
-                {operationalResults.length ? operationalResults.map((entry) => (
+                {visibleOperationalResults.length ? visibleOperationalResults.map((entry) => (
                   <Link className="topbar-popover-link" href={entry.href} key={`${entry.type}-${entry.id}`} onClick={() => setIsSearchOpen(false)}>
                     <strong>{entry.label}</strong><span>{entry.type.replaceAll("_", " ")} · {entry.status ?? "Open"} · {entry.detail}</span>
                   </Link>
                 )) : null}
-                {operationalSearchBusy ? <p className="topbar-popover-empty">Searching live records...</p> : null}
-                {operationalSearchError ? <p className="topbar-popover-empty">{operationalSearchError}</p> : null}
-                {!quickResults.length && !operationalResults.length && !operationalSearchBusy && !operationalSearchError ? <p className="topbar-popover-empty">No matching live areas or records found.</p> : null}
+                {visibleOperationalSearchBusy ? <p className="topbar-popover-empty">Searching live records...</p> : null}
+                {visibleOperationalSearchError ? <p className="topbar-popover-empty">{visibleOperationalSearchError}</p> : null}
+                {!quickResults.length && !visibleOperationalResults.length && !visibleOperationalSearchBusy && !visibleOperationalSearchError ? <p className="topbar-popover-empty">No matching live areas or records found.</p> : null}
               </div>
             </div>
           ) : null}

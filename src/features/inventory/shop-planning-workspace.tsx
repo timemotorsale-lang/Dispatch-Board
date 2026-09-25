@@ -342,7 +342,6 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
           : "Return and dealership QC required";
   const stageTwoComplete = Boolean((selected?.diagnosisVersions.length ?? 0) > 0 || currentVendorWork);
   const stageTwoTitle = vendorPath ? "Outside vendor route" : directPath ? "Bodywork repair scope" : "Evidence-backed diagnosis";
-  const stageTwoSubtitle = "Choose the governed path that fits this work: full diagnosis, direct body and collision scope, or outside vendor repair.";
   const missionLabel = vendorPath ? "Outside vendor mission" : directPath ? "Bodywork repair mission" : "Diagnostic mission";
   const missionTitle = vendorPath ? "Dispatch the vehicle to the vendor workflow and track the rapid recon answers" : directPath ? "Document the bodywork scope and move directly to estimate" : "Verify the reported concern and identify the root cause";
   const orderPathLabel = vendorPath ? "Vehicle ready for outside vendor route" : directPath ? "Vehicle selected for bodywork repair" : "Vehicle released for diagnosis";
