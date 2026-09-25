@@ -119,6 +119,53 @@ To remove the Serve configuration:
 sudo tailscale serve reset
 ```
 
+## GitHub Actions Deploy
+
+The included GitHub Actions workflow deploys by joining your tailnet, SSHing to the Ubuntu server, checking out the pushed commit in the existing server clone, rebuilding the Docker images, running Prisma migrations, and restarting the Compose stack.
+
+Create these GitHub repository secrets:
+
+```text
+TS_OAUTH_CLIENT_ID
+TS_OAUTH_SECRET
+DEPLOY_HOST
+DEPLOY_USER
+DEPLOY_SSH_KEY
+```
+
+Recommended values:
+
+```text
+DEPLOY_HOST=<server MagicDNS name or Tailscale IP>
+DEPLOY_USER=<server deploy user>
+```
+
+Create this optional GitHub repository variable if your server checkout is not `/opt/Dispatch-Board`:
+
+```text
+DEPLOY_PATH=/opt/Dispatch-Board
+```
+
+The Tailscale OAuth client must be allowed to create ephemeral nodes tagged as:
+
+```text
+tag:ci
+```
+
+The workflow assumes the deploy user can run Docker commands non-interactively. Either add the deploy user to the `docker` group, or configure narrowly scoped passwordless sudo for Docker. You can verify the current user is ready on the server with one of these commands:
+
+```bash
+docker compose version
+sudo -n docker compose version
+```
+
+The server checkout must be able to fetch from the GitHub repository:
+
+```bash
+cd /opt/Dispatch-Board
+git fetch origin
+```
+
 ## First Deploy Behavior
 
 The stack starts PostgreSQL first, runs `prisma migrate deploy`, then starts the app. The app health check uses:
