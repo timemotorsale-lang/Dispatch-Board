@@ -2,6 +2,7 @@ import type { AuthStore, AuthenticatedUser } from "./store";
 import { hashPassword, verifyPassword } from "./password";
 import { validateStaffPassword } from "./password-policy";
 import { createSessionExpiry, createSessionToken, hashSessionToken } from "./session";
+import type { AuthSessionSummary } from "./store";
 
 export const AUTH_FAILURE_MESSAGE = "Unable to sign in with the provided credentials.";
 export const AUTH_LOCKED_MESSAGE =
@@ -157,6 +158,42 @@ export async function logoutWithSessionToken(store: AuthStore, sessionToken: str
   }
 
   await store.deleteSessionByTokenHash(hashSessionToken(sessionToken));
+}
+
+export async function getOwnSessionSecurity(
+  store: AuthStore,
+  user: AuthenticatedUser | null,
+  sessionToken: string | null | undefined,
+  now = new Date()
+): Promise<{ currentSession: AuthSessionSummary | null; sessions: AuthSessionSummary[] }> {
+  if (!user || !sessionToken) {
+    throw new Error("Authentication required.");
+  }
+
+  const tokenHash = hashSessionToken(sessionToken);
+  const sessions = await store.listUserSessions(user.id, tokenHash, now);
+
+  return {
+    currentSession: sessions.find((session) => session.isCurrent) ?? null,
+    sessions
+  };
+}
+
+export async function logoutOtherSessions(
+  store: AuthStore,
+  user: AuthenticatedUser | null,
+  sessionToken: string | null | undefined
+) {
+  if (!user || !sessionToken) {
+    throw new Error("Authentication required.");
+  }
+
+  const closedCount = await store.deleteOtherUserSessions(user.id, hashSessionToken(sessionToken));
+
+  return {
+    ok: true,
+    closedCount
+  };
 }
 
 export async function readAuthenticatedUser(

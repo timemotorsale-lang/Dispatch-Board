@@ -8,20 +8,24 @@ import { redirectAuthenticatedUser } from "@/server/auth/current-user";
 
 type LoginPageProps = {
   searchParams?: Promise<{
+    email?: string | string[];
     reason?: string | string[];
     returnTo?: string | string[];
   }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  await redirectAuthenticatedUser();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const returnTo = Array.isArray(resolvedSearchParams?.returnTo)
     ? resolvedSearchParams.returnTo[0]
     : resolvedSearchParams?.returnTo;
+  await redirectAuthenticatedUser(returnTo);
   const reason = Array.isArray(resolvedSearchParams?.reason)
     ? resolvedSearchParams.reason[0]
     : resolvedSearchParams?.reason;
+  const email = Array.isArray(resolvedSearchParams?.email)
+    ? resolvedSearchParams.email[0]
+    : resolvedSearchParams?.email;
 
   return (
     <main className="page-shell">
@@ -31,25 +35,30 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <span className="eyebrow">Secure sign-in</span>
           <h1>{APP_NAME}</h1>
           <p>
-            Sign in with a seeded local-development account to reach the protected app shell for
-            the dispatch board.
+            Staff access is invite-only. Sign in to continue to your assigned workspace or accept
+            a manager-issued invite to create your password.
           </p>
         </div>
 
         <div className="panel-card">
-          <strong>Login</strong>
+          <strong>Staff sign-in</strong>
           <h2>Identity, roles, and permissions</h2>
           <p>
-            Sessions are stored server-side, protected routes redirect unauthenticated users, and
-            permission checks now live on the server for later workflows to reuse.
+            Internal dashboards stay protected until staff identity, account status, role assignment,
+            and workspace permissions are verified.
           </p>
-          <LoginForm returnTo={returnTo} sessionExpired={reason === "session-expired"} />
+          {reason === "entry" ? (
+            <div className="notice notice-warning" role="status">
+              <p>Sign in before opening the internal command center.</p>
+            </div>
+          ) : null}
+          <LoginForm initialEmail={email} passwordReset={reason === "password-reset"} returnTo={returnTo} setupAccepted={reason === "invite-accepted"} sessionExpired={reason === "session-expired"} />
           <div className="placeholder-actions auth-secondary-actions">
-            <Link className="pill pill-primary" href="/">
-              Back to home
+            <Link className="pill pill-secondary" href="/login/invite">
+              Accept invite / Create password
             </Link>
-            <Link className="pill pill-secondary" href="/board">
-              Open protected board
+            <Link className="pill pill-secondary" href="/login/forgot-password">
+              Forgot password
             </Link>
           </div>
         </div>

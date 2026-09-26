@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Activity,
   Bell,
@@ -133,6 +134,9 @@ function canShowCard(card: MobileCard, workspace: WorkspaceKey | null, permitted
 
 export default async function HomePage() {
   const user = await getCurrentUser();
+  if (!user) {
+    redirect("/login?reason=entry");
+  }
   const currentWorkspace = user ? getWorkspaceKey(user) : null;
   const permittedWorkspaces = user ? getPermittedWorkspaces(user).map((workspace) => workspace.key) : [];
   const manager = user ? isManager(user) : false;

@@ -26,7 +26,15 @@ export type AuthSessionRecord = {
   tokenHash: string;
   userId: string;
   expiresAt: Date;
+  createdAt: Date;
   user: AuthenticatedUser;
+};
+
+export type AuthSessionSummary = {
+  id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  isCurrent: boolean;
 };
 
 export type CreateSessionInput = {
@@ -39,7 +47,9 @@ export interface AuthStore {
   findUserByEmail(email: string): Promise<AuthUserRecord | null>;
   createSession(input: CreateSessionInput): Promise<void>;
   findSessionByTokenHash(tokenHash: string, now: Date): Promise<AuthSessionRecord | null>;
+  listUserSessions(userId: string, currentTokenHash: string | null, now: Date): Promise<AuthSessionSummary[]>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
+  deleteOtherUserSessions(userId: string, currentTokenHash: string): Promise<number>;
   recordFailedLogin(userId: string, failedLoginCount: number, lockedUntil: Date | null): Promise<void>;
   recordSuccessfulLogin(userId: string, now: Date): Promise<void>;
   updateUserPassword(userId: string, passwordHash: string, now: Date): Promise<void>;
@@ -234,12 +244,50 @@ export function createPrismaAuthStore(prisma: PrismaClient): AuthStore {
 
       return sessionToAuthSessionRecord(session, securityState.mustChangePassword);
     },
+    async listUserSessions(userId, currentTokenHash, now) {
+      const sessions = await prisma.session.findMany({
+        where: {
+          userId,
+          expiresAt: {
+            gt: now
+          }
+        },
+        orderBy: {
+          createdAt: "desc"
+        },
+        select: {
+          id: true,
+          tokenHash: true,
+          createdAt: true,
+          expiresAt: true
+        }
+      });
+
+      return sessions.map((session) => ({
+        id: session.id,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+        isCurrent: currentTokenHash ? session.tokenHash === currentTokenHash : false
+      }));
+    },
     async deleteSessionByTokenHash(tokenHash) {
       await prisma.session.deleteMany({
         where: {
           tokenHash
         }
       });
+    },
+    async deleteOtherUserSessions(userId, currentTokenHash) {
+      const result = await prisma.session.deleteMany({
+        where: {
+          userId,
+          tokenHash: {
+            not: currentTokenHash
+          }
+        }
+      });
+
+      return result.count;
     },
     async recordFailedLogin(userId, failedLoginCount, lockedUntil) {
       await prisma.$executeRaw`
@@ -278,6 +326,7 @@ function sessionToAuthSessionRecord(session: SessionWithUser, mustChangePassword
     tokenHash: session.tokenHash,
     userId: session.userId,
     expiresAt: session.expiresAt,
+    createdAt: session.createdAt,
     user: {
       ...toAuthenticatedUser(session.user),
       mustChangePassword
