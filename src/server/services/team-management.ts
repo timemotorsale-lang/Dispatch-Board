@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { sendAuthEmail } from "@/server/auth/email-delivery";
 import { hashPassword } from "@/server/auth/password";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
@@ -320,6 +321,32 @@ export async function updateManagedTeamUser(
       lockoutClearRequested
     }
   });
+
+  if (passwordResetRequested) {
+    await sendAuthEmail({
+      actorUserId: manager.id,
+      body: "A manager set a temporary password for your staff account. Sign in with the temporary password provided by your manager, then create a new password when prompted.",
+      eventType: "STAFF_PASSWORD_RESET_EMAIL_DELIVERY",
+      metadata: { temporaryPasswordIssued: true },
+      preview: "A temporary staff password was issued.",
+      subject: "Temporary staff password issued",
+      subjectId: updatedUser.id,
+      to: updatedUser.email,
+      toName: updatedUser.name
+    });
+  } else if (lockoutClearRequested) {
+    await sendAuthEmail({
+      actorUserId: manager.id,
+      body: "A manager cleared the temporary lock on your staff account. You can try signing in again.",
+      eventType: "STAFF_LOCKOUT_CLEARED_EMAIL_DELIVERY",
+      metadata: {},
+      preview: "Your staff account lockout was cleared.",
+      subject: "Your staff account lockout was cleared",
+      subjectId: updatedUser.id,
+      to: updatedUser.email,
+      toName: updatedUser.name
+    });
+  }
 
   return toManagedTeamUser(updatedUser);
 }

@@ -1,4 +1,5 @@
 import type { AuthStore, AuthenticatedUser } from "./store";
+import { sendAuthEmail } from "./email-delivery";
 import { hashPassword, verifyPassword } from "./password";
 import { validateStaffPassword } from "./password-policy";
 import { createSessionExpiry, createSessionToken, hashSessionToken } from "./session";
@@ -65,6 +66,20 @@ export async function loginWithPassword(
         : null;
 
     await store.recordFailedLogin(user.id, nextFailedLoginCount, lockedUntil);
+
+    if (lockedUntil) {
+      await sendAuthEmail({
+        actorUserId: user.id,
+        body: `Your staff account was temporarily locked after ${MAX_FAILED_LOGIN_ATTEMPTS} unsuccessful sign-in attempts. It unlocks automatically after ${LOGIN_LOCKOUT_MINUTES} minutes, or a manager can clear it sooner.`,
+        eventType: "STAFF_ACCOUNT_LOCKED_EMAIL_DELIVERY",
+        metadata: { failedLoginCount: nextFailedLoginCount, lockedUntil: lockedUntil.toISOString() },
+        preview: "Your staff account was temporarily locked.",
+        subject: "Your staff account was temporarily locked",
+        subjectId: user.id,
+        to: user.email,
+        toName: user.name
+      });
+    }
 
     return {
       ok: false,

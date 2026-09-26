@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { sendAuthEmail } from "@/server/auth/email-delivery";
 import { changeOwnPassword } from "@/server/auth/service";
 import { createPrismaAuthStore } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
@@ -47,6 +48,20 @@ export async function PATCH(request: Request) {
           metadata: {},
           correlationId: `team-security:staff_password_changed:${user.id}:${Date.now()}`
         }
+      });
+    }
+
+    if (user) {
+      await sendAuthEmail({
+        actorUserId: user.id,
+        body: "Your Time Motor Sales staff password was changed. If you did not make this change, contact a manager immediately.",
+        eventType: "STAFF_PASSWORD_CHANGED_EMAIL_DELIVERY",
+        metadata: {},
+        preview: "Your staff password was changed.",
+        subject: "Your staff password was changed",
+        subjectId: user.id,
+        to: user.email,
+        toName: user.name
       });
     }
 
