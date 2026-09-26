@@ -14,14 +14,16 @@ const defaultFormState: LoginFormState = {
 };
 
 type LoginFormProps = {
+  initialEmail?: string;
   returnTo?: string;
+  setupAccepted?: boolean;
   sessionExpired?: boolean;
 };
 
-export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) {
+export function LoginForm({ initialEmail = "", returnTo, setupAccepted = false, sessionExpired = false }: LoginFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [formState, setFormState] = useState(defaultFormState);
+  const [formState, setFormState] = useState({ ...defaultFormState, email: initialEmail });
   const [errorMessage, setErrorMessage] = useState("");
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -54,6 +56,11 @@ export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) 
       {sessionExpired ? (
         <div className="notice notice-warning" role="status">
           <p>Your session ended. Sign in again to return to the console you were using.</p>
+        </div>
+      ) : null}
+      {setupAccepted ? (
+        <div className="notice notice-success" role="status">
+          <p>Password created. Sign in to enter your assigned workspace.</p>
         </div>
       ) : null}
       <label className="field">

@@ -28,6 +28,12 @@ type TeamMemberFormState = {
   isActive: boolean;
 };
 
+type StaffInviteFormState = {
+  name: string;
+  email: string;
+  roleIds: string[];
+};
+
 type UserEditFormState = Omit<TeamMemberFormState, "password">;
 
 type RoleFormState = {
@@ -73,6 +79,12 @@ const initialTeamMemberFormState: TeamMemberFormState = {
   roleIds: [],
   dutyIds: [],
   isActive: true
+};
+
+const initialStaffInviteFormState: StaffInviteFormState = {
+  name: "",
+  email: "",
+  roleIds: []
 };
 
 const initialRoleFormState: RoleFormState = {
@@ -308,6 +320,7 @@ export function TeamManagementPanel({
   const [roleOptions, setRoleOptions] = useState(sortRoles(roles));
   const [dutyOptions, setDutyOptions] = useState(sortDuties(duties));
   const [templateOptions, setTemplateOptions] = useState(sortTemplates(templates));
+  const [staffInviteFormState, setStaffInviteFormState] = useState(initialStaffInviteFormState);
   const [teamMemberFormState, setTeamMemberFormState] = useState(initialTeamMemberFormState);
   const [roleFormState, setRoleFormState] = useState(initialRoleFormState);
   const [dutyFormState, setDutyFormState] = useState(initialDutyFormState);
@@ -320,6 +333,7 @@ export function TeamManagementPanel({
   const [roleEditFormState, setRoleEditFormState] = useState<RoleFormState | null>(null);
   const [dutyEditFormState, setDutyEditFormState] = useState<DutyFormState | null>(null);
   const [templateEditFormState, setTemplateEditFormState] = useState<TemplateFormState | null>(null);
+  const [staffInviteMessage, setStaffInviteMessage] = useState({ error: "", inviteUrl: "", success: "" });
   const [teamMemberMessage, setTeamMemberMessage] = useState({ error: "", success: "" });
   const [roleMessage, setRoleMessage] = useState({ error: "", success: "" });
   const [dutyMessage, setDutyMessage] = useState({ error: "", success: "" });
@@ -353,6 +367,37 @@ export function TeamManagementPanel({
       setPendingAction("");
       setConfirmActionId((current) => (current === actionId ? "" : current));
     }
+  }
+
+  function handleCreateStaffInvite(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStaffInviteMessage({ error: "", inviteUrl: "", success: "" });
+
+    const roleNames = staffInviteFormState.roleIds
+      .map((roleId) => roleOptions.find((role) => role.id === roleId)?.name)
+      .filter((roleName): roleName is string => Boolean(roleName));
+
+    void runAction("create-staff-invite", async () => {
+      const response = await fetch("/api/auth/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: staffInviteFormState.email,
+          name: staffInviteFormState.name,
+          roleNames
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; inviteUrl?: string } | null;
+
+      if (!response.ok || !payload?.inviteUrl) {
+        setStaffInviteMessage({ error: payload?.error ?? "Unable to create the staff invite right now.", inviteUrl: "", success: "" });
+        return;
+      }
+
+      const inviteUrl = `${window.location.origin}${payload.inviteUrl}`;
+      setStaffInviteFormState(initialStaffInviteFormState);
+      setStaffInviteMessage({ error: "", inviteUrl, success: "Staff invite created. Send this link to the approved staff member." });
+    });
   }
 
   function handleCreateTeamMember(event: React.FormEvent<HTMLFormElement>) {
@@ -693,6 +738,7 @@ export function TeamManagementPanel({
   const hasRoleFilter = Boolean(roleSearchText.trim());
   const hasTemplateFilter = Boolean(templateSearchText.trim()) || templateStatusFilter !== "all";
   const hasUserFilter = Boolean(userSearchText.trim()) || userStatusFilter !== "all";
+  const isCreatingStaffInvite = pendingAction === "create-staff-invite";
   const isCreatingUser = pendingAction === "create-user";
   const isCreatingDuty = pendingAction === "create-duty";
   const isCreatingRole = pendingAction === "create-role";
@@ -1053,9 +1099,44 @@ export function TeamManagementPanel({
       <article className="panel-card team-admin-card team-admin-staff-card">
         <section className="team-admin-add-member-panel">
           <div>
-            <strong>Manager workflow</strong>
-            <h2>Add staff account</h2>
-            <p>Create a login, assign baseline coverage, then manage the person from the roster below.</p>
+            <strong>Staff access</strong>
+            <h2>Invite staff</h2>
+            <p>Send an approved staff member a one-use invite so they create their own password.</p>
+          </div>
+          <form aria-busy={isCreatingStaffInvite} className="settings-form team-admin-add-form" onSubmit={handleCreateStaffInvite}>
+            <div className="settings-grid">
+              <label className="field"><span>Full name</span><input value={staffInviteFormState.name} onChange={(event) => setStaffInviteFormState((current) => ({ ...current, name: event.target.value }))} placeholder="Alex Staff" required /></label>
+              <label className="field"><span>Email</span><input type="email" value={staffInviteFormState.email} onChange={(event) => setStaffInviteFormState((current) => ({ ...current, email: event.target.value }))} placeholder="alex.staff@company.com" required /></label>
+            </div>
+            <fieldset className="business-day-group">
+              <legend>Roles</legend>
+              <div className="checkbox-list">
+                {roleOptions.length ? (
+                  roleOptions.map((role) => <label className="checkbox-item" key={`invite-role-${role.id}`}><input checked={staffInviteFormState.roleIds.includes(role.id)} type="checkbox" onChange={(event) => setStaffInviteFormState((current) => ({ ...current, roleIds: toggleSelection(current.roleIds, role.id, event.target.checked) }))} /><span>{role.name}</span></label>)
+                ) : (
+                  <p className="team-admin-empty">Create at least one role before inviting staff.</p>
+                )}
+              </div>
+            </fieldset>
+            {staffInviteMessage.error ? <div className="notice notice-danger" role="alert"><p>{staffInviteMessage.error}</p></div> : null}
+            {staffInviteMessage.success ? (
+              <div className="notice" role="status">
+                <p>{staffInviteMessage.success}</p>
+                <label className="field">
+                  <span>Invite link</span>
+                  <input readOnly value={staffInviteMessage.inviteUrl} onFocus={(event) => event.currentTarget.select()} />
+                </label>
+              </div>
+            ) : null}
+            <div className="form-actions"><button className="pill pill-primary" disabled={isCreatingStaffInvite || roleOptions.length === 0 || staffInviteFormState.roleIds.length === 0} type="submit">{isCreatingStaffInvite ? "Creating invite..." : "Create invite"}</button></div>
+          </form>
+        </section>
+
+        <section className="team-admin-add-member-panel">
+          <div>
+            <strong>Manager fallback</strong>
+            <h2>Add staff account directly</h2>
+            <p>Use only when a manager must issue a temporary password instead of sending an invite.</p>
           </div>
           <form aria-busy={isCreatingUser} className="settings-form team-admin-add-form" onSubmit={handleCreateTeamMember}>
             <div className="settings-grid">

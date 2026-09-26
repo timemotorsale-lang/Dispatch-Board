@@ -2137,6 +2137,28 @@ model Session {
   @@index([expiresAt])
 }
 
+model StaffInvite {
+  id               String    @id @default(cuid())
+  email            String
+  name             String
+  roleNames        Json
+  workspaceKey     String?
+  tokenHash        String    @unique
+  status           String    @default("PENDING")
+  expiresAt        DateTime
+  invitedByUserId  String?
+  acceptedByUserId String?
+  usedAt           DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status, expiresAt])
+  @@index([invitedByUserId])
+  @@index([acceptedByUserId])
+}
+
 model Role {
   id                String             @id @default(cuid())
   name              String             @unique
