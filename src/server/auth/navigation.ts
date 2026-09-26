@@ -22,6 +22,8 @@ export const WORKSPACE_KEYS = [
 
 export type WorkspaceKey = (typeof WORKSPACE_KEYS)[number];
 
+const DISPATCH_BOARD_WORKSPACES = WORKSPACE_KEYS.filter((workspace) => workspace !== "TECHNICIAN");
+
 export type WorkspaceDefinition = {
   description: string;
   key: WorkspaceKey;
@@ -168,7 +170,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/manager-review", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
   { prefix: "/staff", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE"] },
   { prefix: "/today", workspaces: [...WORKSPACE_KEYS] },
-  { prefix: "/board", workspaces: ["MANAGEMENT"] },
+  { prefix: "/board", workspaces: DISPATCH_BOARD_WORKSPACES },
   { prefix: "/command-center", workspaces: ["MANAGEMENT"] },
   { prefix: "/vehicles/coo-workbook", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/vehicles/parts", workspaces: ["PARTS", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
@@ -278,6 +280,10 @@ export function getPermittedWorkspaces(user: AuthenticatedUser): WorkspaceDefini
   return matched.length ? matched : [WORKSPACE_BY_KEY.GENERAL_STAFF];
 }
 
+export function canOpenDispatchBoard(user: AuthenticatedUser | null) {
+  return Boolean(user && getPermittedWorkspaces(user).some((workspace) => workspace.key !== "TECHNICIAN"));
+}
+
 export function isTechnicianUser(user: AuthenticatedUser | null) {
   return Boolean(user?.roles.some((role) => TECHNICIAN_ROLE_NAMES.has(role)));
 }
@@ -316,7 +322,10 @@ export function resolveWorkspaceForPath(
 ) {
   const permitted = getPermittedWorkspaces(user);
   const pathname = normalizedPath(path);
-  if (pathname === "/command-center" || pathname === "/board") {
+  if (pathname === "/command-center") {
+    return "MANAGEMENT";
+  }
+  if (pathname === "/board" && permitted.some((workspace) => workspace.key === "MANAGEMENT")) {
     return "MANAGEMENT";
   }
   if (

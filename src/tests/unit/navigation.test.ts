@@ -197,6 +197,7 @@ describe("enterprise shell navigation", () => {
     expect(staffDispatch?.subtitle).toBe("My Work");
     expect(staffDispatch?.homeHref).toBe("/my-tasks");
     expect(staffDispatch?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "My Work",
       "Tasks",
     ]);
@@ -248,6 +249,7 @@ describe("enterprise shell navigation", () => {
 
   it("gives each operating role a focused navigation shell", () => {
     expect(getConsoleNavigation("/vehicles", user({ roles: ["Vehicle Operations Lead"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Operations Home",
       "Vehicle Operations Lead Workbook",
       "My Vehicle Work",
@@ -259,6 +261,7 @@ describe("enterprise shell navigation", () => {
       "Exceptions"
     ]);
     expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Service Operations Workbook",
       "Recon / Repair Advisor",
       "Outside Vendors",
@@ -270,6 +273,7 @@ describe("enterprise shell navigation", () => {
       "Reviews"
     ]);
     expect(getConsoleNavigation("/vehicles", user({ roles: ["Inventory Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Inventory Home",
       "Inventory Workbook",
       "Inventory Lifecycle",
@@ -284,6 +288,7 @@ describe("enterprise shell navigation", () => {
       title: "Time Motor Sales"
     });
     expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Advisor Home",
       "Service Advisor Workbook",
       "Recon/Repair Advisor",
@@ -296,6 +301,7 @@ describe("enterprise shell navigation", () => {
       "My Work"
     ]);
     expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Advisor Home",
       "Service Advisor Workbook",
       "Recon/Repair Advisor",
@@ -320,6 +326,7 @@ describe("enterprise shell navigation", () => {
       "Templates & Rules"
     ]);
     expect(getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["Parts"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Parts Home",
       "Demand Queue",
       "Receive Parts",
@@ -327,11 +334,13 @@ describe("enterprise shell navigation", () => {
       "My Work"
     ]);
     expect(getConsoleNavigation("/vehicles/quality-control", user({ roles: ["Quality Control"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "QC Queue",
       "My Work",
       "Repair Orders"
     ]);
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "Coordinator Home",
       "Service Advisor",
       "Appointment Console",
@@ -348,6 +357,7 @@ describe("enterprise shell navigation", () => {
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Appointment Console")?.href).toBe("/appointments");
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Office Manager", "Marketing/Advertisement Manager"] }))?.subtitle).toBe("Operations Coordinator");
     expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "CRM",
       "My Work",
       "Sales Tasks",
@@ -356,12 +366,14 @@ describe("enterprise shell navigation", () => {
       "Vehicles"
     ]);
     expect(getConsoleNavigation("/tasks", user({ roles: ["Marketing/Advertisement Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "My Work",
       "Marketing",
       "Advertising",
       "Vehicles"
     ]);
     expect(getConsoleNavigation("/my-tasks", user({ roles: ["Office Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "My Work",
       "Document Library",
       "Appointments",
@@ -369,6 +381,7 @@ describe("enterprise shell navigation", () => {
       "Team Tasks"
     ]);
     expect(getConsoleNavigation("/my-tasks", user({ roles: ["Collections"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
       "My Collections",
       "Collections Queue",
       "Account Context"

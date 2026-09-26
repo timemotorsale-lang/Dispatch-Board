@@ -141,12 +141,15 @@ describe("role landing and record routing", () => {
     expect(resolveWorkspaceForPath(advisorSales, "/tasks", "SALES")).toBe("SALES");
   });
 
-  it("treats explicit CCC Home and Dispatch exits as global routes for role users", () => {
+  it("treats CCC Home as management-only and Dispatch Board as a non-technician workspace exit", () => {
     const parts = user(["Parts"]);
+    const mechanic = user(["Mechanic"]);
 
     expect(getDefaultLandingRoute(parts)).toBe("/vehicles/parts-operations");
     expect(resolveWorkspaceForPath(parts, "/command-center")).toBe("MANAGEMENT");
-    expect(resolveWorkspaceForPath(parts, "/board")).toBe("MANAGEMENT");
+    expect(resolveWorkspaceForPath(parts, "/board")).toBe("PARTS");
+    expect(isRoutePermittedForUser(parts, "/board")).toBe(true);
+    expect(isRoutePermittedForUser(mechanic, "/board")).toBe(false);
     expect(resolveWorkspaceForPath(parts, "/vehicles/parts-operations")).toBe("PARTS");
   });
 

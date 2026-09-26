@@ -67,7 +67,7 @@ describe("application top bar console switching", () => {
     expect(markup).not.toContain('aria-label="Open Dispatch Board console"');
   });
 
-  it("does not offer management consoles inside a non-management role workspace", () => {
+  it("offers Dispatch Board but not management consoles inside a non-management role workspace", () => {
     currentPathname = "/vehicles/parts-operations";
 
     const markup = renderToStaticMarkup(
@@ -84,8 +84,8 @@ describe("application top bar console switching", () => {
     expect(markup).toContain('aria-label="Parts Workspace"');
     expect(markup).not.toContain('aria-label="Open Command Control Center home"');
     expect(markup).not.toContain('href="/command-center"');
-    expect(markup).not.toContain('aria-label="Open Dispatch Board console"');
-    expect(markup).not.toContain('href="/board"');
+    expect(markup).toContain('aria-label="Open Dispatch Board console"');
+    expect(markup).toContain('href="/board"');
   });
 
   it("offers a workspace switcher only to a multi-role user", () => {

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
+  canOpenDispatchBoard,
   getPermittedWorkspaces,
   getWorkspaceDefinition,
   isTechnicianOnlyUser,
@@ -88,6 +89,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     ? "ADVISOR"
     : resolveWorkspaceForPath(user, pathname, preferredWorkspace);
   const canOpenManagementWorkspace = getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT");
+  const canOpenRoleDispatchBoard = canOpenDispatchBoard(user) && activeWorkspace !== "TECHNICIAN";
   const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
   const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
@@ -106,7 +108,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
-  const showDispatchBoardSwitch = !commandCenterHome && (!dispatchConsole || isAppointmentConsolePath(pathname)) && canOpenManagementWorkspace;
+  const showDispatchBoardSwitch = !commandCenterHome && (!dispatchConsole || isAppointmentConsolePath(pathname)) && canOpenRoleDispatchBoard;
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const roleNavigationItems = getNavigationItemsForPath(user, pathname, preferredWorkspace);
@@ -239,7 +241,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         <TimeMotorSalesLogo className="ccc-topbar-brand-horizontal" decorative priority variant="horizontal-reversed" />
         <TimeMotorSalesLogo className="ccc-topbar-brand-mark" decorative priority variant="mark" />
       </Link>
-      {!commandCenterHome ? (
+      {!commandCenterHome && (roleWorkspace || canOpenManagementWorkspace) ? (
         <Link aria-label={roleWorkspace ? activeWorkspaceDefinition.label : "Command Center Home"} className="ccc-home-link" href={roleWorkspace ? workspaceHome : "/command-center"}>
           <House size={15} /><span>{roleWorkspace ? activeWorkspaceDefinition.label : "CCC Home"}</span>
         </Link>

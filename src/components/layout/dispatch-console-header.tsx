@@ -192,8 +192,12 @@ export function DispatchConsoleHeaderView({
           </nav>
         ) : (
           <nav aria-label="Dispatch console" className="dispatch-console-tabs">
-            <Link href="/command-center">CCC Home</Link>
-            <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+            {canOpenManagerWorkspace ? (
+              <>
+                <Link href="/command-center">CCC Home</Link>
+                <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+              </>
+            ) : null}
             <Link
               aria-current={!workspaceItem ? "page" : undefined}
               className={!workspaceItem ? "active dispatch-console-root" : "dispatch-console-root"}

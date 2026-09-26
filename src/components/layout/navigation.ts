@@ -34,6 +34,7 @@ import {
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { CRM_CUSTOMER_LANDING_HREF, CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_HOME_HREF } from "@/features/crm/crm-route-authority";
 import {
+  canOpenDispatchBoard,
   getPermittedWorkspaces,
   getWorkspaceKey,
   resolveWorkspaceForPath,
@@ -57,6 +58,16 @@ export type NavigationItem = {
 };
 
 export type NavigationGroup = { label: string; items: NavigationItem[] };
+
+const dispatchBoardNavigationItem: NavigationItem = {
+  href: "/board",
+  title: "Dispatch Board",
+  description: "Today’s operating command, exceptions, and board readiness.",
+  icon: Gauge,
+  badge: "Live",
+  matchExact: true,
+  isVisible: canOpenDispatchBoard
+};
 
 export const appointmentConsoleNavigationItems: NavigationItem[] = [
   {
@@ -451,14 +462,7 @@ export const navigationGroups: NavigationGroup[] = [
   {
     label: "Operations",
     items: [
-      {
-        href: "/board",
-        title: "Dispatch Board",
-        description: "Today’s operating command, exceptions, and board readiness.",
-        icon: Gauge,
-        badge: "Live",
-        matchExact: true
-      },
+      dispatchBoardNavigationItem,
       {
         href: "/time-attendance",
         title: "Time & Attendance",
@@ -554,7 +558,13 @@ export function getDispatchNavigationItems(
   workspace: WorkspaceKey = getWorkspaceKey(user)
 ) {
   const roleItems = workspaceNavigationItems[workspace];
-  if (roleItems) return roleItems.filter((item) => (item.isVisible ? item.isVisible(user) : true));
+  if (roleItems) {
+    const visibleRoleItems = roleItems.filter((item) => (item.isVisible ? item.isVisible(user) : true));
+    if (workspace === "TECHNICIAN" || visibleRoleItems.some((item) => item.href === dispatchBoardNavigationItem.href)) {
+      return visibleRoleItems;
+    }
+    return [dispatchBoardNavigationItem, ...visibleRoleItems].filter((item) => (item.isVisible ? item.isVisible(user) : true));
+  }
   return dispatchNavigationItems.filter((item) => (item.isVisible ? item.isVisible(user) : true));
 }
 
