@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { Prisma } from "@prisma/client";
 
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
@@ -28,7 +30,13 @@ export type AuthEmailInput = {
 };
 
 function providerName() {
-  return (process.env.AUTH_EMAIL_PROVIDER ?? (process.env.NODE_ENV === "production" ? "disabled" : "console")).trim().toLowerCase();
+  const provider = (process.env.AUTH_EMAIL_PROVIDER ?? (process.env.NODE_ENV === "production" ? "disabled" : "console")).trim().toLowerCase();
+
+  if (process.env.NODE_ENV === "production" && provider === "console" && process.env.AUTH_EMAIL_ALLOW_CONSOLE_IN_PRODUCTION !== "true") {
+    return "disabled";
+  }
+
+  return provider;
 }
 
 function publicBaseUrl() {
@@ -42,6 +50,44 @@ export function absoluteAuthUrl(pathOrUrl: string) {
 
   const path = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
   return `${publicBaseUrl()}${path}`;
+}
+
+function deliveryKey(input: AuthEmailInput) {
+  return createHash("sha256")
+    .update([input.eventType, input.subjectId, input.to, input.actionUrl ?? "", input.subject].join("|"))
+    .digest("hex");
+}
+
+function maskEmail(value: string) {
+  const [name = "", domain = ""] = value.split("@");
+  const maskedName = name.length <= 2 ? `${name.slice(0, 1)}***` : `${name.slice(0, 1)}***${name.slice(-1)}`;
+  const maskedDomain = domain ? `${domain.slice(0, 1)}***` : "";
+
+  return domain ? `${maskedName}@${maskedDomain}` : maskedName;
+}
+
+function redactedActionUrl(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.searchParams.has("token")) {
+      url.searchParams.set("token", "[redacted]");
+    }
+    return url.toString();
+  } catch {
+    return value.includes("token=") ? value.replace(/token=[^&]+/i, "token=[redacted]") : value;
+  }
+}
+
+function hasUsableRecipient(input: AuthEmailInput) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.to);
+}
+
+function isSecureProductionUrl(input: AuthEmailInput) {
+  return process.env.NODE_ENV !== "production" || !input.actionUrl || input.actionUrl.startsWith("https://");
 }
 
 function escapeHtml(value: string) {
@@ -98,9 +144,9 @@ async function recordDeliveryAudit(input: AuthEmailInput, result: AuthEmailDeliv
         deliveryMessageId: result.messageId ?? null,
         deliveryProvider: result.provider,
         deliveryStatus: result.status,
-        recipient: input.to
+        recipient: maskEmail(input.to)
       } as Prisma.InputJsonObject,
-      correlationId: `team-security:${input.eventType.toLowerCase()}:${input.subjectId}:${Date.now()}`
+      correlationId: `team-security:${input.eventType.toLowerCase()}:${input.subjectId}:${deliveryKey(input)}`
     }
   });
 }
@@ -121,6 +167,7 @@ async function sendViaResend(input: AuthEmailInput): Promise<AuthEmailDeliveryRe
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      "Idempotency-Key": deliveryKey(input),
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -153,20 +200,38 @@ export async function sendAuthEmail(input: AuthEmailInput): Promise<AuthEmailDel
   const provider = providerName();
   let result: AuthEmailDeliveryResult;
 
-  if (provider === "disabled") {
-    result = { provider, status: "DISABLED" };
-  } else if (provider === "resend") {
-    result = await sendViaResend(input);
-  } else {
-    console.info("[auth-email]", {
-      actionUrl: input.actionUrl,
-      preview: input.preview,
-      subject: input.subject,
-      to: input.to
-    });
-    result = { provider: "console", status: "QUEUED" };
+  try {
+    if (!hasUsableRecipient(input)) {
+      result = { provider, status: "FAILED", error: "Recipient email address is invalid." };
+    } else if (!isSecureProductionUrl(input)) {
+      result = { provider, status: "FAILED", error: "Production auth emails require HTTPS action URLs." };
+    } else if (provider === "disabled") {
+      result = { provider, status: "DISABLED" };
+    } else if (provider === "resend") {
+      result = await sendViaResend(input);
+    } else if (provider === "console") {
+      console.info("[auth-email]", {
+        actionUrl: redactedActionUrl(input.actionUrl),
+        deliveryKey: deliveryKey(input),
+        preview: input.preview,
+        subject: input.subject,
+        to: maskEmail(input.to)
+      });
+      result = { provider: "console", status: "QUEUED" };
+    } else {
+      result = { provider, status: "FAILED", error: `Unsupported auth email provider: ${provider}.` };
+    }
+  } catch (error) {
+    result = {
+      provider,
+      status: "FAILED",
+      error: error instanceof Error ? error.message : "Email delivery failed."
+    };
   }
 
-  await recordDeliveryAudit(input, result);
+  await recordDeliveryAudit(input, result).catch((error: unknown) => {
+    console.warn("[auth-email-audit]", error instanceof Error ? error.message : "Unable to record auth email audit.");
+  });
+
   return result;
 }

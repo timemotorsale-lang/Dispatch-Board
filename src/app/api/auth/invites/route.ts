@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { sendAuthEmail } from "@/server/auth/email-delivery";
+import { absoluteAuthUrl, sendAuthEmail } from "@/server/auth/email-delivery";
 import { createStaffInvite, listStaffInvites } from "@/server/auth/staff-invite";
 
 function statusFor(message: string) {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await createStaffInvite(actor, payload);
-    const inviteUrl = new URL(result.inviteUrl, request.url).toString();
+    const inviteUrl = absoluteAuthUrl(result.inviteUrl);
     const delivery = await sendAuthEmail({
       actionLabel: "Create password",
       actionUrl: inviteUrl,

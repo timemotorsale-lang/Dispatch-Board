@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { sendAuthEmail } from "@/server/auth/email-delivery";
+import { absoluteAuthUrl, sendAuthEmail } from "@/server/auth/email-delivery";
 import {
   issuePasswordResetLink,
   listPasswordRecoveryRequests,
@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
 
   try {
     const result = await issuePasswordResetLink(actor, requestId);
-    const resetUrl = new URL(result.resetUrl, request.url).toString();
+    const resetUrl = absoluteAuthUrl(result.resetUrl);
     const delivery = await sendAuthEmail({
       actionLabel: "Reset password",
       actionUrl: resetUrl,
