@@ -302,6 +302,10 @@ function getEmptyStateCopy(itemName: string, hasFilter: boolean) {
 function getUserAttentionItems(user: ManagedTeamUser) {
   const items: string[] = [];
 
+  if (isUserLocked(user)) {
+    items.push("Unlock");
+  }
+
   if (!user.isActive) {
     items.push("Reactivate");
   }
@@ -315,6 +319,10 @@ function getUserAttentionItems(user: ManagedTeamUser) {
   }
 
   return items;
+}
+
+function isUserLocked(user: ManagedTeamUser) {
+  return Boolean(user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now());
 }
 
 function getTemplateAttentionItems(template: TaskTemplateSummary) {
@@ -734,6 +742,28 @@ export function TeamManagementPanel({
       setOpenPasswordResetUserId("");
       setOpenUserActionId("");
       setEditMessage({ error: "", success: `Temporary password set for ${payload.user.name}. They will be asked to change it at sign-in.` });
+    });
+  }
+
+  function clearUserLockout(user: ManagedTeamUser) {
+    resetEditMessage();
+
+    void runAction(`user:${user.id}:unlock`, async () => {
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearLockout: true })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; user?: ManagedTeamUser } | null;
+
+      if (!response.ok || !payload?.user) {
+        setEditMessage({ error: payload?.error ?? "Unable to unlock the team member right now.", success: "" });
+        return;
+      }
+
+      setUsers((current) => sortUsers(current.map((candidate) => (candidate.id === user.id ? payload.user! : candidate))));
+      setOpenUserActionId("");
+      setEditMessage({ error: "", success: `${payload.user.name} can try signing in again.` });
     });
   }
 
@@ -1563,9 +1593,11 @@ export function TeamManagementPanel({
               const directDutyNames = user.duties.filter((duty) => !isDelegatedManagerDuty(duty)).map((duty) => duty.name);
               const resetOpen = openPasswordResetUserId === user.id;
               const deactivateActionId = `user:${user.id}:activation`;
+              const unlockActionId = `user:${user.id}:unlock`;
               const passwordActionId = `user:${user.id}:password`;
               const needsDeactivateConfirm = user.isActive && confirmActionId === deactivateActionId;
               const needsPasswordConfirm = confirmActionId === passwordActionId;
+              const locked = isUserLocked(user);
               const actionsOpen = openUserActionId === user.id || Boolean(isEditing) || resetOpen || needsDeactivateConfirm;
 
               return (
@@ -1578,8 +1610,8 @@ export function TeamManagementPanel({
                     </span>
                   </div>
                   <div className="team-admin-roster-cell">
-                    <span className={user.isActive ? "status-pill status-success" : "status-pill status-neutral"}>{user.isActive ? "Active" : "Inactive"}</span>
-                    <small>Updated {formatCreatedAt(user.updatedAt)}</small>
+                    <span className={locked ? "status-pill status-danger" : user.isActive ? "status-pill status-success" : "status-pill status-neutral"}>{locked ? "Locked" : user.isActive ? "Active" : "Inactive"}</span>
+                    <small>{locked && user.lockedUntil ? `Until ${formatCreatedAt(user.lockedUntil)}` : `Updated ${formatCreatedAt(user.updatedAt)}`}</small>
                   </div>
                   <div className="team-admin-roster-cell">
                     <strong>{user.roles.map((role) => role.name).join(" / ") || "No roles assigned"}</strong>
@@ -1590,7 +1622,7 @@ export function TeamManagementPanel({
                     {attentionItems.length ? (
                       <span className="team-admin-attention-list">{attentionItems.map((item) => <em key={item}>{item}</em>)}</span>
                     ) : (
-                      <small>Ready</small>
+                      <small>{user.failedLoginCount > 0 ? `${user.failedLoginCount} failed sign-in attempts` : user.mustChangePassword ? "Password change required" : "Ready"}</small>
                     )}
                   </div>
                   <div className="team-admin-row-actions">
@@ -1615,6 +1647,7 @@ export function TeamManagementPanel({
                       <div className="team-admin-action-menu">
                         <button className="pill pill-secondary" onClick={() => { setConfirmActionId(""); setOpenPasswordResetUserId(""); setEditingUserId(user.id); setUserEditFormState(createUserEditFormState(user)); }} type="button">Edit details</button>
                         <button className="pill pill-secondary" onClick={() => { setConfirmActionId(""); setEditingUserId(""); setUserEditFormState(null); setOpenPasswordResetUserId(resetOpen ? "" : user.id); }} type="button">Reset password</button>
+                        <button className="pill pill-secondary" disabled={pendingAction === unlockActionId || (!locked && user.failedLoginCount === 0)} onClick={() => { setConfirmActionId(""); setEditingUserId(""); setUserEditFormState(null); setOpenPasswordResetUserId(""); clearUserLockout(user); }} type="button">{pendingAction === unlockActionId ? "Unlocking..." : "Unlock"}</button>
                         <button
                           className={user.isActive ? "pill pill-secondary" : "pill pill-primary"}
                           disabled={pendingAction === deactivateActionId}

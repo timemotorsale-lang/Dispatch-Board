@@ -50,7 +50,9 @@ export type TeamMemberPasswordResetInput = {
   temporaryPassword: string;
 };
 export type TeamMemberUpdateInput = Partial<Omit<TeamMemberCreateInput, "password">> &
-  Partial<TeamMemberPasswordResetInput>;
+  Partial<TeamMemberPasswordResetInput> & {
+    clearLockout?: boolean;
+  };
 export type ManagedRoleUpdateInput = Partial<ManagedRoleCreateInput>;
 export type ManagedDutyUpdateInput = Partial<ManagedDutyCreateInput>;
 
@@ -61,6 +63,7 @@ export type NormalizedTeamMemberUpdateInput = {
   dutyIds?: string[];
   isActive?: boolean;
   temporaryPassword?: string;
+  clearLockout?: boolean;
 };
 
 export type NormalizedTeamMemberPasswordResetInput = {
@@ -277,6 +280,14 @@ export function normalizeTeamMemberUpdateInput(input: unknown): NormalizedTeamMe
 
     normalized.temporaryPassword = candidate.temporaryPassword.trim();
     validateStaffPassword(normalized.temporaryPassword, "Temporary password");
+  }
+
+  if ("clearLockout" in candidate) {
+    if (typeof candidate.clearLockout !== "boolean") {
+      throw new Error("Team member clearLockout must be boolean.");
+    }
+
+    normalized.clearLockout = candidate.clearLockout;
   }
 
   if (Object.keys(normalized).length === 0) {

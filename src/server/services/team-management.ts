@@ -31,7 +31,10 @@ export type ManagedTeamUser = {
   id: string;
   name: string;
   email: string;
+  failedLoginCount: number;
   isActive: boolean;
+  lockedUntil: Date | null;
+  mustChangePassword: boolean;
   createdAt: Date;
   updatedAt: Date;
   roles: Array<{ id: string; name: string }>;
@@ -66,7 +69,10 @@ function toManagedTeamUser(user: ManagedUserRecord): ManagedTeamUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    failedLoginCount: user.failedLoginCount,
     isActive: user.isActive,
+    lockedUntil: user.lockedUntil,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     roles: user.userRoles.map((assignment) => assignment.role),
@@ -267,6 +273,7 @@ export async function updateManagedTeamUser(
   const normalizedInput = normalizeTeamMemberUpdateInput(input);
   await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
   const passwordResetRequested = Boolean(normalizedInput.temporaryPassword);
+  const lockoutClearRequested = Boolean(normalizedInput.clearLockout);
 
   if (normalizedInput.temporaryPassword) {
     normalizedInput.temporaryPassword = await hashPassword(normalizedInput.temporaryPassword);
@@ -296,14 +303,21 @@ export async function updateManagedTeamUser(
 
   await recordTeamSecurityAudit({
     actorUserId: manager.id,
-    eventType: passwordResetRequested ? "STAFF_PASSWORD_RESET" : "STAFF_USER_UPDATED",
+    eventType: passwordResetRequested
+      ? "STAFF_PASSWORD_RESET"
+      : lockoutClearRequested
+        ? "STAFF_LOCKOUT_CLEARED"
+        : "STAFF_USER_UPDATED",
     reason: passwordResetRequested
       ? "Manager reset a staff password and required the staff member to change it."
+      : lockoutClearRequested
+        ? "Manager cleared staff account lockout state."
       : "Manager updated staff account settings.",
     subjectId: updatedUser.id,
     metadata: {
       changedFields: Object.keys(normalizedInput).filter((key) => key !== "temporaryPassword"),
-      passwordResetRequested
+      passwordResetRequested,
+      lockoutClearRequested
     }
   });
 

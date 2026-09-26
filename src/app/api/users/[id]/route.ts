@@ -26,6 +26,7 @@ function getUserManagementErrorStatus(message: string) {
     message === "Team member roleIds must be a string array." ||
     message === "Team member dutyIds must be a string array." ||
     message === "Team member isActive must be boolean." ||
+    message === "Team member clearLockout must be boolean." ||
     message === "Temporary password is required." ||
     message === "Temporary password must be at least 12 characters." ||
     message === "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol." ||

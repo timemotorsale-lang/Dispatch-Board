@@ -17,7 +17,10 @@ const managedUserSelect = {
   id: true,
   name: true,
   email: true,
+  failedLoginCount: true,
   isActive: true,
+  lockedUntil: true,
+  mustChangePassword: true,
   createdAt: true,
   updatedAt: true,
   userRoles: {
@@ -218,7 +221,20 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
           `;
         }
 
-        return updatedUser;
+        if (input.clearLockout) {
+          await database.$executeRaw`
+            UPDATE "User"
+            SET "failedLoginCount" = 0,
+                "lockedUntil" = null
+            WHERE "id" = ${id}
+          `;
+        }
+
+        const refreshedUser = input.temporaryPassword || input.clearLockout
+          ? await database.user.findUnique({ where: { id }, select: managedUserSelect })
+          : updatedUser;
+
+        return refreshedUser;
       } catch (error) {
         if (
           error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
