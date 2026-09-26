@@ -379,5 +379,10 @@ export async function completePasswordReset(input: unknown, now = new Date()) {
     });
   });
 
-  return { ok: true, email: request.email };
+  return {
+    ok: true,
+    email: request.email,
+    userId,
+    userName: request.userName
+  };
 }
