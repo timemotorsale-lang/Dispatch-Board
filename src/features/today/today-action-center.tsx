@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
+import { getTimeAwareGreeting } from "@/lib/time-aware-greeting";
 import type { BoardReadTask } from "@/server/services/board-read";
 
 type TodayActionCenterProps = {
@@ -183,7 +184,7 @@ export function TodayActionCenter({
       <header className="today-hero">
         <div>
           <p>Today / Action Center</p>
-          <h1>Good morning, {userName.split(" ")[0] || "there"}</h1>
+          <h1>{getTimeAwareGreeting(userName)}</h1>
           <span>{formatBoardDateLabel(boardDate)} · {attentionCount ? `${attentionCount} things need attention` : "No urgent blockers right now"}</span>
         </div>
         {nextTask ? (

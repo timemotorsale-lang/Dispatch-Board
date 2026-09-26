@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { getTimeAwareGreeting } from "@/lib/time-aware-greeting";
 import type { InventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 import type { InventoryPriorityWorkItem } from "@/server/inventory-console-home/priority-work";
 import type {
@@ -163,7 +164,7 @@ export function InventoryConsoleHome({
       ? [{ href: `/vehicles/recon-repair-advisor?${new URLSearchParams({ returnTo: home })}`, id: "shop", label: "Recon / Repair", meta: "Cross-team dependency", title: `${data.operational.shop.blocked} repair blocker(s) affecting flow`, tone: "urgent" }]
       : []),
   ].slice(0, 4);
-  const firstName = userName.trim().split(/\s+/)[0] || "there";
+  const greeting = getTimeAwareGreeting(userName);
 
   return (
     <section className={`${styles.home} ${highVolume ? styles.highVolume : ""}`}>
@@ -171,7 +172,7 @@ export function InventoryConsoleHome({
         <div>
           {showMyWorkdayReturn ? <Link className={styles.back} href={MY_WORKDAY}><ArrowLeft />Back to My Workday</Link> : null}
           <p>Inventory Manager Workspace</p>
-          <h1>Good morning, {firstName}. Keep inventory moving.</h1>
+          <h1>{greeting} Keep inventory moving.</h1>
           <span>See the exceptions, make the decision, and move the vehicle forward.</span>
         </div>
         <div className={styles.heroActions}>

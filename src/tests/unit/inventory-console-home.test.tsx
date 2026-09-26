@@ -39,7 +39,8 @@ describe("Inventory Manager calm Home", () => {
   it("renders an exception-first hierarchy with progressive disclosure", () => {
     const markup = renderToStaticMarkup(<InventoryConsoleHome data={data} userName="Brock Inventory" />);
     expect(markup).toContain("Inventory Manager Workspace");
-    expect(markup).toContain("Good morning, Brock");
+    expect(markup).toMatch(/Good (morning|afternoon|evening), Brock\./);
+    expect(markup).toContain("Keep inventory moving.");
     expect(markup).toContain("What needs attention");
     expect(markup).toContain("Calm view");
     expect(markup).toContain("Daily flow brief");
@@ -85,7 +86,8 @@ describe("Vehicle Operations Lead Home", () => {
     const markup = renderToStaticMarkup(<VehicleOperationsLeadHome advisor={advisor} data={data} tasks={tasks} userName="Brock Inventory" />);
 
     expect(markup).toContain("Personal Operations Workspace");
-    expect(markup).toContain("Good morning, Brock Inventory");
+    expect(markup).toMatch(/Good (morning|afternoon|evening), Brock\./);
+    expect(markup).toContain("Execute the next task.");
     expect(markup).toContain("My Workday");
     expect(markup).toContain("Service Advisor");
     expect(markup).toContain("Technician");

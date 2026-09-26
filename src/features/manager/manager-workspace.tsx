@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowRight, BadgeDollarSign, Boxes, BriefcaseBusiness, C
 import Link from "next/link";
 import { buildManagerCommandCenterBrief, type ManagerExceptionCard } from "@/lib/manager-command-center-intelligence";
 import { getManagerWorkspaceHref, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
+import { getTimeAwareGreeting } from "@/lib/time-aware-greeting";
 import type { ManagerAction, ManagerMode, ManagerWorkHat, ManagerWorkspaceModel } from "@/server/manager-workspace/service";
 import styles from "./manager-workspace.module.css";
 
@@ -70,7 +71,7 @@ export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?:
 
   return <section className={styles.workspace} id="manager-top">
     <header className={styles.hero}>
-      <div><p>Manager Workspace</p><h1>Good morning, {model.user.name}.</h1><span>One calm workspace for direction, operations, and hands-on execution.</span></div>
+      <div><p>Manager Workspace</p><h1>{getTimeAwareGreeting(model.user.name)}</h1><span>One calm workspace for direction, operations, and hands-on execution.</span></div>
       <nav aria-label="Manager workspace modes">{modes.map(item => { const Icon = item.icon, disabled = item.id === "CEO" && !model.user.canUseCeo || item.id === "COO" && !model.user.canUseCoo; return <button aria-pressed={mode === item.id} disabled={disabled} key={item.id} onClick={() => selectMode(item.id)} type="button"><Icon /><span><strong>{item.label}</strong><small>{item.eyebrow}</small></span></button>; })}</nav>
     </header>
 

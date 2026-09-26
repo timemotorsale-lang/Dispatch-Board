@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 
+import { getTimeAwareGreeting } from "@/lib/time-aware-greeting";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 import type { BoardReadTask } from "@/server/services/board-read";
 import type { InventoryHomeData } from "./inventory-console-home";
@@ -144,10 +145,11 @@ export function VehicleOperationsLeadHome({ advisor, data, tasks, userName }: { 
   const dueToday = referenceNow > 0 ? allWork.filter((item) => new Date(item.dueAt).toDateString() === new Date(referenceNow).toDateString()).length : 0;
   const attention = data.totals.blocked + data.totals.overdue + data.totals.waiting;
   const inbox = (advisor?.inbox ?? []).filter((item) => item.needsResponse).slice(0, 4);
+  const greeting = getTimeAwareGreeting(userName);
 
   return <section className="personal-operations-home">
     <header className="poh-hero">
-      <div><p>Personal Operations Workspace</p><h1>Good morning, {userName}. Execute the next task.</h1><span>Customer commitments, inventory flow, repair support, parts, lot, and detail—one prioritized workday.</span></div>
+      <div><p>Personal Operations Workspace</p><h1>{greeting} Execute the next task.</h1><span>Customer commitments, inventory flow, repair support, parts, lot, and detail—one prioritized workday.</span></div>
       <nav aria-label="Personal operations workspace navigation"><Link aria-current="page" href={returnTo}>My Workday</Link><Link href="/vehicles/coo-workbook">Vehicle Operations Lead Workbook</Link><Link href="/vehicles/advisor?inbox=1">Inbox</Link><Link href="/vehicles/advisor">Service Advisor</Link><Link href="/vehicles?workspace=inventory">Inventory Manager</Link><Link href="/vehicles/outside-vendors">Outside Vendors</Link><Link href="/manager-review?scope=inventory">Approvals</Link><Link href="/vehicles/inventory-to-frontline">Frontline</Link><Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link></nav>
     </header>
 
