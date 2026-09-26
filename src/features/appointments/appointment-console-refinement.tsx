@@ -44,6 +44,15 @@ type AppointmentApiResponse = {
   location: { id: string; name: string; timezone: string };
 };
 
+type AppointmentCommandCreateResponse = {
+  accepted?: boolean;
+  command?: { errorMessage?: string | null } | null;
+  error?: string;
+  execution?: {
+    appointment?: Partial<LiveAppointment> | null;
+  } | null;
+};
+
 type AppointmentIdentityCustomer = {
   customerNumber?: string;
   displayName: string;
@@ -72,6 +81,7 @@ type AppointmentIdentitySearchResponse = {
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
+const recentPlannerAppointmentsStorageKey = "appointment-console-recent-planner-appointments";
 
 type AppointmentPurposeOption = {
   category: string;
@@ -240,6 +250,75 @@ function formatTime(value: string | null) {
     minute: "2-digit",
     timeZone: defaultTimezone
   }).format(new Date(value));
+}
+
+function isoDateKey(value: string | null) {
+  if (!value) return todayDateKey();
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: defaultTimezone,
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function isoTimeInput(value: string | null) {
+  if (!value) return "09:00";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    numberingSystem: "latn",
+    timeZone: defaultTimezone
+  }).formatToParts(new Date(value));
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "09";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+  return `${hour === "24" ? "00" : hour}:${minute}`;
+}
+
+function appointmentDurationMinutes(appointment: LiveAppointment) {
+  if (!appointment.startsAt || !appointment.endsAt) return 60;
+  const minutes = Math.round((new Date(appointment.endsAt).getTime() - new Date(appointment.startsAt).getTime()) / 60_000);
+  return [30, 45, 60, 75, 90, 120].includes(minutes) ? minutes : Math.max(15, minutes);
+}
+
+function loadRecentPlannerAppointments() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(recentPlannerAppointmentsStorageKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((appointment): appointment is LiveAppointment =>
+      Boolean(appointment) &&
+      typeof appointment === "object" &&
+      typeof appointment.id === "string" &&
+      typeof appointment.appointmentNumber === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentPlannerAppointments(appointments: LiveAppointment[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      recentPlannerAppointmentsStorageKey,
+      JSON.stringify(appointments.slice(-20))
+    );
+  } catch {
+    // The saved command remains authoritative; session storage only keeps the planner visually current.
+  }
 }
 
 function vehicleLabel(appointment: LiveAppointment) {
@@ -983,6 +1062,8 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
+  const [createdAppointments, setCreatedAppointments] = useState<LiveAppointment[]>(() => loadRecentPlannerAppointments());
+  const [editingAppointment, setEditingAppointment] = useState<LiveAppointment | null>(null);
   const [customerQuery, setCustomerQuery] = useState(initialContext?.customerReference ?? "");
   const [vehicleQuery, setVehicleQuery] = useState(initialContext?.vehicleReference ?? "");
   const [identityResults, setIdentityResults] = useState<AppointmentIdentitySearchResponse>({ customers: [], vehicles: [] });
@@ -997,7 +1078,24 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const endsAtIso = useMemo(() => addMinutesToIso(startsAtIso, form.durationMinutes), [startsAtIso, form.durationMinutes]);
   const selectedSlotTop = useMemo(() => timeSlotTop(form.startTime), [form.startTime]);
   const monthCells = useMemo(() => buildMonthCells(form.localDate), [form.localDate]);
-  const visibleAppointments = useMemo(() => appointmentWindow.data?.appointments ?? [], [appointmentWindow.data?.appointments]);
+  const visibleAppointments = useMemo(() => {
+    const liveAppointments = appointmentWindow.data?.appointments ?? [];
+    const appointmentsById = new Map<string, LiveAppointment>();
+
+    for (const appointment of liveAppointments) {
+      appointmentsById.set(appointment.id, appointment);
+    }
+
+    for (const appointment of createdAppointments) {
+      appointmentsById.set(appointment.id, appointment);
+    }
+
+    return Array.from(appointmentsById.values()).sort((left, right) => {
+      const leftStartsAt = left.startsAt ? new Date(left.startsAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const rightStartsAt = right.startsAt ? new Date(right.startsAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return leftStartsAt - rightStartsAt || left.appointmentNumber.localeCompare(right.appointmentNumber);
+    });
+  }, [appointmentWindow.data?.appointments, createdAppointments]);
   const liveCapacity = useMemo(() => {
     const scheduled = visibleAppointments.filter((appointment) => appointment.startsAt && appointment.endsAt).length;
     const exceptions = visibleAppointments.filter(hasException).length;
@@ -1048,6 +1146,151 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const sourceTaskLabel = initialContext?.sourceTaskTitle || initialContext?.sourceTaskId || "";
   const hasHandoffContext = Boolean(initialContext?.customerReference || initialContext?.vehicleReference || sourceTaskLabel);
   const activeWorkspace = layoutMode === "expandable" ? expandedWorkspace : null;
+  const appointmentModeLabel = editingAppointment ? `Editing ${editingAppointment.appointmentNumber}` : "New appointment";
+
+  function selectedAppointmentPayload() {
+    return {
+      title: selectedPurpose.label,
+      schedulingTimezone: defaultTimezone,
+      purposeSnapshot: {
+        code: selectedPurpose.value,
+        category: selectedPurpose.category,
+        categoryLabel: selectedPurpose.label,
+        reason: form.reason.trim(),
+        transportation: form.transportation
+      },
+      customerSnapshot: form.customer.trim()
+        ? {
+            customerId: selectedCustomer?.id ?? null,
+            customerNumber: selectedCustomer?.customerNumber ?? null,
+            displayName: form.customer.trim(),
+            email: selectedCustomer?.email ?? null,
+            phoneNumber: selectedCustomer?.phoneNumber ?? null
+          }
+        : null,
+      vehicleSnapshot: form.vehicle.trim()
+        ? {
+            vehicleId: selectedVehicle?.id ?? null,
+            displayName: form.vehicle.trim(),
+            vehicleNumber: selectedVehicle?.vehicleNumber ?? form.vehicle.trim(),
+            vin: selectedVehicle?.vin ?? null,
+            stockNumber: selectedVehicle?.stockNumber ?? null,
+            licensePlate: selectedVehicle?.licensePlate ?? null
+          }
+        : null,
+      reasonCode: editingAppointment ? "PLANNER_EDIT" : "PLANNER_CREATE",
+      reasonNotes: form.reason.trim()
+    };
+  }
+
+  function buildVisibleAppointment(input: {
+    base?: LiveAppointment | null;
+    id: string;
+    appointmentNumber: string;
+    version: number;
+  }): LiveAppointment {
+    return {
+      category: selectedPurpose.category,
+      id: input.id,
+      version: input.version,
+      appointmentNumber: input.appointmentNumber,
+      title: selectedPurpose.label,
+      startsAt: startsAtIso,
+      endsAt: endsAtIso,
+      bookingStatus: input.base?.bookingStatus ?? "DRAFT",
+      confirmationStatus: input.base?.confirmationStatus ?? "NOT_SENT",
+      attendanceStatus: input.base?.attendanceStatus ?? "EXPECTED",
+      executionStatus: input.base?.executionStatus ?? "NOT_STARTED",
+      owner: form.advisor && form.advisor !== "Any Advisor" ? { name: form.advisor } : input.base?.owner ?? null,
+      customer: form.customer.trim()
+        ? {
+            displayName: form.customer.trim(),
+            email: selectedCustomer?.email ?? input.base?.customer?.email ?? null,
+            phoneNumber: selectedCustomer?.phoneNumber ?? input.base?.customer?.phoneNumber ?? null
+          }
+        : null,
+      vehicles: form.vehicle.trim()
+        ? [
+            {
+              year: selectedVehicle?.year ?? input.base?.vehicles[0]?.year ?? null,
+              make: selectedVehicle?.make ?? input.base?.vehicles[0]?.make ?? null,
+              model: selectedVehicle?.model ?? input.base?.vehicles[0]?.model ?? null,
+              vehicleNumber: selectedVehicle?.vehicleNumber ?? input.base?.vehicles[0]?.vehicleNumber ?? form.vehicle.trim(),
+              vin: selectedVehicle?.vin ?? input.base?.vehicles[0]?.vin ?? null
+            }
+          ]
+        : [],
+      taskLinks: input.base?.taskLinks ?? (initialContext?.sourceTaskId ? [{ taskStatus: "NOT_STARTED", blocksAppointment: false }] : []),
+      resourceReservations: input.base?.resourceReservations ?? []
+    };
+  }
+
+  function upsertLocalAppointment(appointment: LiveAppointment) {
+    setCreatedAppointments((current) => {
+      const withoutExisting = current.filter((entry) => entry.id !== appointment.id && entry.appointmentNumber !== appointment.appointmentNumber);
+      const next = [...withoutExisting, appointment];
+      saveRecentPlannerAppointments(next);
+      return next;
+    });
+  }
+
+  function hydrateAppointmentForEdit(appointment: LiveAppointment) {
+    const appointmentPurpose = purposeOptions.find((purpose) => purpose.category === appointment.category) ??
+      purposeOptions.find((purpose) => purpose.label === appointment.title) ??
+      purposeOptions[0];
+    const customerName = appointment.customer?.displayName ?? "";
+    const vehicleName = vehicleLabel(appointment) === "No vehicle" ? "" : vehicleLabel(appointment);
+
+    setEditingAppointment(appointment);
+    setSelectedPurposeCode(appointmentPurpose.value);
+    setCustomerQuery(customerName);
+    setVehicleQuery(vehicleName);
+    setSelectedCustomer(null);
+    setSelectedVehicle(null);
+    setForm({
+      customer: customerName,
+      vehicle: vehicleName,
+      localDate: isoDateKey(appointment.startsAt),
+      startTime: isoTimeInput(appointment.startsAt),
+      durationMinutes: appointmentDurationMinutes(appointment),
+      advisor: appointment.owner?.name ?? "Any Advisor",
+      transportation: "Customer Drive",
+      reason: `Update appointment ${appointment.appointmentNumber}.`
+    });
+    setCalendarView("day");
+    setCalendarInsightCard("draft");
+    setQuickSlotsOpen(true);
+    setNotice(`Editing ${appointment.appointmentNumber}. Changes require a documented reason and save through the appointment command log.`);
+  }
+
+  function resetAppointmentDraft() {
+    startNewAppointmentDraft();
+  }
+
+  function startNewAppointmentDraft() {
+    const defaultPurpose = purposeOptions[0];
+    setEditingAppointment(null);
+    setCreatedAppointmentNumber(null);
+    setSelectedPurposeCode(defaultPurpose.value);
+    setSelectedCustomer(null);
+    setSelectedVehicle(null);
+    setCustomerQuery(initialContext?.customerReference ?? "");
+    setVehicleQuery(initialContext?.vehicleReference ?? "");
+    setForm({
+      customer: initialContext?.customerReference ?? "",
+      vehicle: initialContext?.vehicleReference ?? "",
+      localDate: form.localDate,
+      startTime: form.startTime,
+      durationMinutes: defaultPurpose.duration,
+      advisor: "Any Advisor",
+      transportation: "Customer Drive",
+      reason: initialContext?.reason ?? ""
+    });
+    setCalendarView("day");
+    setCalendarInsightCard("draft");
+    setQuickSlotsOpen(true);
+    setNotice("New appointment draft is open for the selected date and time.");
+  }
 
   function updateField(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -1161,10 +1404,18 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     focusAppointmentPanel("calendar");
   }
 
+  function openAppointmentDraftPanel() {
+    setCalendarView("day");
+    setCalendarInsightCard("draft");
+    setQuickSlotsOpen(true);
+    setNotice(editingAppointment ? "Appointment edit panel is open." : "Appointment creation panel is open. Complete the draft details and create the appointment.");
+  }
+
   function expandCalendarWorkspace() {
     setFullPageCalendarOpen(true);
     setQuickSlotsOpen(true);
-    setNotice("Full-page enterprise calendar workspace is active for review.");
+    openAppointmentDraftPanel();
+    setNotice("Full-page enterprise calendar workspace is active. Complete the draft panel to create the appointment.");
   }
 
   function closeFullPageCalendar() {
@@ -1193,16 +1444,99 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     event.preventDefault();
 
     if (!form.reason.trim()) {
-      setNotice("Please document the appointment reason before creating it.");
+      setNotice(editingAppointment ? "Please document why this appointment is changing." : "Please document the appointment reason before creating it.");
       return;
     }
 
     setIsSaving(true);
-    setNotice("Creating appointment...");
+    setNotice(editingAppointment ? "Saving appointment changes..." : "Creating appointment...");
 
     try {
+      if (editingAppointment) {
+        const timeChanged = editingAppointment.startsAt !== startsAtIso || editingAppointment.endsAt !== endsAtIso;
+        const detailsChanged =
+          editingAppointment.title !== selectedPurpose.label ||
+          editingAppointment.category !== selectedPurpose.category ||
+          (editingAppointment.customer?.displayName ?? "") !== form.customer.trim() ||
+          (vehicleLabel(editingAppointment) === "No vehicle" ? "" : vehicleLabel(editingAppointment)) !== form.vehicle.trim();
+
+        if (editingAppointment.id.startsWith("local-")) {
+          throw new Error("This appointment is still waiting for the saved record. Refresh the planner before editing it.");
+        }
+
+        let expectedAppointmentVersion = editingAppointment.version;
+        let updatedAppointment = buildVisibleAppointment({
+          base: editingAppointment,
+          id: editingAppointment.id,
+          appointmentNumber: editingAppointment.appointmentNumber,
+          version: expectedAppointmentVersion
+        });
+
+        if (timeChanged) {
+          const idempotencyKey = `appointment-console-reschedule-${editingAppointment.id}-${createAppointmentNumber()}`;
+          const response = await fetch("/api/appointments/commands", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              appointmentId: editingAppointment.id,
+              commandType: "RESCHEDULE",
+              expectedAppointmentVersion,
+              idempotencyKey,
+              correlationId: idempotencyKey,
+              payload: {
+                startsAt: startsAtIso,
+                endsAt: endsAtIso,
+                schedulingTimezone: defaultTimezone,
+                reasonCode: "PLANNER_RESCHEDULE",
+                reasonNotes: form.reason.trim()
+              }
+            })
+          });
+          const result = await response.json().catch(() => null) as AppointmentCommandCreateResponse | null;
+
+          if (!response.ok || !result?.accepted) {
+            throw new Error(result?.error ?? result?.command?.errorMessage ?? "Unable to reschedule the appointment.");
+          }
+
+          expectedAppointmentVersion = result.execution?.appointment?.version ?? expectedAppointmentVersion + 1;
+          updatedAppointment = { ...updatedAppointment, version: expectedAppointmentVersion };
+        }
+
+        if (!timeChanged || detailsChanged) {
+          const payload = selectedAppointmentPayload();
+          const idempotencyKey = `appointment-console-edit-${editingAppointment.id}-${createAppointmentNumber()}`;
+          const response = await fetch("/api/appointments/commands", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              appointmentId: editingAppointment.id,
+              commandType: "EDIT",
+              expectedAppointmentVersion,
+              idempotencyKey,
+              correlationId: idempotencyKey,
+              payload
+            })
+          });
+          const result = await response.json().catch(() => null) as AppointmentCommandCreateResponse | null;
+
+          if (!response.ok || !result?.accepted) {
+            throw new Error(result?.error ?? result?.command?.errorMessage ?? "Unable to save appointment edits.");
+          }
+
+          expectedAppointmentVersion = result.execution?.appointment?.version ?? expectedAppointmentVersion + 1;
+          updatedAppointment = { ...updatedAppointment, version: expectedAppointmentVersion };
+        }
+
+        upsertLocalAppointment(updatedAppointment);
+        setEditingAppointment(updatedAppointment);
+        setCreatedAppointmentNumber(updatedAppointment.appointmentNumber);
+        setNotice(`Appointment ${updatedAppointment.appointmentNumber} was updated and refreshed in this planner.`);
+        return;
+      }
+
       const appointmentNumber = createAppointmentNumber();
       const idempotencyKey = `appointment-console-draft-${appointmentNumber}`;
+      const appointmentPayload = selectedAppointmentPayload();
       const response = await fetch("/api/appointments/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1214,38 +1548,15 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
           correlationId: idempotencyKey,
           payload: {
             appointmentNumber,
-            title: selectedPurpose.label,
+            title: appointmentPayload.title,
             sourceType: initialContext?.sourceTaskId ? "TASK" : "MANUAL",
             sourceReference: initialContext?.sourceTaskId || form.reason.trim(),
             startsAt: startsAtIso,
             endsAt: endsAtIso,
-            schedulingTimezone: defaultTimezone,
-            purposeSnapshot: {
-              code: selectedPurpose.value,
-              category: selectedPurpose.category,
-              categoryLabel: selectedPurpose.label,
-              reason: form.reason.trim(),
-              transportation: form.transportation
-            },
-            customerSnapshot: form.customer.trim()
-              ? {
-                  customerId: selectedCustomer?.id ?? null,
-                  customerNumber: selectedCustomer?.customerNumber ?? null,
-                  displayName: form.customer.trim(),
-                  email: selectedCustomer?.email ?? null,
-                  phoneNumber: selectedCustomer?.phoneNumber ?? null
-                }
-              : null,
-            vehicleSnapshot: form.vehicle.trim()
-              ? {
-                  vehicleId: selectedVehicle?.id ?? null,
-                  displayName: form.vehicle.trim(),
-                  vehicleNumber: selectedVehicle?.vehicleNumber ?? form.vehicle.trim(),
-                  vin: selectedVehicle?.vin ?? null,
-                  stockNumber: selectedVehicle?.stockNumber ?? null,
-                  licensePlate: selectedVehicle?.licensePlate ?? null
-                }
-              : null,
+            schedulingTimezone: appointmentPayload.schedulingTimezone,
+            purposeSnapshot: appointmentPayload.purposeSnapshot,
+            customerSnapshot: appointmentPayload.customerSnapshot,
+            vehicleSnapshot: appointmentPayload.vehicleSnapshot,
             sourceSnapshot: initialContext?.sourceTaskId
               ? {
                   taskId: initialContext.sourceTaskId,
@@ -1271,14 +1582,21 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
           }
         })
       });
-      const result = await response.json().catch(() => null) as { accepted?: boolean; error?: string } | null;
+      const result = await response.json().catch(() => null) as AppointmentCommandCreateResponse | null;
 
       if (!response.ok || !result?.accepted) {
-        throw new Error(result?.error ?? "Unable to create the appointment.");
+        throw new Error(result?.error ?? result?.command?.errorMessage ?? "Unable to create the appointment.");
       }
 
-      setCreatedAppointmentNumber(appointmentNumber);
-      setNotice(`Appointment ${appointmentNumber} was created. Open it in the Schedule Board to review, schedule, or adjust resources.`);
+      const createdAppointment = buildVisibleAppointment({
+        id: result.execution?.appointment?.id ?? `local-${appointmentNumber}`,
+        appointmentNumber: result.execution?.appointment?.appointmentNumber ?? appointmentNumber,
+        version: result.execution?.appointment?.version ?? 1
+      });
+
+      upsertLocalAppointment(createdAppointment);
+      setCreatedAppointmentNumber(createdAppointment.appointmentNumber);
+      setNotice(`Appointment ${createdAppointment.appointmentNumber} was created and added to this planner.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to create the appointment right now.");
     } finally {
@@ -1308,7 +1626,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 <button className={calendarInsightCard === "recommendations" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "recommendations" ? null : "recommendations")} type="button">Openings</button>
                 <button className={calendarInsightCard === "resources" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "resources" ? null : "resources")} type="button">Resources</button>
                 <button className={calendarInsightCard === "advisor" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "advisor" ? null : "advisor")} type="button">Advisor</button>
-                <button className={calendarInsightCard === "draft" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "draft" ? null : "draft")} type="button">Draft</button>
+                <button className={calendarInsightCard === "draft" && !editingAppointment ? "active primary" : "primary"} onClick={startNewAppointmentDraft} type="button">Create appointment</button>
                 {enterpriseCalendarModes.map((mode) => (
                   <button
                     className={calendarIntelligenceMode === mode.value ? "active" : ""}
@@ -1346,7 +1664,8 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                             {calendarInsightCard === "recommendations" ? "Recommended openings" :
                               calendarInsightCard === "resources" ? "Resource depth" :
                                 calendarInsightCard === "advisor" ? "Advisor routing" :
-                                  calendarInsightCard === "categories" ? "Categories" : "Draft context"}
+                                  calendarInsightCard === "categories" ? "Categories" :
+                                    editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : "Create appointment"}
                           </strong>
                           <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
                         </header>
@@ -1422,7 +1741,8 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                             <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
                             <footer>
                               <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
-                              <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Creating..." : "Create appointment"}</button>
+                              {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New draft</button> : null}
+                              <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save changes" : "Create appointment"}</button>
                             </footer>
                           </div>
                         )}
@@ -1445,6 +1765,10 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                         className="calendar-event calendar-event-category"
                         href={boardFocusHref(appointment)}
                         key={appointment.id}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          hydrateAppointmentForEdit(appointment);
+                        }}
                         style={{ ...calendarCategoryStyle(appointment.category), top: fullCalendarAppointmentTop(appointment), height: "calc((100vh - 47px) / 11)" }}
                       >
                         <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
@@ -1452,7 +1776,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                         <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
                       </Link>
                     ))}
-                    <button className="selected-slot selected-slot-category" onClick={() => setCalendarInsightCard("draft")} style={{ ...calendarCategoryStyle(selectedPurpose.category), top: fullCalendarTimeTop(form.startTime), height: `calc(((100vh - 47px) / 11) * ${form.durationMinutes / 60})` }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
+                    <button className="selected-slot selected-slot-category" onClick={openAppointmentDraftPanel} style={{ ...calendarCategoryStyle(selectedPurpose.category), top: fullCalendarTimeTop(form.startTime), height: `calc(((100vh - 47px) / 11) * ${form.durationMinutes / 60})` }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
                   </div>
                 </>
               ) : calendarView === "week" ? (
@@ -1467,7 +1791,14 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                           <strong>{new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: defaultTimezone }).format(noonDate(dateKey))}</strong>
                         </button>
                         {dayAppointments.length > 0 ? dayAppointments.slice(0, 4).map((appointment) => (
-                          <Link href={boardFocusHref(appointment)} key={appointment.id}>
+                          <Link
+                            href={boardFocusHref(appointment)}
+                            key={appointment.id}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              hydrateAppointmentForEdit(appointment);
+                            }}
+                          >
                             <span>{formatTime(appointment.startsAt)}</span>
                             <strong>{appointment.title}</strong>
                             <small>{appointment.customer?.displayName ?? "No customer"}</small>
@@ -1510,7 +1841,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
       >
         <header className="appointment-new-header">
           <div>
-            <h1>New Appointment</h1>
+            <h1>{appointmentModeLabel}</h1>
             <p>Choose a date and time, then add customer, vehicle, and purpose.</p>
           </div>
           <div className="appointment-new-actions">
@@ -1699,7 +2030,16 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                     </button>
                   ))}
                   {visibleAppointments.map((appointment) => (
-                    <Link className="calendar-event blue" href={boardFocusHref(appointment)} key={appointment.id} style={{ top: appointmentTop(appointment), height: 58 }}>
+                    <Link
+                      className="calendar-event blue"
+                      href={boardFocusHref(appointment)}
+                      key={appointment.id}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        hydrateAppointmentForEdit(appointment);
+                      }}
+                      style={{ top: appointmentTop(appointment), height: 58 }}
+                    >
                       <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
                       <strong>{appointment.title}</strong>
                       <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
@@ -1720,7 +2060,14 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                         <strong>{new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: defaultTimezone }).format(noonDate(dateKey))}</strong>
                       </button>
                       {dayAppointments.length > 0 ? dayAppointments.slice(0, 4).map((appointment) => (
-                        <Link href={boardFocusHref(appointment)} key={appointment.id}>
+                        <Link
+                          href={boardFocusHref(appointment)}
+                          key={appointment.id}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            hydrateAppointmentForEdit(appointment);
+                          }}
+                        >
                           <span>{formatTime(appointment.startsAt)}</span>
                           <strong>{appointment.title}</strong>
                           <small>{appointment.customer?.displayName ?? "No customer"}</small>
@@ -1749,7 +2096,14 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 {calendarView === "day" ? <QuickUpdateReminders key={form.localDate} date={form.localDate} /> : null}
                 <header><strong>{appointmentWindow.status === "loading" ? "Loading live schedule..." : `${visibleAppointments.length} appointment${visibleAppointments.length === 1 ? "" : "s"} in this ${calendarView}`}</strong><span>Powered by appointment read model</span></header>
                 {visibleAppointments.length > 0 ? visibleAppointments.slice(0, 12).map((appointment) => (
-                  <Link href={boardFocusHref(appointment)} key={appointment.id}>
+                  <Link
+                    href={boardFocusHref(appointment)}
+                    key={appointment.id}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      hydrateAppointmentForEdit(appointment);
+                    }}
+                  >
                     <span>{formatTime(appointment.startsAt)}</span>
                     <strong>{appointment.title}</strong>
                     <small>{appointment.customer?.displayName ?? "No customer"} · {vehicleLabel(appointment)}</small>
@@ -1763,7 +2117,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             <section className="appointment-panel">
               <header>
                 <strong>Appointment Summary</strong>
-                <b>Recommended</b>
+                <b>{editingAppointment ? "Managed edit" : "Recommended"}</b>
                 {activeWorkspace === "reason" ? <button className="appointment-compact-control" onClick={returnToCompactLayout} type="button">Compact layout</button> : null}
               </header>
               <dl>
@@ -1786,12 +2140,13 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 ["ready", "Purpose selected"],
                 ["ready", "Time window selected"],
                 [form.reason.trim() ? "ready" : "pending", form.reason.trim() ? "Reason added" : "Add appointment reason"],
-                ["ready", "Appointment draft will be created"]
+                ["ready", editingAppointment ? "Appointment command will be edited" : "Appointment draft will be created"]
               ].map(([state, item]) => <p className={state} key={item}>{state === "ready" ? "✓" : "•"} {item}</p>)}
               <p className="appointment-command-notice">{notice}</p>
               <footer>
-                {createdAppointmentNumber ? <Link href={`/appointments?view=board&appointment=${encodeURIComponent(createdAppointmentNumber)}`}>Open in Board</Link> : <button type="button">Save Draft</button>}
-                <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Creating..." : "Create Appointment"}</button>
+                {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> : createdAppointmentNumber ? <Link href={`/appointments?view=board&appointment=${encodeURIComponent(createdAppointmentNumber)}`}>Open in Board</Link> : <button type="button">Save Draft</button>}
+                {editingAppointment ? <Link href={boardFocusHref(editingAppointment)}>Open Board</Link> : null}
+                <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save Changes" : "Create Appointment"}</button>
               </footer>
             </section>
             <section className="appointment-panel advanced-links">
