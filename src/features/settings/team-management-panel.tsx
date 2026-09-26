@@ -3,6 +3,7 @@
 import { WorkflowArea } from "@prisma/client";
 import { useState } from "react";
 
+import type { StaffInvitePreview } from "@/server/auth/staff-invite";
 import { DELEGATED_MANAGER_DUTY_NAME } from "@/server/policies/access";
 import type {
   ManagedTeamUser,
@@ -14,6 +15,7 @@ import type { TaskTemplateSummary } from "@/server/services/task-template-servic
 type TeamManagementPanelProps = {
   canGrantManagerPowers: boolean;
   duties: TeamManagementDutyOption[];
+  initialInvites: StaffInvitePreview[];
   initialUsers: ManagedTeamUser[];
   roles: TeamManagementReferenceOption[];
   templates: TaskTemplateSummary[];
@@ -185,6 +187,19 @@ function sortTemplates(templates: TaskTemplateSummary[]) {
   );
 }
 
+function sortInvites(invites: StaffInvitePreview[]) {
+  return [...invites].sort(
+    (left, right) => getCreatedAtTime(right.createdAt) - getCreatedAtTime(left.createdAt)
+  );
+}
+
+function inviteStatusClass(status: StaffInvitePreview["status"]) {
+  if (status === "PENDING") return "status-pill status-success";
+  if (status === "ACCEPTED") return "status-pill status-neutral";
+  if (status === "EXPIRED") return "status-pill status-warning";
+  return "status-pill status-danger";
+}
+
 function createUserEditFormState(user: ManagedTeamUser): UserEditFormState {
   return {
     name: user.name,
@@ -311,16 +326,19 @@ function getRoleAttentionItems(role: TeamManagementReferenceOption) {
 export function TeamManagementPanel({
   canGrantManagerPowers,
   duties,
+  initialInvites,
   initialUsers,
   roles,
   templates
 }: TeamManagementPanelProps) {
   const [pendingAction, setPendingAction] = useState("");
   const [users, setUsers] = useState(sortUsers(initialUsers));
+  const [staffInvites, setStaffInvites] = useState(sortInvites(initialInvites));
   const [roleOptions, setRoleOptions] = useState(sortRoles(roles));
   const [dutyOptions, setDutyOptions] = useState(sortDuties(duties));
   const [templateOptions, setTemplateOptions] = useState(sortTemplates(templates));
   const [staffInviteFormState, setStaffInviteFormState] = useState(initialStaffInviteFormState);
+  const [inviteLinksById, setInviteLinksById] = useState<Record<string, string>>({});
   const [teamMemberFormState, setTeamMemberFormState] = useState(initialTeamMemberFormState);
   const [roleFormState, setRoleFormState] = useState(initialRoleFormState);
   const [dutyFormState, setDutyFormState] = useState(initialDutyFormState);
@@ -387,7 +405,7 @@ export function TeamManagementPanel({
           roleNames
         })
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string; inviteUrl?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string; invite?: StaffInvitePreview; inviteUrl?: string } | null;
 
       if (!response.ok || !payload?.inviteUrl) {
         setStaffInviteMessage({ error: payload?.error ?? "Unable to create the staff invite right now.", inviteUrl: "", success: "" });
@@ -396,8 +414,74 @@ export function TeamManagementPanel({
 
       const inviteUrl = `${window.location.origin}${payload.inviteUrl}`;
       setStaffInviteFormState(initialStaffInviteFormState);
+      const invite = "invite" in payload ? payload.invite : null;
+      if (invite) {
+        setStaffInvites((current) => sortInvites([invite, ...current.filter((item) => item.id !== invite.id)]));
+        setInviteLinksById((current) => ({ ...current, [invite.id]: inviteUrl }));
+      }
       setStaffInviteMessage({ error: "", inviteUrl, success: "Staff invite created. Send this link to the approved staff member." });
     });
+  }
+
+  function updateInvite(invite: StaffInvitePreview) {
+    setStaffInvites((current) => sortInvites(current.map((item) => (item.id === invite.id ? invite : item))));
+  }
+
+  function revokeInvite(invite: StaffInvitePreview) {
+    setStaffInviteMessage({ error: "", inviteUrl: "", success: "" });
+
+    void runAction(`invite:${invite.id}:revoke`, async () => {
+      const response = await fetch(`/api/auth/invites/${encodeURIComponent(invite.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revoke" })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; invite?: StaffInvitePreview } | null;
+
+      if (!response.ok || !payload?.invite) {
+        setStaffInviteMessage({ error: payload?.error ?? "Unable to revoke the staff invite right now.", inviteUrl: "", success: "" });
+        return;
+      }
+
+      updateInvite(payload.invite);
+      setInviteLinksById((current) => {
+        const next = { ...current };
+        delete next[payload.invite!.id];
+        return next;
+      });
+      setStaffInviteMessage({ error: "", inviteUrl: "", success: `Invite revoked for ${payload.invite.email}.` });
+    });
+  }
+
+  function resendInvite(invite: StaffInvitePreview) {
+    setStaffInviteMessage({ error: "", inviteUrl: "", success: "" });
+
+    void runAction(`invite:${invite.id}:resend`, async () => {
+      const response = await fetch(`/api/auth/invites/${encodeURIComponent(invite.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resend" })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; invite?: StaffInvitePreview; inviteUrl?: string } | null;
+
+      if (!response.ok || !payload?.invite || !payload.inviteUrl) {
+        setStaffInviteMessage({ error: payload?.error ?? "Unable to resend the staff invite right now.", inviteUrl: "", success: "" });
+        return;
+      }
+
+      const inviteUrl = `${window.location.origin}${payload.inviteUrl}`;
+      updateInvite(payload.invite);
+      setInviteLinksById((current) => ({ ...current, [payload.invite!.id]: inviteUrl }));
+      setStaffInviteMessage({ error: "", inviteUrl, success: `Invite resent for ${payload.invite.email}. Send the new link below.` });
+    });
+  }
+
+  function copyInviteLink(inviteId: string) {
+    const inviteUrl = inviteLinksById[inviteId];
+    if (!inviteUrl) return;
+
+    void navigator.clipboard?.writeText(inviteUrl);
+    setStaffInviteMessage({ error: "", inviteUrl, success: "Invite link copied." });
   }
 
   function handleCreateTeamMember(event: React.FormEvent<HTMLFormElement>) {
@@ -1122,14 +1206,77 @@ export function TeamManagementPanel({
             {staffInviteMessage.success ? (
               <div className="notice" role="status">
                 <p>{staffInviteMessage.success}</p>
-                <label className="field">
-                  <span>Invite link</span>
-                  <input readOnly value={staffInviteMessage.inviteUrl} onFocus={(event) => event.currentTarget.select()} />
-                </label>
+                {staffInviteMessage.inviteUrl ? (
+                  <label className="field">
+                    <span>Invite link</span>
+                    <input readOnly value={staffInviteMessage.inviteUrl} onFocus={(event) => event.currentTarget.select()} />
+                  </label>
+                ) : null}
               </div>
             ) : null}
             <div className="form-actions"><button className="pill pill-primary" disabled={isCreatingStaffInvite || roleOptions.length === 0 || staffInviteFormState.roleIds.length === 0} type="submit">{isCreatingStaffInvite ? "Creating invite..." : "Create invite"}</button></div>
           </form>
+        </section>
+
+        <section className="team-admin-roster-panel">
+          <div className="team-admin-roster-heading">
+            <div>
+              <strong>Invite lifecycle</strong>
+              <h2>Manage staff invitations</h2>
+              <p>Track open invites, revoke stale access, or resend a fresh one-use link.</p>
+            </div>
+            <small>{staffInvites.length} invites</small>
+          </div>
+          <div className="team-admin-roster-list">
+            {staffInvites.length ? (
+              <div className="team-admin-roster-columns" aria-hidden="true">
+                <span>Invitee</span>
+                <span>Status</span>
+                <span>Roles</span>
+                <span>Timing</span>
+                <span>Actions</span>
+              </div>
+            ) : null}
+            {staffInvites.length === 0 ? (
+              <p className="team-admin-empty">No staff invites have been created yet.</p>
+            ) : null}
+            {staffInvites.map((invite) => {
+              const canResend = invite.status !== "ACCEPTED";
+              const canRevoke = invite.status !== "ACCEPTED" && invite.status !== "REVOKED";
+              const latestLink = inviteLinksById[invite.id];
+              const resendActionId = `invite:${invite.id}:resend`;
+              const revokeActionId = `invite:${invite.id}:revoke`;
+
+              return (
+                <section className="team-admin-roster-row" key={invite.id}>
+                  <div className="team-admin-roster-identity">
+                    <span className="team-admin-avatar">{invite.name.slice(0, 2).toUpperCase()}</span>
+                    <span>
+                      <strong>{invite.name}</strong>
+                      <small>{invite.email}</small>
+                    </span>
+                  </div>
+                  <div className="team-admin-roster-cell">
+                    <span className={inviteStatusClass(invite.status)}>{invite.status.toLowerCase()}</span>
+                    <small>{invite.acceptedByUserId ? "Account created" : "No account yet"}</small>
+                  </div>
+                  <div className="team-admin-roster-cell">
+                    <strong>{invite.roleNames.join(" / ") || "No roles"}</strong>
+                    <small>{invite.workspaceKey ?? "Default workspace"}</small>
+                  </div>
+                  <div className="team-admin-roster-cell">
+                    <strong>Expires {formatCreatedAt(invite.expiresAt)}</strong>
+                    <small>Created {formatCreatedAt(invite.createdAt)}</small>
+                  </div>
+                  <div className="team-admin-row-actions">
+                    {latestLink ? <button className="pill pill-secondary" onClick={() => copyInviteLink(invite.id)} type="button">Copy link</button> : null}
+                    <button className="pill pill-secondary" disabled={!canResend || pendingAction === resendActionId} onClick={() => resendInvite(invite)} type="button">{pendingAction === resendActionId ? "Resending..." : "Resend"}</button>
+                    <button className="pill pill-secondary" disabled={!canRevoke || pendingAction === revokeActionId} onClick={() => revokeInvite(invite)} type="button">{pendingAction === revokeActionId ? "Revoking..." : "Revoke"}</button>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         </section>
 
         <section className="team-admin-add-member-panel">

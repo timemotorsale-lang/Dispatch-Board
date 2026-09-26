@@ -1,6 +1,7 @@
 import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { TeamManagementPanel } from "@/features/settings/team-management-panel";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { listStaffInvites } from "@/server/auth/staff-invite";
 import {
   DELEGATED_MANAGER_DUTY_NAME,
   canGrantManagerPowers,
@@ -11,12 +12,14 @@ import { listTaskTemplatesForManager } from "@/server/services/task-template-ser
 
 async function loadTeamManagementPageData(user: Awaited<ReturnType<typeof requireCurrentUser>>) {
   try {
-    const [snapshot, templates] = await Promise.all([
+    const [snapshot, templates, invites] = await Promise.all([
       getTeamManagementSnapshotForManager(user),
-      listTaskTemplatesForManager(user, { includeInactive: true })
+      listTaskTemplatesForManager(user, { includeInactive: true }),
+      listStaffInvites(user)
     ]);
 
     return {
+      invites,
       snapshot,
       templates,
       errorMessage: ""
@@ -24,6 +27,7 @@ async function loadTeamManagementPageData(user: Awaited<ReturnType<typeof requir
   } catch (error) {
     return {
       snapshot: null,
+      invites: [],
       templates: [],
       errorMessage:
         error instanceof Error ? error.message : "Unable to load team management right now."
@@ -50,7 +54,7 @@ export default async function TeamManagementSettingsPage() {
     );
   }
 
-  const { snapshot, templates, errorMessage } = await loadTeamManagementPageData(user);
+  const { snapshot, templates, invites, errorMessage } = await loadTeamManagementPageData(user);
 
   if (!snapshot) {
     return (
@@ -101,6 +105,7 @@ export default async function TeamManagementSettingsPage() {
         <TeamManagementPanel
           canGrantManagerPowers={canGrantManagerPowers(user)}
           duties={snapshot.duties}
+          initialInvites={invites}
           initialUsers={snapshot.users}
           roles={snapshot.roles}
           templates={templates}
