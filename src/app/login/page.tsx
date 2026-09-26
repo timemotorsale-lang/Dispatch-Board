@@ -52,7 +52,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <p>Sign in before opening the internal command center.</p>
             </div>
           ) : null}
-          <LoginForm initialEmail={email} returnTo={returnTo} setupAccepted={reason === "invite-accepted"} sessionExpired={reason === "session-expired"} />
+          <LoginForm initialEmail={email} passwordReset={reason === "password-reset"} returnTo={returnTo} setupAccepted={reason === "invite-accepted"} sessionExpired={reason === "session-expired"} />
           <div className="placeholder-actions auth-secondary-actions">
             <Link className="pill pill-secondary" href="/login/invite">
               Accept invite / Create password

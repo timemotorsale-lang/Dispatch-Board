@@ -1,6 +1,7 @@
 import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { TeamManagementPanel } from "@/features/settings/team-management-panel";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { listPasswordRecoveryRequests } from "@/server/auth/password-recovery";
 import { listStaffInvites } from "@/server/auth/staff-invite";
 import {
   DELEGATED_MANAGER_DUTY_NAME,
@@ -12,14 +13,16 @@ import { listTaskTemplatesForManager } from "@/server/services/task-template-ser
 
 async function loadTeamManagementPageData(user: Awaited<ReturnType<typeof requireCurrentUser>>) {
   try {
-    const [snapshot, templates, invites] = await Promise.all([
+    const [snapshot, templates, invites, recoveries] = await Promise.all([
       getTeamManagementSnapshotForManager(user),
       listTaskTemplatesForManager(user, { includeInactive: true }),
-      listStaffInvites(user)
+      listStaffInvites(user),
+      listPasswordRecoveryRequests(user)
     ]);
 
     return {
       invites,
+      recoveries,
       snapshot,
       templates,
       errorMessage: ""
@@ -28,6 +31,7 @@ async function loadTeamManagementPageData(user: Awaited<ReturnType<typeof requir
     return {
       snapshot: null,
       invites: [],
+      recoveries: [],
       templates: [],
       errorMessage:
         error instanceof Error ? error.message : "Unable to load team management right now."
@@ -54,7 +58,7 @@ export default async function TeamManagementSettingsPage() {
     );
   }
 
-  const { snapshot, templates, invites, errorMessage } = await loadTeamManagementPageData(user);
+  const { snapshot, templates, invites, recoveries, errorMessage } = await loadTeamManagementPageData(user);
 
   if (!snapshot) {
     return (
@@ -106,6 +110,7 @@ export default async function TeamManagementSettingsPage() {
           canGrantManagerPowers={canGrantManagerPowers(user)}
           duties={snapshot.duties}
           initialInvites={invites}
+          initialPasswordRecoveryRequests={recoveries}
           initialUsers={snapshot.users}
           roles={snapshot.roles}
           templates={templates}

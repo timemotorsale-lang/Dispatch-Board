@@ -2159,6 +2159,27 @@ model StaffInvite {
   @@index([acceptedByUserId])
 }
 
+model PasswordResetRequest {
+  id               String    @id @default(cuid())
+  email            String
+  userId           String?
+  tokenHash        String?   @unique
+  status           String    @default("REQUESTED")
+  requestedAt      DateTime  @default(now())
+  approvedByUserId String?
+  approvedAt       DateTime?
+  expiresAt        DateTime?
+  usedAt           DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([email])
+  @@index([userId])
+  @@index([status, requestedAt])
+  @@index([approvedByUserId])
+}
+
 model Role {
   id                String             @id @default(cuid())
   name              String             @unique

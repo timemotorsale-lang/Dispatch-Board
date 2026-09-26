@@ -3,6 +3,7 @@
 import { WorkflowArea } from "@prisma/client";
 import { useState } from "react";
 
+import type { PasswordResetPreview } from "@/server/auth/password-recovery";
 import type { StaffInvitePreview } from "@/server/auth/staff-invite";
 import { DELEGATED_MANAGER_DUTY_NAME } from "@/server/policies/access";
 import type {
@@ -16,6 +17,7 @@ type TeamManagementPanelProps = {
   canGrantManagerPowers: boolean;
   duties: TeamManagementDutyOption[];
   initialInvites: StaffInvitePreview[];
+  initialPasswordRecoveryRequests: PasswordResetPreview[];
   initialUsers: ManagedTeamUser[];
   roles: TeamManagementReferenceOption[];
   templates: TaskTemplateSummary[];
@@ -193,10 +195,23 @@ function sortInvites(invites: StaffInvitePreview[]) {
   );
 }
 
+function sortPasswordRecoveryRequests(requests: PasswordResetPreview[]) {
+  return [...requests].sort(
+    (left, right) => getCreatedAtTime(right.createdAt) - getCreatedAtTime(left.createdAt)
+  );
+}
+
 function inviteStatusClass(status: StaffInvitePreview["status"]) {
   if (status === "PENDING") return "status-pill status-success";
   if (status === "ACCEPTED") return "status-pill status-neutral";
   if (status === "EXPIRED") return "status-pill status-warning";
+  return "status-pill status-danger";
+}
+
+function recoveryStatusClass(status: PasswordResetPreview["status"]) {
+  if (status === "REQUESTED" || status === "APPROVED") return "status-pill status-warning";
+  if (status === "COMPLETED") return "status-pill status-success";
+  if (status === "EXPIRED") return "status-pill status-neutral";
   return "status-pill status-danger";
 }
 
@@ -327,6 +342,7 @@ export function TeamManagementPanel({
   canGrantManagerPowers,
   duties,
   initialInvites,
+  initialPasswordRecoveryRequests,
   initialUsers,
   roles,
   templates
@@ -334,11 +350,13 @@ export function TeamManagementPanel({
   const [pendingAction, setPendingAction] = useState("");
   const [users, setUsers] = useState(sortUsers(initialUsers));
   const [staffInvites, setStaffInvites] = useState(sortInvites(initialInvites));
+  const [passwordRecoveryRequests, setPasswordRecoveryRequests] = useState(sortPasswordRecoveryRequests(initialPasswordRecoveryRequests));
   const [roleOptions, setRoleOptions] = useState(sortRoles(roles));
   const [dutyOptions, setDutyOptions] = useState(sortDuties(duties));
   const [templateOptions, setTemplateOptions] = useState(sortTemplates(templates));
   const [staffInviteFormState, setStaffInviteFormState] = useState(initialStaffInviteFormState);
   const [inviteLinksById, setInviteLinksById] = useState<Record<string, string>>({});
+  const [resetLinksById, setResetLinksById] = useState<Record<string, string>>({});
   const [teamMemberFormState, setTeamMemberFormState] = useState(initialTeamMemberFormState);
   const [roleFormState, setRoleFormState] = useState(initialRoleFormState);
   const [dutyFormState, setDutyFormState] = useState(initialDutyFormState);
@@ -352,6 +370,7 @@ export function TeamManagementPanel({
   const [dutyEditFormState, setDutyEditFormState] = useState<DutyFormState | null>(null);
   const [templateEditFormState, setTemplateEditFormState] = useState<TemplateFormState | null>(null);
   const [staffInviteMessage, setStaffInviteMessage] = useState({ error: "", inviteUrl: "", success: "" });
+  const [passwordRecoveryMessage, setPasswordRecoveryMessage] = useState({ error: "", resetUrl: "", success: "" });
   const [teamMemberMessage, setTeamMemberMessage] = useState({ error: "", success: "" });
   const [roleMessage, setRoleMessage] = useState({ error: "", success: "" });
   const [dutyMessage, setDutyMessage] = useState({ error: "", success: "" });
@@ -482,6 +501,67 @@ export function TeamManagementPanel({
 
     void navigator.clipboard?.writeText(inviteUrl);
     setStaffInviteMessage({ error: "", inviteUrl, success: "Invite link copied." });
+  }
+
+  function updatePasswordRecoveryRequest(reset: PasswordResetPreview) {
+    setPasswordRecoveryRequests((current) => sortPasswordRecoveryRequests(current.map((item) => (item.id === reset.id ? reset : item))));
+  }
+
+  function issuePasswordResetLink(reset: PasswordResetPreview) {
+    setPasswordRecoveryMessage({ error: "", resetUrl: "", success: "" });
+
+    void runAction(`password-reset:${reset.id}:issue`, async () => {
+      const response = await fetch(`/api/auth/password-recovery/${encodeURIComponent(reset.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "issue" })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; reset?: PasswordResetPreview; resetUrl?: string } | null;
+
+      if (!response.ok || !payload?.reset || !payload.resetUrl) {
+        setPasswordRecoveryMessage({ error: payload?.error ?? "Unable to issue the password reset link right now.", resetUrl: "", success: "" });
+        return;
+      }
+
+      const resetUrl = `${window.location.origin}${payload.resetUrl}`;
+      updatePasswordRecoveryRequest(payload.reset);
+      setResetLinksById((current) => ({ ...current, [payload.reset!.id]: resetUrl }));
+      setPasswordRecoveryMessage({ error: "", resetUrl, success: `Password reset link issued for ${payload.reset.email}.` });
+    });
+  }
+
+  function revokePasswordRecovery(reset: PasswordResetPreview) {
+    setPasswordRecoveryMessage({ error: "", resetUrl: "", success: "" });
+
+    void runAction(`password-reset:${reset.id}:revoke`, async () => {
+      const response = await fetch(`/api/auth/password-recovery/${encodeURIComponent(reset.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revoke" })
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; reset?: PasswordResetPreview } | null;
+
+      if (!response.ok || !payload?.reset) {
+        setPasswordRecoveryMessage({ error: payload?.error ?? "Unable to revoke the password recovery request right now.", resetUrl: "", success: "" });
+        return;
+      }
+
+      updatePasswordRecoveryRequest(payload.reset);
+      setResetLinksById((current) => {
+        const next = { ...current };
+        delete next[payload.reset!.id];
+        return next;
+      });
+      setPasswordRecoveryMessage({ error: "", resetUrl: "", success: `Password recovery revoked for ${payload.reset.email}.` });
+    });
+  }
+
+  function copyResetLink(resetId: string) {
+    const resetUrl = resetLinksById[resetId];
+    if (!resetUrl) return;
+
+    void navigator.clipboard?.writeText(resetUrl);
+    setPasswordRecoveryMessage({ error: "", resetUrl, success: "Password reset link copied." });
   }
 
   function handleCreateTeamMember(event: React.FormEvent<HTMLFormElement>) {
@@ -1272,6 +1352,79 @@ export function TeamManagementPanel({
                     {latestLink ? <button className="pill pill-secondary" onClick={() => copyInviteLink(invite.id)} type="button">Copy link</button> : null}
                     <button className="pill pill-secondary" disabled={!canResend || pendingAction === resendActionId} onClick={() => resendInvite(invite)} type="button">{pendingAction === resendActionId ? "Resending..." : "Resend"}</button>
                     <button className="pill pill-secondary" disabled={!canRevoke || pendingAction === revokeActionId} onClick={() => revokeInvite(invite)} type="button">{pendingAction === revokeActionId ? "Revoking..." : "Revoke"}</button>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="team-admin-roster-panel">
+          <div className="team-admin-roster-heading">
+            <div>
+              <strong>Password recovery</strong>
+              <h2>Manager-approved reset links</h2>
+              <p>Issue one-use reset links for verified staff and revoke requests that should not proceed.</p>
+            </div>
+            <small>{passwordRecoveryRequests.length} requests</small>
+          </div>
+          {passwordRecoveryMessage.error ? <div className="notice notice-danger" role="alert"><p>{passwordRecoveryMessage.error}</p></div> : null}
+          {passwordRecoveryMessage.success ? (
+            <div className="notice" role="status">
+              <p>{passwordRecoveryMessage.success}</p>
+              {passwordRecoveryMessage.resetUrl ? (
+                <label className="field">
+                  <span>Reset link</span>
+                  <input readOnly value={passwordRecoveryMessage.resetUrl} onFocus={(event) => event.currentTarget.select()} />
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="team-admin-roster-list">
+            {passwordRecoveryRequests.length ? (
+              <div className="team-admin-roster-columns" aria-hidden="true">
+                <span>Staff</span>
+                <span>Status</span>
+                <span>Account</span>
+                <span>Timing</span>
+                <span>Actions</span>
+              </div>
+            ) : null}
+            {passwordRecoveryRequests.length === 0 ? (
+              <p className="team-admin-empty">No password recovery requests yet.</p>
+            ) : null}
+            {passwordRecoveryRequests.map((reset) => {
+              const resetUrl = resetLinksById[reset.id];
+              const canIssue = reset.status !== "COMPLETED" && reset.status !== "REVOKED" && Boolean(reset.userId) && reset.userIsActive !== false;
+              const canRevoke = reset.status !== "COMPLETED" && reset.status !== "REVOKED";
+              const issueActionId = `password-reset:${reset.id}:issue`;
+              const revokeActionId = `password-reset:${reset.id}:revoke`;
+
+              return (
+                <section className="team-admin-roster-row" key={reset.id}>
+                  <div className="team-admin-roster-identity">
+                    <span className="team-admin-avatar">{(reset.userName ?? reset.email).slice(0, 2).toUpperCase()}</span>
+                    <span>
+                      <strong>{reset.userName ?? "Unmatched email"}</strong>
+                      <small>{reset.email}</small>
+                    </span>
+                  </div>
+                  <div className="team-admin-roster-cell">
+                    <span className={recoveryStatusClass(reset.status)}>{reset.status.toLowerCase()}</span>
+                    <small>{reset.approvedByUserId ? "Manager reviewed" : "Waiting review"}</small>
+                  </div>
+                  <div className="team-admin-roster-cell">
+                    <strong>{reset.userId ? reset.userIsActive === false ? "Inactive staff account" : "Matched staff account" : "No matching staff"}</strong>
+                    <small>{reset.userId ?? "Do not issue reset"}</small>
+                  </div>
+                  <div className="team-admin-roster-cell">
+                    <strong>Requested {formatCreatedAt(reset.requestedAt)}</strong>
+                    <small>{reset.expiresAt ? `Expires ${formatCreatedAt(reset.expiresAt)}` : "No link issued"}</small>
+                  </div>
+                  <div className="team-admin-row-actions">
+                    {resetUrl ? <button className="pill pill-secondary" onClick={() => copyResetLink(reset.id)} type="button">Copy link</button> : null}
+                    <button className="pill pill-secondary" disabled={!canIssue || pendingAction === issueActionId} onClick={() => issuePasswordResetLink(reset)} type="button">{pendingAction === issueActionId ? "Issuing..." : reset.status === "APPROVED" ? "Reissue" : "Issue link"}</button>
+                    <button className="pill pill-secondary" disabled={!canRevoke || pendingAction === revokeActionId} onClick={() => revokePasswordRecovery(reset)} type="button">{pendingAction === revokeActionId ? "Revoking..." : "Revoke"}</button>
                   </div>
                 </section>
               );

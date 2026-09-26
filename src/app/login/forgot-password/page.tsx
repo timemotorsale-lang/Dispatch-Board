@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
+import { PasswordRecoveryRequestForm } from "@/features/auth/password-recovery-request-form";
 
 import { APP_NAME } from "../../config";
 
@@ -17,13 +18,14 @@ export default function ForgotPasswordPage() {
 
         <div className="panel-card">
           <strong>Forgot password</strong>
-          <h2>Ask a manager to reset access</h2>
+          <h2>Request manager recovery</h2>
           <p>
-            For now, a manager should reset your staff access or resend an invite from Staff / Roles.
-            This keeps the internal command center invite-only while reset delivery is finalized.
+            Enter your staff email. If it belongs to an active staff account, a manager can approve
+            a one-use reset link from Staff / Roles.
           </p>
+          <PasswordRecoveryRequestForm />
           <div className="placeholder-actions auth-secondary-actions">
-            <Link className="pill pill-primary" href="/login">Back to sign in</Link>
+            <Link className="pill pill-secondary" href="/login">Back to sign in</Link>
           </div>
         </div>
       </section>
