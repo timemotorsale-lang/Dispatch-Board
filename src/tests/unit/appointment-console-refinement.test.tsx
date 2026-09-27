@@ -24,7 +24,7 @@ describe("Appointment Console refinement", () => {
   it("renders the approved calendar-first new appointment workspace", () => {
     const markup = renderToStaticMarkup(<AppointmentConsoleNewAppointment />);
 
-    expect(markup).toContain("New Appointment");
+    expect(markup).toContain("New appointment");
     expect(markup).toContain("Back to Appointment Console");
     expect(markup).toContain("Appointment Setup");
     expect(markup).not.toContain("Expand calendar");
