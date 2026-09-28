@@ -11,6 +11,9 @@ import {
   ListChecks,
   MessageSquareText,
   Paperclip,
+  Download,
+  ExternalLink,
+  X,
   ShieldCheck,
   Sparkles,
   UserPlus,
@@ -19,7 +22,7 @@ import {
 import { TaskStatus } from "@prisma/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
@@ -1008,83 +1011,81 @@ function TaskStatusActionMenu({
   );
 }
 
-type DocumentUploadResult = {
-  storageDraft?: {
-    contentType: string;
-    fileName: string;
-    provider: "INTERNAL" | "EXTERNAL_LINK" | "PROVIDER";
-    reference: string;
-    version: number;
-  };
-  error?: string;
-} | null;
+type TaskAttachment = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  createdAt: string;
+  viewHref: string;
+  downloadHref: string;
+};
 
-function idempotencyKey() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `task-document-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function TaskDocumentUploadControl({
-  recordNumber,
-  recordTitle,
-  task
-}: {
-  recordNumber: string;
-  recordTitle: string;
-  task: TaskReadModel;
-}) {
-  const router = useRouter();
+function TaskDocumentUploadControl({ task }: { task: TaskReadModel }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const drawerRef = useRef<HTMLDialogElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/attachments`, { signal: controller.signal });
+        const result = (await response.json()) as { attachments?: TaskAttachment[]; error?: string };
+        if (!response.ok) throw new Error(result.error ?? "Unable to load documents.");
+        setAttachments(result.attachments ?? []);
+      } catch (error) {
+        if (!controller.signal.aborted) setErrorMessage(error instanceof Error ? error.message : "Unable to load documents.");
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    }
+    void load();
+    return () => controller.abort();
+  }, [task.id]);
+
+  async function openDocumentDrawer() {
+    drawerRef.current?.showModal();
+    setIsLoading(true);
+    setDrawerError(null);
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/attachments`);
+      const result = (await response.json()) as { attachments?: TaskAttachment[]; error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Unable to load documents.");
+      setAttachments(result.attachments ?? []);
+      setErrorMessage(null);
+    } catch (error) {
+      setDrawerError(error instanceof Error ? error.message : "Unable to load documents.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function createTaskDocument(file: File) {
+    if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} exceeds the 10 MB limit.`);
     const form = new FormData();
     form.append("file", file);
-    form.append("console", "TASK_WORKBENCH");
-    form.append("documentType", "TASK_ATTACHMENT");
-    form.append("intent", "TASK_ATTACHMENT");
-    form.append("ownerId", task.id);
-    form.append("ownerLabel", `${recordNumber}: ${recordTitle}`);
-    form.append("ownerType", "TASK");
-    form.append("purpose", "Attach document to task");
-    form.append("reason", "Staff uploaded a task document from the Task Workbench.");
-
-    const uploadResponse = await fetch("/api/document-library/uploads", {
-      method: "POST",
-      body: form
-    });
-    const uploadResult = (await uploadResponse.json().catch(() => null)) as DocumentUploadResult;
-
-    if (!uploadResponse.ok || !uploadResult?.storageDraft) {
-      throw new Error(uploadResult?.error ?? `Unable to upload ${file.name}.`);
-    }
-
-    const actionResponse = await fetch("/api/document-library/actions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "CREATE_DOCUMENT",
-        documentType: "TASK_ATTACHMENT",
-        fileName: uploadResult.storageDraft.fileName,
-        idempotencyKey: idempotencyKey(),
-        owner: {
-          id: task.id,
-          label: `${recordNumber}: ${recordTitle}`,
-          type: "TASK"
-        },
-        reason: "Staff uploaded a task document from the Task Workbench.",
-        sensitivity: "INTERNAL",
-        source: "MANUAL_UPLOAD",
-        storage: uploadResult.storageDraft
-      })
-    });
-    const actionResult = (await actionResponse.json().catch(() => null)) as { error?: string } | null;
-
-    if (!actionResponse.ok) {
-      throw new Error(actionResult?.error ?? `Unable to attach ${file.name} to this task.`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/attachments`, {
+        method: "POST",
+        body: form,
+        signal: controller.signal
+      });
+      const result = (await response.json().catch(() => null)) as { attachment?: TaskAttachment; error?: string } | null;
+      if (!response.ok || !result?.attachment) throw new Error(result?.error ?? `Unable to upload ${file.name}.`);
+      setAttachments((current) => [result.attachment!, ...current]);
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`${file.name} timed out. Check the document list before trying again.`);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -1096,14 +1097,19 @@ function TaskDocumentUploadControl({
     setMessage(null);
     setErrorMessage(null);
 
+    let uploaded = 0;
+    const failures: string[] = [];
     try {
       for (const file of selectedFiles) {
-        await createTaskDocument(file);
+        try {
+          await createTaskDocument(file);
+          uploaded += 1;
+        } catch (error) {
+          failures.push(error instanceof Error ? error.message : `Unable to upload ${file.name}.`);
+        }
       }
-      setMessage(selectedFiles.length === 1 ? "Document attached." : `${selectedFiles.length} documents attached.`);
-      router.refresh();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to attach documents right now.");
+      if (uploaded) setMessage(`${uploaded} document${uploaded === 1 ? "" : "s"} attached.`);
+      if (failures.length) setErrorMessage(failures.join(" "));
     } finally {
       setIsUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -1122,9 +1128,13 @@ function TaskDocumentUploadControl({
           <Paperclip size={14} />
           {isUploading ? "Uploading..." : "Attach documents"}
         </button>
+        <button onClick={() => void openDocumentDrawer()} type="button">
+          View documents{isLoading ? "" : ` (${attachments.length})`}
+        </button>
         <input
           ref={inputRef}
           aria-label="Attach task documents"
+          accept=".pdf,.docx,.png,.jpg,.jpeg,.zip"
           multiple
           onChange={(event) => void uploadDocuments(event.currentTarget.files)}
           type="file"
@@ -1132,6 +1142,29 @@ function TaskDocumentUploadControl({
       </dd>
       {message ? <small>{message}</small> : null}
       {errorMessage ? <small role="alert">{errorMessage}</small> : null}
+      <dialog className="etw-document-drawer" ref={drawerRef} onClick={(event) => {
+        if (event.target === drawerRef.current) drawerRef.current.close();
+      }}>
+        <header>
+          <h2>Task documents</h2>
+          <button aria-label="Close documents" onClick={() => drawerRef.current?.close()} type="button"><X size={18} /></button>
+        </header>
+        {isLoading ? <p>Loading documents...</p> : drawerError ? <p role="alert">{drawerError}</p> : attachments.length === 0 ? <p>No documents attached yet.</p> : (
+          <ul>
+            {attachments.map((attachment) => (
+              <li key={attachment.id}>
+                <span><Paperclip size={16} /> <strong>{attachment.fileName}</strong><small>{(attachment.fileSizeBytes / 1024).toFixed(0)} KB · {new Date(attachment.createdAt).toLocaleDateString()}</small></span>
+                <nav aria-label={`Actions for ${attachment.fileName}`}>
+                  {["application/pdf", "image/png", "image/jpeg"].includes(attachment.contentType) ? (
+                    <a href={attachment.viewHref} rel="noopener noreferrer" target="_blank" title="View document"><ExternalLink size={17} /><span>View</span></a>
+                  ) : null}
+                  <a href={attachment.downloadHref} title="Download document"><Download size={17} /><span>Download</span></a>
+                </nav>
+              </li>
+            ))}
+          </ul>
+        )}
+      </dialog>
     </div>
   );
 }
@@ -1260,7 +1293,7 @@ export function TaskSimpleSummaryCard({
               task={task}
             />
           </div>
-          <TaskDocumentUploadControl recordNumber={recordNumber} recordTitle={recordTitle} task={task} />
+          <TaskDocumentUploadControl task={task} />
         </dl>
 
         <section className="etw-compact-next-action" aria-label="Next action">

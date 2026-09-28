@@ -14031,6 +14031,37 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .etw-compact-document-field small[role="alert"] {
   color: #b4232e;
 }
+.etw-document-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(440px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 20px;
+  color: #172b4d;
+  background: #fff;
+  border: 0;
+  border-left: 1px solid #d8e4f3;
+  box-shadow: -16px 0 40px #10244a25;
+}
+.etw-document-drawer::backdrop { background: #0b183b66; }
+.etw-document-drawer header,
+.etw-document-drawer li,
+.etw-document-drawer nav,
+.etw-document-drawer li > span { display: flex; align-items: center; }
+.etw-document-drawer header { justify-content: space-between; margin-bottom: 18px; }
+.etw-document-drawer h2 { margin: 0; font-size: 18px; }
+.etw-document-drawer ul { list-style: none; padding: 0; margin: 0; }
+.etw-document-drawer li { justify-content: space-between; gap: 10px; padding: 13px 0; border-top: 1px solid #e2e8f2; }
+.etw-document-drawer li > span { flex-wrap: wrap; min-width: 0; gap: 7px; }
+.etw-document-drawer li strong { overflow-wrap: anywhere; font-size: 13px; }
+.etw-document-drawer li small { flex-basis: 100%; padding-left: 23px; color: #66778d; font-size: 11px; }
+.etw-document-drawer nav { gap: 10px; flex-shrink: 0; }
+.etw-document-drawer a { display: inline-flex; align-items: center; gap: 3px; color: #214fd2; font-size: 11px; text-decoration: none; }
+.etw-document-drawer a:hover { text-decoration: underline; }
+.etw-document-drawer header button { min-width: 32px; padding: 0; }
 .etw-compact-calendar-planner {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
