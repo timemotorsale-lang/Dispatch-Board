@@ -13952,13 +13952,85 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   justify-content: flex-end;
 }
 
-.etw-compact-task-fields { grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 0; margin-top: 14px; padding-top: 14px; border-top: 1px solid #dfe7f1; }
+.etw-compact-task-fields { grid-template-columns: minmax(240px, 1fr) minmax(220px, .95fr) minmax(190px, .72fr); gap: 0; margin-top: 14px; padding-top: 14px; border-top: 1px solid #dfe7f1; }
 .etw-compact-task-fields div { min-height: auto; padding: 0 17px 0 0; background: transparent; border: 0; border-right: 1px solid #dfe7f1; border-radius: 0; }
 .etw-compact-task-fields div + div { padding-left: 17px; }
 .etw-compact-task-fields div:last-child { border-right: 0; }
+.etw-compact-task-fields div:nth-child(1) { grid-column: 1; grid-row: 1; }
+.etw-compact-task-fields div:nth-child(2) { grid-column: 2; grid-row: 1; }
+.etw-compact-task-fields div:nth-child(3) { grid-column: 1; grid-row: 2; padding-left: 0; padding-top: 8px; }
+.etw-compact-task-fields div:nth-child(4) { grid-column: 2; grid-row: 2; padding-top: 8px; }
 .etw-compact-task-fields dt { display: flex; align-items: center; gap: 7px; color: #5d6f86; font-size: 11px; letter-spacing: 0; text-transform: none; }
 .etw-compact-task-fields dt svg { color: #2757dd; }
 .etw-compact-task-fields dd { margin-top: 4px; font-size: 13px; }
+.etw-compact-document-field {
+  align-content: start;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.etw-compact-task-fields .etw-compact-document-field dd {
+  display: grid;
+  gap: 4px;
+  overflow: visible;
+  white-space: normal;
+}
+
+.etw-compact-document-field button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 11px;
+  color: #214fd2;
+  background: #eef5ff;
+  border: 1px solid #c5d8f8;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 950;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.etw-compact-document-field button:hover:not(:disabled) {
+  color: #fff;
+  background: #2858dc;
+  border-color: #2858dc;
+}
+
+.etw-compact-document-field button:disabled {
+  color: #718198;
+  background: #f1f5fa;
+  border-color: #d8e1ee;
+  cursor: wait;
+}
+
+.etw-compact-document-field input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.etw-compact-document-field small {
+  display: block;
+  margin-top: 4px;
+  color: #2f6f45;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.etw-compact-document-field small[role="alert"] {
+  color: #b4232e;
+}
 .etw-compact-calendar-planner {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -14906,7 +14978,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   .etw-layout { grid-template-columns: 270px minmax(480px, 1fr) 280px; }
   .etw-resolution-row { grid-template-columns: 18px 23px minmax(145px, 1fr) 82px 90px 105px 38px; }
   .etw-simple-summary-card { grid-template-columns: 1fr; }
-  .etw-compact-task-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .etw-compact-task-fields { grid-template-columns: minmax(240px, 1fr) minmax(220px, .95fr) minmax(190px, .72fr); }
   .etw-simple-grid { grid-template-columns: 1fr; }
 }
 
@@ -14973,6 +15045,14 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
     justify-self: stretch;
   }
   .etw-compact-task-fields { gap: 9px; }
+  .etw-compact-task-fields div:nth-child(1),
+  .etw-compact-task-fields div:nth-child(2),
+  .etw-compact-task-fields div:nth-child(3),
+  .etw-compact-task-fields div:nth-child(4),
+  .etw-compact-document-field {
+    grid-column: auto;
+    grid-row: auto;
+  }
   .etw-compact-owner-row,
   .etw-compact-collaborator-row > div { grid-template-columns: 1fr; }
   .etw-compact-task-fields div,

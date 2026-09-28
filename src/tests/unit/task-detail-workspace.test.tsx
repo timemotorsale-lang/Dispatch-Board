@@ -233,6 +233,10 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Path");
     expect(markup).toContain("Shop &amp; Recon");
     expect(markup).toContain("Initiate path");
+    expect(markup).toContain("Documents");
+    expect(markup).toContain("Attach documents");
+    expect(markup).toContain('aria-label="Attach task documents"');
+    expect(markup).toContain("multiple");
     expect(markup).toContain("Past due");
     expect(markup).toContain("Elevated");
     expect(markup).toContain("Progress / Updates");

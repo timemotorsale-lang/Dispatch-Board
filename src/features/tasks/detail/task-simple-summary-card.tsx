@@ -10,6 +10,7 @@ import {
   Grid3X3,
   ListChecks,
   MessageSquareText,
+  Paperclip,
   ShieldCheck,
   Sparkles,
   UserPlus,
@@ -1007,6 +1008,134 @@ function TaskStatusActionMenu({
   );
 }
 
+type DocumentUploadResult = {
+  storageDraft?: {
+    contentType: string;
+    fileName: string;
+    provider: "INTERNAL" | "EXTERNAL_LINK" | "PROVIDER";
+    reference: string;
+    version: number;
+  };
+  error?: string;
+} | null;
+
+function idempotencyKey() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `task-document-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function TaskDocumentUploadControl({
+  recordNumber,
+  recordTitle,
+  task
+}: {
+  recordNumber: string;
+  recordTitle: string;
+  task: TaskReadModel;
+}) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  async function createTaskDocument(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("console", "TASK_WORKBENCH");
+    form.append("documentType", "TASK_ATTACHMENT");
+    form.append("intent", "TASK_ATTACHMENT");
+    form.append("ownerId", task.id);
+    form.append("ownerLabel", `${recordNumber}: ${recordTitle}`);
+    form.append("ownerType", "TASK");
+    form.append("purpose", "Attach document to task");
+    form.append("reason", "Staff uploaded a task document from the Task Workbench.");
+
+    const uploadResponse = await fetch("/api/document-library/uploads", {
+      method: "POST",
+      body: form
+    });
+    const uploadResult = (await uploadResponse.json().catch(() => null)) as DocumentUploadResult;
+
+    if (!uploadResponse.ok || !uploadResult?.storageDraft) {
+      throw new Error(uploadResult?.error ?? `Unable to upload ${file.name}.`);
+    }
+
+    const actionResponse = await fetch("/api/document-library/actions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "CREATE_DOCUMENT",
+        documentType: "TASK_ATTACHMENT",
+        fileName: uploadResult.storageDraft.fileName,
+        idempotencyKey: idempotencyKey(),
+        owner: {
+          id: task.id,
+          label: `${recordNumber}: ${recordTitle}`,
+          type: "TASK"
+        },
+        reason: "Staff uploaded a task document from the Task Workbench.",
+        sensitivity: "INTERNAL",
+        source: "MANUAL_UPLOAD",
+        storage: uploadResult.storageDraft
+      })
+    });
+    const actionResult = (await actionResponse.json().catch(() => null)) as { error?: string } | null;
+
+    if (!actionResponse.ok) {
+      throw new Error(actionResult?.error ?? `Unable to attach ${file.name} to this task.`);
+    }
+  }
+
+  async function uploadDocuments(files: FileList | null) {
+    const selectedFiles = Array.from(files ?? []);
+    if (!selectedFiles.length) return;
+
+    setIsUploading(true);
+    setMessage(null);
+    setErrorMessage(null);
+
+    try {
+      for (const file of selectedFiles) {
+        await createTaskDocument(file);
+      }
+      setMessage(selectedFiles.length === 1 ? "Document attached." : `${selectedFiles.length} documents attached.`);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to attach documents right now.");
+    } finally {
+      setIsUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="etw-compact-document-field">
+      <dt><Paperclip size={17} />Documents</dt>
+      <dd>
+        <button
+          disabled={isUploading}
+          onClick={() => inputRef.current?.click()}
+          type="button"
+        >
+          <Paperclip size={14} />
+          {isUploading ? "Uploading..." : "Attach documents"}
+        </button>
+        <input
+          ref={inputRef}
+          aria-label="Attach task documents"
+          multiple
+          onChange={(event) => void uploadDocuments(event.currentTarget.files)}
+          type="file"
+        />
+      </dd>
+      {message ? <small>{message}</small> : null}
+      {errorMessage ? <small role="alert">{errorMessage}</small> : null}
+    </div>
+  );
+}
+
 export function TaskSimpleSummaryCard({
   actorIsManager,
   assignableUsers,
@@ -1131,6 +1260,7 @@ export function TaskSimpleSummaryCard({
               task={task}
             />
           </div>
+          <TaskDocumentUploadControl recordNumber={recordNumber} recordTitle={recordTitle} task={task} />
         </dl>
 
         <section className="etw-compact-next-action" aria-label="Next action">
