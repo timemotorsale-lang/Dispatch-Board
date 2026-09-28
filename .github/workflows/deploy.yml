@@ -197,7 +197,8 @@ jobs:
           git checkout --detach "$RELEASE_SHA"
 
           compose build
-          compose run --rm migrate
+          # Compose must not consume the remaining SSH here-document from stdin.
+          compose run --rm -T migrate </dev/null
           compose up -d --remove-orphans
           compose ps
 
