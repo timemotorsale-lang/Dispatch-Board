@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { getPermittedWorkspaces, type WorkspaceKey } from "@/server/auth/navigation";
+import { getPermittedWorkspaces, resolveWorkspaceForPath, type WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
 import { AppSidebar } from "./app-sidebar";
@@ -51,6 +51,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
+  const operationsCoordinatorBoard = pathname === "/board" && resolveWorkspaceForPath(user, pathname, preferredWorkspace) === "OPERATIONS_COORDINATOR";
   const containedConsoleWorkspace: WorkspaceKey | null = managerContext
     ? searchParams.get("launch") === "advisor" || pathname === "/vehicles/advisor"
       ? "ADVISOR"
@@ -143,7 +144,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         !commandCenterHome ? "app-frame-console" : "",
         consoleNavigation || managerWorkspaceHome || tasksConsoleHome ? "app-frame-console-sidebar" : "",
         salesConsole ? "app-frame-sales-standalone" : "",
-        operationsCoordinatorConsole ? "app-frame-operations-coordinator" : "",
+        operationsCoordinatorConsole || operationsCoordinatorBoard ? "app-frame-operations-coordinator" : "",
         sidebarCompact ? "app-frame-sidebar-compact" : "",
         tasksWorkspace ? `app-frame-workspace-${mode}` : ""
       ].filter(Boolean).join(" ")}

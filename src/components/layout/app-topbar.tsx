@@ -88,10 +88,12 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     || pathname === "/vehicles/recon-repair-advisor"
     ? "ADVISOR"
     : resolveWorkspaceForPath(user, pathname, preferredWorkspace);
-  const canOpenManagementWorkspace = getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT");
+  const permittedWorkspaces = getPermittedWorkspaces(user);
+  const canOpenManagementWorkspace = permittedWorkspaces.some((workspace) => workspace.key === "MANAGEMENT");
   const canOpenRoleDispatchBoard = canOpenDispatchBoard(user) && activeWorkspace !== "TECHNICIAN";
   const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
+  const hasWorkspaceSwitcher = permittedWorkspaces.length > 1;
   const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
   const appointmentConsoleAwayFromHome =
     !containedWorkspace && activeWorkspace !== "ADVISOR" && ((isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
@@ -106,6 +108,10 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const advisorWorkspaceReturnHref = sourceReturnTo ?? "/vehicles/advisor";
   const sourceReturnPath = sourceReturnTo?.split(/[?#]/, 1)[0] ?? null;
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
+  const showWorkspaceHomePill = !commandCenterHome && (roleWorkspace || canOpenManagementWorkspace) && !(
+    roleWorkspace &&
+    hasWorkspaceSwitcher
+  );
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
   const showDispatchBoardSwitch = !commandCenterHome && (!dispatchConsole || isAppointmentConsolePath(pathname)) && canOpenRoleDispatchBoard;
@@ -241,7 +247,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         <TimeMotorSalesLogo className="ccc-topbar-brand-horizontal" decorative priority variant="horizontal-reversed" />
         <TimeMotorSalesLogo className="ccc-topbar-brand-mark" decorative priority variant="mark" />
       </Link>
-      {!commandCenterHome && (roleWorkspace || canOpenManagementWorkspace) ? (
+      {showWorkspaceHomePill ? (
         <Link aria-label={roleWorkspace ? activeWorkspaceDefinition.label : "Command Center Home"} className="ccc-home-link" href={roleWorkspace ? workspaceHome : "/command-center"}>
           <House size={15} /><span>{roleWorkspace ? activeWorkspaceDefinition.label : "CCC Home"}</span>
         </Link>

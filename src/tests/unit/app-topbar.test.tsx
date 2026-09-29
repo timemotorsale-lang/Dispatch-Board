@@ -105,6 +105,23 @@ describe("application top bar console switching", () => {
     expect(markup).toContain('aria-haspopup="menu"');
   });
 
+  it("does not duplicate the active workspace home pill when the switcher is visible", () => {
+    currentPathname = "/operations-coordinator";
+    const markup = renderToStaticMarkup(
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={{ ...testUser, roles: ["Office Manager", "Marketing/Advertisement Manager"] }}
+        />
+      </AppearanceProvider>
+    );
+
+    expect(markup).toContain("Active workspace: Operations Coordinator. Switch workspace");
+    expect(markup).not.toContain('aria-label="Operations Coordinator" class="ccc-home-link"');
+  });
+
   it("provides a direct Dispatch Board switch from the Appointment Console", () => {
     currentPathname = "/appointments";
 
