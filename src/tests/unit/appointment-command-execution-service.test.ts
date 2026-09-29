@@ -44,6 +44,7 @@ const ownerUser: AuthenticatedUser = {
 
 function createCommandRepositoryHarness(input?: {
   appointment?: AppointmentCommandAppointmentRecord | null;
+  duplicateAppointments?: AppointmentCommandAppointmentRecord[];
   existingCommand?: AppointmentCommandLedgerRecord | null;
   heldReservationCandidates?: NonNullable<
     AppointmentCommandRepository["findHeldReservationCommitCandidates"]
@@ -136,6 +137,10 @@ function createCommandRepositoryHarness(input?: {
 
     async findHeldReservationCommitCandidates() {
       return input?.heldReservationCandidates ?? [];
+    },
+
+    async findPotentialDuplicateCustomerAppointments() {
+      return input?.duplicateAppointments ?? [];
     }
   };
 
@@ -698,6 +703,139 @@ describe("appointment command execution service", () => {
       }
     });
     expect(lifecycleHarness.completedCommands).toEqual(["cmd-1"]);
+  });
+
+  it("blocks draft creation when the same customer already has an appointment at the same time", async () => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: null,
+      duplicateAppointments: [
+        createScenarioAppointment({
+          id: "appointment-duplicate",
+          appointmentNumber: "APT-20001",
+          startsAt: new Date("2026-07-06T16:00:00.000Z"),
+          endsAt: new Date("2026-07-06T17:00:00.000Z"),
+          bookingStatus: "SCHEDULED",
+          customerSnapshot: {
+            displayName: "Amina Yusuf"
+          }
+        }) as AppointmentCommandAppointmentRecord
+      ]
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "CREATE_DRAFT",
+        organizationId: "org-time-motor-sales",
+        locationId: "loc-time-motor-sales-minneapolis",
+        idempotencyKey: "create-draft-duplicate-customer-time",
+        correlationId: "corr-create-draft-duplicate-customer-time",
+        payload: {
+          appointmentNumber: "APT-20002",
+          title: "Service / Repair",
+          schedulingTimezone: "America/Chicago",
+          startsAt: "2026-07-06T16:00:00.000Z",
+          endsAt: "2026-07-06T17:00:00.000Z",
+          customerSnapshot: {
+            displayName: "Amina Yusuf"
+          }
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: false,
+      command: {
+        commandType: "CREATE_DRAFT",
+        status: "FAILED_TERMINAL"
+      },
+      execution: {
+        executed: false,
+        commandStatus: "FAILED_TERMINAL",
+        resultSnapshot: {
+          rejectionCode: "UNRESOLVED_WARNING",
+          rejectionReasons: [
+            expect.stringContaining("Amina Yusuf already has appointment APT-20001")
+          ]
+        }
+      }
+    });
+    expect(lifecycleHarness.createdAppointments).toEqual([]);
+  });
+
+  it("allows duplicate-time draft creation after explicit user confirmation", async () => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: null,
+      duplicateAppointments: [
+        createScenarioAppointment({
+          id: "appointment-duplicate",
+          appointmentNumber: "APT-20001",
+          startsAt: new Date("2026-07-06T16:00:00.000Z"),
+          endsAt: new Date("2026-07-06T17:00:00.000Z"),
+          bookingStatus: "SCHEDULED",
+          customerSnapshot: {
+            displayName: "Amina Yusuf"
+          }
+        }) as AppointmentCommandAppointmentRecord
+      ]
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "CREATE_DRAFT",
+        organizationId: "org-time-motor-sales",
+        locationId: "loc-time-motor-sales-minneapolis",
+        idempotencyKey: "create-draft-duplicate-customer-time-confirmed",
+        correlationId: "corr-create-draft-duplicate-customer-time-confirmed",
+        payload: {
+          appointmentNumber: "APT-20002",
+          title: "Service / Repair",
+          schedulingTimezone: "America/Chicago",
+          startsAt: "2026-07-06T16:00:00.000Z",
+          endsAt: "2026-07-06T17:00:00.000Z",
+          duplicateCustomerTimeConfirmed: true,
+          customerSnapshot: {
+            displayName: "Amina Yusuf"
+          }
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: true,
+      command: {
+        commandType: "CREATE_DRAFT",
+        status: "SUCCEEDED"
+      },
+      execution: {
+        executed: true,
+        commandStatus: "SUCCEEDED",
+        appointment: {
+          appointmentNumber: "APT-20002",
+          version: 1
+        }
+      }
+    });
+    expect(lifecycleHarness.createdAppointments).toEqual([
+      {
+        id: "appointment-created",
+        appointmentNumber: "APT-20002",
+        version: 1
+      }
+    ]);
   });
 
   it("evaluates proposed schedule times for unscheduled draft staff checks", async () => {

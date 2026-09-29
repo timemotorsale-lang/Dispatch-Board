@@ -252,6 +252,24 @@ function formatTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function normalizedAppointmentCustomerName(value: string | null | undefined) {
+  const normalized = value?.trim().toLocaleLowerCase();
+
+  return normalized || null;
+}
+
+function activeDuplicateBookingStatus(appointment: LiveAppointment) {
+  return ["DRAFT", "PENDING_APPROVAL", "SCHEDULED"].includes(appointment.bookingStatus);
+}
+
+function sameAppointmentStart(left: string | null, right: string | null) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return new Date(left).getTime() === new Date(right).getTime();
+}
+
 function isoDateKey(value: string | null) {
   if (!value) return todayDateKey();
   return new Intl.DateTimeFormat("en-CA", {
@@ -1062,6 +1080,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
+  const [confirmedDuplicateAppointmentKey, setConfirmedDuplicateAppointmentKey] = useState<string | null>(null);
   const [createdAppointments, setCreatedAppointments] = useState<LiveAppointment[]>(() => loadRecentPlannerAppointments());
   const [editingAppointment, setEditingAppointment] = useState<LiveAppointment | null>(null);
   const [customerQuery, setCustomerQuery] = useState(initialContext?.customerReference ?? "");
@@ -1096,6 +1115,30 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
       return leftStartsAt - rightStartsAt || left.appointmentNumber.localeCompare(right.appointmentNumber);
     });
   }, [appointmentWindow.data?.appointments, createdAppointments]);
+  const duplicateCustomerTimeAppointment = useMemo(() => {
+    const customerName = normalizedAppointmentCustomerName(form.customer);
+
+    if (!customerName) {
+      return null;
+    }
+
+    return visibleAppointments.find((appointment) =>
+      appointment.id !== editingAppointment?.id &&
+      activeDuplicateBookingStatus(appointment) &&
+      sameAppointmentStart(appointment.startsAt, startsAtIso) &&
+      normalizedAppointmentCustomerName(appointment.customer?.displayName) === customerName
+    ) ?? null;
+  }, [editingAppointment?.id, form.customer, startsAtIso, visibleAppointments]);
+  const duplicateCustomerTimeKey = duplicateCustomerTimeAppointment
+    ? [
+        duplicateCustomerTimeAppointment.id,
+        startsAtIso,
+        normalizedAppointmentCustomerName(form.customer) ?? "customer"
+      ].join("|")
+    : null;
+  const duplicateCustomerTimeConfirmed = Boolean(
+    duplicateCustomerTimeKey && confirmedDuplicateAppointmentKey === duplicateCustomerTimeKey
+  );
   const liveCapacity = useMemo(() => {
     const scheduled = visibleAppointments.filter((appointment) => appointment.startsAt && appointment.endsAt).length;
     const exceptions = visibleAppointments.filter(hasException).length;
@@ -1448,6 +1491,11 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
       return;
     }
 
+    if (duplicateCustomerTimeAppointment && !duplicateCustomerTimeConfirmed) {
+      setNotice(`${form.customer.trim()} already has ${duplicateCustomerTimeAppointment.appointmentNumber} at ${formatTime(startsAtIso)}. Confirm the duplicate appointment before saving.`);
+      return;
+    }
+
     setIsSaving(true);
     setNotice(editingAppointment ? "Saving appointment changes..." : "Creating appointment...");
 
@@ -1487,6 +1535,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 startsAt: startsAtIso,
                 endsAt: endsAtIso,
                 schedulingTimezone: defaultTimezone,
+                duplicateCustomerTimeConfirmed,
                 reasonCode: "PLANNER_RESCHEDULE",
                 reasonNotes: form.reason.trim()
               }
@@ -1557,6 +1606,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             purposeSnapshot: appointmentPayload.purposeSnapshot,
             customerSnapshot: appointmentPayload.customerSnapshot,
             vehicleSnapshot: appointmentPayload.vehicleSnapshot,
+            duplicateCustomerTimeConfirmed,
             sourceSnapshot: initialContext?.sourceTaskId
               ? {
                   taskId: initialContext.sourceTaskId,
@@ -1739,6 +1789,20 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                               <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
                             </div>
                             <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
+                            {duplicateCustomerTimeAppointment && duplicateCustomerTimeKey ? (
+                              <div className="appointment-duplicate-warning" role="alert">
+                                <strong>Possible double appointment</strong>
+                                <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
+                                <label>
+                                  <input
+                                    checked={duplicateCustomerTimeConfirmed}
+                                    onChange={(event) => setConfirmedDuplicateAppointmentKey(event.target.checked ? duplicateCustomerTimeKey : null)}
+                                    type="checkbox"
+                                  />
+                                  Confirm this duplicate time intentionally.
+                                </label>
+                              </div>
+                            ) : null}
                             <footer>
                               <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
                               {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New draft</button> : null}
@@ -2135,6 +2199,20 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 <span>Appointment reason</span>
                 <textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Example: customer called about title paperwork, repair status, sales visit, payment, or another issue." value={form.reason} />
               </label>
+              {duplicateCustomerTimeAppointment && duplicateCustomerTimeKey ? (
+                <div className="appointment-duplicate-warning" role="alert">
+                  <strong>Possible double appointment</strong>
+                  <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
+                  <label>
+                    <input
+                      checked={duplicateCustomerTimeConfirmed}
+                      onChange={(event) => setConfirmedDuplicateAppointmentKey(event.target.checked ? duplicateCustomerTimeKey : null)}
+                      type="checkbox"
+                    />
+                    Confirm this duplicate time intentionally.
+                  </label>
+                </div>
+              ) : null}
               <h3>Readiness Checklist</h3>
               {[
                 ["ready", "Purpose selected"],

@@ -15,6 +15,7 @@ import {
   previewAppointmentStaffConflicts,
   type AppointmentStaffConflictPreviewOptions
 } from "@/server/services/appointment-staff-conflict-preview-service";
+import type { AppointmentWarning } from "@/server/appointments/appointment-warning-service";
 import { recordAppointmentAutomationExecution } from "@/server/services/appointment-automation-operations-console";
 import {
   createAppointmentCommandRepository,
@@ -99,6 +100,105 @@ function snapshotRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function normalizedCustomerName(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const snapshot = value as Record<string, unknown>;
+  const name =
+    snapshot.displayName ?? snapshot.name ?? snapshot.fullName ?? snapshot.customerName ?? null;
+
+  return typeof name === "string" && name.trim()
+    ? name.trim().toLocaleLowerCase()
+    : null;
+}
+
+function customerIdentity(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return { id: null, name: null, label: "This customer" };
+  }
+
+  const snapshot = value as Record<string, unknown>;
+  const id = snapshot.customerId ?? snapshot.id ?? null;
+  const name =
+    snapshot.displayName ?? snapshot.name ?? snapshot.fullName ?? snapshot.customerName ?? null;
+
+  return {
+    id: typeof id === "string" && id.trim() ? id.trim() : null,
+    name: normalizedCustomerName(value),
+    label: typeof name === "string" && name.trim() ? name.trim() : "This customer"
+  };
+}
+
+function sameCustomer(left: unknown, right: unknown) {
+  const leftCustomer = customerIdentity(left);
+  const rightCustomer = customerIdentity(right);
+
+  if (leftCustomer.id && rightCustomer.id) {
+    return leftCustomer.id === rightCustomer.id;
+  }
+
+  return Boolean(leftCustomer.name && leftCustomer.name === rightCustomer.name);
+}
+
+function isDuplicateCustomerTimeConfirmed(payload: Record<string, unknown>) {
+  return payload.duplicateCustomerTimeConfirmed === true;
+}
+
+async function getDuplicateCustomerTimeWarning(input: {
+  appointment: AppointmentCommandAppointmentRecord | null;
+  commandRepository: AppointmentCommandRepository;
+  organizationId: string;
+  locationId: string;
+  payload: Record<string, unknown>;
+}) {
+  if (!input.commandRepository.findPotentialDuplicateCustomerAppointments) {
+    return null;
+  }
+
+  const startsAt = parsePayloadDate(input.payload.startsAt) ?? input.appointment?.startsAt ?? null;
+
+  if (!startsAt) {
+    return null;
+  }
+
+  const customerSnapshot = input.payload.customerSnapshot ?? input.appointment?.customerSnapshot;
+  const customer = customerIdentity(customerSnapshot);
+
+  if (!customer.id && !customer.name) {
+    return null;
+  }
+
+  const candidates = await input.commandRepository.findPotentialDuplicateCustomerAppointments({
+    organizationId: input.organizationId,
+    locationId: input.locationId,
+    startsAt,
+    excludeAppointmentId: input.appointment?.id ?? null
+  });
+  const duplicate = candidates.find((candidate) =>
+    sameCustomer(customerSnapshot, candidate.customerSnapshot)
+  );
+
+  if (!duplicate) {
+    return null;
+  }
+
+  return {
+    warningKey: [
+      "CUSTOMER",
+      "DUPLICATE_CUSTOMER_TIME",
+      customer.id ?? customer.name ?? "unknown-customer",
+      startsAt.toISOString(),
+      duplicate.id
+    ].join("|"),
+    code: "DUPLICATE_CUSTOMER_TIME",
+    source: "CUSTOMER",
+    message: `${customer.label} already has appointment ${duplicate.appointmentNumber} at ${startsAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: input.appointment?.schedulingTimezone ?? "America/Chicago" })}. Confirm before double scheduling.`,
+    managerOverrideRequired: false
+  } satisfies AppointmentWarning;
 }
 
 function isLateStaleUpdateError(error: unknown) {
@@ -310,16 +410,45 @@ async function getLifecyclePayload(input: {
   commandType: AppointmentLifecycleExecutionCommand;
   appointment: AppointmentCommandAppointmentRecord | null;
   commandRepository: AppointmentCommandRepository;
+  organizationId: string;
+  locationId: string;
   payload: Record<string, unknown>;
   user: AuthenticatedUser | null;
   now: Date;
   staffConflictPreview: StaffConflictPreviewForSchedule;
 }) {
-  if (input.commandType !== "SCHEDULE" || !input.appointment) {
+  if (
+    !["CREATE_DRAFT", "SCHEDULE", "RESCHEDULE"].includes(input.commandType) ||
+    (input.commandType !== "CREATE_DRAFT" && !input.appointment)
+  ) {
     return input.payload;
   }
 
   let payload = input.payload;
+  const duplicateWarning = await getDuplicateCustomerTimeWarning({
+    appointment: input.appointment,
+    commandRepository: input.commandRepository,
+    organizationId: input.organizationId,
+    locationId: input.locationId,
+    payload
+  });
+
+  if (duplicateWarning) {
+    const existingWarnings = (payload.warnings as unknown[]) ?? [];
+    const existingUnresolvedWarnings = (payload.unresolvedWarnings as unknown[]) ?? [];
+
+    payload = {
+      ...payload,
+      warnings: [...existingWarnings, duplicateWarning],
+      unresolvedWarnings: isDuplicateCustomerTimeConfirmed(payload)
+        ? existingUnresolvedWarnings
+        : [...existingUnresolvedWarnings, duplicateWarning]
+    };
+  }
+
+  if (input.commandType !== "SCHEDULE" || !input.appointment) {
+    return payload;
+  }
 
   if (
     !Array.isArray(payload.reservationCandidates) &&
@@ -457,6 +586,8 @@ export async function submitAndExecuteAppointmentCommand(
     commandType: submitted.command.commandType,
     appointment,
     commandRepository,
+    organizationId,
+    locationId,
     payload: commandRequest.payload,
     user,
     now,
