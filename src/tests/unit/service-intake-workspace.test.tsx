@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -65,6 +65,13 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Select vehicle");
     expect(html).toContain("Minneapolis");
     expect(html).toContain("Walter Mechanic");
+  });
+
+  it("only enables service-intake customer creation after a name plus contact method", () => {
+    expect(isServiceIntakeCustomerDraftReady({ displayName: "", phoneNumber: "6123425656" })).toBe(false);
+    expect(isServiceIntakeCustomerDraftReady({ displayName: "Amina Yusuf" })).toBe(false);
+    expect(isServiceIntakeCustomerDraftReady({ displayName: "Amina Yusuf", phoneNumber: "6123425656" })).toBe(true);
+    expect(isServiceIntakeCustomerDraftReady({ displayName: "Amina Yusuf", email: "amina@example.test" })).toBe(true);
   });
 
   it("preserves a labor-guide return path for repair-order creation", () => {

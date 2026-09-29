@@ -228,6 +228,12 @@ export type AppointmentCommandRepository = {
   findHeldReservationCommitCandidates?(
     appointmentId: string
   ): Promise<AppointmentReservationCommitCandidate[]>;
+  findPotentialDuplicateCustomerAppointments?(input: {
+    organizationId: string;
+    locationId: string;
+    startsAt: Date;
+    excludeAppointmentId?: string | null;
+  }): Promise<AppointmentCommandAppointmentRecord[]>;
 };
 
 function isDateWithinAccessWindow(
@@ -359,6 +365,30 @@ export function createAppointmentCommandRepository(
       });
 
       return reservations.map(toCommitCandidate);
+    },
+
+    async findPotentialDuplicateCustomerAppointments(input) {
+      return database.appointment.findMany({
+        where: {
+          organizationId: input.organizationId,
+          locationId: input.locationId,
+          startsAt: input.startsAt,
+          bookingStatus: {
+            in: ["DRAFT", "PENDING_APPROVAL", "SCHEDULED"]
+          },
+          ...(input.excludeAppointmentId
+            ? {
+                id: {
+                  not: input.excludeAppointmentId
+                }
+              }
+            : {})
+        },
+        orderBy: {
+          appointmentNumber: "asc"
+        },
+        select: appointmentCommandAppointmentSelect
+      });
     }
   };
 }

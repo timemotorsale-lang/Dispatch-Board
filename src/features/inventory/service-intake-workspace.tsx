@@ -101,6 +101,14 @@ type VehicleIdentityPreview = {
 
 type SelectedVehicleDetails = { decoded: VehicleDecode; provider: string; retrievedAt: string | null; source: "LIVE_DECODE" | "STORED_SNAPSHOT"; warnings: string[] };
 
+export function isServiceIntakeCustomerDraftReady(input: {
+  displayName?: string;
+  email?: string;
+  phoneNumber?: string;
+}) {
+  return Boolean(input.displayName?.trim() && (input.phoneNumber?.trim() || input.email?.trim()));
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -247,6 +255,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const [repairOrderRecords, setRepairOrderRecords] = useState(options.repairOrders);
   const [drawer, setDrawer] = useState<"customer" | null>(null);
   const [newCustomer, setNewCustomer] = useState({ address: "", displayName: "", email: "", phoneNumber: "", preferredContactMethod: "PHONE" });
+  const [customerDrawerMessage, setCustomerDrawerMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [created, setCreated] = useState<{ id: string; repairOrderNumber: string; reused?: boolean } | null>(null);
@@ -312,6 +321,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const requiresRepairOrderDecision = form.concernSummary.trim().length >= 10 && openVehicleOrders.length > 0 && !sameConcernOrder;
   const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
   const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
+  const customerDraftReady = isServiceIntakeCustomerDraftReady(newCustomer);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- vehicle color is a local editable draft reset when the selected vehicle changes.
@@ -710,6 +720,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       return;
     }
     if (isCustomerVehicle && !form.customerId) {
+      setCustomerDrawerMessage("");
       setDrawer("customer");
       setNotice("Add or select the canonical customer before the repair order can be created.");
       return;
@@ -909,8 +920,19 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }
 
   async function createCustomer() {
+    if (!newCustomer.displayName.trim()) {
+      setCustomerDrawerMessage("Enter the customer's name before creating the record.");
+      return;
+    }
+
+    if (!newCustomer.phoneNumber.trim() && !newCustomer.email.trim()) {
+      setCustomerDrawerMessage("Enter a phone number or email so the customer can be matched and contacted.");
+      return;
+    }
+
     setBusy(true);
     setNotice("");
+    setCustomerDrawerMessage("Saving customer...");
     try {
       const response = await fetch("/api/service-intake/customers", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...newCustomer, locationId: form.locationId }) });
       const body = await response.json().catch(() => ({}));
@@ -920,9 +942,12 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       update("customerId", customer.id);
       setDrawer(null);
       setNewCustomer({ address: "", displayName: "", email: "", phoneNumber: "", preferredContactMethod: "PHONE" });
+      setCustomerDrawerMessage("");
       setNotice(body.duplicate ? "An existing matching customer was selected; no duplicate was created." : "Customer created and selected for this intake.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Customer could not be created.");
+      const message = error instanceof Error ? error.message : "Customer could not be created.";
+      setCustomerDrawerMessage(message);
+      setNotice(message);
     } finally {
       setBusy(false);
     }
@@ -1163,14 +1188,14 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           {!canCompleteRelationshipIntake ? <div className="sic-relationship-route"><ShieldAlert /><div><strong>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Inventory cannot begin before governed acquisition" : "Ownership must be established before work is created"}</strong><span>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue through appraisal and financial acquisition; that workflow creates the eligible inventory unit once authority is confirmed." : "Record custody and ownership evidence. Do not create a customer or dealership inventory record merely to bypass this decision."}</span></div><Link href={form.vehicleRelationship === "TRADE_ACQUISITION" ? "/vehicles/acquisition-appraisal" : selectedVehicle ? `/vehicles/360/${selectedVehicle.id}` : "/vehicles"}>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue to Acquisition Review" : "Open Vehicle Records"}</Link></div> : null}
           <div className="sic-arrival-search"><Search /><input aria-label={isDealershipInventory ? "Find dealership vehicle or inventory unit" : "Find customer, vehicle, or appointment"} onChange={(event) => { setArrivalMode("search"); setArrivalQuery(event.target.value); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void runArrivalSearch(); } }} placeholder={isDealershipInventory ? "Search VIN, stock number, inventory number, plate, make, or model..." : "Search name, phone, email, VIN, plate, appointment, or RO..."} ref={arrivalSearchRef} type="search" value={arrivalQuery} /><button disabled={vehicleIdentityBusy} onClick={() => void runArrivalSearch()} type="button"><Search />{vehicleIdentityBusy ? "Searching…" : "Search"}</button></div>
           <section className="sic-vehicle-identity-intelligence" aria-label="Vehicle identity intelligence"><header><Search /><div><small>Vehicle Identity Intelligence</small><strong>Search, decode, and duplicate guard are always available at intake.</strong><span>{isDealershipInventory ? "Use this before opening internal recon so the shop receives the correct inventory unit." : "Use this before creating customer work so the shop receives the correct customer and vehicle."}</span></div></header><div>{identityIntelligenceRows.map((row) => <article className={row.ready ? "ready" : ""} key={row.key}>{row.ready ? <CheckCircle2 /> : <AlertTriangle />}<span><b>{row.label}</b>{row.value}</span></article>)}</div></section>
-          <div className="sic-arrival-actions"><div>{isCustomerVehicle ? <><button onClick={() => { setArrivalQuery(""); setArrivalMode("today"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><CalendarDays />Today&apos;s Arrivals</button><button onClick={() => { setArrivalQuery(""); setArrivalMode("recent"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><UserRound />Recent Customers</button><button onClick={() => { setArrivalMode("search"); setArrivalQuery(""); setVehicleAddOpen(false); resetVehicleIdentityPreview(); setNotice("Walk-in intake selected. Find or add the customer and vehicle to continue."); }} type="button">Walk-In</button></> : <span className="sic-internal-intake-label"><CarFront />Internal dealership inventory intake</span>}<button onClick={() => { update("transportMode", "TOW"); setNotice("Tow-in selected. Capture the vehicle, keys, and custody facts before check-in."); }} type="button"><CarFront />Tow-In</button></div><div>{isCustomerVehicle ? <button className="create" onClick={() => setDrawer("customer")} type="button"><Plus />Add New Customer</button> : null}<button className="create" onClick={() => { setVehicleAddOpen(true); if (arrivalQueryIsVin) void decodeVehicleForIntake(); else { arrivalSearchRef.current?.focus(); setNotice("Search the local database first, then enter the complete VIN if the vehicle is not found."); } }} type="button"><Plus />Add New Vehicle</button></div></div>
+          <div className="sic-arrival-actions"><div>{isCustomerVehicle ? <><button onClick={() => { setArrivalQuery(""); setArrivalMode("today"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><CalendarDays />Today&apos;s Arrivals</button><button onClick={() => { setArrivalQuery(""); setArrivalMode("recent"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><UserRound />Recent Customers</button><button onClick={() => { setArrivalMode("search"); setArrivalQuery(""); setVehicleAddOpen(false); resetVehicleIdentityPreview(); setNotice("Walk-in intake selected. Find or add the customer and vehicle to continue."); }} type="button">Walk-In</button></> : <span className="sic-internal-intake-label"><CarFront />Internal dealership inventory intake</span>}<button onClick={() => { update("transportMode", "TOW"); setNotice("Tow-in selected. Capture the vehicle, keys, and custody facts before check-in."); }} type="button"><CarFront />Tow-In</button></div><div>{isCustomerVehicle ? <button className="create" onClick={() => { setCustomerDrawerMessage(""); setDrawer("customer"); }} type="button"><Plus />Add New Customer</button> : null}<button className="create" onClick={() => { setVehicleAddOpen(true); if (arrivalQueryIsVin) void decodeVehicleForIntake(); else { arrivalSearchRef.current?.focus(); setNotice("Search the local database first, then enter the complete VIN if the vehicle is not found."); } }} type="button"><Plus />Add New Vehicle</button></div></div>
           {arrivalQuery || arrivalMode !== "search" ? <div className="sic-arrival-results" role="listbox" aria-label="Arrival search results">
             {isCustomerVehicle ? arrivalMatches.appointments.map((appointment) => <button key={appointment.id} onClick={() => chooseAppointment(appointment)} type="button"><CalendarClock /><span><strong>{appointment.appointmentNumber} · {appointment.title}</strong><small>{appointment.participants[0]?.customer?.displayName ?? "Customer"} · {appointment.vehicles[0] ? vehicleLabel(appointment.vehicles[0].vehicle) : "Vehicle not linked"}</small></span><b>Appointment</b></button>) : null}
             {isCustomerVehicle ? arrivalMatches.customers.map((customer) => <button key={customer.id} onClick={() => chooseCustomer(customer.id)} type="button"><UserRound /><span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber ?? "Canonical customer"}</small></span><b>Customer</b></button>) : null}
             {isDealershipInventory ? arrivalMatches.inventoryUnits.map((unit) => <button className="exact-vin-match" key={unit.id} onClick={() => { setForm((current) => ({ ...current, inventoryUnitId: unit.id, locationId: unit.locationId, vehicleId: unit.vehicle.id })); setArrivalQuery(""); setNotice(`Inventory unit ${unit.inventoryNumber} and its canonical vehicle were selected for internal recon.`); }} type="button"><ClipboardCheck /><span><strong>{unit.inventoryNumber} · {vehicleLabel(unit.vehicle)}</strong><small>{unit.vehicle.vin ?? unit.vehicle.stockNumber ?? "Active inventory unit"}</small></span><b>Inventory Unit</b></button>) : null}
             {arrivalMatches.repairOrders.map((order) => <Link href={`/vehicles/repair-workbench?repairOrderId=${order.id}`} key={order.id}><ClipboardCheck /><span><strong>{order.repairOrderNumber} · {vehicleLabel(order.vehicle)}</strong><small>{order.customer?.displayName ?? "Internal vehicle"} · {order.closedAt ? `Previous service · ${new Date(order.openedAt).toLocaleDateString()}` : order.stage.replaceAll("_", " ")}</small></span><b>{order.closedAt ? "View History" : "Open Workbench"}</b></Link>)}
             {arrivalMatches.vehicles.map((vehicle) => { const exactVinMatch = arrivalQueryIsVin && vehicle.vin?.toUpperCase().replace(/[^A-Z0-9]/g, "") === normalizedArrivalVin; return <button className={exactVinMatch ? "exact-vin-match" : ""} key={vehicle.id} onClick={() => chooseVehicle(vehicle.id)} type="button"><CarFront /><span><strong>{vehicleLabel(vehicle)}</strong><small>{vehicle.vin ?? vehicle.licensePlate ?? "Canonical vehicle"}</small></span><b>{exactVinMatch ? "Exact VIN Match" : "Vehicle"}</b></button>; })}
-            {!arrivalMatches.appointments.length && !arrivalMatches.customers.length && !arrivalMatches.inventoryUnits.length && !arrivalMatches.repairOrders.length && !arrivalMatches.vehicles.length ? <div className="sic-arrival-empty"><strong>No matching local record found</strong><span>{arrivalQueryIsVin ? "This VIN can be decoded and added below without leaving intake." : isCustomerVehicle ? "Add a customer now, or enter the complete VIN to identify and add a vehicle." : "Enter the complete VIN to identify and add the dealership vehicle."}</span>{!arrivalQueryIsVin ? <div>{isCustomerVehicle ? <button onClick={() => { setNewCustomer((value) => ({ ...value, displayName: arrivalQuery.trim() })); setDrawer("customer"); }} type="button"><UserRound />Add New Customer</button> : null}<button onClick={() => { setArrivalQuery(""); setVehicleAddOpen(true); resetVehicleIdentityPreview(); window.requestAnimationFrame(() => { arrivalSearchRef.current?.focus(); arrivalSearchRef.current?.select(); }); setNotice("Enter the complete 17-character VIN, then click Search to check local records and decode the vehicle if needed."); }} type="button"><CarFront />Enter VIN to Add Vehicle</button></div> : null}</div> : null}
+            {!arrivalMatches.appointments.length && !arrivalMatches.customers.length && !arrivalMatches.inventoryUnits.length && !arrivalMatches.repairOrders.length && !arrivalMatches.vehicles.length ? <div className="sic-arrival-empty"><strong>No matching local record found</strong><span>{arrivalQueryIsVin ? "This VIN can be decoded and added below without leaving intake." : isCustomerVehicle ? "Add a customer now, or enter the complete VIN to identify and add a vehicle." : "Enter the complete VIN to identify and add the dealership vehicle."}</span>{!arrivalQueryIsVin ? <div>{isCustomerVehicle ? <button onClick={() => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, displayName: arrivalQuery.trim() })); setDrawer("customer"); }} type="button"><UserRound />Add New Customer</button> : null}<button onClick={() => { setArrivalQuery(""); setVehicleAddOpen(true); resetVehicleIdentityPreview(); window.requestAnimationFrame(() => { arrivalSearchRef.current?.focus(); arrivalSearchRef.current?.select(); }); setNotice("Enter the complete 17-character VIN, then click Search to check local records and decode the vehicle if needed."); }} type="button"><CarFront />Enter VIN to Add Vehicle</button></div> : null}</div> : null}
           </div> : null}
           {(vehicleAddOpen || arrivalQueryIsVin && !localVinMatch) ? <section className="sic-inline-vehicle-add" aria-label="Add vehicle from VIN">
             {!arrivalQueryIsVin ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>Enter the vehicle&apos;s VIN above</strong><span>The dealership database is searched first. A new vehicle can be decoded only after a complete 17-character VIN is entered.</span></div></div> : !vehicleIdentityPreview ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>VIN not found in local records</strong><span>{normalizedArrivalVin} can be checked with NHTSA and added without leaving this intake.</span></div><button disabled={vehicleIdentityBusy} onClick={() => void decodeVehicleForIntake()} type="button">{vehicleIdentityBusy ? "Decoding…" : "Decode VIN"}</button></div> : <div className="sic-decoded-vehicle">
@@ -1264,15 +1289,16 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     </div>
 
     {drawer ? <div className="sic-drawer-backdrop" role="presentation"><section aria-label="Add new customer" aria-modal="true" className="sic-create-drawer" role="dialog">
-      <header><div><small>Find Arrival</small><h2>Add New Customer</h2><p>The server checks canonical records and duplicate signals before this record is selected.</p></div><button aria-label="Close" onClick={() => setDrawer(null)} type="button"><X /></button></header>
+      <header><div><small>Find Arrival</small><h2>Add New Customer</h2><p>The server checks canonical records and duplicate signals before this record is selected.</p></div><button aria-label="Close" onClick={() => { setCustomerDrawerMessage(""); setDrawer(null); }} type="button"><X /></button></header>
       <div className="sic-drawer-fields">
-        <label><span>Customer name <b>Required</b></span><input autoFocus onChange={(event) => setNewCustomer((value) => ({ ...value, displayName: event.target.value }))} value={newCustomer.displayName} /></label>
-        <label><span>Mobile phone</span><input onChange={(event) => setNewCustomer((value) => ({ ...value, phoneNumber: event.target.value }))} type="tel" value={newCustomer.phoneNumber} /></label>
-        <label><span>Email</span><input onChange={(event) => setNewCustomer((value) => ({ ...value, email: event.target.value }))} type="email" value={newCustomer.email} /></label>
-        <label><span>Preferred contact</span><select onChange={(event) => setNewCustomer((value) => ({ ...value, preferredContactMethod: event.target.value }))} value={newCustomer.preferredContactMethod}><option value="PHONE">Phone</option><option value="SMS">Text message</option><option value="EMAIL">Email</option></select></label>
-        <label className="wide"><span>Address</span><input onChange={(event) => setNewCustomer((value) => ({ ...value, address: event.target.value }))} value={newCustomer.address} /></label>
+        <p className={customerDrawerMessage && customerDrawerMessage !== "Saving customer..." ? "sic-drawer-message error" : "sic-drawer-message"} role="status">{customerDrawerMessage || "Enter a name plus a phone number or email, then create and select the customer."}</p>
+        <label><span>Customer name <b>Required</b></span><input autoFocus onChange={(event) => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, displayName: event.target.value })); }} value={newCustomer.displayName} /></label>
+        <label><span>Mobile phone <b>Phone or email required</b></span><input onChange={(event) => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, phoneNumber: event.target.value })); }} placeholder="612 342 5656" type="tel" value={newCustomer.phoneNumber} /></label>
+        <label><span>Email</span><input onChange={(event) => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, email: event.target.value })); }} type="email" value={newCustomer.email} /></label>
+        <label><span>Preferred contact</span><select onChange={(event) => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, preferredContactMethod: event.target.value })); }} value={newCustomer.preferredContactMethod}><option value="PHONE">Phone</option><option value="SMS">Text message</option><option value="EMAIL">Email</option></select></label>
+        <label className="wide"><span>Address</span><input onChange={(event) => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, address: event.target.value })); }} value={newCustomer.address} /></label>
       </div>
-      <footer><button onClick={() => setDrawer(null)} type="button">Cancel</button><button className="primary" disabled={busy || !newCustomer.displayName || !newCustomer.phoneNumber && !newCustomer.email} onClick={() => void createCustomer()} type="button">{busy ? "Saving…" : "Create & Select Customer"}</button></footer>
+      <footer><button onClick={() => { setCustomerDrawerMessage(""); setDrawer(null); }} type="button">Cancel</button><button className="primary" disabled={busy || !customerDraftReady} onClick={() => void createCustomer()} type="button">{busy ? "Saving…" : "Create & Select Customer"}</button></footer>
     </section></div> : null}
 
     <footer className="sic-footer"><div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span><span>Next: {nextActionLabel}</span></div><button disabled={busy || (!ready && readinessLoading)} onClick={runFooterAction} type="button">{busy ? sameConcernOrder ? "Opening existing repair order…" : "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
