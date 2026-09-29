@@ -1,7 +1,7 @@
 import { BoardScreen } from "@/features/board/board-screen";
 import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { getDefaultLandingRoute, getPermittedWorkspaces } from "@/server/auth/navigation";
+import { canOpenDispatchBoard, getDefaultLandingRoute } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
@@ -44,7 +44,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
     searchParams,
     getGenerationSettings()
   ]);
-  if (!getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT")) redirect(getDefaultLandingRoute(user));
+  if (!canOpenDispatchBoard(user)) redirect(getDefaultLandingRoute(user));
   const manager = isManager(user);
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams?.date[0]

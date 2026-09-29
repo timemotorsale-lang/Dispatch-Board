@@ -179,6 +179,26 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).not.toContain('aria-label="Dispatch Board navigation"');
   });
 
+  it("keeps the Operations Coordinator sidebar available on Dispatch Board", () => {
+    currentPathname = "/board";
+    currentSearchParams = new URLSearchParams();
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={{ ...testUser, roles: ["Operations Coordinator"] }}>
+        <section>Dispatch Board</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("app-frame-operations-coordinator");
+    expect(markup).toContain('aria-label="Operations Coordinator navigation"');
+    expect(markup).toContain('href="/board"');
+    expect(markup).toContain("Coordinator Home");
+    expect(markup).toContain("Service Advisor");
+    expect(markup).toContain("Appointment Console");
+    expect(markup).toContain("Check In Vehicle");
+    expect(markup).toContain("Paperwork Center");
+  });
+
   it("keeps the Service Advisor sidebar on a manager-contained advisor workspace", () => {
     currentPathname = "/appointments";
     currentSearchParams = new URLSearchParams("workspaceContext=MANAGEMENT&managerMode=WORK&launch=advisor&returnTo=%2Fmanager-workspace%3Fmode%3Dwork");
