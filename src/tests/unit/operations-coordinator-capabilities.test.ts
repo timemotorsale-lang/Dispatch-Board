@@ -28,7 +28,8 @@ describe("operations coordinator capability defaults", () => {
       "PARTS_VIEW",
       "VEHICLE_EVIDENCE_VIEW",
       "VEHICLE_DISCOVERY_VIEW",
-      "CUSTOMER_LIFECYCLE_VIEW"
+      "CUSTOMER_LIFECYCLE_VIEW",
+      "CUSTOMER_INTAKE_CREATE"
     ] as const) {
       expect(evaluateVehicleCapability({
         actor: coordinator,
@@ -65,7 +66,8 @@ describe("operations coordinator capability defaults", () => {
       "REPAIR_ORDER_VIEW",
       "PARTS_VIEW",
       "VEHICLE_DISCOVERY_VIEW",
-      "CUSTOMER_LIFECYCLE_VIEW"
+      "CUSTOMER_LIFECYCLE_VIEW",
+      "CUSTOMER_INTAKE_CREATE"
     ] as const) {
       expect(evaluateVehicleCapability({
         actor: legacyCoordinator,

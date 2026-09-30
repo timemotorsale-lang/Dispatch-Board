@@ -56,7 +56,7 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
   if (!phoneNumber && !email) throw new Error("A phone number or email is required.");
 
   const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
-  assertVehicleCapability({ actor: user, capability: "REPAIR_ORDER_MANAGE", grants, locationId, now: new Date() });
+  assertVehicleCapability({ actor: user, capability: "CUSTOMER_INTAKE_CREATE", grants, locationId, now: new Date() });
 
   const normalizedPhone = normalizeServiceIntakePhoneNumber(phoneNumber);
   const duplicate = await prisma.customer.findFirst({
