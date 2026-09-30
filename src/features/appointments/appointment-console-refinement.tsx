@@ -366,6 +366,17 @@ function hasException(appointment: LiveAppointment) {
     appointment.resourceReservations.some((reservation) => reservation.status !== "COMMITTED");
 }
 
+function hasCalendarAppointmentContent(appointment: LiveAppointment) {
+  const hasIdentity = Boolean(
+    appointment.customer?.displayName?.trim() ||
+    appointment.owner?.name?.trim() ||
+    appointment.vehicles.length > 0
+  );
+  const isDefaultDraftPurpose = appointment.title === "Customer Issue / Resolution";
+
+  return hasIdentity || !isDefaultDraftPurpose;
+}
+
 function boardFocusHref(appointment: LiveAppointment, anchor = "") {
   return `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}${anchor}`;
 }
@@ -555,7 +566,7 @@ const appointmentTimeSlots = [
 ];
 
 type CalendarIntelligenceMode = "best" | "soonest" | "advisor" | "capacity";
-type CalendarInsightCard = "recommendations" | "resources" | "advisor" | "categories" | "draft" | null;
+type CalendarInsightCard = "recommendations" | "resources" | "advisor" | "categories" | "draft" | "appointment" | null;
 
 const enterpriseCalendarModes: Array<{ value: CalendarIntelligenceMode; label: string }> = [
   { value: "best", label: "Best fit" },
@@ -1083,6 +1094,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const [confirmedDuplicateAppointmentKey, setConfirmedDuplicateAppointmentKey] = useState<string | null>(null);
   const [createdAppointments, setCreatedAppointments] = useState<LiveAppointment[]>(() => loadRecentPlannerAppointments());
   const [editingAppointment, setEditingAppointment] = useState<LiveAppointment | null>(null);
+  const [expandedAppointment, setExpandedAppointment] = useState<LiveAppointment | null>(null);
   const [customerQuery, setCustomerQuery] = useState(initialContext?.customerReference ?? "");
   const [vehicleQuery, setVehicleQuery] = useState(initialContext?.vehicleReference ?? "");
   const [identityResults, setIdentityResults] = useState<AppointmentIdentitySearchResponse>({ customers: [], vehicles: [] });
@@ -1098,7 +1110,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const selectedSlotTop = useMemo(() => timeSlotTop(form.startTime), [form.startTime]);
   const monthCells = useMemo(() => buildMonthCells(form.localDate), [form.localDate]);
   const visibleAppointments = useMemo(() => {
-    const liveAppointments = appointmentWindow.data?.appointments ?? [];
+    const liveAppointments = (appointmentWindow.data?.appointments ?? []).filter(hasCalendarAppointmentContent);
     const appointmentsById = new Map<string, LiveAppointment>();
 
     for (const appointment of liveAppointments) {
@@ -1106,6 +1118,10 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     }
 
     for (const appointment of createdAppointments) {
+      if (!hasCalendarAppointmentContent(appointment)) {
+        continue;
+      }
+
       appointmentsById.set(appointment.id, appointment);
     }
 
@@ -1285,6 +1301,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     const vehicleName = vehicleLabel(appointment) === "No vehicle" ? "" : vehicleLabel(appointment);
 
     setEditingAppointment(appointment);
+    setExpandedAppointment(null);
     setSelectedPurposeCode(appointmentPurpose.value);
     setCustomerQuery(customerName);
     setVehicleQuery(vehicleName);
@@ -1310,9 +1327,10 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     startNewAppointmentDraft();
   }
 
-  function startNewAppointmentDraft() {
+  function startNewAppointmentDraft(startTime = form.startTime) {
     const defaultPurpose = purposeOptions[0];
     setEditingAppointment(null);
+    setExpandedAppointment(null);
     setCreatedAppointmentNumber(null);
     setSelectedPurposeCode(defaultPurpose.value);
     setSelectedCustomer(null);
@@ -1323,7 +1341,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
       customer: initialContext?.customerReference ?? "",
       vehicle: initialContext?.vehicleReference ?? "",
       localDate: form.localDate,
-      startTime: form.startTime,
+      startTime,
       durationMinutes: defaultPurpose.duration,
       advisor: "Any Advisor",
       transportation: "Customer Drive",
@@ -1340,6 +1358,12 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   }
 
   function chooseTimeSlot(slot: string, source: "quick" | "timeline") {
+    if (fullPageCalendarOpen && !editingAppointment) {
+      startNewAppointmentDraft(slot);
+      setNotice(`${formatTime(localDateTimeToIso(form.localDate, slot))} selected. Complete the appointment entry form to create the appointment.`);
+      return;
+    }
+
     updateField("startTime", slot);
     setNotice(`${formatTime(localDateTimeToIso(form.localDate, slot))} selected from the ${source === "timeline" ? "day timeline" : "quick slots"}.`);
     if (fullPageCalendarOpen) {
@@ -1349,7 +1373,9 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
 
   function chooseCalendarDate(dateKey: string, openDay = false) {
     updateField("localDate", dateKey);
-    setCalendarInsightCard("draft");
+    if (!fullPageCalendarOpen || editingAppointment) {
+      setCalendarInsightCard("draft");
+    }
     if (openDay) {
       setCalendarView("day");
     }
@@ -1448,17 +1474,24 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   }
 
   function openAppointmentDraftPanel() {
+    setExpandedAppointment(null);
     setCalendarView("day");
     setCalendarInsightCard("draft");
     setQuickSlotsOpen(true);
     setNotice(editingAppointment ? "Appointment edit panel is open." : "Appointment creation panel is open. Complete the draft details and create the appointment.");
   }
 
+  function expandAppointmentPreview(appointment: LiveAppointment) {
+    setExpandedAppointment(appointment);
+    setCalendarInsightCard("appointment");
+    setNotice(`${appointment.appointmentNumber} details expanded. Use Edit only when this appointment needs changes.`);
+  }
+
   function expandCalendarWorkspace() {
     setFullPageCalendarOpen(true);
     setQuickSlotsOpen(true);
-    openAppointmentDraftPanel();
-    setNotice("Full-page enterprise calendar workspace is active. Complete the draft panel to create the appointment.");
+    setCalendarInsightCard(null);
+    setNotice("Full-page enterprise calendar workspace is active. Select an appointment to expand its details.");
   }
 
   function closeFullPageCalendar() {
@@ -1676,7 +1709,6 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 <button className={calendarInsightCard === "recommendations" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "recommendations" ? null : "recommendations")} type="button">Openings</button>
                 <button className={calendarInsightCard === "resources" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "resources" ? null : "resources")} type="button">Resources</button>
                 <button className={calendarInsightCard === "advisor" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "advisor" ? null : "advisor")} type="button">Advisor</button>
-                <button className={calendarInsightCard === "draft" && !editingAppointment ? "active primary" : "primary"} onClick={startNewAppointmentDraft} type="button">Create appointment</button>
                 {enterpriseCalendarModes.map((mode) => (
                   <button
                     className={calendarIntelligenceMode === mode.value ? "active" : ""}
@@ -1715,6 +1747,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                               calendarInsightCard === "resources" ? "Resource depth" :
                                 calendarInsightCard === "advisor" ? "Advisor routing" :
                                   calendarInsightCard === "categories" ? "Categories" :
+                                    calendarInsightCard === "appointment" && expandedAppointment ? expandedAppointment.appointmentNumber :
                                     editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : "Create appointment"}
                           </strong>
                           <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
@@ -1774,6 +1807,21 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                               </button>
                             ))}
                           </div>
+                        ) : calendarInsightCard === "appointment" && expandedAppointment ? (
+                          <div className="calendar-enterprise-draft calendar-enterprise-appointment-detail">
+                            <dl>
+                              <div><dt>Time</dt><dd>{formatTime(expandedAppointment.startsAt)} - {formatTime(expandedAppointment.endsAt)}</dd></div>
+                              <div><dt>Purpose</dt><dd>{expandedAppointment.title}</dd></div>
+                              <div><dt>Customer</dt><dd>{expandedAppointment.customer?.displayName ?? "No customer"}</dd></div>
+                              <div><dt>Vehicle</dt><dd>{vehicleLabel(expandedAppointment)}</dd></div>
+                              <div><dt>Owner</dt><dd>{expandedAppointment.owner?.name ?? "Unassigned"}</dd></div>
+                              <div><dt>Status</dt><dd>{expandedAppointment.bookingStatus ?? "DRAFT"}</dd></div>
+                            </dl>
+                            <footer>
+                              <Link href={boardFocusHref(expandedAppointment)}>Open board</Link>
+                              <button onClick={() => hydrateAppointmentForEdit(expandedAppointment)} type="button">Edit appointment</button>
+                            </footer>
+                          </div>
                         ) : (
                           <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category)}>
                             <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
@@ -1831,7 +1879,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                         key={appointment.id}
                         onClick={(event) => {
                           event.preventDefault();
-                          hydrateAppointmentForEdit(appointment);
+                          expandAppointmentPreview(appointment);
                         }}
                         style={{ ...calendarCategoryStyle(appointment.category), top: fullCalendarAppointmentTop(appointment), height: "calc((100vh - 47px) / 11)" }}
                       >
@@ -1840,7 +1888,6 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                         <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
                       </Link>
                     ))}
-                    <button className="selected-slot selected-slot-category" onClick={openAppointmentDraftPanel} style={{ ...calendarCategoryStyle(selectedPurpose.category), top: fullCalendarTimeTop(form.startTime), height: `calc(((100vh - 47px) / 11) * ${form.durationMinutes / 60})` }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
                   </div>
                 </>
               ) : calendarView === "week" ? (
@@ -1860,7 +1907,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                             key={appointment.id}
                             onClick={(event) => {
                               event.preventDefault();
-                              hydrateAppointmentForEdit(appointment);
+                              expandAppointmentPreview(appointment);
                             }}
                           >
                             <span>{formatTime(appointment.startsAt)}</span>
@@ -2100,7 +2147,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                       key={appointment.id}
                       onClick={(event) => {
                         event.preventDefault();
-                        hydrateAppointmentForEdit(appointment);
+                        expandAppointmentPreview(appointment);
                       }}
                       style={{ top: appointmentTop(appointment), height: 58 }}
                     >
@@ -2129,7 +2176,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                           key={appointment.id}
                           onClick={(event) => {
                             event.preventDefault();
-                            hydrateAppointmentForEdit(appointment);
+                            expandAppointmentPreview(appointment);
                           }}
                         >
                           <span>{formatTime(appointment.startsAt)}</span>
@@ -2165,7 +2212,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                     key={appointment.id}
                     onClick={(event) => {
                       event.preventDefault();
-                      hydrateAppointmentForEdit(appointment);
+                      expandAppointmentPreview(appointment);
                     }}
                   >
                     <span>{formatTime(appointment.startsAt)}</span>
