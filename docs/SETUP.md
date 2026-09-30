@@ -165,16 +165,16 @@ Production checklist for auto-generation:
 
 ### Customer Console server setup
 
-Customer Console / CRM Next is controlled by the `CRM_NEXT` environment variable. Docker deployments default to the safe `REVIEW` mode when the variable is omitted. If `/crm-next` opens locally but the server says "Customer Console is protected right now," the running server container still has this variable set to `OFF` or has not been redeployed with the current Compose file.
+Customer Console / CRM Next is controlled by the app's `CRM_NEXT` environment variable. Docker deployments set that runtime variable from `CRM_NEXT_DOCKER_MODE` and default to the safe `REVIEW` mode when the deployment variable is omitted. If `/crm-next` opens locally but the server says "Customer Console is protected right now," the running server container still has `CRM_NEXT=OFF` or has not been redeployed with the current Compose file.
 
 To open Customer Console on the server:
 
-1. Set `CRM_NEXT=REVIEW` in the deployment environment.
+1. Set `CRM_NEXT_DOCKER_MODE=REVIEW` in the deployment environment.
 2. Redeploy or restart the app so the server process reads the new variable.
 3. Sign in as a Management or Sales workspace user.
 4. Open `/crm-next` again.
 
-Rollback is simple: set `CRM_NEXT=OFF`, then redeploy/restart. Customer Archive and older customer tools remain available.
+Rollback is simple: set `CRM_NEXT_DOCKER_MODE=OFF`, then redeploy/restart. Customer Archive and older customer tools remain available.
 
 Use the scheduler verification contract as the meaning baseline for what you should expect to see:
 

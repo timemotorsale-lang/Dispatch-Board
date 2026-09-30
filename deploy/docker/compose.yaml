@@ -57,7 +57,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
-      CRM_NEXT: ${CRM_NEXT:-REVIEW}
+      CRM_NEXT: ${CRM_NEXT_DOCKER_MODE:-REVIEW}
       TZ: ${APP_TIMEZONE:-America/Chicago}
     depends_on:
       db:

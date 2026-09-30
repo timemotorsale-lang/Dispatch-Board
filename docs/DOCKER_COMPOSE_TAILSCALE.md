@@ -65,7 +65,7 @@ POSTGRES_PASSWORD=replace-with-a-long-random-hex-value
 CRON_SECRET=replace-with-a-different-long-random-hex-value
 APP_TIMEZONE=America/Chicago
 APP_VERSION=local
-CRM_NEXT=REVIEW
+CRM_NEXT_DOCKER_MODE=REVIEW
 ```
 
 Optional variables:
@@ -78,10 +78,10 @@ ENABLE_DEMO_DATA=false
 ENABLE_SHOP_RECON_PILOT_SEED=false
 ```
 
-If `CRM_NEXT` is omitted, the Docker stack opens Customer Console in the safe `REVIEW` mode. To intentionally roll CRM Next back behind the protected fallback, set:
+Docker maps `CRM_NEXT_DOCKER_MODE` to the app's `CRM_NEXT` runtime variable. If `CRM_NEXT_DOCKER_MODE` is omitted, the Docker stack opens Customer Console in the safe `REVIEW` mode. To intentionally roll CRM Next back behind the protected fallback, set:
 
 ```env
-CRM_NEXT=OFF
+CRM_NEXT_DOCKER_MODE=OFF
 ```
 
 ## Start the Stack
