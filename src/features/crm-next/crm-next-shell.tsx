@@ -34,6 +34,7 @@ import { normalizeCrmWorkPathId, type CrmWorkPathId } from "@/features/crm-next/
 import {
   CRM_CUSTOMER_LANDING_HREF,
   CRM_NEXT_DEAL_START_HREF,
+  CRM_NEXT_CUSTOMER_LIST_HREF,
   CRM_NEXT_CUSTOMERS_HREF,
   LEGACY_CRM_FALLBACK_HREF,
   LEGACY_CUSTOMER_ARCHIVE_HREF,
@@ -612,7 +613,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
                 <Users size={17} /> Customers
               </Link>
               <div className={styles.navChildren}>
-                <Link aria-current={active === "customers" ? "page" : undefined} href={CRM_NEXT_CUSTOMERS_HREF}>Customer List</Link>
+                <Link aria-current={active === "customers" ? "page" : undefined} href={CRM_NEXT_CUSTOMER_LIST_HREF}>Customer List</Link>
                 <Link aria-current={active === "new" ? "page" : undefined} href="/crm-next/new">Add Customer</Link>
                 <Link href="/crm-next/pipeline">Leads</Link>
               </div>
@@ -1037,7 +1038,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
           <article><span>Possible duplicates</span><strong>{customerHealth.duplicates}</strong><small>Name, phone, or email match</small></article>
           <article><span>Closed locally</span><strong>{customerHealth.closed}</strong><small>Workbench outcome saved</small></article>
         </section>
-        <article className={`${styles.card} ${styles.directoryCard}`}>
+        <article className={`${styles.card} ${styles.directoryCard}`} id="customer-list">
           <header>
             <h2>Customer List</h2>
             <span className={styles.pill}>{customers.length} visible</span>

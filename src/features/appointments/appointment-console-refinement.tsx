@@ -1086,6 +1086,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const [calendarInsightCard, setCalendarInsightCard] = useState<CalendarInsightCard>(null);
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [fullPageCalendarOpen, setFullPageCalendarOpen] = useState(false);
+  const [expandedCalendarAppointmentId, setExpandedCalendarAppointmentId] = useState<string | null>(null);
   const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
   const [layoutMode, setLayoutMode] = useState<"compact" | "expandable">("compact");
   const [notice, setNotice] = useState("Ready to create appointment.");
@@ -1109,6 +1110,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const endsAtIso = useMemo(() => addMinutesToIso(startsAtIso, form.durationMinutes), [startsAtIso, form.durationMinutes]);
   const selectedSlotTop = useMemo(() => timeSlotTop(form.startTime), [form.startTime]);
   const monthCells = useMemo(() => buildMonthCells(form.localDate), [form.localDate]);
+  const calendarAppointmentsExpanded = expandedCalendarAppointmentId !== null;
   const visibleAppointments = useMemo(() => {
     const liveAppointments = (appointmentWindow.data?.appointments ?? []).filter(hasCalendarAppointmentContent);
     const appointmentsById = new Map<string, LiveAppointment>();
@@ -1323,6 +1325,18 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     setNotice(`Editing ${appointment.appointmentNumber}. Changes require a documented reason and save through the appointment command log.`);
   }
 
+  function expandCalendarAppointment(appointment: LiveAppointment) {
+    if (expandedCalendarAppointmentId) {
+      expandAppointmentPreview(appointment);
+      return;
+    }
+
+    setExpandedCalendarAppointmentId("all");
+    setExpandedAppointment(null);
+    setCalendarInsightCard(null);
+    setNotice("All appointments are expanded for reading. Click any expanded appointment for details.");
+  }
+
   function resetAppointmentDraft() {
     startNewAppointmentDraft();
   }
@@ -1355,6 +1369,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
 
   function updateField(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
+    setExpandedCalendarAppointmentId(null);
   }
 
   function chooseTimeSlot(slot: string, source: "quick" | "timeline") {
@@ -1733,7 +1748,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             </header>
               {calendarView === "day" ? (
                 <>
-                  <div className="calendar-stage">
+                  <div className={calendarAppointmentsExpanded ? "calendar-stage calendar-stage-expanded-all" : "calendar-stage"}>
                     {["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM"].map((hour) => <span className="time-label" key={hour}>{hour}</span>)}
                     <div className="availability good top" />
                     <div className="availability constrained mid" />
@@ -1872,22 +1887,37 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                         {formatTime(localDateTimeToIso(form.localDate, slot))}
                       </button>
                     ))}
-                    {visibleAppointments.map((appointment) => (
-                      <Link
-                        className="calendar-event calendar-event-category"
-                        href={boardFocusHref(appointment)}
-                        key={appointment.id}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          expandAppointmentPreview(appointment);
-                        }}
-                        style={{ ...calendarCategoryStyle(appointment.category), top: fullCalendarAppointmentTop(appointment), height: "calc((100vh - 47px) / 11)" }}
-                      >
-                        <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
-                        <strong>{appointment.title}</strong>
-                        <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
-                      </Link>
-                    ))}
+                    {visibleAppointments.map((appointment, index) => {
+                      const isExpanded = calendarAppointmentsExpanded;
+
+                      return (
+                        <button
+                          aria-expanded={isExpanded}
+                          className={["calendar-event", "calendar-event-category", isExpanded ? "calendar-event-expanded" : ""].filter(Boolean).join(" ")}
+                          key={appointment.id}
+                          onClick={() => expandCalendarAppointment(appointment)}
+                          style={{
+                            ...calendarCategoryStyle(appointment.category),
+                            top: isExpanded ? `calc(22px + ${index * 214}px)` : fullCalendarAppointmentTop(appointment),
+                            height: isExpanded ? "min(228px, calc(((100vh - 47px) / 11) * 3))" : "calc((100vh - 47px) / 11)"
+                          }}
+                          type="button"
+                        >
+                          <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
+                          <strong>{appointment.title}</strong>
+                          <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
+                          {isExpanded ? (
+                            <>
+                              <small>{vehicleLabel(appointment)}</small>
+                              <small>{appointment.owner?.name ?? "Unassigned advisor"} · {appointment.bookingStatus.replaceAll("_", " ").toLowerCase()}</small>
+                              <em>{appointment.category ?? appointment.title}</em>
+                              <em>Click for details</em>
+                            </>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                    <button className="selected-slot selected-slot-category" onClick={openAppointmentDraftPanel} style={{ ...calendarCategoryStyle(selectedPurpose.category), top: fullCalendarTimeTop(form.startTime), height: `calc(((100vh - 47px) / 11) * ${form.durationMinutes / 60})` }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
                   </div>
                 </>
               ) : calendarView === "week" ? (
@@ -2122,7 +2152,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                     </div>
                   ) : null}
                 </section>
-                <div className="calendar-stage">
+                <div className={calendarAppointmentsExpanded ? "calendar-stage calendar-stage-expanded-all" : "calendar-stage"}>
                   {["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM"].map((hour) => <span className="time-label" key={hour}>{hour}</span>)}
                   <div className="availability good top" />
                   <div className="availability constrained mid" />
@@ -2140,22 +2170,32 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                       {formatTime(localDateTimeToIso(form.localDate, slot))}
                     </button>
                   ))}
-                  {visibleAppointments.map((appointment) => (
-                    <Link
-                      className="calendar-event blue"
-                      href={boardFocusHref(appointment)}
-                      key={appointment.id}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        expandAppointmentPreview(appointment);
-                      }}
-                      style={{ top: appointmentTop(appointment), height: 58 }}
-                    >
-                      <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
-                      <strong>{appointment.title}</strong>
-                      <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
-                    </Link>
-                  ))}
+                  {visibleAppointments.map((appointment, index) => {
+                    const isExpanded = calendarAppointmentsExpanded;
+
+                    return (
+                      <button
+                        aria-expanded={isExpanded}
+                        className={["calendar-event", "blue", isExpanded ? "calendar-event-expanded" : ""].filter(Boolean).join(" ")}
+                        key={appointment.id}
+                        onClick={() => expandCalendarAppointment(appointment)}
+                        style={{ top: isExpanded ? 14 + index * 206 : appointmentTop(appointment), height: isExpanded ? 190 : 58 }}
+                        type="button"
+                      >
+                        <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
+                        <strong>{appointment.title}</strong>
+                        <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
+                        {isExpanded ? (
+                          <>
+                            <small>{vehicleLabel(appointment)}</small>
+                            <small>{appointment.owner?.name ?? "Unassigned advisor"} · {appointment.bookingStatus.replaceAll("_", " ").toLowerCase()}</small>
+                            <em>{appointment.category ?? appointment.title}</em>
+                            <em>Click for details</em>
+                          </>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                   <button className="selected-slot" onClick={() => { focusAppointmentPanel("calendar"); setQuickSlotsOpen(true); }} style={{ top: selectedSlotTop }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
                 </div>
               </>

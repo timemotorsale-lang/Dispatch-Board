@@ -1,5 +1,6 @@
 export const CRM_NEXT_HOME_HREF = "/crm-next";
 export const CRM_NEXT_CUSTOMERS_HREF = "/crm-next/customers";
+export const CRM_NEXT_CUSTOMER_LIST_HREF = `${CRM_NEXT_CUSTOMERS_HREF}#customer-list`;
 export const CRM_NEXT_INTAKE_HREF = "/crm-next/new";
 export const CRM_NEXT_SEARCH_HREF = "/crm-next/search";
 export const CRM_NEXT_APPOINTMENTS_HREF = "/crm-next/appointments";

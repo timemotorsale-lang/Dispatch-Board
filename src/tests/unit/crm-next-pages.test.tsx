@@ -302,6 +302,8 @@ describe("CRM Next pages", () => {
     expect(search).toContain("Open Customer Archive");
     expect(search).toContain('href="/customers"');
     expect(customersList).toContain("Customer List");
+    expect(customersList).toContain('href="/crm-next/customers#customer-list"');
+    expect(customersList).toContain('id="customer-list"');
     expect(customersList).toContain("0 visible");
     expect(customersList).toContain("Customer tools");
     expect(customersList).toContain("Add, search, review attention, or open pipeline without narrowing the list.");
