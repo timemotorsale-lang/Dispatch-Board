@@ -165,7 +165,7 @@ Production checklist for auto-generation:
 
 ### Customer Console server setup
 
-Customer Console / CRM Next is intentionally protected by the `CRM_NEXT` environment variable. If `/crm-next` opens locally but the server says "Customer Console is protected right now," the deployed server is missing this variable or has it set to `OFF`.
+Customer Console / CRM Next is controlled by the `CRM_NEXT` environment variable. Docker deployments default to the safe `REVIEW` mode when the variable is omitted. If `/crm-next` opens locally but the server says "Customer Console is protected right now," the running server container still has this variable set to `OFF` or has not been redeployed with the current Compose file.
 
 To open Customer Console on the server:
 
@@ -174,7 +174,7 @@ To open Customer Console on the server:
 3. Sign in as a Management or Sales workspace user.
 4. Open `/crm-next` again.
 
-Rollback is simple: set `CRM_NEXT=OFF` or remove the variable, then redeploy/restart. Customer Archive and older customer tools remain available.
+Rollback is simple: set `CRM_NEXT=OFF`, then redeploy/restart. Customer Archive and older customer tools remain available.
 
 Use the scheduler verification contract as the meaning baseline for what you should expect to see:
 

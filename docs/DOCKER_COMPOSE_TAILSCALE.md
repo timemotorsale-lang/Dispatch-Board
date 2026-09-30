@@ -78,6 +78,12 @@ ENABLE_DEMO_DATA=false
 ENABLE_SHOP_RECON_PILOT_SEED=false
 ```
 
+If `CRM_NEXT` is omitted, the Docker stack opens Customer Console in the safe `REVIEW` mode. To intentionally roll CRM Next back behind the protected fallback, set:
+
+```env
+CRM_NEXT=OFF
+```
+
 ## Start the Stack
 
 From the repository root on the Ubuntu server:
