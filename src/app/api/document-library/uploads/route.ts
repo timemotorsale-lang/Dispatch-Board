@@ -14,13 +14,15 @@ import { stageDocumentLibraryUpload } from "@/server/document-library/upload-ser
 const TYPED_CODES = new Set<DocumentLibraryFailureCode>([
   "AUTHENTICATION_REQUIRED",
   "DOCUMENT_LIBRARY_INVALID_ACTION",
-  "DOCUMENT_LIBRARY_NOT_AUTHORIZED"
+  "DOCUMENT_LIBRARY_NOT_AUTHORIZED",
+  "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE"
 ]);
 
 function statusForCode(code: string | undefined) {
   if (code === "AUTHENTICATION_REQUIRED") return 401;
   if (code === "DOCUMENT_LIBRARY_NOT_AUTHORIZED") return 403;
   if (code === "DOCUMENT_LIBRARY_INVALID_ACTION") return 400;
+  if (code === "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE") return 503;
   return 500;
 }
 
@@ -46,7 +48,15 @@ async function payloadFromRequest(request: Request) {
 export async function POST(request: Request) {
   try {
     const storage = resolveDocumentStorageRuntimeFromEnv();
-    return NextResponse.json(await stageDocumentLibraryUpload(await getCurrentUser(), await payloadFromRequest(request), {
+    const payload = await payloadFromRequest(request);
+    if (payload.bytes instanceof Uint8Array && (!storage.adapter || !storage.readiness.readyForByteStorage)) {
+      throw new DocumentLibraryError(
+        "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",
+        "Document storage is temporarily unavailable. The file was not accepted; try the upload again after storage is restored.",
+        true
+      );
+    }
+    return NextResponse.json(await stageDocumentLibraryUpload(await getCurrentUser(), payload, {
       organizationId: storage.organizationId,
       persistSmartIntake: true,
       storageAdapter: storage.adapter

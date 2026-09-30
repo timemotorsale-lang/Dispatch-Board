@@ -31,6 +31,7 @@ describe("claims workspace API routes", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     setClaimsWorkspaceRepositoryForTesting(null);
   });
 
@@ -156,6 +157,35 @@ describe("claims workspace API routes", () => {
       roles: ["Service Advisor"]
     });
     expect(library.documents.some((document) => document.documentType === "INSURANCE_ESTIMATE" && document.owner.id === claimId)).toBe(true);
+  });
+
+  it("does not attach claim evidence when original document storage is unavailable", async () => {
+    vi.stubEnv("DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK", "true");
+    vi.stubEnv("DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT", "");
+    vi.stubEnv("DOCUMENT_LIBRARY_CLOUD_PROVIDER", "");
+    const repository = createInMemoryClaimsWorkspaceRepository();
+    setClaimsWorkspaceRepositoryForTesting(repository);
+
+    const form = new FormData();
+    form.set("category", "ESTIMATE");
+    form.set("title", "Carrier estimate");
+    form.set("file", new File(["estimate bytes"], "carrier-estimate.pdf", { type: "application/pdf" }));
+
+    const response = await ATTACH_EVIDENCE(new Request("http://local/api/claims-workspace/claims/claim-demo-1/evidence", {
+      body: form,
+      method: "POST"
+    }), {
+      params: Promise.resolve({ claimId: "claim-demo-1" })
+    });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",
+      retryable: true
+    });
+    const aggregate = await repository.findClaimById("claim-demo-1");
+    expect(aggregate?.evidence).toHaveLength(4);
+    expect(aggregate?.evidence.some((item) => item.fileName === "carrier-estimate.pdf")).toBe(false);
   });
 
   it("requires manager approval for blocked handoff exceptions at the API boundary", async () => {

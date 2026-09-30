@@ -21,6 +21,7 @@ function statusForCode(code: string | undefined) {
   if (code === "CLAIM_INVALID") return 400;
   if (code === "DOCUMENT_LIBRARY_INVALID_ACTION") return 400;
   if (code === "DOCUMENT_LIBRARY_NOT_AUTHORIZED") return 403;
+  if (code === "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE") return 503;
   return 500;
 }
 
@@ -60,6 +61,13 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         ...extracted.warnings.map((warning) => `Extraction note: ${warning}`)
       ].join("\n");
       const storageRuntime = resolveDocumentStorageRuntimeFromEnv();
+      if (!storageRuntime.adapter || !storageRuntime.readiness.readyForByteStorage) {
+        throw new DocumentLibraryError(
+          "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",
+          "Document storage is temporarily unavailable. The file was not accepted; try the upload again after storage is restored.",
+          true
+        );
+      }
       const documentId = `doc-claim-${checksumSha256.slice(0, 12)}`;
       const staged = await stageDocumentLibraryUpload(user, {
         bytes,
@@ -99,6 +107,13 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
       });
       const commandResult = "command" in createdDocument ? createdDocument.command : undefined;
       const createdDocumentId = commandResult?.document?.id;
+      if (!createdDocumentId || !staged.storedObject) {
+        throw new DocumentLibraryError(
+          "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",
+          "The original document could not be confirmed in storage. The claim evidence was not attached; try the upload again.",
+          true
+        );
+      }
       return NextResponse.json(
         await attachClaimEvidence(user, claimId, {
           category,

@@ -58,9 +58,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
       CRM_NEXT: ${CRM_NEXT_DOCKER_MODE:-REVIEW}
+      DOCUMENT_LIBRARY_DURABLE_REPOSITORY_ENABLED: "true"
+      DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT: /app/data/document-library
+      DOCUMENT_LIBRARY_ORGANIZATION_ID: ${DOCUMENT_LIBRARY_ORGANIZATION_ID:-org-time-motor-sales}
       TZ: ${APP_TIMEZONE:-America/Chicago}
     ports:
       - "127.0.0.1:3000:3000"
+    volumes:
+      - document_library_data:/app/data/document-library
     depends_on:
       db:
         condition: service_healthy
@@ -153,6 +158,7 @@ services:
       - no-new-privileges:true
 
 volumes:
+  document_library_data:
   postgres_data:
   postgres_backups:
 

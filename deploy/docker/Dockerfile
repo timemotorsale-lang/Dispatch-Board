@@ -56,6 +56,9 @@ COPY --from=builder --chown=node:node /app/node_modules/.prisma ./node_modules/.
 COPY --from=builder --chown=node:node /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder --chown=node:node /app/deploy/docker/scripts/run-production-scheduler.mjs ./scripts/run-production-scheduler.mjs
 
+RUN mkdir -p /app/data/document-library \
+  && chown -R node:node /app/data
+
 USER node
 
 EXPOSE 3000

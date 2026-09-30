@@ -163,6 +163,28 @@ describe("document library backend routes", () => {
     });
   });
 
+  it("rejects file bytes when durable document storage is unavailable", async () => {
+    process.env.DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK = "true";
+    mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "advisor@example.test", id: "staff-1", isActive: true, name: "Advisor", roles: ["Service Advisor"] });
+    const form = new FormData();
+    form.set("file", new File(["authorization bytes"], "authorization.pdf", { type: "application/pdf" }));
+    form.set("ownerId", "customer-1");
+    form.set("ownerLabel", "Customer One");
+    form.set("ownerType", "CUSTOMER");
+    form.set("reason", "Customer supplied authorization.");
+
+    const response = await UPLOAD_POST(new Request("http://dispatch.local/api/document-library/uploads", {
+      body: form,
+      method: "POST"
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",
+      retryable: true
+    });
+  });
+
   it("denies provider actions without manager authority", async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "advisor@example.test", id: "staff-1", isActive: true, name: "Advisor", roles: ["Service Advisor"] });
 
