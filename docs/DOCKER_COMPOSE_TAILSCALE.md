@@ -65,6 +65,7 @@ POSTGRES_PASSWORD=replace-with-a-long-random-hex-value
 CRON_SECRET=replace-with-a-different-long-random-hex-value
 APP_TIMEZONE=America/Chicago
 APP_VERSION=local
+CRM_NEXT=REVIEW
 ```
 
 Optional variables:
