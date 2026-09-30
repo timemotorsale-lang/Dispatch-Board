@@ -10,6 +10,11 @@ import type {
 } from "./service";
 
 type InsuranceClaimRow = {
+  approvedAmountCents: number | null;
+  approvedAmountConfidence: string | null;
+  approvedAmountRecordedAt: Date | null;
+  approvedAmountSourceDocumentId: string | null;
+  approvedAmountSourceEvidenceId: string | null;
   adjusterEmail: string | null;
   adjusterName: string | null;
   adjusterPhone: string | null;
@@ -155,7 +160,7 @@ export function createPrismaClaimsWorkspaceRepository(input: {
         });
       });
     },
-    async addEvidence(claimId, evidence) {
+    async addEvidence(claimId, evidence, claimUpdate) {
       return withTx(async (tx) => {
         await findRequired(claimId, tx);
         await tx.insuranceClaimEvidence.create({
@@ -177,6 +182,11 @@ export function createPrismaClaimsWorkspaceRepository(input: {
         });
         return toAggregate(await tx.insuranceClaim.update({
           data: {
+            approvedAmountCents: claimUpdate?.approvedAmountCents,
+            approvedAmountConfidence: claimUpdate?.approvedAmountConfidence,
+            approvedAmountRecordedAt: claimUpdate?.approvedAmountRecordedAt ? new Date(claimUpdate.approvedAmountRecordedAt) : undefined,
+            approvedAmountSourceDocumentId: claimUpdate?.approvedAmountSourceDocumentId,
+            approvedAmountSourceEvidenceId: claimUpdate?.approvedAmountSourceEvidenceId,
             lastActivityAt: new Date(evidence.createdAt),
             version: { increment: 1 }
           },
@@ -188,6 +198,11 @@ export function createPrismaClaimsWorkspaceRepository(input: {
     async createClaim(claim) {
       return toAggregate(await prisma.insuranceClaim.create({
         data: {
+          approvedAmountCents: claim.approvedAmountCents ?? null,
+          approvedAmountConfidence: claim.approvedAmountConfidence ?? null,
+          approvedAmountRecordedAt: claim.approvedAmountRecordedAt ? new Date(claim.approvedAmountRecordedAt) : null,
+          approvedAmountSourceDocumentId: claim.approvedAmountSourceDocumentId ?? null,
+          approvedAmountSourceEvidenceId: claim.approvedAmountSourceEvidenceId ?? null,
           adjusterEmail: claim.adjusterEmail || null,
           adjusterName: claim.adjusterName || null,
           adjusterPhone: claim.adjusterPhone || null,
@@ -256,6 +271,11 @@ export function createPrismaClaimsWorkspaceRepository(input: {
     async updateClaim(claimId, update) {
       return toAggregate(await prisma.insuranceClaim.update({
         data: {
+          approvedAmountCents: update.approvedAmountCents,
+          approvedAmountConfidence: update.approvedAmountConfidence,
+          approvedAmountRecordedAt: update.approvedAmountRecordedAt ? new Date(update.approvedAmountRecordedAt) : undefined,
+          approvedAmountSourceDocumentId: update.approvedAmountSourceDocumentId,
+          approvedAmountSourceEvidenceId: update.approvedAmountSourceEvidenceId,
           adjusterEmail: update.adjusterEmail,
           adjusterName: update.adjusterName,
           adjusterPhone: update.adjusterPhone,
@@ -370,6 +390,11 @@ function toAggregate(row: InsuranceClaimRow): ClaimWorkspaceAggregate {
   return {
     activities: row.activities.map(toActivity),
     claim: {
+      approvedAmountCents: row.approvedAmountCents ?? undefined,
+      approvedAmountConfidence: row.approvedAmountConfidence === "HIGH" || row.approvedAmountConfidence === "MEDIUM" ? row.approvedAmountConfidence : undefined,
+      approvedAmountRecordedAt: row.approvedAmountRecordedAt?.toISOString(),
+      approvedAmountSourceDocumentId: row.approvedAmountSourceDocumentId ?? undefined,
+      approvedAmountSourceEvidenceId: row.approvedAmountSourceEvidenceId ?? undefined,
       adjusterEmail: row.adjusterEmail ?? undefined,
       adjusterName: row.adjusterName ?? undefined,
       adjusterPhone: row.adjusterPhone ?? undefined,

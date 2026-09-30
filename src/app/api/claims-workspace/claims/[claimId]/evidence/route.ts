@@ -68,7 +68,8 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
           true
         );
       }
-      const documentId = `doc-claim-${checksumSha256.slice(0, 12)}`;
+      const claimIdentity = createHash("sha256").update(claimId).digest("hex").slice(0, 10);
+      const documentId = `doc-claim-${claimIdentity}-${checksumSha256.slice(0, 12)}`;
       const staged = await stageDocumentLibraryUpload(user, {
         bytes,
         checksumSha256,

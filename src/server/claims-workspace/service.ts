@@ -35,6 +35,11 @@ export type ClaimEvidenceStatus = "MISSING" | "RECEIVED" | "NOT_APPLICABLE" | "B
 export type ClaimReadinessStatus = "ready" | "not_ready" | "blocked" | "exception_ready";
 
 export type InsuranceClaimRecord = {
+  approvedAmountCents?: number;
+  approvedAmountConfidence?: "HIGH" | "MEDIUM";
+  approvedAmountRecordedAt?: string;
+  approvedAmountSourceDocumentId?: string;
+  approvedAmountSourceEvidenceId?: string;
   adjusterEmail?: string;
   adjusterName?: string;
   adjusterPhone?: string;
@@ -351,7 +356,7 @@ export type ClaimDuplicateWarning = {
 
 export type ClaimsWorkspaceRepository = {
   addActivity(claimId: string, activity: ClaimActivityRecord): Promise<void>;
-  addEvidence(claimId: string, evidence: ClaimEvidenceRecord): Promise<ClaimWorkspaceAggregate>;
+  addEvidence(claimId: string, evidence: ClaimEvidenceRecord, claimUpdate?: Partial<InsuranceClaimRecord>): Promise<ClaimWorkspaceAggregate>;
   createClaim(claim: InsuranceClaimRecord): Promise<ClaimWorkspaceAggregate>;
   findAssociatedRepairTask?(aggregate: ClaimWorkspaceAggregate): Promise<ClaimAssociatedRepairTask | null>;
   findClaimById(claimId: string): Promise<ClaimWorkspaceAggregate | null>;
@@ -608,12 +613,16 @@ export function createInMemoryClaimsWorkspaceRepository(seed = seededAggregates(
       aggregate.claim.lastActivityAt = activity.at;
       aggregate.claim.version += 1;
     },
-    async addEvidence(claimId, evidence) {
+    async addEvidence(claimId, evidence, claimUpdate) {
       const aggregate = claims.get(claimId);
       if (!aggregate) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
       aggregate.evidence.push(evidence);
-      aggregate.claim.lastActivityAt = evidence.createdAt;
-      aggregate.claim.version += 1;
+      aggregate.claim = {
+        ...aggregate.claim,
+        ...claimUpdate,
+        lastActivityAt: evidence.createdAt,
+        version: aggregate.claim.version + 1
+      };
       return structuredClone(aggregate);
     },
     async createClaim(claim) {
@@ -932,13 +941,20 @@ export async function attachClaimEvidence(
     createdByUserId: user.id,
     id: `claim-evidence-${randomUUID()}`
   };
-  const aggregate = await context.repository.addEvidence(claimId, evidence);
+  const amount = isEstimateEvidence(evidence) ? extractApprovedAmount(evidenceSearchText(evidence)) : null;
+  const aggregate = await context.repository.addEvidence(claimId, evidence, amount ? {
+    approvedAmountCents: amount.cents,
+    approvedAmountConfidence: amount.confidence,
+    approvedAmountRecordedAt: now,
+    approvedAmountSourceDocumentId: evidence.documentLibraryId,
+    approvedAmountSourceEvidenceId: evidence.id
+  } : undefined);
   await context.repository.addActivity(claimId, {
     action: "CLAIM_EVIDENCE_ATTACHED",
     actorUserId: user.id,
     actorUserName: user.name,
     at: now,
-    detail: `${evidence.title} attached as ${evidence.category.toLowerCase().replaceAll("_", " ")}.`,
+    detail: `${evidence.title} attached as ${evidence.category.toLowerCase().replaceAll("_", " ")}.${amount ? ` Approved repair amount ${formatMoneyCents(amount.cents)} read from the document.` : ""}`,
     id: `claim-activity-${randomUUID()}`
   });
   return toClaimReadModel(aggregate);
@@ -1318,6 +1334,9 @@ function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: Cla
 }
 
 function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateReview {
+  const recordedSource = aggregate.claim.approvedAmountSourceEvidenceId
+    ? aggregate.evidence.find((item) => item.id === aggregate.claim.approvedAmountSourceEvidenceId)
+    : undefined;
   const estimate = [...aggregate.evidence]
     .filter((item) => isEstimateEvidence(item) && item.status !== "BLOCKED")
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
@@ -1331,48 +1350,51 @@ function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateR
     };
   }
 
-  const evidenceText = [estimate.extractedText, estimate.notes, estimate.title, estimate.fileName].filter(Boolean).join(" ");
-  const approvedAmountCents = extractApprovedAmountCents(evidenceText);
+  const evidenceText = evidenceSearchText(estimate);
+  const extractedAmount = extractApprovedAmount(evidenceText);
+  const approvedAmountCents = aggregate.claim.approvedAmountCents ?? extractedAmount?.cents ?? null;
+  const amountSource = recordedSource ?? estimate;
   const amountFound = approvedAmountCents !== null;
 
   return {
     approvedAmountCents,
     approvedAmountLabel: amountFound ? formatMoneyCents(approvedAmountCents) : "Estimate attached - amount review needed",
-    confidence: amountFound ? /approved|allowed|net|total|estimate|repair/i.test(evidenceText) ? "HIGH" : "MEDIUM" : "NEEDS_REVIEW",
+    confidence: amountFound ? aggregate.claim.approvedAmountConfidence ?? extractedAmount?.confidence ?? "MEDIUM" : "NEEDS_REVIEW",
     detail: amountFound
-      ? "Approved repair amount was read from the uploaded estimate evidence text and should be verified in review before billing."
+      ? "Approved repair amount was read from the uploaded estimate and recorded on the claim with its source document for workflow and billing use."
       : "Estimate evidence is attached, but the approved repair amount was not found in the title, file name, or note.",
-    documentLibraryId: estimate.documentLibraryId,
-    evidenceId: estimate.id,
-    fileName: estimate.fileName,
-    receivedAt: estimate.createdAt,
-    sourceTitle: estimate.title,
+    documentLibraryId: amountSource.documentLibraryId,
+    evidenceId: amountSource.id,
+    fileName: amountSource.fileName,
+    receivedAt: aggregate.claim.approvedAmountRecordedAt ?? amountSource.createdAt,
+    sourceTitle: amountSource.title,
     status: amountFound ? "AMOUNT_FOUND" : "REVIEW_NEEDED"
   };
 }
 
 function isEstimateEvidence(item: ClaimEvidenceRecord) {
   if (item.category === "ESTIMATE") return true;
-  return /estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary/i.test(evidenceSearchText(item));
+  return /estimate|supplement|approved repair|repair amount|authorized amount|amount authorized|carrier total|net claim|preliminary/i.test(evidenceSearchText(item));
 }
 
-function extractApprovedAmountCents(value: string) {
+function extractApprovedAmount(value: string): { cents: number; confidence: "HIGH" | "MEDIUM" } | null {
   const normalized = value.replace(/\s+/g, " ");
   const currencyPattern = String.raw`\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)`;
-  const summaryLabels = String.raw`(?:approved(?: repair)? amount|allowed amount|net estimate total|estimate total|gross total|carrier total|repair total|total repair|supplement amount)`;
+  const summaryLabels = String.raw`(?:approved(?: repair)? amount|authorized amount|amount authorized|allowed amount|net estimate total|estimate total|total estimate|gross total|carrier total|repair total|total repair|total cost of repairs|net claim|supplement amount)`;
   const targeted = [...normalized.matchAll(new RegExp(String.raw`${summaryLabels}[^$0-9]{0,80}${currencyPattern}(?![0-9])`, "gi"))]
     .map((match) => moneyTextToCents(match[1]))
     .filter((candidate) => candidate >= 100_00)
     .sort((left, right) => right - left)[0];
+  if (typeof targeted === "number") return { cents: targeted, confidence: "HIGH" };
   const amountText = targeted ?? [...normalized.matchAll(new RegExp(String.raw`\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)(?![0-9])`, "g"))]
     .map((match) => match[1])
     .map((candidate) => moneyTextToCents(candidate))
     .filter((candidate) => candidate >= 100_00)
     .sort((left, right) => right - left)[0];
-  if (typeof amountText === "number") return amountText;
+  if (typeof amountText === "number") return { cents: amountText, confidence: "MEDIUM" };
   if (!amountText) return null;
   const cents = moneyTextToCents(amountText);
-  return cents > 0 ? cents : null;
+  return cents > 0 ? { cents, confidence: "MEDIUM" } : null;
 }
 
 function moneyTextToCents(value: string) {
@@ -1635,7 +1657,7 @@ function inferEvidenceCategory(
   evidence: Pick<ClaimEvidenceRecord, "extractedText" | "fileName" | "notes" | "title">
 ): ClaimEvidenceCategory {
   const haystack = evidenceSearchText(evidence);
-  if (/estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary estimate/i.test(haystack)) return "ESTIMATE";
+  if (/estimate|supplement|approved repair|repair amount|authorized amount|amount authorized|carrier total|net claim|preliminary estimate/i.test(haystack)) return "ESTIMATE";
   if (/rental|loaner|daily rate|approved days|extension/i.test(haystack)) return "RENTAL";
   if (/payment|paid|check|eft|deductible|short-pay|short pay/i.test(haystack)) return "PAYMENT";
   if (/authorization|signed auth|repair auth|signature/i.test(haystack)) return "AUTHORIZATION";

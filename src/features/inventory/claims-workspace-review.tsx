@@ -324,19 +324,28 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
     setActionMessage("");
     setIsWorking(true);
     try {
-      const file = formData.get("file");
-      const hasFile = file instanceof File && file.size > 0;
-      const response = await fetch(path, hasFile ? {
-        body: formData,
-        method: "POST"
-      } : {
-        body: JSON.stringify(Object.fromEntries(formData.entries())),
-        headers: { "Content-Type": "application/json" },
-        method: "POST"
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error ?? "The claim evidence could not be recorded.");
-      setActionMessage(hasFile ? "File uploaded and linked to the claim. Refreshing workspace..." : "Evidence recorded. Refreshing workspace...");
+      const files = formData.getAll("file").filter((file): file is File => file instanceof File && file.size > 0);
+      if (files.length) {
+        for (const file of files) {
+          const upload = new FormData();
+          for (const [key, value] of formData.entries()) {
+            if (key !== "file") upload.append(key, value);
+          }
+          upload.append("file", file);
+          const response = await fetch(path, { body: upload, method: "POST" });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(`${file.name}: ${payload?.error ?? "The claim evidence could not be recorded."}`);
+        }
+      } else {
+        const response = await fetch(path, {
+          body: JSON.stringify(Object.fromEntries(formData.entries())),
+          headers: { "Content-Type": "application/json" },
+          method: "POST"
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.error ?? "The claim evidence could not be recorded.");
+      }
+      setActionMessage(files.length ? `${files.length} file${files.length === 1 ? "" : "s"} uploaded and linked to the claim. Refreshing workspace...` : "Evidence recorded. Refreshing workspace...");
       window.location.reload();
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "The claim evidence could not be recorded.");
@@ -353,8 +362,8 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   async function recordActivityUpdate(formData: FormData) {
     if (!claimId) return;
     const category = String(formData.get("category") ?? "ACTIVITY_ONLY");
-    const file = formData.get("file");
-    const fileName = file && typeof file === "object" && "name" in file ? String(file.name) : "";
+    const files = formData.getAll("file").filter((file): file is File => file instanceof File && file.size > 0);
+    const fileName = files[0]?.name ?? "";
     const title = String(formData.get("title") ?? "").trim();
     const note = String(formData.get("note") ?? "").trim();
     const updateType = String(formData.get("updateType") ?? "").trim();
@@ -951,7 +960,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                       <option value="AUTHORIZATION">Authorization</option>
                     </select>
                     <input name="title" placeholder="Evidence title" />
-                    <input name="file" type="file" />
+                    <input multiple name="file" type="file" />
                   </div>
                   <label className={styles.noteField}>
                     <span>Recovery note</span>
@@ -1062,7 +1071,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               <div>
                 <input name="title" placeholder="Evidence title, e.g. Progressive estimate approved $4,812.44" />
                 <input name="nextAction" placeholder="Next action after estimate review" />
-                <input name="file" type="file" />
+                <input multiple name="file" type="file" />
               </div>
               <label className={styles.noteField}>
                 <span>Estimate note</span>
@@ -1111,7 +1120,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                 </select>
                 <input name="title" placeholder="Optional evidence title" />
                 <input name="nextAction" placeholder="Next action, e.g. Reinspection by Spencer" />
-                <input name="file" type="file" />
+                <input multiple name="file" type="file" />
               </div>
               <label className={styles.noteField}>
                 <span>Progress note</span>
@@ -1293,7 +1302,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                       </select>
                       <input name="title" placeholder="Evidence title" />
                       <input name="nextAction" placeholder="Next action after upload" />
-                      <input name="file" type="file" />
+                      <input multiple name="file" type="file" />
                     </div>
                     <label className={styles.noteField}>
                       <span>Evidence note</span>
