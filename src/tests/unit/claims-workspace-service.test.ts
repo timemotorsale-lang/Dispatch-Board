@@ -285,6 +285,44 @@ describe("claims workspace service", () => {
       confidence: "HIGH",
       status: "AMOUNT_FOUND"
     });
+    expect(model.claim).toMatchObject({
+      approvedAmountCents: 664231,
+      approvedAmountConfidence: "HIGH",
+      approvedAmountRecordedAt: expect.any(String),
+      approvedAmountSourceEvidenceId: model.estimateReview.evidenceId
+    });
+
+    const reloaded = await getClaimWorkspaceReadModel(actor, created.readModel.claim.id, { repository });
+    expect(reloaded.claim.approvedAmountCents).toBe(664231);
+    expect(reloaded.estimateReview.approvedAmountLabel).toBe("$6,642.31");
+  });
+
+  it("keeps multiple uploaded documents as independent claim evidence", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      claimNumber: "MN-67006",
+      customerName: "Multiple Document Customer",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-MULTI-001"
+    }, { repository });
+
+    for (const [documentLibraryId, fileName, title] of [
+      ["doc-estimate", "carrier-estimate.pdf", "Carrier estimate"],
+      ["doc-authorization", "signed-authorization.pdf", "Signed authorization"]
+    ] as const) {
+      await attachClaimEvidence(actor, created.readModel.claim.id, {
+        category: title.includes("estimate") ? "ESTIMATE" : "AUTHORIZATION",
+        documentLibraryId,
+        fileName,
+        relationshipTargets: ["CLAIM"],
+        status: "RECEIVED",
+        title
+      }, { repository });
+    }
+
+    const reloaded = await getClaimWorkspaceReadModel(actor, created.readModel.claim.id, { repository });
+    expect(reloaded.evidence).toHaveLength(2);
+    expect(reloaded.evidence.map((item) => item.documentLibraryId)).toEqual(["doc-estimate", "doc-authorization"]);
   });
 
   it("prefers estimate summary totals over OCR table row counts", async () => {

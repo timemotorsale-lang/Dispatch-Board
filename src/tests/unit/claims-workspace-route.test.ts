@@ -183,6 +183,35 @@ describe("claims workspace API routes", () => {
     expect(library.documents.some((document) => document.documentType === "INSURANCE_ESTIMATE" && document.owner.id === claimId)).toBe(true);
   });
 
+  it("stores multiple documents with independent document records", async () => {
+    const createResponse = await CREATE_CLAIM(new Request("http://local/api/claims-workspace/claims", {
+      body: JSON.stringify({
+        claimNumber: "API-MULTI-1",
+        customerName: "Multiple Upload Customer",
+        vehicleVin: "API-VIN-MULTI-1"
+      }),
+      method: "POST"
+    }));
+    const created = await createResponse.json();
+    const claimId = created.readModel.claim.id;
+    const documentIds: string[] = [];
+
+    for (const [fileName, contents] of [["claim-file.pdf", "first document"], ["claim-file.pdf", "second document"]]) {
+      const form = new FormData();
+      form.set("category", "ESTIMATE");
+      form.set("file", new File([contents], fileName, { type: "application/pdf" }));
+      const response = await ATTACH_EVIDENCE(new Request(`http://local/api/claims-workspace/claims/${claimId}/evidence`, {
+        body: form,
+        method: "POST"
+      }), { params: Promise.resolve({ claimId }) });
+      expect(response.status).toBe(201);
+      const payload = await response.json();
+      documentIds.push(payload.evidence.at(-1).documentLibraryId);
+    }
+
+    expect(new Set(documentIds).size).toBe(2);
+  });
+
   it("does not attach claim evidence when original document storage is unavailable", async () => {
     vi.stubEnv("DOCUMENT_LIBRARY_DISABLE_LOCAL_FALLBACK", "true");
     vi.stubEnv("DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT", "");

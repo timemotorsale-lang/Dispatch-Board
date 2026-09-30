@@ -9482,6 +9482,11 @@ model VehicleWarrantyClaim {
 model InsuranceClaim {
   id                       String                    @id @default(cuid())
   organizationId           String
+  approvedAmountCents      Int?
+  approvedAmountConfidence String?
+  approvedAmountRecordedAt DateTime?
+  approvedAmountSourceDocumentId String?
+  approvedAmountSourceEvidenceId String?
   customerId               String?
   vehicleId                String?
   linkedRepairOrderId      String?
@@ -9539,6 +9544,7 @@ model InsuranceClaim {
   @@index([organizationId, vehicleId])
   @@index([organizationId, linkedRepairOrderId])
   @@index([organizationId, carrierName])
+  @@index([organizationId, approvedAmountRecordedAt])
 }
 
 model InsuranceClaimEvidence {

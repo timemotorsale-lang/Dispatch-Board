@@ -142,9 +142,21 @@ describe("Prisma claims workspace repository", () => {
       relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
       status: "RECEIVED",
       title: "Damage photos"
+    }, {
+      approvedAmountCents: 481244,
+      approvedAmountConfidence: "HIGH",
+      approvedAmountRecordedAt: "2026-09-17T20:05:00.000Z",
+      approvedAmountSourceDocumentId: "doc-estimate-1",
+      approvedAmountSourceEvidenceId: "evidence-db-1"
     });
     expect(withEvidence.evidence).toHaveLength(1);
     expect(withEvidence.evidence[0]).toMatchObject({ category: "DAMAGE_PHOTO", relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"] });
+    expect(withEvidence.claim).toMatchObject({
+      approvedAmountCents: 481244,
+      approvedAmountConfidence: "HIGH",
+      approvedAmountSourceDocumentId: "doc-estimate-1",
+      approvedAmountSourceEvidenceId: "evidence-db-1"
+    });
 
     await repository.addActivity(claim.id, {
       action: "CLAIM_NOTE",
