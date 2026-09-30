@@ -90,6 +90,7 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
       });
       const createdDocument = await executeDocumentLibraryAction(user, {
         action: "CREATE_DOCUMENT",
+        contentType: staged.storageDraft.contentType,
         documentId,
         documentType: staged.storagePolicy.classification.documentType,
         fileName: staged.storageDraft.fileName,

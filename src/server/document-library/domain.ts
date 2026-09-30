@@ -39,6 +39,7 @@ export type DocumentLibraryActionKind =
 
 export type DocumentRecord = {
   auditTrail: Array<{ action: string; actor: string; at: string; note: string }>;
+  contentType?: string;
   createdAt: string;
   documentType: string;
   fileName: string;
@@ -105,6 +106,7 @@ export type DocumentLibraryCommand =
     }
   | {
       action: "CREATE_DOCUMENT";
+      contentType?: string;
       documentId?: string;
       documentType: string;
       fileName: string;

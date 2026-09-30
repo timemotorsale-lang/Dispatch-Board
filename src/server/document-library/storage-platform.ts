@@ -75,6 +75,7 @@ export type DocumentLibraryPersistencePlan = {
     subjectType: "DOCUMENT" | "PACKET" | "REQUIREMENT";
   }>;
   documents: Array<{
+    contentType?: string;
     documentType: string;
     fileName: string;
     id: string;
@@ -252,6 +253,7 @@ export function buildDocumentLibraryPersistencePlan(state: DocumentLibraryState)
           : "DOCUMENT"
     })),
     documents: state.documents.map((document) => ({
+      contentType: document.contentType,
       documentType: document.documentType,
       fileName: document.fileName,
       id: document.id,

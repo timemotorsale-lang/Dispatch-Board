@@ -52,6 +52,7 @@ function fakeDatabase() {
 function document(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
   return {
     auditTrail: [],
+    contentType: "application/pdf",
     createdAt: "2026-09-22T00:00:00.000Z",
     documentType: "CUSTOMER_AUTHORIZATION",
     fileName: "authorization.pdf",
@@ -132,6 +133,9 @@ describe("document library durable repository", () => {
 
     expect(database.transactionCount).toBe(1);
     expect(database.documentLibraryDocument.upsertCalls).toHaveLength(1);
+    expect(database.documentLibraryDocument.upsertCalls[0]).toMatchObject({
+      create: expect.objectContaining({ contentType: "application/pdf" })
+    });
     expect(database.documentLibraryPacket.upsertCalls).toHaveLength(1);
     expect(database.documentLibraryPacketRequirement.createManyCalls[0]).toMatchObject({
       data: [expect.objectContaining({ documentType: "CUSTOMER_AUTHORIZATION", status: "ACCEPTED" })],

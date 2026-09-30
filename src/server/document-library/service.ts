@@ -228,6 +228,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
     }
     return {
       action,
+      contentType: stringField(input, "contentType") || undefined,
       documentId: stringField(input, "documentId") || undefined,
       documentType: stringField(input, "documentType"),
       fileName: stringField(input, "fileName"),

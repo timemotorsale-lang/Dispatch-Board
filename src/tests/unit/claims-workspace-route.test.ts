@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getCurrentUser: vi.fn()
+  getCurrentUser: vi.fn(),
+  documentFindFirst: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentUser }));
+vi.mock("@/server/db/client", () => ({
+  prisma: {
+    documentLibraryDocument: { findFirst: mocks.documentFindFirst }
+  }
+}));
 
 import { POST as CREATE_CLAIM } from "@/app/api/claims-workspace/claims/route";
 import { PATCH as UPDATE_CLAIM } from "@/app/api/claims-workspace/claims/[claimId]/route";
@@ -14,6 +20,7 @@ import { POST as REQUEST_HANDOFF } from "@/app/api/claims-workspace/claims/[clai
 import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspace/repository-factory";
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
 import { getDocumentLibrary, resetDocumentLibraryDemoState } from "@/server/document-library/service";
+import { buildDocumentObjectKey } from "@/server/document-library/storage-adapter";
 
 describe("claims workspace API routes", () => {
   beforeEach(() => {
@@ -140,6 +147,22 @@ describe("claims workspace API routes", () => {
       fileName: "carrier-estimate.pdf",
       title: "Carrier estimate"
     });
+    mocks.documentFindFirst.mockResolvedValueOnce({
+      contentType: null,
+      fileName: "carrier-estimate.pdf",
+      storageProvider: "INTERNAL",
+      storageReference: `local-private://${buildDocumentObjectKey({
+        documentId: payload.evidence[0].documentLibraryId,
+        fileName: "carrier-estimate.pdf",
+        organizationId: "default-org",
+        owner: {
+          id: claimId,
+          label: "Claim #API-EST-1",
+          type: "CLAIM"
+        },
+        version: 1
+      })}`
+    });
     const contentResponse = await OPEN_EVIDENCE_CONTENT(new Request(`http://local/api/claims-workspace/claims/${claimId}/evidence/${payload.evidence[0].id}/content`, {
       headers: { accept: "application/pdf" }
     }), {
@@ -147,6 +170,7 @@ describe("claims workspace API routes", () => {
     });
     expect(contentResponse.status).toBe(200);
     expect(contentResponse.headers.get("content-type")).toBe("application/pdf");
+    expect(contentResponse.headers.get("content-disposition")).toContain("inline");
     await expect(contentResponse.text()).resolves.toBe("estimate bytes");
     const library = await getDocumentLibrary({
       duties: { all: [], direct: [], roleDefaults: [] },

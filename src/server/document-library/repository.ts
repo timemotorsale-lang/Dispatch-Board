@@ -116,6 +116,7 @@ export function executeDocumentLibraryCommand(input: {
     const requestedDocumentId = command.documentId?.trim();
     const document: DocumentRecord = {
       auditTrail: [],
+      contentType: command.contentType?.trim() || undefined,
       createdAt: at,
       documentType: command.documentType.trim(),
       fileName: command.fileName.trim(),

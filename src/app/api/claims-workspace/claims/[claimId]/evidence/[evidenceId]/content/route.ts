@@ -15,10 +15,6 @@ function safeName(value: string | null | undefined) {
   return (value || "claim-evidence").replace(/["\r\n]/g, "_");
 }
 
-function contentType(value: string | null | undefined) {
-  return value?.trim() || "application/octet-stream";
-}
-
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -79,6 +75,13 @@ function inferContentType(fileName: string | null | undefined) {
   if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) return "image/jpeg";
   if (normalized.endsWith(".txt")) return "text/plain; charset=utf-8";
   return "application/octet-stream";
+}
+
+function displayContentType(value: string | null | undefined, fileName: string) {
+  const storedType = value?.trim();
+  return storedType && storedType !== "application/octet-stream"
+    ? storedType
+    : inferContentType(fileName);
 }
 
 function resolveInsideRoot(rootDir: string, objectKey: string) {
@@ -189,7 +192,7 @@ export async function GET(request: Request, context: { params: Promise<{ claimId
         "cache-control": "private, no-store",
         "content-disposition": `inline; filename="${fileName}"`,
         "content-length": String(bytes.byteLength),
-        "content-type": contentType(document.contentType),
+        "content-type": displayContentType(document.contentType, fileName),
         "x-content-type-options": "nosniff"
       }
     });

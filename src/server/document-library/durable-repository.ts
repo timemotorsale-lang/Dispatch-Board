@@ -117,7 +117,7 @@ export function createDocumentLibraryDurableRepository(input: {
           const row = {
             archivedAt: document.status === "ARCHIVED" ? now() : null,
             classificationSnapshot: { source: "document-library-snapshot" },
-            contentType: null,
+            contentType: document.contentType ?? null,
             createdByUserId: null,
             documentType: document.documentType,
             fileName: document.fileName,
