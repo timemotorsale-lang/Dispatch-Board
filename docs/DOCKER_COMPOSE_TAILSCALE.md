@@ -76,6 +76,10 @@ BACKUP_INTERVAL_SECONDS=86400
 BACKUP_RETENTION_DAYS=14
 ENABLE_DEMO_DATA=false
 ENABLE_SHOP_RECON_PILOT_SEED=false
+DISPATCH_BOARD_TAILSCALE_SERVE_CHECK=true
+DISPATCH_BOARD_TAILSCALE_SERVE_AUTOCONFIGURE=true
+TAILSCALE_SERVE_TARGET=http://127.0.0.1:3000
+TAILSCALE_SERVE_HTTPS_PORT=443
 ```
 
 Docker maps `CRM_NEXT_DOCKER_MODE` to the app's `CRM_NEXT` runtime variable. If `CRM_NEXT_DOCKER_MODE` is omitted, the Docker stack opens Customer Console in the safe `REVIEW` mode. To intentionally roll CRM Next back behind the protected fallback, set:
@@ -120,11 +124,45 @@ To inspect the current Serve configuration:
 tailscale serve status
 ```
 
+To verify or restore the expected Dispatch Board route:
+
+```bash
+bash deploy/docker/scripts/verify-tailscale-serve.sh
+```
+
+The verification script confirms the app is healthy at `http://127.0.0.1:3000`,
+checks that Tailscale Serve routes HTTPS port `443` to the app, and restores the
+route when the deploy user is allowed to run `tailscale serve` or passwordless
+`sudo tailscale serve`.
+
 To remove the Serve configuration:
 
 ```bash
 sudo tailscale serve reset
 ```
+
+## Browser says the site cannot be reached
+
+If the browser shows `DNS_PROBE_FINISHED_NXDOMAIN` for a `*.ts.net` URL, the
+request is failing before Dispatch Board loads. Check these in order:
+
+1. Confirm the device opening the browser is connected to the same Tailscale
+   tailnet and MagicDNS is enabled.
+2. Confirm the URL matches the server name shown by `tailscale status` or
+   `tailscale serve status`.
+3. On the server, run:
+
+   ```bash
+   tailscale status
+   tailscale serve status
+   bash deploy/docker/scripts/verify-tailscale-serve.sh
+   ```
+
+4. If the script cannot restore the route automatically, run:
+
+   ```bash
+   sudo tailscale serve --bg --https=443 http://127.0.0.1:3000
+   ```
 
 ## GitHub Actions Deploy
 
@@ -165,6 +203,11 @@ The workflow assumes the deploy user can run Docker commands non-interactively. 
 docker compose version
 sudo -n docker compose version
 ```
+
+The workflow also verifies Tailscale Serve after the app health check. If you
+want the workflow to report a missing Serve route without trying to restore it,
+set `DISPATCH_BOARD_TAILSCALE_SERVE_AUTOCONFIGURE=false` in
+`deploy/docker/.env`.
 
 The server checkout must be able to fetch from the GitHub repository:
 

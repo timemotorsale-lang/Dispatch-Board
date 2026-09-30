@@ -28,6 +28,7 @@ describe("service advisor capability defaults", () => {
       "VEHICLE_DISCOVERY_VIEW",
       "WORK_KNOWLEDGE_VIEW",
       "WORK_KNOWLEDGE_MANAGE",
+      "CUSTOMER_INTAKE_CREATE",
       "DIAGNOSTIC_CASE_VIEW",
       "DIAGNOSTIC_ESTIMATE_ADVISOR_REVIEW"
     ] as const) {
