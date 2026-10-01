@@ -12,21 +12,30 @@ type ProtectedConsoleErrorProps = {
 export default function ProtectedConsoleError({ error, reset }: ProtectedConsoleErrorProps) {
   useEffect(() => {
     const retryKey = `protected-console-auto-retry:${window.location.pathname}${window.location.search}:${error.digest ?? error.message}`;
-    if (window.sessionStorage.getItem(retryKey)) return;
+    const retryState = window.sessionStorage.getItem(retryKey);
+    const parsed = retryState ? JSON.parse(retryState) as { attempts?: number; lastAttemptAt?: number } : null;
+    const recentAttempts = parsed?.lastAttemptAt && Date.now() - parsed.lastAttemptAt < 15_000 ? parsed.attempts ?? 0 : 0;
+    if (recentAttempts >= 3) return;
 
-    window.sessionStorage.setItem(retryKey, "1");
+    window.sessionStorage.setItem(retryKey, JSON.stringify({ attempts: recentAttempts + 1, lastAttemptAt: Date.now() }));
     const retryTimer = window.setTimeout(() => {
       reset();
-    }, 600);
+    }, 700 + recentAttempts * 900);
 
     return () => window.clearTimeout(retryTimer);
   }, [error.digest, error.message, reset]);
+
+  function retryConsole() {
+    const prefix = `protected-console-auto-retry:${window.location.pathname}${window.location.search}:`;
+    Object.keys(window.sessionStorage).filter((key) => key.startsWith(prefix)).forEach((key) => window.sessionStorage.removeItem(key));
+    window.location.reload();
+  }
 
   return (
     <div className="page-shell">
       <ErrorStateCard
         actions={[
-          RetryStateAction({ label: "Retry console", onClick: reset }),
+          RetryStateAction({ label: "Retry console", onClick: retryConsole }),
           { href: "/board", label: "Open Dispatch Board", tone: "secondary" }
         ]}
         eyebrow="Console temporarily unavailable"

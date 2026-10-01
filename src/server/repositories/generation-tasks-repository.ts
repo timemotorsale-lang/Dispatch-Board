@@ -86,6 +86,7 @@ export type FailGenerationRunInput = {
 
 export type GenerationTasksRepository = {
   supportsActivityEvents?: boolean;
+  findBoardDay?(boardDate: string): Promise<BoardDayRecord | null>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
   markBoardDayGenerationStarted(boardDayId: string): Promise<BoardDayRecord>;
   markBoardDayGenerationSucceeded(input: {
@@ -112,6 +113,13 @@ export function createGenerationTasksRepository(
 ): GenerationTasksRepository {
   return {
     supportsActivityEvents: true,
+    async findBoardDay(boardDate) {
+      return database.boardDay.findUnique({
+        where: {
+          date: toBoardDateValue(boardDate)
+        }
+      });
+    },
     async getOrCreateBoardDay(boardDate) {
       return database.boardDay.upsert({
         where: {
