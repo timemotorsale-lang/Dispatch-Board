@@ -40,7 +40,6 @@ type Job = {
     inventoryUnit: { inventoryNumber: string } | null;
     vehicle: { id?: string; vehicleNumber: string; vin?: string | null; year: number | null; make: string | null; model: string | null };
     customer: { displayName: string } | null;
-    inventoryUnit: { inventoryNumber: string } | null;
     serviceVisit: { promisedAt: string | null; concernSummary: string };
   };
 };
@@ -178,7 +177,7 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     </header>
 
     {incomingRepairOrderMissing && !sourceVehicleWithoutRepairOrder ? <div className="notice notice-danger"><p>The repair order you came from was not found in this dispatch list. Select the vehicle below before assigning a technician.</p></div> : null}
-    {sourceVehicleWithoutRepairOrder ? <div className="notice notice-danger"><p>{vehicleName(sourceVehicle)} is the vehicle you came from, but it does not have an open dispatch repair order/job yet. Start or prepare the repair order first; then Shop Dispatch can assign the technician.</p></div> : null}
+    {sourceVehicleWithoutRepairOrder && sourceVehicle ? <div className="notice notice-danger"><p>{vehicleName(sourceVehicle)} is the vehicle you came from, but it does not have an open dispatch repair order/job yet. Start or prepare the repair order first; then Shop Dispatch can assign the technician.</p></div> : null}
     {notice ? <div className={/required|must|conflict|not |already|only/i.test(notice) ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
 
     <section className="shop-dispatch-metrics">
@@ -195,7 +194,7 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
         <header><strong>Choose the vehicle first</strong><span>Pick by vehicle, stock/inventory, concern, and current stage — not by internal RO codes.</span></header>
         <label className="shop-dispatch-search"><span>Search vehicle, RO, concern, stage, location, or technician</span><input aria-label="Search dispatch vehicles" onChange={(event) => setVehicleQuery(event.target.value)} placeholder="Example: Corolla, 137543, check engine, Walter, intake" value={vehicleQuery} /></label>
         <div>
-          {sourceVehicleWithoutRepairOrder ? <article className="shop-dispatch-source-vehicle">
+          {sourceVehicleWithoutRepairOrder && sourceVehicle ? <article className="shop-dispatch-source-vehicle">
             <small>Vehicle from your workbench</small>
             <strong>{vehicleName(sourceVehicle)}</strong>
             <span>{sourceVehicle.vehicleNumber} · Stock {sourceVehicle.stockNumber ?? "not recorded"} · VIN {sourceVehicle.vin ?? "not recorded"}</span>

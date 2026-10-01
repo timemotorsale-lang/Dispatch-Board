@@ -31,7 +31,7 @@ async function executeInventoryMutation(database: PrismaClient, input: Enterpris
 }
 
 export type InventoryUnitCreateRecord = { acquisitionSource: "AUCTION" | "TRADE" | "DIRECT_PURCHASE" | "DEALER_TRANSFER" | "CONSIGNMENT" | "OTHER"; actorUserId: string; financialAcquiredAt: Date; inventoryNumber: string; locationId: string; nextAction: string; operatingState: "ACTIVE" | "WAITING" | "BLOCKED"; ownerUserId: string; stateReason: string | null; targetAt: Date; vehicleId: string };
-export type InventoryUnitControlRecord = Omit<InventoryUnitCreateRecord, "financialAcquiredAt" | "inventoryNumber" | "vehicleId">;
+export type InventoryUnitControlRecord = Omit<InventoryUnitCreateRecord, "acquisitionSource" | "financialAcquiredAt" | "inventoryNumber" | "vehicleId">;
 
 const detailInclude = { vehicle: { select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, stockNumber: true, year: true, make: true, model: true, color: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
 

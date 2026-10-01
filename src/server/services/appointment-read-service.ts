@@ -234,12 +234,6 @@ function normalizeAppointmentId(appointmentId: string) {
   return normalizedAppointmentId;
 }
 
-function normalizeSearchText(value: string | null | undefined) {
-  const normalizedValue = value?.trim().toLowerCase();
-
-  return normalizedValue ? normalizedValue : null;
-}
-
 function toLocationAccessGrant(
   access: AppointmentReadLocationAccessRecord | null
 ): AppointmentLocationAccessGrant | null {
