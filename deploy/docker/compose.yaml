@@ -135,6 +135,27 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+
   seed:
     profiles: ["tools"]
     image: dispatch-board-tooling:${APP_VERSION:-local}
@@ -160,6 +181,8 @@ volumes:
   document_library_data:
   postgres_data:
   postgres_backups:
+  caddy_data:
+  caddy_config:
 
 networks:
   frontend:

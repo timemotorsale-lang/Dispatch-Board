@@ -34,6 +34,15 @@ ALTER TABLE "ConcernCase" ADD CONSTRAINT "ConcernCase_slaPolicyId_fkey" FOREIGN 
 ALTER TABLE "CustomerSlaPause" ADD CONSTRAINT "CustomerSlaPause_concernCaseId_fkey" FOREIGN KEY ("concernCaseId") REFERENCES "ConcernCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "CustomerSlaAlert" ADD CONSTRAINT "CustomerSlaAlert_concernCaseId_fkey" FOREIGN KEY ("concernCaseId") REFERENCES "ConcernCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+INSERT INTO "Organization" ("id","code","name","updatedAt")
+VALUES (
+  'org-time-motor-sales',
+  'TIME_MOTOR_SALES',
+  'Time Motor Sales',
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT ("id") DO NOTHING;
+
 INSERT INTO "CustomerSlaPolicy" ("id", "organizationId", "code", "version", "timezone", "businessWindows", "severityTargets", "pauseReasonCodes", "effectiveFrom", "updatedAt")
 SELECT
   'sla-time-motor-sales-v1', 'org-time-motor-sales', 'CUSTOMER_CASE_DEFAULT', 1, 'America/Chicago',
