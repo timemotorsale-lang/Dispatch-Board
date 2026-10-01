@@ -79,7 +79,14 @@ describe("R4 Acquisition & Appraisal workspace", () => {
     expect(markup).toContain("Decision readiness");
     expect(markup).toContain("Control boundary");
     expect(markup).toContain("does not create inventory, ownership, a bid, or a commitment");
-    expect(markup).toContain("Request exact-version authorization");
+    expect(markup).toContain("You are here");
+    expect(markup).toContain("Do this now");
+    expect(markup).toContain("Next step: request purchase authorization");
+    expect(markup).toContain("Enter the dollar amount you want approved");
+    expect(markup).toContain("After approval, record the seller offer and acceptance");
+    expect(markup).toContain("What are you trying to do?");
+    expect(markup).toContain("Proposed purchase amount ($)");
+    expect(markup).toContain("Request approval for this purchase amount");
     expect(markup).toContain("External bidding, payment, accounting, and transport adapters are disabled.");
   });
 });

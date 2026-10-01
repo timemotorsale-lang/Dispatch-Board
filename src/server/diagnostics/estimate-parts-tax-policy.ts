@@ -161,20 +161,9 @@ export function evaluateEstimatePartsTaxPolicy(input: { labor: LaborRepairOperat
   const requiredParts = input.labor.flatMap(requiredPartsForLabor);
   const missingRequiredParts = requiredParts.filter((requirement) => !input.parts.some((part) => isSamePart(requirement, part)));
   const requiredAddOnIds = [...new Set(input.labor.flatMap(requiredAddOnsForLabor))];
-  const allParts = [
-    ...input.parts,
-    ...missingRequiredParts.map((part) => ({
-      laborRowId: part.laborOperationId,
-      name: part.description,
-      number: part.partNumber,
-      quantity: part.quantity,
-      taxable: part.taxable,
-      unitPrice: part.unitPriceCents / 100
-    }))
-  ];
   const readinessCodes = [
     requiredParts.length ? "REQUIRED_PARTS_POLICY_APPLIED" : "",
-    missingRequiredParts.length ? "REQUIRED_PARTS_AUTO_ADDED" : "",
+    missingRequiredParts.length ? "REQUIRED_PARTS_RECOMMENDED" : "",
     requiredParts.some((part) => part.pricingStatus === "PRICE_PENDING") ? "PART_PRICE_REVIEW_REQUIRED" : "",
     requiredAddOnIds.includes("transmission-programming-relearn") ? "PROGRAMMING_RELEARN_REQUIRED" : ""
   ].filter(Boolean);
@@ -183,7 +172,7 @@ export function evaluateEstimatePartsTaxPolicy(input: { labor: LaborRepairOperat
     missingRequiredParts,
     requiredAddOnIds,
     readinessCodes,
-    tax: calculateMinnesotaEstimateTax(allParts),
+    tax: calculateMinnesotaEstimateTax(input.parts),
     version: DIAGNOSTIC_ESTIMATE_PARTS_TAX_POLICY_VERSION
   };
 }

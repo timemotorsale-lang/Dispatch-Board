@@ -21,7 +21,7 @@ describe("diagnostic estimate parts and tax policy", () => {
     expect(descriptions).toContain("Torque converter/front pump seal");
     expect(descriptions).toContain("One-time-use fasteners, clips, and retainers allowance");
     expect(result.requiredAddOnIds).toEqual(expect.arrayContaining(["transmission-fluid-service", "transmission-programming-relearn"]));
-    expect(result.readinessCodes).toEqual(expect.arrayContaining(["REQUIRED_PARTS_AUTO_ADDED", "PART_PRICE_REVIEW_REQUIRED", "PROGRAMMING_RELEARN_REQUIRED"]));
+    expect(result.readinessCodes).toEqual(expect.arrayContaining(["REQUIRED_PARTS_RECOMMENDED", "PART_PRICE_REVIEW_REQUIRED", "PROGRAMMING_RELEARN_REQUIRED"]));
   });
 
   it("taxes Minnesota estimate parts and materials without taxing labor", () => {
@@ -33,7 +33,7 @@ describe("diagnostic estimate parts and tax policy", () => {
     });
 
     expect(result.tax.laborTaxable).toBe(false);
-    expect(result.tax.taxablePartsCents).toBeGreaterThan(280000);
+    expect(result.tax.taxablePartsCents).toBe(280000);
     expect(result.tax.taxCents).toBe(Math.round(result.tax.taxablePartsCents * 0.08));
   });
 

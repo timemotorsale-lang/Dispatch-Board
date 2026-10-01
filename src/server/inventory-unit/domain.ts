@@ -1,6 +1,8 @@
 export const INVENTORY_UNIT_FOUNDATION_STAGE = "PURCHASED_OR_TRADE_IN" as const;
 export const INVENTORY_UNIT_FOUNDATION_STATES = ["ACTIVE", "WAITING", "BLOCKED"] as const;
+export const INVENTORY_UNIT_ACQUISITION_SOURCES = ["AUCTION", "TRADE", "DIRECT_PURCHASE", "DEALER_TRANSFER", "CONSIGNMENT", "OTHER"] as const;
 export type InventoryUnitFoundationState = (typeof INVENTORY_UNIT_FOUNDATION_STATES)[number];
+export type InventoryUnitAcquisitionSource = (typeof INVENTORY_UNIT_ACQUISITION_SOURCES)[number];
 
 function required(value: unknown, label: string, max = 500) {
   const result = typeof value === "string" ? value.trim() : "";
@@ -24,6 +26,10 @@ function stateReason(operatingState: InventoryUnitFoundationState, value: unknow
   if (result.length < 10) throw new Error("Waiting or blocker reason must be at least 10 characters.");
   return result;
 }
+function acquisitionSource(value: unknown): InventoryUnitAcquisitionSource {
+  const result = String(value ?? "OTHER").toUpperCase() as InventoryUnitAcquisitionSource;
+  return INVENTORY_UNIT_ACQUISITION_SOURCES.includes(result) ? result : "OTHER";
+}
 
 export function normalizeInventoryUnitCreate(value: unknown, now = new Date()) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Inventory unit create request must be an object.");
@@ -31,7 +37,7 @@ export function normalizeInventoryUnitCreate(value: unknown, now = new Date()) {
   if (financialAcquiredAt.getTime() > now.getTime() + 5 * 60_000) throw new Error("Financial acquisition time cannot be in the future.");
   if (targetAt < financialAcquiredAt) throw new Error("Stage target cannot be before financial acquisition.");
   const operatingState = state(raw.operatingState);
-  return { financialAcquiredAt, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), inventoryNumber: required(raw.inventoryNumber, "Inventory number", 100).toUpperCase(), lifecycleStage: INVENTORY_UNIT_FOUNDATION_STAGE, locationId: required(raw.locationId, "Location ID", 100), nextAction: required(raw.nextAction, "Next action", 500), operatingState, ownerUserId: required(raw.ownerUserId, "Owner user ID", 100), reason: required(raw.reason, "Business reason", 500), stateReason: stateReason(operatingState, raw.stateReason), targetAt, vehicleId: required(raw.vehicleId, "Vehicle ID", 100) };
+  return { acquisitionSource: acquisitionSource(raw.acquisitionSource), financialAcquiredAt, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), inventoryNumber: required(raw.inventoryNumber, "Inventory number", 100).toUpperCase(), lifecycleStage: INVENTORY_UNIT_FOUNDATION_STAGE, locationId: required(raw.locationId, "Location ID", 100), nextAction: required(raw.nextAction, "Next action", 500), operatingState, ownerUserId: required(raw.ownerUserId, "Owner user ID", 100), reason: required(raw.reason, "Business reason", 500), stateReason: stateReason(operatingState, raw.stateReason), targetAt, vehicleId: required(raw.vehicleId, "Vehicle ID", 100) };
 }
 
 export function normalizeInventoryUnitControlUpdate(value: unknown) {

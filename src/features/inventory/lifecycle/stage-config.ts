@@ -61,7 +61,7 @@ export const lifecycleStages: LifecycleStage[] = [
       action("Current source location confirmed", "Source type, exact location, source contact, and physical vehicle verification are recorded.", "Transportation", "Source confirmation"),
       action("Release/gate pass readiness confirmed", "Gate pass, release desk, and release path are ready before dispatch.", "Transportation", "Release readiness"),
       action("Keys and paperwork confirmed", "Keys status and release paperwork are verified or the exception is assigned.", "Transportation", "Keys and paperwork"),
-      action("Driver/vendor assigned", "Internal driver, tow, carrier, or vendor responsibility is named.", "Transportation", "Driver assignment"),
+      action("Transport provider assigned", "Internal driver, tow, carrier, or vendor responsibility is named.", "Transportation", "Transport assignment"),
       action("Destination and pickup window confirmed", "Receiving destination, pickup window, ETA, and expected transport cost are recorded.", "Transportation", "Pickup window"),
       action("Movement method selected", "Drive, tow, carrier, or hold decision is recorded before the vehicle leaves source.", "Transportation", "Movement method"),
       action("Safety/pre-trip decision recorded", "Starts/runs status, oil/coolant checks when driving, plate reminder, and jumper readiness are recorded.", "Driver", "Pre-trip decision"),
