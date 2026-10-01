@@ -208,6 +208,8 @@ const DEAL_START_PRESETS: DealStartPreset[] = [
   { id: "test-drive", label: "Test Drive", helper: "Driver proof, signed release, checkout photos, and receiving plan.", workflowId: "test-drive" }
 ];
 
+const MANUAL_CUSTOMER_ID = "__manual_customer__";
+
 const ENTERPRISE_FORM_TEMPLATES: EnterpriseFormTemplate[] = [
   { id: "sales-agreement", label: "Sales agreement / purchase agreement", owner: "Sales", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Every retail vehicle sale" },
   { id: "retail-installment-contract", label: "Retail installment contract", owner: "Finance", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Financed sale / BHPH" },
@@ -1403,9 +1405,11 @@ const OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS = [
 function DailyRentalExecutionDesk({
   amount,
   customerName,
+  customerNameEditable = false,
   mode = "daily-rental",
   onComplete,
   onAmountChange,
+  onCustomerNameChange,
   onSaveDraft,
   onVehicleChange,
   statusKind,
@@ -1413,9 +1417,11 @@ function DailyRentalExecutionDesk({
 }: {
   amount: string;
   customerName: string;
+  customerNameEditable?: boolean;
   mode?: "daily-rental" | "vehicle-loaner";
   onComplete: () => void;
   onAmountChange: (value: string) => void;
+  onCustomerNameChange?: (value: string) => void;
   onSaveDraft: () => void;
   onVehicleChange: (value: string) => void;
   statusKind: "idle" | "saving" | "success" | "error";
@@ -1674,7 +1680,7 @@ function DailyRentalExecutionDesk({
         </div>
         <p className={styles.retailDeliveryNote}>{isLoaner ? "Vehicle loaners still require a valid driver license, age eligibility, insurance/protection review, approved dates, and a signed courtesy waiver before release." : "Most U.S. rental operators require a valid driver license, age eligibility, acceptable payment, and any needed secondary ID before release."}</p>
         <div className={styles.retailFieldGrid}>
-          <label><span>{isLoaner ? "Primary loaner driver" : "Primary renter"}</span><input readOnly value={customerName} /></label>
+          <label><span>{isLoaner ? "Primary loaner driver" : "Primary renter"}</span><input readOnly={!customerNameEditable} value={customerNameEditable && customerName === "Customer not selected" ? "" : customerName} onChange={(event) => onCustomerNameChange?.(event.target.value)} placeholder="Enter customer name" /></label>
           <label><span>Date of birth</span><input value={rentalFacts.dob} onChange={(event) => updateRentalFact("dob", event.target.value)} placeholder="MM/DD/YYYY" /></label>
           <label><span>SSN / ITIN</span><input placeholder="Only if manager-required" /></label>
           <label><span>License status</span><select value={rentalFacts.licenseStatus} onChange={(event) => updateRentalFact("licenseStatus", event.target.value)}><option>Valid</option><option>Needs review</option><option>Expired</option><option>Suspended / not eligible</option></select></label>
@@ -3689,6 +3695,7 @@ export function CrmNextDealStartTool({
   const [selectedPresetId, setSelectedPresetId] = useState("retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [manualCustomerName, setManualCustomerName] = useState("");
   const [form, setForm] = useState({
     amount: initialDraft?.amount ?? "",
     customerId: preferredCustomer?.id ?? "",
@@ -3705,11 +3712,14 @@ export function CrmNextDealStartTool({
   const wholesaleWorkflow = workflow.id === "wholesale";
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
-  const selectedCustomer = model.customers.find((customer) => customer.id === form.customerId) ?? model.customers[0] ?? null;
+  const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? model.customers.find((customer) => customer.id === form.customerId) ?? null : null;
+  const manualCustomer = manualCustomerName.trim();
+  const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
+  const customerReady = form.customerId === MANUAL_CUSTOMER_ID ? Boolean(manualCustomer) : effectiveCustomerName !== "Customer not selected";
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
   const effectiveAmount = testDriveWorkflow && !form.amount.trim() ? "$0.00" : form.amount;
   const effectiveEstimatedValueCents = testDriveWorkflow && !form.amount.trim() ? 0 : estimatedValueCents;
-  const completedCount = useMemo(() => [form.customerId, form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [effectiveAmount, form.customerId, form.vehicle]);
+  const completedCount = useMemo(() => [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
   const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
@@ -3719,7 +3729,19 @@ export function CrmNextDealStartTool({
   }
 
   function updateCustomer(customerId: string) {
+    if (customerId === MANUAL_CUSTOMER_ID) {
+      setForm((current) => ({
+        ...current,
+        amount: "",
+        customerId,
+        note: "",
+        ownerUserId: current.ownerUserId || model.userId,
+        vehicle: ""
+      }));
+      return;
+    }
     const draft = readDealDraft(customerId);
+    setManualCustomerName("");
     setForm((current) => ({
       ...current,
       amount: draft?.amount ?? "",
@@ -3729,6 +3751,18 @@ export function CrmNextDealStartTool({
       vehicle: draft?.vehicle ?? ""
     }));
     if (draft?.workflowId) setWorkflowId(draft.workflowId as DealWorkflowId);
+  }
+
+  function updateManualCustomerName(value: string) {
+    setManualCustomerName(value);
+    setForm((current) => current.customerId === MANUAL_CUSTOMER_ID ? current : {
+      ...current,
+      amount: "",
+      customerId: MANUAL_CUSTOMER_ID,
+      note: "",
+      ownerUserId: current.ownerUserId || model.userId,
+      vehicle: ""
+    });
   }
 
   function applyPreset(preset: DealStartPreset) {
@@ -3753,6 +3787,10 @@ export function CrmNextDealStartTool({
   }, [form, workflowId]);
 
   async function startDeal() {
+    if (form.customerId === MANUAL_CUSTOMER_ID) {
+      setStatus({ kind: "success", message: `${workflow.label} intake is ready for ${effectiveCustomerName}. Create the permanent customer record before opening a CRM opportunity.` });
+      return;
+    }
     if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return;
     setStatus({ kind: "saving", message: "Starting deal..." });
     const response = await fetch("/api/crm/v1/opportunities", {
@@ -3779,6 +3817,27 @@ export function CrmNextDealStartTool({
       return;
     }
     setStatus({ kind: "success", href: payload.opportunity?.href, message: payload.duplicate ? "Execution path replayed safely." : `Execution path opened: ${payload.opportunity?.opportunityNumber ?? "new opportunity"}` });
+  }
+
+  function renderCustomerSelector(label = FIELD_LABELS.customer) {
+    return (
+      <>
+        <label>
+          <span>{label}</span>
+          <select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}>
+            <option value="">Select customer</option>
+            {model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+            <option value={MANUAL_CUSTOMER_ID}>Add customer manually</option>
+          </select>
+        </label>
+        {form.customerId === MANUAL_CUSTOMER_ID ? (
+          <label>
+            <span>Manual customer name</span>
+            <input autoFocus value={manualCustomerName} onChange={(event) => setManualCustomerName(event.target.value)} placeholder="Customer name" />
+          </label>
+        ) : null}
+      </>
+    );
   }
 
   return (
@@ -3929,7 +3988,7 @@ export function CrmNextDealStartTool({
       {!executionOpen ? (
         <EnterpriseDealControlPanel
           amount={effectiveAmount}
-          customerName={selectedCustomer?.name ?? "Customer not selected"}
+          customerName={effectiveCustomerName}
           ownerName={model.userName}
           ready={ready}
           vehicle={form.vehicle}
@@ -3956,12 +4015,12 @@ export function CrmNextDealStartTool({
           {financeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <DealerFinanceExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -3974,12 +4033,12 @@ export function CrmNextDealStartTool({
           ) : workflow.id === "retail-sale" ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <RetailSaleExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
                 vehicle={form.vehicle}
@@ -3999,12 +4058,12 @@ export function CrmNextDealStartTool({
           ) : bhphWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <BhphExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4017,11 +4076,11 @@ export function CrmNextDealStartTool({
           ) : workflow.id === "lease-to-own" ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <LeaseToOwnExecutionDesk
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
                 vehicle={form.vehicle}
@@ -4041,11 +4100,11 @@ export function CrmNextDealStartTool({
           ) : testDriveWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <TestDriveExecutionDesk
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4058,12 +4117,12 @@ export function CrmNextDealStartTool({
           ) : wholesaleWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>Wholesale buyer</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select buyer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector("Wholesale buyer")}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <WholesaleExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4076,12 +4135,12 @@ export function CrmNextDealStartTool({
           ) : outsideFinanceWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>Customer / buyer</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector("Customer / buyer")}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <OutsideFinanceExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4094,16 +4153,18 @@ export function CrmNextDealStartTool({
           ) : rentalLikeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <DailyRentalExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
+                customerNameEditable={form.customerId === MANUAL_CUSTOMER_ID || !selectedCustomer}
                 key={workflow.id}
                 mode={workflow.id === "vehicle-loaner" ? "vehicle-loaner" : "daily-rental"}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
+                onCustomerNameChange={updateManualCustomerName}
                 onSaveDraft={saveDraft}
                 onVehicleChange={(value) => update("vehicle", value)}
                 statusKind={status.kind}
@@ -4113,7 +4174,7 @@ export function CrmNextDealStartTool({
             </>
           ) : (
             <div className={styles.dealStartForm}>
-              <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+              {renderCustomerSelector()}
               <label><span>{FIELD_LABELS.vehicle}</span><input value={form.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
               <label><span>{FIELD_LABELS.amount}</span><input value={form.amount} onChange={(event) => update("amount", event.target.value)} placeholder="$0.00" /></label>
               <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
