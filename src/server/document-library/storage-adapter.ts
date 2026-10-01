@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, normalize, resolve } from "node:path";
 
+import { DocumentLibraryError } from "./domain";
 import type { DocumentRecord } from "./domain";
 
 export type DocumentStorageProviderKind = "LOCAL_PRIVATE" | "CLOUD_OBJECT";
@@ -100,8 +101,17 @@ export function createLocalPrivateDocumentStorageAdapter(input: {
       const checksumSha256 = verifyChecksum(writeInput);
       const objectKey = buildDocumentObjectKey(writeInput);
       const targetPath = assertInsideRoot(input.rootDir, objectKey);
-      await mkdir(dirname(targetPath), { recursive: true });
-      await writeFile(targetPath, writeInput.bytes);
+      try {
+        await mkdir(dirname(targetPath), { recursive: true });
+        await writeFile(targetPath, writeInput.bytes);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown storage write failure.";
+        throw new DocumentLibraryError(
+          "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",
+          `Document storage is not writable at the configured local private root: ${message}`,
+          true
+        );
+      }
       return {
         checksumSha256,
         contentType: writeInput.contentType,
