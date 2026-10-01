@@ -187,9 +187,9 @@ jobs:
 
           compose() {
             if docker info >/dev/null 2>&1; then
-              docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml "$@"
+              docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
             else
-              sudo -n docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml "$@"
+              sudo -n docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
             fi
           }
 
