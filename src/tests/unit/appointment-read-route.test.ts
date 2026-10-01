@@ -63,8 +63,26 @@ describe("appointment read route", () => {
         locationId: "loc-time-motor-sales-minneapolis",
         windowStart: new Date("2026-07-06T05:00:00.000Z"),
         windowEnd: new Date("2026-07-07T05:00:00.000Z"),
-        includeCancelled: false
+        includeCancelled: false,
+        searchText: null
       }
+    );
+  });
+
+  it("passes appointment search text into the server-side scoped read query", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/appointments?date=2026-07-06&search=Ahmed%20Ibrahim"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.listAppointmentReadModels).toHaveBeenCalledWith(
+      managerUser,
+      expect.objectContaining({
+        locationId: "loc-time-motor-sales-minneapolis",
+        searchText: "Ahmed Ibrahim"
+      })
     );
   });
 

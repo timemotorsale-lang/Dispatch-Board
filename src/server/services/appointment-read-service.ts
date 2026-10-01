@@ -32,6 +32,7 @@ export type AppointmentReadQuery = {
   windowStart: Date | string;
   windowEnd: Date | string;
   includeCancelled?: boolean;
+  searchText?: string | null;
 };
 
 export type AppointmentReadUserSummary = {
@@ -212,7 +213,8 @@ function normalizeQuery(input: AppointmentReadQuery) {
     locationId,
     windowStart,
     windowEnd,
-    includeCancelled: input.includeCancelled === true
+    includeCancelled: input.includeCancelled === true,
+    searchText: normalizeSearchText(input.searchText)
   };
 }
 
@@ -224,6 +226,12 @@ function normalizeAppointmentId(appointmentId: string) {
   }
 
   return normalizedAppointmentId;
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  const normalizedValue = value?.trim().toLowerCase();
+
+  return normalizedValue ? normalizedValue : null;
 }
 
 function toLocationAccessGrant(
@@ -572,6 +580,63 @@ function toAppointmentReadModel(input: {
   };
 }
 
+function compactSearchValues(values: Array<string | number | null | undefined>) {
+  return values
+    .flatMap((value) => (value === null || value === undefined ? [] : [String(value)]))
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function appointmentMatchesSearch(appointment: AppointmentReadModel, searchText: string | null) {
+  if (!searchText) {
+    return true;
+  }
+
+  const searchableValues = compactSearchValues([
+    appointment.appointmentNumber,
+    appointment.title,
+    appointment.sourceReference,
+    appointment.bookingStatus,
+    appointment.confirmationStatus,
+    appointment.attendanceStatus,
+    appointment.executionStatus,
+    appointment.owner?.name,
+    appointment.owner?.email,
+    appointment.customer?.customerNumber,
+    appointment.customer?.displayName,
+    appointment.customer?.phoneNumber,
+    appointment.customer?.email,
+    ...appointment.vehicles.flatMap((vehicle) => [
+      vehicle.vehicleNumber,
+      vehicle.stockNumber,
+      vehicle.year,
+      vehicle.make,
+      vehicle.model,
+      vehicle.vin,
+      vehicle.licensePlate,
+      vehicle.roleCode
+    ]),
+    ...appointment.participants.flatMap((participant) => [
+      participant.displayName,
+      participant.roleCode,
+      participant.participantType
+    ]),
+    ...appointment.taskLinks.flatMap((taskLink) => [
+      taskLink.taskTitle,
+      taskLink.taskStatus,
+      taskLink.linkCode,
+      taskLink.linkTitle
+    ]),
+    ...appointment.resourceReservations.flatMap((reservation) => [
+      reservation.resourceCode,
+      reservation.resourceName,
+      reservation.status
+    ])
+  ]);
+
+  return searchableValues.some((value) => value.includes(searchText));
+}
+
 export async function listAppointmentReadModels(
   user: AuthenticatedUser | null,
   query: AppointmentReadQuery,
@@ -589,19 +654,23 @@ export async function listAppointmentReadModels(
   }
 
   const appointments = await repository.listAppointmentsForLocationWindow(normalizedQuery);
-
-  return {
-    locationId: normalizedQuery.locationId,
-    windowStart: normalizedQuery.windowStart.toISOString(),
-    windowEnd: normalizedQuery.windowEnd.toISOString(),
-    appointmentCount: appointments.length,
-    appointments: appointments.map((appointment) =>
+  const readModels = appointments
+    .filter((appointment) => appointment.locationId === normalizedQuery.locationId)
+    .map((appointment) =>
       toAppointmentReadModel({
         actor,
         appointment,
         locationAccess
       })
     )
+    .filter((appointment) => appointmentMatchesSearch(appointment, normalizedQuery.searchText));
+
+  return {
+    locationId: normalizedQuery.locationId,
+    windowStart: normalizedQuery.windowStart.toISOString(),
+    windowEnd: normalizedQuery.windowEnd.toISOString(),
+    appointmentCount: readModels.length,
+    appointments: readModels
   };
 }
 
