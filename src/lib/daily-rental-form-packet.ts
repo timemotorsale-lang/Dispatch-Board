@@ -79,3 +79,34 @@ export const DAILY_RENTAL_FORM_PACKET: DailyRentalFormItem[] = [
 export function requiredDailyRentalFormIds() {
   return DAILY_RENTAL_FORM_PACKET.filter((form) => form.category === "Required").map((form) => form.id);
 }
+
+export const COURTESY_LOANER_FORM_PACKET: DailyRentalFormItem[] = [
+  {
+    basis: "Time Motor Sales counsel-approved courtesy/service loaner agreement draft",
+    category: "Required",
+    description: "Official Time Motor Sales customer courtesy/service loaner agreement covering customer, service transaction, courtesy vehicle, authorized drivers, insurance verification, prohibited uses, care, incident duties, responsibility, default, recovery, payment authorization, privacy, and acknowledgements.",
+    id: "courtesy-loaner-agreement",
+    label: "Courtesy / service loaner agreement",
+    trigger: "Every vehicle loaner checkout"
+  },
+  {
+    basis: "Approved courtesy loaner vehicle condition and return record",
+    category: "Required",
+    description: "Checkout and return record for pre-existing damage, return or incident notes, physical custody, condition, and representative acknowledgement.",
+    id: "courtesy-loaner-condition-return-record",
+    label: "Vehicle condition and return record",
+    trigger: "Loaner vehicle release and return"
+  },
+  {
+    basis: "Minnesota statutory rental vehicle insurance notice attached as Exhibit A",
+    category: "Required",
+    description: "Separate Minnesota statutory rental vehicle insurance notice and customer acknowledgement for courtesy/service loaner use.",
+    id: "courtesy-loaner-minnesota-insurance-notice",
+    label: "Minnesota statutory rental vehicle insurance notice",
+    trigger: "Every vehicle loaner checkout"
+  }
+];
+
+export function requiredCourtesyLoanerFormIds() {
+  return COURTESY_LOANER_FORM_PACKET.filter((form) => form.category === "Required").map((form) => form.id);
+}

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { DAILY_RENTAL_FORM_PACKET, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
+import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -880,6 +880,193 @@ function buildRentalDocumentHtml(input: {
 </html>`;
 }
 
+function buildCourtesyLoanerDocumentHtml(input: {
+  customerName: string;
+  dealNumber: string;
+  form: DailyRentalFormItem;
+  generatedAt: string;
+  rental: ReturnType<typeof dailyRentalFacts>;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.color}`.replace(/\s+/g, " ").trim();
+  const commonRows: Array<[string, string]> = [
+    ["Customer", input.customerName],
+    ["Agreement #", input.dealNumber],
+    ["Courtesy vehicle", vehicleLine || "Not captured"],
+    ["VIN", input.vehicle.vin],
+    ["Stock / plate", input.vehicle.stockNumber],
+    ["Odometer out", input.rental.mileageOut],
+    ["Pickup", `${input.rental.pickupDate} ${input.rental.pickupTime}`],
+    ["Return due", `${input.rental.dropoffDate} ${input.rental.dropoffTime}`],
+    ["Courtesy use fee", input.rental.ratePerDay],
+    ["Deposit / hold", input.rental.depositHold],
+    ["Fuel out", input.rental.fuelOut],
+    ["Fuel return", input.rental.returnFuel],
+    ["Insurance carrier", input.rental.insuranceCarrier],
+    ["Policy number", input.rental.insurancePolicy],
+    ["License state", input.rental.licenseState],
+    ["License number", input.rental.licenseNumber],
+    ["Additional driver status", input.rental.additionalDriverStatus],
+    ["Additional driver name", input.rental.additionalDriverName]
+  ];
+  const sectionsByForm: Record<string, Array<{ heading: string; rows?: Array<[string, string]>; bullets?: string[] }>> = {
+    "courtesy-loaner-agreement": [
+      {
+        heading: "Customer, service transaction, and courtesy vehicle",
+        rows: [
+          ["Owner / dealer", "Time Motor Sales, Inc."],
+          ["Dealer address", "1101 E. Lake Street, Minneapolis, MN 55407"],
+          ["Dealer contact", "612-724-3631 | timemotors.net"],
+          ["Purpose", "Temporary customer mobility while the customer's vehicle is being serviced, repaired, or maintained. This agreement conveys no title or ownership interest."],
+          ...commonRows
+        ]
+      },
+      {
+        heading: "Authorized drivers - strict requirement",
+        bullets: [
+          "Only persons specifically listed are authorized by Time Motor Sales, Inc. to operate the courtesy vehicle.",
+          "Household membership, possession of keys, permission from the customer, or insurance coverage does not create dealer authorization.",
+          "Customer may not lend, transfer, sublease, re-rent, entrust, or permit operation by any unlisted person.",
+          "Additional drivers require the dealer's prior written approval.",
+          "Customer must safeguard all keys and take reasonable steps to prevent unauthorized operation. If the vehicle or keys are taken without permission, customer must immediately notify the dealer and law enforcement."
+        ]
+      },
+      {
+        heading: "Insurance verification and customer representations",
+        bullets: [
+          "Before release, customer must provide current proof of automobile insurance applicable to the customer and, where required, each authorized driver.",
+          "Dealer collection or verification of insurance information is not a warranty or guarantee that an insurer will provide coverage.",
+          "Customer represents that all insurance information supplied is truthful, current, and not cancelled, suspended, excluded, or otherwise inapplicable as of vehicle release.",
+          "Customer authorizes dealer and its insurers or claims administrators to verify coverage and exchange claim-related information reasonably necessary to investigate a loss.",
+          "Customer must immediately report cancellation, lapse, suspension, exclusion, or material policy change. If coverage ceases, customer must stop using and promptly return the vehicle.",
+          "Misrepresentation or concealment concerning insurance, driver identity, residency, permission, or use is a material breach."
+        ]
+      },
+      {
+        heading: "Minnesota insurance / rental-vehicle notice",
+        bullets: [
+          "The separate Minnesota Statutory Rental Vehicle Insurance Notice attached as Exhibit A is incorporated into this agreement.",
+          "Customer acknowledges receipt of that separate notice.",
+          "Nothing in this agreement expands or guarantees coverage beyond the applicable policy and Minnesota law.",
+          "If damage to the courtesy vehicle is covered by a Minnesota plan of reparation security, payment by the reparation obligor within the time allowed by Minnesota law is acceptable and prior payment by the customer is not required.",
+          "Loss-of-use is subject to applicable Minnesota law."
+        ]
+      },
+      {
+        heading: "Prohibited uses",
+        bullets: [
+          "No operation by any unauthorized, unlicensed, suspended, revoked, impaired, intoxicated, or otherwise legally prohibited driver.",
+          "No rideshare, taxi, delivery, courier, livery, towing, pushing, racing, speed testing, off-road use, driver training, criminal activity, or other commercial use unless dealer expressly approves in writing.",
+          "No travel outside Minnesota without dealer's prior written approval.",
+          "No overloading, intentional damage, abandonment, concealment, or materially risk-increasing use.",
+          "No modification, dismantling, unauthorized repair, or tampering with GPS, telematics, dealer equipment, plates, or identifying devices.",
+          "No continued operation after a warning light, collision damage, overheating, tire failure, or other condition makes driving unreasonable or unsafe.",
+          "A prohibited use is a material breach. A breach does not itself determine insurance coverage or third-party rights, which remain governed by applicable law and policy terms."
+        ]
+      },
+      {
+        heading: "Vehicle condition, care, incidents, and cooperation",
+        bullets: [
+          "Customer acknowledges an opportunity to inspect the vehicle before departure and agrees to identify visible pre-existing damage on the vehicle condition report.",
+          "Customer will use reasonable care, lock the vehicle, safeguard keys, and promptly report warning lights, mechanical problems, theft, vandalism, or damage.",
+          "After any accident, theft, impound, or police contact, customer must stop safely, contact emergency services or law enforcement when required, notify dealer as soon as reasonably practicable, identify the actual driver and occupants, collect incident information, and cooperate through final resolution.",
+          "Customer must not admit liability on dealer's behalf, settle a claim, authorize repairs, abandon the vehicle, transfer any interest, or dispose of evidence."
+        ]
+      },
+      {
+        heading: "Financial responsibility, indemnity, return, and recovery",
+        bullets: [
+          "To the extent permitted by Minnesota law and except to the extent paid by applicable insurance or otherwise prohibited by law, customer is responsible for losses arising during customer's possession or control of the courtesy vehicle.",
+          "Responsibility may include physical damage, theft, vandalism, missing keys, reasonable towing, recovery, impound, storage, administrative or recovery expenses, repair costs, legally recoverable diminution in value, legally recoverable loss of use, citations, parking charges, tolls, towing violations, and costs caused by late return, abandonment, prohibited use, false information, or failure to cooperate.",
+          "Dealer will credit insurance or third-party recoveries against the same loss and will not obtain double recovery.",
+          "To the fullest extent permitted by Minnesota law, customer agrees to indemnify, reimburse, and hold harmless dealer and its owners, officers, employees, and agents from covered losses arising from customer's breach, negligence or intentional misconduct, false insurance or driver representations, or operation by a person whom customer allowed or enabled to operate without dealer's written authorization.",
+          "Customer must return the vehicle by the return due date/time, or earlier upon dealer's reasonable demand, in substantially the same condition except ordinary wear and covered loss.",
+          "Upon default, and only as permitted by law, dealer may terminate permission to possess the vehicle, demand immediate return, use lawful GPS/telematics to locate dealer property, and peacefully recover the vehicle without breach of the peace."
+        ]
+      },
+      {
+        heading: "Payment authorization, service connection, privacy, and acknowledgements",
+        bullets: [
+          "Customer authorizes charges only for amounts lawfully due under this agreement, supported by reasonable documentation, and subject to applicable payment-network and consumer-protection rules.",
+          "This courtesy vehicle is provided in connection with the service, repair, or maintenance transaction identified by the dealership. Use does not alter payment obligations, warranties, repair authorizations, financing terms, or other rights concerning customer's own vehicle unless separately agreed in writing.",
+          "Dealer may maintain copies of driver's licenses, insurance verification, inspection photographs, payment authorizations, GPS/telematics records, communications, and incident documentation for legitimate business, safety, claims, legal, and regulatory purposes.",
+          "Customer acknowledges reading this agreement before taking possession, receiving a complete copy of this agreement and Exhibit A, understanding only listed drivers are authorized, providing truthful insurance and driver information, understanding accident-reporting duties, and understanding that extensions require dealer approval."
+        ]
+      }
+    ],
+    "courtesy-loaner-condition-return-record": [
+      {
+        heading: "Vehicle condition and return record",
+        rows: [
+          ["Agreement #", input.dealNumber],
+          ["Customer", input.customerName],
+          ["Courtesy vehicle VIN", input.vehicle.vin],
+          ["Courtesy vehicle", vehicleLine || "Not captured"],
+          ["Mileage out", input.rental.mileageOut],
+          ["Fuel out", input.rental.fuelOut],
+          ["Fuel return", input.rental.returnFuel],
+          ["Pre-existing damage / checkout notes", "Document photos and notes before release"],
+          ["Return / incident notes", "Document return condition, incidents, tow/impound, or exceptions"],
+          ["Return acknowledgement", "Documents physical custody/condition only and does not constitute a release, settlement, admission of liability, or final determination of charges or insurance coverage."]
+        ]
+      }
+    ],
+    "courtesy-loaner-minnesota-insurance-notice": [
+      {
+        heading: "Exhibit A - Minnesota statutory rental vehicle insurance notice",
+        bullets: [
+          MINNESOTA_RENTAL_COVERAGE_NOTICE,
+          "This statutory notice concerns Minnesota rental-vehicle insurance law. It does not represent that the customer has an active policy, that any particular person is an insured, or that a carrier will accept a particular claim. Coverage remains subject to applicable law and the actual policy.",
+          "Customer acknowledges receiving and reading this separate Minnesota notice before taking possession of the courtesy vehicle."
+        ]
+      },
+      {
+        heading: "Acknowledgement",
+        rows: [
+          ["Customer printed name", input.customerName],
+          ["Agreement #", input.dealNumber],
+          ["Dealer representative", "Time Motor Sales representative"]
+        ]
+      }
+    ]
+  };
+  const sections = sectionsByForm[input.form.id] ?? [{ heading: "Courtesy loaner document", rows: commonRows }];
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(input.form.label)}</title>
+  <style>
+    body { color: #061735; font-family: Arial, sans-serif; margin: 32px; }
+    h1 { font-size: 28px; margin: 0 0 6px; }
+    h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
+    p, li { color: #34445d; line-height: 1.45; }
+    .meta { color: #52647d; margin: 0 0 20px; }
+    table { border-collapse: collapse; margin-top: 12px; width: 100%; }
+    th, td { border: 1px solid #dbe6f8; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f6f9ff; color: #34445d; width: 34%; }
+    .notice { background: #eefbf3; border: 1px solid #bbf7d0; border-radius: 10px; color: #14532d; margin: 18px 0; padding: 12px; }
+    .signature { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
+    .line { border-top: 1px solid #061735; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(input.form.label)}</h1>
+  <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.form.basis)} · ${escapeHtml(input.form.trigger)}</p>
+  <p class="notice">Official Time Motor Sales courtesy/service loaner pathway based on the dealership's counsel-approved draft.</p>
+  ${sections.map((section) => `
+    <h2>${escapeHtml(section.heading)}</h2>
+    ${section.rows ? `<table><tbody>${section.rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>` : ""}
+    ${section.bullets ? `<ul>${section.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+  `).join("")}
+  <div class="signature">
+    <div class="line">Customer signature / date</div>
+    <div class="line">Dealer representative / date</div>
+  </div>
+</body>
+</html>`;
+}
+
 export async function generateUnifiedCrmContractPacket(
   actor: AuthenticatedUser | null,
   input: UnifiedCrmContractPacketInput,
@@ -891,14 +1078,18 @@ export async function generateUnifiedCrmContractPacket(
 
   const now = dependencies.now?.() ?? new Date();
   const generatedAt = now.toISOString();
-  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : "MINNESOTA_RETAIL_SALE";
+  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : "MINNESOTA_RETAIL_SALE";
   const packetForms: PacketFormItem[] = packetType === "LEASE_TO_OWN"
     ? LEASE_TO_OWN_FORM_PACKET
+    : packetType === "VEHICLE_LOANER"
+      ? COURTESY_LOANER_FORM_PACKET
     : packetType === "DAILY_RENTAL"
       ? DAILY_RENTAL_FORM_PACKET
       : MN_SALE_FORM_PACKET;
   const requiredIds = packetType === "LEASE_TO_OWN"
     ? allLeaseToOwnFormIds()
+    : packetType === "VEHICLE_LOANER"
+      ? requiredCourtesyLoanerFormIds()
     : packetType === "DAILY_RENTAL"
       ? requiredDailyRentalFormIds()
       : requiredMinnesotaSaleFormIds();
@@ -1000,6 +1191,15 @@ export async function generateUnifiedCrmContractPacket(
             rental: rentalInput,
             vehicle
           })
+        : packetType === "VEHICLE_LOANER"
+          ? buildCourtesyLoanerDocumentHtml({
+              customerName,
+              dealNumber,
+              form: form as DailyRentalFormItem,
+              generatedAt,
+              rental: rentalInput,
+              vehicle
+            })
         : form.id === "personal-references"
           ? buildPersonalReferencesDocumentHtml({
               customerName,
@@ -1046,6 +1246,8 @@ export async function generateUnifiedCrmContractPacket(
         at: generatedAt,
         detail: packetType === "LEASE_TO_OWN"
           ? `${documents.length} lease-to-own form(s) generated and archived.`
+          : packetType === "VEHICLE_LOANER"
+            ? `${documents.length} vehicle loaner form(s) generated and archived.`
           : packetType === "DAILY_RENTAL"
             ? `${documents.length} daily rental form(s) generated and archived.`
             : `${documents.length} Minnesota sale form(s) generated and archived.`

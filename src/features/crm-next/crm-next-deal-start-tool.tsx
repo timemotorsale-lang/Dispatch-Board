@@ -4,7 +4,7 @@ import { type ReactNode, type SetStateAction, useEffect, useMemo, useState } fro
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
-import { DAILY_RENTAL_FORM_PACKET, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
+import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
@@ -1493,7 +1493,8 @@ function DailyRentalExecutionDesk({
     isLoaner ? rentalFacts.interestedVehicle : rentalFacts.cardLast4,
     rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file"
   ].filter(Boolean).length;
-  const requiredRentalForms = requiredDailyRentalFormIds();
+  const rentalFormPacket = isLoaner ? COURTESY_LOANER_FORM_PACKET : DAILY_RENTAL_FORM_PACKET;
+  const requiredRentalForms = isLoaner ? requiredCourtesyLoanerFormIds() : requiredDailyRentalFormIds();
   const preparedRequiredCount = requiredRentalForms.filter((id) => preparedForms.includes(id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
   const releasePhotoCount = RENTAL_RELEASE_PHOTO_REQUIREMENTS.filter((item) => releasePhotos[item.id]).length;
@@ -1634,7 +1635,7 @@ function DailyRentalExecutionDesk({
         dealType: workflowTitle,
         feeTotal: rentalFacts.depositHold,
         idempotencyKey: crypto.randomUUID(),
-        packetType: "DAILY_RENTAL",
+        packetType: isLoaner ? "VEHICLE_LOANER" : "DAILY_RENTAL",
         paymentFunding: isLoaner
           ? `Courtesy loaner fee waiver; ${formatCurrency(estimatedRentalCents)} daily use fee deferred and waived if the interested vehicle purchase completes.`
           : `${rentalFacts.paymentMethod} hold ${rentalFacts.cardLast4 ? `ending ${rentalFacts.cardLast4}` : "not captured"}`,
@@ -1880,7 +1881,7 @@ function DailyRentalExecutionDesk({
           <div>
             <span>Packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
-            <small>Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions.</small>
+            <small>{isLoaner ? "Open the drawer to prepare the official courtesy loaner agreement, condition/return record, and Minnesota insurance notice." : "Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions."}</small>
           </div>
           <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
         </div>
@@ -1900,7 +1901,7 @@ function DailyRentalExecutionDesk({
                 <div>
                   <span>Required forms ready</span>
                   <strong>{preparedRequiredCount}/{requiredRentalForms.length}</strong>
-                  <small>Prepare the baseline packet first, then add the additional driver addendum only when it applies.</small>
+                  <small>{isLoaner ? "Prepare the official courtesy loaner packet before release." : "Prepare the baseline packet first, then add the additional driver addendum only when it applies."}</small>
                 </div>
                 <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateRentalPacket()}>
@@ -1925,7 +1926,7 @@ function DailyRentalExecutionDesk({
                 </div>
               ) : null}
               <div className={styles.retailFormsGrid}>
-                {DAILY_RENTAL_FORM_PACKET.map((form) => {
+                {rentalFormPacket.map((form) => {
                   const prepared = preparedForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>

@@ -303,4 +303,55 @@ describe("Unified CRM contract packet route", () => {
     expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
     expect(packet.auditTrail[0].detail).toContain("daily rental form");
   });
+
+  it("generates a vehicle loaner signing packet from the approved courtesy loaner pathway", async () => {
+    const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        customerName: "Loaner Customer",
+        dailyRental: {
+          depositHold: "$100.00",
+          dropoffDate: "2026-09-16",
+          dropoffTime: "17:00",
+          estimatedRentalCharges: "$0.00",
+          fuelOut: "Full",
+          insuranceCarrier: "Progressive",
+          insurancePolicy: "LOAN-123",
+          licenseNumber: "L123456789",
+          licenseState: "MN",
+          licenseStatus: "Valid",
+          mileageOut: "88,210",
+          pickupDate: "2026-09-15",
+          pickupTime: "09:00",
+          ratePerDay: "$0.00",
+          returnFuel: "Return full"
+        },
+        dealNumber: "LOANER-1",
+        dealType: "Vehicle loaner",
+        packetType: "VEHICLE_LOANER",
+        vehicle: {
+          color: "Gray",
+          make: "Honda",
+          model: "Accord",
+          stockNumber: "P1234",
+          vin: "1HGCM82633A004352",
+          year: "2006"
+        }
+      }),
+      method: "POST"
+    }));
+
+    expect(created.status).toBe(201);
+    const packet = await created.json();
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual([
+      "courtesy-loaner-agreement",
+      "courtesy-loaner-condition-return-record",
+      "courtesy-loaner-minnesota-insurance-notice"
+    ]);
+    expect(packet.documents[0].html).toContain("Courtesy / service loaner agreement");
+    expect(packet.documents[0].html).toContain("Temporary customer mobility");
+    expect(packet.documents[0].html).toContain("Authorized drivers - strict requirement");
+    expect(packet.documents[1].html).toContain("Vehicle condition and return record");
+    expect(packet.documents[2].html).toContain("Minnesota statutory rental vehicle insurance notice");
+    expect(packet.auditTrail[0].detail).toContain("vehicle loaner form");
+  });
 });
