@@ -16774,7 +16774,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             </div>
           ) : null}
 
-          <div className="appointment-detail-section" id="appointment-detail-outcome">
+          <div className="appointment-detail-section" id="appointment-detail-owner-transfer">
               <div className="appointment-section-heading">
                 <strong>Owner Reassignment</strong>
                 <span className="appointment-resource-chip appointment-resource-requirement-selected">
@@ -17184,7 +17184,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             </div>
           ) : null}
 
-          <div className="appointment-detail-section">
+          <div className="appointment-detail-section" id="appointment-detail-outcome">
             <label className="appointment-outcome-label">
               Outcome
               <select
