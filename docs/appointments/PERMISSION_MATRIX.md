@@ -156,5 +156,5 @@ The permission model passes only when automated tests prove:
 - Automation cannot exceed its rule authority.
 - Every appointment mutation passes through a reusable server-side policy.
 
-Initial MVP evidence is tracked in `APPOINTMENT_PERMISSION_SAFETY_GATE.md` and `APPOINTMENT_SYSTEM_ACTION_AUTOMATION_PROOF.md`. The current safety gate proves the live command, direct-detail read, and draft-only system-action automation boundary for manager, owner, participant, viewer, appointment-admin-only, and automation actors; cross-location reporting/search coverage remains a rollout hardening item.
+Initial MVP evidence is tracked in `APPOINTMENT_PERMISSION_SAFETY_GATE.md`, `APPOINTMENT_SYSTEM_ACTION_AUTOMATION_PROOF.md`, and `APPOINTMENT_CROSS_LOCATION_SEARCH_PROOF.md`. The current safety gate proves the live command, direct-detail read, scoped search/read, and draft-only system-action automation boundary for manager, owner, participant, viewer, appointment-admin-only, and automation actors; durable export/reporting coverage remains a rollout hardening item when those APIs enter MVP scope.
 

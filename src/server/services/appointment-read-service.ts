@@ -218,6 +218,12 @@ function normalizeQuery(input: AppointmentReadQuery) {
   };
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+  const normalizedValue = value?.trim().toLowerCase();
+
+  return normalizedValue ? normalizedValue : null;
+}
+
 function normalizeAppointmentId(appointmentId: string) {
   const normalizedAppointmentId = appointmentId.trim();
 
