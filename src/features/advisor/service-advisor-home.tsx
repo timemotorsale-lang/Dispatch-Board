@@ -348,6 +348,33 @@ type QuickUpdateCategory = QuickUpdateItem["category"];
 type ReportCadence = "DAILY" | "WEEKLY" | "MONTHLY";
 type ManualReportCategory = "COMPLETED" | "UPDATE" | "BLOCKER" | "MANAGEMENT" | "CARRYOVER";
 type ManualReportItemDraft = { category: ManualReportCategory; detail: string; id: string; relatedContext: string; title: string };
+type MoneyReceivedDraft = {
+  amount: string;
+  method: "ACH" | "CARD" | "CASH" | "CHECK" | "OTHER" | "WIRE";
+  notes: string;
+  purpose: "CUSTOMER_PAYMENT" | "DEPOSIT" | "DOWN_PAYMENT" | "OTHER" | "SERVICE_PAYMENT" | "VEHICLE_SALE";
+  receivedDate: string;
+  receivedFrom: string;
+  receivedTime: string;
+  reference: string;
+  relatedRecord: string;
+  verified: boolean;
+};
+type CloseoutOutcomeKind = "DELIVERY" | "DROPOFF" | "FOLLOW_UP" | "REPAIR" | "SALE";
+type CloseoutOutcomeDraft = {
+  amount: string;
+  assignedTo: string;
+  channel: "CALL" | "EMAIL" | "IN_PERSON" | "SMS";
+  customer: string;
+  details: string;
+  eventDate: string;
+  eventTime: string;
+  flag: boolean;
+  nextAction: string;
+  notes: string;
+  reference: string;
+  vehicle: string;
+};
 type QuickUpdateCategoryOption = { group: string; label: string; value: QuickUpdateCategory };
 type DailyFocusItem = WorkdayWorkbookModel["dailyFocusItems"][number];
 type DailyFocusPriority = DailyFocusItem["priority"];
@@ -758,6 +785,34 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [closeWorkFilter, setCloseWorkFilter] = useState<CloseWorkFilter>("ALL");
   const [dailySummary, setDailySummary] = useState("");
   const [dailySummaryAudience, setDailySummaryAudience] = useState<DailySummaryAudience>("REPORT");
+  const [moneyDrawerOpen, setMoneyDrawerOpen] = useState(false);
+  const [moneyReceivedDraft, setMoneyReceivedDraft] = useState<MoneyReceivedDraft>({
+    amount: "",
+    method: "CASH",
+    notes: "",
+    purpose: "CUSTOMER_PAYMENT",
+    receivedDate: model.boardDate,
+    receivedFrom: "",
+    receivedTime: "",
+    reference: "",
+    relatedRecord: "",
+    verified: false
+  });
+  const [closeoutOutcomeKind, setCloseoutOutcomeKind] = useState<CloseoutOutcomeKind | null>(null);
+  const [closeoutOutcomeDraft, setCloseoutOutcomeDraft] = useState<CloseoutOutcomeDraft>({
+    amount: "",
+    assignedTo: "",
+    channel: "CALL",
+    customer: "",
+    details: "",
+    eventDate: model.boardDate,
+    eventTime: "",
+    flag: false,
+    nextAction: "",
+    notes: "",
+    reference: "",
+    vehicle: ""
+  });
   const [manualReportEditorOpen, setManualReportEditorOpen] = useState(false);
   const [manualReportItems, setManualReportItems] = useState<ManualReportItemDraft[]>([{ category: "UPDATE", detail: "", id: "manual-1", relatedContext: "", title: "" }]);
   const [expandedManualReportItemId, setExpandedManualReportItemId] = useState<string | null>(null);
@@ -792,15 +847,25 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     endDayReviewRef.current?.focus({ preventScroll: true });
   }
   useEffect(() => {
-    if (!manualReportEditorOpen && !expandedManualReportItemId) return;
+    if (!manualReportEditorOpen && !expandedManualReportItemId && !moneyDrawerOpen && !closeoutOutcomeKind) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (expandedManualReportItemId) setExpandedManualReportItemId(null);
       else setManualReportEditorOpen(false);
+      if (moneyDrawerOpen) setMoneyDrawerOpen(false);
+      if (closeoutOutcomeKind) setCloseoutOutcomeKind(null);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [expandedManualReportItemId, manualReportEditorOpen]);
+  }, [closeoutOutcomeKind, expandedManualReportItemId, manualReportEditorOpen, moneyDrawerOpen]);
+  useEffect(() => {
+    if (!moneyDrawerOpen && !closeoutOutcomeKind) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [closeoutOutcomeKind, moneyDrawerOpen]);
   const actionQueue = closedRepairOrderId
     ? model.actionQueue.filter((item) => item.id !== closedRepairOrderId)
     : model.actionQueue;
@@ -2807,22 +2872,51 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   if (initialTool === "CLOSE_MY_DAY") {
     const evidenceText = (pattern: RegExp) => reportSeeds.filter((seed) => pattern.test(`${seed.title} ${seed.detail}`));
     const moneyEvidence = evidenceText(/payment|money received|deposit|cash received|paid in full/i);
+    const moneyReceivedTotal = moneyEvidence.reduce((total, seed) => {
+      const amount = `${seed.title} ${seed.detail}`.match(/\$([\d,]+(?:\.\d{1,2})?)/)?.[1];
+      return total + (amount ? Number(amount.replaceAll(",", "")) : 0);
+    }, 0);
+    const moneyReceivedValue = moneyReceivedTotal > 0
+      ? new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(moneyReceivedTotal)
+      : moneyEvidence.length ? `${moneyEvidence.length} record${moneyEvidence.length === 1 ? "" : "s"}` : "Not recorded";
     const salesEvidence = evidenceText(/vehicle sold|retail sale|sale completed|sold today/i);
+    const repairEvidence = evidenceText(/repair completed|repair completion|work completed/i);
     const deliveryEvidence = evidenceText(/vehicle delivered|customer delivery|delivery completed/i);
+    const dropOffEvidence = evidenceText(/vehicle drop.?off|customer drop.?off|vehicle arrived/i);
+    const followUpEvidence = evidenceText(/customer follow.?up|follow.?up completed|customer contacted/i);
     const documentEvidence = evidenceText(/document|title|authorization|signed|packet/i);
     const inventoryEvidence = evidenceText(/inventory|stock|vehicle|unit|recon/i);
-    const repairCompletionCount = actionQueue.filter((item) => item.actionKind === "HANDOFF" || item.stage === "HANDOFF").length;
+    const repairCompletionCount = actionQueue.filter((item) => item.actionKind === "HANDOFF" || item.stage === "HANDOFF").length + repairEvidence.length;
     const closeExceptions = actionQueue.filter((item) => item.overdue || ["AUTHORIZATION", "PROMISE_RISK", "PARTS_DELAY"].includes(item.actionKind)).slice(0, 4);
     const customerFollowUps = model.inbox.filter((item) => item.audience === "CUSTOMER");
     const customerResponsesNeeded = customerFollowUps.filter((item) => item.needsResponse).length;
-    const customerFollowUpsCompleted = Math.max(0, customerFollowUps.length - customerResponsesNeeded);
+    const customerFollowUpsCompleted = Math.max(0, customerFollowUps.length - customerResponsesNeeded) + followUpEvidence.length;
+    const customerFollowUpTotal = customerFollowUps.length + followUpEvidence.length;
+    const vehicleDropOffCount = model.counts.todaysArrivals + dropOffEvidence.length;
+    const closeoutOutcomeConfigs = {
+      DELIVERY: { action: "Add delivery", icon: CheckCircle2, label: "Vehicle delivered", sourceHref: "/vehicles", title: "Record vehicle delivered" },
+      DROPOFF: { action: "Add drop-off", icon: CalendarClock, label: "Vehicle drop-off", sourceHref: "/vehicles", title: "Record vehicle drop-off" },
+      FOLLOW_UP: { action: "Add follow-up", icon: UsersRound, label: "Customer follow-up", sourceHref: "/crm-next", title: "Record customer follow-up" },
+      REPAIR: { action: "Add repair", icon: PackageCheck, label: "Repair completed", sourceHref: "/vehicles", title: "Record completed repair" },
+      SALE: { action: "Add sale", icon: CarFront, label: "Vehicle sold", sourceHref: "/sales", title: "Record vehicle sold" }
+    } satisfies Record<CloseoutOutcomeKind, { action: string; icon: typeof FileText; label: string; sourceHref: string; title: string }>;
+    const openCloseoutOutcome = (kind: CloseoutOutcomeKind) => {
+      setCloseoutOutcomeDraft({ amount: "", assignedTo: "", channel: "CALL", customer: "", details: "", eventDate: model.boardDate, eventTime: "", flag: false, nextAction: "", notes: "", reference: "", vehicle: "" });
+      setCloseoutOutcomeKind(kind);
+    };
+    const closeoutOutcomeReady = closeoutOutcomeKind === "SALE" ? Boolean(closeoutOutcomeDraft.customer.trim() && closeoutOutcomeDraft.vehicle.trim())
+      : closeoutOutcomeKind === "REPAIR" ? Boolean(closeoutOutcomeDraft.vehicle.trim() && closeoutOutcomeDraft.details.trim())
+        : closeoutOutcomeKind === "DELIVERY" ? Boolean(closeoutOutcomeDraft.customer.trim() && closeoutOutcomeDraft.vehicle.trim())
+          : closeoutOutcomeKind === "DROPOFF" ? Boolean(closeoutOutcomeDraft.vehicle.trim() && closeoutOutcomeDraft.details.trim())
+            : closeoutOutcomeKind === "FOLLOW_UP" ? Boolean(closeoutOutcomeDraft.customer.trim() && closeoutOutcomeDraft.details.trim())
+              : false;
     const outcomeCards = [
-      { detail: moneyEvidence.length ? `${moneyEvidence.length} receipt record(s) captured` : "No receipt evidence recorded", icon: FileText, label: "Money received", value: moneyEvidence.length ? `${moneyEvidence.length} record${moneyEvidence.length === 1 ? "" : "s"}` : "Not recorded" },
-      { detail: salesEvidence.length ? "From reviewed report evidence" : "No completed sales recorded", icon: CarFront, label: "Vehicles sold", value: String(salesEvidence.length) },
-      { detail: repairCompletionCount ? `${repairCompletionCount} awaiting customer handoff` : "No repair completions pending handoff", icon: PackageCheck, label: "Repairs completed", value: String(repairCompletionCount) },
-      { detail: deliveryEvidence.length ? "From reviewed report evidence" : "No delivery evidence recorded", icon: CheckCircle2, label: "Vehicles delivered", value: String(deliveryEvidence.length) },
-      { detail: `${model.counts.waitingCheckIn} still need check-in review`, icon: CalendarClock, label: "Vehicle drop-offs", value: String(model.counts.todaysArrivals) },
-      { detail: `${customerResponsesNeeded} still need a response`, icon: UsersRound, label: "Customer follow-ups", value: `${customerFollowUpsCompleted}/${customerFollowUps.length}` }
+      { action: "Record payment", detail: moneyEvidence.length ? `${moneyEvidence.length} detailed receipt record(s)` : "Add receipt details and verification", icon: FileText, label: "Money received", onClick: () => setMoneyDrawerOpen(true), value: moneyReceivedValue },
+      { action: closeoutOutcomeConfigs.SALE.action, detail: salesEvidence.length ? "From reviewed report evidence" : "No completed sales recorded", icon: CarFront, label: "Vehicles sold", onClick: () => openCloseoutOutcome("SALE"), value: String(salesEvidence.length) },
+      { action: closeoutOutcomeConfigs.REPAIR.action, detail: repairCompletionCount ? `${repairCompletionCount} completion record(s)` : "No repair completions recorded", icon: PackageCheck, label: "Repairs completed", onClick: () => openCloseoutOutcome("REPAIR"), value: String(repairCompletionCount) },
+      { action: closeoutOutcomeConfigs.DELIVERY.action, detail: deliveryEvidence.length ? "From reviewed report evidence" : "No delivery evidence recorded", icon: CheckCircle2, label: "Vehicles delivered", onClick: () => openCloseoutOutcome("DELIVERY"), value: String(deliveryEvidence.length) },
+      { action: closeoutOutcomeConfigs.DROPOFF.action, detail: `${model.counts.waitingCheckIn} still need check-in review`, icon: CalendarClock, label: "Vehicle drop-offs", onClick: () => openCloseoutOutcome("DROPOFF"), value: String(vehicleDropOffCount) },
+      { action: closeoutOutcomeConfigs.FOLLOW_UP.action, detail: `${customerResponsesNeeded} still need a response`, icon: UsersRound, label: "Customer follow-ups", onClick: () => openCloseoutOutcome("FOLLOW_UP"), value: `${customerFollowUpsCompleted}/${customerFollowUpTotal}` }
     ];
     const sourceCoverage = [
       { count: model.collaboratingTasks.length, label: "Tasks" },
@@ -2959,6 +3053,126 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       }
     }
 
+    async function saveMoneyReceived() {
+      const amount = Number(moneyReceivedDraft.amount);
+      const receivedFrom = moneyReceivedDraft.receivedFrom.trim();
+      if (!Number.isFinite(amount) || amount <= 0 || !receivedFrom || !moneyReceivedDraft.verified || isClosed) return;
+      const formattedAmount = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(amount);
+      const methodLabels: Record<MoneyReceivedDraft["method"], string> = { ACH: "ACH", CARD: "Card", CASH: "Cash", CHECK: "Check", OTHER: "Other", WIRE: "Wire" };
+      const purposeLabels: Record<MoneyReceivedDraft["purpose"], string> = { CUSTOMER_PAYMENT: "Customer payment", DEPOSIT: "Deposit", DOWN_PAYMENT: "Down payment", OTHER: "Other", SERVICE_PAYMENT: "Service payment", VEHICLE_SALE: "Vehicle sale" };
+      const receivedAt = [moneyReceivedDraft.receivedDate, moneyReceivedDraft.receivedTime].filter(Boolean).join(" at ");
+      const detail = [
+        `Amount: ${formattedAmount}`,
+        `Received from: ${receivedFrom}`,
+        `Payment method: ${methodLabels[moneyReceivedDraft.method]}`,
+        `Purpose: ${purposeLabels[moneyReceivedDraft.purpose]}`,
+        `Received: ${receivedAt}`,
+        moneyReceivedDraft.reference.trim() ? `Receipt / reference: ${moneyReceivedDraft.reference.trim()}` : null,
+        moneyReceivedDraft.relatedRecord.trim() ? `Related vehicle, deal, RO, or account: ${moneyReceivedDraft.relatedRecord.trim()}` : null,
+        moneyReceivedDraft.notes.trim() ? `Notes: ${moneyReceivedDraft.notes.trim()}` : null,
+        `Verified by: ${model.advisor.name}`
+      ].filter((item): item is string => Boolean(item)).join("\n");
+      setSaving(true);
+      setReviewingEndDay(false);
+      setCloseStepNotice(null);
+      try {
+        const query = `date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`;
+        const response = await fetch(`/api/coo-workbook/report-seeds/manual?${query}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: [{ category: "COMPLETED", detail, relatedContext: `${activeWorkbookLabel} · ${purposeLabels[moneyReceivedDraft.purpose]}`, title: `Money received - ${formattedAmount} - ${receivedFrom}` }] })
+        });
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Unable to record the payment.");
+        const draftResponse = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.boardDate)}&cadence=DAILY`, { method: "POST" });
+        const draftPayload = await draftResponse.json().catch(() => null) as { error?: string } | null;
+        if (!draftResponse.ok) throw new Error(draftPayload?.error ?? "The payment was recorded, but the daily report could not be refreshed.");
+        await refreshActiveWorkbook();
+        setMoneyReceivedDraft({ amount: "", method: "CASH", notes: "", purpose: "CUSTOMER_PAYMENT", receivedDate: model.boardDate, receivedFrom: "", receivedTime: "", reference: "", relatedRecord: "", verified: false });
+        setMoneyDrawerOpen(false);
+        setCloseDraftExpanded(true);
+        setCloseStepNotice(`${formattedAmount} received from ${receivedFrom} was recorded and added to the daily report.`);
+      } catch (error) {
+        setCloseStepNotice(error instanceof Error ? error.message : "Unable to record the payment.");
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    async function saveCloseoutOutcome() {
+      if (!closeoutOutcomeKind || !closeoutOutcomeReady || isClosed) return;
+      const config = closeoutOutcomeConfigs[closeoutOutcomeKind];
+      const occurredAt = [closeoutOutcomeDraft.eventDate, closeoutOutcomeDraft.eventTime].filter(Boolean).join(" at ");
+      const channelLabels: Record<CloseoutOutcomeDraft["channel"], string> = { CALL: "Phone call", EMAIL: "Email", IN_PERSON: "In person", SMS: "Text message" };
+      const detailLines = closeoutOutcomeKind === "SALE" ? [
+        `Customer: ${closeoutOutcomeDraft.customer.trim()}`,
+        `Vehicle: ${closeoutOutcomeDraft.vehicle.trim()}`,
+        closeoutOutcomeDraft.amount ? `Sale amount: ${new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(Number(closeoutOutcomeDraft.amount))}` : null,
+        closeoutOutcomeDraft.reference.trim() ? `Deal / reference: ${closeoutOutcomeDraft.reference.trim()}` : null,
+        closeoutOutcomeDraft.assignedTo.trim() ? `Salesperson: ${closeoutOutcomeDraft.assignedTo.trim()}` : null,
+        `Sold: ${occurredAt}`
+      ] : closeoutOutcomeKind === "REPAIR" ? [
+        `Vehicle / repair order: ${closeoutOutcomeDraft.vehicle.trim()}`,
+        `Work completed: ${closeoutOutcomeDraft.details.trim()}`,
+        closeoutOutcomeDraft.assignedTo.trim() ? `Technician / vendor: ${closeoutOutcomeDraft.assignedTo.trim()}` : null,
+        closeoutOutcomeDraft.reference.trim() ? `Invoice / reference: ${closeoutOutcomeDraft.reference.trim()}` : null,
+        `Completed: ${occurredAt}`,
+        `Quality check: ${closeoutOutcomeDraft.flag ? "Confirmed" : "Not confirmed"}`
+      ] : closeoutOutcomeKind === "DELIVERY" ? [
+        `Customer / recipient: ${closeoutOutcomeDraft.customer.trim()}`,
+        `Vehicle: ${closeoutOutcomeDraft.vehicle.trim()}`,
+        closeoutOutcomeDraft.reference.trim() ? `Odometer / delivery reference: ${closeoutOutcomeDraft.reference.trim()}` : null,
+        closeoutOutcomeDraft.assignedTo.trim() ? `Delivered by: ${closeoutOutcomeDraft.assignedTo.trim()}` : null,
+        `Delivered: ${occurredAt}`,
+        `Keys and documents confirmed: ${closeoutOutcomeDraft.flag ? "Yes" : "No"}`
+      ] : closeoutOutcomeKind === "DROPOFF" ? [
+        closeoutOutcomeDraft.customer.trim() ? `Customer / source: ${closeoutOutcomeDraft.customer.trim()}` : null,
+        `Vehicle: ${closeoutOutcomeDraft.vehicle.trim()}`,
+        `Drop-off reason: ${closeoutOutcomeDraft.details.trim()}`,
+        closeoutOutcomeDraft.reference.trim() ? `Condition / reference: ${closeoutOutcomeDraft.reference.trim()}` : null,
+        closeoutOutcomeDraft.assignedTo.trim() ? `Assigned to: ${closeoutOutcomeDraft.assignedTo.trim()}` : null,
+        `Arrived: ${occurredAt}`
+      ] : [
+        `Customer: ${closeoutOutcomeDraft.customer.trim()}`,
+        `Contact method: ${channelLabels[closeoutOutcomeDraft.channel]}`,
+        `Outcome: ${closeoutOutcomeDraft.details.trim()}`,
+        closeoutOutcomeDraft.nextAction.trim() ? `Next action: ${closeoutOutcomeDraft.nextAction.trim()}` : null,
+        closeoutOutcomeDraft.reference.trim() ? `Related record: ${closeoutOutcomeDraft.reference.trim()}` : null,
+        `Completed: ${occurredAt}`,
+        `Response still needed: ${closeoutOutcomeDraft.flag ? "Yes" : "No"}`
+      ];
+      if (closeoutOutcomeDraft.notes.trim()) detailLines.push(`Notes: ${closeoutOutcomeDraft.notes.trim()}`);
+      const subject = closeoutOutcomeDraft.vehicle.trim() || closeoutOutcomeDraft.customer.trim();
+      const title = `${config.label} - ${subject}`;
+      setSaving(true);
+      setReviewingEndDay(false);
+      setCloseStepNotice(null);
+      try {
+        const query = `date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`;
+        const response = await fetch(`/api/coo-workbook/report-seeds/manual?${query}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: [{ category: closeoutOutcomeKind === "DROPOFF" ? "UPDATE" : "COMPLETED", detail: detailLines.filter((item): item is string => Boolean(item)).join("\n"), relatedContext: `${activeWorkbookLabel} · ${config.label}`, title }] })
+        });
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? `Unable to save the ${config.label.toLocaleLowerCase()}.`);
+        const draftResponse = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.boardDate)}&cadence=DAILY`, { method: "POST" });
+        const draftPayload = await draftResponse.json().catch(() => null) as { error?: string } | null;
+        if (!draftResponse.ok) throw new Error(draftPayload?.error ?? "The outcome was saved, but the daily report could not be refreshed.");
+        await refreshActiveWorkbook();
+        setCloseoutOutcomeKind(null);
+        setCloseDraftExpanded(true);
+        setCloseStepNotice(`${config.label} saved and added to the daily report.`);
+      } catch (error) {
+        setCloseStepNotice(error instanceof Error ? error.message : `Unable to save the ${config.label.toLocaleLowerCase()}.`);
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    const activeCloseoutOutcomeConfig = closeoutOutcomeKind ? closeoutOutcomeConfigs[closeoutOutcomeKind] : null;
+    const ActiveCloseoutOutcomeIcon = activeCloseoutOutcomeConfig?.icon ?? FileText;
+
     return <section className="advisor-close-day" aria-label="Close My Day tool">
       <header className="advisor-close-day-titlebar">
         <div>
@@ -2985,7 +3199,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 
       <section className="advisor-close-day-outcomes" aria-labelledby="close-day-outcomes-title">
         <header><div><h2 id="close-day-outcomes-title">Today’s outcomes</h2><p>Live closeout totals from connected workbook and operating records.</p></div><Link href={scopedWorkbookHref("/vehicles/coo-workbook/report-seeds")}>Review evidence</Link></header>
-        <div>{outcomeCards.map((card) => { const Icon = card.icon; return <article key={card.label}><Icon /><span><small>{card.label}</small><strong>{card.value}</strong><em>{card.detail}</em></span></article>; })}</div>
+        <div>{outcomeCards.map((card) => {
+          const Icon = card.icon;
+          const content = <><Icon /><span><small>{card.label}</small><strong>{card.value}</strong><em>{card.detail}</em><b><Pencil /> {card.action}</b></span></>;
+          return <button aria-label={`${card.action}: ${card.label}`} className="advisor-close-day-outcome-action" disabled={saving || isClosed} key={card.label} onClick={card.onClick} type="button">{content}</button>;
+        })}</div>
       </section>
 
       <div className="advisor-close-day-layout">
@@ -3045,6 +3263,100 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div><p className={unresolvedEndDayCount ? "blocker" : "ready"}><CheckCircle2 /><span><strong>Work decisions</strong><small>{unresolvedEndDayCount ? `${unresolvedEndDayCount} still open` : "All decided"}</small></span></p><p className={latestReportDraft ? "ready" : "blocker"}><FileText /><span><strong>Daily report</strong><small>{latestReportDraft ? `${latestReportDraftItemCount} items reviewed` : "Generate draft"}</small></span></p><p className={hasUnsavedManualReportItems ? "blocker" : "ready"}><Plus /><span><strong>Staff additions</strong><small>{hasUnsavedManualReportItems ? "Save or discard" : "No unsaved additions"}</small></span></p></div>
         <footer><button className="secondary" onClick={() => setReviewingEndDay(false)} type="button">Back to edit</button><button disabled={saving || !endDayReadyForApproval} onClick={() => void closeOrReopenDay()} type="button">{saving ? "Closing…" : "Approve & Close Day"}</button></footer>
       </section> : null}
+
+      {moneyDrawerOpen ? <div className="advisor-close-day-drawer-backdrop">
+        <aside aria-labelledby="money-received-drawer-title" aria-modal="true" className="advisor-close-day-drawer" role="dialog">
+          <header>
+            <div><span><FileText /></span><div><small>Financial outcome</small><h2 id="money-received-drawer-title">Record money received</h2><p>Capture the full receipt trail for today’s closeout and daily report.</p></div></div>
+            <button aria-label="Close money received drawer" onClick={() => setMoneyDrawerOpen(false)} type="button"><X /></button>
+          </header>
+          <form onSubmit={(event) => { event.preventDefault(); void saveMoneyReceived(); }}>
+            <section className="advisor-close-day-drawer-summary">
+              <div><small>Business date</small><strong>{parseBoardDate(model.boardDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</strong></div>
+              <div><small>Workbook</small><strong>{activeWorkbookLabel}</strong></div>
+              <div><small>Recorded by</small><strong>{model.advisor.name}</strong></div>
+            </section>
+            <fieldset>
+              <legend>Payment details</legend>
+              <div className="advisor-close-day-money-fields">
+                <label className="amount"><span>Amount received *</span><div><b>$</b><input aria-label="Amount received" autoFocus inputMode="decimal" min="0.01" onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, amount: event.target.value }))} placeholder="0.00" required step="0.01" type="number" value={moneyReceivedDraft.amount} /></div></label>
+                <label><span>Received from *</span><input aria-label="Received from" maxLength={120} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, receivedFrom: event.target.value }))} placeholder="Customer, vendor, or source" required value={moneyReceivedDraft.receivedFrom} /></label>
+                <label><span>Payment method *</span><select aria-label="Payment method" onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, method: event.target.value as MoneyReceivedDraft["method"] }))} value={moneyReceivedDraft.method}><option value="CASH">Cash</option><option value="CARD">Card</option><option value="CHECK">Check</option><option value="ACH">ACH</option><option value="WIRE">Wire</option><option value="OTHER">Other</option></select></label>
+                <label><span>Applied to *</span><select aria-label="Payment purpose" onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, purpose: event.target.value as MoneyReceivedDraft["purpose"] }))} value={moneyReceivedDraft.purpose}><option value="CUSTOMER_PAYMENT">Customer payment</option><option value="DOWN_PAYMENT">Down payment</option><option value="DEPOSIT">Deposit</option><option value="VEHICLE_SALE">Vehicle sale</option><option value="SERVICE_PAYMENT">Service payment</option><option value="OTHER">Other</option></select></label>
+                <label><span>Date received *</span><input aria-label="Date received" onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, receivedDate: event.target.value }))} required type="date" value={moneyReceivedDraft.receivedDate} /></label>
+                <label><span>Time received</span><input aria-label="Time received" onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, receivedTime: event.target.value }))} type="time" value={moneyReceivedDraft.receivedTime} /></label>
+                <label><span>Receipt / reference number</span><input aria-label="Receipt or reference number" maxLength={100} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, reference: event.target.value }))} placeholder="Receipt, check, or transaction ID" value={moneyReceivedDraft.reference} /></label>
+                <label><span>Related record</span><input aria-label="Related vehicle deal repair order or account" maxLength={140} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, relatedRecord: event.target.value }))} placeholder="Stock #, VIN, deal #, RO, or account" value={moneyReceivedDraft.relatedRecord} /></label>
+              </div>
+              <label className="notes"><span>Notes</span><textarea aria-label="Money received notes" maxLength={800} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Add allocation details, exceptions, or anything management should know." rows={4} value={moneyReceivedDraft.notes} /></label>
+            </fieldset>
+            <label className="advisor-close-day-money-verification"><input checked={moneyReceivedDraft.verified} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, verified: event.target.checked }))} required type="checkbox" /><span><strong>I verified this receipt against the source record.</strong><small>The entry will be attributed to {model.advisor.name} and included in today’s audit trail.</small></span></label>
+            {moneyEvidence.length ? <section className="advisor-close-day-money-history"><header><div><strong>Recorded today</strong><small>{moneyEvidence.length} receipt record(s)</small></div><b>{moneyReceivedValue}</b></header>{moneyEvidence.slice(0, 3).map((seed) => <article key={seed.id}><CheckCircle2 /><span><strong>{seed.title}</strong><small>{seed.detail.split("\n").slice(0, 3).join(" · ")}</small></span></article>)}</section> : null}
+            <footer><button className="secondary" onClick={() => setMoneyDrawerOpen(false)} type="button">Cancel</button><button disabled={saving || !moneyReceivedDraft.verified || !moneyReceivedDraft.receivedFrom.trim() || Number(moneyReceivedDraft.amount) <= 0} type="submit"><Save /> {saving ? "Recording…" : "Record money received"}</button></footer>
+          </form>
+        </aside>
+      </div> : null}
+
+      {closeoutOutcomeKind && activeCloseoutOutcomeConfig ? <div className="advisor-close-day-drawer-backdrop">
+        <aside aria-labelledby="closeout-outcome-drawer-title" aria-modal="true" className="advisor-close-day-drawer advisor-close-day-outcome-drawer" role="dialog">
+          <header>
+            <div><span><ActiveCloseoutOutcomeIcon /></span><div><small>Today’s outcome</small><h2 id="closeout-outcome-drawer-title">{activeCloseoutOutcomeConfig.title}</h2><p>Add the essential details without leaving Close My Day.</p></div></div>
+            <button aria-label={`Close ${activeCloseoutOutcomeConfig.label.toLocaleLowerCase()} form`} onClick={() => setCloseoutOutcomeKind(null)} type="button"><X /></button>
+          </header>
+          <form onSubmit={(event) => { event.preventDefault(); void saveCloseoutOutcome(); }}>
+            <section className="advisor-close-day-drawer-summary">
+              <div><small>Business date</small><strong>{parseBoardDate(model.boardDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</strong></div>
+              <div><small>Workbook</small><strong>{activeWorkbookLabel}</strong></div>
+              <div><small>Source workspace</small><Link href={scopedWorkbookHref(activeCloseoutOutcomeConfig.sourceHref)}>Open source</Link></div>
+            </section>
+            <fieldset>
+              <legend>{activeCloseoutOutcomeConfig.label} details</legend>
+              <div className="advisor-close-day-money-fields">
+                {closeoutOutcomeKind === "SALE" ? <>
+                  <label><span>Customer *</span><input aria-label="Sale customer" autoFocus maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Customer name" required value={closeoutOutcomeDraft.customer} /></label>
+                  <label><span>Vehicle *</span><input aria-label="Sold vehicle" maxLength={140} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, vehicle: event.target.value }))} placeholder="Year, make, model, stock #, or VIN" required value={closeoutOutcomeDraft.vehicle} /></label>
+                  <label className="amount"><span>Sale amount</span><div><b>$</b><input aria-label="Sale amount" inputMode="decimal" min="0" onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, amount: event.target.value }))} placeholder="0.00" step="0.01" type="number" value={closeoutOutcomeDraft.amount} /></div></label>
+                  <label><span>Deal number</span><input aria-label="Sale deal number" maxLength={100} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, reference: event.target.value }))} placeholder="Deal or reference number" value={closeoutOutcomeDraft.reference} /></label>
+                  <label><span>Salesperson</span><input aria-label="Salesperson" maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, assignedTo: event.target.value }))} placeholder="Staff member" value={closeoutOutcomeDraft.assignedTo} /></label>
+                </> : null}
+                {closeoutOutcomeKind === "REPAIR" ? <>
+                  <label><span>Vehicle / repair order *</span><input aria-label="Repair vehicle or repair order" autoFocus maxLength={140} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, vehicle: event.target.value }))} placeholder="Vehicle, stock #, VIN, or RO" required value={closeoutOutcomeDraft.vehicle} /></label>
+                  <label><span>Technician / vendor</span><input aria-label="Repair technician or vendor" maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, assignedTo: event.target.value }))} placeholder="Who completed the work" value={closeoutOutcomeDraft.assignedTo} /></label>
+                  <label className="wide"><span>Work completed *</span><textarea aria-label="Repair work completed" maxLength={500} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, details: event.target.value }))} placeholder="Briefly describe the completed repair." required rows={3} value={closeoutOutcomeDraft.details} /></label>
+                  <label><span>Invoice / reference</span><input aria-label="Repair invoice or reference" maxLength={100} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, reference: event.target.value }))} placeholder="Invoice or reference number" value={closeoutOutcomeDraft.reference} /></label>
+                </> : null}
+                {closeoutOutcomeKind === "DELIVERY" ? <>
+                  <label><span>Customer / recipient *</span><input aria-label="Delivery customer or recipient" autoFocus maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Recipient name" required value={closeoutOutcomeDraft.customer} /></label>
+                  <label><span>Vehicle *</span><input aria-label="Delivered vehicle" maxLength={140} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, vehicle: event.target.value }))} placeholder="Year, make, model, stock #, or VIN" required value={closeoutOutcomeDraft.vehicle} /></label>
+                  <label><span>Odometer / reference</span><input aria-label="Delivery odometer or reference" maxLength={100} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, reference: event.target.value }))} placeholder="Odometer, deal, or delivery reference" value={closeoutOutcomeDraft.reference} /></label>
+                  <label><span>Delivered by</span><input aria-label="Delivered by" maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, assignedTo: event.target.value }))} placeholder="Staff member" value={closeoutOutcomeDraft.assignedTo} /></label>
+                </> : null}
+                {closeoutOutcomeKind === "DROPOFF" ? <>
+                  <label><span>Customer / source</span><input aria-label="Drop-off customer or source" autoFocus maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Customer, auction, transporter, or vendor" value={closeoutOutcomeDraft.customer} /></label>
+                  <label><span>Vehicle *</span><input aria-label="Dropped off vehicle" maxLength={140} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, vehicle: event.target.value }))} placeholder="Year, make, model, stock #, or VIN" required value={closeoutOutcomeDraft.vehicle} /></label>
+                  <label className="wide"><span>Drop-off reason *</span><textarea aria-label="Drop-off reason" maxLength={400} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, details: event.target.value }))} placeholder="Why the vehicle arrived and what should happen next." required rows={3} value={closeoutOutcomeDraft.details} /></label>
+                  <label><span>Condition / reference</span><input aria-label="Drop-off condition or reference" maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, reference: event.target.value }))} placeholder="Condition, transporter, or intake reference" value={closeoutOutcomeDraft.reference} /></label>
+                  <label><span>Assigned to</span><input aria-label="Drop-off assigned to" maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, assignedTo: event.target.value }))} placeholder="Staff owner" value={closeoutOutcomeDraft.assignedTo} /></label>
+                </> : null}
+                {closeoutOutcomeKind === "FOLLOW_UP" ? <>
+                  <label><span>Customer *</span><input aria-label="Follow-up customer" autoFocus maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Customer name" required value={closeoutOutcomeDraft.customer} /></label>
+                  <label><span>Contact method *</span><select aria-label="Follow-up contact method" onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, channel: event.target.value as CloseoutOutcomeDraft["channel"] }))} value={closeoutOutcomeDraft.channel}><option value="CALL">Phone call</option><option value="SMS">Text message</option><option value="EMAIL">Email</option><option value="IN_PERSON">In person</option></select></label>
+                  <label className="wide"><span>Outcome *</span><textarea aria-label="Follow-up outcome" maxLength={500} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, details: event.target.value }))} placeholder="What was discussed or resolved?" required rows={3} value={closeoutOutcomeDraft.details} /></label>
+                  <label><span>Next action</span><input aria-label="Follow-up next action" maxLength={180} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, nextAction: event.target.value }))} placeholder="Next commitment or follow-up" value={closeoutOutcomeDraft.nextAction} /></label>
+                  <label><span>Related record</span><input aria-label="Follow-up related record" maxLength={120} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, reference: event.target.value }))} placeholder="Vehicle, deal, RO, or account" value={closeoutOutcomeDraft.reference} /></label>
+                </> : null}
+                <label><span>Date *</span><input aria-label="Outcome date" onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, eventDate: event.target.value }))} required type="date" value={closeoutOutcomeDraft.eventDate} /></label>
+                <label><span>Time</span><input aria-label="Outcome time" onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, eventTime: event.target.value }))} type="time" value={closeoutOutcomeDraft.eventTime} /></label>
+              </div>
+              {closeoutOutcomeKind === "REPAIR" ? <label className="advisor-close-day-outcome-check"><input checked={closeoutOutcomeDraft.flag} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, flag: event.target.checked }))} type="checkbox" /><span>Final quality check completed</span></label> : null}
+              {closeoutOutcomeKind === "DELIVERY" ? <label className="advisor-close-day-outcome-check"><input checked={closeoutOutcomeDraft.flag} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, flag: event.target.checked }))} type="checkbox" /><span>Keys and required documents confirmed</span></label> : null}
+              {closeoutOutcomeKind === "FOLLOW_UP" ? <label className="advisor-close-day-outcome-check"><input checked={closeoutOutcomeDraft.flag} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, flag: event.target.checked }))} type="checkbox" /><span>Customer response or another follow-up is still required</span></label> : null}
+              <label className="notes"><span>Notes</span><textarea aria-label="Outcome notes" maxLength={800} onChange={(event) => setCloseoutOutcomeDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for management and the daily report." rows={3} value={closeoutOutcomeDraft.notes} /></label>
+            </fieldset>
+            <footer><button className="secondary" onClick={() => setCloseoutOutcomeKind(null)} type="button">Cancel</button><button disabled={saving || !closeoutOutcomeReady} type="submit"><Save /> {saving ? "Saving…" : `Save ${activeCloseoutOutcomeConfig.label.toLocaleLowerCase()}`}</button></footer>
+          </form>
+        </aside>
+      </div> : null}
 
       {closeStepNotice || workspaceNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice ?? workspaceNotice}</p> : null}
       <footer className="advisor-close-day-actions"><Link href={scopedWorkbookHref("/vehicles/coo-workbook")}>Finish later</Link>{isClosed ? <button disabled={saving} onClick={() => void closeOrReopenDay()} type="button">{saving ? "Reopening…" : "Reopen day"}</button> : <button disabled={saving} onClick={openEndDayReview} type="button"><ShieldCheck /> Review final report</button>}</footer>

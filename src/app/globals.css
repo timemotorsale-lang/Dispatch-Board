@@ -28063,6 +28063,617 @@ html[data-app-theme="dark"] .advisor-close-day :where(.advisor-close-day-coverag
 .advisor-close-day-summary{display:grid;gap:11px;border:1px solid #c9d8eb;border-radius:9px;padding:14px;background:#fff}.advisor-close-day-summary>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.advisor-close-day-summary header p{margin:3px 0 0;color:#718198;font-size:9.5px}.advisor-close-day-summary>header>span{border-radius:999px;padding:5px 8px;background:#eef4ff;color:#315bdc;font-size:8px;font-weight:900}.advisor-close-day-summary-prompt{display:flex;align-items:center;gap:8px;border:1px solid #dce5f0;border-radius:7px;padding:9px 10px;background:#f7faff}.advisor-close-day-summary-prompt>svg{width:17px;min-width:17px;color:#315bdc}.advisor-close-day-summary-prompt>span{display:grid;gap:2px}.advisor-close-day-summary-prompt strong{font-size:9.5px}.advisor-close-day-summary-prompt small{color:#687b92;font-size:8.5px}.advisor-close-day-summary-prompt>button{margin-left:auto;min-height:30px;border:1px solid #9db4dc;border-radius:6px;padding:0 9px;background:#fff;color:#315bdc;font:inherit;font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap}.advisor-close-day-summary>label{display:grid;gap:5px}.advisor-close-day-summary label>span{color:#536a84;font-size:8.5px;font-weight:900;text-transform:uppercase}.advisor-close-day-summary textarea{width:100%;min-height:112px;border:1px solid #cbd8e9;border-radius:7px;padding:10px 11px;background:#fff;color:#10233f;font:inherit;font-size:10.5px;line-height:1.5;resize:vertical;outline:0}.advisor-close-day-summary textarea:focus{border-color:#315bdc;box-shadow:0 0 0 3px rgba(49,91,220,.1)}.advisor-close-day-summary>footer{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-top:1px solid #e5ecf4;padding-top:10px}.advisor-close-day-summary>footer>div{display:flex;align-items:flex-end;gap:11px}.advisor-close-day-summary>footer label{display:grid;gap:4px}.advisor-close-day-summary select{min-height:34px;border:1px solid #cbd8e9;border-radius:6px;padding:0 9px;background:#fff;color:#18304f;font:inherit;font-size:9px;font-weight:800}.advisor-close-day-summary>footer small{display:flex;align-items:center;gap:5px;padding-bottom:8px;color:#687b92;font-size:8px}.advisor-close-day-summary>footer small svg{width:13px;color:#2f8b52}.advisor-close-day-summary>footer>button{display:inline-flex;align-items:center;gap:5px;min-height:35px;border:1px solid #315bdc;border-radius:6px;padding:0 11px;background:#315bdc;color:#fff;font:inherit;font-size:9px;font-weight:900;cursor:pointer}.advisor-close-day-summary>footer>button svg{width:14px}html[data-app-theme="dark"] .advisor-close-day-summary{border-color:#2a3a52;background:#101b2b}html[data-app-theme="dark"] .advisor-close-day-summary-prompt,html[data-app-theme="dark"] .advisor-close-day-summary :where(textarea,select){border-color:#344660;background:#0c1727;color:#e8eef8}
 @media(max-width:720px){.advisor-close-day-summary-prompt,.advisor-close-day-summary>footer,.advisor-close-day-summary>footer>div{display:grid}.advisor-close-day-summary-prompt>button{margin-left:0}.advisor-close-day-summary>footer>button{width:100%;justify-content:center}}
 
+.advisor-close-day-outcome-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  min-height: 92px;
+  border: 1px solid #e0e7f0;
+  border-radius: 8px;
+  padding: 11px;
+  background: #fbfcfe;
+  color: #10233f;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.advisor-close-day-outcome-action:hover,
+.advisor-close-day-outcome-action:focus-visible {
+  border-color: #7f9ce8;
+  box-shadow: 0 5px 14px rgba(49, 91, 220, .12);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.advisor-close-day-outcome-action:disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.advisor-close-day-outcome-action > svg {
+  width: 18px;
+  min-width: 18px;
+  color: #315bdc;
+}
+
+.advisor-close-day-outcome-action > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.advisor-close-day-outcome-action small {
+  color: #61758e;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.advisor-close-day-outcome-action strong {
+  overflow: hidden;
+  color: #10233f;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advisor-close-day-outcome-action em {
+  overflow: hidden;
+  color: #8a5a12;
+  font-size: 9px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advisor-close-day-outcome-action b {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  color: #315bdc;
+  font-size: 8.5px;
+}
+
+.advisor-close-day-outcome-action b svg {
+  width: 11px;
+}
+
+.advisor-close-day-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(8, 20, 38, .44);
+  backdrop-filter: blur(2px);
+}
+
+.advisor-close-day-drawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(620px, 100vw);
+  height: 100%;
+  background: #f7f9fc;
+  box-shadow: -18px 0 50px rgba(8, 20, 38, .2);
+}
+
+.advisor-close-day-drawer > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #dbe4ef;
+  padding: 20px 22px;
+  background: #fff;
+}
+
+.advisor-close-day-drawer > header > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.advisor-close-day-drawer > header > div > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eaf0ff;
+  color: #315bdc;
+}
+
+.advisor-close-day-drawer > header svg {
+  width: 19px;
+}
+
+.advisor-close-day-drawer > header small {
+  color: #315bdc;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.advisor-close-day-drawer > header h2 {
+  margin-top: 3px;
+  font-size: 20px;
+}
+
+.advisor-close-day-drawer > header p {
+  margin: 4px 0 0;
+  color: #657991;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.advisor-close-day-drawer > header > button {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #d6e0ec;
+  border-radius: 7px;
+  background: #fff;
+  color: #405a79;
+  cursor: pointer;
+}
+
+.advisor-close-day-drawer > form {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+}
+
+.advisor-close-day-drawer-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.advisor-close-day-drawer-summary > div {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #dbe4ef;
+  border-radius: 7px;
+  padding: 9px 10px;
+  background: #fff;
+}
+
+.advisor-close-day-drawer-summary small,
+.advisor-close-day-drawer label > span {
+  color: #647891;
+  font-size: 8.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.advisor-close-day-drawer-summary strong {
+  overflow: hidden;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advisor-close-day-drawer-summary a {
+  color: #315bdc;
+  font-size: 10.5px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.advisor-close-day-drawer fieldset {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  border: 1px solid #d5e0ec;
+  border-radius: 9px;
+  padding: 14px;
+  background: #fff;
+}
+
+.advisor-close-day-drawer legend {
+  padding: 0 6px;
+  color: #193553;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.advisor-close-day-money-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.advisor-close-day-drawer label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.advisor-close-day-money-fields > .wide {
+  grid-column: 1 / -1;
+}
+
+.advisor-close-day-drawer :where(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd8e9;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: #10233f;
+  font: inherit;
+  font-size: 11px;
+  outline: 0;
+}
+
+.advisor-close-day-drawer :where(input, select) {
+  min-height: 40px;
+}
+
+.advisor-close-day-drawer textarea {
+  min-height: 90px;
+  padding-block: 9px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.advisor-close-day-drawer :where(input, select, textarea):focus {
+  border-color: #315bdc;
+  box-shadow: 0 0 0 3px rgba(49, 91, 220, .1);
+}
+
+.advisor-close-day-money-fields .amount > div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.advisor-close-day-money-fields .amount b {
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd8e9;
+  border-right: 0;
+  border-radius: 7px 0 0 7px;
+  background: #f1f5fa;
+  color: #315bdc;
+  font-size: 12px;
+}
+
+.advisor-close-day-money-fields .amount input {
+  border-radius: 0 7px 7px 0;
+}
+
+.advisor-close-day-money-verification {
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: flex-start;
+  border: 1px solid #bcd5c6;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #eff9f2;
+}
+
+.advisor-close-day-money-verification input {
+  width: 16px;
+  min-height: 16px;
+  margin-top: 1px;
+  accent-color: #2f8b52;
+}
+
+.advisor-close-day-money-verification > span {
+  display: grid;
+  gap: 3px;
+}
+
+.advisor-close-day-money-verification strong {
+  font-size: 10.5px;
+}
+
+.advisor-close-day-money-verification small {
+  color: #60766a;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.advisor-close-day-outcome-check {
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid #d8e2ed;
+  border-radius: 7px;
+  padding: 9px 10px;
+  background: #f7faff;
+}
+
+.advisor-close-day-outcome-check input {
+  width: 16px;
+  min-height: 16px;
+  accent-color: #315bdc;
+}
+
+.advisor-close-day-outcome-check > span {
+  color: #405a79 !important;
+  font-size: 9.5px !important;
+  text-transform: none !important;
+}
+
+.advisor-close-day-money-history {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #d5e0ec;
+  border-radius: 9px;
+  padding: 12px;
+  background: #fff;
+}
+
+.advisor-close-day-money-history > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.advisor-close-day-money-history > header > div {
+  display: grid;
+}
+
+.advisor-close-day-money-history > header strong {
+  font-size: 11px;
+}
+
+.advisor-close-day-money-history > header small {
+  color: #657991;
+  font-size: 9px;
+}
+
+.advisor-close-day-money-history > header b {
+  color: #2f7049;
+  font-size: 12px;
+}
+
+.advisor-close-day-money-history article {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid #e4ebf3;
+  padding-top: 8px;
+}
+
+.advisor-close-day-money-history article > svg {
+  width: 15px;
+  min-width: 15px;
+  color: #2f8b52;
+}
+
+.advisor-close-day-money-history article span {
+  display: grid;
+  gap: 2px;
+}
+
+.advisor-close-day-money-history article strong {
+  font-size: 10px;
+}
+
+.advisor-close-day-money-history article small {
+  overflow: hidden;
+  color: #657991;
+  font-size: 8.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advisor-close-day-drawer form > footer {
+  position: sticky;
+  bottom: -24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #dbe4ef;
+  margin: 0 -22px -24px;
+  padding: 13px 22px;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(8px);
+}
+
+.advisor-close-day-drawer form > footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid #315bdc;
+  border-radius: 7px;
+  padding: 0 13px;
+  background: #315bdc;
+  color: #fff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.advisor-close-day-drawer form > footer button.secondary {
+  border-color: #cbd8e9;
+  background: #fff;
+  color: #405a79;
+}
+
+.advisor-close-day-drawer form > footer button svg {
+  width: 14px;
+}
+
+html[data-app-theme="dark"] .advisor-close-day-outcome-action,
+html[data-app-theme="dark"] .advisor-close-day-drawer,
+html[data-app-theme="dark"] .advisor-close-day-drawer :where(header, fieldset, .advisor-close-day-drawer-summary > div, .advisor-close-day-money-history) {
+  border-color: #2a3a52;
+  background: #101b2b;
+  color: #e8eef8;
+}
+
+html[data-app-theme="dark"] .advisor-close-day-drawer :where(input, select, textarea),
+html[data-app-theme="dark"] .advisor-close-day-drawer form > footer {
+  border-color: #344660;
+  background: #0c1727;
+  color: #e8eef8;
+}
+
+@media (max-width: 900px) {
+  .advisor-close-day-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advisor-close-day-layout > aside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .advisor-close-day-controls {
+    flex-wrap: wrap;
+  }
+
+  .advisor-close-day-decisions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+
+  .advisor-close-day .advisor-close-day-decisions > button,
+  .advisor-close-day .advisor-close-day-decisions > a {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    padding: 5px 8px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 720px) {
+  .advisor-close-day-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .advisor-close-day-controls label:first-child,
+  .advisor-close-day-controls button {
+    grid-column: 1 / -1;
+  }
+
+  .advisor-close-day .advisor-close-day-controls label > strong,
+  .advisor-close-day .advisor-close-day-controls select,
+  .advisor-close-day .advisor-close-day-controls button,
+  .advisor-close-day .advisor-close-day-summary-prompt > button,
+  .advisor-close-day .advisor-close-day-report header button,
+  .advisor-close-day .advisor-close-day-handoff footer button,
+  .advisor-close-day .advisor-close-day-preview button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .advisor-close-day-table article {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    width: 100%;
+  }
+
+  .advisor-close-day-table article > * {
+    min-width: 0;
+  }
+
+  .advisor-close-day-decisions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .advisor-close-day .advisor-close-day-decisions > button,
+  .advisor-close-day .advisor-close-day-decisions > a {
+    min-height: 44px;
+  }
+
+  .advisor-close-day-layout > aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advisor-close-day-tabs button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .advisor-close-day-report > header,
+  .advisor-close-day-report header > div {
+    display: grid;
+    gap: 6px;
+  }
+
+  .advisor-close-day-summary-prompt > button,
+  .advisor-close-day-summary select {
+    white-space: normal;
+  }
+
+  .advisor-close-day-summary select {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .advisor-close-day-actions > a,
+  .advisor-close-day-actions > button {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 44px;
+    justify-content: center;
+    padding: 7px 10px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .advisor-close-day-outcome-action {
+    min-height: 112px;
+  }
+
+  .advisor-close-day-drawer > header,
+  .advisor-close-day-drawer > form {
+    padding-inline: 14px;
+  }
+
+  .advisor-close-day-drawer-summary,
+  .advisor-close-day-money-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advisor-close-day-drawer form > footer {
+    bottom: -24px;
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+
+  .advisor-close-day-drawer form > footer button {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 7px 9px;
+    line-height: 1.2;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 420px) {
+  .advisor-close-day-decisions {
+    grid-template-columns: 1fr;
+  }
+
+  .advisor-close-day-actions {
+    align-items: stretch;
+  }
+}
+
 /* Task execution contrast pass: suppress escaped light workbench islands in dark mode. */
 html[data-app-theme="dark"] .enterprise-task-workbench.etw-simple-workbench,
 html[data-app-theme="dark"] .enterprise-task-workbench .etw-simple-shell {
