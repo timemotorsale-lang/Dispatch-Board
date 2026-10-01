@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
 import { buildCrmWorkbookPlan } from "@/lib/workday-workbook-crm-integration";
@@ -737,7 +737,6 @@ function normalizeReviewActionPlan(plan: Partial<ReviewActionPlan>, fallbackDate
 }
 
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
-  const router = useRouter();
   const searchParams = useSearchParams() ?? new URLSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
@@ -885,7 +884,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     const params = new URLSearchParams(searchParams.toString());
     params.set("workbookScope", scope === "MY" ? "MY" : "COO");
     if (!params.has("date")) params.set("date", model.boardDate);
-    router.push(`/vehicles/coo-workbook/close-my-day?${params.toString()}`);
+    window.location.assign(`/vehicles/coo-workbook/close-my-day?${params.toString()}`);
   };
   const workbookExitHref = sourceReturnTo?.startsWith("/") && !sourceReturnTo.startsWith("//") ? sourceReturnTo : scopedWorkbookHref("/vehicles/coo-workbook");
   const repairOrderHref = (repairOrderId: string) => repairOrderWorkbookHref(repairOrderId, workbookExitHref, sourceReturnTo ? "My Workspace" : activeWorkbookLabel);

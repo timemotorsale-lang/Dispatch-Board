@@ -1020,7 +1020,7 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("Blocker Escalation");
     expect(moreToolsHtml).toContain("Promise Tracker");
     expect(moreToolsHtml).toContain("Training Moment Capture");
-    expect(moreToolsHtml).toContain("End-of-Day Assistant");
+    expect(moreToolsHtml).toContain("Close My Day");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/focus-compass");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");
