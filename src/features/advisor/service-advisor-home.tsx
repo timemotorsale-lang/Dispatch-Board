@@ -29,7 +29,6 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
 import { buildCrmWorkbookPlan } from "@/lib/workday-workbook-crm-integration";
@@ -75,12 +74,8 @@ type WorkbookScopeSearchParams = {
   toString(): string;
 };
 
-function useWorkbookSearchParams(): WorkbookScopeSearchParams {
-  try {
-    return useSearchParams() ?? new URLSearchParams();
-  } catch {
-    return new URLSearchParams();
-  }
+function currentWorkbookSearchParams(): WorkbookScopeSearchParams {
+  return typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
 }
 
 function automaticWorkbookView(canUseManagementWorkbook: boolean, searchParams: WorkbookScopeSearchParams): WorkbookViewMode {
@@ -746,7 +741,7 @@ function normalizeReviewActionPlan(plan: Partial<ReviewActionPlan>, fallbackDate
 }
 
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
-  const searchParams = useWorkbookSearchParams();
+  const searchParams = currentWorkbookSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
@@ -4516,7 +4511,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 }
 
 export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisorWorkspaceModel }) {
-  const searchParams = useSearchParams() ?? new URLSearchParams();
+  const searchParams = currentWorkbookSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
