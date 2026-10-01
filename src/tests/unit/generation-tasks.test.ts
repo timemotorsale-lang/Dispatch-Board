@@ -13,6 +13,7 @@ import {
   createMissingGeneratedTasksForDate,
   getGenerationRunFailureContext,
   listGenerationRunsForDate,
+  previewBoardGenerationForDate,
   type CreateMissingGeneratedTasksDependencies
 } from "@/server/services/generation-tasks";
 import type { GenerationInput } from "@/server/services/generation-inputs";
@@ -280,6 +281,12 @@ function createGenerationTasksHarness(
   }
 
   const repository: NonNullable<CreateMissingGeneratedTasksDependencies["repository"]> = {
+    async findBoardDay(boardDate) {
+      const boardDateKey = new Date(`${boardDate}T00:00:00.000Z`).toISOString().slice(0, 10);
+      return boardDays.find(
+        (candidate) => candidate.date.toISOString().slice(0, 10) === boardDateKey
+      ) ?? null;
+    },
     async getOrCreateBoardDay(boardDate) {
       const boardDateValue = new Date(`${boardDate}T00:00:00.000Z`);
       const existingBoardDay = boardDays.find(
@@ -497,6 +504,59 @@ function createGenerationTasksHarness(
 }
 
 describe("generation tasks service", () => {
+  it("previews all candidates without creating tasks and recommends a capacity-safe focus set", async () => {
+    const harness = createGenerationTasksHarness();
+
+    const preview = await previewBoardGenerationForDate("2026-06-17", {
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs
+    });
+
+    expect(preview).toMatchObject({
+      totalCandidates: 2,
+      existingTaskCount: 0,
+      publishableCandidateCount: 2,
+      recommendedTaskCount: 2,
+      deferredTaskCount: 0,
+      teamFocusLimit: 15,
+      perPersonFocusLimit: 6
+    });
+    expect(preview.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ tier: "SHOULD_TODAY", recommended: true })
+      ])
+    );
+    expect(harness.readTasks()).toHaveLength(0);
+    expect(harness.readGenerationRuns()).toHaveLength(0);
+  });
+
+  it("creates only manager-selected preview candidates", async () => {
+    const harness = createGenerationTasksHarness();
+    const preview = await previewBoardGenerationForDate("2026-06-17", {
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs
+    });
+    const selectedCandidate = preview.items[0]!;
+
+    const result = await createMissingGeneratedTasksForDate(
+      "2026-06-17",
+      { selectedCandidateKeys: [selectedCandidate.candidateKey] },
+      {
+        repository: harness.repository,
+        loadGenerationInputs: harness.loadGenerationInputs,
+        now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:01.000Z")
+      }
+    );
+
+    expect(result.totalCandidatesConsidered).toBe(1);
+    expect(result.createdTaskCount).toBe(1);
+    expect(result.createdTasks[0]).toMatchObject({
+      assignedUserId: selectedCandidate.assignedUserId,
+      title: selectedCandidate.title
+    });
+    expect(harness.readTasks()).toHaveLength(1);
+  });
+
   it("creates a generation run, completes it, and returns a useful success summary", async () => {
     const harness = createGenerationTasksHarness();
 

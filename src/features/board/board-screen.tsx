@@ -304,7 +304,7 @@ export function BoardScreen({
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
-  function handleGenerateBoard() {
+  function handleGenerateBoard(selectedCandidateKeys: string[]) {
     setGenerationFeedback(null);
 
     startGenerateTransition(async () => {
@@ -314,7 +314,8 @@ export function BoardScreen({
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          boardDate: selectedBoardDate
+          boardDate: selectedBoardDate,
+          selectedCandidateKeys
         })
       });
 

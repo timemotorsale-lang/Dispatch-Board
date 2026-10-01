@@ -89,6 +89,7 @@ function createGenerationInput(): GenerationInput {
             title: "Review inventory status",
             description: "Check stale and ready-for-sale units.",
             workflowArea: WorkflowArea.INVENTORY,
+            priority: "HIGH",
             defaultDueTime: "09:00",
             requiresManagerApproval: false,
             roleId: "role-inventory",

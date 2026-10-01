@@ -9,6 +9,7 @@ const toolBySlug: Record<string, CooWorkbookTool> = {
   "bring-forward": "BRING_FORWARD",
   carryover: "CARRYOVER",
   checklist: "CHECKLIST",
+  "close-my-day": "CLOSE_MY_DAY",
   drafts: "DRAFTS",
   "focus-compass": "FOCUS_COMPASS",
   "more-tools": "MORE_TOOLS",
@@ -26,6 +27,7 @@ type CooWorkbookToolPageProps = {
   searchParams?: Promise<{
     closedRepairOrderId?: string | string[];
     date?: string | string[];
+    workbookScope?: string | string[];
   }>;
 };
 
@@ -35,6 +37,7 @@ export default async function CooWorkbookToolPage({ params, searchParams }: CooW
   const initialTool = toolBySlug[tool];
   const closedRepairOrderId = typeof query.closedRepairOrderId === "string" ? query.closedRepairOrderId : null;
   const boardDate = typeof query.date === "string" ? query.date : undefined;
+  const workbookScope = typeof query.workbookScope === "string" ? query.workbookScope : "AUTO";
 
   if (!initialTool) {
     notFound();
@@ -42,5 +45,5 @@ export default async function CooWorkbookToolPage({ params, searchParams }: CooW
 
   const model = await getServiceAdvisorWorkspace(user, boardDate);
 
-  return <CooDailyWorkbook closedRepairOrderId={closedRepairOrderId} initialTool={initialTool} model={JSON.parse(JSON.stringify(model))} />;
+  return <CooDailyWorkbook closedRepairOrderId={closedRepairOrderId} initialTool={initialTool} key={`${tool}:${boardDate ?? "current"}:${workbookScope}`} model={JSON.parse(JSON.stringify(model))} />;
 }
