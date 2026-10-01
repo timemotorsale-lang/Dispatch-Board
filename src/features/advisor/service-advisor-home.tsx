@@ -72,7 +72,16 @@ type EnterpriseCloseRow = {
 
 type WorkbookScopeSearchParams = {
   get(name: string): string | null;
+  toString(): string;
 };
+
+function useWorkbookSearchParams(): WorkbookScopeSearchParams {
+  try {
+    return useSearchParams() ?? new URLSearchParams();
+  } catch {
+    return new URLSearchParams();
+  }
+}
 
 function automaticWorkbookView(canUseManagementWorkbook: boolean, searchParams: WorkbookScopeSearchParams): WorkbookViewMode {
   if (!canUseManagementWorkbook) return "MY";
@@ -737,7 +746,7 @@ function normalizeReviewActionPlan(plan: Partial<ReviewActionPlan>, fallbackDate
 }
 
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
-  const searchParams = useSearchParams() ?? new URLSearchParams();
+  const searchParams = useWorkbookSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
