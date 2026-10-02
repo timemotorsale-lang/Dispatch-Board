@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-brand";
 import type { DealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 
 type WarrantyDocumentInput = {
@@ -54,7 +55,7 @@ export function dealerWarrantyHtml(input: WarrantyDocumentInput) {
     .bhph-warranty .signatures div { border-top: 1px solid #20252b; padding-top: 5px; }
     @media print { .bhph-warranty { margin: 0; padding: 0; break-before: page; break-after: page; } }
   </style></head><body><article class="bhph-warranty">
-    <header><strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
+    <header>${dealDeskLogoHtml(true)}<strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
     <h1>Engine &amp; Transmission Warranty / Optional Return</h1>
     <table>${content.rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</table>
     ${content.sections.map(([heading, paragraph]) => `<section><h2>${escapeHtml(heading)}</h2><p>${escapeHtml(paragraph)}</p></section>`).join("")}
@@ -67,6 +68,7 @@ export async function dealerWarrantyPdfBase64(input: WarrantyDocumentInput) {
   const content = documentContent(input);
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([612, 792]);
+  await drawDealDeskPdfLogo(pdf, page);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const color = rgb(.12, .15, .18);

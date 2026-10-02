@@ -28,6 +28,38 @@ const manager: AuthenticatedUser = {
 };
 
 describe("claims workspace service", () => {
+  it("persists a staff-reviewed approval even without a recognized estimate and audits corrections", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, { customerName: "Approval Customer", vehicleVin: "VIN-APPROVAL" }, { repository });
+    const claimId = created.readModel.claim.id;
+    await updateClaimExecutionDetails(actor, claimId, { approvedRepairAmount: "4,812.44", note: "Lori approved the repairs; extraction missed the total." }, { repository });
+    const refreshed = await getClaimWorkspaceReadModel(actor, claimId, { repository });
+    expect(refreshed.estimateReview).toMatchObject({ approvedAmountCents: 481244, approvedAmountLabel: "$4,812.44", status: "AMOUNT_FOUND" });
+    expect(refreshed.billingRecovery.summary.approvedAmountLabel).toBe("$4,812.44");
+    expect(refreshed.activities).toEqual(expect.arrayContaining([expect.objectContaining({ action: "CLAIM_APPROVED_AMOUNT_RECORDED", actorUserId: actor.id, actorUserName: actor.name, detail: expect.stringContaining("Lori approved") })]));
+    expect(refreshed.handoff.allowed).toBe(false);
+
+    const evidence = await attachClaimEvidence(actor, claimId, { category: "ESTIMATE", status: "RECEIVED", title: "Updated estimate", notes: "Approved repair amount $6,000.00" }, { repository });
+    expect(evidence.estimateReview.approvedAmountCents).toBe(481244);
+    const source = evidence.evidence.find((item) => item.title === "Updated estimate")!;
+    const corrected = await updateClaimExecutionDetails(actor, claimId, { approvedRepairAmount: "6000.00", approvalEvidenceId: source.id, note: "Reviewed and confirmed the supplement." }, { repository });
+    expect(corrected.estimateReview).toMatchObject({ approvedAmountCents: 600000, evidenceId: source.id });
+    expect(corrected.activities).toEqual(expect.arrayContaining([expect.objectContaining({ detail: expect.stringContaining("$4,812.44 -> $6,000.00") })]));
+  });
+
+  it.each(["", "-1", "12.345", "1,23.00", "NaN", "Infinity", "21474836.48"])("rejects an invalid manual approval amount %s", async (approvedRepairAmount) => {
+    const repository = createInMemoryClaimsWorkspaceRepository();
+    await expect(updateClaimExecutionDetails(actor, "claim-demo-1", { approvedRepairAmount, note: "Staff correction" }, { repository })).rejects.toMatchObject({ code: "CLAIM_INVALID" });
+  });
+
+  it("requires an approval note and rejects evidence from another claim", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository();
+    await expect(updateClaimExecutionDetails(actor, "claim-demo-1", { approvedRepairAmount: "0" }, { repository })).rejects.toMatchObject({ code: "CLAIM_INVALID" });
+    await expect(updateClaimExecutionDetails(actor, "claim-demo-1", { approvedRepairAmount: "100", approvalEvidenceId: "foreign-evidence", note: "Approved" }, { repository })).rejects.toMatchObject({ code: "CLAIM_INVALID" });
+    const zero = await updateClaimExecutionDetails(actor, "claim-demo-1", { approvedRepairAmount: "0", note: "Carrier confirmed no payable repairs." }, { repository });
+    expect(zero.estimateReview.approvedAmountLabel).toBe("$0.00");
+  });
+
   it("builds the claims desk read model from governed claim workflow records", async () => {
     const model = await getClaimsDeskReadModel(actor, { repository: createInMemoryClaimsWorkspaceRepository() });
 

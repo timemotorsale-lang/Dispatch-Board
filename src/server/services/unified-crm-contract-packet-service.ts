@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-brand";
 
 import { BHPH_FORM_PACKET, requiredBhphFormIds, type BhphFormItem } from "@/lib/bhph-form-packet";
 import { TEST_DRIVE_FORM_PACKET, testDriveFacts, testDriveAgreementError } from "@/lib/test-drive-form-packet";
@@ -244,8 +245,8 @@ export async function personalReferencesPdfBase64(input: {
     if (value) textField.setText(value);
   }
 
-  draw("Time Motor Sales, Inc.", 36, 776, 10, true);
-  draw("1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631", 36, 763, 8, false, muted);
+  await drawDealDeskPdfLogo(pdf, page, { x: 36, y: 758, width: 144 });
+  draw("1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631", 190, 763, 7, false, muted);
   draw("timemotors.net | timemotorsale@gmail.com", 355, 776, 8, false, muted);
   draw(input.dealType === "BHPH" ? "References and Contact Authorization" : "Personal References and Verification", 36, 742, 16, true);
   draw("Customer must provide at least five reachable personal references.", 36, 726, 9, false, muted);
@@ -559,6 +560,7 @@ function buildDocumentHtml(input: {
   </style>
 </head>
 <body>
+  ${dealDeskLogoHtml()}
   <h1>${escapeHtml(input.label)}</h1>
   <p>${escapeHtml(input.packetIntro ?? "Generated packet form for Minnesota vehicle sale processing. Confirm current legal/compliance language before customer signature.")}</p>
   <table>
@@ -626,7 +628,7 @@ function buildPersonalReferencesDocumentHtml(input: {
   </style>
 </head>
 <body>
-  <header class="letterhead"><strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
+  <header class="letterhead">${dealDeskLogoHtml(true)}<strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
   <h1>${escapeHtml(input.label)}</h1>
   <p class="notice">Customer must provide at least five reachable personal references. All five entries are required.</p>
   <div class="details"><div><strong>Customer:</strong> ${escapeHtml(input.customerName)}</div><div><strong>Deal / type:</strong> ${escapeHtml(input.dealNumber)} / ${escapeHtml(input.dealType)}</div><div><strong>Vehicle:</strong> ${escapeHtml(vehicleLine)}</div><div><strong>VIN:</strong> ${escapeHtml(input.vehicle.vin)}</div><div><strong>Customer phone:</strong> ____________________</div><div><strong>Date:</strong> ${escapeHtml(input.generatedAt.slice(0, 10))}</div></div>
@@ -980,7 +982,7 @@ function buildRentalDocumentHtml(input: {
 <body>
   <header class="letterhead">
     <div class="brand">
-      <span>Time Motor Sales</span>
+      ${dealDeskLogoHtml()}
       <strong>${escapeHtml(dealerName)}</strong>
       <p>Daily Vehicle Rental Packet</p>
     </div>
@@ -1295,7 +1297,7 @@ function buildCourtesyLoanerDocumentHtml(input: {
 <body>
   <header class="letterhead">
     <div class="brand">
-      <span>Time Motor Sales</span>
+      ${dealDeskLogoHtml()}
       <strong>${escapeHtml(dealerName)}</strong>
       <p>Courtesy Vehicle Loaner Packet</p>
     </div>
@@ -1562,7 +1564,7 @@ function buildBhphDocumentHtml(input: {
 <body>
   <header class="letterhead">
     <div class="brand">
-      <span>Time Motor Sales</span>
+      ${dealDeskLogoHtml()}
       <strong>${escapeHtml(dealerName)}</strong>
       <p>BHPH Account Packet</p>
     </div>

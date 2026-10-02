@@ -40,6 +40,10 @@ describe("Unified CRM contract packet route", () => {
     const packet = await created.json();
     expect(packet.status).toBe("ARCHIVED");
     expect(packet.documents).toHaveLength(4);
+    for (const document of packet.documents) {
+      expect(document.html).toContain('alt="Time Motor Sales"');
+      expect(document.html).toContain('src="data:image/png;base64,');
+    }
     expect(packet.documents[0].html).toContain("Alex Buyer");
     expect(packet.documents[0].html).toContain("Black");
     expect(packet.documents[0]).toMatchObject({
@@ -67,6 +71,7 @@ describe("Unified CRM contract packet route", () => {
     expect(referenceForm.html).not.toContain("<label>Address");
     const referencePdf = await PDFDocument.load(Buffer.from(referenceForm.contentBase64, "base64"));
     expect(referencePdf.getPageCount()).toBe(1);
+    expect(referencePdf.getPage(0).node.Resources()?.toString()).toContain("/XObject");
     for (const index of [1, 2, 3, 4, 5]) {
       expect(referencePdf.getForm().getTextField(`ref_${index}_name`)).toBeDefined();
       expect(referencePdf.getForm().getTextField(`ref_${index}_phone`)).toBeDefined();

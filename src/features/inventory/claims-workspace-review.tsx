@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Camera } from "lucide-react";
+import { Camera, Pencil } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { claimPhotoCategory, type ClaimPhotoCategory } from "@/lib/claim-photo-upload";
@@ -196,6 +196,7 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
   const [extraToolsOpen, setExtraToolsOpen] = useState(false);
   const [estimateDrawerOpen, setEstimateDrawerOpen] = useState(false);
+  const [approvedAmountEditorOpen, setApprovedAmountEditorOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [moneyDrawerOpen, setMoneyDrawerOpen] = useState(false);
   const [printDocument, setPrintDocument] = useState<{ html: string; title: string } | null>(null);
@@ -852,6 +853,9 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
                 <div className={styles.fact}>
                   <span>Approved repairs</span>
                   <strong>{estimateReview.approvedAmountLabel}</strong>
+                  <button className={styles.approvedAmountEdit} aria-expanded={approvedAmountEditorOpen} aria-controls="approved-repairs-editor" disabled={!claimId || isWorking} onClick={() => setApprovedAmountEditorOpen((open) => !open)} type="button">
+                    <Pencil size={14} aria-hidden="true" /> Edit approved repairs
+                  </button>
                 </div>
                 <div className={styles.fact}>
                   <span>Balance</span>
@@ -862,6 +866,29 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
                   <strong>{billingRecovery.rental.status.replaceAll("_", " ").toLowerCase()}</strong>
                 </div>
               </div>
+              {approvedAmountEditorOpen ? (
+                <form id="approved-repairs-editor" action={saveSnapshot} className={styles.executionForm}>
+                  <strong>Record reviewed approval</strong>
+                  <label className={styles.noteField}>
+                    <span>Approved repair amount ($)</span>
+                    <input autoFocus defaultValue={estimateReview.approvedAmountCents !== null ? (estimateReview.approvedAmountCents / 100).toFixed(2) : ""} inputMode="decimal" min="0" max="21474836.47" name="approvedRepairAmount" required step="0.01" type="number" />
+                  </label>
+                  <label className={styles.noteField}>
+                    <span>Supporting document</span>
+                    <select name="approvalEvidenceId" defaultValue={model?.claim.approvedAmountSourceEvidenceId ?? ""}>
+                      <option value="">No document linked</option>
+                      {model?.evidence.filter((item) => item.status !== "BLOCKED").map((item) => <option key={item.id} value={item.id}>{item.title}{item.fileName ? ` - ${item.fileName}` : ""}</option>)}
+                    </select>
+                  </label>
+                  <label className={styles.noteField}>
+                    <span>Approval / correction note</span>
+                    <textarea name="note" required maxLength={500} placeholder="Who approved the amount, approval date, and reason for this correction" rows={3} />
+                  </label>
+                  <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Saving..." : "Save reviewed approval"}</button>
+                  <button disabled={isWorking} onClick={() => setApprovedAmountEditorOpen(false)} type="button">Cancel</button>
+                  {actionError ? <p className={styles.actionError} role="alert">{actionError}</p> : null}
+                </form>
+              ) : null}
               <button className={styles.recoveryOpenButton} onClick={() => setMoneyDrawerOpen(true)} type="button">Open recovery workspace</button>
             </div>
           </section>

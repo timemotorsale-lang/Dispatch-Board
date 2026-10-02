@@ -1378,6 +1378,7 @@ function DailyRentalExecutionDesk({
   const isLoaner = mode === "vehicle-loaner";
   const workflowNoun = isLoaner ? "loaner" : "rental";
   const workflowTitle = isLoaner ? "Vehicle loaner" : "Daily rental";
+  const checkoutDeskRef = useRef<HTMLDivElement>(null);
   const workflowUnitLabel = isLoaner ? "Loaner unit" : "Rental unit";
   const feeStatusLabel = isLoaner ? "Deferred - waived if purchase completes" : "Due at checkout";
   const [preparedForms, setPreparedForms] = useState<string[]>([]);
@@ -1391,6 +1392,7 @@ function DailyRentalExecutionDesk({
   const [signedDocuments, setSignedDocuments] = useState<Record<string, string>>({});
   const [returnReceived, setReturnReceived] = useState(false);
   const [localActionMessage, setLocalActionMessage] = useState("");
+  const [appliedCheckoutTotal, setAppliedCheckoutTotal] = useState<string | null>(null);
   const [vehicleFacts, setVehicleFacts] = useState({
     color: "",
     licensePlate: "",
@@ -1466,7 +1468,6 @@ function DailyRentalExecutionDesk({
   const receivingMissingGates = RENTAL_RETURN_PHOTO_REQUIREMENTS
     .filter((item) => !returnPhotos[item.id])
     .map((item) => item.label);
-  const checkoutDisabled = rentalReadyFacts < 5 || !releaseEvidenceReady || !amount.trim() || statusKind === "saving";
   const checkoutBlockerText = rentalMissingGates.length > 0
     ? `Complete checkout is locked until ${rentalMissingGates.join(", ")}.`
     : "Complete checkout is ready.";
@@ -1478,6 +1479,7 @@ function DailyRentalExecutionDesk({
 
   function updateRentalFact(key: keyof typeof rentalFacts, value: string) {
     setLocalActionMessage("");
+    setAppliedCheckoutTotal(null);
     const nextFacts = { ...rentalFacts, [key]: value };
     setRentalFacts(nextFacts);
     const nextDays = daysBetween(nextFacts.pickupDate, nextFacts.dropoffDate);
@@ -1511,7 +1513,9 @@ function DailyRentalExecutionDesk({
 
 
   function useAuthorizationTotal() {
-    onAmountChange(formatCurrency(isLoaner ? estimatedRentalCents : authorizationCents));
+    const total = formatCurrency(isLoaner ? estimatedRentalCents : authorizationCents);
+    onAmountChange(total);
+    setAppliedCheckoutTotal(total);
   }
 
   function togglePreparedForm(id: string) {
@@ -1540,6 +1544,30 @@ function DailyRentalExecutionDesk({
   function completeReceiving() {
     setReturnReceived(true);
     setLocalActionMessage(`${workflowTitle} receiving marked complete with return evidence.`);
+  }
+
+  function completeCheckout() {
+    if (statusKind === "saving") return;
+    if (rentalMissingGates.length === 0) {
+      onComplete();
+      return;
+    }
+
+    setLocalActionMessage(`Checkout needs: ${rentalMissingGates.join(", ")}.`);
+    const missingFieldSelectors = [
+      ["Customer selected", "#rental-renter input"],
+      [`${workflowUnitLabel} assigned`, "#rental-unit input"],
+      ["Driver license captured", '[data-checkout-field="license"]'],
+      [isLoaner ? "Interested vehicle recorded" : "Payment hold recorded", isLoaner ? "#rental-window input" : "#rental-protection input"],
+      ["Protection or insurance recorded", '[data-checkout-field="insurance"]'],
+      ["Release photos captured", '[data-checkout-field="release-photo"]'],
+      ["Signed documents recorded", '[data-checkout-field="signed-document"]'],
+      ["Amount confirmed", '[data-checkout-field="amount"]']
+    ];
+    const selector = missingFieldSelectors.find(([label]) => label === rentalMissingGates[0])?.[1];
+    const field = selector ? checkoutDeskRef.current?.querySelector<HTMLElement>(selector) : null;
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    field?.focus({ preventScroll: true });
   }
 
   function packetHtml() {
@@ -1623,7 +1651,7 @@ function DailyRentalExecutionDesk({
   }
 
   return (
-    <div className={styles.retailExecutionDesk}>
+    <div className={styles.retailExecutionDesk} ref={checkoutDeskRef}>
       <section className={styles.retailSection} id="rental-renter">
         <header>
           <span>{isLoaner ? "Loaner driver eligibility" : "Renter eligibility"}</span>
@@ -1641,7 +1669,7 @@ function DailyRentalExecutionDesk({
           <label><span>Date of birth</span><input value={rentalFacts.dob} onChange={(event) => updateRentalFact("dob", event.target.value)} placeholder="MM/DD/YYYY" /></label>
           <label><span>SSN / ITIN</span><input placeholder="Only if manager-required" /></label>
           <label><span>License status</span><select value={rentalFacts.licenseStatus} onChange={(event) => updateRentalFact("licenseStatus", event.target.value)}><option>Valid</option><option>Needs review</option><option>Expired</option><option>Suspended / not eligible</option></select></label>
-          <label><span>License number</span><input value={rentalFacts.licenseNumber} onChange={(event) => updateRentalFact("licenseNumber", event.target.value)} /></label>
+          <label><span>License number</span><input data-checkout-field="license" value={rentalFacts.licenseNumber} onChange={(event) => updateRentalFact("licenseNumber", event.target.value)} /></label>
           <label><span>License state</span><select value={rentalFacts.licenseState} onChange={(event) => updateRentalFact("licenseState", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
           <label><span>Secondary ID</span><select value={rentalFacts.secondaryId} onChange={(event) => updateRentalFact("secondaryId", event.target.value)}><option>Not needed</option><option>Passport</option><option>Utility / bank statement</option><option>Military ID</option><option>Travel itinerary</option><option>Manager review</option></select></label>
           <label><span>Additional driver</span><select value={rentalFacts.additionalDriverStatus} onChange={(event) => updateRentalFact("additionalDriverStatus", event.target.value)}><option>None</option><option>Spouse / domestic partner</option><option>Paid additional driver</option><option>Business authorized driver</option><option>Needs approval</option></select></label>
@@ -1709,7 +1737,7 @@ function DailyRentalExecutionDesk({
           <label><span>Deposit / hold</span><input value={rentalFacts.depositHold} onChange={(event) => updateRentalFact("depositHold", event.target.value)} /></label>
           <label><span>Daily rate</span><input value={rentalFacts.ratePerDay} onChange={(event) => updateRentalFact("ratePerDay", event.target.value)} /></label>
           <label><span>Protection choice</span><select value={rentalFacts.protectionPlan} onChange={(event) => updateRentalFact("protectionPlan", event.target.value)}><option>Customer insurance on file</option><option>Dealer collision damage waiver</option><option>Liability supplement</option><option>Declined protection</option><option>Manager review</option></select></label>
-          <label><span>Insurance carrier</span><input value={rentalFacts.insuranceCarrier} onChange={(event) => updateRentalFact("insuranceCarrier", event.target.value)} /></label>
+          <label><span>Insurance carrier</span><input data-checkout-field="insurance" value={rentalFacts.insuranceCarrier} onChange={(event) => updateRentalFact("insuranceCarrier", event.target.value)} /></label>
           <label><span>Policy number</span><input value={rentalFacts.insurancePolicy} onChange={(event) => updateRentalFact("insurancePolicy", event.target.value)} /></label>
           <label><span>Estimated authorization</span><input readOnly value={formatCurrency(authorizationCents)} /></label>
         </div>
@@ -1718,8 +1746,13 @@ function DailyRentalExecutionDesk({
           <div><span>{isLoaner ? "Loaner fee exposure" : "Rental charges"}</span><strong>{formatCurrency(estimatedRentalCents)}</strong></div>
           <div><span>Deposit / hold</span><strong>{formatCurrency(Number.isFinite(depositHoldCents) && depositHoldCents !== null ? depositHoldCents : 0)}</strong></div>
           <div><span>{isLoaner ? "Customer fee status" : "Authorization"}</span><strong>{isLoaner ? feeStatusLabel : formatCurrency(authorizationCents)}</strong></div>
-          <button type="button" onClick={useAuthorizationTotal}>{isLoaner ? "Use fee exposure total" : "Use authorization total"}</button>
+          <button data-checkout-field="amount" type="button" onClick={useAuthorizationTotal}>{isLoaner ? "Use fee exposure total" : "Use authorization total"}</button>
         </div>
+        <p className={styles.retailDeliveryNote} role="status" aria-live="polite" aria-atomic="true">
+          {appliedCheckoutTotal !== null && appliedCheckoutTotal === amount
+            ? `Applied ${appliedCheckoutTotal} to the checkout amount.${isLoaner ? " Loaner fees remain deferred; the deposit / hold is separate." : " Includes rental charges and the deposit / hold."}`
+            : `Checkout amount: ${amount.trim() || "Not set"}`}
+        </p>
         {isLoaner ? (
           <div className={styles.retailDeliveryNote}>
             <strong>Courtesy Loaner Purchase Waiver</strong>
@@ -1751,7 +1784,7 @@ function DailyRentalExecutionDesk({
                   <strong>{releasePhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
                   <StorageDestination>vehicle file and {workflowNoun} deal jacket</StorageDestination>
-                  <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
+                  <input data-checkout-field={!releasePhotos[item.id] ? "release-photo" : undefined} accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
             </div>
@@ -1766,7 +1799,7 @@ function DailyRentalExecutionDesk({
                   <strong>{signedDocuments[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
                   <StorageDestination>customer library and {workflowNoun} deal jacket</StorageDestination>
-                  <input accept="application/pdf,image/*" capture={item.id === "signed-agreement" ? undefined : "environment"} onChange={(event) => captureEvidence(setSignedDocuments, item.id, event.currentTarget.files?.[0])} type="file" />
+                  <input data-checkout-field={!signedDocuments[item.id] ? "signed-document" : undefined} accept="application/pdf,image/*" capture={item.id === "signed-agreement" ? undefined : "environment"} onChange={(event) => captureEvidence(setSignedDocuments, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
             </div>
@@ -1836,8 +1869,8 @@ function DailyRentalExecutionDesk({
           <button type="button" onClick={saveRentalDraft}>Save {workflowNoun} draft</button>
           <button
             aria-describedby={`${workflowNoun}-checkout-gate`}
-            disabled={checkoutDisabled}
-            onClick={onComplete}
+            disabled={statusKind === "saving"}
+            onClick={completeCheckout}
             title={checkoutBlockerText}
             type="button"
           >
