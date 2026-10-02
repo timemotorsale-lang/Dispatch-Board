@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { Camera } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import { claimPhotoCategory, type ClaimPhotoCategory } from "@/lib/claim-photo-upload";
+import { ClaimPhotoUploader } from "./claim-photo-uploader";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -196,6 +199,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState("");
   const [snapshotEditing, setSnapshotEditing] = useState(false);
+  const [photoCategory, setPhotoCategory] = useState<ClaimPhotoCategory | null>(null);
   const reminderDateInputRef = useRef<HTMLInputElement>(null);
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
@@ -616,7 +620,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                   {task.id === "task-repair-handoff" ? (
                     <Link href={repairWorkflowTaskHref}>{repairWorkflowTaskActionLabel}</Link>
                   ) : (
-                    <button onClick={() => openExtraTool(toolForTask(task))} type="button">{task.actionLabel}</button>
+                    <button disabled={!claimId || isWorking} onClick={() => {
+                      const category = claimPhotoCategory(task);
+                      if (category) setPhotoCategory(category);
+                      else openExtraTool(toolForTask(task));
+                    }} type="button">{task.actionLabel}</button>
                   )}
                 </article>
               ))}
@@ -726,6 +734,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               </div>
               <StatusBadge>{evidenceRows.length} file{evidenceRows.length === 1 ? "" : "s"}</StatusBadge>
             </div>
+            <div className={styles.photoUploadToolbar}><button disabled={!claimId || isWorking} onClick={() => setPhotoCategory("DAMAGE_PHOTO")} type="button"><Camera size={18} /> Add claim photos</button></div>
             {evidenceRows.length ? (
               <div className={styles.uploadedEvidenceList}>
                 {evidenceRows.map((evidence) => (
@@ -1179,6 +1188,8 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
           </aside>
         </div>
       ) : null}
+
+      {photoCategory && claimId ? <ClaimPhotoUploader claimId={claimId} category={photoCategory} customer={model?.claim.customerName ?? "Claim"} onClose={() => setPhotoCategory(null)} onSaved={() => window.location.reload()} /> : null}
 
       {extraToolsOpen ? (
         <div className={styles.drawerBackdrop} role="presentation">

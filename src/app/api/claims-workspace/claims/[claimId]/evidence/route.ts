@@ -3,9 +3,11 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
+import { matchesClaimPhotoBytes, validateClaimPhoto } from "@/lib/claim-photo-upload";
 import { claimsWorkspaceDependencies } from "@/server/claims-workspace/repository-factory";
 import {
   attachClaimEvidence,
+  getClaimWorkspaceReadModel,
   CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION,
   ClaimsWorkspaceError
 } from "@/server/claims-workspace/service";
@@ -37,21 +39,28 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
   const { claimId } = await context.params;
   try {
     const user = await getCurrentUser();
+    if (!user) throw new ClaimsWorkspaceError("AUTHENTICATION_REQUIRED", "Sign in before uploading claim evidence.");
     const dependencies = await claimsWorkspaceDependencies();
     const contentType = request.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
       const file = form.get("file");
       if (!(file instanceof File)) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Claim evidence upload requires a file.");
+      const category = text(form.get("category")) || "ESTIMATE";
+      const isPhoto = ["DAMAGE_PHOTO", "ODOMETER_PHOTO", "VIN_PHOTO"].includes(category);
+      if (isPhoto) {
+        const invalid = validateClaimPhoto(file);
+        if (invalid) throw new ClaimsWorkspaceError("CLAIM_INVALID", invalid);
+      }
       const aggregate = await dependencies.repository.findClaimById(claimId);
       if (!aggregate) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
       const buffer = Buffer.from(await file.arrayBuffer());
       const bytes = new Uint8Array(buffer);
+      if (isPhoto && !matchesClaimPhotoBytes(file.type, bytes)) throw new ClaimsWorkspaceError("CLAIM_INVALID", "This file is not a valid JPEG or PNG photo.");
       const checksumSha256 = createHash("sha256").update(buffer).digest("hex");
-      const category = text(form.get("category")) || "ESTIMATE";
       const title = text(form.get("title")) || file.name;
       const reason = text(form.get("reason")) || text(form.get("notes")) || `Claim evidence uploaded for ${title}.`;
-      const extracted = await extractDocumentText({
+      const extracted = isPhoto ? { text: "", warnings: [] as string[] } : await extractDocumentText({
         bytes,
         contentType: file.type || "application/pdf",
         fileName: file.name
@@ -69,7 +78,11 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         );
       }
       const claimIdentity = createHash("sha256").update(claimId).digest("hex").slice(0, 10);
-      const documentId = `doc-claim-${claimIdentity}-${checksumSha256.slice(0, 12)}`;
+      const uploadIdentity = isPhoto ? createHash("sha256").update(`${category}:${file.name}:${checksumSha256}`).digest("hex") : checksumSha256;
+      const documentId = `doc-claim-${claimIdentity}-${uploadIdentity.slice(0, 12)}`;
+      if (isPhoto && aggregate.evidence.some((item) => item.documentLibraryId === documentId && item.category === category)) {
+        return NextResponse.json(await getClaimWorkspaceReadModel(user, claimId, dependencies), { status: 201 });
+      }
       const staged = await stageDocumentLibraryUpload(user, {
         bytes,
         checksumSha256,
@@ -95,7 +108,7 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         documentId,
         documentType: staged.storagePolicy.classification.documentType,
         fileName: staged.storageDraft.fileName,
-        idempotencyKey: `claim-evidence:${claimId}:${checksumSha256}`,
+        idempotencyKey: `claim-evidence:${claimId}:${uploadIdentity}`,
         owner: staged.storagePolicy.owner,
         packetId: text(form.get("packetId")) || undefined,
         reason,

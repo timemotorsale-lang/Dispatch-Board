@@ -23,6 +23,48 @@ import { getDocumentLibrary, resetDocumentLibraryDemoState } from "@/server/docu
 import { buildDocumentObjectKey } from "@/server/document-library/storage-adapter";
 
 describe("claims workspace API routes", () => {
+  it("stores multiple photos as independent claim evidence and rejects disguised images", async () => {
+    const formFor = (name: string, bytes: Uint8Array, category = "DAMAGE_PHOTO") => {
+      const form = new FormData();
+      form.set("category", category);
+      form.set("file", new File([bytes as BlobPart], name, { type: "image/png" }));
+      return new Request("http://local/api/claims-workspace/claims/claim-demo-1/evidence", { method: "POST", body: form });
+    };
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPioAAAAASUVORK5CYII=", "base64");
+    const first = await ATTACH_EVIDENCE(formFor("damage.png", png), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(first.status).toBe(201);
+    const second = await ATTACH_EVIDENCE(formFor("odometer.png", png, "ODOMETER_PHOTO"), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(second.status).toBe(201);
+    const payload = await second.json();
+    expect(payload.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ fileName: "damage.png", category: "DAMAGE_PHOTO", documentLibraryId: expect.stringMatching(/^doc-claim-/) }),
+      expect.objectContaining({ fileName: "odometer.png", category: "ODOMETER_PHOTO", documentLibraryId: expect.stringMatching(/^doc-claim-/) })
+    ]));
+    const photo = payload.evidence.find((item: { fileName: string }) => item.fileName === "damage.png");
+    const odometer = payload.evidence.find((item: { fileName: string }) => item.fileName === "odometer.png");
+    expect(photo.documentLibraryId).not.toBe(odometer.documentLibraryId);
+    mocks.documentFindFirst.mockResolvedValueOnce({
+      contentType: "image/png",
+      fileName: "damage.png",
+      storageProvider: "INTERNAL",
+      storageReference: `local-private://${buildDocumentObjectKey({
+        documentId: photo.documentLibraryId,
+        fileName: "damage.png",
+        organizationId: "default-org",
+        owner: { id: "claim-demo-1", label: "Claim #MN-48291", type: "CLAIM" },
+        version: 1
+      })}`
+    });
+    const original = await OPEN_EVIDENCE_CONTENT(new Request("http://local/photo"), { params: Promise.resolve({ claimId: "claim-demo-1", evidenceId: photo.id }) });
+    expect(original.status).toBe(200);
+    expect(Buffer.from(await original.arrayBuffer())).toEqual(png);
+    const retry = await ATTACH_EVIDENCE(formFor("damage.png", png), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(retry.status).toBe(201);
+    const retried = await retry.json();
+    expect(retried.evidence.filter((item: { fileName: string }) => item.fileName === "damage.png")).toHaveLength(1);
+    const invalid = await ATTACH_EVIDENCE(formFor("fake.png", new Uint8Array([1, 2, 3])), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(invalid.status).toBe(400);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     resetDocumentLibraryDemoState();

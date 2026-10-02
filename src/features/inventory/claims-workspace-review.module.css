@@ -1740,3 +1740,15 @@
     white-space: normal;
   }
 }
+.photoUploadToolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.photoUploadDrawer { grid-template-rows: none; align-content: start; }
+.photoUploadToolbar button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #bdcbe4; border-radius: 6px; background: #fff; color: #07132d; font: inherit; cursor: pointer; }
+.photoUploadToolbar button:first-child { background: #3d4bc9; color: #fff; border-color: #3d4bc9; }
+.photoUploadDrawer button:disabled { opacity: 0.55; cursor: default; }
+.photoUploadGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px; }
+.photoUploadItem { border: 1px solid #aab4c4; border-radius: 6px; padding: 10px; display: grid; gap: 8px; min-width: 0; }
+.photoUploadItem img { width: 100%; height: 140px; object-fit: contain; background: #edf0f3; }
+.photoUploadItem strong, .photoUploadItem p { overflow-wrap: anywhere; }
+.photoUploadItem button { justify-self: end; padding: 8px; display: grid; place-items: center; border: 1px solid #bdcbe4; border-radius: 6px; background: #fff; color: #07132d; cursor: pointer; }
+.photoUploadNote { display: grid; gap: 8px; margin-top: 16px; }
+.photoUploadNote textarea, .photoUploadNote select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #bdcbe4; border-radius: 6px; background: #fff; color: #07132d; padding: 10px; font: inherit; }
