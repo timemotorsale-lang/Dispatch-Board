@@ -65,6 +65,7 @@ type TaskDetailWorkspaceProps = {
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
   canUpdateStatus: boolean;
+  hasClaimWorkflow?: boolean;
   initialView?: TaskWorkspaceView;
   readiness?: TaskCompletionReadiness | null;
   returnTo?: string;
@@ -263,6 +264,7 @@ export function TaskDetailWorkspace({
   canCreateAppointment,
   canOpenFullWorkbench = false,
   canUpdateStatus,
+  hasClaimWorkflow = false,
   initialView = "simple",
   readiness = null,
   returnTo = "/tasks",
@@ -334,6 +336,7 @@ export function TaskDetailWorkspace({
             canManageCollaborators={canManageCollaborators}
             canOpenFullWorkbench={canOpenFullWorkbench}
             canUpdateStatus={canUpdateStatus}
+            hasClaimWorkflow={hasClaimWorkflow}
             checklist={checklist}
             commentCount={task.comments.length}
             dueAt={task.dueAt}

@@ -47,6 +47,7 @@ type TaskSimpleSummaryCardProps = {
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
   canUpdateStatus: boolean;
+  hasClaimWorkflow?: boolean;
   checklist: TaskDetailChecklistItem[];
   commentCount: number;
   dueLabel: string;
@@ -1177,6 +1178,7 @@ export function TaskSimpleSummaryCard({
   canManageCollaborators,
   canOpenFullWorkbench = false,
   canUpdateStatus,
+  hasClaimWorkflow = false,
   checklist,
   commentCount,
   dueAt,
@@ -1296,11 +1298,11 @@ export function TaskSimpleSummaryCard({
           <TaskDocumentUploadControl task={task} />
         </dl>
 
-        <section className="etw-compact-next-action" aria-label="Next action">
+        <section className="etw-compact-next-action" aria-label={hasClaimWorkflow ? "Task coordination" : "Next action"}>
           <div>
             <MessageSquareText size={18} />
-            <strong>Next Action:</strong>
-            <span>{nextStep}</span>
+            <strong>{hasClaimWorkflow ? "Task coordination:" : "Next Action:"}</strong>
+            <span>{hasClaimWorkflow ? "Claim follow-up" : nextStep}</span>
           </div>
           <nav aria-label="Tools for this next action">
             <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>

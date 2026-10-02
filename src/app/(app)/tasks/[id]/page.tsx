@@ -9,6 +9,8 @@ import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
 import { getTaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 import { getTaskSpecialistRoutes } from "@/server/technician-workspace/service";
+import { ClaimRepairWorkflow } from "@/features/inventory/claim-repair-workflow";
+import { getClaimWorkflowTaskContext } from "@/server/claims-workspace/repair-workflow-service";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,7 @@ type TaskDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
-  searchParams: Promise<{ returnTo?: string; view?: string }>;
+  searchParams: Promise<{ returnTo?: string; view?: string; claimId?: string }>;
 };
 
 export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
@@ -60,8 +62,11 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
     ? resolvedSearchParams.view
     : null;
   const initialView = requestedView === "workbench" && canOpenFullWorkbench ? "workbench" : "simple";
+  const claimWorkflow = await getClaimWorkflowTaskContext(user, task, resolvedSearchParams.claimId).catch(() => null);
 
   return (
+    <>
+    {claimWorkflow ? <ClaimRepairWorkflow claimId={claimWorkflow.claimId} intakeReady={claimWorkflow.intakeReady} intakeTask={claimWorkflow.intakeTask} continueHref={claimWorkflow.href} /> : null}
     <TaskDetailWorkspace
       activityEvents={activityEvents}
       actorIsManager={actorIsManager}
@@ -71,10 +76,12 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
       canOpenFullWorkbench={canOpenFullWorkbench}
+      hasClaimWorkflow={Boolean(claimWorkflow)}
       initialView={initialView}
       readiness={readiness}
       returnTo={returnTo}
       task={task}
     />
+    </>
   );
 }

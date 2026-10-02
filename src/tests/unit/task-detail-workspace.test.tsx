@@ -77,6 +77,13 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
 }
 
 describe("task detail workspace", () => {
+  it("keeps a verified claim task as coordination rather than a competing next action", () => {
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager assignableUsers={[]} canComment canManageCollaborators canCreateAppointment canUpdateStatus hasClaimWorkflow initialView="simple" task={createTask({ workflowArea: WorkflowArea.SERVICE_ADVISOR })} />);
+    expect(markup).toContain("Task coordination:");
+    expect(markup).not.toContain("Next Action:");
+    expect(markup).toContain("Record update");
+    expect(markup).toContain("Open checklist");
+  });
   it("keeps task actions available when completion progress is absent", () => {
     const markup = renderToStaticMarkup(
       <TaskWorkbenchActionBar

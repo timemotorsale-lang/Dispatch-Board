@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { claimPhotoCategory, type ClaimPhotoCategory } from "@/lib/claim-photo-upload";
 import { ClaimPhotoUploader } from "./claim-photo-uploader";
+import { ClaimRepairWorkflow } from "./claim-repair-workflow";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -268,27 +269,27 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const repairTaskVehicle = [model?.claim.vehicleYear, model?.claim.vehicleMake, model?.claim.vehicleModel].filter(Boolean).join(" ");
   const repairTaskContext = new URLSearchParams({
     brief: [
-      "Open the repair-start task after customer and carrier approval are confirmed.",
+      "Prepare and link the repair order. Do not start repairs before scope-specific customer and payer approval are recorded.",
       `Claim: ${model?.claim.claimNumber || claimId || "Pending claim number"}.`,
       `Carrier: ${model?.claim.carrierName || carrier.carrier || "Pending carrier"}.`,
       `Approved amount: ${estimateReview.approvedAmountLabel}.`,
       "Confirm authorization, approved estimate or supplement, stop rules, owner, and first repair action before work begins."
     ].join("\n"),
     customerReference: repairTaskCustomer,
-    expectedOutcome: "Repairs are ready to start with approval, authorization, scope, owner, and the first repair action documented.",
+    expectedOutcome: "The claim is linked to its repair plan with scope, authorization, supplement checkpoints, owner, and first action documented.",
     intakeType: "Repair Order / Authorization",
     returnTo: claimReturnHref,
     sourceTitle: "Claims Desk repair approval handoff",
-    title: `Start approved repairs for ${repairTaskCustomer}`,
+    title: `Prepare repair plan for ${repairTaskCustomer}`,
     workflowArea: "SERVICE_ADVISOR"
   });
   if (repairTaskVehicle) repairTaskContext.set("vehicleReference", repairTaskVehicle);
   const startRepairTaskHref = `/tasks/intake?${repairTaskContext.toString()}`;
-  const repairWorkflowTaskHref = model?.associatedRepairTask?.href ?? startRepairTaskHref;
-  const repairWorkflowTaskActionLabel = model?.associatedRepairTask ? "Open associated task" : "Create start repairs task";
+  const repairWorkflowTaskHref = model?.associatedRepairTask ? `${model.associatedRepairTask.href}?${new URLSearchParams({ claimId: claimId!, returnTo: claimReturnHref })}` : startRepairTaskHref;
+  const repairWorkflowTaskActionLabel = model?.associatedRepairTask ? "View assigned task" : "Create repair planning task";
   const repairWorkflowTaskDetail = model?.associatedRepairTask
     ? `${model.associatedRepairTask.title} is already tied to this claim. Open it to keep repair progress centralized.`
-    : "Create a task for the repair start so authorization, approved scope, owner, and first action stay tied to this claim.";
+    : "Create a repair planning task with authorization, scope, owner, and first action tied to this claim.";
   const appointmentContext = new URLSearchParams({
     action: "new",
     reason: model?.nextAction.reason ?? "Claim follow-up from Claims Workspace.",
@@ -599,9 +600,17 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
         </section>
       ) : null}
 
+      {claimId ? <ClaimRepairWorkflow claimId={claimId} intakeReady={model?.handoff.allowed} intakeTask={taskRows.find((task) => task.id !== "task-repair-handoff")} onIntake={() => {
+        const task = taskRows.find((item) => item.id !== "task-repair-handoff");
+        if (!task) return;
+        const category = claimPhotoCategory(task);
+        if (category) setPhotoCategory(category);
+        else openExtraTool(toolForTask(task));
+      }} onTools={() => setExtraToolsOpen(true)} taskHref={model?.associatedRepairTask ? repairWorkflowTaskHref : undefined} taskTitle={model?.associatedRepairTask?.title} /> : null}
+
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
-          <section className={styles.panel}>
+          {!claimId ? <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
                 <h2>Execute Next Tasks</h2>
@@ -632,7 +641,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
             <div className={styles.actionForms}>
               <button className={styles.extraToolsButton} onClick={() => setExtraToolsOpen(true)} type="button">Extra Action Tools</button>
             </div>
-          </section>
+          </section> : null}
 
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
@@ -790,7 +799,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
             </div>
           </section>
 
-          <section className={styles.panel}>
+          {!claimId ? <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
                 <h2>Next Action</h2>
@@ -801,7 +810,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               <span className={styles.cardEyebrow}>Recommended now</span>
               <strong>{model?.nextAction.label ?? "Contact adjuster"}</strong>
               <p>{model?.nextAction.reason ?? "Carrier is captured, but adjuster contact and approval status are missing. Repair handoff remains blocked until authorization and required photos are complete."}</p>
-              <button type="button">Record carrier call</button>
+              <button onClick={() => openExtraTool("call")} type="button">Record carrier call</button>
               <div className={styles.ownerGrid}>
                 <div className={styles.fact}>
                   <span>Owner</span>
@@ -813,7 +822,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                 </div>
               </div>
             </div>
-          </section>
+          </section> : null}
 
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
