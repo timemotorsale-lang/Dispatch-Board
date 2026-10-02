@@ -7,6 +7,8 @@ import { useRef, useState } from "react";
 import { claimPhotoCategory, type ClaimPhotoCategory } from "@/lib/claim-photo-upload";
 import { ClaimPhotoUploader } from "./claim-photo-uploader";
 import { ClaimRepairWorkflow } from "./claim-repair-workflow";
+import { ClaimCustomerAuthorization } from "./claim-customer-authorization";
+import { claimPermissionStatus } from "@/lib/claim-customer-authorization";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -186,8 +188,9 @@ function todayInputDate() {
   return date.toISOString().slice(0, 10);
 }
 
-export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string; model?: ClaimReadModel }) {
+export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested = false }: { loadError?: string; model?: ClaimReadModel; authorizationRequested?: boolean }) {
   const [actionError, setActionError] = useState("");
+  const [authorizationOpen, setAuthorizationOpen] = useState(authorizationRequested);
   const [actionMessage, setActionMessage] = useState("");
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
@@ -202,6 +205,8 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const [snapshotEditing, setSnapshotEditing] = useState(false);
   const [photoCategory, setPhotoCategory] = useState<ClaimPhotoCategory | null>(null);
   const reminderDateInputRef = useRef<HTMLInputElement>(null);
+  const communicationPending = !!model && model.claim.status !== "CLOSED" && claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION") !== "Verified signed copy";
+  const primaryBlocker = communicationPending ? "Claim communication permission needed" : model?.primaryBlocker;
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
     ["Address", [model.claim.customerAddressLine1, model.claim.customerAddressLine2, model.claim.customerCity, model.claim.customerState, model.claim.customerPostalCode].filter(Boolean).join(", ") || "Pending"],
@@ -217,15 +222,19 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   ] : snapshot;
   const needRows = model ? model.checklist.map((item) => ({
     detail: item.detail,
-    label: item.label,
+    label: item.category === "AUTHORIZATION" ? "Repair authorization" : item.label,
     state: checklistState(item)
   })) : needs;
-  const readinessRows = model ? model.readiness.map((item) => ({
+  const readinessRows: { label: string; percent: number; status: string; tone: "good" | "warning" | "danger" | "info" }[] = model ? model.readiness.map((item) => ({
     label: item.title,
     percent: item.percent,
     status: readinessLabel(item.status),
     tone: readinessTone(item.status)
-  })) : readiness;
+  })) : [...readiness];
+  if (model) {
+    const permission = claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION");
+    readinessRows.unshift({ label: "Claim communication permission", percent: permission === "Verified signed copy" ? 100 : 0, status: communicationPending ? "Signature verification needed" : permission, tone: permission === "Verified signed copy" ? "good" : "warning" });
+  }
   const completedNeeds = model?.checklist.filter((item) => item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE").length;
   const activityRows = model?.activities.length ? model.activities.slice(0, 5) : [
     { action: "CLAIM_CREATED", actorUserName: "Eli Manager", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
@@ -583,9 +592,9 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
           <span className={styles.cardEyebrow}>Current claim</span>
           <div className={styles.statusLine}>
             <strong>Waiting on adjuster</strong>
-            <StatusBadge tone="warning">{model?.primaryBlocker ?? "2 days open"}</StatusBadge>
+            <StatusBadge tone="warning">{primaryBlocker ?? "2 days open"}</StatusBadge>
           </div>
-          <p>{model?.nextAction.reason ?? "Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete."}</p>
+          <p>{communicationPending ? "Verify signed claim communication permission. Repair authorization and the optional direction to pay remain separate." : model?.nextAction.reason ?? "Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete."}</p>
         </aside>
       </header>
 
@@ -600,13 +609,14 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
         </section>
       ) : null}
 
-      {claimId ? <ClaimRepairWorkflow claimId={claimId} intakeReady={model?.handoff.allowed} intakeTask={taskRows.find((task) => task.id !== "task-repair-handoff")} onIntake={() => {
+      {claimId ? <ClaimRepairWorkflow claimId={claimId} onAuthorize={() => setAuthorizationOpen(true)} intakeReady={model?.handoff.allowed} intakeTask={taskRows.find((task) => task.id !== "task-repair-handoff")} onIntake={() => {
         const task = taskRows.find((item) => item.id !== "task-repair-handoff");
         if (!task) return;
         const category = claimPhotoCategory(task);
         if (category) setPhotoCategory(category);
         else openExtraTool(toolForTask(task));
       }} onTools={() => setExtraToolsOpen(true)} taskHref={model?.associatedRepairTask ? repairWorkflowTaskHref : undefined} taskTitle={model?.associatedRepairTask?.title} /> : null}
+      {model ? <ClaimCustomerAuthorization model={model} open={authorizationOpen} onOpen={() => setAuthorizationOpen(true)} onClose={() => setAuthorizationOpen(false)} /> : null}
 
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
@@ -708,7 +718,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                 </div>
                 <div className={`${styles.fact} ${styles.wide}`}>
                   <span>Current blocker</span>
-                  <strong>{model?.primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
+                  <strong>{primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
                 </div>
               </div>
             )}

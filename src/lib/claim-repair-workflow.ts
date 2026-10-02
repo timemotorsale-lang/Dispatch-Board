@@ -6,6 +6,7 @@ export const CHECKPOINT_LABELS: Record<ClaimCheckpoint, string> = {
 export type WorkflowEstimate = { id: string; version: number; totalCents: number; lines: Array<{ key: string; description: string; amountCents: number }>; authorizations: Array<{ id: string; disposition: string; keys: string[]; actor: string; amountCents: number }> };
 export type ClaimWorkflowSource = {
   claimId: string; customer: string; vin: string; claimNumber: string; claimClosed: boolean; customerAuthorization: boolean;
+  communicationPermission?: string; directPayPermission?: string;
   repairOrder: null | { id: string; number: string; stage: string; owner: string; targetAt: string; closed: boolean; version: number };
   estimates: WorkflowEstimate[];
   jobs: Array<{ id: string; number: string; description: string; status: string; blocker: string | null; technician: string; estimateId: string; lineKey: string; latestQc: string | null }>;
@@ -73,6 +74,7 @@ export function claimWorkflowNextAction(state: ClaimWorkflowState, source: Claim
   if (state.financialClose) return state.financialClose.fingerprint !== source.fingerprints.BILLING
     ? { label: "Review changed settlement", reason: "Billing records changed after settlement. A manager must reopen the review.", view: "Billing", action: "REOPEN" }
     : { label: "View completed workflow", reason: "Customer handover and verified settlement are recorded.", view: "History", complete: true };
+  if (source.communicationPermission && source.communicationPermission !== "Verified signed copy") return { label: "Get claim authorization signed", reason: "Obtain and verify limited claim communication permission before claim coordination. Direct payment is a separate optional choice; repair approval remains separate.", view: "Overview" };
   if (!source.repairOrder) return { label: "Create / link repair order", reason: "A matching repair order must be linked before repair planning can continue. Linking does not authorize repairs.", view: "Overview" };
   if (state.supplements.some((item) => !supplementResolved(item))) return { label: "Resolve pending supplement", reason: "Record the submission, follow-up, revision, or payer decision before continuing the affected scope.", view: "Supplements" };
   if (!source.customerAuthorization || !["ACCEPTED", "PARTIAL"].includes(source.estimates[0]?.authorizations[0]?.disposition ?? "")) return { label: "Review scope and authorization", reason: "Customer evidence and an accepted authorization for the current estimate are required. Uploaded amounts alone do not authorize work.", view: "Repair plan" };

@@ -9,6 +9,7 @@ import { hashEnterpriseCommand, normalizeEnterpriseCommand } from "@/server/ente
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { getClaimWorkspaceReadModel } from "./service";
 import { claimsWorkspaceDependencies } from "./repository-factory";
+import { claimPermissionStatus } from "@/lib/claim-customer-authorization";
 
 const DOMAIN = "CLAIM_REPAIR_WORKFLOW";
 const managerRoles = ["General Manager", "Vehicle Operations Lead", "Service Department Manager"];
@@ -48,6 +49,8 @@ async function sourceFor(database: Database, claimId: string): Promise<ClaimWork
   const source: ClaimWorkflowSource = {
     claimId, customer: claim.customerName, vin, claimNumber: claim.claimNumber ?? "Draft", claimClosed: claim.status === "CLOSED",
     customerAuthorization: claim.evidence.some((item) => item.category === "AUTHORIZATION" && item.status === "RECEIVED" && Boolean(item.documentLibraryId)),
+    communicationPermission: claimPermissionStatus(claim.evidence, "CLAIM_COMMUNICATION"),
+    directPayPermission: claimPermissionStatus(claim.evidence, "CLAIM_DIRECT_PAY"),
     repairOrder: order ? { id: order.id, number: order.repairOrderNumber, stage: order.stage, owner: order.ownerUser.name, targetAt: order.targetAt.toISOString(), closed: Boolean(order.closedAt), version: order.version } : null,
     estimates: order?.estimateVersions.map((estimate) => ({ id: estimate.id, version: estimate.version, totalCents: estimate.totalCents, lines: estimateLines(estimate.lineItems), authorizations: estimate.authorizations.map((authorization) => ({ id: authorization.id, disposition: authorization.disposition, keys: textKeys(authorization.authorizedLineKeys), actor: authorization.decisionActorName, amountCents: authorization.authorizedAmountCents })) })) ?? [],
     jobs: order?.repairJobs.map((job) => ({ id: job.id, number: job.jobNumber, description: job.description, status: job.status, blocker: job.executionBlockerReason, technician: job.dispatches[0]?.technicianUser.name ?? "Unassigned", estimateId: job.estimateVersionId, lineKey: job.authorizedLineKey, latestQc: job.qualityInspections[0]?.disposition ?? null })) ?? [],
@@ -90,7 +93,7 @@ export async function getClaimRepairWorkflow(actor: AuthenticatedUser | null, cl
   }
   const stored = await readState(database, claimId);
   const history = await database.enterpriseAuditEvent.findMany({ where: { organizationId: INITIAL_ORGANIZATION.id, domain: DOMAIN, subjectId: claimId, subjectType: "INSURANCE_CLAIM" }, orderBy: { createdAt: "desc" }, take: 40, select: { id: true, eventType: true, reason: true, createdAt: true, actorUser: { select: { name: true } } } });
-  return { ...stored, source, sourceVersion: hashEnterpriseCommand(source.fingerprints), canDecide: user.roles.some((role) => managerRoles.includes(role)), history: history.map((item) => ({ id: item.id, action: item.eventType.replace(/_COMPLETED$/, ""), reason: item.reason, at: item.createdAt.toISOString(), actor: item.actorUser?.name ?? "Recorded user" })) };
+  return { ...stored, source, sourceVersion: hashEnterpriseCommand({ fingerprints: source.fingerprints, communicationPermission: source.communicationPermission, directPayPermission: source.directPayPermission }), canDecide: user.roles.some((role) => managerRoles.includes(role)), history: history.map((item) => ({ id: item.id, action: item.eventType.replace(/_COMPLETED$/, ""), reason: item.reason, at: item.createdAt.toISOString(), actor: item.actorUser?.name ?? "Recorded user" })) };
 }
 export type ClaimRepairWorkflowModel = Awaited<ReturnType<typeof getClaimRepairWorkflow>>;
 
@@ -112,7 +115,7 @@ export async function executeClaimRepairWorkflow(actor: AuthenticatedUser | null
   const command = normalizeEnterpriseCommand({ actorUserId: user.id, commandType: String(raw.action), domain: DOMAIN, expectedVersion: Number(raw.expectedVersion), idempotencyKey: raw.idempotencyKey, locationId: null, organizationId: INITIAL_ORGANIZATION.id, payload: raw, reason: raw.reason, subjectId: claimId, subjectType: "INSURANCE_CLAIM" });
   return executeAggregateMutation(database, command, "claims.repair-workflow", async (tx) => {
     const source = await sourceFor(tx, claimId);
-    if (hashEnterpriseCommand(source.fingerprints) !== raw.sourceVersion) throw new ClaimWorkflowError("Repair source records changed. Refresh and review before saving.", 409);
+    if (hashEnterpriseCommand({ fingerprints: source.fingerprints, communicationPermission: source.communicationPermission, directPayPermission: source.directPayPermission }) !== raw.sourceVersion) throw new ClaimWorkflowError("Repair source records changed. Refresh and review before saving.", 409);
     const stored = await readState(tx, claimId);
     let state = stored.state;
     if (raw.action === "LINK_REPAIR_ORDER") {

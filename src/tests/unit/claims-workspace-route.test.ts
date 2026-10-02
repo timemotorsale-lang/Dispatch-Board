@@ -21,8 +21,43 @@ import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspac
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
 import { getDocumentLibrary, resetDocumentLibraryDemoState } from "@/server/document-library/service";
 import { buildDocumentObjectKey } from "@/server/document-library/storage-adapter";
+import { PDFDocument } from "pdf-lib";
+import { claimPermissionStatus } from "@/lib/claim-customer-authorization";
+import { GET as GENERATE_AUTHORIZATION, POST as WITHDRAW_PERMISSION } from "@/app/api/claims-workspace/claims/[claimId]/authorization/route";
 
 describe("claims workspace API routes", () => {
+  it("generates an unsigned PDF without recording consent and validates withdrawals", async () => {
+    const params = { params: Promise.resolve({ claimId: "claim-demo-1" }) };
+    const generated = await GENERATE_AUTHORIZATION(new Request("http://local/authorization?download=1"), params);
+    expect(generated.status).toBe(200);
+    expect(generated.headers.get("Content-Disposition")).toContain("attachment");
+    expect(generated.headers.get("Cache-Control")).toBe("private, no-store");
+    expect((await PDFDocument.load(await generated.arrayBuffer())).getForm().getCheckBox("direction_to_pay").isChecked()).toBe(false);
+    const invalid = await WITHDRAW_PERMISSION(new Request("http://local/authorization", { method: "POST", body: "null" }), params);
+    expect(invalid.status).toBe(400);
+    const mixedCase = await ATTACH_EVIDENCE(new Request("http://local/evidence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: " claim_communication ", documentLibraryId: "fake", title: "Signed" }) }), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(mixedCase.status).toBe(400);
+    const withdrawn = await WITHDRAW_PERMISSION(new Request("http://local/authorization", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "WITHDRAW", category: "CLAIM_DIRECT_PAY", reason: "Customer requested withdrawal in writing." }) }), params);
+    expect(withdrawn.status).toBe(200); const model = await withdrawn.json();
+    expect(claimPermissionStatus(model.evidence, "CLAIM_DIRECT_PAY")).toBe("Withdrawn");
+    expect(claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION")).toBe("Missing");
+    mocks.getCurrentUser.mockResolvedValueOnce(null);
+    expect((await GENERATE_AUTHORIZATION(new Request("http://local/authorization"), params)).status).toBe(401);
+    expect((await GENERATE_AUTHORIZATION(new Request("http://local/authorization"), { params: Promise.resolve({ claimId: "missing" }) })).status).toBe(404);
+  });
+  it("requires a verified signed PDF for claim permissions and keeps repair approval separate", async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage(); const bytes = await pdf.save();
+    const form = new FormData();
+    form.set("file", new File([bytes as BlobPart], "signed-authorization.pdf", { type: "application/pdf" }));
+    for (const [key, value] of Object.entries({ category: "CLAIM_COMMUNICATION", signer: "Review Customer", capacity: "OWNER", signedDate: "2026-10-01", communicationSelected: "true", signatureVerified: "true", copyProvided: "true", directPaySelected: "true" })) form.set(key, value);
+    const response = await ATTACH_EVIDENCE(new Request("http://local/evidence", { method: "POST", body: form }), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(response.status).toBe(201); const model = await response.json();
+    expect(claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION")).toBe("Verified signed copy");
+    expect(claimPermissionStatus(model.evidence, "CLAIM_DIRECT_PAY")).toBe("Verified signed copy");
+    expect(model.checklist.find((item: { category: string }) => item.category === "AUTHORIZATION").state).not.toBe("RECEIVED");
+    const invalid = await ATTACH_EVIDENCE(new Request("http://local/evidence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: "CLAIM_COMMUNICATION", documentLibraryId: "fake", title: "Signed" }) }), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(invalid.status).toBe(400);
+  });
   it("stores multiple photos as independent claim evidence and rejects disguised images", async () => {
     const formFor = (name: string, bytes: Uint8Array, category = "DAMAGE_PHOTO") => {
       const form = new FormData();

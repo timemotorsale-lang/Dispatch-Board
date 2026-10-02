@@ -8,7 +8,7 @@ import { ClaimsWorkspaceError, getClaimWorkspaceReadModel } from "@/server/claim
 export default async function ClaimsWorkspacePage({
   searchParams
 }: {
-  searchParams?: Promise<{ claimId?: string }>;
+  searchParams?: Promise<{ claimId?: string; authorization?: string }>;
 }) {
   const user = await requireCurrentUser();
   const params = await searchParams;
@@ -22,5 +22,5 @@ export default async function ClaimsWorkspacePage({
     return <ClaimsWorkspaceReview loadError="Claim data could not be loaded. The workspace opened in safe mode so staff can continue with general claim tasks." />;
   }
 
-  return <ClaimsWorkspaceReview model={model} />;
+  return <ClaimsWorkspaceReview model={model} authorizationRequested={params.authorization === "1"} />;
 }

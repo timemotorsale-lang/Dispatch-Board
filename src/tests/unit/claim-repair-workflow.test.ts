@@ -31,6 +31,14 @@ function submitted() {
   return { state, source };
 }
 describe("claim repair workflow", () => {
+  it("prioritizes signed claim permission without replacing separate repair authorization", () => {
+    const source = workflowSource(); source.communicationPermission = "Missing";
+    expect(claimWorkflowNextAction(emptyClaimWorkflow(), source).label).toBe("Get claim authorization signed");
+    source.communicationPermission = "Withdrawn";
+    expect(claimWorkflowNextAction(emptyClaimWorkflow(), source).label).toBe("Get claim authorization signed");
+    source.communicationPermission = "Verified signed copy"; source.customerAuthorization = false;
+    expect(claimWorkflowNextAction(emptyClaimWorkflow(), source).label).toBe("Review scope and authorization");
+  });
   it("uses repair linkage, not generic task completion, to choose the handoff step", () => {
     const source = workflowSource(); source.repairOrder = null;
     expect(claimWorkflowNextAction(emptyClaimWorkflow(), source)).toMatchObject({ label: "Create / link repair order", view: "Overview" });

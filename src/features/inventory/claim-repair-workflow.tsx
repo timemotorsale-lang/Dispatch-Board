@@ -14,14 +14,14 @@ const label = (value: string) => value.replaceAll("_", " ").toLowerCase();
 const dateLabel = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
-type WorkflowProps = { claimId: string; intakeTask?: { title: string; detail: string; actionLabel: string; ownerRole: string; dueLabel: string }; intakeReady?: boolean; onIntake?: () => void; onTools?: () => void; taskHref?: string; taskTitle?: string; continueHref?: string };
+type WorkflowProps = { claimId: string; intakeTask?: { title: string; detail: string; actionLabel: string; ownerRole: string; dueLabel: string }; intakeReady?: boolean; onIntake?: () => void; onAuthorize?: () => void; onTools?: () => void; taskHref?: string; taskTitle?: string; continueHref?: string };
 export function ClaimRepairWorkflow(props: WorkflowProps) {
   return <section className={styles.root} aria-label="Claim repair workflow">
     <WorkflowWorkbench key={props.claimId} {...props} />
   </section>;
 }
 
-function WorkflowWorkbench({ claimId, intakeTask, intakeReady = true, onIntake, onTools, taskHref, taskTitle, continueHref }: WorkflowProps) {
+function WorkflowWorkbench({ claimId, intakeTask, intakeReady = true, onIntake, onAuthorize, onTools, taskHref, taskTitle, continueHref }: WorkflowProps) {
   const [open, setOpen] = useState(false);
   const [model, setModel] = useState<ClaimRepairWorkflowModel | null>(null);
   const [tab, setTab] = useState<Tab>("Overview");
@@ -84,8 +84,9 @@ function WorkflowWorkbench({ claimId, intakeTask, intakeReady = true, onIntake, 
   const active = state.supplements.filter((item) => item.status !== "SUPERSEDED");
   const awaiting = active.filter((item) => !supplementResolved(item)).length;
   const next = claimWorkflowNextAction(state, source);
-  const intakePending = !intakeReady && intakeTask && !source.claimClosed && !state.financialClose;
+  const intakePending = !intakeReady && intakeTask && !source.claimClosed && !state.financialClose && next.label !== "Get claim authorization signed";
   function continueWorkflow() {
+    if (next.label === "Get claim authorization signed" && onAuthorize) { onAuthorize(); return; }
     setOpen(true); setTab(next.view);
     if (next.point) setForm({ action: "CHECKPOINT", point: next.point });
     else if (next.action && (next.action === "DELIVERY" || model?.canDecide)) setForm({ action: next.action });

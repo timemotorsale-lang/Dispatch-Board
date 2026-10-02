@@ -18,6 +18,8 @@ export type ClaimStage =
   | "CLOSED";
 
 export type ClaimEvidenceCategory =
+  | "CLAIM_COMMUNICATION"
+  | "CLAIM_DIRECT_PAY"
   | "AUTHORIZATION"
   | "CLAIM_IDENTITY"
   | "DAMAGE_PHOTO"
@@ -1630,7 +1632,7 @@ function normalizeClaimCreate(raw: ClaimCreateInput): Omit<InsuranceClaimRecord,
 }
 
 function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "createdAt" | "createdByUserId" | "id"> {
-  const selectedCategory = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "RENTAL", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
+  const selectedCategory = choice(raw.category, ["CLAIM_COMMUNICATION", "CLAIM_DIRECT_PAY", "AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "RENTAL", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
   const title = text(raw.title);
   if (!title) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Evidence title is required.");
   const status = choice(raw.status ?? "RECEIVED", ["RECEIVED", "NOT_APPLICABLE", "BLOCKED", "EXCEPTION_ACCEPTED"] as const, "Evidence status");
@@ -1656,6 +1658,7 @@ function inferEvidenceCategory(
   selectedCategory: ClaimEvidenceCategory,
   evidence: Pick<ClaimEvidenceRecord, "extractedText" | "fileName" | "notes" | "title">
 ): ClaimEvidenceCategory {
+  if (selectedCategory === "CLAIM_COMMUNICATION" || selectedCategory === "CLAIM_DIRECT_PAY") return selectedCategory;
   const haystack = evidenceSearchText(evidence);
   if (/estimate|supplement|approved repair|repair amount|authorized amount|amount authorized|carrier total|net claim|preliminary estimate/i.test(haystack)) return "ESTIMATE";
   if (/rental|loaner|daily rate|approved days|extension/i.test(haystack)) return "RENTAL";
