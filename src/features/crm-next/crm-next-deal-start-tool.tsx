@@ -4,6 +4,7 @@ import { type ReactNode, type SetStateAction, useEffect, useMemo, useState } fro
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
+import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
@@ -2479,10 +2480,19 @@ function BhphExecutionDesk({
     titleException: false,
     termsException: false
   });
+  const [preparedForms, setPreparedForms] = useState<string[]>([]);
+  const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
+  const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
+  const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
+  const [previewFormId, setPreviewFormId] = useState<string | null>(null);
 
   const salePriceCents = dollarsToCents(terms.salePrice);
   const downPaymentCents = dollarsToCents(terms.downPayment);
   const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0));
+  const requiredBhphForms = useMemo(() => requiredBhphFormIds(), []);
+  const preparedRequiredCount = BHPH_FORM_PACKET.filter((form) => form.category === "Required" && preparedForms.includes(form.id)).length;
+  const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
   const paperworkCount = BHPH_PAPERWORK_REQUIREMENTS.filter((item) => paperwork[item.id]).length;
   const evidenceCount = BHPH_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
   const handoffCount = BHPH_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
@@ -2511,6 +2521,93 @@ function BhphExecutionDesk({
     const nextDownPayment = dollarsToCents(next.downPayment);
     const nextAmountFinanced = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0));
     onAmountChange(formatCurrency(nextAmountFinanced));
+  }
+
+  function togglePreparedForm(id: string) {
+    setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function prepareRequiredForms() {
+    setPreparedForms((current) => Array.from(new Set([...current, ...requiredBhphForms])));
+  }
+
+  function packetHtml() {
+    if (!contractPacket) return "";
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.map((document) => document.html).join("<hr />")}</body></html>`;
+  }
+
+  function downloadPacket() {
+    if (!contractPacket) return;
+    const url = URL.createObjectURL(new Blob([packetHtml()], { type: "text/html" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${contractPacket.packetNumber}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printPacket() {
+    if (!contractPacket) return;
+    if (!openPrintableHtmlDocument(packetHtml())) {
+      setPacketStatus({ kind: "error", message: "Print window was blocked. Download the BHPH packet instead." });
+    }
+  }
+
+  function queuePacketDelivery(channel: "email" | "text") {
+    if (!contractPacket) return;
+    setPacketStatus({ kind: "ready", message: `${channel === "email" ? "Email" : "Text"} delivery link queued for ${contractPacket.packetNumber}; signed provider delivery remains governed by CRM communications controls.` });
+  }
+
+  function openPacketPreview() {
+    if (!contractPacket) return;
+    setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
+    setPacketPreviewOpen(true);
+  }
+
+  async function generateBhphPacket() {
+    setPacketStatus({ kind: "generating", message: "Generating and archiving BHPH packet..." });
+    const vin = getVinFromVehicleInput(vehicle);
+    const response = await fetch("/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        bhph: {
+          ...terms,
+          ...proof,
+          amountFinanced: formatCurrency(amountFinancedCents),
+          approvalTriggers: String(approvalTriggers),
+          evidenceCount: `${evidenceCount}/${BHPH_EVIDENCE_REQUIREMENTS.length}`,
+          handoffCount: `${handoffCount}/${BHPH_HANDOFF_REQUIREMENTS.length}`,
+          insuranceStatus: approval.insuranceException ? "Needs manager review" : "Verified",
+          paperworkCount: `${paperworkCount}/${BHPH_PAPERWORK_REQUIREMENTS.length}`,
+          titleStatus: approval.titleException ? "Needs manager review" : "Ready",
+          warrantyPosture: "As-is disclosure required"
+        },
+        customerName,
+        dealNumber: getStockNumberFromVin(vin) || vehicle || undefined,
+        dealType: "BHPH",
+        feeTotal: "$0.00",
+        idempotencyKey: crypto.randomUUID(),
+        packetType: "BHPH",
+        paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${terms.paymentAmount || "$0.00"} ${terms.paymentFrequency}; APR ${terms.apr}; first payment ${terms.firstPaymentDate || "Not captured"}.`,
+        preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredBhphForms,
+        salePrice: terms.salePrice || "$0.00",
+        vehicle: {
+          stockNumber: getStockNumberFromVin(vin) || vehicle,
+          vin
+        }
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "BHPH packet could not be generated." });
+      return;
+    }
+    const generatedPacket = payload as GeneratedContractPacket;
+    setContractPacket(generatedPacket);
+    setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
+    setPacketStatus({ kind: "ready", message: `Archived BHPH packet ${generatedPacket.packetNumber}.` });
+    onAmountChange(formatCurrency(amountFinancedCents));
   }
 
   function captureEvidence(
@@ -2589,6 +2686,108 @@ function BhphExecutionDesk({
           <div><span>Proof evidence</span><strong>{evidenceCount}/{BHPH_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before approval"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{BHPH_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required after signing"}</small></div>
         </div>
+        <div className={styles.retailPacketLauncher}>
+          <div>
+            <span>BHPH packet readiness</span>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredBhphForms.length} required forms ready`}</strong>
+            <small>Open the drawer to prepare the installment support packet, payment schedule, insurance, default, GPS, references, delivery, privacy, and deal-jacket controls.</small>
+          </div>
+          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open BHPH packet</button>
+        </div>
+
+        {packetDrawerOpen ? (
+          <div className={styles.retailPacketDrawerBackdrop} role="presentation">
+            <aside className={styles.retailPacketDrawer} aria-label="BHPH packet drawer">
+              <header>
+                <div>
+                  <span>BHPH packet</span>
+                  <strong>Prepare, generate, and review BHPH account documents</strong>
+                  <small>BHPH documents stay available for signing, print, text, email, and archive review without crowding the main desk.</small>
+                </div>
+                <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
+              </header>
+              <div className={styles.retailFormsCommand}>
+                <div>
+                  <span>Required forms ready</span>
+                  <strong>{preparedRequiredCount}/{requiredBhphForms.length}</strong>
+                  <small>Prepare the full BHPH packet, then remove any control that does not apply before generation.</small>
+                </div>
+                <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateBhphPacket()}>
+                  {packetStatus.kind === "generating" ? "Generating..." : "Generate BHPH packet"}
+                </button>
+                <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+              </div>
+              {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
+              {contractPacket ? (
+                <div className={styles.retailPacketArchive} aria-label="Generated BHPH packet archive">
+                  <div>
+                    <span>Archived packet</span>
+                    <strong>{contractPacket.packetNumber}</strong>
+                    <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
+                  </div>
+                  <button type="button" onClick={openPacketPreview}>Preview packet</button>
+                  <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download packet</button>
+                  <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print packet</button>
+                  <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+                  <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+                  <small>{contractPacket.delivery.providerHoldReason}</small>
+                </div>
+              ) : null}
+              <div className={styles.retailFormsGrid}>
+                {BHPH_FORM_PACKET.map((form) => {
+                  const prepared = preparedForms.includes(form.id);
+                  return (
+                    <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
+                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <span>{form.category}</span>
+                      <strong>{form.label}</strong>
+                      <small>{form.description}</small>
+                      <em>{form.trigger}</em>
+                      <b>{form.basis}</b>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {packetPreviewOpen && contractPacket ? (
+                <div className={styles.retailPacketPreviewBackdrop} role="presentation">
+                  <aside className={styles.retailPacketPreviewDrawer} aria-label="BHPH packet preview">
+                    <header>
+                      <div>
+                        <span>Packet preview</span>
+                        <strong>{contractPacket.packetNumber}</strong>
+                        <small>Review generated BHPH forms before download, print, text, or email.</small>
+                      </div>
+                      <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+                    </header>
+                    <div className={styles.retailPacketPreviewBody}>
+                      <nav aria-label="Generated BHPH forms">
+                        {contractPacket.documents.map((document) => (
+                          <button
+                            className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
+                            key={document.formId}
+                            onClick={() => setPreviewFormId(document.formId)}
+                            type="button"
+                          >
+                            {document.label}
+                          </button>
+                        ))}
+                      </nav>
+                      <section>
+                        <div>
+                          <span>Reviewing</span>
+                          <strong>{previewDocument?.label ?? "Generated BHPH form"}</strong>
+                        </div>
+                        <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated BHPH form preview"} />
+                      </section>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
+            </aside>
+          </div>
+        ) : null}
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required paperwork</h3>

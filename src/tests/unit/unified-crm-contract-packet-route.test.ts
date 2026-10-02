@@ -60,6 +60,8 @@ describe("Unified CRM contract packet route", () => {
     });
     expect(referenceForm.contentBase64).toMatch(/^JVBER/);
     expect(referenceForm.html).toContain("Reference 1");
+    expect(referenceForm.html).toContain("Reference 3");
+    expect(referenceForm.html).not.toContain("Reference 5");
     expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
     expect(packet.auditTrail[0].action).toBe("CONTRACT_PACKET_GENERATED");
 
@@ -362,5 +364,79 @@ describe("Unified CRM contract packet route", () => {
     expect(packet.documents[1].html).toContain("Vehicle condition, custody, and return record");
     expect(packet.documents[2].html).toContain("Minnesota rental vehicle insurance notice");
     expect(packet.auditTrail[0].detail).toContain("vehicle loaner form");
+  });
+
+  it("generates a BHPH account packet with installment support controls", async () => {
+    const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        bhph: {
+          amountFinanced: "$8,500.00",
+          apr: "24.00%",
+          approvalTriggers: "0",
+          coBuyer: "None",
+          downPayment: "$1,500.00",
+          employer: "Warehouse Co.",
+          evidenceCount: "6/6",
+          firstPaymentDate: "2026-10-15",
+          handoffCount: "4/4",
+          income: "Paystub verified",
+          insuranceStatus: "Verified",
+          lateFee: "$10.00",
+          paperworkCount: "6/6",
+          paymentAmount: "$125.00",
+          paymentFrequency: "Weekly",
+          references: "5 provided / pending verification",
+          residence: "Utility bill verified",
+          salePrice: "$10,000.00",
+          stipulations: "None",
+          termMonths: "24",
+          titleStatus: "Ready",
+          warrantyPosture: "As-is disclosure required"
+        },
+        customerName: "BHPH Buyer",
+        dealNumber: "BHPH-1001",
+        dealType: "BHPH",
+        packetType: "BHPH",
+        vehicle: {
+          color: "Blue",
+          make: "Toyota",
+          model: "Camry",
+          stockNumber: "B1001",
+          vin: "4T1BF1FK0HU123456",
+          year: "2017"
+        }
+      }),
+      method: "POST"
+    }));
+
+    expect(created.status).toBe(201);
+    const packet = await created.json();
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual([
+      "bhph-installment-contract",
+      "bhph-payment-schedule-servicing",
+      "bhph-insurance-maintenance",
+      "bhph-default-cure-recovery",
+      "bhph-gps-starter-disclosure",
+      "bhph-references-contact-authorization",
+      "bhph-delivery-condition",
+      "bhph-privacy-communications",
+      "bhph-deal-jacket-checklist"
+    ]);
+    expect(packet.documents[0].contentType).toBe("text/html");
+    expect(packet.documents[0].html).toContain("BHPH retail installment contract support");
+    expect(packet.documents[0].html).toContain("Time Motor Sales, Inc.");
+    expect(packet.documents[0].html).toContain("1101 E. Lake Street, Minneapolis, MN 55407");
+    expect(packet.documents[0].html).toContain("timemotorsale@gmail.com");
+    expect(packet.documents[0].html).toContain("timemotors.net");
+    expect(packet.documents[0].html).toContain("final approved retail installment sale contract");
+    expect(packet.documents[1].html).toContain("Payment schedule");
+    expect(packet.documents[3].html).toContain("Default events");
+    expect(packet.documents[4].html).toContain("GPS, telematics, and starter-interrupt controls");
+    expect(packet.documents[5].html).toContain("Five required BHPH references");
+    expect(packet.documents[5].html).toContain("Reference 5 full name");
+    expect(packet.documents[5].html).toContain("not fabricated");
+    expect(packet.documents[7].html).toContain("Privacy and communications acknowledgement");
+    expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
+    expect(packet.auditTrail[0].detail).toContain("BHPH form");
   });
 });

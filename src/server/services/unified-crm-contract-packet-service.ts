@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { BHPH_FORM_PACKET, requiredBhphFormIds, type BhphFormItem } from "@/lib/bhph-form-packet";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
@@ -25,7 +26,7 @@ function text(value: unknown, fallback: string, max = 240) {
   return result.slice(0, max);
 }
 
-type PacketFormItem = DailyRentalFormItem | MinnesotaSaleFormItem | typeof LEASE_TO_OWN_FORM_PACKET[number];
+type PacketFormItem = BhphFormItem | DailyRentalFormItem | MinnesotaSaleFormItem | typeof LEASE_TO_OWN_FORM_PACKET[number];
 
 function hasPdfTemplate(form: PacketFormItem): form is PacketFormItem & { templatePath: string } {
   return "templatePath" in form && typeof form.templatePath === "string" && form.templatePath.length > 0;
@@ -79,6 +80,34 @@ function dailyRentalFacts(value: unknown) {
     returnFuel: text(rental.returnFuel, "Not captured"),
     secondaryId: text(rental.secondaryId, "Not captured"),
     useRestriction: text(rental.useRestriction, "Not captured")
+  };
+}
+
+function bhphFacts(value: unknown) {
+  const bhph = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    amountFinanced: text(bhph.amountFinanced, "$0.00"),
+    apr: text(bhph.apr, "Not captured"),
+    approvalTriggers: text(bhph.approvalTriggers, "0"),
+    coBuyer: text(bhph.coBuyer, "None"),
+    downPayment: text(bhph.downPayment, "$0.00"),
+    employer: text(bhph.employer, "Not captured"),
+    evidenceCount: text(bhph.evidenceCount, "0"),
+    firstPaymentDate: text(bhph.firstPaymentDate, "Not captured"),
+    handoffCount: text(bhph.handoffCount, "0"),
+    income: text(bhph.income, "Not captured"),
+    insuranceStatus: text(bhph.insuranceStatus, "Not captured"),
+    lateFee: text(bhph.lateFee, "Not captured"),
+    paperworkCount: text(bhph.paperworkCount, "0"),
+    paymentAmount: text(bhph.paymentAmount, "$0.00"),
+    paymentFrequency: text(bhph.paymentFrequency, "Not captured"),
+    references: text(bhph.references, "Not captured"),
+    residence: text(bhph.residence, "Not captured"),
+    salePrice: text(bhph.salePrice, "$0.00"),
+    stipulations: text(bhph.stipulations, "None"),
+    termMonths: text(bhph.termMonths, "Not captured"),
+    titleStatus: text(bhph.titleStatus, "Not captured"),
+    warrantyPosture: text(bhph.warrantyPosture, "Not captured")
   };
 }
 
@@ -1258,6 +1287,293 @@ function buildCourtesyLoanerDocumentHtml(input: {
 </html>`;
 }
 
+function buildBhphDocumentHtml(input: {
+  bhph: ReturnType<typeof bhphFacts>;
+  customerName: string;
+  dealNumber: string;
+  form: BhphFormItem;
+  generatedAt: string;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.trim}`.replace(/\s+/g, " ").trim();
+  const dealerName = "Time Motor Sales, Inc.";
+  const dealerAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
+  const dealerPhone = "612-724-3631";
+  const dealerWebsite = "timemotors.net";
+  const dealerEmail = "timemotorsale@gmail.com";
+  const commonRows: Array<[string, string]> = [
+    ["Buyer", input.customerName],
+    ["Co-buyer", input.bhph.coBuyer],
+    ["Account / deal #", input.dealNumber],
+    ["Vehicle", vehicleLine || "Not captured"],
+    ["VIN", input.vehicle.vin],
+    ["Stock #", input.vehicle.stockNumber],
+    ["Sale price", input.bhph.salePrice],
+    ["Down payment", input.bhph.downPayment],
+    ["Amount financed", input.bhph.amountFinanced],
+    ["APR", input.bhph.apr],
+    ["Payment amount", input.bhph.paymentAmount],
+    ["Payment frequency", input.bhph.paymentFrequency],
+    ["Term", `${input.bhph.termMonths} month(s)`],
+    ["First payment date", input.bhph.firstPaymentDate],
+    ["Late fee", input.bhph.lateFee],
+    ["Title status", input.bhph.titleStatus],
+    ["Insurance status", input.bhph.insuranceStatus],
+    ["Warranty / as-is posture", input.bhph.warrantyPosture]
+  ];
+  const bhphReferenceRows = [1, 2, 3, 4, 5].flatMap((index): Array<[string, string]> => [
+    [`Reference ${index} full name`, ""],
+    [`Reference ${index} relationship to buyer`, ""],
+    [`Reference ${index} phone number`, ""],
+    [`Reference ${index} alternate phone`, ""],
+    [`Reference ${index} email`, ""],
+    [`Reference ${index} street address / city / state / ZIP`, ""],
+    [`Reference ${index} employer, if known`, ""],
+    [`Reference ${index} years known`, ""],
+    [`Reference ${index} best time to contact`, ""],
+    [`Reference ${index} staff verification notes`, ""]
+  ]);
+  const sectionsByForm: Record<string, Array<{ heading: string; rows?: Array<[string, string]>; bullets?: string[] }>> = {
+    "bhph-installment-contract": [
+      {
+        heading: "Retail installment contract support",
+        rows: [
+          ["Seller-creditor", dealerName],
+          ["Seller address", dealerAddress],
+          ["Seller phone", dealerPhone],
+          ["Seller website", dealerWebsite],
+          ["Seller email", dealerEmail],
+          ...commonRows
+        ]
+      },
+      {
+        heading: "Controlling contract and finance disclosures",
+        bullets: [
+          "The final signed retail installment sale contract and required finance disclosures control the credit sale. If this support packet conflicts with the final signed retail installment contract, the final signed contract controls.",
+          "The buyer agrees that payment amount, payment frequency, term, APR, finance charge, amount financed, total of payments, late charges, returned-payment charges, and any other credit terms must match the final signed retail installment sale contract before delivery.",
+          "No employee may change credit terms, waive default, release collateral, modify due dates, or approve deferred down payment unless the change is in a written dealership-approved document signed by an authorized manager.",
+          "Buyer grants and acknowledges the dealership or assigned holder's security interest in the vehicle and agrees to cooperate with lien perfection, title, registration, correction, insurance, and account-servicing paperwork."
+        ]
+      },
+      {
+        heading: "Buyer representations",
+        bullets: [
+          "Buyer represents that all identity, residence, income, employer, reference, insurance, title, and down-payment information provided to the dealership is truthful and complete.",
+          "Buyer agrees to immediately notify the dealership of changes to address, phone, email, employment, insurance, vehicle location, vehicle condition, or ability to make scheduled payments.",
+          "False, incomplete, or misleading information may be treated as a material account risk and may affect delivery, servicing, default review, or lawful recovery rights."
+        ]
+      }
+    ],
+    "bhph-payment-schedule-servicing": [
+      {
+        heading: "Payment schedule",
+        rows: commonRows
+      },
+      {
+        heading: "Servicing rules",
+        bullets: [
+          "Payments must be received by the dealership or authorized payment processor by the due date and in the approved form of payment.",
+          "Buyer should keep receipts and confirmation numbers for every payment.",
+          "Payments may be applied to amounts due under the account according to the final contract, applicable law, and dealership servicing policy.",
+          "Late fees, returned-payment charges, collection costs, deferral fees, or other charges apply only when permitted by the signed contract and applicable law.",
+          "Promises to pay, partial payments, text messages, or phone conversations do not change the payment schedule unless confirmed in a written authorized account modification."
+        ]
+      }
+    ],
+    "bhph-insurance-maintenance": [
+      {
+        heading: "Insurance and care duties",
+        rows: [
+          ["Insurance status", input.bhph.insuranceStatus],
+          ["Vehicle", vehicleLine || input.vehicle.vin || "Not captured"],
+          ["VIN", input.vehicle.vin],
+          ["Warranty / as-is posture", input.bhph.warrantyPosture]
+        ]
+      },
+      {
+        heading: "Coverage, maintenance, and loss reporting",
+        bullets: [
+          "Buyer must maintain legally required insurance and any contract-required physical-damage coverage for the vehicle until the account is paid or otherwise released in writing.",
+          "Buyer must list the lienholder or secured party when required by the final contract, title documents, or insurance documents.",
+          "Buyer must preserve the vehicle, perform ordinary maintenance, avoid waste, and promptly address warning lights, unsafe conditions, damage, theft, vandalism, tow, impound, or police contact.",
+          "Buyer may not conceal, sell, transfer, abandon, dismantle, materially modify, relocate out of the approved area, pledge, sublease, or surrender possession of the vehicle without written dealership approval.",
+          "Insurance review by the dealership does not guarantee coverage, approve a claim, or waive buyer responsibility under the contract."
+        ]
+      }
+    ],
+    "bhph-default-cure-recovery": [
+      {
+        heading: "Default events",
+        bullets: [
+          "Default may include missed or late payments, returned payments, deferred down-payment failure, insurance lapse, false information, unauthorized transfer, concealment, damage, abandonment, failure to cooperate with title or insurance, or other breach stated in the final contract.",
+          "The dealership or holder will provide any notice and opportunity to cure required by the final contract and applicable law.",
+          "If the account is not cured when required, the dealership or holder may use lawful remedies, including recovery of the vehicle by lawful means without breach of the peace.",
+          "Buyer must remove personal property before surrender or recovery when possible. Personal property handling after recovery remains subject to applicable law and dealership recovery policy.",
+          "Buyer may remain responsible for any deficiency, costs, or charges permitted by the final contract and applicable law, and will receive any surplus required by law."
+        ]
+      }
+    ],
+    "bhph-gps-starter-disclosure": [
+      {
+        heading: "Device disclosure",
+        rows: [
+          ["Device status", "Confirm installed / not installed before delivery"],
+          ["Vehicle", vehicleLine || input.vehicle.vin || "Not captured"],
+          ["VIN", input.vehicle.vin]
+        ]
+      },
+      {
+        heading: "GPS, telematics, and starter-interrupt controls",
+        bullets: [
+          "If a GPS, telematics, locator, or starter-interrupt device is installed or activated, buyer must receive the applicable separate disclosure and consent before delivery.",
+          "Device information may be used for collateral protection, account servicing, recovery, safety, theft response, legal process, and other lawful dealership purposes stated in the device disclosure.",
+          "A starter-interrupt device must not be used in a way prohibited by law or in a manner that knowingly creates an immediate safety hazard.",
+          "Buyer may not remove, disable, tamper with, shield, damage, relocate, or interfere with an installed device.",
+          "If no device is installed or activated, this document records that the disclosure was reviewed as a BHPH account-control item and does not itself authorize a device."
+        ]
+      }
+    ],
+    "bhph-references-contact-authorization": [
+      {
+        heading: "Verification record",
+        rows: [
+          ["Employer / income source", input.bhph.employer],
+          ["Income proof", input.bhph.income],
+          ["Residence proof", input.bhph.residence],
+          ["Reference requirement", "Buyer must provide at least five reachable personal references unless a manager approves an exception."],
+          ["References captured / verified", input.bhph.references],
+          ["Open stipulations", input.bhph.stipulations]
+        ]
+      },
+      {
+        heading: "Five required BHPH references",
+        rows: bhphReferenceRows
+      },
+      {
+        heading: "Contact authorization",
+        bullets: [
+          "Buyer confirms the five references listed are accurate, current, not fabricated, and personally known to the buyer.",
+          "Buyer authorizes the dealership and any holder or servicer to verify identity, residence, employment, income, references, insurance, title, vehicle location, and account information for underwriting and servicing.",
+          "References may be contacted for verification, account servicing, or locating the buyer or vehicle, but communications must comply with applicable law and dealership policy.",
+          "Buyer agrees to keep phone, email, address, employer, insurance, and reference information current during the account term.",
+          "Buyer may revoke optional marketing or nonrequired communication consent without changing the buyer's obligation to receive legally required account notices."
+        ]
+      }
+    ],
+    "bhph-delivery-condition": [
+      {
+        heading: "Delivery condition acknowledgement",
+        rows: commonRows
+      },
+      {
+        heading: "Vehicle, equipment, and disclosures",
+        bullets: [
+          "Buyer acknowledges an opportunity to inspect the vehicle before delivery and to identify visible condition concerns before signing.",
+          "Delivery photos, odometer records, key/fob count, plates, title/registration documents, buyer's guide, warranty or as-is disclosures, and product disclosures should be attached to the deal jacket when applicable.",
+          "The condition record is not a promise that future repairs are included unless a separate written due bill, warranty, service contract, or manager-approved repair order states otherwise.",
+          "Buyer must not take delivery until required proof, insurance, title, payment, and signature controls are complete or expressly manager-approved."
+        ]
+      }
+    ],
+    "bhph-privacy-communications": [
+      {
+        heading: "Privacy and communications acknowledgement",
+        bullets: [
+          "Buyer acknowledges that dealership records may include identity, credit, income, residence, references, insurance, payment, vehicle, GPS/telematics if applicable, communication, and servicing information.",
+          "The dealership must protect customer information under applicable privacy and customer-information-safeguards obligations.",
+          "Buyer authorizes communications related to the transaction and account servicing by phone, text, email, mail, and other contact methods provided by buyer, subject to applicable law and any required separate consent.",
+          "Credit reports, consumer reports, or account furnishing may occur only as authorized by buyer, the final documents, and applicable law.",
+          "Buyer should promptly update contact information to avoid missed notices, payment reminders, insurance requests, title requests, or default notices."
+        ]
+      }
+    ],
+    "bhph-deal-jacket-checklist": [
+      {
+        heading: "Internal delivery checklist",
+        rows: [
+          ["Signed paperwork count", input.bhph.paperworkCount],
+          ["Evidence count", input.bhph.evidenceCount],
+          ["Servicing handoff count", input.bhph.handoffCount],
+          ["Manager review triggers", input.bhph.approvalTriggers],
+          ["Open stipulations", input.bhph.stipulations]
+        ]
+      },
+      {
+        heading: "Manager release controls",
+        bullets: [
+          "Confirm final retail installment contract and payment schedule match the system terms.",
+          "Confirm down payment, deferred down payment, insurance, title, buyer's guide, warranty/as-is posture, references, income proof, residence proof, and delivery photos are stored.",
+          "Confirm GPS/starter disclosure status and privacy/communications acknowledgement before delivery.",
+          "Confirm account setup, first payment date, receipt process, contact information, and servicing handoff are complete.",
+          "Do not release the vehicle with unresolved exceptions unless an authorized manager documents the exception."
+        ]
+      }
+    ]
+  };
+  const sections = sectionsByForm[input.form.id] ?? [{ heading: "BHPH document", rows: commonRows }];
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(input.form.label)}</title>
+  <style>
+    body { color: #061735; font-family: Arial, sans-serif; margin: 32px; }
+    h1 { font-size: 28px; margin: 0 0 6px; }
+    h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
+    p, li { color: #34445d; line-height: 1.45; }
+    .meta { color: #52647d; margin: 0 0 20px; }
+    .letterhead { align-items: start; border-bottom: 3px solid #061735; display: grid; gap: 18px; grid-template-columns: 1.2fr 1fr; margin-bottom: 24px; padding-bottom: 16px; }
+    .brand { letter-spacing: 0.08em; text-transform: uppercase; }
+    .brand strong { display: block; font-size: 24px; letter-spacing: 0; text-transform: none; }
+    .brand span { color: #2f49c6; font-size: 13px; font-weight: 800; }
+    .contact { color: #34445d; font-size: 13px; line-height: 1.45; text-align: right; }
+    .contact strong { color: #061735; display: block; font-size: 14px; }
+    .document-id { background: #f6f9ff; border: 1px solid #dbe6f8; border-radius: 10px; display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); margin: 16px 0 22px; padding: 12px; }
+    .document-id span { color: #52647d; display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .document-id strong { color: #061735; display: block; font-size: 13px; margin-top: 3px; }
+    table { border-collapse: collapse; margin-top: 12px; width: 100%; }
+    th, td { border: 1px solid #dbe6f8; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f6f9ff; color: #34445d; width: 34%; }
+    .notice { background: #eefbf3; border: 1px solid #bbf7d0; border-radius: 10px; color: #14532d; margin: 18px 0; padding: 12px; }
+    .signature { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
+    .line { border-top: 1px solid #061735; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <header class="letterhead">
+    <div class="brand">
+      <span>Time Motor Sales</span>
+      <strong>${escapeHtml(dealerName)}</strong>
+      <p>BHPH Account Packet</p>
+    </div>
+    <div class="contact">
+      <strong>${escapeHtml(dealerAddress)}</strong>
+      Phone: ${escapeHtml(dealerPhone)}<br />
+      Website: ${escapeHtml(dealerWebsite)}<br />
+      ${escapeHtml(dealerEmail)}
+    </div>
+  </header>
+  <h1>${escapeHtml(input.form.label)}</h1>
+  <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.form.basis)} · ${escapeHtml(input.form.trigger)}</p>
+  <div class="document-id">
+    <div><span>Account / deal</span><strong>${escapeHtml(input.dealNumber)}</strong></div>
+    <div><span>Buyer</span><strong>${escapeHtml(input.customerName)}</strong></div>
+    <div><span>Vehicle</span><strong>${escapeHtml(vehicleLine || input.vehicle.vin || "Not captured")}</strong></div>
+  </div>
+  <p class="notice">This BHPH packet supports account setup, delivery, servicing, and risk controls. The final approved retail installment sale contract and required finance disclosures control if any term is inconsistent.</p>
+  ${sections.map((section) => `
+    <h2>${escapeHtml(section.heading)}</h2>
+    ${section.rows ? `<table><tbody>${section.rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>` : ""}
+    ${section.bullets ? `<ul>${section.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+  `).join("")}
+  <div class="signature">
+    <div class="line">Buyer signature / date</div>
+    <div class="line">Dealer representative / date</div>
+  </div>
+</body>
+</html>`;
+}
+
 export async function generateUnifiedCrmContractPacket(
   actor: AuthenticatedUser | null,
   input: UnifiedCrmContractPacketInput,
@@ -1269,13 +1585,15 @@ export async function generateUnifiedCrmContractPacket(
 
   const now = dependencies.now?.() ?? new Date();
   const generatedAt = now.toISOString();
-  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : "MINNESOTA_RETAIL_SALE";
+  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : input.packetType === "BHPH" ? "BHPH" : "MINNESOTA_RETAIL_SALE";
   const packetForms: PacketFormItem[] = packetType === "LEASE_TO_OWN"
     ? LEASE_TO_OWN_FORM_PACKET
     : packetType === "VEHICLE_LOANER"
       ? COURTESY_LOANER_FORM_PACKET
     : packetType === "DAILY_RENTAL"
       ? DAILY_RENTAL_FORM_PACKET
+    : packetType === "BHPH"
+      ? BHPH_FORM_PACKET
       : MN_SALE_FORM_PACKET;
   const requiredIds = packetType === "LEASE_TO_OWN"
     ? allLeaseToOwnFormIds()
@@ -1283,6 +1601,8 @@ export async function generateUnifiedCrmContractPacket(
       ? requiredCourtesyLoanerFormIds()
     : packetType === "DAILY_RENTAL"
       ? requiredDailyRentalFormIds()
+    : packetType === "BHPH"
+      ? requiredBhphFormIds()
       : requiredMinnesotaSaleFormIds();
   const selectedIds = formIds(input.preparedFormIds, packetForms, requiredIds);
   const selectedForms = packetForms.filter((form) => selectedIds.includes(form.id));
@@ -1299,6 +1619,7 @@ export async function generateUnifiedCrmContractPacket(
   const feeTotal = text(input.feeTotal, "$0.00");
   const paymentFunding = text(input.paymentFunding, "To be confirmed");
   const packetId = `contract-packet-${crypto.randomUUID()}`;
+  const bhphInput = bhphFacts(input.bhph);
   const rentalInput = dailyRentalFacts(input.dailyRental);
   const leaseInput = leaseCalculatorInput(input.leaseCalculator);
   const leaseOutput = calculateLeaseToOwn(leaseInput);
@@ -1391,6 +1712,15 @@ export async function generateUnifiedCrmContractPacket(
               rental: rentalInput,
               vehicle
             })
+        : packetType === "BHPH"
+          ? buildBhphDocumentHtml({
+              bhph: bhphInput,
+              customerName,
+              dealNumber,
+              form: form as BhphFormItem,
+              generatedAt,
+              vehicle
+            })
         : form.id === "personal-references"
           ? buildPersonalReferencesDocumentHtml({
               customerName,
@@ -1441,6 +1771,8 @@ export async function generateUnifiedCrmContractPacket(
             ? `${documents.length} vehicle loaner form(s) generated and archived.`
           : packetType === "DAILY_RENTAL"
             ? `${documents.length} daily rental form(s) generated and archived.`
+          : packetType === "BHPH"
+            ? `${documents.length} BHPH form(s) generated and archived.`
             : `${documents.length} Minnesota sale form(s) generated and archived.`
       }
     ],
