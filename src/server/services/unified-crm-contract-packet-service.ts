@@ -601,21 +601,27 @@ function rentalDocumentSections(formId: string, input: {
   const sectionsByForm: Record<string, Array<{ heading: string; rows?: Array<[string, string]>; bullets?: string[] }>> = {
     "daily-rental-agreement": [
       {
-        heading: "Minnesota daily rental agreement",
+        heading: "Parties, rental purpose, and vehicle",
         rows: [
           ["Owner / rental company", "Time Motor Sales, Inc."],
+          ["Rental company address", "1101 E. Lake Street, Minneapolis, MN 55407"],
+          ["Rental company phone", "612-724-3631"],
+          ["Rental company email", "timemotorsale@gmail.com"],
+          ["Rental company website", "timemotors.net"],
           ["Renter", input.customerName],
           ["Agreement date", input.generatedAt],
           ["Rental agreement #", input.dealNumber],
+          ["Purpose", "Short-term daily vehicle rental. This agreement does not transfer ownership, title, leasehold interest, agency authority, employment status, or any right to use the vehicle except as expressly permitted below."],
           ["Governing law", "Minnesota law applies unless a nonwaivable law requires otherwise."]
         ]
       },
       { heading: "Rental facts", rows: commonRows },
       {
-        heading: "Minnesota insurance and coverage notice",
+        heading: "Minnesota rental vehicle insurance notice",
         bullets: [
           MINNESOTA_RENTAL_COVERAGE_NOTICE,
-          "Renter acknowledges that this notice must be read and understood before any collision damage waiver, additional liability product, or similar rental coverage is accepted.",
+          "Renter acknowledges that this notice must be read and understood before any collision damage waiver, added liability product, personal accident product, personal effects product, or similar rental coverage is accepted.",
+          "This rental packet does not offer or sell a collision damage waiver unless a separate compliant waiver program and written election are provided.",
           "If damage to the rented vehicle is covered by a Minnesota plan of reparation security, payment by the reparation obligor within the time allowed by Minnesota law is acceptable, and prior payment by the renter is not required.",
           "Loss-of-use compensation for a damaged rented motor vehicle is limited by Minnesota law to a period no longer than 14 days."
         ]
@@ -632,9 +638,10 @@ function rentalDocumentSections(formId: string, input: {
         ]
       },
       {
-        heading: "Core promises by renter",
+        heading: "Authorized drivers and renter promises",
         bullets: [
-          "Renter represents that every driver is properly licensed, legally eligible to drive, not impaired, and listed as an authorized driver before operating the vehicle.",
+          "Only drivers specifically listed in the rental record and approved by Time Motor Sales may operate the vehicle.",
+          "Renter represents that every authorized driver is properly licensed, legally eligible to drive, not impaired, not excluded by insurance, and listed as an authorized driver before operating the vehicle.",
           "Renter accepts possession only for the rental period, vehicle, rate, return duties, geographic limits, and use restrictions shown in this agreement.",
           "Renter will return the vehicle on time, to the agreed location, with all keys, fobs, plates, registration items, equipment, accessories, and the required fuel level.",
           "Renter will keep the vehicle locked, safeguarded, and used only in a careful, lawful, and reasonable manner.",
@@ -648,6 +655,7 @@ function rentalDocumentSections(formId: string, input: {
         bullets: [
           "Renter is responsible for all rental charges, deposits, extensions, late return charges, mileage charges, fuel, cleaning, smoking/odor treatment, tolls, parking, traffic or camera citations, impound, towing, recovery, missing keys, missing equipment, damage, theft, loss, administrative costs, and other amounts allowed by this agreement and Minnesota law.",
           "Renter authorizes Time Motor Sales to place and maintain the payment hold shown in the agreement and to charge the authorized payment method for amounts owed under the rental agreement, including post-return charges supported by the rental record.",
+          "A deposit or authorization hold is not a limit of Renter's responsibility.",
           "Renter remains responsible for amounts not paid by personal insurance, employer insurance, card benefits, a third-party payer, or another responsible party.",
           "Returned payments, chargebacks, payment reversals, false payment information, or failure to maintain an available payment method are material defaults.",
           "Amounts not paid when due may be sent to collection, reported as permitted by law, and recovered with lawful collection costs, court costs, and attorney fees where allowed."
@@ -665,7 +673,7 @@ function rentalDocumentSections(formId: string, input: {
         ]
       },
       {
-        heading: "Default, recovery, and repossession right",
+        heading: "Default and vehicle recovery",
         bullets: [
           "Renter is in default if the vehicle is not returned when due, payment fails, the vehicle is used by an unauthorized driver, renter breaches a prohibited-use term, renter provides false information, the vehicle is abandoned or concealed, or Time Motor Sales reasonably believes the vehicle or public is at risk.",
           "Upon default, Time Motor Sales may terminate the rental, demand immediate return, remotely disable or locate the vehicle where lawful and disclosed, recover the vehicle peacefully, notify law enforcement, and charge lawful recovery costs.",
@@ -673,12 +681,22 @@ function rentalDocumentSections(formId: string, input: {
         ]
       },
       {
-        heading: "Indemnity and liability allocation",
+        heading: "Indemnity, no agency, and liability allocation",
         bullets: [
           "To the fullest extent permitted by Minnesota law, renter agrees to indemnify and hold Time Motor Sales harmless from claims, losses, damages, fines, penalties, citations, tolls, injuries, property damage, expenses, and attorney fees arising from renter's breach, prohibited use, unauthorized driver, false information, negligence, intentional misconduct, illegal use, or failure to cooperate.",
           "This indemnity does not waive any duty, coverage, or liability that Minnesota law does not permit Time Motor Sales to waive or shift.",
+          "Renter and authorized drivers are not agents, employees, partners, representatives, or contractors of Time Motor Sales.",
+          "Renter has no authority to bind Time Motor Sales, admit liability on its behalf, authorize repairs, settle claims, or represent dealership consent beyond this agreement.",
           "Nothing in this agreement limits liability for Time Motor Sales' own nonwaivable negligence, statutory duties, or obligations under Minnesota compulsory insurance law.",
           "If any term is unenforceable, the remaining terms remain effective and the unenforceable term will be limited to the maximum lawful scope."
+        ]
+      },
+      {
+        heading: "Privacy and records",
+        bullets: [
+          "Time Motor Sales may collect and retain driver license information, insurance information, contact information, payment authorization records, inspection photos, communications, GPS or telematics records if applicable, incident records, citation and toll records, and claim documents for legitimate business, safety, legal, regulatory, payment, claim, and recovery purposes.",
+          "Renter authorizes Time Motor Sales to use and share records reasonably necessary for vehicle custody, safety, insurance verification, payment processing, claim handling, recovery, legal compliance, and dispute resolution.",
+          "Customer information should be handled under dealership privacy and safeguards obligations, including applicable customer-information safeguards for dealership records."
         ]
       },
       {
@@ -692,7 +710,7 @@ function rentalDocumentSections(formId: string, input: {
     ],
     "rental-terms-conditions": [
       {
-        heading: "Minnesota legal framework",
+        heading: "Rental framework",
         bullets: [
           "This rental is intended to be a short-term Minnesota motor vehicle rental and not a lease-to-own, purchase, installment sale, bailment for repair, or transfer of title.",
           "The agreement must be read together with the Minnesota insurance and optional-coverage notice supplied in the Daily Rental Agreement.",
@@ -723,6 +741,7 @@ function rentalDocumentSections(formId: string, input: {
         bullets: [
           "Time Motor Sales may assess lawful charges for late return, unauthorized extension, excess mileage, fuel shortage, cleaning, smoke/odor treatment, tolls, tickets, parking, storage, towing, impound, recovery, lost keys, missing equipment, and administrative handling.",
           "Renter must promptly provide updated contact, location, payment, insurance, and claim information upon request.",
+          "Renter remains responsible for chargeable items received or discovered after return, including tolls, citations, camera tickets, impound notices, tow invoices, damage estimates, insurance deductibles, and claim expenses.",
           "No delay by Time Motor Sales in enforcing a right is a waiver of that right."
         ]
       }
@@ -731,16 +750,17 @@ function rentalDocumentSections(formId: string, input: {
       {
         heading: "Damage and loss responsibility",
         bullets: [
-          "Unless a valid protection option applies and is not voided, renter is responsible for loss of or damage to the vehicle during the rental period to the extent allowed by law.",
-          "Responsibility may include repair or replacement cost, theft, loss of use, towing, storage, impound, administrative costs, diminished value, missing equipment, keys, and recovery costs where allowed by law.",
+          "Unless a valid protection option applies and is not voided, renter is responsible for loss of or damage to the vehicle during the rental period to the extent allowed by law and except to the extent paid by applicable insurance.",
+          "Responsibility may include repair or replacement cost, theft or conversion, loss of use, towing, storage, impound, administrative costs, diminished value, missing equipment, keys, fobs, plates, documents, and recovery costs where allowed by law.",
           "Renter must immediately report damage, theft, accident, impound, or police contact and cooperate with the dealership, insurers, and law enforcement.",
-          "Protection options do not apply to prohibited use, unauthorized drivers, intentional damage, intoxicated driving, illegal use, misrepresentation, or failure to report an incident."
+          "Protection options do not apply to prohibited use, unauthorized drivers, intentional damage, intoxicated driving, illegal use, misrepresentation, or failure to report an incident unless the applicable written program and law require otherwise.",
+          "Time Motor Sales will credit insurance or third-party recoveries against the same loss and will not obtain double recovery."
         ]
       }
     ],
     "protection-election": [
       {
-        heading: "Minnesota optional coverage notice",
+        heading: "Minnesota insurance notice and protection election",
         bullets: [
           MINNESOTA_RENTAL_COVERAGE_NOTICE,
           "Renter must initial or otherwise acknowledge this notice before any collision damage waiver, added liability product, personal accident product, personal effects product, or similar rental coverage is sold."
@@ -792,11 +812,18 @@ function rentalDocumentSections(formId: string, input: {
       {
         heading: "Checkout condition",
         rows: [
+          ["Rental agreement #", input.dealNumber],
+          ["Renter", input.customerName],
+          ["Vehicle", vehicleLine || "Not captured"],
+          ["VIN", input.vehicle.vin],
           ["Mileage out", input.rental.mileageOut],
           ["Fuel out", input.rental.fuelOut],
           ["Return fuel rule", input.rental.returnFuel],
+          ["Key / fob count", "Record keys and fobs before release"],
+          ["Equipment present", "Record plates, registration, insurance card, charger, tools, mats, accessories, and dealership property"],
           ["Existing damage", "Document photos and notes before release"],
-          ["Keys / equipment", "Confirm with renter at checkout and return"]
+          ["Required checkout photos", "Front, rear, driver side, passenger side, interior, odometer/fuel, existing damage"],
+          ["Customer checkout acknowledgement", "Renter had an opportunity to inspect the vehicle and identify visible pre-existing damage before departure."]
         ]
       },
       {
@@ -804,6 +831,8 @@ function rentalDocumentSections(formId: string, input: {
         bullets: [
           "Staff should compare return condition to checkout photos and notes.",
           "New damage, missing equipment, fuel shortage, cleaning issue, odor, late return, or mileage overage should be recorded before closing the rental.",
+          "Required return photos should include return front, return rear, return sides, return interior, return odometer/fuel, and return damage review.",
+          "The return record documents physical custody and observed condition only. It is not a release, settlement, waiver, admission of liability, final invoice, or final insurance determination.",
           "Renter may request a copy of damage estimates, photos, and charge support where required by law."
         ]
       }
@@ -820,12 +849,13 @@ function rentalDocumentSections(formId: string, input: {
     ],
     "incident-reporting-instructions": [
       {
-        heading: "Accident, theft, impound, or police contact",
+        heading: "Accident, theft, impound, citation, tow, or police contact",
         bullets: [
           "Stop safely, call emergency services when needed, and contact law enforcement when required by law.",
           "Notify the dealership as soon as safely possible and provide a written incident report.",
           "Collect other driver, witness, insurance, police report, and location information.",
-          "Do not admit fault, abandon the vehicle, authorize repairs, or continue driving an unsafe vehicle without dealership instruction.",
+          "Preserve photos, notices, citations, tow invoices, claim documents, and all evidence related to the incident.",
+          "Do not admit fault for Time Motor Sales, abandon the vehicle, authorize repairs, dispose of evidence, or continue driving an unsafe vehicle without dealership instruction.",
           "Cooperate with the dealership, insurers, claims administrators, and law enforcement until the claim is closed."
         ]
       }
@@ -844,6 +874,12 @@ function buildRentalDocumentHtml(input: {
   vehicle: ReturnType<typeof vehicleFacts>;
 }) {
   const sections = rentalDocumentSections(input.form.id, input);
+  const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.color}`.replace(/\s+/g, " ").trim();
+  const dealerName = "Time Motor Sales, Inc.";
+  const dealerAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
+  const dealerPhone = "612-724-3631";
+  const dealerWebsite = "timemotors.net";
+  const dealerEmail = "timemotorsale@gmail.com";
   return `<!doctype html>
 <html>
 <head>
@@ -855,6 +891,15 @@ function buildRentalDocumentHtml(input: {
     h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
     p, li { color: #34445d; line-height: 1.45; }
     .meta { color: #52647d; margin: 0 0 20px; }
+    .letterhead { align-items: start; border-bottom: 3px solid #061735; display: grid; gap: 18px; grid-template-columns: 1.2fr 1fr; margin-bottom: 24px; padding-bottom: 16px; }
+    .brand { letter-spacing: 0.08em; text-transform: uppercase; }
+    .brand strong { display: block; font-size: 24px; letter-spacing: 0; text-transform: none; }
+    .brand span { color: #2f49c6; font-size: 13px; font-weight: 800; }
+    .contact { color: #34445d; font-size: 13px; line-height: 1.45; text-align: right; }
+    .contact strong { color: #061735; display: block; font-size: 14px; }
+    .document-id { background: #f6f9ff; border: 1px solid #dbe6f8; border-radius: 10px; display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); margin: 16px 0 22px; padding: 12px; }
+    .document-id span { color: #52647d; display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .document-id strong { color: #061735; display: block; font-size: 13px; margin-top: 3px; }
     table { border-collapse: collapse; margin-top: 12px; width: 100%; }
     th, td { border: 1px solid #dbe6f8; padding: 10px; text-align: left; vertical-align: top; }
     th { background: #f6f9ff; color: #34445d; width: 34%; }
@@ -864,9 +909,27 @@ function buildRentalDocumentHtml(input: {
   </style>
 </head>
 <body>
+  <header class="letterhead">
+    <div class="brand">
+      <span>Time Motor Sales</span>
+      <strong>${escapeHtml(dealerName)}</strong>
+      <p>Daily Vehicle Rental Packet</p>
+    </div>
+    <div class="contact">
+      <strong>${escapeHtml(dealerAddress)}</strong>
+      Phone: ${escapeHtml(dealerPhone)}<br />
+      Website: ${escapeHtml(dealerWebsite)}<br />
+      ${escapeHtml(dealerEmail)}
+    </div>
+  </header>
   <h1>${escapeHtml(input.form.label)}</h1>
   <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.form.basis)} · ${escapeHtml(input.form.trigger)}</p>
-  <p class="notice">Operational template for Time Motor Sales review. Final customer-facing language should be reviewed by dealership counsel for Minnesota rental law, insurance, waiver, and consumer disclosure requirements.</p>
+  <div class="document-id">
+    <div><span>Rental agreement</span><strong>${escapeHtml(input.dealNumber)}</strong></div>
+    <div><span>Renter</span><strong>${escapeHtml(input.customerName)}</strong></div>
+    <div><span>Vehicle</span><strong>${escapeHtml(vehicleLine || input.vehicle.vin || "Not captured")}</strong></div>
+  </div>
+  <p class="notice">Renter must read and sign the applicable rental packet documents before taking possession of the rental vehicle. This packet governs temporary rental custody only and does not transfer ownership, title, leasehold interest, agency authority, or employment status.</p>
   ${sections.map((section) => `
     <h2>${escapeHtml(section.heading)}</h2>
     ${section.rows ? `<table><tbody>${section.rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>` : ""}
