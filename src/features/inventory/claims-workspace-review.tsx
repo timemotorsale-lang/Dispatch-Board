@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { Camera } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import { claimPhotoCategory, type ClaimPhotoCategory } from "@/lib/claim-photo-upload";
+import { ClaimPhotoUploader } from "./claim-photo-uploader";
+import { ClaimRepairWorkflow } from "./claim-repair-workflow";
+import { ClaimCustomerAuthorization } from "./claim-customer-authorization";
+import { claimPermissionStatus } from "@/lib/claim-customer-authorization";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -182,8 +188,9 @@ function todayInputDate() {
   return date.toISOString().slice(0, 10);
 }
 
-export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string; model?: ClaimReadModel }) {
+export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested = false }: { loadError?: string; model?: ClaimReadModel; authorizationRequested?: boolean }) {
   const [actionError, setActionError] = useState("");
+  const [authorizationOpen, setAuthorizationOpen] = useState(authorizationRequested);
   const [actionMessage, setActionMessage] = useState("");
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
@@ -196,7 +203,10 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState("");
   const [snapshotEditing, setSnapshotEditing] = useState(false);
+  const [photoCategory, setPhotoCategory] = useState<ClaimPhotoCategory | null>(null);
   const reminderDateInputRef = useRef<HTMLInputElement>(null);
+  const communicationPending = !!model && model.claim.status !== "CLOSED" && claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION") !== "Verified signed copy";
+  const primaryBlocker = communicationPending ? "Claim communication permission needed" : model?.primaryBlocker;
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
     ["Address", [model.claim.customerAddressLine1, model.claim.customerAddressLine2, model.claim.customerCity, model.claim.customerState, model.claim.customerPostalCode].filter(Boolean).join(", ") || "Pending"],
@@ -212,15 +222,19 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   ] : snapshot;
   const needRows = model ? model.checklist.map((item) => ({
     detail: item.detail,
-    label: item.label,
+    label: item.category === "AUTHORIZATION" ? "Repair authorization" : item.label,
     state: checklistState(item)
   })) : needs;
-  const readinessRows = model ? model.readiness.map((item) => ({
+  const readinessRows: { label: string; percent: number; status: string; tone: "good" | "warning" | "danger" | "info" }[] = model ? model.readiness.map((item) => ({
     label: item.title,
     percent: item.percent,
     status: readinessLabel(item.status),
     tone: readinessTone(item.status)
-  })) : readiness;
+  })) : [...readiness];
+  if (model) {
+    const permission = claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION");
+    readinessRows.unshift({ label: "Claim communication permission", percent: permission === "Verified signed copy" ? 100 : 0, status: communicationPending ? "Signature verification needed" : permission, tone: permission === "Verified signed copy" ? "good" : "warning" });
+  }
   const completedNeeds = model?.checklist.filter((item) => item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE").length;
   const activityRows = model?.activities.length ? model.activities.slice(0, 5) : [
     { action: "CLAIM_CREATED", actorUserName: "Eli Manager", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
@@ -264,27 +278,27 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const repairTaskVehicle = [model?.claim.vehicleYear, model?.claim.vehicleMake, model?.claim.vehicleModel].filter(Boolean).join(" ");
   const repairTaskContext = new URLSearchParams({
     brief: [
-      "Open the repair-start task after customer and carrier approval are confirmed.",
+      "Prepare and link the repair order. Do not start repairs before scope-specific customer and payer approval are recorded.",
       `Claim: ${model?.claim.claimNumber || claimId || "Pending claim number"}.`,
       `Carrier: ${model?.claim.carrierName || carrier.carrier || "Pending carrier"}.`,
       `Approved amount: ${estimateReview.approvedAmountLabel}.`,
       "Confirm authorization, approved estimate or supplement, stop rules, owner, and first repair action before work begins."
     ].join("\n"),
     customerReference: repairTaskCustomer,
-    expectedOutcome: "Repairs are ready to start with approval, authorization, scope, owner, and the first repair action documented.",
+    expectedOutcome: "The claim is linked to its repair plan with scope, authorization, supplement checkpoints, owner, and first action documented.",
     intakeType: "Repair Order / Authorization",
     returnTo: claimReturnHref,
     sourceTitle: "Claims Desk repair approval handoff",
-    title: `Start approved repairs for ${repairTaskCustomer}`,
+    title: `Prepare repair plan for ${repairTaskCustomer}`,
     workflowArea: "SERVICE_ADVISOR"
   });
   if (repairTaskVehicle) repairTaskContext.set("vehicleReference", repairTaskVehicle);
   const startRepairTaskHref = `/tasks/intake?${repairTaskContext.toString()}`;
-  const repairWorkflowTaskHref = model?.associatedRepairTask?.href ?? startRepairTaskHref;
-  const repairWorkflowTaskActionLabel = model?.associatedRepairTask ? "Open associated task" : "Create start repairs task";
+  const repairWorkflowTaskHref = model?.associatedRepairTask ? `${model.associatedRepairTask.href}?${new URLSearchParams({ claimId: claimId!, returnTo: claimReturnHref })}` : startRepairTaskHref;
+  const repairWorkflowTaskActionLabel = model?.associatedRepairTask ? "View assigned task" : "Create repair planning task";
   const repairWorkflowTaskDetail = model?.associatedRepairTask
     ? `${model.associatedRepairTask.title} is already tied to this claim. Open it to keep repair progress centralized.`
-    : "Create a task for the repair start so authorization, approved scope, owner, and first action stay tied to this claim.";
+    : "Create a repair planning task with authorization, scope, owner, and first action tied to this claim.";
   const appointmentContext = new URLSearchParams({
     action: "new",
     reason: model?.nextAction.reason ?? "Claim follow-up from Claims Workspace.",
@@ -578,9 +592,9 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
           <span className={styles.cardEyebrow}>Current claim</span>
           <div className={styles.statusLine}>
             <strong>Waiting on adjuster</strong>
-            <StatusBadge tone="warning">{model?.primaryBlocker ?? "2 days open"}</StatusBadge>
+            <StatusBadge tone="warning">{primaryBlocker ?? "2 days open"}</StatusBadge>
           </div>
-          <p>{model?.nextAction.reason ?? "Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete."}</p>
+          <p>{communicationPending ? "Verify signed claim communication permission. Repair authorization and the optional direction to pay remain separate." : model?.nextAction.reason ?? "Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete."}</p>
         </aside>
       </header>
 
@@ -595,9 +609,18 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
         </section>
       ) : null}
 
+      {claimId ? <ClaimRepairWorkflow claimId={claimId} onAuthorize={() => setAuthorizationOpen(true)} intakeReady={model?.handoff.allowed} intakeTask={taskRows.find((task) => task.id !== "task-repair-handoff")} onIntake={() => {
+        const task = taskRows.find((item) => item.id !== "task-repair-handoff");
+        if (!task) return;
+        const category = claimPhotoCategory(task);
+        if (category) setPhotoCategory(category);
+        else openExtraTool(toolForTask(task));
+      }} onTools={() => setExtraToolsOpen(true)} taskHref={model?.associatedRepairTask ? repairWorkflowTaskHref : undefined} taskTitle={model?.associatedRepairTask?.title} /> : null}
+      {model ? <ClaimCustomerAuthorization model={model} open={authorizationOpen} onOpen={() => setAuthorizationOpen(true)} onClose={() => setAuthorizationOpen(false)} /> : null}
+
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
-          <section className={styles.panel}>
+          {!claimId ? <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
                 <h2>Execute Next Tasks</h2>
@@ -616,7 +639,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                   {task.id === "task-repair-handoff" ? (
                     <Link href={repairWorkflowTaskHref}>{repairWorkflowTaskActionLabel}</Link>
                   ) : (
-                    <button onClick={() => openExtraTool(toolForTask(task))} type="button">{task.actionLabel}</button>
+                    <button disabled={!claimId || isWorking} onClick={() => {
+                      const category = claimPhotoCategory(task);
+                      if (category) setPhotoCategory(category);
+                      else openExtraTool(toolForTask(task));
+                    }} type="button">{task.actionLabel}</button>
                   )}
                 </article>
               ))}
@@ -624,7 +651,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
             <div className={styles.actionForms}>
               <button className={styles.extraToolsButton} onClick={() => setExtraToolsOpen(true)} type="button">Extra Action Tools</button>
             </div>
-          </section>
+          </section> : null}
 
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
@@ -691,7 +718,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                 </div>
                 <div className={`${styles.fact} ${styles.wide}`}>
                   <span>Current blocker</span>
-                  <strong>{model?.primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
+                  <strong>{primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
                 </div>
               </div>
             )}
@@ -726,6 +753,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               </div>
               <StatusBadge>{evidenceRows.length} file{evidenceRows.length === 1 ? "" : "s"}</StatusBadge>
             </div>
+            <div className={styles.photoUploadToolbar}><button disabled={!claimId || isWorking} onClick={() => setPhotoCategory("DAMAGE_PHOTO")} type="button"><Camera size={18} /> Add claim photos</button></div>
             {evidenceRows.length ? (
               <div className={styles.uploadedEvidenceList}>
                 {evidenceRows.map((evidence) => (
@@ -781,7 +809,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
             </div>
           </section>
 
-          <section className={styles.panel}>
+          {!claimId ? <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
                 <h2>Next Action</h2>
@@ -792,7 +820,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               <span className={styles.cardEyebrow}>Recommended now</span>
               <strong>{model?.nextAction.label ?? "Contact adjuster"}</strong>
               <p>{model?.nextAction.reason ?? "Carrier is captured, but adjuster contact and approval status are missing. Repair handoff remains blocked until authorization and required photos are complete."}</p>
-              <button type="button">Record carrier call</button>
+              <button onClick={() => openExtraTool("call")} type="button">Record carrier call</button>
               <div className={styles.ownerGrid}>
                 <div className={styles.fact}>
                   <span>Owner</span>
@@ -804,7 +832,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                 </div>
               </div>
             </div>
-          </section>
+          </section> : null}
 
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
@@ -1179,6 +1207,8 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
           </aside>
         </div>
       ) : null}
+
+      {photoCategory && claimId ? <ClaimPhotoUploader claimId={claimId} category={photoCategory} customer={model?.claim.customerName ?? "Claim"} onClose={() => setPhotoCategory(null)} onSaved={() => window.location.reload()} /> : null}
 
       {extraToolsOpen ? (
         <div className={styles.drawerBackdrop} role="presentation">

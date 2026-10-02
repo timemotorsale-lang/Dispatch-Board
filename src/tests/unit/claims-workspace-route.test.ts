@@ -21,8 +21,85 @@ import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspac
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
 import { getDocumentLibrary, resetDocumentLibraryDemoState } from "@/server/document-library/service";
 import { buildDocumentObjectKey } from "@/server/document-library/storage-adapter";
+import { PDFDocument } from "pdf-lib";
+import { claimPermissionStatus } from "@/lib/claim-customer-authorization";
+import { GET as GENERATE_AUTHORIZATION, POST as WITHDRAW_PERMISSION } from "@/app/api/claims-workspace/claims/[claimId]/authorization/route";
 
 describe("claims workspace API routes", () => {
+  it("generates an unsigned PDF without recording consent and validates withdrawals", async () => {
+    const params = { params: Promise.resolve({ claimId: "claim-demo-1" }) };
+    const generated = await GENERATE_AUTHORIZATION(new Request("http://local/authorization?download=1"), params);
+    expect(generated.status).toBe(200);
+    expect(generated.headers.get("Content-Disposition")).toContain("attachment");
+    expect(generated.headers.get("Cache-Control")).toBe("private, no-store");
+    expect((await PDFDocument.load(await generated.arrayBuffer())).getForm().getCheckBox("direction_to_pay").isChecked()).toBe(false);
+    const invalid = await WITHDRAW_PERMISSION(new Request("http://local/authorization", { method: "POST", body: "null" }), params);
+    expect(invalid.status).toBe(400);
+    const mixedCase = await ATTACH_EVIDENCE(new Request("http://local/evidence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: " claim_communication ", documentLibraryId: "fake", title: "Signed" }) }), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(mixedCase.status).toBe(400);
+    const withdrawn = await WITHDRAW_PERMISSION(new Request("http://local/authorization", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "WITHDRAW", category: "CLAIM_DIRECT_PAY", reason: "Customer requested withdrawal in writing." }) }), params);
+    expect(withdrawn.status).toBe(200); const model = await withdrawn.json();
+    expect(claimPermissionStatus(model.evidence, "CLAIM_DIRECT_PAY")).toBe("Withdrawn");
+    expect(claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION")).toBe("Missing");
+    mocks.getCurrentUser.mockResolvedValueOnce(null);
+    expect((await GENERATE_AUTHORIZATION(new Request("http://local/authorization"), params)).status).toBe(401);
+    expect((await GENERATE_AUTHORIZATION(new Request("http://local/authorization"), { params: Promise.resolve({ claimId: "missing" }) })).status).toBe(404);
+  });
+  it("requires a verified signed PDF for claim permissions and keeps repair approval separate", async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage(); const bytes = await pdf.save();
+    const form = new FormData();
+    form.set("file", new File([bytes as BlobPart], "signed-authorization.pdf", { type: "application/pdf" }));
+    for (const [key, value] of Object.entries({ category: "CLAIM_COMMUNICATION", signer: "Review Customer", capacity: "OWNER", signedDate: "2026-10-01", communicationSelected: "true", signatureVerified: "true", copyProvided: "true", directPaySelected: "true" })) form.set(key, value);
+    const response = await ATTACH_EVIDENCE(new Request("http://local/evidence", { method: "POST", body: form }), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(response.status).toBe(201); const model = await response.json();
+    expect(claimPermissionStatus(model.evidence, "CLAIM_COMMUNICATION")).toBe("Verified signed copy");
+    expect(claimPermissionStatus(model.evidence, "CLAIM_DIRECT_PAY")).toBe("Verified signed copy");
+    expect(model.checklist.find((item: { category: string }) => item.category === "AUTHORIZATION").state).not.toBe("RECEIVED");
+    const invalid = await ATTACH_EVIDENCE(new Request("http://local/evidence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: "CLAIM_COMMUNICATION", documentLibraryId: "fake", title: "Signed" }) }), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(invalid.status).toBe(400);
+  });
+  it("stores multiple photos as independent claim evidence and rejects disguised images", async () => {
+    const formFor = (name: string, bytes: Uint8Array, category = "DAMAGE_PHOTO") => {
+      const form = new FormData();
+      form.set("category", category);
+      form.set("file", new File([bytes as BlobPart], name, { type: "image/png" }));
+      return new Request("http://local/api/claims-workspace/claims/claim-demo-1/evidence", { method: "POST", body: form });
+    };
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPioAAAAASUVORK5CYII=", "base64");
+    const first = await ATTACH_EVIDENCE(formFor("damage.png", png), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(first.status).toBe(201);
+    const second = await ATTACH_EVIDENCE(formFor("odometer.png", png, "ODOMETER_PHOTO"), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(second.status).toBe(201);
+    const payload = await second.json();
+    expect(payload.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ fileName: "damage.png", category: "DAMAGE_PHOTO", documentLibraryId: expect.stringMatching(/^doc-claim-/) }),
+      expect.objectContaining({ fileName: "odometer.png", category: "ODOMETER_PHOTO", documentLibraryId: expect.stringMatching(/^doc-claim-/) })
+    ]));
+    const photo = payload.evidence.find((item: { fileName: string }) => item.fileName === "damage.png");
+    const odometer = payload.evidence.find((item: { fileName: string }) => item.fileName === "odometer.png");
+    expect(photo.documentLibraryId).not.toBe(odometer.documentLibraryId);
+    mocks.documentFindFirst.mockResolvedValueOnce({
+      contentType: "image/png",
+      fileName: "damage.png",
+      storageProvider: "INTERNAL",
+      storageReference: `local-private://${buildDocumentObjectKey({
+        documentId: photo.documentLibraryId,
+        fileName: "damage.png",
+        organizationId: "default-org",
+        owner: { id: "claim-demo-1", label: "Claim #MN-48291", type: "CLAIM" },
+        version: 1
+      })}`
+    });
+    const original = await OPEN_EVIDENCE_CONTENT(new Request("http://local/photo"), { params: Promise.resolve({ claimId: "claim-demo-1", evidenceId: photo.id }) });
+    expect(original.status).toBe(200);
+    expect(Buffer.from(await original.arrayBuffer())).toEqual(png);
+    const retry = await ATTACH_EVIDENCE(formFor("damage.png", png), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(retry.status).toBe(201);
+    const retried = await retry.json();
+    expect(retried.evidence.filter((item: { fileName: string }) => item.fileName === "damage.png")).toHaveLength(1);
+    const invalid = await ATTACH_EVIDENCE(formFor("fake.png", new Uint8Array([1, 2, 3])), { params: Promise.resolve({ claimId: "claim-demo-1" }) });
+    expect(invalid.status).toBe(400);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     resetDocumentLibraryDemoState();

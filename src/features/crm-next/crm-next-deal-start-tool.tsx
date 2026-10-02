@@ -2,6 +2,7 @@
 
 import { type ReactNode, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { CrmNextVinDecoder } from "./crm-next-vin-decoder";
 import { FilePlus2, Eye, Download, Printer, X } from "lucide-react";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
@@ -366,66 +367,6 @@ type GeneratedContractPacket = {
   status: "ARCHIVED";
 };
 
-type VehicleDecodeResult = {
-  bodyType: string;
-  make: string;
-  stockNumber: string;
-  valid: boolean;
-  year: string;
-};
-
-const VIN_YEAR_CODES: Record<string, number> = {
-  A: 2010,
-  B: 2011,
-  C: 2012,
-  D: 2013,
-  E: 2014,
-  F: 2015,
-  G: 2016,
-  H: 2017,
-  J: 2018,
-  K: 2019,
-  L: 2020,
-  M: 2021,
-  N: 2022,
-  P: 2023,
-  R: 2024,
-  S: 2025,
-  T: 2026,
-  V: 2027,
-  W: 2028,
-  X: 2029,
-  Y: 2030
-};
-
-const VIN_MAKE_PREFIXES: Record<string, string> = {
-  "1C": "Chrysler",
-  "1F": "Ford",
-  "1G": "General Motors",
-  "1H": "Honda",
-  "1N": "Nissan",
-  "2C": "Chrysler",
-  "2F": "Ford",
-  "2G": "General Motors",
-  "2H": "Honda",
-  "2T": "Toyota",
-  "3C": "Chrysler",
-  "3F": "Ford",
-  "3G": "General Motors",
-  "3H": "Honda",
-  "3N": "Nissan",
-  "4T": "Toyota",
-  "5N": "Hyundai",
-  "5Y": "Tesla",
-  JH: "Honda",
-  JT: "Toyota",
-  KM: "Hyundai",
-  KN: "Kia",
-  WB: "BMW",
-  WD: "Mercedes-Benz",
-  WV: "Volkswagen"
-};
-
 function dollarsToCents(value: string) {
   const normalized = value.trim().replace(/[$,]/g, "");
   if (!normalized) return null;
@@ -495,16 +436,16 @@ function openPrintablePdfDocument(document: GeneratedContractPacket["documents"]
 }
 
 function normalizeVin(value: string) {
-  return value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "").slice(0, 17);
+  return value.toUpperCase().replace(/\s/g, "");
 }
 
 function getStockNumberFromVin(vin: string) {
-  return vin.length >= 6 ? vin.slice(-6) : "";
+  return /^[A-HJ-NPR-Z0-9]{17}$/.test(vin) ? vin.slice(-6) : "";
 }
 
 function getVinFromVehicleInput(value: string) {
   const normalized = normalizeVin(value);
-  return normalized.length === 17 ? normalized : "";
+  return /^[A-HJ-NPR-Z0-9]{17}$/.test(normalized) ? normalized : "";
 }
 
 function todayInputValue() {
@@ -522,19 +463,6 @@ function daysBetween(startDate: string, endDate: string) {
   const end = Date.parse(`${endDate}T00:00:00`);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 1;
   return Math.max(1, Math.ceil((end - start) / 86_400_000));
-}
-
-function decodeVin(vin: string): VehicleDecodeResult {
-  const normalizedVin = normalizeVin(vin);
-  const makePrefix = normalizedVin.slice(0, 2);
-  const yearCode = normalizedVin.charAt(9);
-  return {
-    bodyType: "Auto",
-    make: VIN_MAKE_PREFIXES[makePrefix] ?? "",
-    stockNumber: getStockNumberFromVin(normalizedVin),
-    valid: normalizedVin.length === 17,
-    year: yearCode ? String(VIN_YEAR_CODES[yearCode] ?? "") : ""
-  };
 }
 
 function tomorrowIso() {
@@ -824,7 +752,6 @@ function RetailSaleExecutionDesk({
     vin: "",
     year: ""
   });
-  const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode vehicle facts.");
 
   function selectFee(code: string) {
     const nextFee = MN_DMV_FEE_ITEMS.find((item) => item.code === code) ?? MN_DMV_FEE_ITEMS[0];
@@ -947,7 +874,7 @@ function RetailSaleExecutionDesk({
   function updateVehicleSearch(value: string) {
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
-    if (!vin) return;
+    if (!vin) { setVehicleFacts((current) => ({ ...current, vin: "", stockNumber: "" })); return; }
     setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
   }
 
@@ -955,20 +882,6 @@ function RetailSaleExecutionDesk({
     setVehicleFacts((current) => ({ ...current, [key]: value }));
   }
 
-  function runVinDecode() {
-    const vin = vehicleFacts.vin || getVinFromVehicleInput(vehicle);
-    const decoded = decodeVin(vin);
-    setVehicleFacts((current) => ({
-      ...current,
-      bodyType: decoded.bodyType || current.bodyType,
-      make: decoded.make || current.make,
-      stockNumber: decoded.stockNumber,
-      vin: vin || current.vin,
-      year: decoded.year || current.year
-    }));
-    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm make, model, trim, and book values before delivery." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
-    if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
-  }
 
   return (
     <div className={styles.retailExecutionDesk}>
@@ -1034,10 +947,11 @@ function RetailSaleExecutionDesk({
           <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
           <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
-          <div className={styles.retailDecodeRow}>
-            <button type="button" onClick={runVinDecode}>Decode VIN</button>
-            <span>{decodeStatus}</span>
-          </div>
+          <CrmNextVinDecoder vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values) => {
+            setVehicleFacts((current) => ({ ...current, ...values }));
+            setContractPacket(null);
+            onVehicleChange(values.stockNumber || values.vin || vehicle);
+          }} />
           <label><span>Make</span><input value={vehicleFacts.make} onChange={(event) => updateVehicleFact("make", event.target.value)} /></label>
           <label><span>Model</span><input value={vehicleFacts.model} onChange={(event) => updateVehicleFact("model", event.target.value)} /></label>
           <label><span>Trim</span><input value={vehicleFacts.trim} onChange={(event) => updateVehicleFact("trim", event.target.value)} /></label>
@@ -1488,7 +1402,6 @@ function DailyRentalExecutionDesk({
     vin: "",
     year: ""
   });
-  const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode the rental unit.");
   const [rentalFacts, setRentalFacts] = useState({
     additionalDriverName: "",
     additionalDriverStatus: "None",
@@ -1575,23 +1488,10 @@ function DailyRentalExecutionDesk({
   function updateVehicleSearch(value: string) {
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
-    if (!vin) return;
+    if (!vin) { setVehicleFacts((current) => ({ ...current, vin: "", stockNumber: "" })); return; }
     setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
   }
 
-  function runVinDecode() {
-    const vin = vehicleFacts.vin || getVinFromVehicleInput(vehicle);
-    const decoded = decodeVin(vin);
-    setVehicleFacts((current) => ({
-      ...current,
-      make: decoded.make || current.make,
-      stockNumber: decoded.stockNumber,
-      vin: vin || current.vin,
-      year: decoded.year || current.year
-    }));
-    setDecodeStatus(decoded.valid ? `VIN decoded. Confirm model, color, mileage, and plate before ${workflowNoun} checkout.` : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
-    if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
-  }
 
   function useAuthorizationTotal() {
     onAmountChange(formatCurrency(isLoaner ? estimatedRentalCents : authorizationCents));
@@ -1752,10 +1652,11 @@ function DailyRentalExecutionDesk({
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, plate, or unit" /></label>
           <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
-          <div className={styles.retailDecodeRow}>
-            <button type="button" onClick={runVinDecode}>Decode VIN</button>
-            <span>{decodeStatus}</span>
-          </div>
+          <CrmNextVinDecoder vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values) => {
+            setVehicleFacts((current) => ({ ...current, ...values }));
+            setContractPacket(null);
+            onVehicleChange(values.stockNumber || values.vin || vehicle);
+          }} />
           <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
           <label><span>Make</span><input value={vehicleFacts.make} onChange={(event) => updateVehicleFact("make", event.target.value)} /></label>
           <label><span>Model</span><input value={vehicleFacts.model} onChange={(event) => updateVehicleFact("model", event.target.value)} /></label>
@@ -2087,7 +1988,6 @@ function LeaseToOwnExecutionDesk({
     serviceFacility: "KAP Fleet",
     serviceFacilityPhone: ""
   });
-  const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode stock, year, and make.");
 
   const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
     calculationMode: leaseInputs.calculationMode,
@@ -2150,24 +2050,10 @@ function LeaseToOwnExecutionDesk({
     setContractPacket(null);
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
-    if (!vin) return;
+    if (!vin) { setVehicleFacts((current) => ({ ...current, vin: "", stockNumber: "" })); return; }
     setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
   }
 
-  function runVinDecode() {
-    const vin = vehicleFacts.vin || getVinFromVehicleInput(vehicle);
-    const decoded = decodeVin(vin);
-    setVehicleFacts((current) => ({
-      ...current,
-      make: decoded.make || current.make,
-      stockNumber: decoded.stockNumber,
-      vin: vin || current.vin,
-      year: decoded.year || current.year
-    }));
-    setContractPacket(null);
-    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm model, color, mileage, and lease values before delivery." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
-    if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
-  }
 
   function togglePreparedForm(id: string) {
     setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -2309,10 +2195,11 @@ function LeaseToOwnExecutionDesk({
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
           <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
-          <div className={styles.retailDecodeRow}>
-            <button type="button" onClick={runVinDecode}>Decode VIN</button>
-            <span>{decodeStatus}</span>
-          </div>
+          <CrmNextVinDecoder vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values) => {
+            setVehicleFacts((current) => ({ ...current, ...values }));
+            setContractPacket(null);
+            onVehicleChange(values.stockNumber || values.vin || vehicle);
+          }} />
           <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
           <label><span>Make</span><input value={vehicleFacts.make} onChange={(event) => updateVehicleFact("make", event.target.value)} /></label>
           <label><span>Model</span><input value={vehicleFacts.model} onChange={(event) => updateVehicleFact("model", event.target.value)} /></label>

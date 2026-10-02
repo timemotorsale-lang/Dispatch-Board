@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ClaimsWorkspaceReview } from "@/features/inventory/claims-workspace-review";
+import { ClaimRepairWorkflow } from "@/features/inventory/claim-repair-workflow";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   attachClaimEvidence,
@@ -20,6 +21,13 @@ const actor: AuthenticatedUser = {
 };
 
 describe("claims workspace review", () => {
+  it("waits for workflow state before offering an executable next action", () => {
+    const html = renderToStaticMarkup(<ClaimRepairWorkflow claimId="claim-demo-1" />);
+    expect(html).toContain("Next Action");
+    expect(html).toContain("Checking claim workflow");
+    expect(html).not.toContain("Adoption review");
+    expect(html).not.toContain("Review workflow");
+  });
   it("renders the adopted claims workspace sections and handoff guidance", () => {
     const html = renderToStaticMarkup(<ClaimsWorkspaceReview />);
 
@@ -123,8 +131,9 @@ describe("claims workspace review", () => {
 
     const model = await getClaimWorkspaceReadModel(actor, created.readModel.claim.id, { repository });
     const createHtml = renderToStaticMarkup(<ClaimsWorkspaceReview model={model} />);
-    expect(createHtml).toContain("Create start repairs task");
-    expect(createHtml).toContain('href="/tasks/intake?');
+    expect(createHtml).toContain("Checking claim workflow");
+    expect(createHtml).not.toContain("Execute Next Tasks");
+    expect(createHtml).not.toContain("Open associated task");
 
     const html = renderToStaticMarkup(
       <ClaimsWorkspaceReview model={{
@@ -138,9 +147,11 @@ describe("claims workspace review", () => {
       }} />
     );
 
-    expect(html).toContain("Open associated task");
-    expect(html).toContain('href="/tasks/task-repair-start"');
-    expect(html).not.toContain("Create start repairs task");
+    expect(html).toContain("View assigned task");
+    expect(html).toContain('href="/tasks/task-repair-start?claimId=');
+    expect(html).toContain("returnTo=");
+    expect(html.match(/<h2>Next Action<\/h2>/g)).toHaveLength(1);
+    expect(html).not.toContain("Create repair planning task");
   });
 
   it("opens in safe mode when claim details are temporarily limited", () => {

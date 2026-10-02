@@ -224,7 +224,7 @@ export function ClaimsDesk({ initialTool = "start", model }: { initialTool?: Des
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "Claim could not be started.");
       const claimId = payload?.readModel?.claim?.id;
-      window.location.assign(claimId ? `/vehicles/claims-workspace?claimId=${encodeURIComponent(claimId)}` : "/vehicles/claims-workspace");
+      window.location.assign(claimId ? `/vehicles/claims-workspace?claimId=${encodeURIComponent(claimId)}&authorization=1` : "/vehicles/claims-workspace");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Claim could not be started.");
     } finally {

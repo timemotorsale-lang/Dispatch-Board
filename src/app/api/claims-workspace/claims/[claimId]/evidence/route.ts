@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
+import { PDFDocument } from "pdf-lib";
 
 import { getCurrentUser } from "@/server/auth/current-user";
+import { matchesClaimPhotoBytes, validateClaimPhoto } from "@/lib/claim-photo-upload";
+import { CLAIM_PERMISSION_CATEGORIES, validateClaimAuthorizationUpload } from "@/lib/claim-customer-authorization";
 import { claimsWorkspaceDependencies } from "@/server/claims-workspace/repository-factory";
 import {
   attachClaimEvidence,
+  getClaimWorkspaceReadModel,
   CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION,
   ClaimsWorkspaceError
 } from "@/server/claims-workspace/service";
@@ -37,26 +41,45 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
   const { claimId } = await context.params;
   try {
     const user = await getCurrentUser();
+    if (!user) throw new ClaimsWorkspaceError("AUTHENTICATION_REQUIRED", "Sign in before uploading claim evidence.");
     const dependencies = await claimsWorkspaceDependencies();
     const contentType = request.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
       const file = form.get("file");
       if (!(file instanceof File)) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Claim evidence upload requires a file.");
+      const category = text(form.get("category")).toUpperCase() || "ESTIMATE";
+      const isPermission = CLAIM_PERMISSION_CATEGORIES.some((item) => item === category);
+      let permission: ReturnType<typeof validateClaimAuthorizationUpload> | null = null;
+      if (isPermission) {
+        if (category !== "CLAIM_COMMUNICATION" || file.type !== "application/pdf" || file.size > 25 * 1024 * 1024 || file.size === 0) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Upload the signed authorization as a PDF, up to 25 MB.");
+        try { permission = validateClaimAuthorizationUpload(form); } catch (error) { throw new ClaimsWorkspaceError("CLAIM_INVALID", (error as Error).message); }
+      }
+      const isPhoto = ["DAMAGE_PHOTO", "ODOMETER_PHOTO", "VIN_PHOTO"].includes(category);
+      if (isPhoto) {
+        const invalid = validateClaimPhoto(file);
+        if (invalid) throw new ClaimsWorkspaceError("CLAIM_INVALID", invalid);
+      }
       const aggregate = await dependencies.repository.findClaimById(claimId);
       if (!aggregate) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
+      if (isPermission && aggregate.claim.status !== "OPEN") throw new ClaimsWorkspaceError("CLAIM_INVALID", "Closed claim permissions cannot be changed.");
+      if (isPermission) await getClaimWorkspaceReadModel(user, claimId, dependencies);
       const buffer = Buffer.from(await file.arrayBuffer());
       const bytes = new Uint8Array(buffer);
+      if (isPermission && buffer.subarray(0, 5).toString() !== "%PDF-") throw new ClaimsWorkspaceError("CLAIM_INVALID", "This file is not a valid PDF.");
+      if (isPermission) {
+        try { await PDFDocument.load(bytes); } catch { throw new ClaimsWorkspaceError("CLAIM_INVALID", "The signed PDF could not be opened. Upload a readable, unencrypted PDF."); }
+      }
+      if (isPhoto && !matchesClaimPhotoBytes(file.type, bytes)) throw new ClaimsWorkspaceError("CLAIM_INVALID", "This file is not a valid JPEG or PNG photo.");
       const checksumSha256 = createHash("sha256").update(buffer).digest("hex");
-      const category = text(form.get("category")) || "ESTIMATE";
       const title = text(form.get("title")) || file.name;
       const reason = text(form.get("reason")) || text(form.get("notes")) || `Claim evidence uploaded for ${title}.`;
-      const extracted = await extractDocumentText({
+      const extracted = isPhoto ? { text: "", warnings: [] as string[] } : await extractDocumentText({
         bytes,
         contentType: file.type || "application/pdf",
         fileName: file.name
       });
-      const notes = [
+      const notes = permission ? JSON.stringify({ ...permission, verifiedByUserId: user.id, verifiedAt: new Date().toISOString(), claimVersion: aggregate.claim.version }) : [
         reason,
         ...extracted.warnings.map((warning) => `Extraction note: ${warning}`)
       ].join("\n");
@@ -69,7 +92,11 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         );
       }
       const claimIdentity = createHash("sha256").update(claimId).digest("hex").slice(0, 10);
-      const documentId = `doc-claim-${claimIdentity}-${checksumSha256.slice(0, 12)}`;
+      const uploadIdentity = isPhoto ? createHash("sha256").update(`${category}:${file.name}:${checksumSha256}`).digest("hex") : checksumSha256;
+      const documentId = `doc-claim-${claimIdentity}-${uploadIdentity.slice(0, 12)}`;
+      if (isPhoto && aggregate.evidence.some((item) => item.documentLibraryId === documentId && item.category === category)) {
+        return NextResponse.json(await getClaimWorkspaceReadModel(user, claimId, dependencies), { status: 201 });
+      }
       const staged = await stageDocumentLibraryUpload(user, {
         bytes,
         checksumSha256,
@@ -95,7 +122,7 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
         documentId,
         documentType: staged.storagePolicy.classification.documentType,
         fileName: staged.storageDraft.fileName,
-        idempotencyKey: `claim-evidence:${claimId}:${checksumSha256}`,
+        idempotencyKey: `claim-evidence:${claimId}:${uploadIdentity}`,
         owner: staged.storagePolicy.owner,
         packetId: text(form.get("packetId")) || undefined,
         reason,
@@ -116,21 +143,20 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
           true
         );
       }
-      return NextResponse.json(
-        await attachClaimEvidence(user, claimId, {
+      const result = await attachClaimEvidence(user, claimId, {
           category,
           documentLibraryId: createdDocumentId,
           extractedText: extracted.text,
           fileName: file.name,
           notes,
           relationshipTargets: relationshipTargets(text(form.get("relationshipTargets"))) as Array<"CLAIM" | "CUSTOMER" | "VEHICLE" | "REPAIR_ORDER">,
-          status: text(form.get("status")) || "RECEIVED",
+          status: isPermission ? "RECEIVED" : text(form.get("status")) || "RECEIVED",
           title
-        }, dependencies),
-        { status: 201 }
-      );
+        }, dependencies);
+      return NextResponse.json(result, { status: 201 });
     }
     const payload = await request.json().catch(() => null);
+    if (CLAIM_PERMISSION_CATEGORIES.some((item) => item === String(payload?.category ?? "").trim().toUpperCase())) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Claim permissions require a verified signed PDF upload.");
     return NextResponse.json(
       await attachClaimEvidence(user, claimId, payload ?? {}, dependencies),
       { status: 201 }

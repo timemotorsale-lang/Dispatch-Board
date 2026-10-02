@@ -1,0 +1,64 @@
+.root { min-width: 0; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 16px 0; color: #15233a; }
+.root h2, .root h3, .root h4, .dialog h3 { margin: 0; letter-spacing: 0; }
+.root h2 { font-size: 20px; }
+.root h3 { font-size: 17px; margin: 16px 0 12px; }
+.root h4 { font-size: 16px; }
+.launcher, .sectionHeader, .summary, .actions, .dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.launcher > div { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.review { font-size: 12px; color: #79500e; background: #fff4d5; padding: 4px 8px; border-radius: 4px; }
+.nextAction { padding: 8px 0 16px; }
+.nextAction p { font-size: 14px; line-height: 1.5; max-width: 850px; }
+.nextAction small { display: block; color: #52627a; margin-top: 12px; }
+.root .primary { background: #3158b7; color: #fff; border-color: #3158b7; }
+.root .secondary { color: #183d76; font-size: 14px; text-decoration: underline; display: inline-flex; gap: 6px; align-items: center; }
+.dialog.packetDialog { width: min(900px, calc(100vw - 32px)); }
+.packetPreview { box-sizing: border-box; width: 100%; max-height: 520px; overflow-y: auto; overflow-wrap: anywhere; margin: 12px 0 20px; padding: 24px; border: 1px solid #cbd5e1; color: #15233a; background: #fff; font-size: 14px; line-height: 1.5; }
+.packetPreview h3 { font-size: 18px; margin-bottom: 16px; }
+.packetPreview h4 { font-size: 14px; }
+.packetPreview section { margin-top: 16px; }
+.packetPreview p { margin: 4px 0 12px; }
+.packetFacts p { margin: 3px 0; }
+.packetDialog details { margin-top: 18px; }
+.root button, .dialog button, .link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #b9c6d8; border-radius: 6px; padding: 9px 12px; background: #fff; color: #183d76; font: inherit; font-size: 14px; cursor: pointer; text-decoration: none; min-height: 38px; }
+.root button:disabled, .dialog button:disabled { opacity: .5; cursor: default; }
+.root button:focus-visible, .dialog :focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.summary { margin-top: 16px; padding: 12px 0; }
+.summary dl, .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 0; flex: 1 1 650px; }
+.facts { margin: 14px 0; }
+.root dt { color: #52627a; font-size: 12px; }
+.root dd { margin: 4px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #cbd5e1; gap: 4px; }
+.tabs button { flex-shrink: 0; border: 0; border-radius: 0; background: transparent; padding: 12px; }
+.tabs button[aria-pressed="true"] { border-bottom: 3px solid #3158b7; color: #173c8b; background: #edf3fd; }
+.content { padding: 12px 0; min-height: 160px; }
+.inlineForm { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 12px 0; }
+.inlineForm label { flex: 1 1 240px; display: grid; gap: 6px; }
+.inlineForm select, .dialog input:not([type="checkbox"]), .dialog select, .dialog textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid #b9c6d8; border-radius: 5px; color: #15233a; background: #fff; font: inherit; }
+.checkpoints { display: grid; }
+.checkpoints > div { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(140px, 1fr) auto; align-items: center; gap: 12px; border-bottom: 1px solid #e0e5ec; padding: 10px 0; font-size: 14px; }
+.checkpoints span { color: #52627a; }
+.alerts { padding: 12px 12px 12px 30px; border-left: 3px solid #ad771b; background: #fffbef; font-size: 14px; line-height: 1.5; }
+.alerts li + li { margin-top: 6px; }
+.error { border-left: 3px solid #ac302c; background: #fff0ef; color: #8a2925; padding: 12px; }
+.tableWrap { overflow-x: auto; margin: 12px 0; }
+.tableWrap table { border-collapse: collapse; min-width: 600px; width: 100%; font-size: 14px; }
+.tableWrap th, .tableWrap td { text-align: left; padding: 10px; border-bottom: 1px solid #dbe2eb; vertical-align: top; }
+.tableWrap th { background: #f2f5f9; font-size: 12px; color: #52627a; }
+.tableWrap small, .history small { display: block; margin-top: 4px; color: #52627a; }
+.supplement { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px; margin-top: 12px; }
+.supplement p { overflow-wrap: anywhere; }
+.actions { justify-content: flex-start; margin-top: 12px; }
+.history { padding-left: 24px; }
+.history li { padding: 10px 0; border-bottom: 1px solid #dbe2eb; }
+.notice { padding: 14px 0; }
+.backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: #13253f70; }
+.dialog { box-sizing: border-box; width: min(620px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; background: #fff; color: #15233a; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; }
+.dialog header button { padding: 8px; width: 38px; flex-shrink: 0; }
+.dialog label { display: grid; gap: 6px; margin-top: 12px; font-size: 14px; }
+.dialog fieldset { margin: 12px 0 0; padding: 0; border: 0; min-width: 0; }
+.dialog legend { font-size: 14px; font-weight: 600; padding-top: 8px; }
+.dialog .checkbox { display: flex; gap: 8px; align-items: flex-start; }
+.checkbox input { margin-top: 3px; flex-shrink: 0; }
+:global(html[data-app-theme="dark"]) .root { color: #e4ebf4; }
+:global(html[data-app-theme="dark"]) .root button, :global(html[data-app-theme="dark"]) .link { background: #15233a; color: #e4ebf4; }
+@media (max-width: 640px) { .checkpoints > div { grid-template-columns: minmax(0, 1fr) auto; } .checkpoints span { grid-column: 1; grid-row: 2; } .checkpoints button { grid-column: 2; grid-row: 1 / 3; } .summary dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .launcher button { width: 100%; } }
