@@ -19,6 +19,7 @@ export class UnifiedCrmContractPacketError extends Error {
 }
 
 export type UnifiedCrmContractPacketInput = {
+  bhph?: unknown;
   customerName?: unknown;
   dailyRental?: unknown;
   dealNumber?: unknown;
@@ -26,10 +27,12 @@ export type UnifiedCrmContractPacketInput = {
   feeTotal?: unknown;
   idempotencyKey?: unknown;
   leaseCalculator?: unknown;
+  leaseFacts?: unknown;
   packetType?: unknown;
   paymentFunding?: unknown;
   preparedFormIds?: unknown;
   salePrice?: unknown;
+  testDrive?: unknown;
   vehicle?: unknown;
 };
 

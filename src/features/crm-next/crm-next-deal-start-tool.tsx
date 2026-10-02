@@ -1,11 +1,15 @@
 "use client";
 
-import { type ReactNode, type SetStateAction, useEffect, useMemo, useState } from "react";
+import { type ReactNode, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { FilePlus2, Eye, Download, Printer, X } from "lucide-react";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
-import { DAILY_RENTAL_FORM_PACKET, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
+import { testDriveFacts, testDriveAgreementError, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
+import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
+import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
@@ -207,6 +211,8 @@ const DEAL_START_PRESETS: DealStartPreset[] = [
   { id: "daily-rental", label: "Daily Rental", helper: "Rental agreement, payment hold, checkout photos, and return evidence.", workflowId: "daily-rental" },
   { id: "test-drive", label: "Test Drive", helper: "Driver proof, signed release, checkout photos, and receiving plan.", workflowId: "test-drive" }
 ];
+
+const MANUAL_CUSTOMER_ID = "__manual_customer__";
 
 const ENTERPRISE_FORM_TEMPLATES: EnterpriseFormTemplate[] = [
   { id: "sales-agreement", label: "Sales agreement / purchase agreement", owner: "Sales", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Every retail vehicle sale" },
@@ -452,6 +458,42 @@ function documentDataUrl(document: GeneratedContractPacket["documents"][number])
   return `data:application/pdf;base64,${document.contentBase64}`;
 }
 
+const PRINTABLE_PACKET_URL_REVOKE_DELAY_MS = 60_000;
+
+function withAutoPrintScript(html: string) {
+  const script = `<script>window.addEventListener("load",()=>setTimeout(()=>{window.focus();window.print();},150));</script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${script}</body>`) : `${html}${script}`;
+}
+
+function openPrintableHtmlDocument(html: string) {
+  const url = URL.createObjectURL(new Blob([withAutoPrintScript(html)], { type: "text/html" }));
+  const printWindow = window.open(url, "_blank");
+  if (!printWindow) {
+    URL.revokeObjectURL(url);
+    return false;
+  }
+  try {
+    printWindow.opener = null;
+  } catch {
+    // The packet is already open; keep printing even if the browser blocks opener cleanup.
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), PRINTABLE_PACKET_URL_REVOKE_DELAY_MS);
+  return true;
+}
+
+function openPrintablePdfDocument(document: GeneratedContractPacket["documents"][number]) {
+  const url = documentDataUrl(document);
+  if (!url) return false;
+  const printWindow = window.open(url, "_blank");
+  if (!printWindow) return false;
+  try {
+    printWindow.opener = null;
+  } catch {
+    // The packet is already open; keep printing even if the browser blocks opener cleanup.
+  }
+  return true;
+}
+
 function normalizeVin(value: string) {
   return value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "").slice(0, 17);
 }
@@ -564,22 +606,26 @@ function CompletionGateList({ missing }: { missing: string[] }) {
 
 function CustomerIdentityDetails({
   includeCreditFields = false,
-  includePhoneEmail = true
+  includePhoneEmail = true,
+  values,
+  onValueChange
 }: {
   includeCreditFields?: boolean;
   includePhoneEmail?: boolean;
+  values?: Partial<Record<"streetAddress" | "city" | "state" | "zip" | "idState" | "idNumber", string>>;
+  onValueChange?: (key: "streetAddress" | "city" | "state" | "zip" | "idState" | "idNumber", value: string) => void;
 }) {
   return (
     <>
       <label><span>Date of birth</span><input placeholder="MM/DD/YYYY" /></label>
       {includeCreditFields ? <label><span>SSN / ITIN</span><input /></label> : null}
       <label><span>ID type</span><select><option>Driver license</option><option>State ID</option><option>Passport</option><option>Military ID</option></select></label>
-      <label><span>ID state</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-      <label><span>ID number</span><input /></label>
-      <label className={styles.retailWide}><span>Street address</span><input /></label>
-      <label><span>City</span><input /></label>
-      <label><span>State</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-      <label><span>Zip</span><input /></label>
+      <label><span>ID state</span><select value={values?.idState} onChange={(event) => onValueChange?.("idState", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>ID number</span><input value={values?.idNumber} onChange={(event) => onValueChange?.("idNumber", event.target.value)} /></label>
+      <label className={styles.retailWide}><span>Street address</span><input value={values?.streetAddress} onChange={(event) => onValueChange?.("streetAddress", event.target.value)} /></label>
+      <label><span>City</span><input value={values?.city} onChange={(event) => onValueChange?.("city", event.target.value)} /></label>
+      <label><span>State</span><select value={values?.state} onChange={(event) => onValueChange?.("state", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>Zip</span><input value={values?.zip} onChange={(event) => onValueChange?.("zip", event.target.value)} /></label>
       {includePhoneEmail ? <label><span>Cell phone</span><input /></label> : null}
       {includePhoneEmail ? <label><span>Email</span><input /></label> : null}
     </>
@@ -870,18 +916,14 @@ function RetailSaleExecutionDesk({
     if (!contractPacket) return;
     const selectedDocument = previewDocument ?? contractPacket.documents[0];
     if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
-      window.open(documentDataUrl(selectedDocument), "_blank", "noopener,noreferrer");
+      if (!openPrintablePdfDocument(selectedDocument)) {
+        setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
+      }
       return;
     }
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
+    if (!openPrintableHtmlDocument(packetHtml())) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
-      return;
     }
-    printWindow.document.write(packetHtml());
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   function queuePacketDelivery(channel: "email" | "text") {
@@ -1226,13 +1268,6 @@ function RetailSaleExecutionDesk({
   );
 }
 
-function percentToBasisPoints(value: string) {
-  const normalized = value.trim().replace("%", "");
-  if (!normalized) return 0;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
-}
-
 type RentalEvidenceRequirement = {
   id: string;
   label: string;
@@ -1295,7 +1330,8 @@ const BHPH_PAPERWORK_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "power-of-attorney", label: "Power of attorney / title authority", helper: "Authority for title, registration, lien, correction, or DVS paperwork handled by the dealership." },
   { id: "gps-disclosure", label: "GPS / starter interrupt disclosure", helper: "Required only if the vehicle has GPS or payment assurance equipment." },
   { id: "payment-authorization", label: "Payment authorization", helper: "ACH/card/autopay or payment method authorization." },
-  { id: "arbitration-addenda", label: "Arbitration / addenda", helper: "Signed arbitration, as-is/warranty, and dealership addenda when applicable." }
+  { id: "arbitration-addenda", label: "Arbitration / addenda", helper: "Signed arbitration and dealership addenda when applicable." },
+  { id: "dealer-warranty", label: "Dealer warranty / return addendum", helper: "Signed engine/transmission warranty, return policy, consistent Buyers Guide, and any required Minnesota warranty disclosures." }
 ];
 
 const BHPH_EVIDENCE_REQUIREMENTS: RentalEvidenceRequirement[] = [
@@ -1403,9 +1439,11 @@ const OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS = [
 function DailyRentalExecutionDesk({
   amount,
   customerName,
+  customerNameEditable = false,
   mode = "daily-rental",
   onComplete,
   onAmountChange,
+  onCustomerNameChange,
   onSaveDraft,
   onVehicleChange,
   statusKind,
@@ -1413,9 +1451,11 @@ function DailyRentalExecutionDesk({
 }: {
   amount: string;
   customerName: string;
+  customerNameEditable?: boolean;
   mode?: "daily-rental" | "vehicle-loaner";
   onComplete: () => void;
   onAmountChange: (value: string) => void;
+  onCustomerNameChange?: (value: string) => void;
   onSaveDraft: () => void;
   onVehicleChange: (value: string) => void;
   statusKind: "idle" | "saving" | "success" | "error";
@@ -1487,7 +1527,8 @@ function DailyRentalExecutionDesk({
     isLoaner ? rentalFacts.interestedVehicle : rentalFacts.cardLast4,
     rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file"
   ].filter(Boolean).length;
-  const requiredRentalForms = requiredDailyRentalFormIds();
+  const rentalFormPacket = isLoaner ? COURTESY_LOANER_FORM_PACKET : DAILY_RENTAL_FORM_PACKET;
+  const requiredRentalForms = isLoaner ? requiredCourtesyLoanerFormIds() : requiredDailyRentalFormIds();
   const preparedRequiredCount = requiredRentalForms.filter((id) => preparedForms.includes(id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
   const releasePhotoCount = RENTAL_RELEASE_PHOTO_REQUIREMENTS.filter((item) => releasePhotos[item.id]).length;
@@ -1596,15 +1637,9 @@ function DailyRentalExecutionDesk({
 
   function printPacket() {
     if (!contractPacket) return;
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
+    if (!openPrintableHtmlDocument(packetHtml())) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the rental packet instead." });
-      return;
     }
-    printWindow.document.write(packetHtml());
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   function queuePacketDelivery(channel: "email" | "text") {
@@ -1628,7 +1663,7 @@ function DailyRentalExecutionDesk({
         dealType: workflowTitle,
         feeTotal: rentalFacts.depositHold,
         idempotencyKey: crypto.randomUUID(),
-        packetType: "DAILY_RENTAL",
+        packetType: isLoaner ? "VEHICLE_LOANER" : "DAILY_RENTAL",
         paymentFunding: isLoaner
           ? `Courtesy loaner fee waiver; ${formatCurrency(estimatedRentalCents)} daily use fee deferred and waived if the interested vehicle purchase completes.`
           : `${rentalFacts.paymentMethod} hold ${rentalFacts.cardLast4 ? `ending ${rentalFacts.cardLast4}` : "not captured"}`,
@@ -1674,7 +1709,7 @@ function DailyRentalExecutionDesk({
         </div>
         <p className={styles.retailDeliveryNote}>{isLoaner ? "Vehicle loaners still require a valid driver license, age eligibility, insurance/protection review, approved dates, and a signed courtesy waiver before release." : "Most U.S. rental operators require a valid driver license, age eligibility, acceptable payment, and any needed secondary ID before release."}</p>
         <div className={styles.retailFieldGrid}>
-          <label><span>{isLoaner ? "Primary loaner driver" : "Primary renter"}</span><input readOnly value={customerName} /></label>
+          <label><span>{isLoaner ? "Primary loaner driver" : "Primary renter"}</span><input readOnly={!customerNameEditable} value={customerNameEditable && customerName === "Customer not selected" ? "" : customerName} onChange={(event) => onCustomerNameChange?.(event.target.value)} placeholder="Enter customer name" /></label>
           <label><span>Date of birth</span><input value={rentalFacts.dob} onChange={(event) => updateRentalFact("dob", event.target.value)} placeholder="MM/DD/YYYY" /></label>
           <label><span>SSN / ITIN</span><input placeholder="Only if manager-required" /></label>
           <label><span>License status</span><select value={rentalFacts.licenseStatus} onChange={(event) => updateRentalFact("licenseStatus", event.target.value)}><option>Valid</option><option>Needs review</option><option>Expired</option><option>Suspended / not eligible</option></select></label>
@@ -1874,7 +1909,7 @@ function DailyRentalExecutionDesk({
           <div>
             <span>Packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
-            <small>Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions.</small>
+            <small>{isLoaner ? "Open the drawer to prepare the official courtesy loaner agreement, condition/return record, and Minnesota insurance notice." : "Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions."}</small>
           </div>
           <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
         </div>
@@ -1894,7 +1929,7 @@ function DailyRentalExecutionDesk({
                 <div>
                   <span>Required forms ready</span>
                   <strong>{preparedRequiredCount}/{requiredRentalForms.length}</strong>
-                  <small>Prepare the baseline packet first, then add the additional driver addendum only when it applies.</small>
+                  <small>{isLoaner ? "Prepare the official courtesy loaner packet before release." : "Prepare the baseline packet first, then add the additional driver addendum only when it applies."}</small>
                 </div>
                 <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateRentalPacket()}>
@@ -1919,7 +1954,7 @@ function DailyRentalExecutionDesk({
                 </div>
               ) : null}
               <div className={styles.retailFormsGrid}>
-                {DAILY_RENTAL_FORM_PACKET.map((form) => {
+                {rentalFormPacket.map((form) => {
                   const prepared = preparedForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
@@ -2012,6 +2047,8 @@ function LeaseToOwnExecutionDesk({
     year: ""
   });
   const [leaseInputs, setLeaseInputs] = useState({
+    calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT",
+    targetPayment: "$250.00",
     additionalItems: "$0.00",
     capitalizedCostReduction: "$0.00",
     contractLength: "36",
@@ -2024,11 +2061,22 @@ function LeaseToOwnExecutionDesk({
     paymentFrequency: "Monthly" as LeasePaymentFrequency,
     registrationFee: "$516.00",
     salesTaxRate: "6.875",
+    signingPaymentMode: "CAPITALIZED_REDUCTION" as "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION",
     titleFee: "$102.80",
     warrantyCost: "$0.00",
     wholesaleCost: "$0.00"
   });
   const [leaseFacts, setLeaseFacts] = useState({
+    deliveryAt: "",
+    agreementDate: "",
+    firstPaymentDate: "",
+    streetAddress: "",
+    city: "",
+    zip: "",
+    idState: "MN",
+    idNumber: "",
+    lesseeCounty: "",
+    state: "MN",
     agentName: "",
     coLesseeName: "",
     effectiveDate: "",
@@ -2042,40 +2090,56 @@ function LeaseToOwnExecutionDesk({
   const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode stock, year, and make.");
 
   const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
-    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) || 0,
-    capitalizedCostReductionCents: 0,
+    calculationMode: leaseInputs.calculationMode,
+    targetPaymentCents: dollarsToCents(leaseInputs.targetPayment) ?? 0,
+    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) ?? 0,
+    capitalizedCostReductionCents: dollarsToCents(leaseInputs.capitalizedCostReduction) ?? 0,
     contractLength: Number(leaseInputs.contractLength) || 0,
-    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) || 0,
-    downPaymentCents: dollarsToCents(leaseInputs.downPayment) || 0,
-    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) || 0,
+    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) ?? 0,
+    downPaymentCents: dollarsToCents(leaseInputs.downPayment) ?? 0,
+    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) ?? 0,
     multiplierBasisPoints: basisPointsFromMultiplier(leaseInputs.multiplier),
-    originationFeeCents: dollarsToCents(leaseInputs.originationFee) || 0,
-    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) || 0,
+    originationFeeCents: dollarsToCents(leaseInputs.originationFee) ?? 0,
+    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) ?? 0,
     paymentFrequency: leaseInputs.paymentFrequency,
-    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) || 0,
-    salesTaxRateBasisPoints: percentToBasisPoints(leaseInputs.salesTaxRate),
-    titleFeeCents: dollarsToCents(leaseInputs.titleFee) || 0,
-    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) || 0,
-    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) || 0
+    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) ?? 0,
+    salesTaxRateBasisPoints: Number(leaseInputs.salesTaxRate.replace("%", "")) * 100,
+    signingPaymentMode: leaseInputs.signingPaymentMode,
+    titleFeeCents: dollarsToCents(leaseInputs.titleFee) ?? 0,
+    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) ?? 0,
+    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) ?? 0
   }), [leaseInputs]);
   const calculator = useMemo(() => calculateLeaseToOwn(calculatorInput), [calculatorInput]);
+  const leaseDeliveryDate = new Date(leaseFacts.deliveryAt);
+  const leaseDeliveryIso = Number.isFinite(leaseDeliveryDate.getTime()) ? leaseDeliveryDate.toISOString() : "";
+  const leaseWarranty = dealerWarrantyDetails({ deliveryAt: leaseDeliveryIso, deliveryMileage: vehicleFacts.mileage });
+  const calculationError = leaseAgreementCalculationError(calculatorInput, calculator);
   const packetFormCount = LEASE_TO_OWN_FORM_PACKET.length;
-  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => preparedForms.includes(form.id)).length;
+  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || preparedForms.includes(form.id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
 
   function updateLeaseInput(key: keyof typeof leaseInputs, value: string) {
-    setLeaseInputs((current) => ({ ...current, [key]: key === "paymentFrequency" ? value as LeasePaymentFrequency : value }));
+    setContractPacket(null);
+    setLeaseInputs((current) => ({
+      ...current,
+      ...(key === "calculationMode" && value === "TERM" && calculator.contractLength > 0
+        ? { contractLength: String(calculator.contractLength) } : {}),
+      [key]: key === "paymentFrequency" ? value as LeasePaymentFrequency : value
+    }));
   }
 
   function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
+    setContractPacket(null);
     setVehicleFacts((current) => ({ ...current, [key]: value }));
   }
 
   function updateLeaseFact(key: keyof typeof leaseFacts, value: string) {
+    setContractPacket(null);
     setLeaseFacts((current) => ({ ...current, [key]: value }));
   }
 
   function updateVin(value: string) {
+    setContractPacket(null);
     const vin = normalizeVin(value);
     const stockNumber = getStockNumberFromVin(vin);
     setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
@@ -2083,6 +2147,7 @@ function LeaseToOwnExecutionDesk({
   }
 
   function updateVehicleSearch(value: string) {
+    setContractPacket(null);
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
     if (!vin) return;
@@ -2099,6 +2164,7 @@ function LeaseToOwnExecutionDesk({
       vin: vin || current.vin,
       year: decoded.year || current.year
     }));
+    setContractPacket(null);
     setDecodeStatus(decoded.valid ? "VIN decoded. Confirm model, color, mileage, and lease values before delivery." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
     if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
   }
@@ -2108,10 +2174,15 @@ function LeaseToOwnExecutionDesk({
   }
 
   function prepareRequiredForms() {
+    setContractPacket(null);
     setPreparedForms((current) => Array.from(new Set([...current, ...allLeaseToOwnFormIds()])));
   }
 
   async function generateLeasePacket() {
+    if (calculationError) {
+      setPacketStatus({ kind: "error", message: calculationError });
+      return;
+    }
     setPacketStatus({ kind: "generating", message: "Generating and archiving lease-to-own packet..." });
     const response = await fetch("/api/crm/v1/contract-packets", {
       body: JSON.stringify({
@@ -2121,11 +2192,15 @@ function LeaseToOwnExecutionDesk({
         feeTotal: formatCurrency(calculator.estimatedFeesAndTaxesOverTermCents),
         idempotencyKey: crypto.randomUUID(),
         leaseCalculator: calculatorInput,
+        leaseFacts: { ...leaseFacts, deliveryAt: leaseDeliveryIso, lesseeAddress: [leaseFacts.streetAddress, leaseFacts.city, leaseFacts.state, leaseFacts.zip].filter(Boolean).join(", "), lesseeState: leaseFacts.state },
         packetType: "LEASE_TO_OWN",
         paymentFunding: `${leaseInputs.paymentFrequency} payments`,
         preparedFormIds: preparedForms.length > 0 ? preparedForms : allLeaseToOwnFormIds(),
         salePrice: formatCurrency(calculator.grossCapitalizedCostCents),
         vehicle: {
+          bodyStyle: vehicleFacts.bodyStyle,
+          license: vehicleFacts.license,
+          mileage: vehicleFacts.mileage,
           color: vehicleFacts.color,
           make: vehicleFacts.make,
           model: vehicleFacts.model,
@@ -2177,18 +2252,14 @@ function LeaseToOwnExecutionDesk({
     if (!contractPacket) return;
     const selectedDocument = previewDocument ?? contractPacket.documents[0];
     if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
-      window.open(documentDataUrl(selectedDocument), "_blank", "noopener,noreferrer");
+      if (!openPrintablePdfDocument(selectedDocument)) {
+        setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
+      }
       return;
     }
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
+    if (!openPrintableHtmlDocument(packetHtml())) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
-      return;
     }
-    printWindow.document.write(packetHtml());
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   function queuePacketDelivery(channel: "email" | "text") {
@@ -2219,7 +2290,7 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Lessee</span><input readOnly value={customerName} /></label>
           <label><span>Co-lessee</span><input value={leaseFacts.coLesseeName} onChange={(event) => updateLeaseFact("coLesseeName", event.target.value)} /></label>
-          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} />
+          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} values={leaseFacts} onValueChange={updateLeaseFact} />
           <label><span>Cell phone</span><input value={leaseFacts.lesseePhone} onChange={(event) => updateLeaseFact("lesseePhone", event.target.value)} /></label>
           <label><span>Email</span><input value={leaseFacts.lesseeEmail} onChange={(event) => updateLeaseFact("lesseeEmail", event.target.value)} /></label>
           <label><span>Insurance company</span><input value={leaseFacts.insuranceCompany} onChange={(event) => updateLeaseFact("insuranceCompany", event.target.value)} /></label>
@@ -2250,13 +2321,16 @@ function LeaseToOwnExecutionDesk({
           <label><span>Color</span><input value={vehicleFacts.color} onChange={(event) => updateVehicleFact("color", event.target.value)} /></label>
           <label><span>Odometer</span><input value={vehicleFacts.mileage} onChange={(event) => updateVehicleFact("mileage", event.target.value)} /></label>
           <label><span>Plate / license</span><input value={vehicleFacts.license} onChange={(event) => updateVehicleFact("license", event.target.value)} /></label>
+          <label><span>Delivery date / time (local)</span><input type="datetime-local" value={leaseFacts.deliveryAt} onChange={(event) => updateLeaseFact("deliveryAt", event.target.value)} /></label>
+          <label><span>Dealer warranty expiration</span><input readOnly value={leaseWarranty ? `${leaseWarranty.expires} or ${leaseWarranty.endingMileage.toLocaleString("en-US")} miles` : ""} /></label>
+          <label><span>Optional return deadline</span><input readOnly value={leaseWarranty?.returnDeadline ?? ""} /></label>
         </div>
       </section>
 
       <section className={styles.retailSection} id="lease-calculator">
         <header>
           <span>Lease calculator</span>
-          <strong>Use the dealership W2 calculator structure</strong>
+          <strong>Lease terms and signing amounts</strong>
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Wholesale cost</span><input value={leaseInputs.wholesaleCost} onChange={(event) => updateLeaseInput("wholesaleCost", event.target.value)} /></label>
@@ -2269,10 +2343,16 @@ function LeaseToOwnExecutionDesk({
           <label><span>Title fee</span><input value={leaseInputs.titleFee} onChange={(event) => updateLeaseInput("titleFee", event.target.value)} /></label>
           <label><span>Registration fee</span><input value={leaseInputs.registrationFee} onChange={(event) => updateLeaseInput("registrationFee", event.target.value)} /></label>
           <label><span>Document prep fee</span><input value={leaseInputs.documentPreparationFee} onChange={(event) => updateLeaseInput("documentPreparationFee", event.target.value)} /></label>
-          <label><span>Down payment</span><input value={leaseInputs.downPayment} onChange={(event) => updateLeaseInput("downPayment", event.target.value)} /></label>
+          <label><span>Signing amount entry</span><select value={leaseInputs.signingPaymentMode} onChange={(event) => updateLeaseInput("signingPaymentMode", event.target.value)}><option value="CAPITALIZED_REDUCTION">Capitalized cost reduction</option><option value="DOWN_PAYMENT">Total cash at signing</option></select></label>
+          <label><span>Total cash at signing</span><input disabled={leaseInputs.signingPaymentMode !== "DOWN_PAYMENT"} value={leaseInputs.downPayment} onChange={(event) => updateLeaseInput("downPayment", event.target.value)} /></label>
           <label><span>Frequency</span><select value={leaseInputs.paymentFrequency} onChange={(event) => updateLeaseInput("paymentFrequency", event.target.value)}><option>Weekly</option><option>BiWeekly</option><option>Monthly</option></select></label>
-          <label><span>Contract length</span><input value={leaseInputs.contractLength} onChange={(event) => updateLeaseInput("contractLength", event.target.value)} /></label>
-          <label><span>Capitalized cost reduction</span><input readOnly value={formatCurrency(calculator.capitalizedCostReductionCents)} /></label>
+          <fieldset className={styles.leaseCalculationMode}><legend>Calculate by</legend><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "TERM"} onChange={() => updateLeaseInput("calculationMode", "TERM")} />By lease term</label><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} onChange={() => updateLeaseInput("calculationMode", "PAYMENT_AMOUNT")} />By payment amount</label></fieldset>
+          {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <label><span>Target payment amount</span><input inputMode="decimal" value={leaseInputs.targetPayment} onChange={(event) => updateLeaseInput("targetPayment", event.target.value)} /></label> : null}
+          <label><span>Number of payments</span><input type="number" min="1" step="1" readOnly={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} value={leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? calculator.contractLength || "" : leaseInputs.contractLength} onChange={(event) => updateLeaseInput("contractLength", event.target.value)} /></label>
+          <label><span>Capitalized cost reduction</span><input readOnly={leaseInputs.signingPaymentMode === "DOWN_PAYMENT"} value={leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? formatCurrency(calculator.capitalizedCostReductionCents) : leaseInputs.capitalizedCostReduction} onChange={(event) => updateLeaseInput("capitalizedCostReduction", event.target.value)} /></label>
+          <label><span>Lease date</span><input type="date" value={leaseFacts.agreementDate} onChange={(event) => updateLeaseFact("agreementDate", event.target.value)} /></label>
+          <label><span>Next payment date</span><input type="date" value={leaseFacts.firstPaymentDate} onChange={(event) => updateLeaseFact("firstPaymentDate", event.target.value)} /></label>
+          <label><span>County</span><input value={leaseFacts.lesseeCounty} onChange={(event) => updateLeaseFact("lesseeCounty", event.target.value)} /></label>
           <label><span>Origination fee</span><input value={leaseInputs.originationFee} onChange={(event) => updateLeaseInput("originationFee", event.target.value)} /></label>
           <label><span>Service facility</span><input value={leaseFacts.serviceFacility} onChange={(event) => updateLeaseFact("serviceFacility", event.target.value)} /></label>
           <label><span>Facility phone</span><input value={leaseFacts.serviceFacilityPhone} onChange={(event) => updateLeaseFact("serviceFacilityPhone", event.target.value)} /></label>
@@ -2280,12 +2360,16 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.leaseCalculatorSummary}>
           <div><span>Gross cap cost</span><strong>{formatCurrency(calculator.grossCapitalizedCostCents)}</strong></div>
           <div><span>Base payment</span><strong>{formatCurrency(calculator.basePeriodicPaymentCents)}</strong></div>
+          <div><span>Final payment</span><strong>{formatCurrency(calculator.finalPeriodicPaymentCents)}</strong></div>
+          <div><span>Residual / purchase option</span><strong>{formatCurrency(calculator.residualValueCents)}</strong></div>
+          <div><span>Up-front tax</span><strong>{formatCurrency(calculator.applicableTaxesCents)}</strong></div>
           <div><span>Due at signing</span><strong>{formatCurrency(calculator.amountDueAtSigningCents)}</strong></div>
           <div><span>Costs / taxes / fees</span><strong>{formatCurrency(calculator.costsTaxesFeesCents)}</strong></div>
           <div><span>Total payments</span><strong>{formatCurrency(calculator.totalOfPaymentsCents)}</strong></div>
           <div><span>Dealer gross</span><strong>{formatCurrency(calculator.dealerGrossProfitCents)}</strong></div>
           <button type="button" onClick={() => onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents))}>Use calculated amount</button>
         </div>
+        {calculationError ? <p role="alert" className={styles.retailPacketError}>{calculationError}</p> : null}
       </section>
 
       <section className={styles.retailSection} id="lease-contracts">
@@ -2343,10 +2427,10 @@ function LeaseToOwnExecutionDesk({
               ) : null}
               <div className={styles.retailFormsGrid}>
                 {LEASE_TO_OWN_FORM_PACKET.map((form) => {
-                  const prepared = preparedForms.includes(form.id);
+                  const prepared = form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || preparedForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
-                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <input checked={prepared} disabled={form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
                       <span>{form.category}</span>
                       <strong>{form.label}</strong>
                       <small>{form.description}</small>
@@ -2426,6 +2510,8 @@ function BhphExecutionDesk({
   const [evidence, setEvidence] = useState<Record<string, string>>({});
   const [handoff, setHandoff] = useState<Record<string, boolean>>({});
   const [terms, setTerms] = useState({
+    deliveryAt: "",
+    deliveryMileage: "",
     apr: "24.00%",
     downPayment: "$0.00",
     firstPaymentDate: "",
@@ -2450,10 +2536,22 @@ function BhphExecutionDesk({
     titleException: false,
     termsException: false
   });
+  const [preparedForms, setPreparedForms] = useState<string[]>([]);
+  const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
+  const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
+  const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
+  const [previewFormId, setPreviewFormId] = useState<string | null>(null);
 
   const salePriceCents = dollarsToCents(terms.salePrice);
   const downPaymentCents = dollarsToCents(terms.downPayment);
   const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0));
+  const requiredBhphForms = useMemo(() => requiredBhphFormIds(), []);
+  const preparedRequiredCount = BHPH_FORM_PACKET.filter((form) => form.category === "Required" && (form.id === BHPH_WARRANTY_FORM_ID || preparedForms.includes(form.id))).length;
+  const deliveryDate = new Date(terms.deliveryAt);
+  const deliveryIso = Number.isFinite(deliveryDate.getTime()) ? deliveryDate.toISOString() : "";
+  const warrantyDetails = dealerWarrantyDetails({ deliveryAt: deliveryIso, deliveryMileage: terms.deliveryMileage });
+  const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
   const paperworkCount = BHPH_PAPERWORK_REQUIREMENTS.filter((item) => paperwork[item.id]).length;
   const evidenceCount = BHPH_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
   const handoffCount = BHPH_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
@@ -2463,11 +2561,12 @@ function BhphExecutionDesk({
   const handoffReady = handoffCount === BHPH_HANDOFF_REQUIREMENTS.length;
   const proofReady = Boolean(proof.income.trim() && proof.residence.trim() && proof.references.trim());
   const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.paymentAmount.trim() && terms.firstPaymentDate.trim());
-  const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
+  const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && warrantyDetails && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
   const bhphMissingGates = [
     { label: "Customer selected", ready: customerName !== "Customer not selected" },
     { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
     { label: "Terms complete", ready: termsReady },
+    { label: "Warranty delivery time and odometer complete", ready: Boolean(warrantyDetails) },
     { label: "Proof and references complete", ready: proofReady },
     { label: "Signed paperwork stored", ready: paperworkReady },
     { label: "Evidence stored", ready: evidenceReady },
@@ -2476,12 +2575,118 @@ function BhphExecutionDesk({
   ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateTerms(key: keyof typeof terms, value: string) {
+    setContractPacket(null);
     const next = { ...terms, [key]: value };
     setTerms(next);
     const nextSalePrice = dollarsToCents(next.salePrice);
     const nextDownPayment = dollarsToCents(next.downPayment);
     const nextAmountFinanced = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0));
     onAmountChange(formatCurrency(nextAmountFinanced));
+  }
+
+  function togglePreparedForm(id: string) {
+    setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function prepareRequiredForms() {
+    setPreparedForms((current) => Array.from(new Set([...current, ...requiredBhphForms])));
+  }
+
+  function packetHtml() {
+    if (!contractPacket) return "";
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.map((document) => document.html).join("<hr />")}</body></html>`;
+  }
+
+  function downloadPacket() {
+    if (!contractPacket) return;
+    const url = URL.createObjectURL(new Blob([packetHtml()], { type: "text/html" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${contractPacket.packetNumber}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printPacket() {
+    if (!contractPacket) return;
+    if (!openPrintableHtmlDocument(packetHtml())) {
+      setPacketStatus({ kind: "error", message: "Print window was blocked. Download the BHPH packet instead." });
+    }
+  }
+
+  function queuePacketDelivery(channel: "email" | "text") {
+    if (!contractPacket) return;
+    setPacketStatus({ kind: "ready", message: `${channel === "email" ? "Email" : "Text"} delivery link queued for ${contractPacket.packetNumber}; signed provider delivery remains governed by CRM communications controls.` });
+  }
+
+  function openPacketPreview() {
+    if (!contractPacket) return;
+    setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
+    setPacketPreviewOpen(true);
+  }
+
+  function downloadBhphSelectedForm() {
+    if (!previewDocument?.contentBase64 || previewDocument.contentType !== "application/pdf") return;
+    const link = document.createElement("a");
+    link.href = documentDataUrl(previewDocument);
+    link.download = previewDocument.downloadFileName;
+    link.click();
+  }
+
+  function printBhphSelectedForm() {
+    if (!previewDocument) return;
+    const opened = previewDocument.contentType === "application/pdf"
+      ? openPrintablePdfDocument(previewDocument)
+      : openPrintableHtmlDocument(previewDocument.html);
+    if (!opened) setPacketStatus({ kind: "error", message: "Print window was blocked. Download the selected form instead." });
+  }
+
+  async function generateBhphPacket() {
+    setPacketStatus({ kind: "generating", message: "Generating and archiving BHPH packet..." });
+    const vin = getVinFromVehicleInput(vehicle);
+    const response = await fetch("/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        bhph: {
+          ...terms,
+          ...proof,
+          amountFinanced: formatCurrency(amountFinancedCents),
+          approvalTriggers: String(approvalTriggers),
+          evidenceCount: `${evidenceCount}/${BHPH_EVIDENCE_REQUIREMENTS.length}`,
+          handoffCount: `${handoffCount}/${BHPH_HANDOFF_REQUIREMENTS.length}`,
+          insuranceStatus: approval.insuranceException ? "Needs manager review" : "Verified",
+          paperworkCount: `${paperworkCount}/${BHPH_PAPERWORK_REQUIREMENTS.length}`,
+          titleStatus: approval.titleException ? "Needs manager review" : "Ready",
+          deliveryAt: deliveryIso,
+          warrantyPosture: DEALER_WARRANTY_POSTURE
+        },
+        customerName,
+        dealNumber: getStockNumberFromVin(vin) || vehicle || undefined,
+        dealType: "BHPH",
+        feeTotal: "$0.00",
+        idempotencyKey: crypto.randomUUID(),
+        packetType: "BHPH",
+        paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${terms.paymentAmount || "$0.00"} ${terms.paymentFrequency}; APR ${terms.apr}; first payment ${terms.firstPaymentDate || "Not captured"}.`,
+        preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredBhphForms,
+        salePrice: terms.salePrice || "$0.00",
+        vehicle: {
+          stockNumber: getStockNumberFromVin(vin) || vehicle,
+          mileage: terms.deliveryMileage,
+          vin
+        }
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "BHPH packet could not be generated." });
+      return;
+    }
+    const generatedPacket = payload as GeneratedContractPacket;
+    setContractPacket(generatedPacket);
+    setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
+    setPacketStatus({ kind: "ready", message: `Archived BHPH packet ${generatedPacket.packetNumber}.` });
+    onAmountChange(formatCurrency(amountFinancedCents));
   }
 
   function captureEvidence(
@@ -2520,7 +2725,11 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Needs manager review</option><option>Title work pending</option></select></label>
-          <label><span>Warranty / as-is posture</span><select><option>As-is disclosure required</option><option>Limited warranty included</option><option>Service contract offered</option><option>Manager review</option></select></label>
+          <label><span>Dealer warranty</span><input readOnly value="Engine / transmission: 30 days or 1,000 miles" /></label>
+          <label><span>Delivery date / time (local)</span><input type="datetime-local" value={terms.deliveryAt} onChange={(event) => updateTerms("deliveryAt", event.target.value)} /></label>
+          <label><span>Delivery odometer</span><input type="number" min="0" step="1" value={terms.deliveryMileage} onChange={(event) => updateTerms("deliveryMileage", event.target.value)} /></label>
+          <label><span>Warranty expiration</span><input readOnly value={warrantyDetails ? `${warrantyDetails.expires} or ${warrantyDetails.endingMileage.toLocaleString("en-US")} miles` : ""} /></label>
+          <label><span>Optional return deadline</span><input readOnly value={warrantyDetails?.returnDeadline ?? ""} /></label>
           <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs manager review</option></select></label>
         </div>
       </section>
@@ -2560,6 +2769,110 @@ function BhphExecutionDesk({
           <div><span>Proof evidence</span><strong>{evidenceCount}/{BHPH_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before approval"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{BHPH_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required after signing"}</small></div>
         </div>
+        <div className={styles.retailPacketLauncher}>
+          <div>
+            <span>BHPH packet readiness</span>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredBhphForms.length} required forms ready`}</strong>
+            <small>Open the drawer to prepare the installment support packet, payment schedule, insurance, default, GPS, references, delivery, privacy, and deal-jacket controls.</small>
+          </div>
+          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open BHPH packet</button>
+        </div>
+
+        {packetDrawerOpen ? (
+          <div className={styles.retailPacketDrawerBackdrop} role="presentation">
+            <aside className={styles.retailPacketDrawer} aria-label="BHPH packet drawer">
+              <header>
+                <div>
+                  <span>BHPH packet</span>
+                  <strong>Prepare, generate, and review BHPH account documents</strong>
+                  <small>BHPH documents stay available for signing, print, text, email, and archive review without crowding the main desk.</small>
+                </div>
+                <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
+              </header>
+              <div className={styles.retailFormsCommand}>
+                <div>
+                  <span>Required forms ready</span>
+                  <strong>{preparedRequiredCount}/{requiredBhphForms.length}</strong>
+                  <small>Prepare the full BHPH packet, then remove any control that does not apply before generation.</small>
+                </div>
+                <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateBhphPacket()}>
+                  {packetStatus.kind === "generating" ? "Generating..." : "Generate BHPH packet"}
+                </button>
+                <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+              </div>
+              {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
+              {contractPacket ? (
+                <div className={styles.retailPacketArchive} aria-label="Generated BHPH packet archive">
+                  <div>
+                    <span>Archived packet</span>
+                    <strong>{contractPacket.packetNumber}</strong>
+                    <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
+                  </div>
+                  <button type="button" onClick={openPacketPreview}>Preview packet</button>
+                  <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download packet</button>
+                  <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print packet</button>
+                  <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+                  <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+                  <small>{contractPacket.delivery.providerHoldReason}</small>
+                </div>
+              ) : null}
+              <div className={styles.retailFormsGrid}>
+                {BHPH_FORM_PACKET.map((form) => {
+                  const prepared = form.id === BHPH_WARRANTY_FORM_ID || preparedForms.includes(form.id);
+                  return (
+                    <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
+                      <input checked={prepared} disabled={form.id === BHPH_WARRANTY_FORM_ID} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <span>{form.category}</span>
+                      <strong>{form.label}</strong>
+                      <small>{form.description}</small>
+                      <em>{form.trigger}</em>
+                      <b>{form.basis}</b>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {packetPreviewOpen && contractPacket ? (
+                <div className={styles.retailPacketPreviewBackdrop} role="presentation">
+                  <aside className={styles.retailPacketPreviewDrawer} aria-label="BHPH packet preview">
+                    <header>
+                      <div>
+                        <span>Packet preview</span>
+                        <strong>{contractPacket.packetNumber}</strong>
+                        <small>Review generated BHPH forms before download, print, text, or email.</small>
+                      </div>
+                      <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+                    </header>
+                    <div className={styles.retailPacketPreviewBody}>
+                      <nav aria-label="Generated BHPH forms">
+                        {contractPacket.documents.map((document) => (
+                          <button
+                            className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
+                            key={document.formId}
+                            onClick={() => setPreviewFormId(document.formId)}
+                            type="button"
+                          >
+                            {document.label}
+                          </button>
+                        ))}
+                      </nav>
+                      <section>
+                        <div>
+                          <span>Reviewing</span>
+                          <strong>{previewDocument?.label ?? "Generated BHPH form"}</strong>
+                          {previewDocument?.contentType === "application/pdf" ? <button type="button" onClick={downloadBhphSelectedForm}>Download selected form</button> : null}
+                          <button type="button" onClick={printBhphSelectedForm}>Print selected form</button>
+                        </div>
+                        <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated BHPH form preview"} />
+                      </section>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
+            </aside>
+          </div>
+        ) : null}
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required paperwork</h3>
@@ -2962,12 +3275,36 @@ function TestDriveExecutionDesk({
 }) {
   const [facts, setFacts] = useState({
     approvedRoute: "Local test drive route",
+    driveMode: "SUPERVISED",
+    accompanyingEmployee: "",
+    licenseState: "MN",
+    licenseExpiration: "",
+    licenseVerified: false,
+    insuranceBasis: "DRIVER_POLICY",
+    insuranceVerified: false,
+    driverEmail: "",
+    durationMinutes: "30",
+    mileageAllowance: "20",
+    departureMileage: "",
+    departureCondition: "",
+    fuelOut: "",
+    vin: "",
+    stockNumber: "",
+    year: "",
+    make: "",
+    model: "",
+    trim: "",
+    returnAt: "",
+    returnMileage: "",
+    returnCondition: "",
+    fuelIn: "",
+    keysReturned: false,
+    receivedBy: "",
     driverLicense: "",
     driverPhone: "",
     insuranceCarrier: "",
     insurancePolicy: "",
     notes: "",
-    returnTime: "",
     salesperson: "",
     startTime: "",
     testDriveDate: todayInputValue()
@@ -2976,6 +3313,23 @@ function TestDriveExecutionDesk({
   const [returnPhotos, setReturnPhotos] = useState<Record<string, string>>({});
   const [documents, setDocuments] = useState<Record<string, string>>({});
   const [returnReceived, setReturnReceived] = useState(false);
+  const [agreementPacket, setAgreementPacket] = useState<GeneratedContractPacket | null>(null);
+  const agreementRevision = useRef(0);
+  const [agreementPreviewOpen, setAgreementPreviewOpen] = useState(false);
+  const [agreementStatus, setAgreementStatus] = useState({ kind: "idle", message: "" });
+  function localInstant(value: string) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : "";
+  }
+  const agreementFacts = testDriveFacts({
+    ...facts, departureAt: facts.startTime ? localInstant(`${facts.testDriveDate}T${facts.startTime}`) : "",
+    returnAt: facts.returnAt ? localInstant(facts.returnAt) : ""
+  });
+  const agreementError = testDriveAgreementError(agreementFacts);
+  const returnDeadline = testDriveDateTime(testDriveDeadline(agreementFacts));
+  const driveVin = facts.vin || getVinFromVehicleInput(vehicle);
+  const validVehicle = /^[A-HJ-NPR-Z0-9]{17}$/.test(driveVin);
+  const agreementDocument = agreementPacket?.documents[0];
 
   const releasePhotoCount = TEST_DRIVE_RELEASE_REQUIREMENTS.filter((item) => releasePhotos[item.id]).length;
   const returnPhotoCount = TEST_DRIVE_RETURN_REQUIREMENTS.filter((item) => returnPhotos[item.id]).length;
@@ -2983,20 +3337,94 @@ function TestDriveExecutionDesk({
   const releasePhotosReady = releasePhotoCount === TEST_DRIVE_RELEASE_REQUIREMENTS.length;
   const returnPhotosReady = returnPhotoCount === TEST_DRIVE_RETURN_REQUIREMENTS.length;
   const documentsReady = documentCount === TEST_DRIVE_DOCUMENT_REQUIREMENTS.length;
-  const driverReady = Boolean(facts.driverLicense.trim() && facts.insuranceCarrier.trim());
-  const releaseReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && driverReady && releasePhotosReady && documentsReady);
+  const driverReady = Boolean(facts.driverLicense.trim() && facts.licenseVerified && facts.insuranceVerified);
+  const releaseReady = Boolean(customerName !== "Customer not selected" && validVehicle && !agreementError && driverReady && releasePhotosReady && documentsReady);
   const testDriveMissingGates = [
     { label: "Customer selected", ready: customerName !== "Customer not selected" },
-    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Vehicle VIN captured", ready: validVehicle },
     { label: "Driver license and insurance captured", ready: driverReady },
     { label: "Signed form and proof stored", ready: documentsReady },
     { label: "Release photos captured", ready: releasePhotosReady },
-    { label: "Expected return time set", ready: Boolean(facts.returnTime) }
+    { label: "Test-drive authorization complete", ready: !agreementError },
+    { label: "Expected return time set", ready: Boolean(returnDeadline) }
   ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
-  function update(key: keyof typeof facts, value: string) {
-    setFacts((current) => ({ ...current, [key]: value }));
+  function update(key: keyof typeof facts, value: string | boolean) {
+    agreementRevision.current += 1;
+    setAgreementStatus({ kind: "idle", message: "" });
+    setAgreementPacket(null);
+    setReturnReceived(false);
+    if (!["returnAt", "returnMileage", "returnCondition", "fuelIn", "keysReturned", "receivedBy"].includes(key)) {
+      setDocuments((current) => {
+        const next = { ...current };
+        delete next["td-signed-release"];
+        if (["driverLicense", "licenseState", "licenseExpiration"].includes(key)) delete next["td-driver-license"];
+        if (["insuranceCarrier", "insurancePolicy", "insuranceBasis"].includes(key)) delete next["td-insurance-proof"];
+        return next;
+      });
+    }
+    if (key === "vin") { setReleasePhotos({}); setReturnPhotos({}); }
+    setFacts((current) => ({ ...current,
+      ...(["driverLicense", "licenseState", "licenseExpiration"].includes(key) ? { licenseVerified: false } : {}),
+      ...(["insuranceCarrier", "insurancePolicy", "insuranceBasis", "vin"].includes(key) ? { insuranceVerified: false } : {}),
+      [key]: value }));
     onAmountChange("$0.00");
+  }
+
+  function changeVehicle(value: string) {
+    agreementRevision.current += 1;
+    setAgreementStatus({ kind: "idle", message: "" });
+    setFacts((current) => ({ ...current, vin: getVinFromVehicleInput(value), stockNumber: "", year: "", make: "", model: "", trim: "",
+      departureMileage: "", departureCondition: "", fuelOut: "", insuranceVerified: false,
+      returnAt: "", returnMileage: "", returnCondition: "", fuelIn: "", keysReturned: false, receivedBy: "" }));
+    setAgreementPacket(null);
+    setDocuments((current) => { const next = { ...current }; delete next["td-signed-release"]; return next; });
+    setReturnReceived(false);
+    setReleasePhotos({});
+    setReturnPhotos({});
+    onVehicleChange(value);
+  }
+
+  async function generateAgreement() {
+    if (agreementError || !validVehicle || customerName === "Customer not selected") {
+      setAgreementStatus({ kind: "error", message: agreementError || "Select the driver and capture the vehicle VIN." });
+      return;
+    }
+    setAgreementStatus({ kind: "generating", message: "Generating test-drive agreement..." });
+    const revision = agreementRevision.current;
+    try {
+      const response = await fetch("/api/crm/v1/contract-packets", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          packetType: "TEST_DRIVE", customerName, dealNumber: facts.stockNumber || getStockNumberFromVin(driveVin),
+          testDrive: agreementFacts,
+          vehicle: { vin: driveVin, stockNumber: facts.stockNumber || getStockNumberFromVin(driveVin),
+            year: facts.year, make: facts.make, model: facts.model, trim: facts.trim, mileage: facts.departureMileage }
+        })
+      });
+      const payload = await response.json();
+      if (revision !== agreementRevision.current) return;
+      if (!response.ok) throw new Error(payload.error || "Test-drive agreement could not be generated.");
+      setAgreementPacket(payload as GeneratedContractPacket);
+      setAgreementStatus({ kind: "ready", message: "Test-drive agreement generated and archived." });
+    } catch (error) {
+      if (revision !== agreementRevision.current) return;
+      setAgreementStatus({ kind: "error", message: error instanceof Error ? error.message : "Test-drive agreement could not be generated." });
+    }
+  }
+
+  function downloadAgreement() {
+    if (!agreementDocument) return;
+    const link = document.createElement("a");
+    link.href = documentDataUrl(agreementDocument);
+    link.download = agreementDocument.downloadFileName;
+    link.click();
+  }
+
+  function printAgreement() {
+    if (agreementDocument && !openPrintablePdfDocument(agreementDocument)) {
+      setAgreementStatus({ kind: "error", message: "Print window was blocked. Download the agreement instead." });
+    }
   }
 
   function captureEvidence(
@@ -3005,6 +3433,7 @@ function TestDriveExecutionDesk({
     file?: File
   ) {
     if (!file) return;
+    setReturnReceived(false);
     setter((current) => ({ ...current, [id]: file.name }));
   }
 
@@ -3019,10 +3448,16 @@ function TestDriveExecutionDesk({
           <label><span>Customer</span><input readOnly value={customerName} /></label>
           <label><span>Driver license</span><input value={facts.driverLicense} onChange={(event) => update("driverLicense", event.target.value)} placeholder="License number or verified reference" /></label>
           <label><span>Driver phone</span><input value={facts.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} /></label>
-          <CustomerIdentityDetails />
+          <label><span>License state</span><input value={facts.licenseState} onChange={(event) => update("licenseState", event.target.value)} /></label>
+          <label><span>License expiration</span><input type="date" value={facts.licenseExpiration} onChange={(event) => update("licenseExpiration", event.target.value)} /></label>
+          <label><span>Driver email</span><input type="email" value={facts.driverEmail} onChange={(event) => update("driverEmail", event.target.value)} /></label>
+          <label><span>Coverage basis</span><select value={facts.insuranceBasis} onChange={(event) => update("insuranceBasis", event.target.value)}><option value="DRIVER_POLICY">Driver policy reviewed</option><option value="DEALER_REVIEW">Dealership coverage reviewed</option></select></label>
           <label><span>Insurance carrier</span><input value={facts.insuranceCarrier} onChange={(event) => update("insuranceCarrier", event.target.value)} /></label>
           <label><span>Insurance policy</span><input value={facts.insurancePolicy} onChange={(event) => update("insurancePolicy", event.target.value)} /></label>
-          <label><span>Salesperson</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+          <label><span>Authorizing employee</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+          <label><span>Drive type</span><select value={facts.driveMode} onChange={(event) => update("driveMode", event.target.value)}><option value="SUPERVISED">Supervised</option><option value="UNACCOMPANIED">Unaccompanied</option></select></label>
+          {facts.driveMode === "SUPERVISED" && <label><span>Accompanying employee</span><input value={facts.accompanyingEmployee} onChange={(event) => update("accompanyingEmployee", event.target.value)} /></label>}
+          <fieldset className={styles.leaseCalculationMode}><legend>Staff verification</legend><label><input type="checkbox" checked={facts.licenseVerified} onChange={(event) => update("licenseVerified", event.target.checked)} />Valid license verified</label><label><input type="checkbox" checked={facts.insuranceVerified} onChange={(event) => update("insuranceVerified", event.target.checked)} />Coverage reviewed for this drive</label></fieldset>
         </div>
       </section>
 
@@ -3032,14 +3467,37 @@ function TestDriveExecutionDesk({
           <strong>Assign the unit and set the test-drive window</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => changeVehicle(event.target.value)} /></label>
+          <label><span>VIN</span><input maxLength={17} value={driveVin} onChange={(event) => update("vin", normalizeVin(event.target.value))} /></label>
+          <label><span>Stock number</span><input value={facts.stockNumber} onChange={(event) => update("stockNumber", event.target.value)} /></label>
+          <label><span>Year</span><input value={facts.year} onChange={(event) => update("year", event.target.value)} /></label>
+          <label><span>Make</span><input value={facts.make} onChange={(event) => update("make", event.target.value)} /></label>
+          <label><span>Model</span><input value={facts.model} onChange={(event) => update("model", event.target.value)} /></label>
+          <label><span>Trim</span><input value={facts.trim} onChange={(event) => update("trim", event.target.value)} /></label>
+          <label><span>Checkout odometer</span><input type="number" min="0" step="1" value={facts.departureMileage} onChange={(event) => update("departureMileage", event.target.value)} /></label>
+          <label><span>Fuel out</span><input value={facts.fuelOut} onChange={(event) => update("fuelOut", event.target.value)} /></label>
+          <label><span>Checkout condition</span><input value={facts.departureCondition} onChange={(event) => update("departureCondition", event.target.value)} /></label>
           <label><span>Date</span><input type="date" value={facts.testDriveDate} onChange={(event) => update("testDriveDate", event.target.value)} /></label>
           <label><span>Start time</span><input type="time" value={facts.startTime} onChange={(event) => update("startTime", event.target.value)} /></label>
-          <label><span>Expected return</span><input type="time" value={facts.returnTime} onChange={(event) => update("returnTime", event.target.value)} /></label>
-          <label><span>Approved route</span><select value={facts.approvedRoute} onChange={(event) => update("approvedRoute", event.target.value)}><option>Local test drive route</option><option>Highway route approved</option><option>Manager-approved extended route</option><option>Staff rides with customer</option></select></label>
+          <label><span>Time allowance (minutes)</span><input type="number" min="1" step="1" value={facts.durationMinutes} onChange={(event) => update("durationMinutes", event.target.value)} /></label>
+          <label><span>Mileage allowance</span><input type="number" min="1" step="1" value={facts.mileageAllowance} onChange={(event) => update("mileageAllowance", event.target.value)} /></label>
+          <label><span>Return deadline (Central)</span><input readOnly value={returnDeadline} /></label>
+          <label><span>Approved route</span><input value={facts.approvedRoute} onChange={(event) => update("approvedRoute", event.target.value)} /></label>
           <label className={styles.retailWide}><span>Notes</span><textarea value={facts.notes} onChange={(event) => update("notes", event.target.value)} placeholder="Trade-in interest, requested vehicle, route exception, or manager note" rows={3} /></label>
         </div>
       </section>
+
+      <section className={styles.retailSection}>
+        <header><span>Test-drive agreement</span><strong>Authorization and vehicle release</strong></header>
+        <div className={`${styles.retailNextActionBar} ${styles.testDriveAgreementActions}`}>
+          <div role="status"><strong>{agreementStatus.message || agreementError || "Ready to generate"}</strong></div>
+          <button type="button" disabled={agreementStatus.kind === "generating"} onClick={generateAgreement}><FilePlus2 size={16} aria-hidden="true" />Generate agreement</button>
+          <button type="button" disabled={!agreementDocument} onClick={() => setAgreementPreviewOpen(true)}><Eye size={16} aria-hidden="true" />Preview</button>
+          <button type="button" disabled={!agreementDocument} onClick={downloadAgreement}><Download size={16} aria-hidden="true" />Download PDF</button>
+          <button type="button" disabled={!agreementDocument} onClick={printAgreement}><Printer size={16} aria-hidden="true" />Print agreement</button>
+        </div>
+      </section>
+      {agreementPreviewOpen && agreementDocument && <div className={styles.retailPacketPreviewBackdrop}><section role="dialog" aria-modal="true" aria-label="Test-drive agreement preview" className={`${styles.retailPacketPreviewDrawer} ${styles.testDriveAgreementPreview}`}><header><strong>Test-drive agreement</strong><button type="button" title="Close preview" aria-label="Close preview" onClick={() => setAgreementPreviewOpen(false)}><X size={18} aria-hidden="true" /></button></header><iframe title="Test-drive agreement preview" srcDoc={agreementDocument.html} /></section></div>}
 
       <section className={styles.retailSection} id="test-drive-evidence">
         <header>
@@ -3084,6 +3542,14 @@ function TestDriveExecutionDesk({
           </section>
           <section>
             <h3>Return / receiving photos</h3>
+            <div className={styles.retailFieldGrid}>
+              <label><span>Actual return time</span><input type="datetime-local" value={facts.returnAt} onChange={(event) => update("returnAt", event.target.value)} /></label>
+              <label><span>Return odometer</span><input type="number" min={facts.departureMileage || "0"} step="1" value={facts.returnMileage} onChange={(event) => update("returnMileage", event.target.value)} /></label>
+              <label><span>Fuel in</span><input value={facts.fuelIn} onChange={(event) => update("fuelIn", event.target.value)} /></label>
+              <label><span>Return condition</span><input value={facts.returnCondition} onChange={(event) => update("returnCondition", event.target.value)} /></label>
+              <label><span>Receiving employee</span><input value={facts.receivedBy} onChange={(event) => update("receivedBy", event.target.value)} /></label>
+              <fieldset className={styles.leaseCalculationMode}><legend>Return check</legend><label><input type="checkbox" checked={facts.keysReturned} onChange={(event) => update("keysReturned", event.target.checked)} />All keys returned</label></fieldset>
+            </div>
             <p>Complete receiving after the customer returns with mileage, fuel, interior, and damage review recorded.</p>
             <div className={styles.rentalEvidenceGrid}>
               {TEST_DRIVE_RETURN_REQUIREMENTS.map((item) => (
@@ -3101,7 +3567,7 @@ function TestDriveExecutionDesk({
                 <span>Receiving readiness</span>
                 <strong>{returnReceived ? "Test drive received with evidence" : returnPhotosReady ? "Ready to receive vehicle" : `${returnPhotoCount}/${TEST_DRIVE_RETURN_REQUIREMENTS.length} return photos ready`}</strong>
               </div>
-              <button disabled={!returnPhotosReady || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
+              <button disabled={!returnPhotosReady || !agreementFacts.returnAt || Boolean(agreementError) || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
             </div>
           </section>
         </div>
@@ -3115,11 +3581,11 @@ function TestDriveExecutionDesk({
         <div className={styles.rentalReadinessGrid}>
           {[
             ["Customer", customerName !== "Customer not selected" ? "Selected" : "Needs customer"],
-            ["Vehicle", vehicle.trim() ? "Assigned" : "Needs vehicle"],
+            ["Vehicle", validVehicle ? "Assigned" : "Needs valid VIN"],
             ["Driver", driverReady ? "Verified" : "Needs license / insurance"],
             ["Signed form", documentsReady ? "Recorded" : "Needs documents"],
             ["Release photos", releasePhotosReady ? "Captured" : "Needs photos"],
-            ["Return plan", facts.returnTime ? "Scheduled" : "Needs return time"]
+            ["Return plan", returnDeadline ? "Scheduled" : "Needs return time"]
           ].map(([label, value]) => (
             <div key={label}>
               <span>{label}</span>
@@ -3689,6 +4155,7 @@ export function CrmNextDealStartTool({
   const [selectedPresetId, setSelectedPresetId] = useState("retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [manualCustomerName, setManualCustomerName] = useState("");
   const [form, setForm] = useState({
     amount: initialDraft?.amount ?? "",
     customerId: preferredCustomer?.id ?? "",
@@ -3705,11 +4172,14 @@ export function CrmNextDealStartTool({
   const wholesaleWorkflow = workflow.id === "wholesale";
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
-  const selectedCustomer = model.customers.find((customer) => customer.id === form.customerId) ?? model.customers[0] ?? null;
+  const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? model.customers.find((customer) => customer.id === form.customerId) ?? null : null;
+  const manualCustomer = manualCustomerName.trim();
+  const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
+  const customerReady = form.customerId === MANUAL_CUSTOMER_ID ? Boolean(manualCustomer) : effectiveCustomerName !== "Customer not selected";
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
   const effectiveAmount = testDriveWorkflow && !form.amount.trim() ? "$0.00" : form.amount;
   const effectiveEstimatedValueCents = testDriveWorkflow && !form.amount.trim() ? 0 : estimatedValueCents;
-  const completedCount = useMemo(() => [form.customerId, form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [effectiveAmount, form.customerId, form.vehicle]);
+  const completedCount = useMemo(() => [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
   const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
@@ -3719,7 +4189,19 @@ export function CrmNextDealStartTool({
   }
 
   function updateCustomer(customerId: string) {
+    if (customerId === MANUAL_CUSTOMER_ID) {
+      setForm((current) => ({
+        ...current,
+        amount: "",
+        customerId,
+        note: "",
+        ownerUserId: current.ownerUserId || model.userId,
+        vehicle: ""
+      }));
+      return;
+    }
     const draft = readDealDraft(customerId);
+    setManualCustomerName("");
     setForm((current) => ({
       ...current,
       amount: draft?.amount ?? "",
@@ -3729,6 +4211,18 @@ export function CrmNextDealStartTool({
       vehicle: draft?.vehicle ?? ""
     }));
     if (draft?.workflowId) setWorkflowId(draft.workflowId as DealWorkflowId);
+  }
+
+  function updateManualCustomerName(value: string) {
+    setManualCustomerName(value);
+    setForm((current) => current.customerId === MANUAL_CUSTOMER_ID ? current : {
+      ...current,
+      amount: "",
+      customerId: MANUAL_CUSTOMER_ID,
+      note: "",
+      ownerUserId: current.ownerUserId || model.userId,
+      vehicle: ""
+    });
   }
 
   function applyPreset(preset: DealStartPreset) {
@@ -3753,6 +4247,10 @@ export function CrmNextDealStartTool({
   }, [form, workflowId]);
 
   async function startDeal() {
+    if (form.customerId === MANUAL_CUSTOMER_ID) {
+      setStatus({ kind: "success", message: `${workflow.label} intake is ready for ${effectiveCustomerName}. Create the permanent customer record before opening a CRM opportunity.` });
+      return;
+    }
     if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return;
     setStatus({ kind: "saving", message: "Starting deal..." });
     const response = await fetch("/api/crm/v1/opportunities", {
@@ -3779,6 +4277,27 @@ export function CrmNextDealStartTool({
       return;
     }
     setStatus({ kind: "success", href: payload.opportunity?.href, message: payload.duplicate ? "Execution path replayed safely." : `Execution path opened: ${payload.opportunity?.opportunityNumber ?? "new opportunity"}` });
+  }
+
+  function renderCustomerSelector(label = FIELD_LABELS.customer) {
+    return (
+      <>
+        <label>
+          <span>{label}</span>
+          <select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}>
+            <option value="">Select customer</option>
+            {model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+            <option value={MANUAL_CUSTOMER_ID}>Add customer manually</option>
+          </select>
+        </label>
+        {form.customerId === MANUAL_CUSTOMER_ID ? (
+          <label>
+            <span>Manual customer name</span>
+            <input autoFocus value={manualCustomerName} onChange={(event) => setManualCustomerName(event.target.value)} placeholder="Customer name" />
+          </label>
+        ) : null}
+      </>
+    );
   }
 
   return (
@@ -3929,7 +4448,7 @@ export function CrmNextDealStartTool({
       {!executionOpen ? (
         <EnterpriseDealControlPanel
           amount={effectiveAmount}
-          customerName={selectedCustomer?.name ?? "Customer not selected"}
+          customerName={effectiveCustomerName}
           ownerName={model.userName}
           ready={ready}
           vehicle={form.vehicle}
@@ -3956,12 +4475,12 @@ export function CrmNextDealStartTool({
           {financeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <DealerFinanceExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -3974,12 +4493,12 @@ export function CrmNextDealStartTool({
           ) : workflow.id === "retail-sale" ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <RetailSaleExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
                 vehicle={form.vehicle}
@@ -3999,12 +4518,12 @@ export function CrmNextDealStartTool({
           ) : bhphWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <BhphExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4017,11 +4536,12 @@ export function CrmNextDealStartTool({
           ) : workflow.id === "lease-to-own" ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <LeaseToOwnExecutionDesk
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                key={effectiveCustomerName}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
                 vehicle={form.vehicle}
@@ -4041,11 +4561,12 @@ export function CrmNextDealStartTool({
           ) : testDriveWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <TestDriveExecutionDesk
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                key={effectiveCustomerName}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4058,12 +4579,12 @@ export function CrmNextDealStartTool({
           ) : wholesaleWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>Wholesale buyer</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select buyer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector("Wholesale buyer")}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <WholesaleExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4076,12 +4597,12 @@ export function CrmNextDealStartTool({
           ) : outsideFinanceWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>Customer / buyer</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector("Customer / buyer")}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <OutsideFinanceExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -4094,16 +4615,18 @@ export function CrmNextDealStartTool({
           ) : rentalLikeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <DailyRentalExecutionDesk
                 amount={form.amount}
-                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                customerName={effectiveCustomerName}
+                customerNameEditable={form.customerId === MANUAL_CUSTOMER_ID || !selectedCustomer}
                 key={workflow.id}
                 mode={workflow.id === "vehicle-loaner" ? "vehicle-loaner" : "daily-rental"}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
+                onCustomerNameChange={updateManualCustomerName}
                 onSaveDraft={saveDraft}
                 onVehicleChange={(value) => update("vehicle", value)}
                 statusKind={status.kind}
@@ -4113,7 +4636,7 @@ export function CrmNextDealStartTool({
             </>
           ) : (
             <div className={styles.dealStartForm}>
-              <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+              {renderCustomerSelector()}
               <label><span>{FIELD_LABELS.vehicle}</span><input value={form.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
               <label><span>{FIELD_LABELS.amount}</span><input value={form.amount} onChange={(event) => update("amount", event.target.value)} placeholder="$0.00" /></label>
               <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
