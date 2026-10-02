@@ -32,6 +32,7 @@ export type UnifiedCrmContractPacketInput = {
   paymentFunding?: unknown;
   preparedFormIds?: unknown;
   salePrice?: unknown;
+  testDrive?: unknown;
   vehicle?: unknown;
 };
 

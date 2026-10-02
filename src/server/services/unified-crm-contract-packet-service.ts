@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { BHPH_FORM_PACKET, requiredBhphFormIds, type BhphFormItem } from "@/lib/bhph-form-packet";
+import { TEST_DRIVE_FORM_PACKET, testDriveFacts, testDriveAgreementError } from "@/lib/test-drive-form-packet";
+import { testDriveAgreementHtml, testDriveAgreementPdfBase64 } from "./test-drive-agreement-document";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyDetails, dealerWarrantyError } from "@/lib/dealer-warranty-policy";
 import { dealerWarrantyHtml, dealerWarrantyPdfBase64 } from "./dealer-warranty-document";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
@@ -1603,8 +1605,8 @@ export async function generateUnifiedCrmContractPacket(
 
   const now = dependencies.now?.() ?? new Date();
   const generatedAt = now.toISOString();
-  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : input.packetType === "BHPH" ? "BHPH" : "MINNESOTA_RETAIL_SALE";
-  const packetForms: PacketFormItem[] = packetType === "LEASE_TO_OWN"
+  const packetType = input.packetType === "TEST_DRIVE" ? "TEST_DRIVE" : input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : input.packetType === "BHPH" ? "BHPH" : "MINNESOTA_RETAIL_SALE";
+  const packetForms: PacketFormItem[] = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET : packetType === "LEASE_TO_OWN"
     ? LEASE_TO_OWN_FORM_PACKET
     : packetType === "VEHICLE_LOANER"
       ? COURTESY_LOANER_FORM_PACKET
@@ -1613,7 +1615,7 @@ export async function generateUnifiedCrmContractPacket(
     : packetType === "BHPH"
       ? BHPH_FORM_PACKET
       : MN_SALE_FORM_PACKET;
-  const requiredIds = packetType === "LEASE_TO_OWN"
+  const requiredIds = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
     ? allLeaseToOwnFormIds()
     : packetType === "VEHICLE_LOANER"
       ? requiredCourtesyLoanerFormIds()
@@ -1635,6 +1637,20 @@ export async function generateUnifiedCrmContractPacket(
   const vehicle = vehicleFacts(input.vehicle);
   const customerName = text(input.customerName, "Customer not captured");
   const dealNumber = text(input.dealNumber, packet);
+  const driveFacts = testDriveFacts(input.testDrive);
+  if (packetType === "TEST_DRIVE") {
+    const error = testDriveAgreementError(driveFacts);
+    if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
+    if (!text(input.customerName, "") || ["Customer not selected", "Customer not captured"].includes(customerName) ||
+      !/^[A-HJ-NPR-Z0-9]{17}$/.test(vehicle.vin)) {
+      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Select the driver and capture a valid 17-character vehicle VIN.");
+    }
+  }
+  const driveDocumentInput = packetType === "TEST_DRIVE" ? {
+    customerName, dealNumber, vin: vehicle.vin, stockNumber: vehicle.stockNumber,
+    vehicle: [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter((value) => value !== "Not captured").join(" ") || "Vehicle identified by VIN",
+    facts: driveFacts
+  } : null;
   const dealType = text(input.dealType, "Retail Sale");
   const salePrice = text(input.salePrice, "$0.00");
   const feeTotal = text(input.feeTotal, "$0.00");
@@ -1729,7 +1745,7 @@ export async function generateUnifiedCrmContractPacket(
     const isLeaseSummary = form.id === "lease-summary" && summary !== undefined;
     const isPersonalReferencesForm = form.id === "personal-references" || form.id === "bhph-references-contact-authorization";
     const pdfTemplate = hasPdfTemplate(form);
-    const isPdfDocument = isDealerWarranty || isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
+    const isPdfDocument = driveDocumentInput !== null || isDealerWarranty || isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
     const leaseFieldValues = hasPdfTemplate(form) && packetType === "LEASE_TO_OWN"
       ? leaseTemplateFieldValues({
           calculator: leaseOutput,
@@ -1758,7 +1774,10 @@ export async function generateUnifiedCrmContractPacket(
         })
       : {};
     return {
-      ...(warrantyDocumentInput ? {
+      ...(driveDocumentInput ? {
+        contentBase64: await testDriveAgreementPdfBase64(driveDocumentInput),
+        contentType: "application/pdf" as const
+      } : warrantyDocumentInput ? {
         contentBase64: await dealerWarrantyPdfBase64(warrantyDocumentInput),
         contentType: "application/pdf" as const
       } : isLeaseSummary ? {
@@ -1792,7 +1811,7 @@ export async function generateUnifiedCrmContractPacket(
       category: form.category,
       downloadFileName: `${form.id}-${packet}.${isPdfDocument ? "pdf" : "html"}`,
       formId: form.id,
-      html: warrantyDocumentInput ? dealerWarrantyHtml(warrantyDocumentInput) : isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
+      html: driveDocumentInput ? testDriveAgreementHtml(driveDocumentInput) : warrantyDocumentInput ? dealerWarrantyHtml(warrantyDocumentInput) : isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
         ? buildRentalDocumentHtml({
             customerName,
             dealNumber,
@@ -1863,7 +1882,9 @@ export async function generateUnifiedCrmContractPacket(
         action: "CONTRACT_PACKET_GENERATED",
         actorUserId: actor.id,
         at: generatedAt,
-        detail: packetType === "LEASE_TO_OWN"
+        detail: packetType === "TEST_DRIVE"
+          ? "One test-drive agreement generated and archived."
+          : packetType === "LEASE_TO_OWN"
           ? `${documents.length} lease-to-own form(s) generated and archived.`
           : packetType === "VEHICLE_LOANER"
             ? `${documents.length} vehicle loaner form(s) generated and archived.`

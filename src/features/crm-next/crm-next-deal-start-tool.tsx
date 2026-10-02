@@ -1,10 +1,12 @@
 "use client";
 
-import { type ReactNode, type SetStateAction, useEffect, useMemo, useState } from "react";
+import { type ReactNode, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { FilePlus2, Eye, Download, Printer, X } from "lucide-react";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
+import { testDriveFacts, testDriveAgreementError, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
@@ -3273,12 +3275,36 @@ function TestDriveExecutionDesk({
 }) {
   const [facts, setFacts] = useState({
     approvedRoute: "Local test drive route",
+    driveMode: "SUPERVISED",
+    accompanyingEmployee: "",
+    licenseState: "MN",
+    licenseExpiration: "",
+    licenseVerified: false,
+    insuranceBasis: "DRIVER_POLICY",
+    insuranceVerified: false,
+    driverEmail: "",
+    durationMinutes: "30",
+    mileageAllowance: "20",
+    departureMileage: "",
+    departureCondition: "",
+    fuelOut: "",
+    vin: "",
+    stockNumber: "",
+    year: "",
+    make: "",
+    model: "",
+    trim: "",
+    returnAt: "",
+    returnMileage: "",
+    returnCondition: "",
+    fuelIn: "",
+    keysReturned: false,
+    receivedBy: "",
     driverLicense: "",
     driverPhone: "",
     insuranceCarrier: "",
     insurancePolicy: "",
     notes: "",
-    returnTime: "",
     salesperson: "",
     startTime: "",
     testDriveDate: todayInputValue()
@@ -3287,6 +3313,23 @@ function TestDriveExecutionDesk({
   const [returnPhotos, setReturnPhotos] = useState<Record<string, string>>({});
   const [documents, setDocuments] = useState<Record<string, string>>({});
   const [returnReceived, setReturnReceived] = useState(false);
+  const [agreementPacket, setAgreementPacket] = useState<GeneratedContractPacket | null>(null);
+  const agreementRevision = useRef(0);
+  const [agreementPreviewOpen, setAgreementPreviewOpen] = useState(false);
+  const [agreementStatus, setAgreementStatus] = useState({ kind: "idle", message: "" });
+  function localInstant(value: string) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : "";
+  }
+  const agreementFacts = testDriveFacts({
+    ...facts, departureAt: facts.startTime ? localInstant(`${facts.testDriveDate}T${facts.startTime}`) : "",
+    returnAt: facts.returnAt ? localInstant(facts.returnAt) : ""
+  });
+  const agreementError = testDriveAgreementError(agreementFacts);
+  const returnDeadline = testDriveDateTime(testDriveDeadline(agreementFacts));
+  const driveVin = facts.vin || getVinFromVehicleInput(vehicle);
+  const validVehicle = /^[A-HJ-NPR-Z0-9]{17}$/.test(driveVin);
+  const agreementDocument = agreementPacket?.documents[0];
 
   const releasePhotoCount = TEST_DRIVE_RELEASE_REQUIREMENTS.filter((item) => releasePhotos[item.id]).length;
   const returnPhotoCount = TEST_DRIVE_RETURN_REQUIREMENTS.filter((item) => returnPhotos[item.id]).length;
@@ -3294,20 +3337,94 @@ function TestDriveExecutionDesk({
   const releasePhotosReady = releasePhotoCount === TEST_DRIVE_RELEASE_REQUIREMENTS.length;
   const returnPhotosReady = returnPhotoCount === TEST_DRIVE_RETURN_REQUIREMENTS.length;
   const documentsReady = documentCount === TEST_DRIVE_DOCUMENT_REQUIREMENTS.length;
-  const driverReady = Boolean(facts.driverLicense.trim() && facts.insuranceCarrier.trim());
-  const releaseReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && driverReady && releasePhotosReady && documentsReady);
+  const driverReady = Boolean(facts.driverLicense.trim() && facts.licenseVerified && facts.insuranceVerified);
+  const releaseReady = Boolean(customerName !== "Customer not selected" && validVehicle && !agreementError && driverReady && releasePhotosReady && documentsReady);
   const testDriveMissingGates = [
     { label: "Customer selected", ready: customerName !== "Customer not selected" },
-    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Vehicle VIN captured", ready: validVehicle },
     { label: "Driver license and insurance captured", ready: driverReady },
     { label: "Signed form and proof stored", ready: documentsReady },
     { label: "Release photos captured", ready: releasePhotosReady },
-    { label: "Expected return time set", ready: Boolean(facts.returnTime) }
+    { label: "Test-drive authorization complete", ready: !agreementError },
+    { label: "Expected return time set", ready: Boolean(returnDeadline) }
   ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
-  function update(key: keyof typeof facts, value: string) {
-    setFacts((current) => ({ ...current, [key]: value }));
+  function update(key: keyof typeof facts, value: string | boolean) {
+    agreementRevision.current += 1;
+    setAgreementStatus({ kind: "idle", message: "" });
+    setAgreementPacket(null);
+    setReturnReceived(false);
+    if (!["returnAt", "returnMileage", "returnCondition", "fuelIn", "keysReturned", "receivedBy"].includes(key)) {
+      setDocuments((current) => {
+        const next = { ...current };
+        delete next["td-signed-release"];
+        if (["driverLicense", "licenseState", "licenseExpiration"].includes(key)) delete next["td-driver-license"];
+        if (["insuranceCarrier", "insurancePolicy", "insuranceBasis"].includes(key)) delete next["td-insurance-proof"];
+        return next;
+      });
+    }
+    if (key === "vin") { setReleasePhotos({}); setReturnPhotos({}); }
+    setFacts((current) => ({ ...current,
+      ...(["driverLicense", "licenseState", "licenseExpiration"].includes(key) ? { licenseVerified: false } : {}),
+      ...(["insuranceCarrier", "insurancePolicy", "insuranceBasis", "vin"].includes(key) ? { insuranceVerified: false } : {}),
+      [key]: value }));
     onAmountChange("$0.00");
+  }
+
+  function changeVehicle(value: string) {
+    agreementRevision.current += 1;
+    setAgreementStatus({ kind: "idle", message: "" });
+    setFacts((current) => ({ ...current, vin: getVinFromVehicleInput(value), stockNumber: "", year: "", make: "", model: "", trim: "",
+      departureMileage: "", departureCondition: "", fuelOut: "", insuranceVerified: false,
+      returnAt: "", returnMileage: "", returnCondition: "", fuelIn: "", keysReturned: false, receivedBy: "" }));
+    setAgreementPacket(null);
+    setDocuments((current) => { const next = { ...current }; delete next["td-signed-release"]; return next; });
+    setReturnReceived(false);
+    setReleasePhotos({});
+    setReturnPhotos({});
+    onVehicleChange(value);
+  }
+
+  async function generateAgreement() {
+    if (agreementError || !validVehicle || customerName === "Customer not selected") {
+      setAgreementStatus({ kind: "error", message: agreementError || "Select the driver and capture the vehicle VIN." });
+      return;
+    }
+    setAgreementStatus({ kind: "generating", message: "Generating test-drive agreement..." });
+    const revision = agreementRevision.current;
+    try {
+      const response = await fetch("/api/crm/v1/contract-packets", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          packetType: "TEST_DRIVE", customerName, dealNumber: facts.stockNumber || getStockNumberFromVin(driveVin),
+          testDrive: agreementFacts,
+          vehicle: { vin: driveVin, stockNumber: facts.stockNumber || getStockNumberFromVin(driveVin),
+            year: facts.year, make: facts.make, model: facts.model, trim: facts.trim, mileage: facts.departureMileage }
+        })
+      });
+      const payload = await response.json();
+      if (revision !== agreementRevision.current) return;
+      if (!response.ok) throw new Error(payload.error || "Test-drive agreement could not be generated.");
+      setAgreementPacket(payload as GeneratedContractPacket);
+      setAgreementStatus({ kind: "ready", message: "Test-drive agreement generated and archived." });
+    } catch (error) {
+      if (revision !== agreementRevision.current) return;
+      setAgreementStatus({ kind: "error", message: error instanceof Error ? error.message : "Test-drive agreement could not be generated." });
+    }
+  }
+
+  function downloadAgreement() {
+    if (!agreementDocument) return;
+    const link = document.createElement("a");
+    link.href = documentDataUrl(agreementDocument);
+    link.download = agreementDocument.downloadFileName;
+    link.click();
+  }
+
+  function printAgreement() {
+    if (agreementDocument && !openPrintablePdfDocument(agreementDocument)) {
+      setAgreementStatus({ kind: "error", message: "Print window was blocked. Download the agreement instead." });
+    }
   }
 
   function captureEvidence(
@@ -3316,6 +3433,7 @@ function TestDriveExecutionDesk({
     file?: File
   ) {
     if (!file) return;
+    setReturnReceived(false);
     setter((current) => ({ ...current, [id]: file.name }));
   }
 
@@ -3330,10 +3448,16 @@ function TestDriveExecutionDesk({
           <label><span>Customer</span><input readOnly value={customerName} /></label>
           <label><span>Driver license</span><input value={facts.driverLicense} onChange={(event) => update("driverLicense", event.target.value)} placeholder="License number or verified reference" /></label>
           <label><span>Driver phone</span><input value={facts.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} /></label>
-          <CustomerIdentityDetails />
+          <label><span>License state</span><input value={facts.licenseState} onChange={(event) => update("licenseState", event.target.value)} /></label>
+          <label><span>License expiration</span><input type="date" value={facts.licenseExpiration} onChange={(event) => update("licenseExpiration", event.target.value)} /></label>
+          <label><span>Driver email</span><input type="email" value={facts.driverEmail} onChange={(event) => update("driverEmail", event.target.value)} /></label>
+          <label><span>Coverage basis</span><select value={facts.insuranceBasis} onChange={(event) => update("insuranceBasis", event.target.value)}><option value="DRIVER_POLICY">Driver policy reviewed</option><option value="DEALER_REVIEW">Dealership coverage reviewed</option></select></label>
           <label><span>Insurance carrier</span><input value={facts.insuranceCarrier} onChange={(event) => update("insuranceCarrier", event.target.value)} /></label>
           <label><span>Insurance policy</span><input value={facts.insurancePolicy} onChange={(event) => update("insurancePolicy", event.target.value)} /></label>
-          <label><span>Salesperson</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+          <label><span>Authorizing employee</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+          <label><span>Drive type</span><select value={facts.driveMode} onChange={(event) => update("driveMode", event.target.value)}><option value="SUPERVISED">Supervised</option><option value="UNACCOMPANIED">Unaccompanied</option></select></label>
+          {facts.driveMode === "SUPERVISED" && <label><span>Accompanying employee</span><input value={facts.accompanyingEmployee} onChange={(event) => update("accompanyingEmployee", event.target.value)} /></label>}
+          <fieldset className={styles.leaseCalculationMode}><legend>Staff verification</legend><label><input type="checkbox" checked={facts.licenseVerified} onChange={(event) => update("licenseVerified", event.target.checked)} />Valid license verified</label><label><input type="checkbox" checked={facts.insuranceVerified} onChange={(event) => update("insuranceVerified", event.target.checked)} />Coverage reviewed for this drive</label></fieldset>
         </div>
       </section>
 
@@ -3343,14 +3467,37 @@ function TestDriveExecutionDesk({
           <strong>Assign the unit and set the test-drive window</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => changeVehicle(event.target.value)} /></label>
+          <label><span>VIN</span><input maxLength={17} value={driveVin} onChange={(event) => update("vin", normalizeVin(event.target.value))} /></label>
+          <label><span>Stock number</span><input value={facts.stockNumber} onChange={(event) => update("stockNumber", event.target.value)} /></label>
+          <label><span>Year</span><input value={facts.year} onChange={(event) => update("year", event.target.value)} /></label>
+          <label><span>Make</span><input value={facts.make} onChange={(event) => update("make", event.target.value)} /></label>
+          <label><span>Model</span><input value={facts.model} onChange={(event) => update("model", event.target.value)} /></label>
+          <label><span>Trim</span><input value={facts.trim} onChange={(event) => update("trim", event.target.value)} /></label>
+          <label><span>Checkout odometer</span><input type="number" min="0" step="1" value={facts.departureMileage} onChange={(event) => update("departureMileage", event.target.value)} /></label>
+          <label><span>Fuel out</span><input value={facts.fuelOut} onChange={(event) => update("fuelOut", event.target.value)} /></label>
+          <label><span>Checkout condition</span><input value={facts.departureCondition} onChange={(event) => update("departureCondition", event.target.value)} /></label>
           <label><span>Date</span><input type="date" value={facts.testDriveDate} onChange={(event) => update("testDriveDate", event.target.value)} /></label>
           <label><span>Start time</span><input type="time" value={facts.startTime} onChange={(event) => update("startTime", event.target.value)} /></label>
-          <label><span>Expected return</span><input type="time" value={facts.returnTime} onChange={(event) => update("returnTime", event.target.value)} /></label>
-          <label><span>Approved route</span><select value={facts.approvedRoute} onChange={(event) => update("approvedRoute", event.target.value)}><option>Local test drive route</option><option>Highway route approved</option><option>Manager-approved extended route</option><option>Staff rides with customer</option></select></label>
+          <label><span>Time allowance (minutes)</span><input type="number" min="1" step="1" value={facts.durationMinutes} onChange={(event) => update("durationMinutes", event.target.value)} /></label>
+          <label><span>Mileage allowance</span><input type="number" min="1" step="1" value={facts.mileageAllowance} onChange={(event) => update("mileageAllowance", event.target.value)} /></label>
+          <label><span>Return deadline (Central)</span><input readOnly value={returnDeadline} /></label>
+          <label><span>Approved route</span><input value={facts.approvedRoute} onChange={(event) => update("approvedRoute", event.target.value)} /></label>
           <label className={styles.retailWide}><span>Notes</span><textarea value={facts.notes} onChange={(event) => update("notes", event.target.value)} placeholder="Trade-in interest, requested vehicle, route exception, or manager note" rows={3} /></label>
         </div>
       </section>
+
+      <section className={styles.retailSection}>
+        <header><span>Test-drive agreement</span><strong>Authorization and vehicle release</strong></header>
+        <div className={`${styles.retailNextActionBar} ${styles.testDriveAgreementActions}`}>
+          <div role="status"><strong>{agreementStatus.message || agreementError || "Ready to generate"}</strong></div>
+          <button type="button" disabled={agreementStatus.kind === "generating"} onClick={generateAgreement}><FilePlus2 size={16} aria-hidden="true" />Generate agreement</button>
+          <button type="button" disabled={!agreementDocument} onClick={() => setAgreementPreviewOpen(true)}><Eye size={16} aria-hidden="true" />Preview</button>
+          <button type="button" disabled={!agreementDocument} onClick={downloadAgreement}><Download size={16} aria-hidden="true" />Download PDF</button>
+          <button type="button" disabled={!agreementDocument} onClick={printAgreement}><Printer size={16} aria-hidden="true" />Print agreement</button>
+        </div>
+      </section>
+      {agreementPreviewOpen && agreementDocument && <div className={styles.retailPacketPreviewBackdrop}><section role="dialog" aria-modal="true" aria-label="Test-drive agreement preview" className={`${styles.retailPacketPreviewDrawer} ${styles.testDriveAgreementPreview}`}><header><strong>Test-drive agreement</strong><button type="button" title="Close preview" aria-label="Close preview" onClick={() => setAgreementPreviewOpen(false)}><X size={18} aria-hidden="true" /></button></header><iframe title="Test-drive agreement preview" srcDoc={agreementDocument.html} /></section></div>}
 
       <section className={styles.retailSection} id="test-drive-evidence">
         <header>
@@ -3395,6 +3542,14 @@ function TestDriveExecutionDesk({
           </section>
           <section>
             <h3>Return / receiving photos</h3>
+            <div className={styles.retailFieldGrid}>
+              <label><span>Actual return time</span><input type="datetime-local" value={facts.returnAt} onChange={(event) => update("returnAt", event.target.value)} /></label>
+              <label><span>Return odometer</span><input type="number" min={facts.departureMileage || "0"} step="1" value={facts.returnMileage} onChange={(event) => update("returnMileage", event.target.value)} /></label>
+              <label><span>Fuel in</span><input value={facts.fuelIn} onChange={(event) => update("fuelIn", event.target.value)} /></label>
+              <label><span>Return condition</span><input value={facts.returnCondition} onChange={(event) => update("returnCondition", event.target.value)} /></label>
+              <label><span>Receiving employee</span><input value={facts.receivedBy} onChange={(event) => update("receivedBy", event.target.value)} /></label>
+              <fieldset className={styles.leaseCalculationMode}><legend>Return check</legend><label><input type="checkbox" checked={facts.keysReturned} onChange={(event) => update("keysReturned", event.target.checked)} />All keys returned</label></fieldset>
+            </div>
             <p>Complete receiving after the customer returns with mileage, fuel, interior, and damage review recorded.</p>
             <div className={styles.rentalEvidenceGrid}>
               {TEST_DRIVE_RETURN_REQUIREMENTS.map((item) => (
@@ -3412,7 +3567,7 @@ function TestDriveExecutionDesk({
                 <span>Receiving readiness</span>
                 <strong>{returnReceived ? "Test drive received with evidence" : returnPhotosReady ? "Ready to receive vehicle" : `${returnPhotoCount}/${TEST_DRIVE_RETURN_REQUIREMENTS.length} return photos ready`}</strong>
               </div>
-              <button disabled={!returnPhotosReady || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
+              <button disabled={!returnPhotosReady || !agreementFacts.returnAt || Boolean(agreementError) || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
             </div>
           </section>
         </div>
@@ -3426,11 +3581,11 @@ function TestDriveExecutionDesk({
         <div className={styles.rentalReadinessGrid}>
           {[
             ["Customer", customerName !== "Customer not selected" ? "Selected" : "Needs customer"],
-            ["Vehicle", vehicle.trim() ? "Assigned" : "Needs vehicle"],
+            ["Vehicle", validVehicle ? "Assigned" : "Needs valid VIN"],
             ["Driver", driverReady ? "Verified" : "Needs license / insurance"],
             ["Signed form", documentsReady ? "Recorded" : "Needs documents"],
             ["Release photos", releasePhotosReady ? "Captured" : "Needs photos"],
-            ["Return plan", facts.returnTime ? "Scheduled" : "Needs return time"]
+            ["Return plan", returnDeadline ? "Scheduled" : "Needs return time"]
           ].map(([label, value]) => (
             <div key={label}>
               <span>{label}</span>
@@ -4410,6 +4565,7 @@ export function CrmNextDealStartTool({
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <TestDriveExecutionDesk
+                key={effectiveCustomerName}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
