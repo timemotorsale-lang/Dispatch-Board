@@ -6770,6 +6770,19 @@
   color: #ffffff;
 }
 
+.actionGateMessage,
+.actionFeedbackMessage {
+  color: #b9c6dc;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.actionFeedbackMessage {
+  color: #b9f5d2;
+}
+
 .retailNextActionBar button {
   background: #ffffff;
   border: 1px solid #dbe6f8;

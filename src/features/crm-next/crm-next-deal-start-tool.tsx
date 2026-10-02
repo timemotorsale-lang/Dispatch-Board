@@ -1390,6 +1390,7 @@ function DailyRentalExecutionDesk({
   const [returnPhotos, setReturnPhotos] = useState<Record<string, string>>({});
   const [signedDocuments, setSignedDocuments] = useState<Record<string, string>>({});
   const [returnReceived, setReturnReceived] = useState(false);
+  const [localActionMessage, setLocalActionMessage] = useState("");
   const [vehicleFacts, setVehicleFacts] = useState({
     color: "",
     licensePlate: "",
@@ -1462,8 +1463,21 @@ function DailyRentalExecutionDesk({
     { label: "Amount confirmed", ready: Boolean(amount.trim()) }
   ];
   const rentalMissingGates = rentalCompletionGates.filter((gate) => !gate.ready).map((gate) => gate.label);
+  const receivingMissingGates = RENTAL_RETURN_PHOTO_REQUIREMENTS
+    .filter((item) => !returnPhotos[item.id])
+    .map((item) => item.label);
+  const checkoutDisabled = rentalReadyFacts < 5 || !releaseEvidenceReady || !amount.trim() || statusKind === "saving";
+  const checkoutBlockerText = rentalMissingGates.length > 0
+    ? `Complete checkout is locked until ${rentalMissingGates.join(", ")}.`
+    : "Complete checkout is ready.";
+  const receivingBlockerText = receivingMissingGates.length > 0
+    ? `Complete receiving is locked until ${receivingMissingGates.join(", ")}.`
+    : returnReceived
+      ? "Receiving is already complete."
+      : "Complete receiving is ready.";
 
   function updateRentalFact(key: keyof typeof rentalFacts, value: string) {
+    setLocalActionMessage("");
     const nextFacts = { ...rentalFacts, [key]: value };
     setRentalFacts(nextFacts);
     const nextDays = daysBetween(nextFacts.pickupDate, nextFacts.dropoffDate);
@@ -1475,10 +1489,12 @@ function DailyRentalExecutionDesk({
   }
 
   function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
+    setLocalActionMessage("");
     setVehicleFacts((current) => ({ ...current, [key]: value }));
   }
 
   function updateVin(value: string) {
+    setLocalActionMessage("");
     const vin = normalizeVin(value);
     const stockNumber = getStockNumberFromVin(vin);
     setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
@@ -1486,6 +1502,7 @@ function DailyRentalExecutionDesk({
   }
 
   function updateVehicleSearch(value: string) {
+    setLocalActionMessage("");
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
     if (!vin) { setVehicleFacts((current) => ({ ...current, vin: "", stockNumber: "" })); return; }
@@ -1511,7 +1528,18 @@ function DailyRentalExecutionDesk({
     file?: File
   ) {
     if (!file) return;
+    setLocalActionMessage("");
     setter((current) => ({ ...current, [id]: file.name }));
+  }
+
+  function saveRentalDraft() {
+    onSaveDraft();
+    setLocalActionMessage(`${workflowTitle} draft saved. Completion stays locked until the listed gates are clear.`);
+  }
+
+  function completeReceiving() {
+    setReturnReceived(true);
+    setLocalActionMessage(`${workflowTitle} receiving marked complete with return evidence.`);
   }
 
   function packetHtml() {
@@ -1761,8 +1789,17 @@ function DailyRentalExecutionDesk({
               <div>
                 <span>Receiving readiness</span>
                 <strong>{returnReceived ? "Return received with evidence" : returnPhotosReady ? "Ready to receive vehicle" : `${returnPhotoCount}/${RENTAL_RETURN_PHOTO_REQUIREMENTS.length} return photos ready`}</strong>
+                <small className={styles.actionGateMessage} id={`${workflowNoun}-receiving-gate`}>{receivingBlockerText}</small>
               </div>
-              <button disabled={!returnPhotosReady || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
+              <button
+                aria-describedby={`${workflowNoun}-receiving-gate`}
+                disabled={!returnPhotosReady || returnReceived}
+                onClick={completeReceiving}
+                title={receivingBlockerText}
+                type="button"
+              >
+                {returnReceived ? "Return received" : "Complete receiving"}
+              </button>
             </div>
           </section>
         </div>
@@ -1793,9 +1830,17 @@ function DailyRentalExecutionDesk({
             <span>{workflowTitle} readiness</span>
             <strong>{rentalReadyFacts >= 5 && releaseEvidenceReady ? `Ready to complete ${workflowNoun} checkout` : releaseEvidenceReady ? `${rentalReadyFacts}/5 counter facts ready` : "Release photos and signed documents required"}</strong>
             <CompletionGateList missing={rentalMissingGates} />
+            <small className={styles.actionGateMessage} id={`${workflowNoun}-checkout-gate`}>{checkoutBlockerText}</small>
+            {localActionMessage ? <small className={styles.actionFeedbackMessage} role="status">{localActionMessage}</small> : null}
           </div>
-          <button type="button" onClick={onSaveDraft}>Save {workflowNoun} draft</button>
-          <button disabled={rentalReadyFacts < 5 || !releaseEvidenceReady || !amount.trim() || statusKind === "saving"} onClick={onComplete} type="button">
+          <button type="button" onClick={saveRentalDraft}>Save {workflowNoun} draft</button>
+          <button
+            aria-describedby={`${workflowNoun}-checkout-gate`}
+            disabled={checkoutDisabled}
+            onClick={onComplete}
+            title={checkoutBlockerText}
+            type="button"
+          >
             {statusKind === "saving" ? "Completing..." : "Complete checkout"}
           </button>
         </div>
