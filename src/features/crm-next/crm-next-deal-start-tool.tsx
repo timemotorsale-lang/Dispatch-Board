@@ -454,6 +454,42 @@ function documentDataUrl(document: GeneratedContractPacket["documents"][number])
   return `data:application/pdf;base64,${document.contentBase64}`;
 }
 
+const PRINTABLE_PACKET_URL_REVOKE_DELAY_MS = 60_000;
+
+function withAutoPrintScript(html: string) {
+  const script = `<script>window.addEventListener("load",()=>setTimeout(()=>{window.focus();window.print();},150));</script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${script}</body>`) : `${html}${script}`;
+}
+
+function openPrintableHtmlDocument(html: string) {
+  const url = URL.createObjectURL(new Blob([withAutoPrintScript(html)], { type: "text/html" }));
+  const printWindow = window.open(url, "_blank");
+  if (!printWindow) {
+    URL.revokeObjectURL(url);
+    return false;
+  }
+  try {
+    printWindow.opener = null;
+  } catch {
+    // The packet is already open; keep printing even if the browser blocks opener cleanup.
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), PRINTABLE_PACKET_URL_REVOKE_DELAY_MS);
+  return true;
+}
+
+function openPrintablePdfDocument(document: GeneratedContractPacket["documents"][number]) {
+  const url = documentDataUrl(document);
+  if (!url) return false;
+  const printWindow = window.open(url, "_blank");
+  if (!printWindow) return false;
+  try {
+    printWindow.opener = null;
+  } catch {
+    // The packet is already open; keep printing even if the browser blocks opener cleanup.
+  }
+  return true;
+}
+
 function normalizeVin(value: string) {
   return value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "").slice(0, 17);
 }
@@ -872,18 +908,14 @@ function RetailSaleExecutionDesk({
     if (!contractPacket) return;
     const selectedDocument = previewDocument ?? contractPacket.documents[0];
     if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
-      window.open(documentDataUrl(selectedDocument), "_blank", "noopener,noreferrer");
+      if (!openPrintablePdfDocument(selectedDocument)) {
+        setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
+      }
       return;
     }
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
+    if (!openPrintableHtmlDocument(packetHtml())) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
-      return;
     }
-    printWindow.document.write(packetHtml());
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   function queuePacketDelivery(channel: "email" | "text") {
@@ -1603,15 +1635,9 @@ function DailyRentalExecutionDesk({
 
   function printPacket() {
     if (!contractPacket) return;
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
+    if (!openPrintableHtmlDocument(packetHtml())) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the rental packet instead." });
-      return;
     }
-    printWindow.document.write(packetHtml());
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   function queuePacketDelivery(channel: "email" | "text") {
@@ -2184,18 +2210,14 @@ function LeaseToOwnExecutionDesk({
     if (!contractPacket) return;
     const selectedDocument = previewDocument ?? contractPacket.documents[0];
     if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
-      window.open(documentDataUrl(selectedDocument), "_blank", "noopener,noreferrer");
+      if (!openPrintablePdfDocument(selectedDocument)) {
+        setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
+      }
       return;
     }
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
+    if (!openPrintableHtmlDocument(packetHtml())) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
-      return;
     }
-    printWindow.document.write(packetHtml());
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   function queuePacketDelivery(channel: "email" | "text") {

@@ -82,27 +82,27 @@ export function requiredDailyRentalFormIds() {
 
 export const COURTESY_LOANER_FORM_PACKET: DailyRentalFormItem[] = [
   {
-    basis: "Time Motor Sales counsel-approved courtesy/service loaner agreement draft",
+    basis: "Enterprise courtesy vehicle loaner agreement and dealership risk-control record",
     category: "Required",
-    description: "Official Time Motor Sales customer courtesy/service loaner agreement covering customer, service transaction, courtesy vehicle, authorized drivers, insurance verification, prohibited uses, care, incident duties, responsibility, default, recovery, payment authorization, privacy, and acknowledgements.",
+    description: "Customer-facing courtesy vehicle loaner agreement covering temporary custody, authorized drivers, eligibility, insurance representation, Minnesota notice incorporation, prohibited use, care, incidents, financial responsibility, indemnity, recovery, payment authorization, privacy, and acknowledgements.",
     id: "courtesy-loaner-agreement",
-    label: "Courtesy / service loaner agreement",
+    label: "Courtesy vehicle loaner agreement",
     trigger: "Every vehicle loaner checkout"
   },
   {
-    basis: "Approved courtesy loaner vehicle condition and return record",
+    basis: "Vehicle custody, checkout condition, return condition, and incident evidence record",
     category: "Required",
-    description: "Checkout and return record for pre-existing damage, return or incident notes, physical custody, condition, and representative acknowledgement.",
+    description: "Checkout and return record for mileage, fuel, keys, equipment, pre-existing damage, required photos, custody, incident notes, return condition, and representative acknowledgement.",
     id: "courtesy-loaner-condition-return-record",
-    label: "Vehicle condition and return record",
+    label: "Vehicle condition, custody, and return record",
     trigger: "Loaner vehicle release and return"
   },
   {
-    basis: "Minnesota statutory rental vehicle insurance notice attached as Exhibit A",
+    basis: "Separate Minnesota rental vehicle insurance notice and customer acknowledgement",
     category: "Required",
-    description: "Separate Minnesota statutory rental vehicle insurance notice and customer acknowledgement for courtesy/service loaner use.",
+    description: "Separate Minnesota rental vehicle insurance notice and customer acknowledgement for courtesy vehicle loaner use, maintained apart from any optional protection or waiver program.",
     id: "courtesy-loaner-minnesota-insurance-notice",
-    label: "Minnesota statutory rental vehicle insurance notice",
+    label: "Minnesota rental vehicle insurance notice",
     trigger: "Every vehicle loaner checkout"
   }
 ];

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,7 +15,8 @@ const runtimeCacheBase = process.env.NEXT_DEV_CACHE_ROOT?.trim()
 
 function tempBackedDistRoot(distDirName) {
   // A fixed cache name lets overlapping dev servers rewrite each other's manifests on Windows.
-  const cacheKey = process.env.NEXT_DEV_CACHE_KEY?.trim() || `session-${process.pid}`;
+  // Windows can also reuse process ids, so the default key must be unique per launch.
+  const cacheKey = process.env.NEXT_DEV_CACHE_KEY?.trim() || `session-${randomUUID()}`;
   return path.join(
     runtimeCacheBase,
     createHash("sha1").update(`${root}:${distDirName}:${cacheKey}`).digest("hex").slice(0, 12)

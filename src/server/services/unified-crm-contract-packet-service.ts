@@ -889,6 +889,11 @@ function buildCourtesyLoanerDocumentHtml(input: {
   vehicle: ReturnType<typeof vehicleFacts>;
 }) {
   const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.color}`.replace(/\s+/g, " ").trim();
+  const dealerName = "Time Motor Sales, Inc.";
+  const dealerAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
+  const dealerPhone = "612-724-3631";
+  const dealerWebsite = "timemotors.net";
+  const dealerEmail = "timemotorsale@gmail.com";
   const commonRows: Array<[string, string]> = [
     ["Customer", input.customerName],
     ["Agreement #", input.dealNumber],
@@ -912,91 +917,180 @@ function buildCourtesyLoanerDocumentHtml(input: {
   const sectionsByForm: Record<string, Array<{ heading: string; rows?: Array<[string, string]>; bullets?: string[] }>> = {
     "courtesy-loaner-agreement": [
       {
-        heading: "Customer, service transaction, and courtesy vehicle",
+        heading: "Parties, purpose, and courtesy vehicle",
         rows: [
-          ["Owner / dealer", "Time Motor Sales, Inc."],
-          ["Dealer address", "1101 E. Lake Street, Minneapolis, MN 55407"],
-          ["Dealer contact", "612-724-3631 | timemotors.net"],
-          ["Purpose", "Temporary customer mobility while the customer's vehicle is being serviced, repaired, or maintained. This agreement conveys no title or ownership interest."],
+          ["Owner / dealer", dealerName],
+          ["Dealer address", dealerAddress],
+          ["Dealer phone", dealerPhone],
+          ["Dealer website", dealerWebsite],
+          ["Dealer email", dealerEmail],
+          ["Purpose", "Temporary customer mobility for the limited service, sales, or dealership reason recorded in this agreement. This agreement does not transfer title, ownership, leasehold interest, employment status, agency authority, or any right to use the vehicle except as expressly permitted below."],
           ...commonRows
         ]
       },
       {
-        heading: "Authorized drivers - strict requirement",
+        heading: "Loaner period and return duty",
         bullets: [
-          "Only persons specifically listed are authorized by Time Motor Sales, Inc. to operate the courtesy vehicle.",
-          "Household membership, possession of keys, permission from the customer, or insurance coverage does not create dealer authorization.",
-          "Customer may not lend, transfer, sublease, re-rent, entrust, or permit operation by any unlisted person.",
-          "Additional drivers require the dealer's prior written approval.",
-          "Customer must safeguard all keys and take reasonable steps to prevent unauthorized operation. If the vehicle or keys are taken without permission, customer must immediately notify the dealer and law enforcement."
+          "Customer must return the courtesy vehicle by the stated return date and time, or earlier upon request by Time Motor Sales.",
+          "Any extension must be approved in writing by Time Motor Sales before the return deadline.",
+          "Keeping the vehicle after the return deadline or after a return demand is a material breach.",
+          "Customer must return the vehicle to the dealership location or other return location approved by Time Motor Sales."
         ]
       },
       {
-        heading: "Insurance verification and customer representations",
+        heading: "Authorized drivers only",
         bullets: [
-          "Before release, customer must provide current proof of automobile insurance applicable to the customer and, where required, each authorized driver.",
-          "Dealer collection or verification of insurance information is not a warranty or guarantee that an insurer will provide coverage.",
+          "Only drivers specifically listed in this agreement and approved by Time Motor Sales may operate the courtesy vehicle.",
+          "Customer may not allow any other person to drive, possess, park, move, service, repair, tow, store, or control the vehicle.",
+          "Possession of keys, family relationship, employment relationship, insurance coverage, or verbal permission from Customer does not create authorization by Time Motor Sales.",
+          "Additional drivers require prior written approval by Time Motor Sales.",
+          "Customer must safeguard all keys and take reasonable steps to prevent unauthorized operation. If the vehicle or keys are taken without permission, Customer must immediately notify Time Motor Sales and law enforcement."
+        ]
+      },
+      {
+        heading: "Driver eligibility",
+        bullets: [
+          "Each authorized driver must have a valid, unrestricted driver license and must be legally permitted to operate the vehicle.",
+          "Customer represents that no authorized driver is suspended, revoked, impaired, excluded by insurance, medically unfit, or otherwise legally prohibited from driving.",
+          "Customer must immediately notify Time Motor Sales if any driver license, insurance status, residence, eligibility, or legal ability to operate changes.",
+          "Customer must not permit operation by any driver who is impaired by alcohol, drugs, medication, fatigue, or any condition affecting safe operation."
+        ]
+      },
+      {
+        heading: "Insurance representation",
+        bullets: [
+          "Customer represents that Customer has provided current and truthful insurance information before taking possession.",
+          "Time Motor Sales' review, recording, or verification of insurance information does not guarantee coverage, does not make Time Motor Sales responsible for coverage decisions, and does not waive Customer's obligations.",
           "Customer represents that all insurance information supplied is truthful, current, and not cancelled, suspended, excluded, or otherwise inapplicable as of vehicle release.",
-          "Customer authorizes dealer and its insurers or claims administrators to verify coverage and exchange claim-related information reasonably necessary to investigate a loss.",
-          "Customer must immediately report cancellation, lapse, suspension, exclusion, or material policy change. If coverage ceases, customer must stop using and promptly return the vehicle.",
+          "Customer authorizes Time Motor Sales, its insurers, and claim representatives to verify coverage and exchange information reasonably needed for a claim, loss, recovery, or legal process.",
+          "Customer must immediately report cancellation, lapse, suspension, exclusion, or material policy change. If coverage ceases, Customer must stop using and promptly return the vehicle.",
           "Misrepresentation or concealment concerning insurance, driver identity, residency, permission, or use is a material breach."
         ]
       },
       {
-        heading: "Minnesota insurance / rental-vehicle notice",
+        heading: "Minnesota insurance notice",
         bullets: [
-          "The separate Minnesota Statutory Rental Vehicle Insurance Notice attached as Exhibit A is incorporated into this agreement.",
-          "Customer acknowledges receipt of that separate notice.",
-          "Nothing in this agreement expands or guarantees coverage beyond the applicable policy and Minnesota law.",
-          "If damage to the courtesy vehicle is covered by a Minnesota plan of reparation security, payment by the reparation obligor within the time allowed by Minnesota law is acceptable and prior payment by the customer is not required.",
-          "Loss-of-use is subject to applicable Minnesota law."
+          "Customer acknowledges receipt of the separate Minnesota Rental Vehicle Insurance Notice included with this packet.",
+          "That separate notice is incorporated into this agreement.",
+          "Nothing in this agreement expands, guarantees, or replaces any insurance coverage. Coverage remains subject to applicable law and actual policy terms.",
+          "If damage to the courtesy vehicle is covered by a Minnesota plan of reparation security, payment by the reparation obligor within the time allowed by Minnesota law is acceptable and prior payment by Customer is not required.",
+          "Loss-of-use, rental-vehicle coverage, and any optional protection or waiver language remain subject to applicable Minnesota law, including Minn. Stat. 65B.49 and 72A.125."
         ]
       },
       {
         heading: "Prohibited uses",
         bullets: [
-          "No operation by any unauthorized, unlicensed, suspended, revoked, impaired, intoxicated, or otherwise legally prohibited driver.",
-          "No rideshare, taxi, delivery, courier, livery, towing, pushing, racing, speed testing, off-road use, driver training, criminal activity, or other commercial use unless dealer expressly approves in writing.",
-          "No travel outside Minnesota without dealer's prior written approval.",
-          "No overloading, intentional damage, abandonment, concealment, or materially risk-increasing use.",
-          "No modification, dismantling, unauthorized repair, or tampering with GPS, telematics, dealer equipment, plates, or identifying devices.",
-          "No continued operation after a warning light, collision damage, overheating, tire failure, or other condition makes driving unreasonable or unsafe.",
+          "No operation by any unauthorized driver.",
+          "No operation while impaired by alcohol, drugs, medication, fatigue, or any condition affecting safe operation.",
+          "No rideshare, taxi, courier, delivery, livery, towing, pushing, racing, speed testing, driver training, off-road use, or commercial use unless Time Motor Sales expressly approves in writing.",
+          "No travel outside the approved geographic area without prior written approval by Time Motor Sales.",
+          "No illegal activity, transport of unlawful goods, overloading, intentional damage, abandonment, concealment, or materially risk-increasing use.",
+          "No modification, dismantling, unauthorized repair, or tampering with plates, keys, GPS, telematics, safety equipment, dealer equipment, or identifying devices.",
+          "No continued operation after warning lights, tire failure, overheating, collision damage, mechanical concern, or any unsafe condition appears.",
           "A prohibited use is a material breach. A breach does not itself determine insurance coverage or third-party rights, which remain governed by applicable law and policy terms."
         ]
       },
       {
-        heading: "Vehicle condition, care, incidents, and cooperation",
+        heading: "Vehicle care and condition",
         bullets: [
-          "Customer acknowledges an opportunity to inspect the vehicle before departure and agrees to identify visible pre-existing damage on the vehicle condition report.",
-          "Customer will use reasonable care, lock the vehicle, safeguard keys, and promptly report warning lights, mechanical problems, theft, vandalism, or damage.",
-          "After any accident, theft, impound, or police contact, customer must stop safely, contact emergency services or law enforcement when required, notify dealer as soon as reasonably practicable, identify the actual driver and occupants, collect incident information, and cooperate through final resolution.",
-          "Customer must not admit liability on dealer's behalf, settle a claim, authorize repairs, abandon the vehicle, transfer any interest, or dispose of evidence."
+          "Customer accepts the vehicle in the condition recorded on the Vehicle Condition, Custody, and Return Record.",
+          "Customer acknowledges an opportunity to inspect the vehicle before departure and agrees to identify visible pre-existing damage on the condition record.",
+          "Customer must use reasonable care, lock the vehicle, safeguard keys, preserve evidence of any incident, and promptly report warning lights, mechanical concerns, damage, theft, vandalism, impound, or police contact.",
+          "Customer must not modify, repair, abandon, sell, pledge, sublease, transfer, conceal, or dispose of the vehicle or any part of the vehicle."
         ]
       },
       {
-        heading: "Financial responsibility, indemnity, return, and recovery",
+        heading: "Accidents, theft, damage, and incident duties",
         bullets: [
-          "To the extent permitted by Minnesota law and except to the extent paid by applicable insurance or otherwise prohibited by law, customer is responsible for losses arising during customer's possession or control of the courtesy vehicle.",
-          "Responsibility may include physical damage, theft, vandalism, missing keys, reasonable towing, recovery, impound, storage, administrative or recovery expenses, repair costs, legally recoverable diminution in value, legally recoverable loss of use, citations, parking charges, tolls, towing violations, and costs caused by late return, abandonment, prohibited use, false information, or failure to cooperate.",
+          "After any accident, theft, vandalism, impound, citation, tow, police contact, injury, property damage, or suspected claim, Customer must stop safely and contact emergency services when appropriate.",
+          "Customer must notify law enforcement when required and notify Time Motor Sales as soon as reasonably possible.",
+          "Customer must identify the actual driver and occupants, gather other party, witness, police, tow, and insurance information, and preserve photos, notices, citations, and claim documents.",
+          "Customer must cooperate with Time Motor Sales, insurers, claim administrators, and law enforcement through final resolution.",
+          "Customer must not admit liability for Time Motor Sales, settle a claim, authorize repairs, abandon the vehicle, transfer any interest, or dispose of evidence."
+        ]
+      },
+      {
+        heading: "Customer financial responsibility",
+        bullets: [
+          "To the fullest extent permitted by law, and except to the extent paid by applicable insurance or prohibited by law, Customer is responsible for losses, charges, and expenses arising during Customer's possession, control, use, breach, or permitted or unauthorized entrustment of the courtesy vehicle.",
+          "Responsibility may include physical damage, theft or conversion, vandalism, missing keys, fobs, plates, equipment, or documents, towing, impound, recovery, storage, and administrative expenses.",
+          "Responsibility may also include fuel shortage, excessive cleaning, smoke, odor, biohazard, pet-related cleanup, parking tickets, traffic citations, tolls, camera tickets, towing violations, government fees, late return charges, repair costs, legally recoverable loss of use, legally recoverable diminished value, and claim handling costs caused by false information, prohibited use, late reporting, or failure to cooperate.",
           "Dealer will credit insurance or third-party recoveries against the same loss and will not obtain double recovery.",
-          "To the fullest extent permitted by Minnesota law, customer agrees to indemnify, reimburse, and hold harmless dealer and its owners, officers, employees, and agents from covered losses arising from customer's breach, negligence or intentional misconduct, false insurance or driver representations, or operation by a person whom customer allowed or enabled to operate without dealer's written authorization.",
-          "Customer must return the vehicle by the return due date/time, or earlier upon dealer's reasonable demand, in substantially the same condition except ordinary wear and covered loss.",
-          "Upon default, and only as permitted by law, dealer may terminate permission to possess the vehicle, demand immediate return, use lawful GPS/telematics to locate dealer property, and peacefully recover the vehicle without breach of the peace."
+          "A deposit, hold, or courtesy fee waiver is not a limit of Customer's responsibility."
         ]
       },
       {
-        heading: "Payment authorization, service connection, privacy, and acknowledgements",
+        heading: "Indemnity and reimbursement",
         bullets: [
-          "Customer authorizes charges only for amounts lawfully due under this agreement, supported by reasonable documentation, and subject to applicable payment-network and consumer-protection rules.",
-          "This courtesy vehicle is provided in connection with the service, repair, or maintenance transaction identified by the dealership. Use does not alter payment obligations, warranties, repair authorizations, financing terms, or other rights concerning customer's own vehicle unless separately agreed in writing.",
-          "Dealer may maintain copies of driver's licenses, insurance verification, inspection photographs, payment authorizations, GPS/telematics records, communications, and incident documentation for legitimate business, safety, claims, legal, and regulatory purposes.",
-          "Customer acknowledges reading this agreement before taking possession, receiving a complete copy of this agreement and Exhibit A, understanding only listed drivers are authorized, providing truthful insurance and driver information, understanding accident-reporting duties, and understanding that extensions require dealer approval."
+          "To the fullest extent permitted by Minnesota law, Customer agrees to indemnify, reimburse, and hold harmless Time Motor Sales, its owners, officers, employees, insurers, and agents from losses, claims, damages, fees, costs, and expenses arising from Customer's breach, negligence, intentional misconduct, false statements, unauthorized driver access, prohibited use, failure to report, failure to cooperate, or failure to return the vehicle.",
+          "This indemnity does not require Customer to indemnify Time Motor Sales for matters that applicable law does not permit to be indemnified."
+        ]
+      },
+      {
+        heading: "Payment authorization",
+        bullets: [
+          "Customer authorizes Time Motor Sales to charge amounts lawfully due under this agreement, supported by reasonable documentation, and subject to applicable payment-network and consumer-protection rules.",
+          "A deposit or payment hold is not a limit of Customer's responsibility.",
+          "Customer remains responsible for chargeable items that are discovered after vehicle return, including citations, tolls, camera tickets, tow notices, impound charges, damage, or claim expenses."
+        ]
+      },
+      {
+        heading: "Courtesy fee waiver",
+        bullets: [
+          "If Time Motor Sales waives a daily use fee as a courtesy, that waiver applies only to the stated daily use fee and only for the approved period.",
+          "A daily use fee waiver does not waive responsibility for damage, loss, theft, fuel, cleaning, tickets, tolls, citations, late return, unauthorized use, prohibited use, recovery costs, or other chargeable items.",
+          "If the courtesy vehicle is connected to a possible purchase, sale, service, repair, or maintenance transaction, that connection does not alter any separate payment obligation, warranty, repair authorization, financing term, sales term, or right concerning Customer's own vehicle unless separately agreed in writing."
+        ]
+      },
+      {
+        heading: "Default and vehicle recovery",
+        bullets: [
+          "Customer is in default if Customer breaches this agreement, provides false information, allows unauthorized use, fails to maintain required insurance, fails to return the vehicle on time, refuses a return demand, conceals the vehicle, or uses the vehicle unlawfully or unsafely.",
+          "Upon default, Time Motor Sales may terminate permission, demand immediate return, use lawful location information for dealership property, and recover the vehicle by lawful means without breach of the peace.",
+          "Customer must cooperate with lawful recovery, claim, insurance, and law enforcement processes."
+        ]
+      },
+      {
+        heading: "No agency or employment",
+        bullets: [
+          "Customer and authorized drivers are not agents, employees, partners, representatives, or contractors of Time Motor Sales.",
+          "Customer has no authority to bind Time Motor Sales, admit liability on its behalf, authorize repairs, settle claims, or represent dealership consent beyond this agreement.",
+          "This agreement does not create ownership, title, leasehold, financing, employment, agency, partnership, or contractor rights."
+        ]
+      },
+      {
+        heading: "Privacy and records",
+        bullets: [
+          "Time Motor Sales may collect and retain driver license information, insurance information, contact information, payment authorization records, inspection photos, communications, GPS or telematics records if applicable, incident records, and claim documents for legitimate business, safety, legal, regulatory, claim, and recovery purposes.",
+          "Customer information should be handled under dealership privacy and safeguards obligations, including applicable customer-information safeguards for dealership records.",
+          "Customer authorizes Time Motor Sales to use and share records reasonably necessary for vehicle custody, safety, insurance verification, claim handling, recovery, legal compliance, and dispute resolution."
+        ]
+      },
+      {
+        heading: "No waiver, severability, and Minnesota law",
+        bullets: [
+          "No waiver is effective unless written and signed by Time Motor Sales.",
+          "If any provision is unenforceable, the remaining provisions remain effective to the fullest extent allowed by law.",
+          "Minnesota law governs this agreement, except where federal law applies."
+        ]
+      },
+      {
+        heading: "Customer acknowledgements",
+        bullets: [
+          "Customer received and reviewed this agreement before taking possession.",
+          "Only listed authorized drivers may operate the courtesy vehicle.",
+          "Customer provided truthful license and insurance information.",
+          "Customer received the Minnesota Rental Vehicle Insurance Notice.",
+          "Customer understands accident, theft, damage, impound, citation, tow, and incident reporting duties.",
+          "Customer understands Customer may be responsible for chargeable losses and expenses.",
+          "Customer understands a daily courtesy fee waiver does not waive damage, misuse, late return, or other chargeable responsibility.",
+          "Customer received a copy of this packet."
         ]
       }
     ],
     "courtesy-loaner-condition-return-record": [
       {
-        heading: "Vehicle condition and return record",
+        heading: "Vehicle condition, custody, and return record",
         rows: [
           ["Agreement #", input.dealNumber],
           ["Customer", input.customerName],
@@ -1004,19 +1098,26 @@ function buildCourtesyLoanerDocumentHtml(input: {
           ["Courtesy vehicle", vehicleLine || "Not captured"],
           ["Mileage out", input.rental.mileageOut],
           ["Fuel out", input.rental.fuelOut],
+          ["Key / fob count", "Record keys and fobs before release"],
+          ["Equipment present", "Record plates, registration, insurance card, charger, tools, mats, accessories, and dealership property"],
           ["Fuel return", input.rental.returnFuel],
           ["Pre-existing damage / checkout notes", "Document photos and notes before release"],
+          ["Required checkout photos", "Front, rear, driver side, passenger side, interior, odometer/fuel, existing damage"],
+          ["Customer checkout acknowledgement", "Customer had an opportunity to inspect the vehicle and identify visible pre-existing damage before departure."],
           ["Return / incident notes", "Document return condition, incidents, tow/impound, or exceptions"],
-          ["Return acknowledgement", "Documents physical custody/condition only and does not constitute a release, settlement, admission of liability, or final determination of charges or insurance coverage."]
+          ["Required return photos", "Return front, return rear, return sides, return interior, return odometer/fuel, return damage review"],
+          ["Return acknowledgement", "Documents physical custody and observed condition only. This record is not a release, settlement, waiver, admission of liability, final invoice, or final insurance determination."]
         ]
       }
     ],
     "courtesy-loaner-minnesota-insurance-notice": [
       {
-        heading: "Exhibit A - Minnesota statutory rental vehicle insurance notice",
+        heading: "Minnesota rental vehicle insurance notice",
         bullets: [
           MINNESOTA_RENTAL_COVERAGE_NOTICE,
-          "This statutory notice concerns Minnesota rental-vehicle insurance law. It does not represent that the customer has an active policy, that any particular person is an insured, or that a carrier will accept a particular claim. Coverage remains subject to applicable law and the actual policy.",
+          "This notice concerns Minnesota rental-vehicle insurance law. It does not represent that Customer has an active policy, that any particular person is an insured, or that a carrier will accept a particular claim.",
+          "Coverage remains subject to applicable law and the actual policy.",
+          "This packet does not offer or sell a collision damage waiver unless a separate compliant waiver program and written election are provided.",
           "Customer acknowledges receiving and reading this separate Minnesota notice before taking possession of the courtesy vehicle."
         ]
       },
@@ -1042,6 +1143,15 @@ function buildCourtesyLoanerDocumentHtml(input: {
     h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
     p, li { color: #34445d; line-height: 1.45; }
     .meta { color: #52647d; margin: 0 0 20px; }
+    .letterhead { align-items: start; border-bottom: 3px solid #061735; display: grid; gap: 18px; grid-template-columns: 1.2fr 1fr; margin-bottom: 24px; padding-bottom: 16px; }
+    .brand { letter-spacing: 0.08em; text-transform: uppercase; }
+    .brand strong { display: block; font-size: 24px; letter-spacing: 0; text-transform: none; }
+    .brand span { color: #2f49c6; font-size: 13px; font-weight: 800; }
+    .contact { color: #34445d; font-size: 13px; line-height: 1.45; text-align: right; }
+    .contact strong { color: #061735; display: block; font-size: 14px; }
+    .document-id { background: #f6f9ff; border: 1px solid #dbe6f8; border-radius: 10px; display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); margin: 16px 0 22px; padding: 12px; }
+    .document-id span { color: #52647d; display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .document-id strong { color: #061735; display: block; font-size: 13px; margin-top: 3px; }
     table { border-collapse: collapse; margin-top: 12px; width: 100%; }
     th, td { border: 1px solid #dbe6f8; padding: 10px; text-align: left; vertical-align: top; }
     th { background: #f6f9ff; color: #34445d; width: 34%; }
@@ -1051,9 +1161,27 @@ function buildCourtesyLoanerDocumentHtml(input: {
   </style>
 </head>
 <body>
+  <header class="letterhead">
+    <div class="brand">
+      <span>Time Motor Sales</span>
+      <strong>${escapeHtml(dealerName)}</strong>
+      <p>Courtesy Vehicle Loaner Packet</p>
+    </div>
+    <div class="contact">
+      <strong>${escapeHtml(dealerAddress)}</strong>
+      Phone: ${escapeHtml(dealerPhone)}<br />
+      Website: ${escapeHtml(dealerWebsite)}<br />
+      ${escapeHtml(dealerEmail)}
+    </div>
+  </header>
   <h1>${escapeHtml(input.form.label)}</h1>
   <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.form.basis)} · ${escapeHtml(input.form.trigger)}</p>
-  <p class="notice">Official Time Motor Sales courtesy/service loaner pathway based on the dealership's counsel-approved draft.</p>
+  <div class="document-id">
+    <div><span>Agreement</span><strong>${escapeHtml(input.dealNumber)}</strong></div>
+    <div><span>Customer</span><strong>${escapeHtml(input.customerName)}</strong></div>
+    <div><span>Vehicle</span><strong>${escapeHtml(vehicleLine || input.vehicle.vin || "Not captured")}</strong></div>
+  </div>
+  <p class="notice">Customer must read and sign the applicable packet documents before taking possession of the courtesy vehicle. This packet governs temporary custody only and does not transfer ownership, title, leasehold interest, agency authority, or employment status.</p>
   ${sections.map((section) => `
     <h2>${escapeHtml(section.heading)}</h2>
     ${section.rows ? `<table><tbody>${section.rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>` : ""}

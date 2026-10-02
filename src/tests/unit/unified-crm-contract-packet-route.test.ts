@@ -304,7 +304,7 @@ describe("Unified CRM contract packet route", () => {
     expect(packet.auditTrail[0].detail).toContain("daily rental form");
   });
 
-  it("generates a vehicle loaner signing packet from the approved courtesy loaner pathway", async () => {
+  it("generates a vehicle loaner signing packet from the enterprise courtesy loaner agreement", async () => {
     const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
       body: JSON.stringify({
         customerName: "Loaner Customer",
@@ -347,11 +347,16 @@ describe("Unified CRM contract packet route", () => {
       "courtesy-loaner-condition-return-record",
       "courtesy-loaner-minnesota-insurance-notice"
     ]);
-    expect(packet.documents[0].html).toContain("Courtesy / service loaner agreement");
+    expect(packet.documents[0].html).toContain("Courtesy vehicle loaner agreement");
+    expect(packet.documents[0].html).toContain("Time Motor Sales, Inc.");
+    expect(packet.documents[0].html).toContain("1101 E. Lake Street, Minneapolis, MN 55407");
+    expect(packet.documents[0].html).toContain("timemotorsale@gmail.com");
+    expect(packet.documents[0].html).toContain("timemotors.net");
     expect(packet.documents[0].html).toContain("Temporary customer mobility");
-    expect(packet.documents[0].html).toContain("Authorized drivers - strict requirement");
-    expect(packet.documents[1].html).toContain("Vehicle condition and return record");
-    expect(packet.documents[2].html).toContain("Minnesota statutory rental vehicle insurance notice");
+    expect(packet.documents[0].html).toContain("Authorized drivers only");
+    expect(packet.documents[0].html).toContain("Customer financial responsibility");
+    expect(packet.documents[1].html).toContain("Vehicle condition, custody, and return record");
+    expect(packet.documents[2].html).toContain("Minnesota rental vehicle insurance notice");
     expect(packet.auditTrail[0].detail).toContain("vehicle loaner form");
   });
 });
