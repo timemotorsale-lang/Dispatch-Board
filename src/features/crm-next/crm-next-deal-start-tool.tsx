@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
+import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
@@ -1327,7 +1328,8 @@ const BHPH_PAPERWORK_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "power-of-attorney", label: "Power of attorney / title authority", helper: "Authority for title, registration, lien, correction, or DVS paperwork handled by the dealership." },
   { id: "gps-disclosure", label: "GPS / starter interrupt disclosure", helper: "Required only if the vehicle has GPS or payment assurance equipment." },
   { id: "payment-authorization", label: "Payment authorization", helper: "ACH/card/autopay or payment method authorization." },
-  { id: "arbitration-addenda", label: "Arbitration / addenda", helper: "Signed arbitration, as-is/warranty, and dealership addenda when applicable." }
+  { id: "arbitration-addenda", label: "Arbitration / addenda", helper: "Signed arbitration and dealership addenda when applicable." },
+  { id: "dealer-warranty", label: "Dealer warranty / return addendum", helper: "Signed engine/transmission warranty, return policy, consistent Buyers Guide, and any required Minnesota warranty disclosures." }
 ];
 
 const BHPH_EVIDENCE_REQUIREMENTS: RentalEvidenceRequirement[] = [
@@ -2063,6 +2065,7 @@ function LeaseToOwnExecutionDesk({
     wholesaleCost: "$0.00"
   });
   const [leaseFacts, setLeaseFacts] = useState({
+    deliveryAt: "",
     agreementDate: "",
     firstPaymentDate: "",
     streetAddress: "",
@@ -2105,9 +2108,12 @@ function LeaseToOwnExecutionDesk({
     wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) ?? 0
   }), [leaseInputs]);
   const calculator = useMemo(() => calculateLeaseToOwn(calculatorInput), [calculatorInput]);
+  const leaseDeliveryDate = new Date(leaseFacts.deliveryAt);
+  const leaseDeliveryIso = Number.isFinite(leaseDeliveryDate.getTime()) ? leaseDeliveryDate.toISOString() : "";
+  const leaseWarranty = dealerWarrantyDetails({ deliveryAt: leaseDeliveryIso, deliveryMileage: vehicleFacts.mileage });
   const calculationError = leaseAgreementCalculationError(calculatorInput, calculator);
   const packetFormCount = LEASE_TO_OWN_FORM_PACKET.length;
-  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => form.id === "lease-summary" || preparedForms.includes(form.id)).length;
+  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || preparedForms.includes(form.id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
 
   function updateLeaseInput(key: keyof typeof leaseInputs, value: string) {
@@ -2184,7 +2190,7 @@ function LeaseToOwnExecutionDesk({
         feeTotal: formatCurrency(calculator.estimatedFeesAndTaxesOverTermCents),
         idempotencyKey: crypto.randomUUID(),
         leaseCalculator: calculatorInput,
-        leaseFacts: { ...leaseFacts, lesseeAddress: [leaseFacts.streetAddress, leaseFacts.city, leaseFacts.state, leaseFacts.zip].filter(Boolean).join(", "), lesseeState: leaseFacts.state },
+        leaseFacts: { ...leaseFacts, deliveryAt: leaseDeliveryIso, lesseeAddress: [leaseFacts.streetAddress, leaseFacts.city, leaseFacts.state, leaseFacts.zip].filter(Boolean).join(", "), lesseeState: leaseFacts.state },
         packetType: "LEASE_TO_OWN",
         paymentFunding: `${leaseInputs.paymentFrequency} payments`,
         preparedFormIds: preparedForms.length > 0 ? preparedForms : allLeaseToOwnFormIds(),
@@ -2313,6 +2319,9 @@ function LeaseToOwnExecutionDesk({
           <label><span>Color</span><input value={vehicleFacts.color} onChange={(event) => updateVehicleFact("color", event.target.value)} /></label>
           <label><span>Odometer</span><input value={vehicleFacts.mileage} onChange={(event) => updateVehicleFact("mileage", event.target.value)} /></label>
           <label><span>Plate / license</span><input value={vehicleFacts.license} onChange={(event) => updateVehicleFact("license", event.target.value)} /></label>
+          <label><span>Delivery date / time (local)</span><input type="datetime-local" value={leaseFacts.deliveryAt} onChange={(event) => updateLeaseFact("deliveryAt", event.target.value)} /></label>
+          <label><span>Dealer warranty expiration</span><input readOnly value={leaseWarranty ? `${leaseWarranty.expires} or ${leaseWarranty.endingMileage.toLocaleString("en-US")} miles` : ""} /></label>
+          <label><span>Optional return deadline</span><input readOnly value={leaseWarranty?.returnDeadline ?? ""} /></label>
         </div>
       </section>
 
@@ -2416,10 +2425,10 @@ function LeaseToOwnExecutionDesk({
               ) : null}
               <div className={styles.retailFormsGrid}>
                 {LEASE_TO_OWN_FORM_PACKET.map((form) => {
-                  const prepared = form.id === "lease-summary" || preparedForms.includes(form.id);
+                  const prepared = form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || preparedForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
-                      <input checked={prepared} disabled={form.id === "lease-summary"} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <input checked={prepared} disabled={form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
                       <span>{form.category}</span>
                       <strong>{form.label}</strong>
                       <small>{form.description}</small>
@@ -2499,6 +2508,8 @@ function BhphExecutionDesk({
   const [evidence, setEvidence] = useState<Record<string, string>>({});
   const [handoff, setHandoff] = useState<Record<string, boolean>>({});
   const [terms, setTerms] = useState({
+    deliveryAt: "",
+    deliveryMileage: "",
     apr: "24.00%",
     downPayment: "$0.00",
     firstPaymentDate: "",
@@ -2534,7 +2545,10 @@ function BhphExecutionDesk({
   const downPaymentCents = dollarsToCents(terms.downPayment);
   const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0));
   const requiredBhphForms = useMemo(() => requiredBhphFormIds(), []);
-  const preparedRequiredCount = BHPH_FORM_PACKET.filter((form) => form.category === "Required" && preparedForms.includes(form.id)).length;
+  const preparedRequiredCount = BHPH_FORM_PACKET.filter((form) => form.category === "Required" && (form.id === BHPH_WARRANTY_FORM_ID || preparedForms.includes(form.id))).length;
+  const deliveryDate = new Date(terms.deliveryAt);
+  const deliveryIso = Number.isFinite(deliveryDate.getTime()) ? deliveryDate.toISOString() : "";
+  const warrantyDetails = dealerWarrantyDetails({ deliveryAt: deliveryIso, deliveryMileage: terms.deliveryMileage });
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
   const paperworkCount = BHPH_PAPERWORK_REQUIREMENTS.filter((item) => paperwork[item.id]).length;
   const evidenceCount = BHPH_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
@@ -2545,11 +2559,12 @@ function BhphExecutionDesk({
   const handoffReady = handoffCount === BHPH_HANDOFF_REQUIREMENTS.length;
   const proofReady = Boolean(proof.income.trim() && proof.residence.trim() && proof.references.trim());
   const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.paymentAmount.trim() && terms.firstPaymentDate.trim());
-  const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
+  const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && warrantyDetails && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
   const bhphMissingGates = [
     { label: "Customer selected", ready: customerName !== "Customer not selected" },
     { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
     { label: "Terms complete", ready: termsReady },
+    { label: "Warranty delivery time and odometer complete", ready: Boolean(warrantyDetails) },
     { label: "Proof and references complete", ready: proofReady },
     { label: "Signed paperwork stored", ready: paperworkReady },
     { label: "Evidence stored", ready: evidenceReady },
@@ -2558,6 +2573,7 @@ function BhphExecutionDesk({
   ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateTerms(key: keyof typeof terms, value: string) {
+    setContractPacket(null);
     const next = { ...terms, [key]: value };
     setTerms(next);
     const nextSalePrice = dollarsToCents(next.salePrice);
@@ -2607,12 +2623,20 @@ function BhphExecutionDesk({
     setPacketPreviewOpen(true);
   }
 
-  function downloadBhphReferenceForm() {
+  function downloadBhphSelectedForm() {
     if (!previewDocument?.contentBase64 || previewDocument.contentType !== "application/pdf") return;
     const link = document.createElement("a");
     link.href = documentDataUrl(previewDocument);
     link.download = previewDocument.downloadFileName;
     link.click();
+  }
+
+  function printBhphSelectedForm() {
+    if (!previewDocument) return;
+    const opened = previewDocument.contentType === "application/pdf"
+      ? openPrintablePdfDocument(previewDocument)
+      : openPrintableHtmlDocument(previewDocument.html);
+    if (!opened) setPacketStatus({ kind: "error", message: "Print window was blocked. Download the selected form instead." });
   }
 
   async function generateBhphPacket() {
@@ -2630,7 +2654,8 @@ function BhphExecutionDesk({
           insuranceStatus: approval.insuranceException ? "Needs manager review" : "Verified",
           paperworkCount: `${paperworkCount}/${BHPH_PAPERWORK_REQUIREMENTS.length}`,
           titleStatus: approval.titleException ? "Needs manager review" : "Ready",
-          warrantyPosture: "As-is disclosure required"
+          deliveryAt: deliveryIso,
+          warrantyPosture: DEALER_WARRANTY_POSTURE
         },
         customerName,
         dealNumber: getStockNumberFromVin(vin) || vehicle || undefined,
@@ -2643,6 +2668,7 @@ function BhphExecutionDesk({
         salePrice: terms.salePrice || "$0.00",
         vehicle: {
           stockNumber: getStockNumberFromVin(vin) || vehicle,
+          mileage: terms.deliveryMileage,
           vin
         }
       }),
@@ -2697,7 +2723,11 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Needs manager review</option><option>Title work pending</option></select></label>
-          <label><span>Warranty / as-is posture</span><select><option>As-is disclosure required</option><option>Limited warranty included</option><option>Service contract offered</option><option>Manager review</option></select></label>
+          <label><span>Dealer warranty</span><input readOnly value="Engine / transmission: 30 days or 1,000 miles" /></label>
+          <label><span>Delivery date / time (local)</span><input type="datetime-local" value={terms.deliveryAt} onChange={(event) => updateTerms("deliveryAt", event.target.value)} /></label>
+          <label><span>Delivery odometer</span><input type="number" min="0" step="1" value={terms.deliveryMileage} onChange={(event) => updateTerms("deliveryMileage", event.target.value)} /></label>
+          <label><span>Warranty expiration</span><input readOnly value={warrantyDetails ? `${warrantyDetails.expires} or ${warrantyDetails.endingMileage.toLocaleString("en-US")} miles` : ""} /></label>
+          <label><span>Optional return deadline</span><input readOnly value={warrantyDetails?.returnDeadline ?? ""} /></label>
           <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs manager review</option></select></label>
         </div>
       </section>
@@ -2787,10 +2817,10 @@ function BhphExecutionDesk({
               ) : null}
               <div className={styles.retailFormsGrid}>
                 {BHPH_FORM_PACKET.map((form) => {
-                  const prepared = preparedForms.includes(form.id);
+                  const prepared = form.id === BHPH_WARRANTY_FORM_ID || preparedForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
-                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <input checked={prepared} disabled={form.id === BHPH_WARRANTY_FORM_ID} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
                       <span>{form.category}</span>
                       <strong>{form.label}</strong>
                       <small>{form.description}</small>
@@ -2829,7 +2859,8 @@ function BhphExecutionDesk({
                         <div>
                           <span>Reviewing</span>
                           <strong>{previewDocument?.label ?? "Generated BHPH form"}</strong>
-                          {previewDocument?.contentType === "application/pdf" ? <button type="button" onClick={downloadBhphReferenceForm}>Download reference form</button> : null}
+                          {previewDocument?.contentType === "application/pdf" ? <button type="button" onClick={downloadBhphSelectedForm}>Download selected form</button> : null}
+                          <button type="button" onClick={printBhphSelectedForm}>Print selected form</button>
                         </div>
                         <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated BHPH form preview"} />
                       </section>

@@ -177,6 +177,16 @@ export const LEASE_TO_OWN_FORM_PACKET: LeaseToOwnFormItem[] = [
     sourceFileName: "07-KAP-Fleet Warranty Engine-Trans Addendum 06-23-2016-S.pdf",
     templatePath: "/forms/lease-to-own/kap-warranty.pdf",
     trigger: "KAP warranty included"
+  },
+  {
+    basis: "Dealer voluntary warranty and optional return policy; statutory rights preserved",
+    category: "Required",
+    description: "Engine/transmission coverage for 30 days or 1,000 miles, plus a 24-hour optional return with an $875 restocking fee.",
+    id: "lease-engine-transmission-warranty-return",
+    label: "Engine / transmission warranty and one-day return",
+    sourceFileName: "Dealer Engine Transmission Warranty.pdf",
+    fieldMappings: ["Lessee", "Vehicle", "VIN", "Delivery time", "Odometer", "Warranty expiration", "Return deadline"],
+    trigger: "Every lease-to-own delivery"
   }
 ];
 

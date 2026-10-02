@@ -81,6 +81,14 @@ export const BHPH_FORM_PACKET: BhphFormItem[] = [
     id: "bhph-deal-jacket-checklist",
     label: "BHPH deal jacket checklist",
     trigger: "Before BHPH delivery completion"
+  },
+  {
+    basis: "Dealer voluntary warranty and optional return policy; Minnesota statutory rights preserved",
+    category: "Required",
+    description: "Engine/transmission coverage for 30 days or 1,000 miles, plus a 24-hour optional return with an $875 restocking fee.",
+    id: "bhph-engine-transmission-warranty-return",
+    label: "Engine / transmission warranty and one-day return",
+    trigger: "Every BHPH delivery"
   }
 ];
 

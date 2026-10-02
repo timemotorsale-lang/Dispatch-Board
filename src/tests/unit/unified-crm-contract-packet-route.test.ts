@@ -118,12 +118,13 @@ describe("Unified CRM contract packet route", () => {
           wholesaleCostCents: 1900000
         },
         packetType: "LEASE_TO_OWN",
-        leaseFacts: { agreementDate: "2026-09-16", firstPaymentDate: "2026-10-16", coLesseeName: "Jordan Lease", lesseeAddress: "123 Lake St", lesseePhone: "612-555-0123", insuranceCompany: "Progressive", lesseeEmail: "sam@example.com" },
+        leaseFacts: { deliveryAt: "2026-09-16T15:00:00.000Z", agreementDate: "2026-09-16", firstPaymentDate: "2026-10-16", coLesseeName: "Jordan Lease", lesseeAddress: "123 Lake St", lesseePhone: "612-555-0123", insuranceCompany: "Progressive", lesseeEmail: "sam@example.com" },
         preparedFormIds: ["w2-lease", "insurance-binder", "exhibit-a-addenda"],
         vehicle: {
           color: "Silver",
           make: "Honda",
           model: "CR-V",
+          mileage: "85000",
           stockNumber: "654321",
           trim: "EX",
           vin: "5J6RM4H58FL654321",
@@ -136,7 +137,7 @@ describe("Unified CRM contract packet route", () => {
     expect(created.status).toBe(201);
     const packet = await created.json();
     const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
-    expect(packet.documents).toHaveLength(4);
+    expect(packet.documents).toHaveLength(5);
     expect(agreement.label).toBe("W2 lease agreement");
     const summary = packet.documents[0];
     expect(summary.formId).toBe("lease-summary");
@@ -183,6 +184,7 @@ describe("Unified CRM contract packet route", () => {
     const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
       body: JSON.stringify({
         customerName: "Down Payment Lessee",
+        leaseFacts: { deliveryAt: "2026-09-16T15:00:00.000Z" },
         leaseCalculator: {
           additionalItemsCents: 0,
           capitalizedCostReductionCents: 0,
@@ -207,6 +209,7 @@ describe("Unified CRM contract packet route", () => {
           model: "Escape",
           stockNumber: "B93182",
           vin: "1FMCU9G66LUB93182",
+          mileage: "85000",
           year: "2020"
         }
       }),
@@ -235,7 +238,8 @@ describe("Unified CRM contract packet route", () => {
           registrationFeeCents: 51600, titleFeeCents: 10280, salesTaxRateBasisPoints: 650,
           paymentFrequency: "Monthly"
         },
-        leaseFacts: { agreementDate: "2026-09-16" }
+        leaseFacts: { agreementDate: "2026-09-16", deliveryAt: "2026-09-16T15:00:00.000Z" },
+        vehicle: { mileage: "85000" }
       })
     }));
     expect(created.status).toBe(201);
@@ -248,6 +252,12 @@ describe("Unified CRM contract packet route", () => {
     expect(packet.documents[0].html).toContain("<td>72</td>");
     expect(packet.documents[0].html).toContain("$249.58");
     expect(packet.documents[0].html).toContain(`$${finalPayment}`);
+    const warranty = packet.documents.find((document: { formId: string }) => document.formId === "lease-engine-transmission-warranty-return");
+    expect(warranty.contentType).toBe("application/pdf");
+    expect(warranty.html).toContain("original lease-to-own lessee");
+    expect(warranty.html).toContain("written cancellation of the lease");
+    expect(warranty.html).toContain("fee is not included in periodic payments");
+    expect(warranty.html).toContain("does not apply to a legally required warranty refund");
   });
 
   it.each([0, -100])("rejects target payment %s during packet generation", async (targetPaymentCents) => {
@@ -272,13 +282,14 @@ describe("Unified CRM contract packet route", () => {
       body: JSON.stringify({
         packetType: "LEASE_TO_OWN",
         preparedFormIds: ["w2-lease"],
-        leaseFacts: { agreementDate: "2026-01-31" },
+        leaseFacts: { agreementDate: "2026-01-31", deliveryAt: "2026-01-31T15:00:00.000Z" },
+        vehicle: { mileage: "85000" },
         leaseCalculator: { paymentFrequency, contractLength, wholesaleCostCents: 1000000, multiplierBasisPoints: 20000 }
       })
     }));
     expect(created.status).toBe(201);
     const packet = await created.json();
-    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual(["lease-summary", "w2-lease"]);
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual(["lease-summary", "w2-lease", "lease-engine-transmission-warranty-return"]);
     expect(packet.documents[0].html).toContain(nextDate);
     expect(packet.documents[0].html).toContain("timemotorsale@gmail.com");
     expect(packet.documents[0].html).toContain("20 cents per mile");
@@ -305,6 +316,7 @@ describe("Unified CRM contract packet route", () => {
     const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
       body: JSON.stringify({
         customerName: "Full Packet Lessee",
+        leaseFacts: { deliveryAt: "2026-09-16T15:00:00.000Z" },
         leaseCalculator: {
           contractLength: 36,
           documentPreparationFeeCents: 37500,
@@ -320,6 +332,7 @@ describe("Unified CRM contract packet route", () => {
           color: "Black",
           make: "Ford",
           model: "Escape",
+          mileage: "85000",
           stockNumber: "B93182",
           vin: "1FMCU9G66LUB93182",
           year: "2020"
@@ -341,7 +354,8 @@ describe("Unified CRM contract packet route", () => {
       "power-of-attorney",
       "personal-references",
       "gps-disclosure",
-      "kap-warranty"
+      "kap-warranty",
+      "lease-engine-transmission-warranty-return"
     ]);
     expect(packet.documents.find((document: { formId: string }) => document.formId === "power-of-attorney")).toMatchObject({
       contentType: "text/html",
@@ -490,6 +504,8 @@ describe("Unified CRM contract packet route", () => {
           apr: "24.00%",
           approvalTriggers: "0",
           coBuyer: "None",
+          deliveryAt: "2026-10-01T15:00:00.000Z",
+          deliveryMileage: "85000",
           downPayment: "$1,500.00",
           employer: "Warehouse Co.",
           evidenceCount: "6/6",
@@ -536,7 +552,8 @@ describe("Unified CRM contract packet route", () => {
       "bhph-references-contact-authorization",
       "bhph-delivery-condition",
       "bhph-privacy-communications",
-      "bhph-deal-jacket-checklist"
+      "bhph-deal-jacket-checklist",
+      "bhph-engine-transmission-warranty-return"
     ]);
     expect(packet.documents[0].contentType).toBe("text/html");
     expect(packet.documents[0].html).toContain("BHPH retail installment contract support");
@@ -559,7 +576,44 @@ describe("Unified CRM contract packet route", () => {
     expect(bhphReferencesPdf.getForm().getFields().some((field) => /^ref_\d_address$/.test(field.getName()))).toBe(false);
     expect(packet.documents[5].html).toContain("not fabricated");
     expect(packet.documents[7].html).toContain("Privacy and communications acknowledgement");
+    const warranty = packet.documents.find((document: { formId: string }) => document.formId === "bhph-engine-transmission-warranty-return");
+    expect(warranty.contentType).toBe("application/pdf");
+    expect(warranty.downloadFileName).toMatch(/\.pdf$/);
+    expect(warranty.html).toContain("30 consecutive 24-hour days or 1,000 miles");
+    expect(warranty.html).toContain("100% of covered parts and labor");
+    expect(warranty.html).toContain("no deductible");
+    expect(warranty.html).toContain("86,000 miles");
+    expect(warranty.html).toContain("Oct 2, 2026, 10:00 AM");
+    expect(warranty.html).toContain("$875 restocking fee");
+    expect(warranty.html).toContain("does not apply to a legally required warranty refund");
+    expect(warranty.html).toContain("does not replace or reduce");
+    expect(packet.documents[0].html).not.toContain("As-is disclosure required");
+    const warrantyPdf = await PDFDocument.load(Buffer.from(warranty.contentBase64, "base64"));
+    expect(warrantyPdf.getPageCount()).toBe(1);
+    expect(warrantyPdf.getForm().getTextField("buyer_warranty_signature")).toBeDefined();
     expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
     expect(packet.auditTrail[0].detail).toContain("BHPH form");
+  });
+
+  it.each(["BHPH", "LEASE_TO_OWN"])("requires delivery facts for %s warranty generation", async (packetType) => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST", body: JSON.stringify({
+        packetType, leaseCalculator: { contractLength: 36, wholesaleCostCents: 1000000 }
+      })
+    }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("delivery date");
+  });
+
+  it("does not let a selected subset bypass the BHPH addendum", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST", body: JSON.stringify({
+        packetType: "BHPH", preparedFormIds: ["bhph-payment-schedule-servicing"],
+        bhph: { deliveryAt: "2026-10-01T15:00:00.000Z", deliveryMileage: "85000" }
+      })
+    }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual(["bhph-payment-schedule-servicing", "bhph-engine-transmission-warranty-return"]);
   });
 });
