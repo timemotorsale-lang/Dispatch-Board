@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
@@ -167,16 +168,7 @@ const forms = [
     id: "personal-references",
     title: "Personal References and Verification Form",
     subtitle: "Credit purchase reference and contact authorization",
-    pages: [{
-      title: "Reference Intake",
-      note: "Required for credit purchases when dealership or lender policy requires references.",
-      sections: [
-        { heading: "Customer and Deal", fields: [["Customer / buyer", "customer_name"], ["Deal / packet #", "deal_number"], ["Vehicle", "vehicle"], ["VIN", "vin"], ["Payment / funding", "payment_funding"]] },
-        { heading: "References", fields: [["Reference 1 name", "ref_1_name"], ["Relationship", "ref_1_relationship"], ["Phone", "ref_1_phone"], ["Address / notes", "ref_1_notes"], ["Reference 2 name", "ref_2_name"], ["Relationship", "ref_2_relationship"], ["Phone", "ref_2_phone"], ["Address / notes", "ref_2_notes"], ["Reference 3 name", "ref_3_name"], ["Relationship", "ref_3_relationship"], ["Phone", "ref_3_phone"], ["Address / notes", "ref_3_notes"]] },
-        { heading: "Verification", fields: [["Staff verification notes", "staff_notes", 500, 48]] }
-      ],
-      signatures: ["Customer authorization / date", "Staff verifier / date"]
-    }]
+    pages: []
   },
   {
     id: "product-gps-disclosure",
@@ -353,7 +345,17 @@ async function createPdf(definition) {
 }
 
 const results = [];
+const requestedFormId = process.argv.find((argument) => argument.startsWith("--form="))?.slice("--form=".length);
+if (requestedFormId && !forms.some((definition) => definition.id === requestedFormId)) throw new Error(`Unknown form: ${requestedFormId}`);
 for (const definition of forms) {
+  if (requestedFormId && definition.id !== requestedFormId) continue;
+  if (definition.id === "personal-references") {
+    const generated = spawnSync(process.execPath, [path.join(process.cwd(), "node_modules/tsx/dist/cli.mjs"), "scripts/generate-personal-references-pdf.ts"], { stdio: "inherit" });
+    if (generated.error) throw generated.error;
+    if (generated.status !== 0) throw new Error("Personal reference PDF generation failed.");
+    results.push({ id: definition.id, pages: 1 });
+    continue;
+  }
   results.push(await createPdf(definition));
 }
 

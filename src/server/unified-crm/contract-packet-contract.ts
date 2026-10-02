@@ -27,6 +27,7 @@ export type UnifiedCrmContractPacketInput = {
   feeTotal?: unknown;
   idempotencyKey?: unknown;
   leaseCalculator?: unknown;
+  leaseFacts?: unknown;
   packetType?: unknown;
   paymentFunding?: unknown;
   preparedFormIds?: unknown;

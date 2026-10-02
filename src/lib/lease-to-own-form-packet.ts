@@ -15,11 +15,14 @@ export type LeaseToOwnFormItem = {
 export type LeasePaymentFrequency = "Weekly" | "BiWeekly" | "Monthly";
 
 export type LeaseToOwnCalculatorInput = {
+  calculationMode?: "TERM" | "PAYMENT_AMOUNT";
+  targetPaymentCents?: number;
   additionalItemsCents: number;
   capitalizedCostReductionCents: number;
   contractLength: number;
   documentPreparationFeeCents: number;
   downPaymentCents?: number;
+  signingPaymentMode?: "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION";
   gpsCostCents: number;
   multiplierBasisPoints: number;
   originationFeeCents: number;
@@ -33,6 +36,7 @@ export type LeaseToOwnCalculatorInput = {
 };
 
 export type LeaseToOwnCalculatorOutput = {
+  contractLength: number;
   adjustedCapitalizedCostCents: number;
   amountDueAtSigningCents: number;
   applicableTaxesCents: number;
@@ -51,9 +55,21 @@ export type LeaseToOwnCalculatorOutput = {
   totalOfAllPeriodicPaymentsCents: number;
   totalOfPaymentsCents: number;
   totalPeriodicPaymentCents: number;
+  finalPeriodicPaymentCents: number;
+  signingShortfallCents: number;
 };
 
 export const LEASE_TO_OWN_FORM_PACKET: LeaseToOwnFormItem[] = [
+  {
+    basis: "Calculator-driven customer lease summary",
+    category: "Required",
+    description: "Customer overview of signing costs, payment schedule, purchase option, and responsibilities.",
+    fieldMappings: ["Lessee", "Vehicle", "Signing breakdown", "Payment schedule", "Purchase option"],
+    id: "lease-summary",
+    label: "Lease Summary",
+    sourceFileName: "Lease Summary.pdf",
+    trigger: "Every lease-to-own packet"
+  },
   {
     basis: "Dealership lease-to-own master lease template",
     category: "Required",
@@ -186,6 +202,7 @@ function roundCents(value: number) {
 }
 
 export function calculateLeaseToOwn(input: LeaseToOwnCalculatorInput): LeaseToOwnCalculatorOutput {
+  if (input.calculationMode === "PAYMENT_AMOUNT") input = resolveLeasePaymentTerm(input);
   const subtotalCents = input.wholesaleCostCents + input.gpsCostCents + input.warrantyCostCents + input.otherRoadWorthyCostCents;
   const grossCapitalizedCostCents = roundCents((subtotalCents * input.multiplierBasisPoints) / 10000);
   const grossCapitalizedCostTotalCents = grossCapitalizedCostCents + input.additionalItemsCents;
@@ -193,24 +210,32 @@ export function calculateLeaseToOwn(input: LeaseToOwnCalculatorInput): LeaseToOw
   const taxBaseBeforeReductionCents = input.documentPreparationFeeCents + input.originationFeeCents + grossCapitalizedCostTotalCents - residualValueCents;
   const applicableTaxesCents = roundCents((taxBaseBeforeReductionCents * input.salesTaxRateBasisPoints) / 10000);
   const costsTaxesFeesCents = input.titleFeeCents + input.registrationFeeCents + input.documentPreparationFeeCents + input.originationFeeCents + applicableTaxesCents;
-  const hasDownPayment = typeof input.downPaymentCents === "number" && Number.isFinite(input.downPaymentCents) && input.downPaymentCents > 0;
+  const hasDownPayment = input.signingPaymentMode === "DOWN_PAYMENT" || (input.signingPaymentMode !== "CAPITALIZED_REDUCTION" && typeof input.downPaymentCents === "number" && Number.isFinite(input.downPaymentCents) && input.downPaymentCents > 0);
+  // Signing cash includes the first payment. Solve cash = fees + reduction + (depreciation - reduction) / term.
   const capitalizedCostReductionCents = hasDownPayment
-    ? Math.max(0, roundCents((input.downPaymentCents ?? 0) - costsTaxesFeesCents))
+    ? Math.max(0, roundCents(input.contractLength > 1
+      ? (((input.downPaymentCents ?? 0) - costsTaxesFeesCents) * input.contractLength - (grossCapitalizedCostTotalCents - residualValueCents)) / (input.contractLength - 1)
+      : 0))
     : input.capitalizedCostReductionCents;
   const adjustedCapitalizedCostCents = grossCapitalizedCostTotalCents - capitalizedCostReductionCents;
   const depreciationAndAmortizedAmountCents = adjustedCapitalizedCostCents - residualValueCents;
   const totalBasePeriodicPaymentsCents = depreciationAndAmortizedAmountCents;
   const basePeriodicPaymentCents = roundCents(input.contractLength > 0 ? totalBasePeriodicPaymentsCents / input.contractLength : 0);
   const totalPeriodicPaymentCents = basePeriodicPaymentCents;
-  const totalOfAllPeriodicPaymentsCents = roundCents(totalPeriodicPaymentCents * input.contractLength);
+  const totalOfAllPeriodicPaymentsCents = totalBasePeriodicPaymentsCents;
+  const finalPeriodicPaymentCents = Number.isInteger(input.contractLength) && input.contractLength > 0
+    ? totalBasePeriodicPaymentsCents - totalPeriodicPaymentCents * (input.contractLength - 1)
+    : totalPeriodicPaymentCents;
   const renewalRegistrationCount = leaseRenewalRegistrationCount(input.paymentFrequency, input.contractLength);
   const additionalRegistrationFeesCents = input.registrationFeeCents * renewalRegistrationCount;
   const estimatedFeesAndTaxesOverTermCents = input.titleFeeCents + input.registrationFeeCents + applicableTaxesCents + additionalRegistrationFeesCents;
-  const amountDueAtSigningCents = hasDownPayment ? roundCents(input.downPaymentCents ?? 0) : capitalizedCostReductionCents + input.titleFeeCents + input.registrationFeeCents + totalPeriodicPaymentCents + input.documentPreparationFeeCents + input.originationFeeCents + applicableTaxesCents;
-  const totalOfPaymentsCents = estimatedFeesAndTaxesOverTermCents + totalBasePeriodicPaymentsCents + input.additionalItemsCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents;
-  const dealerGrossProfitCents = totalBasePeriodicPaymentsCents + residualValueCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents - (input.wholesaleCostCents + input.gpsCostCents + input.warrantyCostCents);
+  const amountDueAtSigningCents = capitalizedCostReductionCents + costsTaxesFeesCents + totalPeriodicPaymentCents;
+  const signingShortfallCents = hasDownPayment ? Math.max(0, amountDueAtSigningCents - roundCents(input.downPaymentCents ?? 0)) : 0;
+  const totalOfPaymentsCents = estimatedFeesAndTaxesOverTermCents + totalBasePeriodicPaymentsCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents;
+  const dealerGrossProfitCents = totalBasePeriodicPaymentsCents + residualValueCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents - subtotalCents;
 
   return {
+    contractLength: input.contractLength,
     adjustedCapitalizedCostCents,
     amountDueAtSigningCents,
     applicableTaxesCents,
@@ -228,6 +253,53 @@ export function calculateLeaseToOwn(input: LeaseToOwnCalculatorInput): LeaseToOw
     totalBasePeriodicPaymentsCents,
     totalOfAllPeriodicPaymentsCents,
     totalOfPaymentsCents,
-    totalPeriodicPaymentCents
+    totalPeriodicPaymentCents,
+    finalPeriodicPaymentCents,
+    signingShortfallCents
   };
+}
+
+export function resolveLeasePaymentTerm(input: LeaseToOwnCalculatorInput): LeaseToOwnCalculatorInput {
+  if (input.calculationMode !== "PAYMENT_AMOUNT") return input;
+  const target = input.targetPaymentCents ?? 0;
+  const seed = calculateLeaseToOwn({ ...input, calculationMode: "TERM", contractLength: 2 });
+  const balance = seed.grossCapitalizedCostTotalCents - seed.residualValueCents;
+  const signingCashMode = input.signingPaymentMode === "DOWN_PAYMENT" ||
+    (input.signingPaymentMode !== "CAPITALIZED_REDUCTION" && (input.downPaymentCents ?? 0) > 0);
+  const availableCash = (input.downPaymentCents ?? 0) - seed.costsTaxesFeesCents;
+  // Cash includes the first payment: remaining balance / (term - 1) determines the payment.
+  const term = !Number.isFinite(target) || target < 1 ? 0 : signingCashMode
+    ? availableCash > 0 && availableCash < balance
+      ? Math.max(2, Math.ceil(1 + (balance - availableCash) / target), Math.ceil(balance / availableCash))
+      : 0
+    : Math.max(1, Math.ceil((balance - input.capitalizedCostReductionCents) / target));
+  return { ...input, contractLength: term };
+}
+
+export function leaseNextPaymentDate(agreementDate: string, frequency: LeasePaymentFrequency) {
+  const date = new Date(agreementDate);
+  if (frequency === "Monthly") {
+    const day = date.getUTCDate();
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() + 1);
+    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+    date.setUTCDate(Math.min(day, lastDay));
+  } else date.setUTCDate(date.getUTCDate() + (frequency === "Weekly" ? 7 : 14));
+  return date.toISOString().slice(0, 10);
+}
+
+export function leaseAgreementCalculationError(input: LeaseToOwnCalculatorInput, output = calculateLeaseToOwn(input)): string | null {
+  if (input.calculationMode === "PAYMENT_AMOUNT") {
+    if (!Number.isSafeInteger(input.targetPaymentCents) || (input.targetPaymentCents ?? 0) < 1) return "Enter a positive target payment amount.";
+    if (output.contractLength === 0) return "The signing cash must cover fees and leave a positive lease payment balance.";
+  }
+  if (!Number.isSafeInteger(output.contractLength) || output.contractLength < 1) return "Enter a whole number of lease payments before generating the agreement.";
+  if (Object.entries(input).some(([key, value]) =>
+    !(key === "targetPaymentCents" && input.calculationMode !== "PAYMENT_AMOUNT") &&
+    !(key === "contractLength" && input.calculationMode === "PAYMENT_AMOUNT") &&
+    typeof value === "number" && (!Number.isFinite(value) || value < 0)
+  )) return "Lease amounts and rates must be valid, nonnegative numbers.";
+  if (output.grossCapitalizedCostCents <= 0 || output.totalBasePeriodicPaymentsCents <= 0 || output.finalPeriodicPaymentCents <= 0) return "Enter a vehicle value and signing amount that leave a positive lease payment balance.";
+  if (output.signingShortfallCents > 1) return "The signing cash must cover fees, taxes, and the first lease payment.";
+  return null;
 }

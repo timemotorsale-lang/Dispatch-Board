@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PDFDocument } from "pdf-lib";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn()
@@ -61,7 +62,18 @@ describe("Unified CRM contract packet route", () => {
     expect(referenceForm.contentBase64).toMatch(/^JVBER/);
     expect(referenceForm.html).toContain("Reference 1");
     expect(referenceForm.html).toContain("Reference 3");
-    expect(referenceForm.html).not.toContain("Reference 5");
+    expect(referenceForm.html).toContain("Reference 5");
+    expect(referenceForm.html).toContain("at least five");
+    expect(referenceForm.html).not.toContain("<label>Address");
+    const referencePdf = await PDFDocument.load(Buffer.from(referenceForm.contentBase64, "base64"));
+    expect(referencePdf.getPageCount()).toBe(1);
+    for (const index of [1, 2, 3, 4, 5]) {
+      expect(referencePdf.getForm().getTextField(`ref_${index}_name`)).toBeDefined();
+      expect(referencePdf.getForm().getTextField(`ref_${index}_phone`)).toBeDefined();
+      expect(referencePdf.getForm().getTextField(`ref_${index}_name`).isRequired()).toBe(true);
+      expect(referencePdf.getForm().getTextField(`ref_${index}_phone`).isRequired()).toBe(true);
+      expect(referencePdf.getForm().getFields().some((field) => field.getName() === `ref_${index}_address`)).toBe(false);
+    }
     expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
     expect(packet.auditTrail[0].action).toBe("CONTRACT_PACKET_GENERATED");
 
@@ -92,7 +104,7 @@ describe("Unified CRM contract packet route", () => {
         leaseCalculator: {
           additionalItemsCents: 0,
           capitalizedCostReductionCents: 1619193,
-          contractLength: 71.88,
+          contractLength: 72,
           documentPreparationFeeCents: 37500,
           gpsCostCents: 0,
           multiplierBasisPoints: 20000,
@@ -106,6 +118,7 @@ describe("Unified CRM contract packet route", () => {
           wholesaleCostCents: 1900000
         },
         packetType: "LEASE_TO_OWN",
+        leaseFacts: { agreementDate: "2026-09-16", firstPaymentDate: "2026-10-16", coLesseeName: "Jordan Lease", lesseeAddress: "123 Lake St", lesseePhone: "612-555-0123", insuranceCompany: "Progressive", lesseeEmail: "sam@example.com" },
         preparedFormIds: ["w2-lease", "insurance-binder", "exhibit-a-addenda"],
         vehicle: {
           color: "Silver",
@@ -122,25 +135,47 @@ describe("Unified CRM contract packet route", () => {
 
     expect(created.status).toBe(201);
     const packet = await created.json();
-    expect(packet.documents).toHaveLength(3);
-    expect(packet.documents[0].label).toBe("W2 lease agreement");
-    expect(packet.documents[0].contentType).toBe("application/pdf");
-    expect(packet.documents[0].contentBase64).toMatch(/^JVBER/);
-    expect(packet.documents[0].templatePath).toBe("/forms/lease-to-own/w2-lease.pdf");
-    expect(packet.documents[0].fieldValues["Name-Address Lessee"]).toBe("Sam Lease");
-    expect(packet.documents[0].fieldValues["Total Amount Due at Lease Signing or Delivery"]).toBe("19680.64");
-    expect(packet.documents[0].fieldValues["The total of all your periodic payments is"]).toBe("17970.00");
-    expect(packet.documents[0].fieldValues["Gross capitalized cost The agreed upon value of the vehicle of"]).toBe("38000.00");
-    expect(packet.documents[0].fieldValues["undefined_29"]).toBe("21808.07");
-    expect(packet.documents[0].fieldValues["undefined_36"]).toBe("39980.71");
-    expect(packet.documents[0].fieldValues.Text2).toBe("Amount at delivery");
-    expect(packet.documents[0].fieldValues.Pay1).toBe("19680.64");
-    expect(packet.documents[0].fieldValues["DELIVERY, followed by 1"]).toBe("72");
-    expect(packet.documents[0].fieldValues["DELIVERY, followed by 2"]).toBe("N/A");
-    expect(packet.documents[0].fieldValues["payments of"]).toBe("250.00");
-    expect(packet.documents[0].fieldValues["of each"]).toBe("each");
-    expect(packet.documents[0].fieldValues["due on the"]).toMatch(/^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)$/);
-    expect(packet.documents[0].fieldValues.starting).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
+    expect(packet.documents).toHaveLength(4);
+    expect(agreement.label).toBe("W2 lease agreement");
+    const summary = packet.documents[0];
+    expect(summary.formId).toBe("lease-summary");
+    expect(summary.contentType).toBe("application/pdf");
+    expect(summary.html).toContain("Sam Lease / Jordan Lease");
+    for (const value of ["$19,680.22", "$249.58", "$249.89", "$3,838.00", "$39,980.71", "10/16/2026"]) {
+      expect(summary.html).toContain(value);
+    }
+    expect(summary.html).toContain("separate from the lease total");
+    expect(summary.html).not.toMatch(/wholesale|multiplier|profit/i);
+    const summaryPdf = await PDFDocument.load(Buffer.from(summary.contentBase64, "base64"));
+    expect(summaryPdf.getPageCount()).toBe(1);
+    expect(summaryPdf.getForm().getTextField("lessee_summary_signature")).toBeDefined();
+    expect(agreement.contentType).toBe("application/pdf");
+    expect(agreement.contentBase64).toMatch(/^JVBER/);
+    expect(agreement.templatePath).toBe("/forms/lease-to-own/w2-lease.pdf");
+    expect(agreement.fieldValues["Name-Address Lessee"]).toBe("Sam Lease, 123 Lake St");
+    expect(agreement.fieldValues["Total Amount Due at Lease Signing or Delivery"]).toBe("19680.22");
+    expect(agreement.fieldValues["The total of all your periodic payments is"]).toBe("17970.07");
+    expect(agreement.fieldValues["Gross capitalized cost The agreed upon value of the vehicle of"]).toBe("38000.00");
+    expect(agreement.fieldValues["undefined_29"]).toBe("21808.07");
+    expect(agreement.fieldValues["undefined_5"]).toBe("39980.71");
+    expect(agreement.fieldValues["undefined_36"]).toBe("0.00");
+    expect(agreement.fieldValues.Text2).toBe("monthly");
+    expect(agreement.fieldValues.Pay1).toBe("249.58");
+    expect(agreement.fieldValues["DELIVERY, followed by 1"]).toBe("70");
+    expect(agreement.fieldValues["DELIVERY, followed by 3"]).toBe("Final: $249.89");
+    expect(agreement.fieldValues["payments of"]).toBe("249.58");
+    expect(agreement.fieldValues["of each"]).toBe("month");
+    expect(agreement.fieldValues["due on the"]).toBe("16");
+    expect(agreement.fieldValues.starting).toBe("10/16/2026");
+    const pdf = await PDFDocument.load(Buffer.from(agreement.contentBase64, "base64"));
+    const form = pdf.getForm();
+    expect(form.getTextField("Res Ph").getText() ?? "").toBe("");
+    expect(form.getTextField("PRINT NAME_2").getText() ?? "").toBe("");
+    for (const [name, value] of Object.entries({ undefined_34: "72", undefined_35: "249.58", undefined_39: "249.58", undefined_12: "102.80", undefined_18: "2244.91", undefined_21: "19680.22", "Ins Co": "Progressive", "Name-Address Co-Lessee": "Jordan Lease" })) {
+      expect(form.getTextField(name).getText()).toBe(value);
+      expect(form.getTextField(name).acroField.getWidgets()[0].getNormalAppearance()).toBeDefined();
+    }
     expect(packet.auditTrail[0].detail).toContain("lease-to-own form");
   });
 
@@ -151,7 +186,7 @@ describe("Unified CRM contract packet route", () => {
         leaseCalculator: {
           additionalItemsCents: 0,
           capitalizedCostReductionCents: 0,
-          contractLength: 71.88,
+          contractLength: 72,
           documentPreparationFeeCents: 37500,
           downPaymentCents: 1968064,
           gpsCostCents: 0,
@@ -180,10 +215,90 @@ describe("Unified CRM contract packet route", () => {
 
     expect(created.status).toBe(201);
     const packet = await created.json();
-    expect(packet.documents[0].fieldValues["Total Amount Due at Lease Signing or Delivery"]).toBe("19680.64");
-    expect(packet.documents[0].fieldValues.Pay1).toBe("19680.64");
-    expect(packet.documents[0].fieldValues["undefined_20"]).toBe("16441.93");
-    expect(packet.documents[0].fieldValues.Text2).toBe("Amount at delivery");
+    const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
+    expect(agreement.fieldValues["Total Amount Due at Lease Signing or Delivery"]).toBe("19680.64");
+    expect(agreement.fieldValues.Pay1).toBe("249.58");
+    expect(agreement.fieldValues["undefined_7"]).toBe("16192.35");
+    expect(agreement.fieldValues.Text2).toBe("monthly");
+  });
+
+  it.each(["CAPITALIZED_REDUCTION", "DOWN_PAYMENT"])("uses the calculated payment-amount term with %s in both documents", async (signingPaymentMode) => {
+    const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST",
+      body: JSON.stringify({
+        packetType: "LEASE_TO_OWN", preparedFormIds: ["w2-lease"],
+        leaseCalculator: {
+          calculationMode: "PAYMENT_AMOUNT", targetPaymentCents: 25000, contractLength: 36,
+          wholesaleCostCents: 1900000, multiplierBasisPoints: 20000,
+          capitalizedCostReductionCents: 1619193, documentPreparationFeeCents: 37500,
+          signingPaymentMode, downPaymentCents: 1968064,
+          registrationFeeCents: 51600, titleFeeCents: 10280, salesTaxRateBasisPoints: 650,
+          paymentFrequency: "Monthly"
+        },
+        leaseFacts: { agreementDate: "2026-09-16" }
+      })
+    }));
+    expect(created.status).toBe(201);
+    const packet = await created.json();
+    const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
+    expect(agreement.fieldValues.undefined_34).toBe("72");
+    expect(agreement.fieldValues.undefined_35).toBe("249.58");
+    const finalPayment = signingPaymentMode === "DOWN_PAYMENT" ? "249.47" : "249.89";
+    expect(agreement.fieldValues["DELIVERY, followed by 3"]).toBe(`Final: $${finalPayment}`);
+    expect(packet.documents[0].html).toContain("<td>72</td>");
+    expect(packet.documents[0].html).toContain("$249.58");
+    expect(packet.documents[0].html).toContain(`$${finalPayment}`);
+  });
+
+  it.each([0, -100])("rejects target payment %s during packet generation", async (targetPaymentCents) => {
+    const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST", body: JSON.stringify({
+        packetType: "LEASE_TO_OWN", preparedFormIds: ["w2-lease"],
+        leaseCalculator: { calculationMode: "PAYMENT_AMOUNT", targetPaymentCents, wholesaleCostCents: 1000000 }
+      })
+    }));
+    expect(created.status).toBe(400);
+    expect((await created.json()).error).toContain("positive target");
+  });
+
+  it.each([
+    ["Monthly", 12, "02/28/2026"],
+    ["Weekly", 12, "02/07/2026"],
+    ["BiWeekly", 12, "02/14/2026"],
+    ["Monthly", 1, "None"]
+  ])("includes the summary for %s leases with %s payments", async (paymentFrequency, contractLength, nextDate) => {
+    const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST",
+      body: JSON.stringify({
+        packetType: "LEASE_TO_OWN",
+        preparedFormIds: ["w2-lease"],
+        leaseFacts: { agreementDate: "2026-01-31" },
+        leaseCalculator: { paymentFrequency, contractLength, wholesaleCostCents: 1000000, multiplierBasisPoints: 20000 }
+      })
+    }));
+    expect(created.status).toBe(201);
+    const packet = await created.json();
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual(["lease-summary", "w2-lease"]);
+    expect(packet.documents[0].html).toContain(nextDate);
+    expect(packet.documents[0].html).toContain("timemotorsale@gmail.com");
+    expect(packet.documents[0].html).toContain("20 cents per mile");
+    expect(packet.documents[0].html).toContain("$10 after 5 business days");
+  });
+
+  it.each([
+    { calculator: { contractLength: 71.88 }, facts: {}, message: "whole number" },
+    { calculator: { signingPaymentMode: "DOWN_PAYMENT", downPaymentCents: 0 }, facts: {}, message: "cover fees" },
+    { calculator: {}, facts: { agreementDate: "2026-02-30" }, message: "valid lease" },
+    { calculator: {}, facts: { agreementDate: "2026-09-16", firstPaymentDate: "2026-09-15" }, message: "follow the lease" }
+  ])("rejects invalid lease terms and dates: $message", async ({ calculator, facts, message }) => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST", body: JSON.stringify({ packetType: "LEASE_TO_OWN", preparedFormIds: ["w2-lease"],
+        leaseCalculator: { contractLength: 36, wholesaleCostCents: 1200000, multiplierBasisPoints: 20000, ...calculator },
+        leaseFacts: facts
+      })
+    }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain(message);
   });
 
   it("defaults lease-to-own generation to the full uploaded lease packet", async () => {
@@ -216,6 +331,7 @@ describe("Unified CRM contract packet route", () => {
     expect(created.status).toBe(201);
     const packet = await created.json();
     expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual([
+      "lease-summary",
       "w2-lease",
       "insurance-binder",
       "exhibit-a-addenda",
@@ -432,8 +548,15 @@ describe("Unified CRM contract packet route", () => {
     expect(packet.documents[1].html).toContain("Payment schedule");
     expect(packet.documents[3].html).toContain("Default events");
     expect(packet.documents[4].html).toContain("GPS, telematics, and starter-interrupt controls");
-    expect(packet.documents[5].html).toContain("Five required BHPH references");
-    expect(packet.documents[5].html).toContain("Reference 5 full name");
+    expect(packet.documents[5].html).toContain("at least five");
+    expect(packet.documents[5].html).toContain("Reference 5");
+    expect(packet.documents[5].html).not.toContain("street address / city / state / ZIP");
+    expect(packet.documents[5].contentType).toBe("application/pdf");
+    const bhphReferencesPdf = await PDFDocument.load(Buffer.from(packet.documents[5].contentBase64, "base64"));
+    expect(bhphReferencesPdf.getPageCount()).toBe(1);
+    expect(bhphReferencesPdf.getForm().getTextField("ref_5_name")).toBeDefined();
+    expect(bhphReferencesPdf.getForm().getTextField("sale_price").getText()).toBe("$10,000.00");
+    expect(bhphReferencesPdf.getForm().getFields().some((field) => /^ref_\d_address$/.test(field.getName()))).toBe(false);
     expect(packet.documents[5].html).toContain("not fabricated");
     expect(packet.documents[7].html).toContain("Privacy and communications acknowledgement");
     expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });

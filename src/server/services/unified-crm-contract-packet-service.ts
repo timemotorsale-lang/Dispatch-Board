@@ -3,10 +3,11 @@ import { join } from "node:path";
 
 import { BHPH_FORM_PACKET, requiredBhphFormIds, type BhphFormItem } from "@/lib/bhph-form-packet";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, leaseNextPaymentDate, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { leaseSummaryHtml, leaseSummaryPdfBase64, type LeaseSummary } from "./lease-summary-document";
 import {
   UNIFIED_CRM_CONTRACT_PACKET_CONTRACT_VERSION,
   UnifiedCrmContractPacketError,
@@ -19,6 +20,12 @@ type Dependencies = {
 };
 
 const ARCHIVE = new Map<string, UnifiedCrmContractPacketResult>();
+
+const REFERENCE_AUTHORIZATION = [
+  "I confirm that all five references are accurate, current, personally known to me, and not fabricated.",
+  "I authorize Time Motor Sales to contact these references for verification, underwriting, account servicing, payment follow-up, or locating me or the vehicle, where allowed by law.",
+  "I will keep my contact, employment, insurance, and reference information current. False, incomplete, or unreachable references may delay approval, delivery, or account setup."
+];
 
 function text(value: unknown, fallback: string, max = 240) {
   const result = typeof value === "string" ? value.trim() : "";
@@ -42,6 +49,9 @@ function formIds(value: unknown, forms: PacketFormItem[], requiredIds: string[])
 function vehicleFacts(value: unknown) {
   const vehicle = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
+    bodyStyle: text(vehicle.bodyStyle, ""),
+    license: text(vehicle.license, ""),
+    mileage: text(vehicle.mileage, ""),
     color: text(vehicle.color, "Not captured"),
     make: text(vehicle.make, "Not captured"),
     model: text(vehicle.model, "Not captured"),
@@ -129,9 +139,12 @@ function leaseCalculatorInput(value: unknown): LeaseToOwnCalculatorInput {
   return {
     additionalItemsCents: moneyCents(input.additionalItemsCents),
     capitalizedCostReductionCents: moneyCents(input.capitalizedCostReductionCents),
+    calculationMode: input.calculationMode === "PAYMENT_AMOUNT" ? "PAYMENT_AMOUNT" : "TERM",
+    targetPaymentCents: moneyCents(input.targetPaymentCents),
     contractLength: numberValue(input.contractLength),
     documentPreparationFeeCents: moneyCents(input.documentPreparationFeeCents),
     downPaymentCents: moneyCents(input.downPaymentCents),
+    signingPaymentMode: input.signingPaymentMode === "CAPITALIZED_REDUCTION" ? "CAPITALIZED_REDUCTION" : input.signingPaymentMode === "DOWN_PAYMENT" ? "DOWN_PAYMENT" : undefined,
     gpsCostCents: moneyCents(input.gpsCostCents),
     multiplierBasisPoints: numberValue(input.multiplierBasisPoints, 10000),
     originationFeeCents: moneyCents(input.originationFeeCents),
@@ -193,7 +206,7 @@ async function filledPdfBase64(templatePath: string, fieldValues: Record<string,
   return Buffer.from(await pdf.save()).toString("base64");
 }
 
-async function personalReferencesPdfBase64(input: {
+export async function personalReferencesPdfBase64(input: {
   customerName: string;
   dealNumber: string;
   dealType: string;
@@ -225,8 +238,11 @@ async function personalReferencesPdfBase64(input: {
     if (value) textField.setText(value);
   }
 
-  draw("Personal References and Verification Form", 36, 746, 18, true);
-  draw("Required for customers purchasing a vehicle on credit or payments.", 36, 728, 9, false, muted);
+  draw("Time Motor Sales, Inc.", 36, 776, 10, true);
+  draw("1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631", 36, 763, 8, false, muted);
+  draw("timemotors.net | timemotorsale@gmail.com", 355, 776, 8, false, muted);
+  draw(input.dealType === "BHPH" ? "References and Contact Authorization" : "Personal References and Verification", 36, 742, 16, true);
+  draw("Customer must provide at least five reachable personal references.", 36, 726, 9, false, muted);
   page.drawLine({ color: rule, end: { x: 576, y: 716 }, start: { x: 36, y: 716 }, thickness: 1 });
 
   field("Customer / buyer", "customer_name", 36, 686, 185, 16, input.customerName);
@@ -242,34 +258,42 @@ async function personalReferencesPdfBase64(input: {
   field("Customer address", "customer_address", 429, 616, 147);
 
   draw("References", 36, 587, 13, true);
-  draw("Collect at least three reachable personal references unless a manager approves an exception.", 36, 573, 8.5, false, muted);
+  draw("All five entries are required. Provide current phone numbers for people who know you.", 36, 573, 8.5, false, muted);
 
-  [
-    { label: "Reference 1", prefix: "ref_1", y: 500 },
-    { label: "Reference 2", prefix: "ref_2", y: 389 },
-    { label: "Reference 3", prefix: "ref_3", y: 278 }
-  ].forEach((block) => {
-    draw(block.label, 36, block.y + 62, 10.5, true);
-    field("Full name", `${block.prefix}_name`, 36, block.y + 34, 160);
-    field("Relationship", `${block.prefix}_relationship`, 210, block.y + 34, 110);
-    field("Phone", `${block.prefix}_phone`, 334, block.y + 34, 105);
-    field("Alternate phone / email", `${block.prefix}_alternate`, 453, block.y + 34, 123);
-    field("Address", `${block.prefix}_address`, 36, block.y, 235);
-    field("Best time to contact", `${block.prefix}_best_time`, 285, block.y, 135);
-    field("Staff verification notes", `${block.prefix}_notes`, 434, block.y, 142);
+  [1, 2, 3, 4, 5].forEach((index) => {
+    const y = 503 - (index - 1) * 68;
+    const prefix = `ref_${index}`;
+    draw(`Reference ${index}`, 36, y + 47, 9, true);
+    field("Full name", `${prefix}_name`, 36, y + 18, 150);
+    field("Relationship", `${prefix}_relationship`, 196, y + 18, 100);
+    field("Phone", `${prefix}_phone`, 306, y + 18, 110);
+    for (const suffix of ["name", "relationship", "phone"]) form.getTextField(`${prefix}_${suffix}`).enableRequired();
+    field("Alternate phone / email", `${prefix}_alternate`, 426, y + 18, 150);
+    field("Best time to contact", `${prefix}_best_time`, 36, y - 10, 130);
+    field("Years known", `${prefix}_years_known`, 176, y - 10, 64);
+    field("Staff verification notes", `${prefix}_notes`, 250, y - 10, 326);
   });
 
-  draw("Customer authorization", 36, 228, 13, true);
-  [
-    "Customer confirms these references are accurate and may be contacted by Time Motor Sales for underwriting, account servicing, payment follow-up, title, insurance, or vehicle recovery purposes where allowed by law.",
-    "Customer agrees to update Time Motor Sales if phone number, address, residence, employment, or reference information changes during the payment term.",
-    "False, incomplete, or unreachable reference information may delay approval, delivery, or account setup."
-  ].forEach((item, index) => draw(`- ${item}`, 42, 212 - index * 18, 7.5, false, muted));
+  draw("Customer authorization", 36, 205, 11, true);
+  let authorizationY = 190;
+  for (const paragraph of REFERENCE_AUTHORIZATION) {
+    let line = "";
+    for (const word of paragraph.split(" ")) {
+      const next = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(next, 8) > 540) {
+        draw(line, 36, authorizationY, 8, false, muted);
+        authorizationY -= 11;
+        line = word;
+      } else line = next;
+    }
+    draw(line, 36, authorizationY, 8, false, muted);
+    authorizationY -= 15;
+  }
 
   field("Customer signature", "customer_signature", 36, 96, 230, 20);
   field("Date", "customer_signature_date", 280, 96, 90, 20);
   field("Dealer representative", "dealer_representative", 384, 96, 192, 20);
-  field("Manager exception / notes", "manager_exception_notes", 36, 44, 540, 24);
+  field("Staff review / notes", "staff_review_notes", 36, 44, 540, 24);
 
   form.updateFieldAppearances(font);
   return Buffer.from(await pdf.save()).toString("base64");
@@ -283,29 +307,52 @@ function leaseTemplateFieldValues(input: {
   formId: string;
   generatedAt: string;
   leaseInput: LeaseToOwnCalculatorInput;
+  leaseFacts: Record<string, unknown>;
   paymentFunding: string;
   salePrice: string;
   vehicle: ReturnType<typeof vehicleFacts>;
 }) {
-  const leaseDate = formDate(input.generatedAt);
-  const leaseWeekday = formWeekday(input.generatedAt);
+  const leaseDate = formDate(text(input.leaseFacts.agreementDate, input.generatedAt));
+  const firstPaymentDate = text(input.leaseFacts.firstPaymentDate, leaseNextPaymentDate(text(input.leaseFacts.agreementDate, input.generatedAt), input.leaseInput.paymentFrequency));
+  const dueDate = firstPaymentDate || text(input.leaseFacts.agreementDate, input.generatedAt);
+  const dueDay = input.leaseInput.paymentFrequency === "Monthly" ? String(new Date(dueDate).getUTCDate()) : formWeekday(dueDate);
   const vehicleDescription = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model}`.trim();
   const common = {
-    "CO-LESSEE": "",
-    "COLESSEE": "",
+    "CO-LESSEE": text(input.leaseFacts.coLesseeName, "N/A"),
+    "COLESSEE": text(input.leaseFacts.coLesseeName, "N/A"),
     "Color": input.vehicle.color,
     "DATE": leaseDate,
     "Date of Lease Agreement": leaseDate,
     "DESCRIPTION OF LEASED MOTOR VEHICLE Year": input.vehicle.year,
-    "Driver’s Lic": "",
+    "Driver’s Lic": text(input.leaseFacts.idNumber, ""),
     "Execution Date": leaseDate,
     "LESSEE": input.customerName,
     "LESSEE Name": input.customerName,
     "LESSEE PRINT NAME": input.customerName,
     "Make": input.vehicle.make,
     "Model": input.vehicle.model,
-    "Name-Address Lessee": input.customerName,
-    "Name-Address Lessor": "Time Motor Sales, Inc.",
+    "Name-Address Lessee": [input.customerName, text(input.leaseFacts.lesseeAddress, "")].filter(Boolean).join(", "),
+    "Name-Address Lessor": "Time Motor Sales, Inc., 1101 E. Lake Street, Minneapolis, MN 55407",
+    "Bus Ph": "612-724-3631",
+    "Name-Address Co-Lessee": text(input.leaseFacts.coLesseeName, "N/A"),
+    "County": text(input.leaseFacts.lesseeCounty, ""),
+    "State": text(input.leaseFacts.lesseeState, ""),
+    "Res Ph": "",
+    "County_2": text(input.leaseFacts.coLesseeName, "") ? "" : "N/A",
+    "Driver’s Lic_2": text(input.leaseFacts.coLesseeName, "") ? "" : "N/A",
+    "State_2": text(input.leaseFacts.coLesseeName, "") ? "" : "N/A",
+    "Res Ph_2": text(input.leaseFacts.coLesseeName, "") ? "" : "N/A",
+    "Cell Ph_2": text(input.leaseFacts.coLesseeName, "") ? "" : "N/A",
+    "PRINT NAME": input.customerName,
+    "PRINT NAME_2": "",
+    "PRINT NAME_3": text(input.leaseFacts.coLesseeName, "N/A"),
+    "TITLE": "",
+    "Cell Ph": text(input.leaseFacts.lesseePhone, ""),
+    "Ins Co": text(input.leaseFacts.insuranceCompany, ""),
+    "Insurance Agent": text(input.leaseFacts.agentName, ""),
+    "Ph": text(input.leaseFacts.insurancePhone, ""),
+    "LEASE DISCLOSURES  Lessee’s E-Mail": text(input.leaseFacts.lesseeEmail, ""),
+    "Body Style": input.vehicle.bodyStyle,
     "OWNER/LESSOR": "Time Motor Sales, Inc.",
     "OWNERLESSOR": "Time Motor Sales, Inc.",
     "OWNERLESSOR Name": "Time Motor Sales, Inc.",
@@ -317,56 +364,58 @@ function leaseTemplateFieldValues(input: {
 
   if (input.formId === "w2-lease") {
     const paymentCount = Math.round(input.leaseInput.contractLength);
+    const hasFinalAdjustment = input.calculator.finalPeriodicPaymentCents !== input.calculator.totalPeriodicPaymentCents;
     return {
       ...common,
-      "Amount to be paid in cash 1": "Cash received",
-      "Amount to be paid in cash 2": "Title fee",
-      "Amount to be paid in cash 3": "Registration fee",
-      "Amount to be paid in cash 4": "Taxes",
-      "DELIVERY, followed by 1": String(paymentCount),
-      "DELIVERY, followed by 2": "N/A",
-      "DELIVERY, followed by 3": String(paymentCount),
+      "Amount to be paid in cash 1": "N/A",
+      "CO-LESSEE": "",
+      "Amount to be paid in cash 2": "N/A",
+      "Amount to be paid in cash 3": "N/A",
+      "Amount to be paid in cash 4": "N/A",
+      "DELIVERY, followed by 1": String(Math.max(0, paymentCount - (hasFinalAdjustment ? 2 : 1))),
+      "DELIVERY, followed by 2": "",
+      "DELIVERY, followed by 3": hasFinalAdjustment ? `Final: $${formatFormMoney(input.calculator.finalPeriodicPaymentCents)}` : "",
       "Document preparation fee not gov fee": formatFormMoney(input.leaseInput.documentPreparationFeeCents),
       "Gross capitalized cost The agreed upon value of the vehicle of": formatFormMoney(input.calculator.grossCapitalizedCostCents),
-      "Odometer Reading": "",
-      "Pay1": formatFormMoney(input.calculator.amountDueAtSigningCents),
-      "Rate": "0.000%",
-      "Text2": "Amount at delivery",
+      "Odometer Reading": input.vehicle.mileage,
+      "Pay1": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "Rate": "0.000",
+      "Text2": input.leaseInput.paymentFrequency === "BiWeekly" ? "biweekly" : input.leaseInput.paymentFrequency.toLowerCase(),
       "The total of all your periodic payments is": formatFormMoney(input.calculator.totalOfAllPeriodicPaymentsCents),
-      "Total": formatFormMoney(input.calculator.totalBasePeriodicPaymentsCents),
+      "Total": "0.00",
       "Total Amount Due at Lease Signing or Delivery": formatFormMoney(input.calculator.amountDueAtSigningCents),
       "Total_2": formatFormMoney(input.calculator.amountDueAtSigningCents),
       "and any outstanding prior credit or lease balance": "0.00",
-      "due on the": leaseWeekday,
-      "of each": "each",
+      "due on the": dueDay,
+      "of each": input.leaseInput.paymentFrequency === "Monthly" ? "month" : input.leaseInput.paymentFrequency === "Weekly" ? "week" : "other week",
       "payments of": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
-      "starting": leaseDate,
-      "undefined": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "starting": firstPaymentDate ? formDate(firstPaymentDate) : leaseDate,
+      "undefined": formatFormMoney(input.calculator.amountDueAtSigningCents),
       "undefined_2": "0.00",
       "undefined_3": "0.00",
       "undefined_4": "0.00",
-      "undefined_5": formatFormMoney(input.calculator.totalOfAllPeriodicPaymentsCents),
+      "undefined_5": formatFormMoney(input.calculator.totalOfPaymentsCents),
       "undefined_6": "0.00",
       "undefined_7": formatFormMoney(input.calculator.capitalizedCostReductionCents),
-      "undefined_8": formatFormMoney(input.leaseInput.titleFeeCents),
-      "undefined_9": formatFormMoney(input.leaseInput.registrationFeeCents),
-      "undefined_10": formatFormMoney(input.calculator.applicableTaxesCents),
+      "undefined_8": formatFormMoney(input.leaseInput.registrationFeeCents),
+      "undefined_9": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "undefined_10": formatFormMoney(input.leaseInput.originationFeeCents),
       "undefined_11": "0.00",
-      "undefined_12": formatFormMoney(input.leaseInput.originationFeeCents),
+      "undefined_12": formatFormMoney(input.leaseInput.titleFeeCents),
       "undefined_13": "0.00",
       "undefined_14": "0.00",
       "undefined_15": "0.00",
       "undefined_16": "0.00",
       "undefined_17": "0.00",
-      "undefined_18": formatFormMoney(input.calculator.amountDueAtSigningCents),
-      "undefined_19": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
-      "undefined_20": formatFormMoney(input.calculator.capitalizedCostReductionCents),
-      "undefined_21": formatFormMoney(input.leaseInput.documentPreparationFeeCents),
-      "undefined_22": formatFormMoney(input.leaseInput.titleFeeCents),
-      "undefined_23": formatFormMoney(input.leaseInput.registrationFeeCents),
-      "undefined_24": formatFormMoney(input.calculator.applicableTaxesCents),
-      "undefined_25": formatFormMoney(input.calculator.amountDueAtSigningCents),
-      "undefined_26": formatFormMoney(input.calculator.grossCapitalizedCostCents),
+      "undefined_18": formatFormMoney(input.calculator.applicableTaxesCents),
+      "undefined_19": "0.00",
+      "undefined_20": "0.00",
+      "undefined_21": formatFormMoney(input.calculator.amountDueAtSigningCents),
+      "undefined_22": "0.00",
+      "undefined_23": "0.00",
+      "undefined_24": "0.00",
+      "undefined_25": "0.00",
+      "undefined_26": formatFormMoney(input.leaseInput.additionalItemsCents),
       "undefined_27": formatFormMoney(input.calculator.grossCapitalizedCostTotalCents),
       "undefined_28": formatFormMoney(input.calculator.capitalizedCostReductionCents),
       "undefined_29": formatFormMoney(input.calculator.adjustedCapitalizedCostCents),
@@ -374,17 +423,18 @@ function leaseTemplateFieldValues(input: {
       "undefined_31": formatFormMoney(input.calculator.depreciationAndAmortizedAmountCents),
       "undefined_32": "0.00",
       "undefined_33": formatFormMoney(input.calculator.totalBasePeriodicPaymentsCents),
-      "undefined_34": formatFormMoney(input.calculator.totalOfAllPeriodicPaymentsCents),
-      "undefined_35": formatFormMoney(input.calculator.estimatedFeesAndTaxesOverTermCents),
-      "undefined_36": formatFormMoney(input.calculator.totalOfPaymentsCents),
+      "undefined_34": String(paymentCount),
+      "undefined_35": formatFormMoney(input.calculator.basePeriodicPaymentCents),
+      "undefined_36": "0.00",
+      "undefined-43": formatFormMoney(input.calculator.estimatedFeesAndTaxesOverTermCents),
       "undefined_38": "0.00",
-      "undefined_39": formatFormMoney(input.calculator.dealerGrossProfitCents),
+      "undefined_39": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
       "Year": input.vehicle.year,
       "Make": input.vehicle.make,
       "Model": input.vehicle.model,
       "VIN": input.vehicle.vin,
       "Color": input.vehicle.color,
-      "Veh Lic": input.dealNumber
+      "Veh Lic": input.vehicle.license
     };
   }
 
@@ -409,9 +459,9 @@ function leaseTemplateFieldValues(input: {
   if (input.formId === "kap-warranty") {
     return {
       ...common,
-      "Current Mileage": "",
-      "Service Facility": "",
-      "Service Facility Telephone Number": ""
+      "Current Mileage": input.vehicle.mileage,
+      "Service Facility": text(input.leaseFacts.serviceFacility, ""),
+      "Service Facility Telephone Number": text(input.leaseFacts.serviceFacilityPhone, "")
     };
   }
 
@@ -531,20 +581,11 @@ function buildPersonalReferencesDocumentHtml(input: {
   vehicle: ReturnType<typeof vehicleFacts>;
 }) {
   const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.trim}`.replace(/\s+/g, " ").trim();
-  const references = [1, 2, 3].map((index) => `
-    <section>
+  const references = [1, 2, 3, 4, 5].map((index) => `
+    <section class="reference">
       <h2>Reference ${index}</h2>
-      <table>
-        <tbody>
-          <tr><th>Full name</th><td></td></tr>
-          <tr><th>Relationship to customer</th><td></td></tr>
-          <tr><th>Phone number</th><td></td></tr>
-          <tr><th>Alternate phone / email</th><td></td></tr>
-          <tr><th>Address</th><td></td></tr>
-          <tr><th>Best time to contact</th><td></td></tr>
-          <tr><th>Staff verification notes</th><td></td></tr>
-        </tbody>
-      </table>
+      <div class="contact-row"><label>Full name<span></span></label><label>Relationship<span></span></label><label>Phone<span></span></label><label>Alternate phone / email<span></span></label></div>
+      <div class="verification-row"><label>Best time to contact<span></span></label><label>Years known<span></span></label><label>Staff verification notes<span></span></label></div>
     </section>
   `).join("");
 
@@ -554,46 +595,39 @@ function buildPersonalReferencesDocumentHtml(input: {
   <meta charset="utf-8" />
   <title>${escapeHtml(input.label)}</title>
   <style>
-    body { color: #061735; font-family: Arial, sans-serif; margin: 32px; }
-    h1 { font-size: 26px; margin: 0 0 6px; }
-    h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
-    p, li { color: #34445d; line-height: 1.45; }
-    .meta, .notice { color: #52647d; margin: 0 0 18px; }
-    .notice { background: #f6f9ff; border: 1px solid #dbe6f8; border-radius: 10px; padding: 12px; }
-    table { border-collapse: collapse; margin-top: 12px; width: 100%; }
-    th, td { border: 1px solid #dbe6f8; min-height: 28px; padding: 10px; text-align: left; vertical-align: top; }
-    th { background: #f6f9ff; color: #34445d; width: 34%; }
-    .signature { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
-    .line { border-top: 1px solid #061735; padding-top: 8px; }
+    * { box-sizing: border-box; }
+    @page { size: letter; margin: 0.45in; }
+    body { color: #20252b; font: 11px Arial, sans-serif; margin: 24px auto; max-width: 720px; }
+    .letterhead { border-bottom: 1px solid #bfc7ce; margin-bottom: 12px; padding-bottom: 8px; }
+    .letterhead strong { font-size: 15px; }
+    .letterhead p { margin: 3px 0; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    h2 { font-size: 12px; margin: 6px 0; }
+    p, li { line-height: 1.35; }
+    .notice { margin: 0 0 10px; }
+    .details { display: grid; gap: 6px 16px; grid-template-columns: 1fr 1fr; border-block: 1px solid #bfc7ce; padding: 8px 0; margin-bottom: 8px; }
+    .reference { break-inside: avoid; border-bottom: 1px solid #d1d6db; padding: 4px 0; }
+    .contact-row { display: grid; gap: 8px; grid-template-columns: 1.4fr 1fr 1fr 1.4fr; }
+    .verification-row { display: grid; gap: 8px; grid-template-columns: 1.2fr 0.6fr 3fr; margin-top: 5px; }
+    label { display: block; font-size: 9px; }
+    label span { display: block; height: 18px; border: 1px solid #bfc7ce; margin-top: 3px; }
+    .authorization { margin-top: 12px; }
+    .authorization p { margin: 5px 0; }
+    .signature { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-top: 26px; }
+    .line { border-top: 1px solid #20252b; padding-top: 5px; }
+    @media print { body { margin: 0; max-width: none; } }
+    @media screen and (max-width: 500px) { body { padding: 0 12px; } .contact-row, .details { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
+  <header class="letterhead"><strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
   <h1>${escapeHtml(input.label)}</h1>
-  <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.sourceBasis)} · ${escapeHtml(input.trigger)}</p>
-  <p class="notice">Use this form when a customer is purchasing a vehicle on credit or payments. References are collected for underwriting, account servicing, locating the customer, and verifying contact information. Staff should follow dealership policy and applicable law before contacting any reference.</p>
-  <section>
-    <h2>Deal and customer</h2>
-    <table>
-      <tbody>
-        <tr><th>Customer / buyer</th><td>${escapeHtml(input.customerName)}</td></tr>
-        <tr><th>Deal</th><td>${escapeHtml(input.dealNumber)}</td></tr>
-        <tr><th>Deal type</th><td>${escapeHtml(input.dealType)}</td></tr>
-        <tr><th>Vehicle</th><td>${escapeHtml(vehicleLine || "Not captured")}</td></tr>
-        <tr><th>VIN</th><td>${escapeHtml(input.vehicle.vin)}</td></tr>
-        <tr><th>Stock #</th><td>${escapeHtml(input.vehicle.stockNumber)}</td></tr>
-        <tr><th>Sale price / value</th><td>${escapeHtml(input.salePrice)}</td></tr>
-        <tr><th>Payment / funding</th><td>${escapeHtml(input.paymentFunding)}</td></tr>
-      </tbody>
-    </table>
-  </section>
+  <p class="notice">Customer must provide at least five reachable personal references. All five entries are required.</p>
+  <div class="details"><div><strong>Customer:</strong> ${escapeHtml(input.customerName)}</div><div><strong>Deal / type:</strong> ${escapeHtml(input.dealNumber)} / ${escapeHtml(input.dealType)}</div><div><strong>Vehicle:</strong> ${escapeHtml(vehicleLine)}</div><div><strong>VIN:</strong> ${escapeHtml(input.vehicle.vin)}</div><div><strong>Customer phone:</strong> ____________________</div><div><strong>Date:</strong> ${escapeHtml(input.generatedAt.slice(0, 10))}</div></div>
   ${references}
-  <section>
+  <section class="authorization">
     <h2>Customer authorization</h2>
-    <ul>
-      <li>Customer confirms the references listed are accurate and may be contacted by Time Motor Sales for verification, underwriting, account servicing, payment follow-up, skipped-account location, insurance, title, or vehicle recovery purposes where allowed by law.</li>
-      <li>Customer agrees to update Time Motor Sales if any phone number, address, employment, residence, or reference information changes during the payment term.</li>
-      <li>Customer understands that false, incomplete, or unreachable reference information may delay approval, delivery, or account setup.</li>
-    </ul>
+    ${REFERENCE_AUTHORIZATION.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
   </section>
   <div class="signature">
     <div class="line">Customer signature / date</div>
@@ -1295,6 +1329,17 @@ function buildBhphDocumentHtml(input: {
   generatedAt: string;
   vehicle: ReturnType<typeof vehicleFacts>;
 }) {
+  if (input.form.id === "bhph-references-contact-authorization") {
+    return buildPersonalReferencesDocumentHtml({
+      ...input,
+      dealType: "BHPH",
+      label: input.form.label,
+      paymentFunding: input.bhph.paymentFrequency,
+      salePrice: input.bhph.salePrice,
+      sourceBasis: input.form.basis,
+      trigger: input.form.trigger
+    });
+  }
   const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.trim}`.replace(/\s+/g, " ").trim();
   const dealerName = "Time Motor Sales, Inc.";
   const dealerAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
@@ -1321,18 +1366,6 @@ function buildBhphDocumentHtml(input: {
     ["Insurance status", input.bhph.insuranceStatus],
     ["Warranty / as-is posture", input.bhph.warrantyPosture]
   ];
-  const bhphReferenceRows = [1, 2, 3, 4, 5].flatMap((index): Array<[string, string]> => [
-    [`Reference ${index} full name`, ""],
-    [`Reference ${index} relationship to buyer`, ""],
-    [`Reference ${index} phone number`, ""],
-    [`Reference ${index} alternate phone`, ""],
-    [`Reference ${index} email`, ""],
-    [`Reference ${index} street address / city / state / ZIP`, ""],
-    [`Reference ${index} employer, if known`, ""],
-    [`Reference ${index} years known`, ""],
-    [`Reference ${index} best time to contact`, ""],
-    [`Reference ${index} staff verification notes`, ""]
-  ]);
   const sectionsByForm: Record<string, Array<{ heading: string; rows?: Array<[string, string]>; bullets?: string[] }>> = {
     "bhph-installment-contract": [
       {
@@ -1430,33 +1463,6 @@ function buildBhphDocumentHtml(input: {
           "A starter-interrupt device must not be used in a way prohibited by law or in a manner that knowingly creates an immediate safety hazard.",
           "Buyer may not remove, disable, tamper with, shield, damage, relocate, or interfere with an installed device.",
           "If no device is installed or activated, this document records that the disclosure was reviewed as a BHPH account-control item and does not itself authorize a device."
-        ]
-      }
-    ],
-    "bhph-references-contact-authorization": [
-      {
-        heading: "Verification record",
-        rows: [
-          ["Employer / income source", input.bhph.employer],
-          ["Income proof", input.bhph.income],
-          ["Residence proof", input.bhph.residence],
-          ["Reference requirement", "Buyer must provide at least five reachable personal references unless a manager approves an exception."],
-          ["References captured / verified", input.bhph.references],
-          ["Open stipulations", input.bhph.stipulations]
-        ]
-      },
-      {
-        heading: "Five required BHPH references",
-        rows: bhphReferenceRows
-      },
-      {
-        heading: "Contact authorization",
-        bullets: [
-          "Buyer confirms the five references listed are accurate, current, not fabricated, and personally known to the buyer.",
-          "Buyer authorizes the dealership and any holder or servicer to verify identity, residence, employment, income, references, insurance, title, vehicle location, and account information for underwriting and servicing.",
-          "References may be contacted for verification, account servicing, or locating the buyer or vehicle, but communications must comply with applicable law and dealership policy.",
-          "Buyer agrees to keep phone, email, address, employer, insurance, and reference information current during the account term.",
-          "Buyer may revoke optional marketing or nonrequired communication consent without changing the buyer's obligation to receive legally required account notices."
         ]
       }
     ],
@@ -1605,6 +1611,7 @@ export async function generateUnifiedCrmContractPacket(
       ? requiredBhphFormIds()
       : requiredMinnesotaSaleFormIds();
   const selectedIds = formIds(input.preparedFormIds, packetForms, requiredIds);
+  if (packetType === "LEASE_TO_OWN" && !selectedIds.includes("lease-summary")) selectedIds.push("lease-summary");
   const selectedForms = packetForms.filter((form) => selectedIds.includes(form.id));
   if (selectedForms.length === 0) {
     throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Select at least one form before generating a packet.");
@@ -1621,8 +1628,23 @@ export async function generateUnifiedCrmContractPacket(
   const packetId = `contract-packet-${crypto.randomUUID()}`;
   const bhphInput = bhphFacts(input.bhph);
   const rentalInput = dailyRentalFacts(input.dailyRental);
-  const leaseInput = leaseCalculatorInput(input.leaseCalculator);
-  const leaseOutput = calculateLeaseToOwn(leaseInput);
+  const requestedLeaseInput = leaseCalculatorInput(input.leaseCalculator);
+  const leaseOutput = calculateLeaseToOwn(requestedLeaseInput);
+  const leaseInput = { ...requestedLeaseInput, contractLength: leaseOutput.contractLength };
+  const leaseFacts = input.leaseFacts && typeof input.leaseFacts === "object" ? input.leaseFacts as Record<string, unknown> : {};
+  if (packetType === "LEASE_TO_OWN") {
+    const error = leaseAgreementCalculationError(leaseInput, leaseOutput);
+    if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
+    for (const key of ["agreementDate", "firstPaymentDate"]) {
+      const value = text(leaseFacts[key], "");
+      if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value)) {
+        throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Enter valid lease and payment dates.");
+      }
+    }
+    if (text(leaseFacts.firstPaymentDate, "") && text(leaseFacts.firstPaymentDate, "") <= text(leaseFacts.agreementDate, generatedAt.slice(0, 10))) {
+      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "The next payment date must follow the lease date.");
+    }
+  }
   const leaseRows: Array<[string, string]> = packetType === "LEASE_TO_OWN" ? [
     ["Payment frequency", leaseInput.paymentFrequency],
     ["Contract length", `${leaseInput.contractLength} payment(s)`],
@@ -1635,10 +1657,51 @@ export async function generateUnifiedCrmContractPacket(
     ["Total of payments", formatCurrency(leaseOutput.totalOfPaymentsCents)]
   ] : [];
 
+  let summary: LeaseSummary | undefined;
+  if (packetType === "LEASE_TO_OWN") {
+    const agreementDate = text(leaseFacts.agreementDate, generatedAt.slice(0, 10));
+    const nextDate = text(leaseFacts.firstPaymentDate, leaseNextPaymentDate(agreementDate, leaseInput.paymentFrequency));
+    const frequency = leaseInput.paymentFrequency === "BiWeekly" ? "Every two weeks" : leaseInput.paymentFrequency;
+    const template = await PDFDocument.load(publicPdfBytes("/forms/lease-to-own/w2-lease.pdf"));
+    const policy = (name: string) => template.getForm().getTextField(name).getText() || "See signed lease";
+    summary = {
+      identity: [
+        ["Lessee / co-lessee", `${customerName} / ${text(leaseFacts.coLesseeName, "None")}`],
+        ["Vehicle", `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim === "Not captured" ? "" : ` ${vehicle.trim}`} | VIN: ${vehicle.vin}`],
+        ["Deal / lease date / mileage", `${dealNumber} / ${formDate(agreementDate)} / ${vehicle.mileage || "Not captured"}`]
+      ],
+      highlights: [["Due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)], ["Regular payment", formatCurrency(leaseOutput.totalPeriodicPaymentCents)], ["Next payment", leaseInput.contractLength > 1 ? formDate(nextDate) : "None"], ["End purchase price", formatCurrency(leaseOutput.residualValueCents)]],
+      signing: { heading: "Signing breakdown", rows: [
+        ["Capitalized cost reduction", formatCurrency(leaseOutput.capitalizedCostReductionCents)],
+        ["First payment (included)", formatCurrency(leaseOutput.totalPeriodicPaymentCents)],
+        ["Upfront sales tax", formatCurrency(leaseOutput.applicableTaxesCents)],
+        ["Title / registration", `${formatCurrency(leaseInput.titleFeeCents)} / ${formatCurrency(leaseInput.registrationFeeCents)}`],
+        ["Document preparation", formatCurrency(leaseInput.documentPreparationFeeCents)],
+        ["Origination", formatCurrency(leaseInput.originationFeeCents)],
+        ["Total due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)]
+      ] },
+      payments: { heading: "Payment schedule & lease cost", rows: [
+        ["Frequency", frequency],
+        ["Payments (includes first)", String(leaseInput.contractLength)],
+        ["Final payment", formatCurrency(leaseOutput.finalPeriodicPaymentCents)],
+        ["All periodic payments", formatCurrency(leaseOutput.totalOfAllPeriodicPaymentsCents)],
+        [`Est. renewals (${leaseOutput.renewalRegistrationCount})`, formatCurrency(leaseInput.registrationFeeCents * leaseOutput.renewalRegistrationCount)],
+        ["Official fees/taxes (incl. above)", formatCurrency(leaseOutput.estimatedFeesAndTaxesOverTermCents)],
+        ["Estimated total lease payments", formatCurrency(leaseOutput.totalOfPaymentsCents)]
+      ] },
+      sections: [
+        { heading: "Purchase option", paragraphs: [`Ownership does not transfer automatically. End-of-lease purchase: ${formatCurrency(leaseOutput.residualValueCents)} plus applicable taxes and official fees, separate from the lease total. Early purchase follows the lease formula: remaining base payments plus residual, less applicable discounts, plus other amounts due and purchase taxes/fees.`] },
+        { heading: "Insurance, maintenance & use", paragraphs: ["Maintain liability, collision and comprehensive insurance with a deductible no greater than $500; name the lessor as loss payee/additional insured as required by the lease. Maintenance and repairs are your responsibility. Observe permitted-driver restrictions and excluded-driver addenda; no commercial use."] },
+        { heading: "Mileage, late payments & return", paragraphs: [`Allowance: ${policy("cents for each excess mile over")} miles per month; excess mileage: ${policy("rate")} cents per mile. Late charge: $${policy("undefined_40")} after ${policy("Days")} business days, as stated in the lease. Return the vehicle in the required condition and pay amounts due through termination; damage, loss, default or early termination may cause additional charges under the lease.`] }
+      ]
+    };
+  }
+
   const documents = await Promise.all(selectedForms.map(async (form) => {
-    const isPersonalReferencesForm = form.id === "personal-references";
+    const isLeaseSummary = form.id === "lease-summary" && summary !== undefined;
+    const isPersonalReferencesForm = form.id === "personal-references" || form.id === "bhph-references-contact-authorization";
     const pdfTemplate = hasPdfTemplate(form);
-    const isPdfDocument = isPersonalReferencesForm || pdfTemplate;
+    const isPdfDocument = isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
     const leaseFieldValues = hasPdfTemplate(form) && packetType === "LEASE_TO_OWN"
       ? leaseTemplateFieldValues({
           calculator: leaseOutput,
@@ -1648,6 +1711,7 @@ export async function generateUnifiedCrmContractPacket(
           formId: form.id,
           generatedAt,
           leaseInput,
+          leaseFacts,
           paymentFunding,
           salePrice,
           vehicle
@@ -1666,14 +1730,17 @@ export async function generateUnifiedCrmContractPacket(
         })
       : {};
     return {
-      ...(isPersonalReferencesForm ? {
+      ...(isLeaseSummary ? {
+        contentBase64: await leaseSummaryPdfBase64(summary!),
+        contentType: "application/pdf" as const
+      } : isPersonalReferencesForm ? {
         contentBase64: await personalReferencesPdfBase64({
           customerName,
           dealNumber,
-          dealType,
+          dealType: packetType === "BHPH" ? "BHPH" : dealType,
           generatedAt,
-          paymentFunding,
-          salePrice,
+          paymentFunding: packetType === "BHPH" ? bhphInput.paymentFrequency : paymentFunding,
+          salePrice: packetType === "BHPH" ? bhphInput.salePrice : salePrice,
           vehicle
         }),
         contentType: "application/pdf" as const
@@ -1694,7 +1761,7 @@ export async function generateUnifiedCrmContractPacket(
       category: form.category,
       downloadFileName: `${form.id}-${packet}.${isPdfDocument ? "pdf" : "html"}`,
       formId: form.id,
-      html: packetType === "DAILY_RENTAL"
+      html: isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
         ? buildRentalDocumentHtml({
             customerName,
             dealNumber,

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
@@ -603,22 +603,26 @@ function CompletionGateList({ missing }: { missing: string[] }) {
 
 function CustomerIdentityDetails({
   includeCreditFields = false,
-  includePhoneEmail = true
+  includePhoneEmail = true,
+  values,
+  onValueChange
 }: {
   includeCreditFields?: boolean;
   includePhoneEmail?: boolean;
+  values?: Partial<Record<"streetAddress" | "city" | "state" | "zip" | "idState" | "idNumber", string>>;
+  onValueChange?: (key: "streetAddress" | "city" | "state" | "zip" | "idState" | "idNumber", value: string) => void;
 }) {
   return (
     <>
       <label><span>Date of birth</span><input placeholder="MM/DD/YYYY" /></label>
       {includeCreditFields ? <label><span>SSN / ITIN</span><input /></label> : null}
       <label><span>ID type</span><select><option>Driver license</option><option>State ID</option><option>Passport</option><option>Military ID</option></select></label>
-      <label><span>ID state</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-      <label><span>ID number</span><input /></label>
-      <label className={styles.retailWide}><span>Street address</span><input /></label>
-      <label><span>City</span><input /></label>
-      <label><span>State</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-      <label><span>Zip</span><input /></label>
+      <label><span>ID state</span><select value={values?.idState} onChange={(event) => onValueChange?.("idState", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>ID number</span><input value={values?.idNumber} onChange={(event) => onValueChange?.("idNumber", event.target.value)} /></label>
+      <label className={styles.retailWide}><span>Street address</span><input value={values?.streetAddress} onChange={(event) => onValueChange?.("streetAddress", event.target.value)} /></label>
+      <label><span>City</span><input value={values?.city} onChange={(event) => onValueChange?.("city", event.target.value)} /></label>
+      <label><span>State</span><select value={values?.state} onChange={(event) => onValueChange?.("state", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>Zip</span><input value={values?.zip} onChange={(event) => onValueChange?.("zip", event.target.value)} /></label>
       {includePhoneEmail ? <label><span>Cell phone</span><input /></label> : null}
       {includePhoneEmail ? <label><span>Email</span><input /></label> : null}
     </>
@@ -1259,13 +1263,6 @@ function RetailSaleExecutionDesk({
 
     </div>
   );
-}
-
-function percentToBasisPoints(value: string) {
-  const normalized = value.trim().replace("%", "");
-  if (!normalized) return 0;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
 }
 
 type RentalEvidenceRequirement = {
@@ -2046,6 +2043,8 @@ function LeaseToOwnExecutionDesk({
     year: ""
   });
   const [leaseInputs, setLeaseInputs] = useState({
+    calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT",
+    targetPayment: "$250.00",
     additionalItems: "$0.00",
     capitalizedCostReduction: "$0.00",
     contractLength: "36",
@@ -2058,11 +2057,21 @@ function LeaseToOwnExecutionDesk({
     paymentFrequency: "Monthly" as LeasePaymentFrequency,
     registrationFee: "$516.00",
     salesTaxRate: "6.875",
+    signingPaymentMode: "CAPITALIZED_REDUCTION" as "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION",
     titleFee: "$102.80",
     warrantyCost: "$0.00",
     wholesaleCost: "$0.00"
   });
   const [leaseFacts, setLeaseFacts] = useState({
+    agreementDate: "",
+    firstPaymentDate: "",
+    streetAddress: "",
+    city: "",
+    zip: "",
+    idState: "MN",
+    idNumber: "",
+    lesseeCounty: "",
+    state: "MN",
     agentName: "",
     coLesseeName: "",
     effectiveDate: "",
@@ -2076,40 +2085,53 @@ function LeaseToOwnExecutionDesk({
   const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode stock, year, and make.");
 
   const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
-    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) || 0,
-    capitalizedCostReductionCents: 0,
+    calculationMode: leaseInputs.calculationMode,
+    targetPaymentCents: dollarsToCents(leaseInputs.targetPayment) ?? 0,
+    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) ?? 0,
+    capitalizedCostReductionCents: dollarsToCents(leaseInputs.capitalizedCostReduction) ?? 0,
     contractLength: Number(leaseInputs.contractLength) || 0,
-    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) || 0,
-    downPaymentCents: dollarsToCents(leaseInputs.downPayment) || 0,
-    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) || 0,
+    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) ?? 0,
+    downPaymentCents: dollarsToCents(leaseInputs.downPayment) ?? 0,
+    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) ?? 0,
     multiplierBasisPoints: basisPointsFromMultiplier(leaseInputs.multiplier),
-    originationFeeCents: dollarsToCents(leaseInputs.originationFee) || 0,
-    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) || 0,
+    originationFeeCents: dollarsToCents(leaseInputs.originationFee) ?? 0,
+    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) ?? 0,
     paymentFrequency: leaseInputs.paymentFrequency,
-    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) || 0,
-    salesTaxRateBasisPoints: percentToBasisPoints(leaseInputs.salesTaxRate),
-    titleFeeCents: dollarsToCents(leaseInputs.titleFee) || 0,
-    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) || 0,
-    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) || 0
+    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) ?? 0,
+    salesTaxRateBasisPoints: Number(leaseInputs.salesTaxRate.replace("%", "")) * 100,
+    signingPaymentMode: leaseInputs.signingPaymentMode,
+    titleFeeCents: dollarsToCents(leaseInputs.titleFee) ?? 0,
+    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) ?? 0,
+    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) ?? 0
   }), [leaseInputs]);
   const calculator = useMemo(() => calculateLeaseToOwn(calculatorInput), [calculatorInput]);
+  const calculationError = leaseAgreementCalculationError(calculatorInput, calculator);
   const packetFormCount = LEASE_TO_OWN_FORM_PACKET.length;
-  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => preparedForms.includes(form.id)).length;
+  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => form.id === "lease-summary" || preparedForms.includes(form.id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
 
   function updateLeaseInput(key: keyof typeof leaseInputs, value: string) {
-    setLeaseInputs((current) => ({ ...current, [key]: key === "paymentFrequency" ? value as LeasePaymentFrequency : value }));
+    setContractPacket(null);
+    setLeaseInputs((current) => ({
+      ...current,
+      ...(key === "calculationMode" && value === "TERM" && calculator.contractLength > 0
+        ? { contractLength: String(calculator.contractLength) } : {}),
+      [key]: key === "paymentFrequency" ? value as LeasePaymentFrequency : value
+    }));
   }
 
   function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
+    setContractPacket(null);
     setVehicleFacts((current) => ({ ...current, [key]: value }));
   }
 
   function updateLeaseFact(key: keyof typeof leaseFacts, value: string) {
+    setContractPacket(null);
     setLeaseFacts((current) => ({ ...current, [key]: value }));
   }
 
   function updateVin(value: string) {
+    setContractPacket(null);
     const vin = normalizeVin(value);
     const stockNumber = getStockNumberFromVin(vin);
     setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
@@ -2117,6 +2139,7 @@ function LeaseToOwnExecutionDesk({
   }
 
   function updateVehicleSearch(value: string) {
+    setContractPacket(null);
     onVehicleChange(value);
     const vin = getVinFromVehicleInput(value);
     if (!vin) return;
@@ -2133,6 +2156,7 @@ function LeaseToOwnExecutionDesk({
       vin: vin || current.vin,
       year: decoded.year || current.year
     }));
+    setContractPacket(null);
     setDecodeStatus(decoded.valid ? "VIN decoded. Confirm model, color, mileage, and lease values before delivery." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
     if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
   }
@@ -2142,10 +2166,15 @@ function LeaseToOwnExecutionDesk({
   }
 
   function prepareRequiredForms() {
+    setContractPacket(null);
     setPreparedForms((current) => Array.from(new Set([...current, ...allLeaseToOwnFormIds()])));
   }
 
   async function generateLeasePacket() {
+    if (calculationError) {
+      setPacketStatus({ kind: "error", message: calculationError });
+      return;
+    }
     setPacketStatus({ kind: "generating", message: "Generating and archiving lease-to-own packet..." });
     const response = await fetch("/api/crm/v1/contract-packets", {
       body: JSON.stringify({
@@ -2155,11 +2184,15 @@ function LeaseToOwnExecutionDesk({
         feeTotal: formatCurrency(calculator.estimatedFeesAndTaxesOverTermCents),
         idempotencyKey: crypto.randomUUID(),
         leaseCalculator: calculatorInput,
+        leaseFacts: { ...leaseFacts, lesseeAddress: [leaseFacts.streetAddress, leaseFacts.city, leaseFacts.state, leaseFacts.zip].filter(Boolean).join(", "), lesseeState: leaseFacts.state },
         packetType: "LEASE_TO_OWN",
         paymentFunding: `${leaseInputs.paymentFrequency} payments`,
         preparedFormIds: preparedForms.length > 0 ? preparedForms : allLeaseToOwnFormIds(),
         salePrice: formatCurrency(calculator.grossCapitalizedCostCents),
         vehicle: {
+          bodyStyle: vehicleFacts.bodyStyle,
+          license: vehicleFacts.license,
+          mileage: vehicleFacts.mileage,
           color: vehicleFacts.color,
           make: vehicleFacts.make,
           model: vehicleFacts.model,
@@ -2249,7 +2282,7 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Lessee</span><input readOnly value={customerName} /></label>
           <label><span>Co-lessee</span><input value={leaseFacts.coLesseeName} onChange={(event) => updateLeaseFact("coLesseeName", event.target.value)} /></label>
-          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} />
+          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} values={leaseFacts} onValueChange={updateLeaseFact} />
           <label><span>Cell phone</span><input value={leaseFacts.lesseePhone} onChange={(event) => updateLeaseFact("lesseePhone", event.target.value)} /></label>
           <label><span>Email</span><input value={leaseFacts.lesseeEmail} onChange={(event) => updateLeaseFact("lesseeEmail", event.target.value)} /></label>
           <label><span>Insurance company</span><input value={leaseFacts.insuranceCompany} onChange={(event) => updateLeaseFact("insuranceCompany", event.target.value)} /></label>
@@ -2286,7 +2319,7 @@ function LeaseToOwnExecutionDesk({
       <section className={styles.retailSection} id="lease-calculator">
         <header>
           <span>Lease calculator</span>
-          <strong>Use the dealership W2 calculator structure</strong>
+          <strong>Lease terms and signing amounts</strong>
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Wholesale cost</span><input value={leaseInputs.wholesaleCost} onChange={(event) => updateLeaseInput("wholesaleCost", event.target.value)} /></label>
@@ -2299,10 +2332,16 @@ function LeaseToOwnExecutionDesk({
           <label><span>Title fee</span><input value={leaseInputs.titleFee} onChange={(event) => updateLeaseInput("titleFee", event.target.value)} /></label>
           <label><span>Registration fee</span><input value={leaseInputs.registrationFee} onChange={(event) => updateLeaseInput("registrationFee", event.target.value)} /></label>
           <label><span>Document prep fee</span><input value={leaseInputs.documentPreparationFee} onChange={(event) => updateLeaseInput("documentPreparationFee", event.target.value)} /></label>
-          <label><span>Down payment</span><input value={leaseInputs.downPayment} onChange={(event) => updateLeaseInput("downPayment", event.target.value)} /></label>
+          <label><span>Signing amount entry</span><select value={leaseInputs.signingPaymentMode} onChange={(event) => updateLeaseInput("signingPaymentMode", event.target.value)}><option value="CAPITALIZED_REDUCTION">Capitalized cost reduction</option><option value="DOWN_PAYMENT">Total cash at signing</option></select></label>
+          <label><span>Total cash at signing</span><input disabled={leaseInputs.signingPaymentMode !== "DOWN_PAYMENT"} value={leaseInputs.downPayment} onChange={(event) => updateLeaseInput("downPayment", event.target.value)} /></label>
           <label><span>Frequency</span><select value={leaseInputs.paymentFrequency} onChange={(event) => updateLeaseInput("paymentFrequency", event.target.value)}><option>Weekly</option><option>BiWeekly</option><option>Monthly</option></select></label>
-          <label><span>Contract length</span><input value={leaseInputs.contractLength} onChange={(event) => updateLeaseInput("contractLength", event.target.value)} /></label>
-          <label><span>Capitalized cost reduction</span><input readOnly value={formatCurrency(calculator.capitalizedCostReductionCents)} /></label>
+          <fieldset className={styles.leaseCalculationMode}><legend>Calculate by</legend><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "TERM"} onChange={() => updateLeaseInput("calculationMode", "TERM")} />By lease term</label><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} onChange={() => updateLeaseInput("calculationMode", "PAYMENT_AMOUNT")} />By payment amount</label></fieldset>
+          {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <label><span>Target payment amount</span><input inputMode="decimal" value={leaseInputs.targetPayment} onChange={(event) => updateLeaseInput("targetPayment", event.target.value)} /></label> : null}
+          <label><span>Number of payments</span><input type="number" min="1" step="1" readOnly={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} value={leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? calculator.contractLength || "" : leaseInputs.contractLength} onChange={(event) => updateLeaseInput("contractLength", event.target.value)} /></label>
+          <label><span>Capitalized cost reduction</span><input readOnly={leaseInputs.signingPaymentMode === "DOWN_PAYMENT"} value={leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? formatCurrency(calculator.capitalizedCostReductionCents) : leaseInputs.capitalizedCostReduction} onChange={(event) => updateLeaseInput("capitalizedCostReduction", event.target.value)} /></label>
+          <label><span>Lease date</span><input type="date" value={leaseFacts.agreementDate} onChange={(event) => updateLeaseFact("agreementDate", event.target.value)} /></label>
+          <label><span>Next payment date</span><input type="date" value={leaseFacts.firstPaymentDate} onChange={(event) => updateLeaseFact("firstPaymentDate", event.target.value)} /></label>
+          <label><span>County</span><input value={leaseFacts.lesseeCounty} onChange={(event) => updateLeaseFact("lesseeCounty", event.target.value)} /></label>
           <label><span>Origination fee</span><input value={leaseInputs.originationFee} onChange={(event) => updateLeaseInput("originationFee", event.target.value)} /></label>
           <label><span>Service facility</span><input value={leaseFacts.serviceFacility} onChange={(event) => updateLeaseFact("serviceFacility", event.target.value)} /></label>
           <label><span>Facility phone</span><input value={leaseFacts.serviceFacilityPhone} onChange={(event) => updateLeaseFact("serviceFacilityPhone", event.target.value)} /></label>
@@ -2310,12 +2349,16 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.leaseCalculatorSummary}>
           <div><span>Gross cap cost</span><strong>{formatCurrency(calculator.grossCapitalizedCostCents)}</strong></div>
           <div><span>Base payment</span><strong>{formatCurrency(calculator.basePeriodicPaymentCents)}</strong></div>
+          <div><span>Final payment</span><strong>{formatCurrency(calculator.finalPeriodicPaymentCents)}</strong></div>
+          <div><span>Residual / purchase option</span><strong>{formatCurrency(calculator.residualValueCents)}</strong></div>
+          <div><span>Up-front tax</span><strong>{formatCurrency(calculator.applicableTaxesCents)}</strong></div>
           <div><span>Due at signing</span><strong>{formatCurrency(calculator.amountDueAtSigningCents)}</strong></div>
           <div><span>Costs / taxes / fees</span><strong>{formatCurrency(calculator.costsTaxesFeesCents)}</strong></div>
           <div><span>Total payments</span><strong>{formatCurrency(calculator.totalOfPaymentsCents)}</strong></div>
           <div><span>Dealer gross</span><strong>{formatCurrency(calculator.dealerGrossProfitCents)}</strong></div>
           <button type="button" onClick={() => onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents))}>Use calculated amount</button>
         </div>
+        {calculationError ? <p role="alert" className={styles.retailPacketError}>{calculationError}</p> : null}
       </section>
 
       <section className={styles.retailSection} id="lease-contracts">
@@ -2373,10 +2416,10 @@ function LeaseToOwnExecutionDesk({
               ) : null}
               <div className={styles.retailFormsGrid}>
                 {LEASE_TO_OWN_FORM_PACKET.map((form) => {
-                  const prepared = preparedForms.includes(form.id);
+                  const prepared = form.id === "lease-summary" || preparedForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
-                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <input checked={prepared} disabled={form.id === "lease-summary"} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
                       <span>{form.category}</span>
                       <strong>{form.label}</strong>
                       <small>{form.description}</small>
@@ -2562,6 +2605,14 @@ function BhphExecutionDesk({
     if (!contractPacket) return;
     setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
     setPacketPreviewOpen(true);
+  }
+
+  function downloadBhphReferenceForm() {
+    if (!previewDocument?.contentBase64 || previewDocument.contentType !== "application/pdf") return;
+    const link = document.createElement("a");
+    link.href = documentDataUrl(previewDocument);
+    link.download = previewDocument.downloadFileName;
+    link.click();
   }
 
   async function generateBhphPacket() {
@@ -2778,6 +2829,7 @@ function BhphExecutionDesk({
                         <div>
                           <span>Reviewing</span>
                           <strong>{previewDocument?.label ?? "Generated BHPH form"}</strong>
+                          {previewDocument?.contentType === "application/pdf" ? <button type="button" onClick={downloadBhphReferenceForm}>Download reference form</button> : null}
                         </div>
                         <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated BHPH form preview"} />
                       </section>
@@ -4302,6 +4354,7 @@ export function CrmNextDealStartTool({
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <LeaseToOwnExecutionDesk
+                key={effectiveCustomerName}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
