@@ -415,6 +415,8 @@ export type ClaimHandoffInput = {
 };
 
 export type ClaimExecutionUpdateInput = {
+  approvedRepairAmount?: unknown;
+  approvalEvidenceId?: unknown;
   adjusterEmail?: unknown;
   adjusterName?: unknown;
   adjusterPhone?: unknown;
@@ -943,7 +945,9 @@ export async function attachClaimEvidence(
     createdByUserId: user.id,
     id: `claim-evidence-${randomUUID()}`
   };
-  const amount = isEstimateEvidence(evidence) ? extractApprovedAmount(evidenceSearchText(evidence)) : null;
+  const prior = await context.repository.findClaimById(claimId);
+  const manuallyReviewed = prior?.activities.some((activity) => activity.action === "CLAIM_APPROVED_AMOUNT_RECORDED" && activity.at === prior.claim.approvedAmountRecordedAt);
+  const amount = !manuallyReviewed && isEstimateEvidence(evidence) ? extractApprovedAmount(evidenceSearchText(evidence)) : null;
   const aggregate = await context.repository.addEvidence(claimId, evidence, amount ? {
     approvedAmountCents: amount.cents,
     approvedAmountConfidence: amount.confidence,
@@ -974,17 +978,28 @@ export async function updateClaimExecutionDetails(
   if (!prior) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
   const now = context.now().toISOString();
   const normalized = normalizeExecutionUpdate(raw);
+  if (normalized.approvedAmountCents !== undefined) {
+    const sourceId = text(raw.approvalEvidenceId) || prior.claim.approvedAmountSourceEvidenceId;
+    const source = sourceId ? prior.evidence.find((item) => item.id === sourceId && item.status !== "BLOCKED") : undefined;
+    if (sourceId && !source) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Choose an available supporting document from this claim.");
+    normalized.approvedAmountRecordedAt = now;
+    normalized.approvedAmountConfidence = "HIGH";
+    normalized.approvedAmountSourceEvidenceId = source?.id;
+    normalized.approvedAmountSourceDocumentId = source?.documentLibraryId;
+  }
   await context.repository.updateClaim(claimId, {
     ...normalized,
     lastActivityAt: now,
     nextAction: text(raw.nextAction) || (normalized.adjusterName || normalized.adjusterPhone || normalized.adjusterEmail ? "Review estimate or approval status" : prior.claim.nextAction)
   });
   await context.repository.addActivity(claimId, {
-    action: "CLAIM_EXECUTION_UPDATED",
+    action: normalized.approvedAmountCents !== undefined ? "CLAIM_APPROVED_AMOUNT_RECORDED" : "CLAIM_EXECUTION_UPDATED",
     actorUserId: user.id,
     actorUserName: user.name,
     at: now,
-    detail: activityUpdateDetail(raw, normalized),
+    detail: normalized.approvedAmountCents !== undefined
+      ? `Staff reviewed approved repairs: ${prior.claim.approvedAmountCents !== undefined ? formatMoneyCents(prior.claim.approvedAmountCents) : "Not recorded"} -> ${formatMoneyCents(normalized.approvedAmountCents)}. ${text(raw.note)}${normalized.approvedAmountSourceEvidenceId ? ` Supporting evidence: ${normalized.approvedAmountSourceEvidenceId}.` : ""}`
+      : activityUpdateDetail(raw, normalized),
     id: `claim-activity-${randomUUID()}`
   });
   const refreshed = await context.repository.findClaimById(claimId);
@@ -1342,7 +1357,7 @@ function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateR
   const estimate = [...aggregate.evidence]
     .filter((item) => isEstimateEvidence(item) && item.status !== "BLOCKED")
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
-  if (!estimate) {
+  if (!estimate && aggregate.claim.approvedAmountCents === undefined) {
     return {
       approvedAmountCents: null,
       approvedAmountLabel: "Pending approval",
@@ -1352,24 +1367,27 @@ function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateR
     };
   }
 
-  const evidenceText = evidenceSearchText(estimate);
+  const evidenceText = estimate ? evidenceSearchText(estimate) : "";
   const extractedAmount = extractApprovedAmount(evidenceText);
   const approvedAmountCents = aggregate.claim.approvedAmountCents ?? extractedAmount?.cents ?? null;
   const amountSource = recordedSource ?? estimate;
   const amountFound = approvedAmountCents !== null;
+  const manuallyReviewed = aggregate.activities.some((activity) => activity.action === "CLAIM_APPROVED_AMOUNT_RECORDED" && activity.at === aggregate.claim.approvedAmountRecordedAt);
 
   return {
     approvedAmountCents,
     approvedAmountLabel: amountFound ? formatMoneyCents(approvedAmountCents) : "Estimate attached - amount review needed",
     confidence: amountFound ? aggregate.claim.approvedAmountConfidence ?? extractedAmount?.confidence ?? "MEDIUM" : "NEEDS_REVIEW",
-    detail: amountFound
+    detail: manuallyReviewed
+      ? "Approved repair amount was reviewed and recorded by staff. See the claim activity timeline for the approval note."
+      : amountFound
       ? "Approved repair amount was read from the uploaded estimate and recorded on the claim with its source document for workflow and billing use."
       : "Estimate evidence is attached, but the approved repair amount was not found in the title, file name, or note.",
-    documentLibraryId: amountSource.documentLibraryId,
-    evidenceId: amountSource.id,
-    fileName: amountSource.fileName,
-    receivedAt: aggregate.claim.approvedAmountRecordedAt ?? amountSource.createdAt,
-    sourceTitle: amountSource.title,
+    documentLibraryId: amountSource?.documentLibraryId,
+    evidenceId: amountSource?.id,
+    fileName: amountSource?.fileName,
+    receivedAt: aggregate.claim.approvedAmountRecordedAt ?? amountSource?.createdAt,
+    sourceTitle: amountSource?.title ?? "Staff-recorded approval",
     status: amountFound ? "AMOUNT_FOUND" : "REVIEW_NEEDED"
   };
 }
@@ -1673,6 +1691,18 @@ function evidenceSearchText(evidence: Pick<ClaimEvidenceRecord, "extractedText" 
 
 function normalizeExecutionUpdate(raw: ClaimExecutionUpdateInput): Partial<InsuranceClaimRecord> {
   const update: Partial<InsuranceClaimRecord> = {};
+  if (raw.approvedRepairAmount !== undefined) {
+    const amount = typeof raw.approvedRepairAmount === "number" ? String(raw.approvedRepairAmount) : text(raw.approvedRepairAmount);
+    if (!/^\$?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(amount)) {
+      throw new ClaimsWorkspaceError("CLAIM_INVALID", "Enter a valid approved repair amount with no more than two decimal places.");
+    }
+    const cents = moneyTextToCents(amount.replace(/^\$/, ""));
+    if (!Number.isSafeInteger(cents) || cents < 0 || cents > 2_147_483_647) {
+      throw new ClaimsWorkspaceError("CLAIM_INVALID", "Approved repair amount is outside the supported range.");
+    }
+    if (!text(raw.note)) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Record an approval note explaining the staff review or correction.");
+    update.approvedAmountCents = cents;
+  }
   for (const [field, value] of [
     ["adjusterEmail", text(raw.adjusterEmail)],
     ["adjusterName", text(raw.adjusterName)],

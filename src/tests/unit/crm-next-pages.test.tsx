@@ -413,7 +413,9 @@ describe("CRM Next pages", () => {
     expect(pipeline).toContain("Pipeline board");
     expect(appointments).toContain("Appointments");
     expect(testDrives).toContain("Test drives");
-    expect(deals).toContain("Deals in progress");
+    expect(deals).toContain("Saved deals library");
+    expect(deals).toContain("Deal status filter");
+    expect(deals).not.toContain("No source data available");
     expect(states).toContain("Clear states instead of confusing dead ends");
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("Customer Console can be turned off safely");
@@ -527,7 +529,8 @@ describe("CRM Next pages", () => {
     expect(markup).not.toContain("Trade-in info");
     expect(markup).not.toContain("Deal info");
     expect(markup).not.toContain("Open MN sale packet");
-    expect(markup).not.toContain("Save draft");
+    expect(markup).toContain("Save draft");
+    expect(markup).toContain("Saved deal drafts");
     expect(markup).not.toContain("Complete intake");
     expect(markup).not.toContain("Review shell");
     expect(markup).not.toContain("review mode");

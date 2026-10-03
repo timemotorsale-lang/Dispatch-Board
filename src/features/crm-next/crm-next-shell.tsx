@@ -27,6 +27,7 @@ import {
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
 import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft } from "@/features/crm-next/crm-next-deal-start-tool";
+import { SavedDealsLibrary } from "@/features/crm-next/saved-deals-library";
 import { CrmNextDirectActionForm } from "@/features/crm-next/crm-next-direct-action-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
@@ -1601,34 +1602,34 @@ export function CrmNextTestDrivesView({ model }: { model: CrmNextCommandCenter }
 export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
-      <Topbar />
-      <section className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>Deals</span>
-          <h1>Deals in progress</h1>
-          <p>Deal value, stage, owner, and next action for active sales work.</p>
-        </div>
-        <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href={CRM_NEXT_DEAL_START_HREF}>Start Deal</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
-        </div>
-      </section>
-      <SalesTable records={model.sales.deals} title="Deals in progress" summary="A compact operating view for sales staff." />
+      <SavedDealsLibrary
+        title="Deals"
+        renderHeaderAction={(pathway) => {
+          const params = new URLSearchParams({ new: "1" });
+          if (pathway !== "ALL") params.set("pathway", pathway);
+          return <Link href={`${CRM_NEXT_DEAL_START_HREF}?${params}`}><UserPlus size={16} />Start Deal</Link>;
+        }}
+        disabled={false}
+        refreshKey="deals-page"
+        onOpen={(id) => window.location.assign(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}
+      />
     </CrmNextFrame>
   );
 }
 
 export function CrmNextDealStartView({
   initialCustomerId,
+  initialWorkflowId,
   model
 }: {
   initialCustomerId?: string;
+  initialWorkflowId?: string;
   model: CrmNextCommandCenter;
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool initialCustomerId={initialCustomerId} model={model} />
+      <CrmNextDealStartTool initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} model={model} />
     </CrmNextFrame>
   );
 }
@@ -2303,6 +2304,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               </article>
               <article id="documents-held" className={styles.compactSectionCard}>
                 <strong>Documents</strong>
+                <Link href={`/sales-documents?customerId=${encodeURIComponent(customer.id)}`}>Saved deal packets</Link>
                 <span>Use the approved document workspace for sending or uploads.</span>
                 <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>
               </article>

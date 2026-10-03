@@ -800,6 +800,27 @@
   background: transparent;
 }
 
+.approvedAmountEdit {
+  align-items: center;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: #3948b8;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.8rem;
+  gap: 6px;
+  justify-self: start;
+  max-width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.approvedAmountEdit svg { flex-shrink: 0; }
+.approvedAmountEdit:disabled { cursor: default; opacity: 0.5; }
+:global(html[data-app-theme="dark"]) .approvedAmountEdit { color: #b7c1ff; }
+
 .timelineForm {
   padding: 14px;
   border: 1px solid #dce5f3;

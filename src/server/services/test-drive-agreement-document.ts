@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-brand";
 import { testDriveDateTime, testDriveDeadline, type TestDriveFacts } from "@/lib/test-drive-form-packet";
 import { UnifiedCrmContractPacketError } from "@/server/unified-crm/contract-packet-contract";
 
@@ -39,7 +40,7 @@ export function testDriveAgreementHtml(input: Input) {
     section { break-inside: avoid; } .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 26px; }
     .signatures div { border-top: 1px solid #20252b; padding-top: 5px; } .return { border-top: 1px solid #bac3cc; margin-top: 16px; }
     @media print { body { margin: 0; padding: 0; } }
-  </style></head><body><header><strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
+  </style></head><body><header>${dealDeskLogoHtml(true)}<strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
     <h1>Test Drive Agreement and Vehicle Release</h1>
     <table>${c.rows.map(([label,value]) => `<tr><th>${escape(label)}</th><td>${escape(value)}</td></tr>`).join("")}</table>
     ${c.sections.map(([heading,paragraph]) => `<section><h2>${escape(heading)}</h2><p>${escape(paragraph)}</p></section>`).join("")}
@@ -56,6 +57,7 @@ export async function testDriveAgreementPdfBase64(input: Input) {
   const c = content(input);
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([612,792]);
+  await drawDealDeskPdfLogo(pdf, page);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const ink = rgb(.12,.15,.18);

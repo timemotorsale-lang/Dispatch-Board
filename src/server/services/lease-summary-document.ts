@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-brand";
 
 type SummarySection = { heading: string; rows?: Array<[string, string]>; paragraphs?: string[] };
 export type LeaseSummary = {
@@ -30,7 +31,7 @@ export function leaseSummaryHtml(summary: LeaseSummary) {
     .signatures { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; margin-top: 24px; } .signatures div { border-top: 1px solid #20252b; padding-top: 5px; }
     footer { margin-top: 12px; font-size: 9px; } @media print { body { margin: 0; padding: 0; } }
     @media screen and (max-width: 550px) { .highlights, .columns { grid-template-columns: 1fr 1fr; } .columns { display: block; } }
-  </style></head><body><header><strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
+  </style></head><body><header>${dealDeskLogoHtml(true)}<strong>Time Motor Sales, Inc.</strong><p>1101 E. Lake Street, Minneapolis, MN 55407 | 612-724-3631</p><p>timemotors.net | timemotorsale@gmail.com</p></header>
   <h1>Lease Summary</h1><div class="identity">${summary.identity.map(([label, value]) => `<div><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`).join("")}</div>
   <div class="highlights">${summary.highlights.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
   <div class="columns">${section(summary.signing)}${section(summary.payments)}</div>${summary.sections.map(section).join("")}
@@ -41,6 +42,7 @@ export function leaseSummaryHtml(summary: LeaseSummary) {
 export async function leaseSummaryPdfBase64(summary: LeaseSummary) {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([612, 792]);
+  await drawDealDeskPdfLogo(pdf, page);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const ink = rgb(.12, .15, .18);

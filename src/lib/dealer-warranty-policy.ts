@@ -1,6 +1,8 @@
 export const BHPH_WARRANTY_FORM_ID = "bhph-engine-transmission-warranty-return";
 export const LEASE_WARRANTY_FORM_ID = "lease-engine-transmission-warranty-return";
 export const DEALER_WARRANTY_POSTURE = "Dealer engine/transmission warranty: 30 days or 1,000 miles, whichever comes first; statutory coverage preserved.";
+export const NO_VOLUNTARY_DEALER_WARRANTY_POSTURE = "No voluntary dealer engine/transmission warranty or optional return addendum offered. Any legally required warranty and separate coverage remain unaffected; this is not a waiver of statutory rights.";
+export function dealerWarrantyPosture(offered: boolean) { return offered ? DEALER_WARRANTY_POSTURE : NO_VOLUNTARY_DEALER_WARRANTY_POSTURE; }
 
 export type DealerWarrantyInput = { deliveryAt: string; deliveryMileage: string };
 export type DealerWarrantyDetails = {

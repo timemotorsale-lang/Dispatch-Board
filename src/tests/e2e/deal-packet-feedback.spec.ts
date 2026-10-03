@@ -1,0 +1,33 @@
+import { test, expect } from "@playwright/test";
+
+test("packet errors explain the blocker and focus its correction; storage errors offer recovery", async ({ page }) => {
+  await page.route("**/api/crm/v1/deal-drafts*", (route) => route.fulfill({ json: route.request().method() === "POST" ? { ...route.request().postDataJSON(), revision: 1, updatedAt: new Date().toISOString() } : [] }));
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("morgan.manager@local.test");
+  await page.getByLabel("Password", { exact: true }).fill("dispatch123!");
+  const signedIn = page.waitForResponse((response) => response.url().endsWith("/api/auth/login"));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  expect((await signedIn).ok()).toBe(true);
+  await page.goto("/crm-next/deals/start");
+  await expect(page.getByRole("region", { name: "Saved deal drafts" }).getByRole("button", { name: "New deal", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: /^BHPH/ }).click();
+  await page.getByRole("button", { name: "Open execution path" }).click();
+  await page.getByRole("button", { name: "Open BHPH packet" }).click();
+  let error = "Enter a valid delivery date and time before generating the dealer warranty.";
+  await page.route("**/api/crm/v1/contract-packets", (route) => route.fulfill({ status: 400, json: { error } }));
+  await page.getByRole("button", { name: "Generate BHPH packet" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: error })).toBeVisible();
+  await page.getByRole("button", { name: "Go to blocker" }).click();
+  await expect(page.getByLabel("Delivery date / time (local)")).toBeFocused();
+  await expect(page.getByRole("button", { name: "Generate BHPH packet" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Terms complete", exact: true }).click();
+  await expect(page.getByLabel("Sale price", { exact: true })).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open BHPH packet" }).click();
+  error = "The forms were generated, but saving the packet to Sales Documents failed. Check Sales Documents before retrying; ask an administrator to check document storage and database availability.";
+  await page.getByRole("button", { name: "Generate BHPH packet" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: error })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Sales Documents", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Go to blocker" })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("packet-feedback-mobile.png") });
+});

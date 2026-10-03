@@ -1,0 +1,35 @@
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; background: var(--crm-next-panel, #fff); border-bottom: 1px solid var(--crm-next-line, #d6dce1); }
+.commands { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.toolbar button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; background: transparent; border: 1px solid #aebbc5; border-radius: 4px; color: inherit; cursor: pointer; font: inherit; font-size: 13px; }
+.toolbar button:disabled { opacity: .5; cursor: default; }
+.toolbar select { width: min(420px, 100%); max-width: 100%; padding: 8px; border: 1px solid #aebbc5; border-radius: 4px; font: inherit; font-size: 13px; }
+.toolbar span { font-size: 12px; }
+.toolbar p { flex-basis: 100%; color: #a62d31; margin: 0; font-size: 13px; }
+.body { border: 0; margin: 0; padding: 0; min-width: 0; }
+.scope { min-width: 0; width: 100%; }
+.scope > main { min-width: 0; width: 100%; box-sizing: border-box; }
+.body :where(input, select, textarea) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.commands label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.commands label select { width: 180px; }
+.library { padding: 16px 0; border-bottom: 1px solid #ccd6de; }
+.library header, .library footer { display: flex; align-items: center; gap: 10px; }
+.library header { justify-content: space-between; }
+.library h1, .library h2 { margin: 0; font-size: 22px; }
+.library button, .library a { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; font: inherit; font-size: 13px; border: 1px solid #b8c5ce; border-radius: 4px; background: #fff; color: #183147; cursor: pointer; text-decoration: none; }
+.library button:disabled { opacity: .5; cursor: default; }
+.filters { display: flex; gap: 12px; flex-wrap: wrap; padding: 12px 0; }
+.search { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px; }
+.filters input, .filters select { border: 1px solid #b8c5ce; border-radius: 4px; padding: 9px; font: inherit; font-size: 13px; max-width: 100%; background: #fff; color: #183147; }
+.filters input { width: 100%; min-width: 0; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid #ccd6de; padding-bottom: 10px; }
+.tabs button[aria-selected="true"] { background: #e6f3ed; border-color: #328160; }
+.tableWrap { overflow-x: auto; }
+.library table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.library th, .library td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #dce3e9; vertical-align: middle; }
+.library td small { display: block; overflow-wrap: anywhere; margin-top: 4px; color: #536879; font-size: 11px; }
+.badge { display: inline-block; padding: 4px 6px; background: #edf1f5; border-radius: 4px; }
+.badge[data-status="SOLD"], .badge[data-status="COMPLETED"] { background: #dcefe2; color: #195333; }
+.badge[data-status="LOST"], .badge[data-status="CANCELLED"] { background: #fae6e6; color: #8f3038; }
+.library footer { justify-content: flex-end; padding-top: 12px; font-size: 12px; }
+@media (max-width: 600px) { .library thead { display: none; }.library tr { display: block; border-bottom: 1px solid #b8c5ce; padding: 10px 0; }.library td { display: block; border: 0; padding: 6px 0; overflow-wrap: anywhere; }.library td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: #536879; margin-bottom: 3px; }.filters select { width: 100%; }.search { width: 100%; }.commands label select { flex: none; } }
+@media (max-width: 600px) { .commands { width: 100%; }.toolbar select { flex: 1; min-width: 160px; }.toolbar { padding: 12px; } }

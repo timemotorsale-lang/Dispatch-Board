@@ -3155,10 +3155,81 @@ model DocumentLibraryPacket {
   auditEvents            DocumentLibraryAuditEvent[]
   documents              DocumentLibraryPacketDocument[]
   requirements           DocumentLibraryPacketRequirement[]
+  salesJacket            SalesDocumentJacket?
 
   @@index([organizationId, ownerType, ownerId])
   @@index([organizationId, workflow, status])
   @@index([organizationId, updatedAt])
+}
+
+model DealDeskDraft {
+  id                 String @id
+  organizationId     String
+  ownerUserId        String
+  customerId         String?
+  customerName       String
+  pathway            String
+  vehicleReference   String
+  status             String @default("IN_PROGRESS")
+  statusHistory      Json @default("[]")
+  revision           Int @default(1)
+  snapshot           Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([organizationId, ownerUserId, updatedAt])
+  @@index([organizationId, ownerUserId, customerId])
+  @@index([organizationId, ownerUserId, status, updatedAt])
+}
+
+model SalesDocumentJacket {
+  id                 String @id @default(cuid())
+  organizationId     String
+  packetId           String @unique
+  dealReference      String
+  dealNumber         String
+  pathway            String
+  customerId         String?
+  customerName       String
+  vehicleReference   String
+  vin                String?
+  stockNumber        String?
+  state              String @default("WORKING")
+  revision           Int @default(1)
+  requirements       Json
+  createdByUserId     String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  packet             DocumentLibraryPacket @relation(fields: [packetId], references: [id], onDelete: Restrict)
+  versions           SalesDocumentPacketVersion[]
+  generatedPackets   SalesDocumentGeneratedPacket[]
+
+  @@unique([organizationId, dealReference, pathway])
+  @@index([organizationId, customerId])
+  @@index([organizationId, pathway, state])
+  @@index([organizationId, updatedAt])
+}
+
+model SalesDocumentPacketVersion {
+  id                 String @id @default(cuid())
+  jacketId           String
+  version            Int
+  phase              String
+  disposition        String
+  snapshot           Json
+  finalizedByUserId  String
+  finalizedAt        DateTime @default(now())
+  jacket             SalesDocumentJacket @relation(fields: [jacketId], references: [id], onDelete: Restrict)
+
+  @@unique([jacketId, version])
+}
+
+model SalesDocumentGeneratedPacket {
+  id                 String @id
+  jacketId           String
+  payload            Json
+  createdAt          DateTime @default(now())
+  jacket             SalesDocumentJacket @relation(fields: [jacketId], references: [id], onDelete: Restrict)
 }
 
 model DocumentLibraryPacketRequirement {

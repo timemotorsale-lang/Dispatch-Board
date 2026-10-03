@@ -1,4 +1,4 @@
-import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays, CarFront, ClipboardList, ContactRound, Gauge, HandCoins, House, Megaphone, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Target, UserRoundCheck, UsersRound } from "lucide-react";
+import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays, CarFront, ClipboardList, ContactRound, FileText, Gauge, HandCoins, House, Megaphone, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Target, UserRoundCheck, UsersRound } from "lucide-react";
 
 import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -117,6 +117,12 @@ const inventoryItems: NavigationItem[] = [
 ];
 
 const salesItems: NavigationItem[] = [
+  {
+    href: "/sales-documents",
+    title: "Sales Documents",
+    description: "Deal jackets, signed packets, and document retrieval across all pathways.",
+    icon: FileText
+  },
   {
     href: "/sales",
     title: "Today",
