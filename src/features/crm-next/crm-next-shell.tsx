@@ -2303,6 +2303,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               </article>
               <article id="documents-held" className={styles.compactSectionCard}>
                 <strong>Documents</strong>
+                <Link href={`/sales-documents?customerId=${encodeURIComponent(customer.id)}`}>Saved deal packets</Link>
                 <span>Use the approved document workspace for sending or uploads.</span>
                 <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>
               </article>

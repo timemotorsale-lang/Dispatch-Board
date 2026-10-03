@@ -786,6 +786,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
           <input onChange={(event) => setQuery(event.target.value)} placeholder="Search file, customer, VIN, RO, claim, type, owner..." type="search" value={query} />
         </label>
         <div className={styles.docHeroActions}>
+          <a href="/sales-documents"><FileText size={17} />Sales Documents</a>
           <a href="#document-intake"><FilePlus2 size={17} />Add document</a>
           <a href="#document-preview"><FileSearch size={17} />Preview selected</a>
         </div>

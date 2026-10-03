@@ -527,7 +527,8 @@ describe("CRM Next pages", () => {
     expect(markup).not.toContain("Trade-in info");
     expect(markup).not.toContain("Deal info");
     expect(markup).not.toContain("Open MN sale packet");
-    expect(markup).not.toContain("Save draft");
+    expect(markup).toContain("Save draft");
+    expect(markup).toContain("Saved deal drafts");
     expect(markup).not.toContain("Complete intake");
     expect(markup).not.toContain("Review shell");
     expect(markup).not.toContain("review mode");

@@ -2,17 +2,52 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 
 const mocks = vi.hoisted(() => ({
-  getCurrentUser: vi.fn()
+  getCurrentUser: vi.fn(),
+  savedPackets: new Map<string, unknown>()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentUser }));
+vi.mock("@/server/sales-documents/service", () => ({
+  archiveGeneratedSalesPacket: vi.fn(async (_actor, _raw, packet) => { mocks.savedPackets.set(packet.packetId, packet); return packet; }),
+  readArchivedSalesPacket: vi.fn(async (_actor, id) => mocks.savedPackets.get(id))
+}));
 
 import { GET } from "@/app/api/crm/v1/contract-packets/[packetId]/route";
 import { POST } from "@/app/api/crm/v1/contract-packets/route";
+import { archiveGeneratedSalesPacket } from "@/server/sales-documents/service";
 
 describe("Unified CRM contract packet route", () => {
+  it("omits the voluntary BHPH warranty and retains the required-coverage notice when not offered", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance", "bhph-engine-transmission-warranty-return"], bhph: {} }) }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual(["bhph-insurance-maintenance"]);
+    expect(packet.documents[0].html).toContain("No voluntary dealer");
+    expect(packet.documents[0].html).toContain("statutory rights");
+  });
+  it("does not accept a string value for the warranty choice", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: "false" }) }));
+    expect(response.status).toBe(400);
+  });
+  it("explains archive failures without exposing internal database details", async () => {
+    mocks.getCurrentUser.mockResolvedValue({ id: "manager-1" });
+    vi.mocked(archiveGeneratedSalesPacket).mockRejectedValueOnce(Object.assign(new Error("internal database details"), { code: "P2021" }));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ preparedFormIds: ["personal-references"] }) }));
+      expect(response.status).toBe(503);
+      const payload = await response.json();
+      expect(payload.stage).toBe("archive");
+      expect(payload.error).toContain("database needs an update");
+      expect(payload.error).not.toContain("internal database details");
+      expect(payload.reference).toBeTruthy();
+      expect(payload.retryable).toBe(true);
+      expect(log).toHaveBeenCalled();
+    } finally { log.mockRestore(); }
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.savedPackets.clear();
     mocks.getCurrentUser.mockResolvedValue({ id: "manager-1" });
   });
 

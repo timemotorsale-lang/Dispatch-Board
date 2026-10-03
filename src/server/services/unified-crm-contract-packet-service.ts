@@ -5,7 +5,7 @@ import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-bran
 import { BHPH_FORM_PACKET, requiredBhphFormIds, type BhphFormItem } from "@/lib/bhph-form-packet";
 import { TEST_DRIVE_FORM_PACKET, testDriveFacts, testDriveAgreementError } from "@/lib/test-drive-form-packet";
 import { testDriveAgreementHtml, testDriveAgreementPdfBase64 } from "./test-drive-agreement-document";
-import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyDetails, dealerWarrantyError } from "@/lib/dealer-warranty-policy";
+import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyPosture, dealerWarrantyDetails, dealerWarrantyError } from "@/lib/dealer-warranty-policy";
 import { dealerWarrantyHtml, dealerWarrantyPdfBase64 } from "./dealer-warranty-document";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, leaseNextPaymentDate, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
@@ -1627,10 +1627,12 @@ export async function generateUnifiedCrmContractPacket(
       ? requiredBhphFormIds()
       : requiredMinnesotaSaleFormIds();
   const selectedIds = formIds(input.preparedFormIds, packetForms, requiredIds);
+  if (input.dealerWarrantyOffered !== undefined && typeof input.dealerWarrantyOffered !== "boolean") throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Choose whether the voluntary dealer warranty is offered.");
+  const warrantyOffered = input.dealerWarrantyOffered !== false;
   if (packetType === "LEASE_TO_OWN" && !selectedIds.includes("lease-summary")) selectedIds.push("lease-summary");
-  if (packetType === "BHPH" && !selectedIds.includes(BHPH_WARRANTY_FORM_ID)) selectedIds.push(BHPH_WARRANTY_FORM_ID);
-  if (packetType === "LEASE_TO_OWN" && !selectedIds.includes(LEASE_WARRANTY_FORM_ID)) selectedIds.push(LEASE_WARRANTY_FORM_ID);
-  const selectedForms = packetForms.filter((form) => selectedIds.includes(form.id));
+  if (warrantyOffered && packetType === "BHPH" && !selectedIds.includes(BHPH_WARRANTY_FORM_ID)) selectedIds.push(BHPH_WARRANTY_FORM_ID);
+  if (warrantyOffered && packetType === "LEASE_TO_OWN" && !selectedIds.includes(LEASE_WARRANTY_FORM_ID)) selectedIds.push(LEASE_WARRANTY_FORM_ID);
+  const selectedForms = packetForms.filter((form) => selectedIds.includes(form.id) && (warrantyOffered || ![BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID].includes(form.id)));
   if (selectedForms.length === 0) {
     throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Select at least one form before generating a packet.");
   }
@@ -1643,9 +1645,11 @@ export async function generateUnifiedCrmContractPacket(
   if (packetType === "TEST_DRIVE") {
     const error = testDriveAgreementError(driveFacts);
     if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
-    if (!text(input.customerName, "") || ["Customer not selected", "Customer not captured"].includes(customerName) ||
-      !/^[A-HJ-NPR-Z0-9]{17}$/.test(vehicle.vin)) {
-      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Select the driver and capture a valid 17-character vehicle VIN.");
+    if (!text(input.customerName, "") || ["Customer not selected", "Customer not captured"].includes(customerName)) {
+      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Select the driver before generating the agreement.");
+    }
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vehicle.vin)) {
+      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Capture a valid 17-character vehicle VIN before generating the agreement.");
     }
   }
   const driveDocumentInput = packetType === "TEST_DRIVE" ? {
@@ -1658,8 +1662,8 @@ export async function generateUnifiedCrmContractPacket(
   const feeTotal = text(input.feeTotal, "$0.00");
   const paymentFunding = text(input.paymentFunding, "To be confirmed");
   const packetId = `contract-packet-${crypto.randomUUID()}`;
-  const bhphInput = bhphFacts(input.bhph);
-  if (packetType === "BHPH") {
+  const bhphInput = { ...bhphFacts(input.bhph), warrantyPosture: dealerWarrantyPosture(warrantyOffered) };
+  if (packetType === "BHPH" && warrantyOffered) {
     const error = dealerWarrantyError(bhphInput);
     if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
   }
@@ -1681,7 +1685,7 @@ export async function generateUnifiedCrmContractPacket(
     if (text(leaseFacts.firstPaymentDate, "") && text(leaseFacts.firstPaymentDate, "") <= text(leaseFacts.agreementDate, generatedAt.slice(0, 10))) {
       throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "The next payment date must follow the lease date.");
     }
-    const warrantyError = dealerWarrantyError(leaseWarrantyInput);
+    const warrantyError = warrantyOffered ? dealerWarrantyError(leaseWarrantyInput) : null;
     if (warrantyError) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", warrantyError);
   }
   const leaseRows: Array<[string, string]> = packetType === "LEASE_TO_OWN" ? [
@@ -1730,7 +1734,7 @@ export async function generateUnifiedCrmContractPacket(
       ] },
       sections: [
         { heading: "Purchase option", paragraphs: [`Ownership does not transfer automatically. End-of-lease purchase: ${formatCurrency(leaseOutput.residualValueCents)} plus applicable taxes and official fees, separate from the lease total. Early purchase follows the lease formula: remaining base payments plus residual, less applicable discounts, plus other amounts due and purchase taxes/fees.`] },
-        { heading: "Insurance, warranty & use", paragraphs: ["Maintain liability, collision and comprehensive insurance with a deductible no greater than $500; name the lessor as loss payee/additional insured as required. Dealer engine/transmission coverage: 30 days or 1,000 miles, whichever comes first; 100% covered parts/labor, no deductible. Statutory and separate warranty coverage remain unaffected. Other maintenance/repairs are your responsibility. Observe driver restrictions; no commercial use. See the warranty addendum for the 24-hour optional return and $875 fee."] },
+        { heading: "Insurance, warranty & use", paragraphs: ["Maintain liability, collision and comprehensive insurance with a deductible no greater than $500; name the lessor as loss payee/additional insured as required.", warrantyOffered ? "Dealer engine/transmission coverage: 30 days or 1,000 miles, whichever comes first; 100% covered parts/labor, no deductible. Statutory and separate warranty coverage remain unaffected. See the warranty addendum for the 24-hour optional return and $875 fee." : dealerWarrantyPosture(false), "Other maintenance/repairs are your responsibility subject to legally required and separately agreed coverage. Observe driver restrictions; no commercial use."] },
         { heading: "Mileage, late payments & return", paragraphs: [`Allowance: ${policy("cents for each excess mile over")} miles per month; excess mileage: ${policy("rate")} cents per mile. Late charge: $${policy("undefined_40")} after ${policy("Days")} business days, as stated in the lease. Return the vehicle in the required condition and pay amounts due through termination; damage, loss, default or early termination may cause additional charges under the lease.`] }
       ]
     };

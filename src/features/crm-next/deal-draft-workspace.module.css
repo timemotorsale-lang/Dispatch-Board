@@ -1,0 +1,12 @@
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; background: var(--crm-next-panel, #fff); border-bottom: 1px solid var(--crm-next-line, #d6dce1); }
+.commands { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.toolbar button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; background: transparent; border: 1px solid #aebbc5; border-radius: 4px; color: inherit; cursor: pointer; font: inherit; font-size: 13px; }
+.toolbar button:disabled { opacity: .5; cursor: default; }
+.toolbar select { width: min(420px, 100%); max-width: 100%; padding: 8px; border: 1px solid #aebbc5; border-radius: 4px; font: inherit; font-size: 13px; }
+.toolbar span { font-size: 12px; }
+.toolbar p { flex-basis: 100%; color: #a62d31; margin: 0; font-size: 13px; }
+.body { border: 0; margin: 0; padding: 0; min-width: 0; }
+.scope { min-width: 0; width: 100%; }
+.scope > main { min-width: 0; width: 100%; box-sizing: border-box; }
+.body :where(input, select, textarea) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+@media (max-width: 600px) { .commands { width: 100%; }.toolbar select { flex: 1; min-width: 160px; }.toolbar { padding: 12px; } }

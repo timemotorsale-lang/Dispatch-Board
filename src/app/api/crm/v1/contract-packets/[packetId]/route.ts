@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getUnifiedCrmContractPacket } from "@/server/services/unified-crm-contract-packet-service";
+import { getCurrentUser } from "@/server/auth/current-user";
+import { readArchivedSalesPacket } from "@/server/sales-documents/service";
+import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import {
   UNIFIED_CRM_CONTRACT_PACKET_ERROR_CONTRACT_VERSION,
   UnifiedCrmContractPacketError,
@@ -17,8 +19,9 @@ function statusForCode(code: string | undefined) {
 export async function GET(_request: Request, context: { params: Promise<{ packetId: string }> }) {
   const { packetId } = await context.params;
   try {
-    return NextResponse.json(await getUnifiedCrmContractPacket(packetId));
+    return NextResponse.json(await readArchivedSalesPacket(await getCurrentUser(), packetId), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    if (error instanceof SalesDocumentsError) return NextResponse.json({ error: error.message }, { status: error.status });
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : undefined;
     const typed = typeof code === "string" && TYPED_CODES.has(code as UnifiedCrmContractPacketFailureCode);
     return NextResponse.json({
