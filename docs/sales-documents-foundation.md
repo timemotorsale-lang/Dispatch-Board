@@ -24,6 +24,47 @@ document packs and the future BHPH collections console are subsequent work.
 
 ## Persistence And Integrity
 
+### Saved Deal Retrieval
+
+The main CRM Next Deals page is a task workbench: one transaction list, customer/
+vehicle/reference search, revenue-path and status menus, Start Deal, Continue,
+and Open packet. It lists both saved drafts and stored document jackets, including
+rental/loaner packets that have no draft. Matching uses saved jacket IDs/references,
+not customer-name guesses; linked drafts and jackets appear in one row. Retrieval
+and category counts are paginated in the database, 25 records at a time. Drafts
+remain private to their owning staff account and configured organization. Packets
+retain the existing organization-scoped document permission rules. The
+quick-resume menu shows recent deals; the library retrieves older saved records.
+Categories are Working Deals, Pending, Sold Deals, Lost Deals, Completed,
+Cancelled, and Archived. Staff choose the saved-deal disposition explicitly;
+changes are saved with the draft revision and server-attributed status history.
+Existing drafts default to Working Deals. Automatic reopening selects a recent
+Working or Pending deal, not a closed or archived record.
+Packet-only records derive their category from packet state: open/checked-out is
+Working, funding pending is Pending, and a closed packet is Completed. Finalized
+paperwork alone is not proof of a sold vehicle; Sold remains a staff-selected deal
+disposition.
+
+These categories organize saved workspace records. Marking a saved deal Sold or
+Completed does not change inventory, complete checkout, update the CRM opportunity
+lifecycle, activate a collections account, or finalize its document jacket. Those
+workflows retain their own server-enforced requirements. Archived/lost records
+remain searchable and can be reopened without deleting their saved work.
+
+Opening a packet goes directly to that customer's working documents. Staff can
+save several photos/documents in one operation, record dated/attributed updates,
+review files, or finalize checkout/return. The detailed readiness checklist is
+expandable rather than a competing dashboard. Partial upload failures report how
+many files were saved; saved files are not discarded. Staff notes can be appended
+after closing without changing any finalized document version; document changes
+still require an addendum. This task-first, simple-front-end approach is the guiding
+design principle for this area.
+
+Only persisted drafts and canonical jackets are searchable. This does not recover
+historical process-memory packets or browser-only work that was never saved to the
+database. A missing customer record must be traced in the actual running instance;
+do not manufacture a replacement transaction or assume its documents are lost.
+
 The canonical Document Library packet, document, and object-version tables hold
 the document records. SalesDocumentJacket supplies deal context and readiness;
 SalesDocumentPacketVersion preserves finalized context, reviewed document IDs,

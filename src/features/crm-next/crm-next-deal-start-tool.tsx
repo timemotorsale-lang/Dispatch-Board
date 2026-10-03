@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, type SetStateAction, createContext, useContext, useMemo, useRef, useState } from "react";
+import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
@@ -4136,15 +4136,17 @@ function readDealDraft(customerId: string): CrmNextDealDraft | null {
   }
 }
 
-export function CrmNextDealStartTool(props: { initialCustomerId?: string; model: CrmNextCommandCenter }) {
+export function CrmNextDealStartTool(props: { initialCustomerId?: string; initialWorkflowId?: string; model: CrmNextCommandCenter }) {
   return <DealDraftWorkspace initialCustomerId={props.initialCustomerId} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
 }
 
 function DealStartDesk({
   initialCustomerId,
+  initialWorkflowId,
   model
 }: {
   initialCustomerId?: string;
+  initialWorkflowId?: string;
   model: CrmNextCommandCenter;
 }) {
   const savedDeal = useDealDraft();
@@ -4236,6 +4238,15 @@ function DealStartDesk({
     setExecutionOpen(false);
     setStatus({ kind: "idle", message: "" });
   }
+
+  useEffect(() => {
+    const workflowPreset = DEAL_START_PRESETS.find((preset) => preset.workflowId === initialWorkflowId);
+    if (!workflowPreset || new URLSearchParams(window.location.search).has("draftId")) return;
+    setSelectedPresetId(workflowPreset.id);
+    setWorkflowId(workflowPreset.workflowId);
+    if (new URLSearchParams(window.location.search).get("new") === "1") setExecutionOpen(true);
+    setStatus({ kind: "idle", message: "" });
+  }, [initialWorkflowId, setExecutionOpen, setSelectedPresetId, setWorkflowId]);
 
   function saveDraft() {
     void savedDeal?.save();

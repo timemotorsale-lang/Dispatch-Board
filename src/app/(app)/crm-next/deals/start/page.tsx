@@ -4,7 +4,7 @@ import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 
 type CrmNextDealStartPageProps = {
-  searchParams?: Promise<{ customerId?: string }>;
+  searchParams?: Promise<{ customerId?: string; pathway?: string }>;
 };
 
 export default async function CrmNextDealStartPage({ searchParams }: CrmNextDealStartPageProps = {}) {
@@ -16,5 +16,5 @@ export default async function CrmNextDealStartPage({ searchParams }: CrmNextDeal
   }
 
   const resolvedSearchParams = await searchParams;
-  return <CrmNextDealStartView initialCustomerId={resolvedSearchParams?.customerId} model={await getCrmNextOperationalCommandCenter(user)} />;
+  return <CrmNextDealStartView initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} model={await getCrmNextOperationalCommandCenter(user)} />;
 }

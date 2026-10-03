@@ -24,12 +24,12 @@ test("staff can save, review, finalize and retrieve checkout and return packets"
   const pdf = await PDFDocument.create();
   pdf.addPage().drawText("Sales Documents E2E evidence");
   const bytes = Buffer.from(await pdf.save());
-  const uploadForm = page.locator("form").filter({ has: page.getByRole("heading", { name: "Save document", exact: true }) });
+  const uploadForm = page.locator("form").filter({ has: page.getByRole("heading", { name: "Add photos or documents", exact: true }) });
   await uploadForm.getByLabel("Document type").selectOption("signed-agreement");
-  await uploadForm.getByLabel("File", { exact: true }).setInputFiles({ name: "signed-agreement.pdf", mimeType: "application/pdf", buffer: bytes });
+  await uploadForm.getByLabel("Files", { exact: true }).setInputFiles({ name: "signed-agreement.pdf", mimeType: "application/pdf", buffer: bytes });
   await uploadForm.getByLabel("Signed copy").check();
   const uploaded = page.waitForResponse((result) => result.url().endsWith(`${url}/documents`));
-  await uploadForm.getByRole("button", { name: "Save document", exact: true }).click();
+  await uploadForm.getByRole("button", { name: "Save files", exact: true }).click();
   expect((await uploaded).status()).toBe(201);
   await page.getByRole("button", { name: "Review signed-agreement.pdf" }).click();
   await page.getByLabel("Required signatures verified").check();
@@ -59,6 +59,10 @@ test("staff can save, review, finalize and retrieve checkout and return packets"
   await update({ action: "FINALIZE", note: "E2E return" });
   expect(jacket.state).toBe("CLOSED");
   expect(jacket.versions).toHaveLength(2);
+  await update({ action: "NOTE", note: "Customer follow-up recorded after return." });
+  expect(jacket.state).toBe("CLOSED");
+  expect(jacket.versions).toHaveLength(2);
+  expect(jacket.history.some((event: { action: string; note: string }) => event.action === "STAFF_UPDATE" && event.note === "Customer follow-up recorded after return.")).toBe(true);
   const exported = await page.request.get(`${url}/export?version=1&format=pdf`);
   expect(exported.ok()).toBe(true);
   expect((await PDFDocument.load(await exported.body())).getPageCount()).toBe(4);

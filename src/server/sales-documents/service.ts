@@ -155,7 +155,10 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
     const jacket = await findJacket(id, db);
     await lock(db, jacket, raw.revision);
     const note = text(raw.note, 1000);
-    if (raw.action === "ADDENDUM") {
+    if (raw.action === "NOTE") {
+      if (!note) throw new SalesDocumentsError("Enter an update before saving.");
+      await audit(db, jacket, user, "STAFF_UPDATE", note);
+    } else if (raw.action === "ADDENDUM") {
       if (jacket.state !== "CLOSED" && jacket.state !== "DELIVERED_FUNDING_PENDING") throw new SalesDocumentsError("This jacket is already open.");
       if (!note) throw new SalesDocumentsError("Record the reason for opening an addendum.");
       await db.salesDocumentJacket.update({ where: { id }, data: { state: "WORKING" } });

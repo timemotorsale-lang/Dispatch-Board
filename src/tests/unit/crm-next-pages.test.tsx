@@ -413,7 +413,9 @@ describe("CRM Next pages", () => {
     expect(pipeline).toContain("Pipeline board");
     expect(appointments).toContain("Appointments");
     expect(testDrives).toContain("Test drives");
-    expect(deals).toContain("Deals in progress");
+    expect(deals).toContain("Saved deals library");
+    expect(deals).toContain("Deal status filter");
+    expect(deals).not.toContain("No source data available");
     expect(states).toContain("Clear states instead of confusing dead ends");
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("Customer Console can be turned off safely");

@@ -22,6 +22,10 @@
 .status { min-height: 22px; font-size: 13px; color: #206649; }
 .error { background: #fff0ed; border-left: 3px solid #b43d2d; padding: 10px; color: #8c3025; }
 .layout { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(360px, 1.25fr); border-top: 1px solid #d8dddf; }
+.focused { grid-template-columns: minmax(0, 1fr); }
+.focused .detail { border-left: 0; }
+.checklistDetails { padding: 8px 0; font-size: 13px; }
+.checklistDetails summary { cursor: pointer; font-weight: 600; }
 .list { overflow-x: auto; }
 .list table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .list th { text-align: left; background: #f3f5f5; color: #59636c; font-size: 12px; padding: 12px; }

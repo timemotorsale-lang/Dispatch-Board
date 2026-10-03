@@ -3,10 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type SetStateAction, type Dispatch } from "react";
 import { Save, FolderOpen, Plus } from "lucide-react";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
+import { SAVED_DEAL_STATUSES, isActiveSavedDeal, type SavedDealStatus } from "@/lib/saved-deal-status";
+import { SavedDealsLibrary } from "./saved-deals-library";
 import styles from "./deal-draft-workspace.module.css";
 
 type Snapshot = Record<string, unknown>;
-type DraftSummary = { id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string };
+type DraftSummary = { id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string; status?: SavedDealStatus };
 type Draft = DraftSummary & { revision: number; snapshot: Snapshot };
 type Store = {
   read: (key: string) => unknown;
@@ -100,6 +102,8 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
   const [loaded, setLoaded] = useState(false), [epoch, setEpoch] = useState(0), [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [selectedId, setSelectedId] = useState(""), [message, setMessage] = useState("Loading saved deals..."), [error, setError] = useState(""), [busy, setBusy] = useState(false), [conflict, setConflict] = useState(false);
   const blocked = useRef(false);
+  const dealStatus = useRef<SavedDealStatus>("IN_PROGRESS");
+  const [currentStatus, setCurrentStatus] = useState<SavedDealStatus>("IN_PROGRESS"), [showLibrary, setShowLibrary] = useState(false);
 
   async function request<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await fetch(url, init), body = await response.json();
@@ -107,7 +111,11 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
     return body;
   }
   const refreshList = useCallback(async () => {
-    setDrafts(await request<DraftSummary[]>("/api/crm/v1/deal-drafts"));
+    const recent = await request<DraftSummary[]>("/api/crm/v1/deal-drafts");
+    setDrafts((current) => {
+      const opened = current.find((draft) => draft.id === id.current);
+      return opened && !recent.some((draft) => draft.id === opened.id) ? [opened, ...recent] : recent;
+    });
   }, []);
   const save = useCallback(async () => {
     let success = false;
@@ -119,7 +127,7 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
       const form = payload["desk:form"] as Record<string, string> | undefined;
       const customerId = form?.customerId && form.customerId !== "__manual_customer__" ? form.customerId : "";
       try {
-        const draft = await request<Draft>("/api/crm/v1/deal-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id.current, revision: revision.current, snapshot: payload, customerId, customerName: customers.find((customer) => customer.id === customerId)?.name || payload["desk:manualCustomerName"] || "Customer not selected", pathway: payload["desk:workflowId"] || "retail-sale", vehicleReference: form?.vehicle || "" }) });
+        const draft = await request<Draft>("/api/crm/v1/deal-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id.current, revision: revision.current, status: dealStatus.current, snapshot: payload, customerId, customerName: customers.find((customer) => customer.id === customerId)?.name || payload["desk:manualCustomerName"] || "Customer not selected", pathway: payload["desk:workflowId"] || "retail-sale", vehicleReference: form?.vehicle || "" }) });
         revision.current = draft.revision; savedChanges.current = number; setSelectedId(draft.id);
         success = true;
         setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)]);
@@ -168,6 +176,8 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
       }
     }
     snapshot.current = next; id.current = draft?.id ?? crypto.randomUUID(); revision.current = draft?.revision ?? 0;
+    dealStatus.current = draft?.status ?? "IN_PROGRESS"; setCurrentStatus(dealStatus.current);
+    if (draft) setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)]);
     changes.current = 0; savedChanges.current = 0; blocked.current = false; setConflict(false);
     setSelectedId(draft?.id ?? ""); setError(""); setMessage(draft ? "Saved deal reopened" : "New draft"); setEpoch((value) => value + 1); setLoaded(true);
     setTimeout(() => { initialized.current = true; }, 0);
@@ -180,8 +190,12 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
         const list = await request<DraftSummary[]>("/api/crm/v1/deal-drafts");
         if (!active) return;
         setDrafts(list);
-        const preferred = initialCustomerId ? list.find((item) => (item as DraftSummary & { customerId?: string }).customerId === initialCustomerId) : list[0];
-        const draft = preferred ? await request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(preferred.id)}`) : null;
+        const preferred = list.find((item) => isActiveSavedDeal(item.status) && (!initialCustomerId || (item as DraftSummary & { customerId?: string }).customerId === initialCustomerId));
+        const params = new URLSearchParams(window.location.search);
+        const requestedId = params.get("draftId");
+        const startNew = params.get("new") === "1";
+        const targetId = requestedId || (startNew ? undefined : preferred?.id);
+        const draft = targetId ? await request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(targetId)}`) : null;
         if (active) await install(draft);
       } catch (caught) {
         if (!active) return;
@@ -194,18 +208,20 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
     const guard = (event: BeforeUnloadEvent) => { if (changes.current !== savedChanges.current) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", guard); return () => window.removeEventListener("beforeunload", guard);
   }, []);
-  async function openDraft() {
-    if (!selectedId || busy || (changes.current !== savedChanges.current && !window.confirm("Discard unsaved edits and reopen this saved draft?"))) return;
+  async function openDraft(targetId = selectedId) {
+    if (!targetId || busy || (changes.current !== savedChanges.current && !window.confirm("Discard unsaved edits and reopen this saved draft?"))) return;
     clearTimeout(timer.current);
-    try { setLoaded(false); await install(await request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(selectedId)}`)); }
+    try { setLoaded(false); await install(await request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(targetId)}`)); }
     catch (caught) { setLoaded(true); setError(caught instanceof Error ? caught.message : "Draft could not be opened."); }
   }
   return <DraftContext.Provider value={store}>
     <section className={styles.toolbar} aria-label="Saved deal drafts">
       <div className={styles.commands}><button disabled={!loaded || busy || conflict} onClick={() => void save()}><Save size={16} />Save draft</button><button disabled={!loaded || busy} onClick={() => { if (changes.current !== savedChanges.current && !window.confirm("Start a new deal without saving these edits?")) return; void install(null); }}><Plus size={16} />New deal</button><span role="status">{message}</span></div>
       <div className={styles.commands}><select aria-label="Saved deals" value={selectedId} onFocus={() => void refreshList().catch(() => {})} onChange={(event) => setSelectedId(event.target.value)}><option value="">Choose saved deal</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? draft.pathway} · {draft.vehicleReference || "Vehicle not assigned"}</option>)}</select><button disabled={!loaded || busy || !selectedId} onClick={() => void openDraft()}><FolderOpen size={16} />Resume</button></div>
+      <div className={styles.commands}><label>Deal status <select aria-label="Current saved deal status" disabled={!loaded || busy || conflict} value={currentStatus} onChange={(event) => { const value = event.target.value as SavedDealStatus; dealStatus.current = value; setCurrentStatus(value); write("dealStatus", value); }}>{Object.entries(SAVED_DEAL_STATUSES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><button aria-expanded={showLibrary} onClick={() => setShowLibrary((value) => !value)}><FolderOpen size={16} />Saved deals</button></div>
       {error ? <p role="alert">{error}{conflict ? <button onClick={() => { id.current = crypto.randomUUID(); revision.current = 0; blocked.current = false; setConflict(false); void save(); }}>Save as new draft</button> : null}</p> : null}
     </section>
+    {showLibrary ? <SavedDealsLibrary disabled={!loaded || busy} onOpen={(targetId) => void openDraft(targetId)} refreshKey={drafts.map((draft) => `${draft.id}:${draft.updatedAt}`).join("|")} /> : null}
     <fieldset className={styles.body} disabled={!loaded}><div ref={root} key={epoch} onChangeCapture={(event) => {
       if (!root.current || !initialized.current) return;
       const item = fieldEntries(root.current).find(({ input }) => input === event.target);

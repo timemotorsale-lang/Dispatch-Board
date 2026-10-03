@@ -3170,6 +3170,8 @@ model DealDeskDraft {
   customerName       String
   pathway            String
   vehicleReference   String
+  status             String @default("IN_PROGRESS")
+  statusHistory      Json @default("[]")
   revision           Int @default(1)
   snapshot           Json
   createdAt          DateTime @default(now())
@@ -3177,6 +3179,7 @@ model DealDeskDraft {
 
   @@index([organizationId, ownerUserId, updatedAt])
   @@index([organizationId, ownerUserId, customerId])
+  @@index([organizationId, ownerUserId, status, updatedAt])
 }
 
 model SalesDocumentJacket {
