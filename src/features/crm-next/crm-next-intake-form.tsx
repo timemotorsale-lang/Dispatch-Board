@@ -201,11 +201,17 @@ export function CrmNextIntakeForm() {
 
     const customerPayload = {
       address: formText(data, "address"),
+      dateOfBirth: formText(data, "dateOfBirth"),
       displayName: formText(data, "displayName"),
       email: formText(data, "email"),
+      gender: formText(data, "gender"),
+      idNumber: formText(data, "idNumber"),
+      idState: formText(data, "idState"),
+      idType: formText(data, "idType"),
       locationId: formText(data, "locationId") || DEFAULT_LOCATION_ID,
       phoneNumber: formText(data, "phoneNumber"),
-      preferredContactMethod: formText(data, "preferredContactMethod") || "PHONE"
+      preferredContactMethod: formText(data, "preferredContactMethod") || "PHONE",
+      ssn: formText(data, "ssn")
     };
 
     try {
@@ -324,8 +330,8 @@ export function CrmNextIntakeForm() {
               </select>
             </label>
             <label>
-              <span>SSN last 4</span>
-              <input inputMode="numeric" maxLength={4} name="ssnLast4" placeholder="Last 4 only" />
+              <span>SSN / ITIN</span>
+              <input autoComplete="off" inputMode="numeric" maxLength={20} name="ssn" placeholder="Full number if required" />
             </label>
             <label>
               <span>Date of birth</span>
@@ -346,8 +352,8 @@ export function CrmNextIntakeForm() {
               <input maxLength={2} name="idState" placeholder="MN" />
             </label>
             <label>
-              <span>ID ending</span>
-              <input inputMode="numeric" maxLength={4} name="idEnding" placeholder="Last 4 only" />
+              <span>ID number</span>
+              <input autoComplete="off" maxLength={80} name="idNumber" placeholder="Complete ID number" />
             </label>
             <label>
               <span>Issued date</span>

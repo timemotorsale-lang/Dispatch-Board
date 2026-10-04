@@ -72,6 +72,16 @@ export type CrmNextCustomer360 = {
   vehiclesOwned: number;
   openDeals: number;
   openCases: number;
+  dealPrefill: {
+    address: string;
+    dateOfBirth: string;
+    email: string;
+    idLast4: string;
+    idState: string;
+    idType: string;
+    phoneNumber: string;
+    ssnLast4: string;
+  };
   riskLevel: CrmNextAttentionLevel;
   nextAction: string;
   vehicles: Array<{ id: string; label: string; vin: string; status: string }>;
@@ -87,6 +97,10 @@ export type CrmNextSearchGroup = {
   count: number;
   safety: string;
 };
+
+function emptyDealPrefill(): CrmNextCustomer360["dealPrefill"] {
+  return { address: "", dateOfBirth: "", email: "", idLast4: "", idState: "", idType: "", phoneNumber: "", ssnLast4: "" };
+}
 
 export type CrmNextTimelineEvent = {
   id: string;
@@ -2227,12 +2241,13 @@ function crmNextCustomerFromListItem(item: UnifiedCrmCustomerListItem, now: Date
     status: "Active",
     phone: item.maskedPhone,
     email: item.maskedEmail,
-    address: "Address available in Customers",
+    address: item.address ?? "Address available in Customers",
     customerSince: item.customerNumber,
     lifetimeValue: "Open customer record",
     vehiclesOwned: 0,
     openDeals: 0,
     openCases: 0,
+    dealPrefill: { ...emptyDealPrefill(), address: item.address ?? "", dateOfBirth: item.dateOfBirth ?? "", email: item.email ?? "", idLast4: item.idLast4 ?? "", idState: item.idState ?? "", idType: item.idType ?? "", phoneNumber: item.phoneNumber ?? "", ssnLast4: item.ssnLast4 ?? "" },
     riskLevel,
     nextAction: nextActionLabel(item, now),
     vehicles: [],
@@ -2310,6 +2325,7 @@ function crmNextCustomerFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextC
     vehiclesOwned: model.vehicles.length,
     openDeals: opportunityCount,
     openCases: model.sourceLenses.cases.length,
+    dealPrefill: emptyDealPrefill(),
     riskLevel,
     nextAction: model.relationship.nextActionAt ? "Review next customer action" : "Review customer relationship",
     vehicles: model.vehicles.map((vehicle) => ({
@@ -2847,6 +2863,7 @@ function unavailableCustomer(customerId: string): CrmNextCustomer360 {
     vehiclesOwned: 0,
     openDeals: 0,
     openCases: 0,
+    dealPrefill: emptyDealPrefill(),
     riskLevel: "Low",
     nextAction: "Open Customer 360 from a verified customer record.",
     vehicles: [],
