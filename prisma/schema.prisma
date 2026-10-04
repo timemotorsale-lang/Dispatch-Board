@@ -2794,6 +2794,12 @@ model Customer {
   preferredContactTime            String?
   languageCode                    String?
   address                         String?
+  dateOfBirth                     DateTime?                        @db.Date
+  identityGender                  String?
+  ssnLast4                        String?
+  idType                          String?
+  idState                         String?
+  idLast4                         String?
   sourceCode                      String?
   lastInteractionAt               DateTime?
   nextActionAt                    DateTime?

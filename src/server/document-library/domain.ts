@@ -45,7 +45,7 @@ export type DocumentRecord = {
   fileName: string;
   id: string;
   legalHold: boolean;
-  owner: { id: string; label: string; type: "CUSTOMER" | "VEHICLE" | "REPAIR_ORDER" | "CLAIM" | "TASK" | "VENDOR" | "SALE" };
+  owner: { id: string; label: string; type: "CUSTOMER" | "VEHICLE" | "REPAIR_ORDER" | "CLAIM" | "TASK" | "VENDOR" | "SALE" | "QUICK_UPDATE" };
   providerReferences: ProviderReference[];
   retentionCategory: string;
   sensitivity: DocumentSensitivity;

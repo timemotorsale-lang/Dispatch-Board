@@ -2,6 +2,7 @@
 
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { AlertCircle, Camera, CarFront, CheckCircle2, ClipboardCheck, FileText, Gauge, PackageCheck, PenLine, ShieldCheck, UserPlus, Wrench } from "lucide-react";
+import Link from "next/link";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -201,11 +202,17 @@ export function CrmNextIntakeForm() {
 
     const customerPayload = {
       address: formText(data, "address"),
+      dateOfBirth: formText(data, "dateOfBirth"),
       displayName: formText(data, "displayName"),
       email: formText(data, "email"),
+      gender: formText(data, "gender"),
+      idNumber: formText(data, "idNumber"),
+      idState: formText(data, "idState"),
+      idType: formText(data, "idType"),
       locationId: formText(data, "locationId") || DEFAULT_LOCATION_ID,
       phoneNumber: formText(data, "phoneNumber"),
-      preferredContactMethod: formText(data, "preferredContactMethod") || "PHONE"
+      preferredContactMethod: formText(data, "preferredContactMethod") || "PHONE",
+      ssn: formText(data, "ssn")
     };
 
     try {
@@ -324,8 +331,8 @@ export function CrmNextIntakeForm() {
               </select>
             </label>
             <label>
-              <span>SSN last 4</span>
-              <input inputMode="numeric" maxLength={4} name="ssnLast4" placeholder="Last 4 only" />
+              <span>SSN / ITIN</span>
+              <input autoComplete="off" inputMode="numeric" maxLength={20} name="ssn" placeholder="Full number if required" />
             </label>
             <label>
               <span>Date of birth</span>
@@ -346,8 +353,8 @@ export function CrmNextIntakeForm() {
               <input maxLength={2} name="idState" placeholder="MN" />
             </label>
             <label>
-              <span>ID ending</span>
-              <input inputMode="numeric" maxLength={4} name="idEnding" placeholder="Last 4 only" />
+              <span>ID number</span>
+              <input autoComplete="off" maxLength={80} name="idNumber" placeholder="Complete ID number" />
             </label>
             <label>
               <span>Issued date</span>
@@ -529,18 +536,14 @@ export function CrmNextIntakeForm() {
         {capturePurpose === "customer" ? (
           <>
             <div className={styles.mobileCaptureGrid}>
-              <label className={styles.captureUpload}>
-                <span><Camera size={18} /> Capture ID photo</span>
-                <input
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) => {
-                    setCaptureNotice(event.currentTarget.files?.length ? "Photo selected for review. Confirm the fields below; the photo is not uploaded or saved." : "Use a phone camera when available, then confirm only the fields needed to create the customer.");
-                  }}
-                  type="file"
-                />
-                <small>For review only</small>
-              </label>
+              <Link className={styles.captureUpload} href="/capture?destination=CUSTOMER&kind=ID&returnTo=%2Fcrm-next%2Fnew" rel="noopener noreferrer" target="_blank">
+                <span><Camera size={18} /> Scan ID</span>
+                <small>Capture, review, send</small>
+              </Link>
+              <Link className={styles.captureUpload} href="/capture?destination=CUSTOMER&kind=BUSINESS_CARD&returnTo=%2Fcrm-next%2Fnew" rel="noopener noreferrer" target="_blank">
+                <span><Camera size={18} /> Scan business card</span>
+                <small>Capture, review, send</small>
+              </Link>
               <label>
                 <span>Customer name</span>
                 <input placeholder="Name from ID" ref={mobileNameRef} />

@@ -39,6 +39,7 @@ import { listSmartDocumentIntakeRecords } from "./smart-intake";
 type Dependencies = {
   liveRollout?: DocumentLibraryLiveRolloutDependencies;
   now?: () => Date;
+  smartIntakeOwnerId?: string;
 };
 
 const GENERATED_AT = "2026-09-20T00:00:00.000Z";
@@ -299,7 +300,8 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
   });
   const smartIntake = await listSmartDocumentIntakeRecords({
     organizationId: dependencies.liveRollout?.organizationId ?? "default-org",
-    take: 20
+    ownerId: dependencies.smartIntakeOwnerId,
+    take: dependencies.smartIntakeOwnerId ? 100 : 20
   }).catch(() => []);
 
   return {

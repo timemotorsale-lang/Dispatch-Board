@@ -31948,3 +31948,27 @@ html[data-app-theme="dark"] .app-content :where(
   color: inherit !important;
 }
 
+.avw-vin-row a.secondary,
+.advisor-coo-capture-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 1px solid #c8d8ea;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: #075ed8;
+  font-size: 12px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.avw-vin-row a.secondary svg,
+.advisor-coo-capture-link svg {
+  width: 16px;
+  height: 16px;
+}
+

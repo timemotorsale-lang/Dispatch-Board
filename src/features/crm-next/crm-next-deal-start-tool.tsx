@@ -30,6 +30,30 @@ export type CrmNextDealDraft = {
   workflowId: string;
 };
 
+type CustomerDealPrefill = {
+  address: string;
+  dateOfBirth: string;
+  email: string;
+  idLast4: string;
+  idState: string;
+  idType: string;
+  phoneNumber: string;
+  ssnLast4: string;
+};
+
+type CustomerIdentityFieldKey = "dateOfBirth" | "streetAddress" | "city" | "state" | "zip" | "idType" | "idState" | "idNumber" | "cellPhone" | "email";
+
+const EMPTY_CUSTOMER_DEAL_PREFILL: CustomerDealPrefill = {
+  address: "",
+  dateOfBirth: "",
+  email: "",
+  idLast4: "",
+  idState: "",
+  idType: "",
+  phoneNumber: "",
+  ssnLast4: ""
+};
+
 export function crmNextDealDraftStorageKey(customerId: string) {
   return `crm-next:deal-draft:${customerId}`;
 }
@@ -546,27 +570,59 @@ function CompletionGateList({ missing }: { missing: string[] }) {
 function CustomerIdentityDetails({
   includeCreditFields = false,
   includePhoneEmail = true,
+  prefill = EMPTY_CUSTOMER_DEAL_PREFILL,
   values,
   onValueChange
 }: {
   includeCreditFields?: boolean;
   includePhoneEmail?: boolean;
-  values?: Partial<Record<"streetAddress" | "city" | "state" | "zip" | "idState" | "idNumber", string>>;
-  onValueChange?: (key: "streetAddress" | "city" | "state" | "zip" | "idState" | "idNumber", value: string) => void;
+  prefill?: CustomerDealPrefill;
+  values?: Partial<Record<CustomerIdentityFieldKey, string>>;
+  onValueChange?: (key: CustomerIdentityFieldKey, value: string) => void;
 }) {
+  const [localValues, setLocalValues] = useState({
+    cellPhone: prefill.phoneNumber,
+    city: "",
+    dateOfBirth: prefill.dateOfBirth,
+    email: prefill.email,
+    idNumber: "",
+    idState: prefill.idState,
+    idType: prefill.idType,
+    state: "",
+    streetAddress: prefill.address,
+    zip: ""
+  });
+  useEffect(() => {
+    setLocalValues((current) => ({
+      ...current,
+      cellPhone: prefill.phoneNumber,
+      dateOfBirth: prefill.dateOfBirth,
+      email: prefill.email,
+      idState: prefill.idState,
+      idType: prefill.idType,
+      streetAddress: prefill.address
+    }));
+  }, [prefill]);
+  const currentValues = values ?? localValues;
+  function change(key: keyof typeof localValues, value: string) {
+    if (onValueChange) onValueChange(key, value);
+    else setLocalValues((current) => ({ ...current, [key]: value }));
+  }
+  const ssnPlaceholder = prefill.ssnLast4 ? `Last 4 on file: ${prefill.ssnLast4}` : "Full SSN/ITIN if required";
+  const idPlaceholder = prefill.idLast4 ? `Last 4 on file: ${prefill.idLast4}` : "Complete ID number";
   return (
     <>
-      <label><span>Date of birth</span><input placeholder="MM/DD/YYYY" /></label>
-      {includeCreditFields ? <label><span>SSN / ITIN</span><input /></label> : null}
-      <label><span>ID type</span><select><option>Driver license</option><option>State ID</option><option>Passport</option><option>Military ID</option></select></label>
-      <label><span>ID state</span><select value={values?.idState} onChange={(event) => onValueChange?.("idState", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-      <label><span>ID number</span><input value={values?.idNumber} onChange={(event) => onValueChange?.("idNumber", event.target.value)} /></label>
-      <label className={styles.retailWide}><span>Street address</span><input value={values?.streetAddress} onChange={(event) => onValueChange?.("streetAddress", event.target.value)} /></label>
-      <label><span>City</span><input value={values?.city} onChange={(event) => onValueChange?.("city", event.target.value)} /></label>
-      <label><span>State</span><select value={values?.state} onChange={(event) => onValueChange?.("state", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-      <label><span>Zip</span><input value={values?.zip} onChange={(event) => onValueChange?.("zip", event.target.value)} /></label>
-      {includePhoneEmail ? <label><span>Cell phone</span><input /></label> : null}
-      {includePhoneEmail ? <label><span>Email</span><input /></label> : null}
+      <label><span>Date of birth</span><input value={currentValues.dateOfBirth ?? ""} onChange={(event) => change("dateOfBirth", event.target.value)} placeholder="MM/DD/YYYY" /></label>
+      {includeCreditFields ? <label><span>SSN / ITIN</span><input autoComplete="off" placeholder={ssnPlaceholder} /></label> : null}
+      <label><span>ID type</span><select value={currentValues.idType ?? ""} onChange={(event) => change("idType", event.target.value)}><option value="">Select</option><option>Driver license</option><option>State ID</option><option>Passport</option><option>Military ID</option></select></label>
+      <label><span>ID state</span><select value={currentValues.idState ?? ""} onChange={(event) => change("idState", event.target.value)}><option value="">Select</option><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>ID number</span><input autoComplete="off" value={currentValues.idNumber ?? ""} onChange={(event) => change("idNumber", event.target.value)} placeholder={idPlaceholder} /></label>
+      <label className={styles.retailWide}><span>Street address</span><input value={currentValues.streetAddress ?? ""} onChange={(event) => change("streetAddress", event.target.value)} /></label>
+      <label><span>City</span><input value={currentValues.city ?? ""} onChange={(event) => change("city", event.target.value)} /></label>
+      <label><span>State</span><select value={currentValues.state ?? ""} onChange={(event) => change("state", event.target.value)}><option value="">Select</option><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>Zip</span><input value={currentValues.zip ?? ""} onChange={(event) => change("zip", event.target.value)} /></label>
+      {includePhoneEmail ? <label><span>Cell phone</span><input value={currentValues.cellPhone ?? ""} onChange={(event) => change("cellPhone", event.target.value)} /></label> : null}
+      {includePhoneEmail ? <label><span>Email</span><input value={currentValues.email ?? ""} onChange={(event) => change("email", event.target.value)} /></label> : null}
     </>
   );
 }
@@ -701,12 +757,14 @@ function EnterpriseDealControlPanel({
 
 function RetailSaleExecutionDesk({
   amount,
+  customerPrefill: _customerPrefill,
   customerName,
   onAmountChange,
   onVehicleChange,
   vehicle
 }: {
   amount: string;
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onVehicleChange: (value: string) => void;
@@ -1365,6 +1423,7 @@ const OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS = [
 
 function DailyRentalExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   customerNameEditable = false,
   mode = "daily-rental",
@@ -1377,6 +1436,7 @@ function DailyRentalExecutionDesk({
   vehicle
 }: {
   amount: string;
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   customerNameEditable?: boolean;
   mode?: "daily-rental" | "vehicle-loaner";
@@ -1422,6 +1482,8 @@ function DailyRentalExecutionDesk({
     additionalDriverName: "",
     additionalDriverStatus: "None",
     cardLast4: "",
+    cellPhone: "",
+    city: "",
     depositHold: "$300.00",
     dob: "",
     dropoffDate: tomorrowInputValue(),
@@ -1441,8 +1503,23 @@ function DailyRentalExecutionDesk({
     ratePerDay: "$49.00",
     returnFuel: "Return full",
     secondaryId: "Not needed",
-    useRestriction: "Minnesota local use"
+    state: "MN",
+    streetAddress: "",
+    useRestriction: "Minnesota local use",
+    email: "",
+    zip: ""
   });
+  useEffect(() => {
+    setRentalFacts((current) => ({
+      ...current,
+      cellPhone: current.cellPhone || customerPrefill.phoneNumber,
+      dob: current.dob || customerPrefill.dateOfBirth,
+      email: current.email || customerPrefill.email,
+      licenseState: customerPrefill.idState && current.licenseState === "MN" ? customerPrefill.idState : current.licenseState,
+      state: customerPrefill.idState && current.state === "MN" ? customerPrefill.idState : current.state,
+      streetAddress: current.streetAddress || customerPrefill.address
+    }));
+  }, [customerPrefill, setRentalFacts]);
 
   const rentalDays = daysBetween(rentalFacts.pickupDate, rentalFacts.dropoffDate);
   const dailyRateCents = dollarsToCents(rentalFacts.ratePerDay);
@@ -1689,12 +1766,12 @@ function DailyRentalExecutionDesk({
           <label><span>Secondary ID</span><select value={rentalFacts.secondaryId} onChange={(event) => updateRentalFact("secondaryId", event.target.value)}><option>Not needed</option><option>Passport</option><option>Utility / bank statement</option><option>Military ID</option><option>Travel itinerary</option><option>Manager review</option></select></label>
           <label><span>Additional driver</span><select value={rentalFacts.additionalDriverStatus} onChange={(event) => updateRentalFact("additionalDriverStatus", event.target.value)}><option>None</option><option>Spouse / domestic partner</option><option>Paid additional driver</option><option>Business authorized driver</option><option>Needs approval</option></select></label>
           <label><span>Additional driver name</span><input value={rentalFacts.additionalDriverName} onChange={(event) => updateRentalFact("additionalDriverName", event.target.value)} /></label>
-          <label className={styles.retailWide}><span>Street address</span><input /></label>
-          <label><span>City</span><input /></label>
-          <label><span>State</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
-          <label><span>Zip</span><input /></label>
-          <label><span>Cell phone</span><input /></label>
-          <label><span>Email</span><input /></label>
+          <label className={styles.retailWide}><span>Street address</span><input value={rentalFacts.streetAddress} onChange={(event) => updateRentalFact("streetAddress", event.target.value)} /></label>
+          <label><span>City</span><input value={rentalFacts.city} onChange={(event) => updateRentalFact("city", event.target.value)} /></label>
+          <label><span>State</span><select value={rentalFacts.state} onChange={(event) => updateRentalFact("state", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+          <label><span>Zip</span><input value={rentalFacts.zip} onChange={(event) => updateRentalFact("zip", event.target.value)} /></label>
+          <label><span>Cell phone</span><input value={rentalFacts.cellPhone} onChange={(event) => updateRentalFact("cellPhone", event.target.value)} /></label>
+          <label><span>Email</span><input value={rentalFacts.email} onChange={(event) => updateRentalFact("email", event.target.value)} /></label>
         </div>
       </section>
 
@@ -2012,11 +2089,13 @@ function basisPointsFromMultiplier(value: string) {
 }
 
 function LeaseToOwnExecutionDesk({
+  customerPrefill,
   customerName,
   onAmountChange,
   onVehicleChange,
   vehicle
 }: {
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onVehicleChange: (value: string) => void;
@@ -2065,10 +2144,12 @@ function LeaseToOwnExecutionDesk({
   const [leaseFacts, setLeaseFacts] = useDealDraftState("leaseFacts", {
     deliveryAt: "",
     agreementDate: "",
+    dateOfBirth: "",
     firstPaymentDate: "",
     streetAddress: "",
     city: "",
     zip: "",
+    idType: "",
     idState: "MN",
     idNumber: "",
     lesseeCounty: "",
@@ -2083,6 +2164,17 @@ function LeaseToOwnExecutionDesk({
     serviceFacility: "KAP Fleet",
     serviceFacilityPhone: ""
   });
+  useEffect(() => {
+    setLeaseFacts((current) => ({
+      ...current,
+      dateOfBirth: current.dateOfBirth || customerPrefill.dateOfBirth,
+      streetAddress: current.streetAddress || customerPrefill.address,
+      idType: current.idType || customerPrefill.idType,
+      idState: customerPrefill.idState && current.idState === "MN" ? customerPrefill.idState : current.idState,
+      lesseeEmail: current.lesseeEmail || customerPrefill.email,
+      lesseePhone: current.lesseePhone || customerPrefill.phoneNumber
+    }));
+  }, [customerPrefill, setLeaseFacts]);
 
   const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
     calculationMode: leaseInputs.calculationMode,
@@ -2131,6 +2223,12 @@ function LeaseToOwnExecutionDesk({
   function updateLeaseFact(key: keyof typeof leaseFacts, value: string) {
     setContractPacket(null);
     setLeaseFacts((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateLeaseIdentityFact(key: CustomerIdentityFieldKey, value: string) {
+    if (key === "cellPhone") updateLeaseFact("lesseePhone", value);
+    else if (key === "email") updateLeaseFact("lesseeEmail", value);
+    else if (key in leaseFacts) updateLeaseFact(key as keyof typeof leaseFacts, value);
   }
 
   function updateVin(value: string) {
@@ -2274,7 +2372,7 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Lessee</span><input readOnly value={customerName} /></label>
           <label><span>Co-lessee</span><input value={leaseFacts.coLesseeName} onChange={(event) => updateLeaseFact("coLesseeName", event.target.value)} /></label>
-          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} values={leaseFacts} onValueChange={updateLeaseFact} />
+          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} prefill={customerPrefill} values={leaseFacts} onValueChange={updateLeaseIdentityFact} />
           <label><span>Cell phone</span><input value={leaseFacts.lesseePhone} onChange={(event) => updateLeaseFact("lesseePhone", event.target.value)} /></label>
           <label><span>Email</span><input value={leaseFacts.lesseeEmail} onChange={(event) => updateLeaseFact("lesseeEmail", event.target.value)} /></label>
           <label><span>Insurance company</span><input value={leaseFacts.insuranceCompany} onChange={(event) => updateLeaseFact("insuranceCompany", event.target.value)} /></label>
@@ -2475,6 +2573,7 @@ function LeaseToOwnExecutionDesk({
 
 function BhphExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -2484,6 +2583,7 @@ function BhphExecutionDesk({
   vehicle
 }: {
   amount: string;
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onComplete: () => void;
@@ -2700,7 +2800,7 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Buyer</span><input readOnly value={customerName} /></label>
           <label><span>Co-buyer</span><input value={proof.coBuyer} onChange={(event) => setProof((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
-          <CustomerIdentityDetails includeCreditFields />
+          <CustomerIdentityDetails includeCreditFields prefill={customerPrefill} />
           <label><span>Employer / income source</span><input value={proof.employer} onChange={(event) => setProof((current) => ({ ...current, employer: event.target.value }))} /></label>
           <label><span>Income proof</span><input value={proof.income} onChange={(event) => setProof((current) => ({ ...current, income: event.target.value }))} placeholder="Paystub, bank statement, award letter" /></label>
           <label><span>Residence proof</span><input value={proof.residence} onChange={(event) => setProof((current) => ({ ...current, residence: event.target.value }))} placeholder="Utility, lease, mail, or verified reference" /></label>
@@ -2960,6 +3060,7 @@ function BhphExecutionDesk({
 
 function DealerFinanceExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -2969,6 +3070,7 @@ function DealerFinanceExecutionDesk({
   vehicle
 }: {
   amount: string;
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onComplete: () => void;
@@ -3070,7 +3172,7 @@ function DealerFinanceExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Buyer</span><input readOnly value={customerName} /></label>
           <label><span>Co-buyer</span><input value={applicant.coBuyer} onChange={(event) => setApplicant((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
-          <CustomerIdentityDetails includeCreditFields />
+          <CustomerIdentityDetails includeCreditFields prefill={customerPrefill} />
           <label><span>Income / employment</span><input value={applicant.income} onChange={(event) => setApplicant((current) => ({ ...current, income: event.target.value }))} placeholder="Employer, income source, or proof reference" /></label>
           <label><span>Residence</span><input value={applicant.residence} onChange={(event) => setApplicant((current) => ({ ...current, residence: event.target.value }))} placeholder="Address or residence proof reference" /></label>
           <label><span>Credit tier</span><select value={applicant.creditTier} onChange={(event) => setApplicant((current) => ({ ...current, creditTier: event.target.value }))}><option>Application pending</option><option>Prime</option><option>Near prime</option><option>Subprime</option><option>Manual review</option></select></label>
@@ -3249,6 +3351,7 @@ function DealerFinanceExecutionDesk({
 }
 
 function TestDriveExecutionDesk({
+  customerPrefill: _customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3257,6 +3360,7 @@ function TestDriveExecutionDesk({
   statusKind,
   vehicle
 }: {
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onComplete: () => void;
@@ -3603,6 +3707,7 @@ function TestDriveExecutionDesk({
 
 function WholesaleExecutionDesk({
   amount,
+  customerPrefill: _customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3612,6 +3717,7 @@ function WholesaleExecutionDesk({
   vehicle
 }: {
   amount: string;
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onComplete: () => void;
@@ -3852,6 +3958,7 @@ function WholesaleExecutionDesk({
 
 function OutsideFinanceExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3861,6 +3968,7 @@ function OutsideFinanceExecutionDesk({
   vehicle
 }: {
   amount: string;
+  customerPrefill: CustomerDealPrefill;
   customerName: string;
   onAmountChange: (value: string) => void;
   onComplete: () => void;
@@ -3957,7 +4065,7 @@ function OutsideFinanceExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Customer</span><input readOnly value={customerName} /></label>
-          <CustomerIdentityDetails includeCreditFields />
+          <CustomerIdentityDetails includeCreditFields prefill={customerPrefill} />
           <label><span>Funding path</span><select value={funding.fundingPath} onChange={(event) => setFunding((current) => ({ ...current, fundingPath: event.target.value }))}><option>Outside finance</option><option>One pay</option><option>Credit union</option><option>Bank draft</option><option>Cashier&apos;s check</option></select></label>
           <label><span>Lender / bank</span><input value={funding.lenderName} onChange={(event) => setFunding((current) => ({ ...current, lenderName: event.target.value }))} /></label>
           <label><span>Approval / draft #</span><input value={funding.approvalNumber} onChange={(event) => setFunding((current) => ({ ...current, approvalNumber: event.target.value }))} /></label>
@@ -4180,6 +4288,7 @@ function DealStartDesk({
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
   const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? model.customers.find((customer) => customer.id === form.customerId) ?? null : null;
+  const customerPrefill = selectedCustomer?.dealPrefill ?? EMPTY_CUSTOMER_DEAL_PREFILL;
   const manualCustomer = manualCustomerName.trim();
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
   const customerReady = form.customerId === MANUAL_CUSTOMER_ID ? Boolean(manualCustomer) : effectiveCustomerName !== "Customer not selected";
@@ -4536,6 +4645,7 @@ function DealStartDesk({
               </div>
               <DealerFinanceExecutionDesk
                 amount={form.amount}
+                customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
@@ -4554,6 +4664,7 @@ function DealStartDesk({
               </div>
               <RetailSaleExecutionDesk
                 amount={form.amount}
+                customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
@@ -4579,6 +4690,7 @@ function DealStartDesk({
               </div>
               <BhphExecutionDesk
                 amount={form.amount}
+                customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
@@ -4596,6 +4708,7 @@ function DealStartDesk({
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <LeaseToOwnExecutionDesk
+                customerPrefill={customerPrefill}
                 key={effectiveCustomerName}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
@@ -4621,6 +4734,7 @@ function DealStartDesk({
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <TestDriveExecutionDesk
+                customerPrefill={customerPrefill}
                 key={effectiveCustomerName}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
@@ -4640,6 +4754,7 @@ function DealStartDesk({
               </div>
               <WholesaleExecutionDesk
                 amount={form.amount}
+                customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
@@ -4658,6 +4773,7 @@ function DealStartDesk({
               </div>
               <OutsideFinanceExecutionDesk
                 amount={form.amount}
+                customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
@@ -4676,6 +4792,7 @@ function DealStartDesk({
               </div>
               <DailyRentalExecutionDesk
                 amount={form.amount}
+                customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 customerNameEditable={form.customerId === MANUAL_CUSTOMER_ID || !selectedCustomer}
                 key={workflow.id}

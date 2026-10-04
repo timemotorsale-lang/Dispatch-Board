@@ -9,11 +9,17 @@ import { assertAuthenticatedUser } from "@/server/policies/access";
 
 type CustomerInput = {
   address?: unknown;
+  dateOfBirth?: unknown;
   displayName?: unknown;
   email?: unknown;
+  gender?: unknown;
+  idNumber?: unknown;
+  idState?: unknown;
+  idType?: unknown;
   locationId?: unknown;
   phoneNumber?: unknown;
   preferredContactMethod?: unknown;
+  ssn?: unknown;
 };
 
 function text(value: unknown, label: string, max: number, required = false) {
@@ -21,6 +27,19 @@ function text(value: unknown, label: string, max: number, required = false) {
   if (required && !result) throw new Error(`${label} is required.`);
   if (result.length > max) throw new Error(`${label} must be ${max} characters or fewer.`);
   return result || null;
+}
+
+function last4(value: string | null) {
+  const digits = value?.replace(/\D/g, "") ?? "";
+  return digits ? digits.slice(-4) : null;
+}
+
+function dateOnly(value: unknown, label: string) {
+  const result = text(value, label, 20);
+  if (!result) return null;
+  const parsed = new Date(`${result}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be a valid date.`);
+  return parsed;
 }
 
 export function normalizeServiceIntakePhoneNumber(value: string | null) {
@@ -52,7 +71,13 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
   const phoneNumber = text(value?.phoneNumber, "Phone number", 50);
   const email = text(value?.email, "Email", 200)?.toLocaleLowerCase() ?? null;
   const address = text(value?.address, "Address", 500);
+  const dateOfBirth = dateOnly(value?.dateOfBirth, "Date of birth");
+  const identityGender = text(value?.gender, "Gender", 40);
+  const idNumber = text(value?.idNumber, "ID number", 80);
+  const idState = text(value?.idState, "ID state", 20)?.toUpperCase() ?? null;
+  const idType = text(value?.idType, "ID type", 80);
   const preferredContactMethod = text(value?.preferredContactMethod, "Preferred contact method", 30) ?? "PHONE";
+  const ssn = text(value?.ssn, "SSN / ITIN", 20);
   if (!phoneNumber && !email) throw new Error("A phone number or email is required.");
 
   const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
@@ -85,6 +110,12 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
         phoneNumber: normalizedPhone,
         email,
         address,
+        dateOfBirth,
+        identityGender,
+        ssnLast4: last4(ssn),
+        idType,
+        idState,
+        idLast4: last4(idNumber),
         preferredContactMethod,
         sourceCode: "SERVICE_INTAKE",
       },

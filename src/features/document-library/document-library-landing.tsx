@@ -147,6 +147,7 @@ type SmartIntakeRecord = {
   extractionMethod: string;
   fileName: string;
   id: string;
+  ownerId: string | null;
   reviewStatus: string;
   routingTarget: string;
   sensitiveFieldKeys: string[];
@@ -156,6 +157,7 @@ type SmartIntakeRecord = {
 type DocumentLibraryLandingProps = {
   error?: string | null;
   initialLibrary: DocumentLibraryModel | null;
+  initialOwnerId?: string;
 };
 
 type DocumentLibraryActionResponse = {
@@ -275,7 +277,7 @@ function StatusBadge({ label, tone = statusTone(label) }: { label: string; tone?
   return <span className={`${styles.statusBadge} ${styles[tone]}`}><CheckCircle2 size={13} />{formatLabel(label)}</span>;
 }
 
-export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibraryLandingProps) {
+export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId }: DocumentLibraryLandingProps) {
   const [libraryState, setLibraryState] = useState(initialLibrary);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -422,7 +424,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     });
   }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
   const assistantWorkQueue = useMemo(() => library?.intelligence?.recommendations.slice(0, 5) ?? [], [library]);
-  const smartIntakeQueue = useMemo(() => library?.smartIntake ?? [], [library]);
+  const smartIntakeQueue = useMemo(() => (library?.smartIntake ?? []).filter((item) => !initialOwnerId || item.ownerId === initialOwnerId), [initialOwnerId, library]);
   const selectedSmartIntake = smartIntakeQueue[0] ?? null;
 
   useEffect(() => () => {
@@ -801,7 +803,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{smartIntakeQueue.length}</strong><span>Smart drafts</span></article>
       </section>
 
-      <section className={styles.smartIntakePanel} aria-label="Smart document intake">
+      <section className={styles.smartIntakePanel} id="smart-intake" aria-label="Smart document intake">
         <header>
           <div>
             <span><UploadCloud size={16} />Smart intake</span>
