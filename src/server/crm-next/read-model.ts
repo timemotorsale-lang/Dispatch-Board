@@ -2247,7 +2247,7 @@ function crmNextCustomerFromListItem(item: UnifiedCrmCustomerListItem, now: Date
     vehiclesOwned: 0,
     openDeals: 0,
     openCases: 0,
-    dealPrefill: { ...emptyDealPrefill(), address: item.address ?? "", dateOfBirth: item.dateOfBirth ?? "", email: item.email ?? "", idLast4: item.idLast4 ?? "", idState: item.idState ?? "", idType: item.idType ?? "", phoneNumber: item.phoneNumber ?? "", ssnLast4: item.ssnLast4 ?? "" },
+    dealPrefill: { ...emptyDealPrefill(), address: item.address ?? "", dateOfBirth: item.dateOfBirth ?? "", idLast4: item.idLast4 ?? "", idState: item.idState ?? "", idType: item.idType ?? "", ssnLast4: item.ssnLast4 ?? "" },
     riskLevel,
     nextAction: nextActionLabel(item, now),
     vehicles: [],

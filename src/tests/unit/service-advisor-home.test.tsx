@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 
 import { CooDailyWorkbook, CooEffectivenessPilotWorkbook, ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
@@ -1020,7 +1022,7 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("Blocker Escalation");
     expect(moreToolsHtml).toContain("Promise Tracker");
     expect(moreToolsHtml).toContain("Training Moment Capture");
-    expect(moreToolsHtml).toContain("End-of-Day Assistant");
+    expect(moreToolsHtml).toContain("Close My Day");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/focus-compass");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");

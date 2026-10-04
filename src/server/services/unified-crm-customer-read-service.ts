@@ -86,8 +86,6 @@ function toItem(record: UnifiedCrmCustomerListRecord): UnifiedCrmCustomerListIte
     maskedPhone: phone ? maskedPhone(phone) : "Not recorded",
     maskedEmail: email ? maskedEmail(email) : "Not recorded",
     ownerName: record.ownerUser?.name ?? "Unassigned",
-    phoneNumber: phone ?? null,
-    email: email ?? null,
     preferredContactMethod: record.preferredContactMethod,
     ssnLast4: record.ssnLast4,
     sourceCode: record.sourceCode,
