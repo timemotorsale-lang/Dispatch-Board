@@ -80,6 +80,8 @@ describe("Add Vehicle workflow", () => {
     expect(html).toContain("Detailed Add");
     expect(html).toContain("License plate");
     expect(html).toContain("NHTSA");
+    expect(html).toContain("Double-click to decode vehicle details");
+    expect(html).toContain("Decode vehicle details");
     expect(html).toContain("Customer-reported concern");
     expect(html).toContain("Vehicle whereabouts");
     expect(html).toContain("At our dealership");

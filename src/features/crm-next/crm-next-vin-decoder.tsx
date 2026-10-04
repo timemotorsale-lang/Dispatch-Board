@@ -1,31 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ScanLine, Download, Check } from "lucide-react";
-import { applicableDecodeProposals, VIN_SPECIFICATION_GROUPS, type CrmVehicleDecodeResult } from "@/lib/crm-vehicle-decode";
+import { applicableDecodeProposals, emptyFieldDecodeProposals, VIN_SPECIFICATION_GROUPS, type CrmVehicleDecodeResult } from "@/lib/crm-vehicle-decode";
 import styles from "./crm-next-shell.module.css";
 
 type Props = {
-  vin: string; query: string; fields: Record<string, string>; onApply: (values: Record<string, string>) => void;
+  vin: string; query: string; fields: Record<string, string>; onApply: (values: Record<string, string>, onlyEmpty?: boolean) => void;
 };
-export function CrmNextVinDecoder(props: Props) {
-  return <VinDecoderSession key={`${props.vin}|${props.query}`} {...props} />;
-}
+export type VinDecoderHandle = { decodeAndFill: () => void };
+export const CrmNextVinDecoder = forwardRef<VinDecoderHandle, Props>(function CrmNextVinDecoder(props, ref) {
+  return <VinDecoderSession key={props.vin || props.query} {...props} ref={ref} />;
+});
 
-function VinDecoderSession({ vin, query, fields, onApply }: Props) {
+const VinDecoderSession = forwardRef<VinDecoderHandle, Props>(function VinDecoderSession({ vin, query, fields, onApply }, ref) {
   const [result, setResult] = useState<CrmVehicleDecodeResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [yearHint, setYearHint] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
 
-  async function decode(candidateVin?: string) {
+  useImperativeHandle(ref, () => ({ decodeAndFill: () => void decode(undefined, true) }));
+
+  async function decode(candidateVin?: string, autoFill = false) {
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
     setBusy(true); setMessage(""); setResult(null); setSelected([]);
+    setDetailsOpen(autoFill);
     try {
       const entered = candidateVin || vin.trim() || (/^[A-HJ-NPR-Z0-9]{17}$/i.test(query.trim()) ? query.trim() : "");
       const response = await fetch("/api/crm/v1/vehicle-decode", { method: "POST", headers: { "content-type": "application/json" },
@@ -35,8 +40,12 @@ function VinDecoderSession({ vin, query, fields, onApply }: Props) {
       if (!response.ok) throw new Error(payload.error || "Vehicle decoding failed.");
       const decoded = payload as CrmVehicleDecodeResult;
       setResult(decoded);
-      setSelected(applicableDecodeProposals(decoded.proposals, fields).filter((proposal) => !fields[proposal.field].trim()).map((proposal) => proposal.field));
-      setMessage(decoded.vin ? "Vehicle identity returned for review." : "Inventory search complete.");
+      const available = emptyFieldDecodeProposals(decoded.proposals, fields);
+      setSelected(autoFill ? [] : available.map((proposal) => proposal.field));
+      if (autoFill && decoded.vin && available.length > 0) {
+        onApply(Object.fromEntries(available.map((proposal) => [proposal.field, proposal.value])), true);
+        setMessage(`${available.length} vehicle field${available.length === 1 ? "" : "s"} populated. Review the decoded specifications.`);
+      } else setMessage(decoded.vin ? "Vehicle identity returned for review." : "Inventory search complete.");
     } catch (error) {
       if (!request.signal.aborted) setMessage(error instanceof Error ? error.message : "Vehicle decoding failed. Retry or retain verified manual details.");
     } finally { if (!request.signal.aborted) setBusy(false); }
@@ -65,9 +74,9 @@ function VinDecoderSession({ vin, query, fields, onApply }: Props) {
           onApply(Object.fromEntries(proposals.filter((proposal) => selected.includes(proposal.field)).map((proposal) => [proposal.field, proposal.value])));
           setMessage("Selected vehicle fields applied."); setSelected([]);
         }}><Check size={16} aria-hidden="true" />Apply selected fields</button><button type="button" onClick={download}><Download size={16} aria-hidden="true" />Download decode record</button></div>
-        <details><summary>Vehicle specifications</summary>{VIN_SPECIFICATION_GROUPS.map((group) => <section key={group.label}><h3>{group.label}</h3><dl className={styles.vinSpecificationGrid}>{Object.entries(group.fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{result.specifications[key] ?? "Not reported"}</dd></div>)}</dl></section>)}</details>
+        <details open={detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)}><summary>Vehicle specifications</summary>{VIN_SPECIFICATION_GROUPS.map((group) => <section key={group.label}><h3>{group.label}</h3><dl className={styles.vinSpecificationGrid}>{Object.entries(group.fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{result.specifications[key] ?? "Not reported"}</dd></div>)}</dl></section>)}</details>
         <p className={styles.vinDecodeCoverage}>Title, accident history, recall completion, service history, and current odometer: not checked.</p>
       </>}
     </>}
   </div>;
-}
+});

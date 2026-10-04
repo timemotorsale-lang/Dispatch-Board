@@ -13,6 +13,7 @@ import {
   FileText,
   IdCard,
   RotateCcw,
+  ScanBarcode,
   Send,
   UploadCloud,
   UserRound,
@@ -26,6 +27,7 @@ import { idFromBarcode, vinFromBarcode } from "./barcode-review";
 type CaptureDestinationKey = "CUSTOMER" | "VEHICLE" | "CLAIM" | "REPAIR_ORDER" | "TASK" | "VENDOR" | "GENERAL" | "QUICK_UPDATE";
 type CaptureKindKey = "AUTO" | "PHOTO" | "ID" | "BUSINESS_CARD" | "ESTIMATE" | "DOCUMENT";
 type CaptureMode = "READY" | "CAMERA" | "PREVIEW" | "SENT";
+type CaptureIntent = "PHOTO" | "BARCODE";
 type BarcodeResult = { format: string; value: string };
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -165,7 +167,8 @@ export function MobileCaptureTool() {
   const [reference, setReference] = useState(() => searchParams.get("reference")?.slice(0, 120) ?? "");
   const [note, setNote] = useState("");
   const [mode, setMode] = useState<CaptureMode>("READY");
-  const [notice, setNotice] = useState("Choose where this scan belongs, then capture or upload.");
+  const [activeIntent, setActiveIntent] = useState<CaptureIntent>("PHOTO");
+  const [notice, setNotice] = useState("Choose Photo or Barcode Scan to start capture.");
   const [busy, setBusy] = useState(false);
   const [capturedImageUrl, setCapturedImageUrl] = useState("");
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
@@ -210,12 +213,12 @@ export function MobileCaptureTool() {
     setBarcodeNotice("");
   }
 
-  async function readBarcode() {
-    if (!capturedFile?.type.startsWith("image/") || readingBarcode) return;
+  async function readBarcode(file = capturedFile) {
+    if (!file?.type.startsWith("image/") || readingBarcode) return;
     setReadingBarcode(true);
     setBarcodeNotice("Reading barcode...");
     try {
-      const bitmap = await createImageBitmap(capturedFile);
+      const bitmap = await createImageBitmap(file);
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Scanner unavailable");
       canvas.width = bitmap.width;
@@ -270,7 +273,8 @@ export function MobileCaptureTool() {
     setCapturedFile(file);
     setCapturedImageUrl(URL.createObjectURL(file));
     setMode("PREVIEW");
-    setNotice("Review the image, then send it to the selected destination.");
+    setNotice(activeIntent === "BARCODE" ? "Barcode captured. Accept it, retake it, or cancel." : "Photo captured. Accept it, retake it, or cancel.");
+    if (activeIntent === "BARCODE") void readBarcode(file);
   }
 
   function validateFile(file: File) {
@@ -280,10 +284,11 @@ export function MobileCaptureTool() {
     return "";
   }
 
-  async function startCamera() {
+  async function startCamera(intent: CaptureIntent = activeIntent) {
     if (busy) return;
+    setActiveIntent(intent);
     setResult(null);
-    setNotice("Opening camera...");
+    setNotice(intent === "BARCODE" ? "Opening barcode scanner..." : "Opening photo capture...");
     if (typeof window !== "undefined" && !window.isSecureContext) {
       setNotice("Live camera requires a secure phone browser. Opening the phone camera picker instead.");
       cameraUploadRef.current?.click();
@@ -306,7 +311,7 @@ export function MobileCaptureTool() {
       });
       streamRef.current = stream;
       setMode("CAMERA");
-      setNotice("Fill the screen with the document or photo, then capture.");
+      setNotice(intent === "BARCODE" ? "Center the barcode in the guide, then capture." : "Fill the screen with the item, then capture.");
       requestAnimationFrame(() => {
         if (!videoRef.current) return;
         videoRef.current.srcObject = stream;
@@ -316,6 +321,16 @@ export function MobileCaptureTool() {
       setNotice("Live camera permission was blocked. Opening the phone camera picker instead.");
       cameraUploadRef.current?.click();
     }
+  }
+
+  function startPhotoCapture() {
+    setCaptureKind("PHOTO");
+    void startCamera("PHOTO");
+  }
+
+  function startBarcodeCapture() {
+    setActiveIntent("BARCODE");
+    void startCamera("BARCODE");
   }
 
   async function captureImage() {
@@ -345,19 +360,20 @@ export function MobileCaptureTool() {
     setCapturedFile(file);
     setCapturedImageUrl(URL.createObjectURL(file));
     setMode("PREVIEW");
-    setNotice("Review the image, then send it to the selected destination.");
+    setNotice(activeIntent === "BARCODE" ? "Barcode captured. Accept it, retake it, or cancel." : "Photo captured. Accept it, retake it, or cancel.");
+    if (activeIntent === "BARCODE") void readBarcode(file);
   }
 
   function closeCamera() {
     stopCamera();
     setMode("READY");
-    setNotice("Camera closed. You can scan again or upload a file.");
+    setNotice("Capture canceled. Choose Photo or Barcode Scan when ready.");
   }
 
   function retake() {
     resetCapturedImage();
     clearFileInputs();
-    void startCamera();
+    void startCamera(activeIntent);
   }
 
   async function sendFile(file: File | null) {
@@ -400,7 +416,7 @@ export function MobileCaptureTool() {
       resetCapturedImage();
       clearFileInputs();
     } catch {
-      setNotice("Capture could not reach the document service.");
+      setNotice("Capture could not reach the document service. Keep this preview open and try Accept again.");
     } finally {
       setBusy(false);
     }
@@ -423,7 +439,7 @@ export function MobileCaptureTool() {
       <section className={styles.hero}>
         <div>
           <span><Camera size={16} /> Capture</span>
-          <h1 id="mobile-capture-title">Scan and send</h1>
+          <h1 id="mobile-capture-title">Capture and send</h1>
         </div>
         <p aria-live="polite">{notice}</p>
       </section>
@@ -472,7 +488,8 @@ export function MobileCaptureTool() {
       </section>
 
       <section aria-busy={busy} className={styles.actions} aria-label="Capture actions">
-        <button disabled={busy} onClick={() => void startCamera()} type="button"><Camera size={20} /> Scan / photo</button>
+        <button aria-pressed={activeIntent === "PHOTO" && mode !== "SENT"} disabled={busy} onClick={startPhotoCapture} type="button"><Camera size={20} /> Photo</button>
+        <button aria-pressed={activeIntent === "BARCODE" && mode !== "SENT"} disabled={busy} onClick={startBarcodeCapture} type="button"><ScanBarcode size={20} /> Barcode Scan</button>
         <input
           accept="image/*"
           capture="environment"
@@ -491,6 +508,10 @@ export function MobileCaptureTool() {
 
       {mode === "CAMERA" ? (
         <section className={styles.cameraOverlay} aria-label="Camera scanner">
+          <header>
+            <span>{activeIntent === "BARCODE" ? "Barcode scan" : "Photo capture"}</span>
+            <strong>{activeIntent === "BARCODE" ? "Center the barcode and capture" : "Frame the photo and capture"}</strong>
+          </header>
           <video muted playsInline ref={videoRef} />
           <span aria-hidden="true" />
           <footer>
@@ -502,10 +523,14 @@ export function MobileCaptureTool() {
 
       {mode === "PREVIEW" ? (
         <section className={styles.previewOverlay} aria-label="Capture preview">
+          <header>
+            <span>{activeIntent === "BARCODE" ? "Barcode review" : "Photo review"}</span>
+            <strong>Accept, retake, or cancel</strong>
+          </header>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {capturedFile?.type === "application/pdf" ? <p>{capturedFile.name}</p> : <img alt="Captured scan preview" src={capturedImageUrl} />}
           <div className={styles.barcodeReview} aria-live="polite">
-            <button disabled={readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : "Read barcode"}</button>
+            <button disabled={readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : activeIntent === "BARCODE" ? "Read again" : "Read barcode"}</button>
             {barcodeNotice ? <p>{barcodeNotice}</p> : null}
             {scannedVin ? <Link href={`/vehicles/workflows/add-vehicle?vin=${encodeURIComponent(scannedVin)}`}>Use VIN {scannedVin}</Link> : null}
             {idFields?.number ? <p>ID: {idFields.name || "Name unavailable"} · {idFields.state || "State unavailable"} · ending {idFields.number.slice(-4)}</p> : null}
@@ -514,9 +539,9 @@ export function MobileCaptureTool() {
             {barcode?.format === "PDF_417" && !idFields?.number ? <p>PDF417 read. Review the captured ID photo to confirm its details.</p> : null}
           </div>
           <footer>
-            <button disabled={busy} onClick={() => void sendCapture()} type="button"><Send size={20} /> {busy ? "Sending..." : "Send"}</button>
+            <button disabled={busy} onClick={() => void sendCapture()} type="button"><Send size={20} /> {busy ? "Sending..." : "Accept and send"}</button>
             <button disabled={busy} onClick={retake} type="button"><RotateCcw size={20} /> Retake</button>
-            <button disabled={busy} onClick={() => { resetCapturedImage(); clearFileInputs(); setMode("READY"); }} type="button"><X size={20} /> Cancel</button>
+            <button disabled={busy} onClick={() => { resetCapturedImage(); clearFileInputs(); setMode("READY"); setNotice("Capture canceled. Choose Photo or Barcode Scan when ready."); }} type="button"><X size={20} /> Cancel</button>
           </footer>
         </section>
       ) : null}
@@ -540,7 +565,7 @@ export function MobileCaptureTool() {
             </dl>
           ) : null}
           <div className={styles.sentActions}>
-            <button onClick={() => { setMode("READY"); setResult(null); setNotice("Ready for the next scan."); }} type="button">Scan another</button>
+            <button onClick={() => { setMode("READY"); setResult(null); setNotice("Choose Photo or Barcode Scan to start capture."); }} type="button">Capture another</button>
             <Link href={destinationKey === "QUICK_UPDATE" && requestedOwnerId ? `/documents?ownerId=${encodeURIComponent(requestedOwnerId)}#smart-intake` : "/documents"}>Review queue</Link>
           </div>
         </section>
