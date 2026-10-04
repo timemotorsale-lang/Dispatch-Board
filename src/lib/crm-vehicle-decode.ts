@@ -20,3 +20,20 @@ export const VIN_SPECIFICATION_GROUPS = [
 export function applicableDecodeProposals(proposals: DecodeProposal[], fields: Record<string, string>) {
   return proposals.filter((proposal) => proposal.field in fields && proposal.value && fields[proposal.field] !== proposal.value);
 }
+
+export function emptyFieldDecodeProposals(proposals: DecodeProposal[], fields: Record<string, string>) {
+  return applicableDecodeProposals(proposals, fields).filter((proposal) => canAutoFill(proposal.field, fields));
+}
+
+export function fillEmptyDecodeFields<T extends Record<string, string>>(fields: T, values: Record<string, string>): T {
+  const next = { ...fields };
+  for (const [field, value] of Object.entries(values)) {
+    if (field in next && canAutoFill(field, next)) next[field as keyof T] = value as T[keyof T];
+  }
+  return next;
+}
+
+function canAutoFill(field: string, fields: Record<string, string>) {
+  const current = fields[field]?.trim();
+  return !current || field === "stockNumber" && /^[A-HJ-NPR-Z0-9]{17}$/.test(fields.vin ?? "") && current === fields.vin.slice(-6);
+}
