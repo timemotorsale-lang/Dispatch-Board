@@ -231,6 +231,10 @@
   object-fit: cover;
 }
 
+.previewOverlay img {
+  object-fit: contain;
+}
+
 .cameraOverlay > span {
   position: absolute;
   inset: 64px 28px 118px;
@@ -246,6 +250,44 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding-top: 12px;
+}
+
+.barcodeReview {
+  position: absolute;
+  right: 20px;
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  left: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-height: 34dvh;
+  overflow: auto;
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(5, 11, 20, .92);
+  color: #fff;
+}
+
+.barcodeReview button,
+.barcodeReview a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  border: 1px solid #a9c5ff;
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
+  color: #10233f;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.barcodeReview p {
+  width: 100%;
+  margin: 0;
+  line-height: 1.4;
 }
 
 .previewOverlay footer {

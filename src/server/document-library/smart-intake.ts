@@ -277,12 +277,12 @@ export async function persistSmartDocumentIntakeRecord(input: {
   return normalizeSmartIntakeRecord(row);
 }
 
-export async function listSmartDocumentIntakeRecords(input: { organizationId: string; take?: number }) {
+export async function listSmartDocumentIntakeRecords(input: { organizationId: string; ownerId?: string; take?: number }) {
   const { prisma } = await import("@/server/db/client");
   const rows = await prisma.documentSmartIntakeRecord.findMany({
     orderBy: { createdAt: "desc" },
     take: input.take ?? 25,
-    where: { organizationId: input.organizationId }
+    where: { organizationId: input.organizationId, ...(input.ownerId ? { ownerId: input.ownerId } : {}) }
   });
   return rows.map(normalizeSmartIntakeRecord);
 }

@@ -10,6 +10,8 @@ import {
 } from "@/server/document-library/domain";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { stageDocumentLibraryUpload } from "@/server/document-library/upload-service";
+import { prisma } from "@/server/db/client";
+import { isManager } from "@/server/policies/access";
 
 const TYPED_CODES = new Set<DocumentLibraryFailureCode>([
   "AUTHENTICATION_REQUIRED",
@@ -49,6 +51,14 @@ export async function POST(request: Request) {
   try {
     const storage = resolveDocumentStorageRuntimeFromEnv();
     const payload = await payloadFromRequest(request);
+    if (payload.context?.ownerType === "QUICK_UPDATE") {
+      const user = await getCurrentUser();
+      if (!user) return NextResponse.json({ error: "Sign in to attach a Quick Update photo." }, { status: 401 });
+      const ownerId = String(payload.context.ownerId ?? "");
+      const update = await prisma.workdayQuickUpdate.findUnique({ where: { id: ownerId }, include: { workbook: { select: { userId: true } } } });
+      if (!update) return NextResponse.json({ error: "Save the Quick Update before attaching a photo." }, { status: 404 });
+      if (update.workbook.userId !== user.id && !isManager(user)) return NextResponse.json({ error: "You cannot attach to this Quick Update." }, { status: 403 });
+    }
     if (payload.bytes instanceof Uint8Array && (!storage.adapter || !storage.readiness.readyForByteStorage)) {
       throw new DocumentLibraryError(
         "DOCUMENT_LIBRARY_STORAGE_UNAVAILABLE",

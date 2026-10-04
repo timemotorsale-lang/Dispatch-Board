@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   BriefcaseBusiness,
@@ -20,10 +21,12 @@ import {
 } from "lucide-react";
 
 import styles from "./mobile-capture-tool.module.css";
+import { idFromBarcode, vinFromBarcode } from "./barcode-review";
 
-type CaptureDestinationKey = "CUSTOMER" | "VEHICLE" | "CLAIM" | "REPAIR_ORDER" | "TASK" | "VENDOR" | "GENERAL";
+type CaptureDestinationKey = "CUSTOMER" | "VEHICLE" | "CLAIM" | "REPAIR_ORDER" | "TASK" | "VENDOR" | "GENERAL" | "QUICK_UPDATE";
 type CaptureKindKey = "AUTO" | "PHOTO" | "ID" | "BUSINESS_CARD" | "ESTIMATE" | "DOCUMENT";
 type CaptureMode = "READY" | "CAMERA" | "PREVIEW" | "SENT";
+type BarcodeResult = { format: string; value: string };
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_UPLOAD_TYPES = new Set([
@@ -120,6 +123,15 @@ const destinations = [
     label: "Inbox",
     ownerType: "CUSTOMER",
     prompt: "Optional reference"
+  },
+  {
+    console: "DOCUMENT_LIBRARY",
+    icon: ClipboardCheck,
+    intent: "GENERAL_SUPPORT",
+    key: "QUICK_UPDATE",
+    label: "Quick Update",
+    ownerType: "QUICK_UPDATE",
+    prompt: "Update reference"
   }
 ] as const;
 
@@ -145,20 +157,29 @@ function slug(value: string) {
 }
 
 export function MobileCaptureTool() {
-  const [destinationKey, setDestinationKey] = useState<CaptureDestinationKey>("CLAIM");
-  const [captureKind, setCaptureKind] = useState<CaptureKindKey>("AUTO");
-  const [reference, setReference] = useState("");
+  const searchParams = useSearchParams();
+  const requestedDestination = searchParams.get("destination");
+  const requestedKind = searchParams.get("kind");
+  const [destinationKey, setDestinationKey] = useState<CaptureDestinationKey>(() => destinations.some((item) => item.key === requestedDestination) ? requestedDestination as CaptureDestinationKey : "GENERAL");
+  const [captureKind, setCaptureKind] = useState<CaptureKindKey>(() => captureKinds.some((item) => item.key === requestedKind) ? requestedKind as CaptureKindKey : "AUTO");
+  const [reference, setReference] = useState(() => searchParams.get("reference")?.slice(0, 120) ?? "");
   const [note, setNote] = useState("");
   const [mode, setMode] = useState<CaptureMode>("READY");
   const [notice, setNotice] = useState("Choose where this scan belongs, then capture or upload.");
   const [busy, setBusy] = useState(false);
   const [capturedImageUrl, setCapturedImageUrl] = useState("");
+  const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [barcode, setBarcode] = useState<BarcodeResult | null>(null);
+  const [barcodeNotice, setBarcodeNotice] = useState("");
+  const [readingBarcode, setReadingBarcode] = useState(false);
   const [result, setResult] = useState<UploadResponse | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const cameraUploadRef = useRef<HTMLInputElement | null>(null);
   const fileUploadRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const returnTo = searchParams.get("returnTo");
+  const requestedOwnerId = searchParams.get("ownerId");
 
   const destination = useMemo(
     () => destinations.find((item) => item.key === destinationKey) ?? destinations[0],
@@ -184,6 +205,72 @@ export function MobileCaptureTool() {
   function resetCapturedImage() {
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
     setCapturedImageUrl("");
+    setCapturedFile(null);
+    setBarcode(null);
+    setBarcodeNotice("");
+  }
+
+  async function readBarcode() {
+    if (!capturedFile?.type.startsWith("image/") || readingBarcode) return;
+    setReadingBarcode(true);
+    setBarcodeNotice("Reading barcode...");
+    try {
+      const bitmap = await createImageBitmap(capturedFile);
+      const canvas = canvasRef.current;
+      if (!canvas) throw new Error("Scanner unavailable");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const { BarcodeFormat, BrowserMultiFormatReader, BrowserPDF417Reader } = await import("@zxing/browser");
+      let result;
+      try {
+        result = (captureKind === "ID" ? new BrowserPDF417Reader() : new BrowserMultiFormatReader()).decodeFromCanvas(canvas);
+      } catch {
+        if (captureKind !== "ID") result = new BrowserPDF417Reader().decodeFromCanvas(canvas);
+      }
+      if (!result) { setBarcodeNotice("No barcode found. Retake with the barcode sharp and fully in frame."); return; }
+      setBarcode({ format: BarcodeFormat[result.getBarcodeFormat()], value: result.getText() });
+      setBarcodeNotice("Barcode read. Confirm it against the physical document before using it.");
+    } catch {
+      setBarcodeNotice("No barcode found. Retake with the barcode sharp and fully in frame.");
+    } finally {
+      setReadingBarcode(false);
+    }
+  }
+
+  const scannedVin = destinationKey === "VEHICLE" && barcode ? vinFromBarcode(barcode.value) : null;
+  const idFields = barcode && (captureKind === "ID" || barcode.format === "PDF_417") ? idFromBarcode(barcode.value) : null;
+
+  async function copyIdNumber() {
+    if (!idFields?.number) return;
+    try {
+      await navigator.clipboard.writeText(idFields.number);
+      setBarcodeNotice("ID number copied for the intake form.");
+    } catch {
+      setBarcodeNotice("Copy is unavailable here. Enter the ID number from the card.");
+    }
+  }
+
+  async function copyBarcode() {
+    if (!barcode) return;
+    try {
+      await navigator.clipboard.writeText(barcode.value);
+      setBarcodeNotice("Barcode value copied for the update.");
+    } catch {
+      setBarcodeNotice("Copy is unavailable here. Read the value from the label.");
+    }
+  }
+
+  function previewFile(file: File | null) {
+    if (!file) return;
+    const error = validateFile(file);
+    if (error) { setNotice(error); clearFileInputs(); return; }
+    resetCapturedImage();
+    setCapturedFile(file);
+    setCapturedImageUrl(URL.createObjectURL(file));
+    setMode("PREVIEW");
+    setNotice("Review the image, then send it to the selected destination.");
   }
 
   function validateFile(file: File) {
@@ -254,7 +341,9 @@ export function MobileCaptureTool() {
     }
     stopCamera();
     resetCapturedImage();
-    setCapturedImageUrl(URL.createObjectURL(blob));
+    const file = new File([blob], "mobile-capture.jpg", { type: "image/jpeg" });
+    setCapturedFile(file);
+    setCapturedImageUrl(URL.createObjectURL(file));
     setMode("PREVIEW");
     setNotice("Review the image, then send it to the selected destination.");
   }
@@ -267,6 +356,7 @@ export function MobileCaptureTool() {
 
   function retake() {
     resetCapturedImage();
+    clearFileInputs();
     void startCamera();
   }
 
@@ -290,10 +380,10 @@ export function MobileCaptureTool() {
       form.append("intent", destination.intent);
       form.append("ownerType", destination.ownerType);
       form.append("ownerLabel", ownerLabel);
-      form.append("ownerId", `${destination.key.toLowerCase()}-${slug(ownerLabel)}`);
+      form.append("ownerId", destinationKey === "QUICK_UPDATE" && requestedOwnerId ? requestedOwnerId : `${destination.key.toLowerCase()}-${slug(ownerLabel)}`);
       form.append("purpose", `${destination.label} mobile capture${captureKind === "AUTO" ? "" : ` - ${captureKind.toLowerCase().replaceAll("_", " ")}`}.`);
       form.append("reason", note.trim() || `Mobile capture routed to ${destination.label}.`);
-      const documentType = documentTypeByKind[captureKind];
+      const documentType = destinationKey === "QUICK_UPDATE" ? "QUICK_UPDATE_PHOTO" : documentTypeByKind[captureKind];
       if (documentType) form.append("documentType", documentType);
       const response = await fetch("/api/document-library/uploads", {
         body: form,
@@ -318,10 +408,7 @@ export function MobileCaptureTool() {
 
   async function sendCapture() {
     if (busy) return;
-    if (!capturedImageUrl) return;
-    const response = await fetch(capturedImageUrl);
-    const blob = await response.blob();
-    await sendFile(new File([blob], `mobile-capture-${Date.now()}.jpg`, { type: "image/jpeg" }));
+    await sendFile(capturedFile);
   }
 
   const DestinationIcon = destination.icon;
@@ -329,7 +416,7 @@ export function MobileCaptureTool() {
   return (
     <main className={styles.page} aria-labelledby="mobile-capture-title">
       <header className={styles.header}>
-        <Link href="/">Home</Link>
+        <Link href={returnTo?.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") ? returnTo : "/"}>Back</Link>
         <span>Mobile tool</span>
       </header>
 
@@ -344,7 +431,7 @@ export function MobileCaptureTool() {
       <section className={styles.toolPanel} aria-label="Capture destination">
         <h2>Send to</h2>
         <div className={styles.destinationGrid}>
-          {destinations.map((item) => {
+          {destinations.filter((item) => item.key !== "QUICK_UPDATE" || requestedOwnerId).map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -391,7 +478,7 @@ export function MobileCaptureTool() {
           capture="environment"
           className={styles.nativeCameraInput}
           disabled={busy}
-          onChange={(event) => void sendFile(event.currentTarget.files?.[0] ?? null)}
+          onChange={(event) => previewFile(event.currentTarget.files?.[0] ?? null)}
           ref={cameraUploadRef}
           type="file"
         />
@@ -416,11 +503,20 @@ export function MobileCaptureTool() {
       {mode === "PREVIEW" ? (
         <section className={styles.previewOverlay} aria-label="Capture preview">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt="Captured scan preview" src={capturedImageUrl} />
+          {capturedFile?.type === "application/pdf" ? <p>{capturedFile.name}</p> : <img alt="Captured scan preview" src={capturedImageUrl} />}
+          <div className={styles.barcodeReview} aria-live="polite">
+            <button disabled={readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : "Read barcode"}</button>
+            {barcodeNotice ? <p>{barcodeNotice}</p> : null}
+            {scannedVin ? <Link href={`/vehicles/workflows/add-vehicle?vin=${encodeURIComponent(scannedVin)}`}>Use VIN {scannedVin}</Link> : null}
+            {idFields?.number ? <p>ID: {idFields.name || "Name unavailable"} · {idFields.state || "State unavailable"} · ending {idFields.number.slice(-4)}</p> : null}
+            {idFields?.number ? <button onClick={() => void copyIdNumber()} type="button">Copy ID number</button> : null}
+            {barcode && !scannedVin && !idFields?.number && barcode.format !== "PDF_417" ? <><p>{barcode.format}: {barcode.value.slice(0, 80)}</p><button onClick={() => void copyBarcode()} type="button">Copy barcode</button></> : null}
+            {barcode?.format === "PDF_417" && !idFields?.number ? <p>PDF417 read. Review the captured ID photo to confirm its details.</p> : null}
+          </div>
           <footer>
             <button disabled={busy} onClick={() => void sendCapture()} type="button"><Send size={20} /> {busy ? "Sending..." : "Send"}</button>
             <button disabled={busy} onClick={retake} type="button"><RotateCcw size={20} /> Retake</button>
-            <button disabled={busy} onClick={() => setMode("READY")} type="button"><X size={20} /> Cancel</button>
+            <button disabled={busy} onClick={() => { resetCapturedImage(); clearFileInputs(); setMode("READY"); }} type="button"><X size={20} /> Cancel</button>
           </footer>
         </section>
       ) : null}
@@ -445,7 +541,7 @@ export function MobileCaptureTool() {
           ) : null}
           <div className={styles.sentActions}>
             <button onClick={() => { setMode("READY"); setResult(null); setNotice("Ready for the next scan."); }} type="button">Scan another</button>
-            <Link href="/documents">Review queue</Link>
+            <Link href={destinationKey === "QUICK_UPDATE" && requestedOwnerId ? `/documents?ownerId=${encodeURIComponent(requestedOwnerId)}#smart-intake` : "/documents"}>Review queue</Link>
           </div>
         </section>
       ) : null}

@@ -2,6 +2,7 @@
 
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { AlertCircle, Camera, CarFront, CheckCircle2, ClipboardCheck, FileText, Gauge, PackageCheck, PenLine, ShieldCheck, UserPlus, Wrench } from "lucide-react";
+import Link from "next/link";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -535,18 +536,14 @@ export function CrmNextIntakeForm() {
         {capturePurpose === "customer" ? (
           <>
             <div className={styles.mobileCaptureGrid}>
-              <label className={styles.captureUpload}>
-                <span><Camera size={18} /> Capture ID photo</span>
-                <input
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) => {
-                    setCaptureNotice(event.currentTarget.files?.length ? "Photo selected for review. Confirm the fields below; the photo is not uploaded or saved." : "Use a phone camera when available, then confirm only the fields needed to create the customer.");
-                  }}
-                  type="file"
-                />
-                <small>For review only</small>
-              </label>
+              <Link className={styles.captureUpload} href="/capture?destination=CUSTOMER&kind=ID&returnTo=%2Fcrm-next%2Fnew" rel="noopener noreferrer" target="_blank">
+                <span><Camera size={18} /> Scan ID</span>
+                <small>Capture, review, send</small>
+              </Link>
+              <Link className={styles.captureUpload} href="/capture?destination=CUSTOMER&kind=BUSINESS_CARD&returnTo=%2Fcrm-next%2Fnew" rel="noopener noreferrer" target="_blank">
+                <span><Camera size={18} /> Scan business card</span>
+                <small>Capture, review, send</small>
+              </Link>
               <label>
                 <span>Customer name</span>
                 <input placeholder="Name from ID" ref={mobileNameRef} />
