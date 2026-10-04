@@ -6,6 +6,7 @@ import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, us
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder } from "./crm-next-vin-decoder";
+import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
 import { FilePlus2, Eye, Download, Printer, X } from "lucide-react";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
@@ -592,17 +593,6 @@ function CustomerIdentityDetails({
     streetAddress: prefill.address,
     zip: ""
   });
-  useEffect(() => {
-    setLocalValues((current) => ({
-      ...current,
-      cellPhone: prefill.phoneNumber,
-      dateOfBirth: prefill.dateOfBirth,
-      email: prefill.email,
-      idState: prefill.idState,
-      idType: prefill.idType,
-      streetAddress: prefill.address
-    }));
-  }, [prefill]);
   const currentValues = values ?? localValues;
   function change(key: keyof typeof localValues, value: string) {
     if (onValueChange) onValueChange(key, value);
@@ -757,7 +747,6 @@ function EnterpriseDealControlPanel({
 
 function RetailSaleExecutionDesk({
   amount,
-  customerPrefill: _customerPrefill,
   customerName,
   onAmountChange,
   onVehicleChange,
@@ -2800,7 +2789,7 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Buyer</span><input readOnly value={customerName} /></label>
           <label><span>Co-buyer</span><input value={proof.coBuyer} onChange={(event) => setProof((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
-          <CustomerIdentityDetails includeCreditFields prefill={customerPrefill} />
+          <CustomerIdentityDetails key={JSON.stringify(customerPrefill)} includeCreditFields prefill={customerPrefill} />
           <label><span>Employer / income source</span><input value={proof.employer} onChange={(event) => setProof((current) => ({ ...current, employer: event.target.value }))} /></label>
           <label><span>Income proof</span><input value={proof.income} onChange={(event) => setProof((current) => ({ ...current, income: event.target.value }))} placeholder="Paystub, bank statement, award letter" /></label>
           <label><span>Residence proof</span><input value={proof.residence} onChange={(event) => setProof((current) => ({ ...current, residence: event.target.value }))} placeholder="Utility, lease, mail, or verified reference" /></label>
@@ -3172,7 +3161,7 @@ function DealerFinanceExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Buyer</span><input readOnly value={customerName} /></label>
           <label><span>Co-buyer</span><input value={applicant.coBuyer} onChange={(event) => setApplicant((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
-          <CustomerIdentityDetails includeCreditFields prefill={customerPrefill} />
+          <CustomerIdentityDetails key={JSON.stringify(customerPrefill)} includeCreditFields prefill={customerPrefill} />
           <label><span>Income / employment</span><input value={applicant.income} onChange={(event) => setApplicant((current) => ({ ...current, income: event.target.value }))} placeholder="Employer, income source, or proof reference" /></label>
           <label><span>Residence</span><input value={applicant.residence} onChange={(event) => setApplicant((current) => ({ ...current, residence: event.target.value }))} placeholder="Address or residence proof reference" /></label>
           <label><span>Credit tier</span><select value={applicant.creditTier} onChange={(event) => setApplicant((current) => ({ ...current, creditTier: event.target.value }))}><option>Application pending</option><option>Prime</option><option>Near prime</option><option>Subprime</option><option>Manual review</option></select></label>
@@ -3351,7 +3340,6 @@ function DealerFinanceExecutionDesk({
 }
 
 function TestDriveExecutionDesk({
-  customerPrefill: _customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3707,7 +3695,6 @@ function TestDriveExecutionDesk({
 
 function WholesaleExecutionDesk({
   amount,
-  customerPrefill: _customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -4065,7 +4052,7 @@ function OutsideFinanceExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Customer</span><input readOnly value={customerName} /></label>
-          <CustomerIdentityDetails includeCreditFields prefill={customerPrefill} />
+          <CustomerIdentityDetails key={JSON.stringify(customerPrefill)} includeCreditFields prefill={customerPrefill} />
           <label><span>Funding path</span><select value={funding.fundingPath} onChange={(event) => setFunding((current) => ({ ...current, fundingPath: event.target.value }))}><option>Outside finance</option><option>One pay</option><option>Credit union</option><option>Bank draft</option><option>Cashier&apos;s check</option></select></label>
           <label><span>Lender / bank</span><input value={funding.lenderName} onChange={(event) => setFunding((current) => ({ ...current, lenderName: event.target.value }))} /></label>
           <label><span>Approval / draft #</span><input value={funding.approvalNumber} onChange={(event) => setFunding((current) => ({ ...current, approvalNumber: event.target.value }))} /></label>
@@ -4288,7 +4275,27 @@ function DealStartDesk({
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
   const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? model.customers.find((customer) => customer.id === form.customerId) ?? null : null;
-  const customerPrefill = selectedCustomer?.dealPrefill ?? EMPTY_CUSTOMER_DEAL_PREFILL;
+  const selectedCustomerId = selectedCustomer?.id ?? "";
+  const [authorizedContact, setAuthorizedContact] = useState<{ customerId: string; phoneNumber: string; email: string } | null>(null);
+  useEffect(() => {
+    if (!selectedCustomerId) return;
+    const controller = new AbortController();
+    void fetch(`/api/customers/customer-360?customerId=${encodeURIComponent(selectedCustomerId)}&tab=communications`, { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() as Promise<CustomerContactRead> : null)
+      .then((result) => {
+        if (!controller.signal.aborted && result?.customer) setAuthorizedContact({
+          customerId: selectedCustomerId,
+          phoneNumber: customerContactValue(result, "PHONE"),
+          email: customerContactValue(result, "EMAIL")
+        });
+      }).catch(() => {});
+    return () => controller.abort();
+  }, [selectedCustomerId]);
+  const customerPrefill = useMemo(() => selectedCustomer ? {
+    ...selectedCustomer.dealPrefill,
+    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : "",
+    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : ""
+  } : EMPTY_CUSTOMER_DEAL_PREFILL, [selectedCustomer, selectedCustomerId, authorizedContact]);
   const manualCustomer = manualCustomerName.trim();
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
   const customerReady = form.customerId === MANUAL_CUSTOMER_ID ? Boolean(manualCustomer) : effectiveCustomerName !== "Customer not selected";
@@ -4351,10 +4358,14 @@ function DealStartDesk({
   useEffect(() => {
     const workflowPreset = DEAL_START_PRESETS.find((preset) => preset.workflowId === initialWorkflowId);
     if (!workflowPreset || new URLSearchParams(window.location.search).has("draftId")) return;
-    setSelectedPresetId(workflowPreset.id);
-    setWorkflowId(workflowPreset.workflowId);
-    if (new URLSearchParams(window.location.search).get("new") === "1") setExecutionOpen(true);
-    setStatus({ kind: "idle", message: "" });
+    const openNewDeal = new URLSearchParams(window.location.search).get("new") === "1";
+    const timer = window.setTimeout(() => {
+      setSelectedPresetId(workflowPreset.id);
+      setWorkflowId(workflowPreset.workflowId);
+      if (openNewDeal) setExecutionOpen(true);
+      setStatus({ kind: "idle", message: "" });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [initialWorkflowId, setExecutionOpen, setSelectedPresetId, setWorkflowId]);
 
   function saveDraft() {

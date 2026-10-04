@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 
 import { CooDailyWorkbook, CooEffectivenessPilotWorkbook, ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";

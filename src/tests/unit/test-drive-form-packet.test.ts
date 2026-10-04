@@ -3,7 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import { testDriveFacts, testDriveDeadline, testDriveAgreementError } from "@/lib/test-drive-form-packet";
 import { testDriveAgreementPdfBase64 } from "@/server/services/test-drive-agreement-document";
 
-vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: vi.fn(async () => ({ id: "manager-1" })) }));
+vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: vi.fn(async () => ({ id: "manager-1", isActive: true, roles: ["Manager"] })) }));
 import { POST } from "@/app/api/crm/v1/contract-packets/route";
 import { GET } from "@/app/api/crm/v1/contract-packets/[packetId]/route";
 

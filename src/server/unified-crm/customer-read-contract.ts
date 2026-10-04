@@ -45,8 +45,6 @@ export type UnifiedCrmCustomerListItem = {
   maskedPhone: string;
   maskedEmail: string;
   ownerName: string;
-  phoneNumber: string | null;
-  email: string | null;
   preferredContactMethod: string | null;
   ssnLast4: string | null;
   sourceCode: string | null;
