@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getDefaultLandingRoute,
   getPermittedWorkspaces,
+  getPostLoginLandingRoute,
   getWorkspaceKey,
   isOperationsCoordinatorDefaultUser,
   isRoutePermittedForUser,
@@ -48,6 +49,18 @@ describe("role landing and record routing", () => {
     expect(isTechnicianOnlyUser(multiRole)).toBe(false);
     expect(getDefaultLandingRoute(multiRole)).toBe("/manager-workspace");
     expect(getDefaultLandingRoute(multiRole, "TECHNICIAN")).toBe("/my-tasks");
+  });
+
+  it("starts non-manager staff at Time Card after login while preserving workspace defaults", () => {
+    const advisor = user(["Service Advisor"]);
+    const mechanic = user(["Mechanic"]);
+    const manager = user(["General Manager"]);
+
+    expect(getDefaultLandingRoute(advisor)).toBe("/vehicles/advisor");
+    expect(getPostLoginLandingRoute(advisor)).toBe("/time-attendance");
+    expect(getPostLoginLandingRoute(mechanic)).toBe("/time-attendance");
+    expect(getPostLoginLandingRoute(manager)).toBe("/manager-workspace");
+    expect(resolvePostLoginRoute(advisor, null)).toBe("/time-attendance");
   });
 
   it("permits an assigned workspace preference for a multi-role user", () => {
@@ -98,15 +111,15 @@ describe("role landing and record routing", () => {
 
   it("rejects return targets outside every role's permitted experience", () => {
     const mechanic = user(["Mechanic"]);
-    expect(resolvePostLoginRoute(mechanic, "/vehicles/control-tower")).toBe("/my-tasks");
-    expect(resolvePostLoginRoute(mechanic, "/vehicles/shop-recon")).toBe("/my-tasks");
+    expect(resolvePostLoginRoute(mechanic, "/vehicles/control-tower")).toBe("/time-attendance");
+    expect(resolvePostLoginRoute(mechanic, "/vehicles/shop-recon")).toBe("/time-attendance");
     expect(resolvePostLoginRoute(mechanic, "/vehicles/repair-jobs/job-1/workbench")).toBe(
       "/vehicles/repair-jobs/job-1/workbench"
     );
-    expect(resolvePostLoginRoute(mechanic, "//outside.example")).toBe("/my-tasks");
+    expect(resolvePostLoginRoute(mechanic, "//outside.example")).toBe("/time-attendance");
 
     const salesperson = user(["Salesperson"]);
-    expect(resolvePostLoginRoute(salesperson, "/administration")).toBe("/tasks?department=SALES");
+    expect(resolvePostLoginRoute(salesperson, "/administration")).toBe("/time-attendance");
     expect(resolvePostLoginRoute(salesperson, "/appointments")).toBe("/appointments");
     expect(resolvePostLoginRoute(salesperson, "/crm")).toBe("/crm");
 
@@ -118,7 +131,7 @@ describe("role landing and record routing", () => {
     expect(isRoutePermittedForUser(parts, "/vehicles/parts-counter")).toBe(true);
     expect(isRoutePermittedForUser(parts, "/customers")).toBe(false);
     expect(isRoutePermittedForUser(parts, "/crm")).toBe(false);
-    expect(resolvePostLoginRoute(parts, "/crm")).toBe("/vehicles/parts-operations");
+    expect(resolvePostLoginRoute(parts, "/crm")).toBe("/time-attendance");
 
     const coordinator = user(["Operations Coordinator"]);
     expect(isRoutePermittedForUser(coordinator, "/operations-coordinator")).toBe(true);

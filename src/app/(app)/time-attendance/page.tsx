@@ -1,5 +1,6 @@
 import { TimeAttendanceConsole } from "@/features/time-attendance/time-attendance-console";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getDefaultLandingRoute } from "@/server/auth/navigation";
 import { evaluateTimeAttendanceHardeningPilotReadiness, getSafePayrollHandoffReadiness, getSafeTimeAttendanceCaptureState, getSafeTimeAttendanceManagerReviewQueue } from "@/server/time-attendance";
 import { getTimeAttendanceConsoleModel } from "@/server/time-attendance/console-read-model";
 
@@ -27,5 +28,5 @@ export default async function TimeAttendancePage({ searchParams }: { searchParam
     (candidate === "payroll" && !model.permissions.payroll)
   ) ? "today" : candidate;
 
-  return <TimeAttendanceConsole activeView={activeView} captureState={captureState} density={query.density === "high" ? "high" : "calm"} hardeningReadiness={hardeningReadiness} managerReviewQueue={managerReviewQueue} model={model} payrollReadiness={payrollReadiness} />;
+  return <TimeAttendanceConsole activeView={activeView} captureState={captureState} density={query.density === "high" ? "high" : "calm"} hardeningReadiness={hardeningReadiness} managerReviewQueue={managerReviewQueue} model={model} payrollReadiness={payrollReadiness} workspaceHref={getDefaultLandingRoute(user)} />;
 }
