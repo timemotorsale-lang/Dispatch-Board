@@ -20,6 +20,7 @@ import {
   PackageCheck,
   Pencil,
   Plus,
+  Printer,
   Search,
   Send,
   ShieldCheck,
@@ -31,8 +32,10 @@ import {
 import Link from "next/link";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { buildCrmWorkbookPlan } from "@/lib/workday-workbook-crm-integration";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
+import receiptLogo from "../../../public/brand/time-motor-sales-horizontal.png";
 import { ChecklistReminderField } from "./checklist-reminder-field";
 import { ExpandableFocusDetails } from "./expandable-focus-details";
 import { WorkbookAppointmentFlow } from "./workbook-appointment-flow";
@@ -364,6 +367,21 @@ type MoneyReceivedDraft = {
   relatedRecord: string;
   verified: boolean;
 };
+type MoneyReceivedReceipt = {
+  activeWorkbookLabel: string;
+  amount: string;
+  businessDate: string;
+  id: string;
+  method: string;
+  notes: string;
+  purpose: string;
+  receivedAt: string;
+  receivedFrom: string;
+  recordedAt: string;
+  recordedBy: string;
+  reference: string;
+  relatedRecord: string;
+};
 type CloseoutOutcomeKind = "DELIVERY" | "DROPOFF" | "FOLLOW_UP" | "REPAIR" | "SALE";
 type CloseoutOutcomeDraft = {
   amount: string;
@@ -493,6 +511,18 @@ const quickUpdateCategories: QuickUpdateCategoryOption[] = [
 ];
 
 const quickUpdateCategoryGroups = Array.from(new Set(quickUpdateCategories.map((item) => item.group)));
+
+const moneyMethodLabels: Record<MoneyReceivedDraft["method"], string> = { ACH: "ACH", CARD: "Card", CASH: "Cash", CHECK: "Check", OTHER: "Other", WIRE: "Wire" };
+const moneyPurposeLabels: Record<MoneyReceivedDraft["purpose"], string> = { CUSTOMER_PAYMENT: "Customer payment", DEPOSIT: "Deposit", DOWN_PAYMENT: "Down payment", OTHER: "Other", SERVICE_PAYMENT: "Service payment", VEHICLE_SALE: "Vehicle sale" };
+
+function escapeReceiptHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
 const focusPriorities: Array<{ label: string; value: DailyFocusPriority }> = [
   { label: "Low", value: "LOW" },
@@ -801,6 +831,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     relatedRecord: "",
     verified: false
   });
+  const [printMoneyReceiptAfterSave, setPrintMoneyReceiptAfterSave] = useState(false);
+  const [moneyReceiptToPrint, setMoneyReceiptToPrint] = useState<MoneyReceivedReceipt | null>(null);
   const [closeoutOutcomeKind, setCloseoutOutcomeKind] = useState<CloseoutOutcomeKind | null>(null);
   const [closeoutOutcomeDraft, setCloseoutOutcomeDraft] = useState<CloseoutOutcomeDraft>({
     amount: "",
@@ -869,6 +901,14 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       document.body.style.overflow = previousOverflow;
     };
   }, [closeoutOutcomeKind, moneyDrawerOpen]);
+  useEffect(() => {
+    if (!moneyReceiptToPrint) return;
+    const clearReceiptPrint = () => {
+      setMoneyReceiptToPrint(null);
+    };
+    window.addEventListener("afterprint", clearReceiptPrint);
+    return () => window.removeEventListener("afterprint", clearReceiptPrint);
+  }, [moneyReceiptToPrint]);
   const actionQueue = closedRepairOrderId
     ? model.actionQueue.filter((item) => item.id !== closedRepairOrderId)
     : model.actionQueue;
@@ -884,6 +924,85 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const reviewPlannerStorageKey = `coo-review-action-planner:${activeWorkbook.id}:${model.boardDate}:v1`;
   const sourceReturnTo = searchParams.get("returnTo");
   const scopedWorkbookHref = (href: string) => href.startsWith("/vehicles/coo-workbook") ? workbookScopeHref(href, effectiveWorkbookView, sourceReturnTo) : href;
+  const printMoneyReceipt = (receipt: MoneyReceivedReceipt) => {
+    const receiptWindow = window.open("", "_blank", "popup,width=720,height=900");
+    if (!receiptWindow) {
+      setCloseStepNotice("Receipt is ready, but the print window was blocked. Allow pop-ups for this site, then choose Print receipt again.");
+      window.print();
+      return;
+    }
+
+    const rows = [
+      ["Received from", receipt.receivedFrom],
+      ["Payment method", receipt.method],
+      ["Applied to", receipt.purpose],
+      ["Received", receipt.receivedAt],
+      ["Reference", receipt.reference || "Not provided"],
+      ["Related record", receipt.relatedRecord || "Not provided"],
+      ["Business date", receipt.businessDate],
+      ["Workbook", receipt.activeWorkbookLabel],
+      ["Recorded by", receipt.recordedBy],
+      ["Recorded at", receipt.recordedAt]
+    ];
+    const notesMarkup = receipt.notes
+      ? `<section><h2>Notes</h2><p>${escapeReceiptHtml(receipt.notes)}</p></section>`
+      : "";
+    const receiptRows = rows.map(([label, value]) => `<div><dt>${escapeReceiptHtml(label)}</dt><dd>${escapeReceiptHtml(value)}</dd></div>`).join("");
+
+    receiptWindow.document.open();
+    receiptWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <title>Money Received Receipt - ${escapeReceiptHtml(receipt.receivedFrom)}</title>
+  <meta charset="utf-8" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f5f8; color: #111827; font-family: Arial, Helvetica, sans-serif; }
+    main { display: grid; align-content: start; gap: 18px; width: min(760px, 100%); min-height: 100vh; margin: 0 auto; padding: 34px 42px; background: #fff; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 18px; }
+    img { width: 230px; height: auto; }
+    header div { display: grid; gap: 4px; text-align: right; }
+    header strong { font-size: 18px; }
+    header span { font-size: 13px; font-weight: 700; text-transform: uppercase; }
+    .amount { display: grid; gap: 6px; border: 1px solid #111827; padding: 16px; }
+    .amount span { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .amount strong { font-size: 34px; }
+    dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid #c7ced8; border-bottom: 0; margin: 0; }
+    dl div { display: grid; gap: 5px; border-bottom: 1px solid #c7ced8; padding: 10px 12px; }
+    dt { color: #4b5563; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    dd { margin: 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+    section { display: grid; gap: 6px; border: 1px solid #c7ced8; padding: 12px; }
+    h2 { margin: 0; font-size: 12px; text-transform: uppercase; }
+    p { margin: 0; font-size: 12px; line-height: 1.5; }
+    footer { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid #c7ced8; padding-top: 12px; color: #4b5563; font-size: 11px; }
+    .screen-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    button { min-height: 38px; border: 1px solid #315bdc; border-radius: 7px; padding: 0 13px; background: #315bdc; color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; min-height: auto; margin: 0; padding: 0; }
+      .screen-actions { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header><img alt="Time Motor Sales" src="${escapeReceiptHtml(receiptLogo.src)}" /><div><strong>Time Motor Sales</strong><span>Money Received Receipt</span></div></header>
+    <div class="amount"><span>Amount received</span><strong>${escapeReceiptHtml(receipt.amount)}</strong></div>
+    <dl>${receiptRows}</dl>
+    ${notesMarkup}
+    <footer><span>Customer copy</span><span>Receipt ID: ${escapeReceiptHtml(receipt.id)}</span></footer>
+    <div class="screen-actions"><button type="button" onclick="window.print()">Print receipt</button></div>
+  </main>
+  <script>
+    window.addEventListener("load", () => {
+      window.focus();
+      setTimeout(() => window.print(), 250);
+    });
+  </script>
+</body>
+</html>`);
+    receiptWindow.document.close();
+  };
   const changeCloseoutScope = (scope: "MY" | "TEAM") => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("workbookScope", scope === "MY" ? "MY" : "COO");
@@ -3062,14 +3181,27 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       const receivedFrom = moneyReceivedDraft.receivedFrom.trim();
       if (!Number.isFinite(amount) || amount <= 0 || !receivedFrom || !moneyReceivedDraft.verified || isClosed) return;
       const formattedAmount = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(amount);
-      const methodLabels: Record<MoneyReceivedDraft["method"], string> = { ACH: "ACH", CARD: "Card", CASH: "Cash", CHECK: "Check", OTHER: "Other", WIRE: "Wire" };
-      const purposeLabels: Record<MoneyReceivedDraft["purpose"], string> = { CUSTOMER_PAYMENT: "Customer payment", DEPOSIT: "Deposit", DOWN_PAYMENT: "Down payment", OTHER: "Other", SERVICE_PAYMENT: "Service payment", VEHICLE_SALE: "Vehicle sale" };
       const receivedAt = [moneyReceivedDraft.receivedDate, moneyReceivedDraft.receivedTime].filter(Boolean).join(" at ");
+      const receiptRecord: MoneyReceivedReceipt = {
+        activeWorkbookLabel,
+        amount: formattedAmount,
+        businessDate: parseBoardDate(model.boardDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }),
+        id: `money-receipt-${Date.now()}`,
+        method: moneyMethodLabels[moneyReceivedDraft.method],
+        notes: moneyReceivedDraft.notes.trim(),
+        purpose: moneyPurposeLabels[moneyReceivedDraft.purpose],
+        receivedAt,
+        receivedFrom,
+        recordedAt: new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
+        recordedBy: model.advisor.name,
+        reference: moneyReceivedDraft.reference.trim(),
+        relatedRecord: moneyReceivedDraft.relatedRecord.trim()
+      };
       const detail = [
         `Amount: ${formattedAmount}`,
         `Received from: ${receivedFrom}`,
-        `Payment method: ${methodLabels[moneyReceivedDraft.method]}`,
-        `Purpose: ${purposeLabels[moneyReceivedDraft.purpose]}`,
+        `Payment method: ${moneyMethodLabels[moneyReceivedDraft.method]}`,
+        `Purpose: ${moneyPurposeLabels[moneyReceivedDraft.purpose]}`,
         `Received: ${receivedAt}`,
         moneyReceivedDraft.reference.trim() ? `Receipt / reference: ${moneyReceivedDraft.reference.trim()}` : null,
         moneyReceivedDraft.relatedRecord.trim() ? `Related vehicle, deal, RO, or account: ${moneyReceivedDraft.relatedRecord.trim()}` : null,
@@ -3084,7 +3216,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         const response = await fetch(`/api/coo-workbook/report-seeds/manual?${query}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: [{ category: "COMPLETED", detail, relatedContext: `${activeWorkbookLabel} · ${purposeLabels[moneyReceivedDraft.purpose]}`, title: `Money received - ${formattedAmount} - ${receivedFrom}` }] })
+          body: JSON.stringify({ items: [{ category: "COMPLETED", detail, relatedContext: `${activeWorkbookLabel} · ${moneyPurposeLabels[moneyReceivedDraft.purpose]}`, title: `Money received - ${formattedAmount} - ${receivedFrom}` }] })
         });
         const payload = await response.json().catch(() => null) as { error?: string } | null;
         if (!response.ok) throw new Error(payload?.error ?? "Unable to record the payment.");
@@ -3092,10 +3224,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         const draftPayload = await draftResponse.json().catch(() => null) as { error?: string } | null;
         if (!draftResponse.ok) throw new Error(draftPayload?.error ?? "The payment was recorded, but the daily report could not be refreshed.");
         await refreshActiveWorkbook();
+        setMoneyReceiptToPrint(receiptRecord);
         setMoneyReceivedDraft({ amount: "", method: "CASH", notes: "", purpose: "CUSTOMER_PAYMENT", receivedDate: model.boardDate, receivedFrom: "", receivedTime: "", reference: "", relatedRecord: "", verified: false });
+        setPrintMoneyReceiptAfterSave(false);
         setMoneyDrawerOpen(false);
         setCloseDraftExpanded(true);
-        setCloseStepNotice(`${formattedAmount} received from ${receivedFrom} was recorded and added to the daily report.`);
+        setCloseStepNotice(`${formattedAmount} received from ${receivedFrom} was recorded and added to the daily report.${printMoneyReceiptAfterSave ? " Receipt is ready to print." : ""}`);
       } catch (error) {
         setCloseStepNotice(error instanceof Error ? error.message : "Unable to record the payment.");
       } finally {
@@ -3295,11 +3429,43 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
               <label className="notes"><span>Notes</span><textarea aria-label="Money received notes" maxLength={800} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Add allocation details, exceptions, or anything management should know." rows={4} value={moneyReceivedDraft.notes} /></label>
             </fieldset>
             <label className="advisor-close-day-money-verification"><input checked={moneyReceivedDraft.verified} onChange={(event) => setMoneyReceivedDraft((current) => ({ ...current, verified: event.target.checked }))} required type="checkbox" /><span><strong>I verified this receipt against the source record.</strong><small>The entry will be attributed to {model.advisor.name} and included in today’s audit trail.</small></span></label>
+            <label className="advisor-close-day-receipt-option"><input checked={printMoneyReceiptAfterSave} onChange={(event) => setPrintMoneyReceiptAfterSave(event.target.checked)} type="checkbox" /><span><strong><Printer /> Prepare receipt after recording</strong><small>After the entry is saved to the daily report, use the receipt-ready print button to open a Time Motor Sales receipt.</small></span></label>
             {moneyEvidence.length ? <section className="advisor-close-day-money-history"><header><div><strong>Recorded today</strong><small>{moneyEvidence.length} receipt record(s)</small></div><b>{moneyReceivedValue}</b></header>{moneyEvidence.slice(0, 3).map((seed) => <article key={seed.id}><CheckCircle2 /><span><strong>{seed.title}</strong><small>{seed.detail.split("\n").slice(0, 3).join(" · ")}</small></span></article>)}</section> : null}
             <footer><button className="secondary" onClick={() => setMoneyDrawerOpen(false)} type="button">Cancel</button><button disabled={saving || !moneyReceivedDraft.verified || !moneyReceivedDraft.receivedFrom.trim() || Number(moneyReceivedDraft.amount) <= 0} type="submit"><Save /> {saving ? "Recording…" : "Record money received"}</button></footer>
           </form>
         </aside>
       </div> : null}
+
+      {moneyReceiptToPrint ? <section aria-label="Printable money received receipt" className="advisor-money-receipt-print">
+        <header>
+          <TimeMotorSalesLogo className="advisor-money-receipt-logo" priority variant="horizontal" />
+          <div>
+            <strong>Time Motor Sales</strong>
+            <span>Money Received Receipt</span>
+          </div>
+        </header>
+        <div className="advisor-money-receipt-hero">
+          <span>Amount received</span>
+          <strong>{moneyReceiptToPrint.amount}</strong>
+        </div>
+        <dl>
+          <div><dt>Received from</dt><dd>{moneyReceiptToPrint.receivedFrom}</dd></div>
+          <div><dt>Payment method</dt><dd>{moneyReceiptToPrint.method}</dd></div>
+          <div><dt>Applied to</dt><dd>{moneyReceiptToPrint.purpose}</dd></div>
+          <div><dt>Received</dt><dd>{moneyReceiptToPrint.receivedAt}</dd></div>
+          <div><dt>Reference</dt><dd>{moneyReceiptToPrint.reference || "Not provided"}</dd></div>
+          <div><dt>Related record</dt><dd>{moneyReceiptToPrint.relatedRecord || "Not provided"}</dd></div>
+          <div><dt>Business date</dt><dd>{moneyReceiptToPrint.businessDate}</dd></div>
+          <div><dt>Workbook</dt><dd>{moneyReceiptToPrint.activeWorkbookLabel}</dd></div>
+          <div><dt>Recorded by</dt><dd>{moneyReceiptToPrint.recordedBy}</dd></div>
+          <div><dt>Recorded at</dt><dd>{moneyReceiptToPrint.recordedAt}</dd></div>
+        </dl>
+        {moneyReceiptToPrint.notes ? <section><h2>Notes</h2><p>{moneyReceiptToPrint.notes}</p></section> : null}
+        <footer>
+          <span>Customer copy</span>
+          <span>Receipt ID: {moneyReceiptToPrint.id}</span>
+        </footer>
+      </section> : null}
 
       {closeoutOutcomeKind && activeCloseoutOutcomeConfig ? <div className="advisor-close-day-drawer-backdrop">
         <aside aria-labelledby="closeout-outcome-drawer-title" aria-modal="true" className="advisor-close-day-drawer advisor-close-day-outcome-drawer" role="dialog">
@@ -3363,6 +3529,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       </div> : null}
 
       {closeStepNotice || workspaceNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice ?? workspaceNotice}</p> : null}
+      {moneyReceiptToPrint ? <section className="advisor-close-day-receipt-ready" aria-live="polite">
+        <span><Printer /><strong>Receipt ready</strong><small>{moneyReceiptToPrint.amount} from {moneyReceiptToPrint.receivedFrom}</small></span>
+        <div><button onClick={() => printMoneyReceipt(moneyReceiptToPrint)} type="button"><Printer /> Print receipt</button><button className="secondary" onClick={() => setMoneyReceiptToPrint(null)} type="button">Dismiss</button></div>
+      </section> : null}
       <footer className="advisor-close-day-actions"><Link href={scopedWorkbookHref("/vehicles/coo-workbook")}>Finish later</Link>{isClosed ? <button disabled={saving} onClick={() => void closeOrReopenDay()} type="button">{saving ? "Reopening…" : "Reopen day"}</button> : <button disabled={saving} onClick={openEndDayReview} type="button"><ShieldCheck /> Review final report</button>}</footer>
     </section>;
   }

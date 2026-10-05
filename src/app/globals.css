@@ -28585,6 +28585,117 @@ html[data-app-theme="dark"] .advisor-close-day :where(.advisor-close-day-coverag
   line-height: 1.4;
 }
 
+.advisor-close-day-receipt-option {
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: flex-start;
+  border: 1px solid #d4dff0;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #fff;
+}
+
+.advisor-close-day-receipt-option input {
+  width: 16px;
+  min-height: 16px;
+  margin-top: 2px;
+  accent-color: #315bdc;
+}
+
+.advisor-close-day-receipt-option > span {
+  display: grid;
+  gap: 3px;
+}
+
+.advisor-close-day-receipt-option strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #193553;
+  font-size: 10.5px;
+}
+
+.advisor-close-day-receipt-option strong svg {
+  width: 14px;
+  color: #315bdc;
+}
+
+.advisor-close-day-receipt-option small {
+  color: #657991;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.advisor-close-day-receipt-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #bcd8f2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f1f8ff;
+}
+
+.advisor-close-day-receipt-ready > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.advisor-close-day-receipt-ready > span > svg {
+  width: 18px;
+  min-width: 18px;
+  color: #315bdc;
+}
+
+.advisor-close-day-receipt-ready strong {
+  color: #193553;
+  font-size: 11px;
+}
+
+.advisor-close-day-receipt-ready small {
+  overflow: hidden;
+  color: #60728a;
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advisor-close-day-receipt-ready > div {
+  display: flex;
+  gap: 8px;
+}
+
+.advisor-close-day-receipt-ready button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid #315bdc;
+  border-radius: 7px;
+  padding: 0 11px;
+  background: #315bdc;
+  color: #fff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.advisor-close-day-receipt-ready button.secondary {
+  border-color: #cbd8e9;
+  background: #fff;
+  color: #405a79;
+}
+
+.advisor-close-day-receipt-ready button svg {
+  width: 14px;
+}
+
 .advisor-close-day-outcome-check {
   grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
@@ -28713,7 +28824,7 @@ html[data-app-theme="dark"] .advisor-close-day :where(.advisor-close-day-coverag
 
 html[data-app-theme="dark"] .advisor-close-day-outcome-action,
 html[data-app-theme="dark"] .advisor-close-day-drawer,
-html[data-app-theme="dark"] .advisor-close-day-drawer :where(header, fieldset, .advisor-close-day-drawer-summary > div, .advisor-close-day-money-history) {
+html[data-app-theme="dark"] .advisor-close-day-drawer :where(header, fieldset, .advisor-close-day-drawer-summary > div, .advisor-close-day-money-history, .advisor-close-day-receipt-option) {
   border-color: #2a3a52;
   background: #101b2b;
   color: #e8eef8;
@@ -28724,6 +28835,140 @@ html[data-app-theme="dark"] .advisor-close-day-drawer form > footer {
   border-color: #344660;
   background: #0c1727;
   color: #e8eef8;
+}
+
+.advisor-money-receipt-print {
+  display: none;
+}
+
+@media print {
+  body:has(.advisor-money-receipt-print) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print,
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print * {
+    visibility: visible !important;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    width: 100%;
+    min-height: 100%;
+    padding: 34px 42px;
+    background: #fff;
+    color: #111827;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    border-bottom: 2px solid #111827;
+    padding-bottom: 18px;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-logo {
+    width: 230px;
+    height: auto;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print header > div {
+    display: grid;
+    gap: 4px;
+    text-align: right;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print header strong {
+    font-size: 18px;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print header span {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-hero {
+    display: grid;
+    gap: 6px;
+    border: 1px solid #111827;
+    padding: 16px;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-hero span {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-hero strong {
+    font-size: 34px;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid #c7ced8;
+    border-bottom: 0;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print dl > div {
+    display: grid;
+    gap: 5px;
+    border-bottom: 1px solid #c7ced8;
+    padding: 10px 12px;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print dt {
+    color: #4b5563;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print dd {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print section {
+    display: grid;
+    gap: 6px;
+    border: 1px solid #c7ced8;
+    padding: 12px;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print h2 {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  body:has(.advisor-money-receipt-print) .advisor-money-receipt-print footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 1px solid #c7ced8;
+    padding-top: 12px;
+    color: #4b5563;
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -28864,6 +29109,21 @@ html[data-app-theme="dark"] .advisor-close-day-drawer form > footer {
     min-height: 44px;
     padding: 7px 9px;
     line-height: 1.2;
+    white-space: normal;
+  }
+
+  .advisor-close-day-receipt-ready {
+    display: grid;
+  }
+
+  .advisor-close-day-receipt-ready > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .advisor-close-day-receipt-ready button {
+    min-width: 0;
+    min-height: 44px;
     white-space: normal;
   }
 }
