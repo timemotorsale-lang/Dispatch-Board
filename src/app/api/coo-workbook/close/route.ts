@@ -7,7 +7,7 @@ import { closeWorkbookDay, currentWorkdayBoardDate } from "@/server/services/wor
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
   if (message.includes("Manager access")) return 403;
-  if (message.includes("closed") || message.includes("must be") || message.includes("Review End The Day") || message.includes("Resolve every planned item")) return 400;
+  if (message.includes("closed") || message.includes("must be") || message.includes("Review End The Day") || message.includes("Resolve every planned item") || message.includes("Start Day")) return 400;
   return 500;
 }
 
