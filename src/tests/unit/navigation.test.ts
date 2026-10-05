@@ -25,14 +25,15 @@ function linksFor(testUser: AuthenticatedUser) {
 }
 
 describe("enterprise shell navigation", () => {
-  it("presents Dispatch as the only live Command Control Center module", () => {
+  it("presents implemented Command Control Center modules with usable destinations", () => {
     const links = linksFor(user());
     const dispatch = links.find((item) => item.title === "Dispatch Board");
     const liveItems = links.filter((item) => !item.disabled);
 
     expect(dispatch?.href).toBe("/board");
     expect(dispatch?.badge).toBe("Live");
-    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance", "Document Library"]);
+    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance", "Document Library", "Reports"]);
+    expect(links.find((item) => item.title === "Reports")).toMatchObject({ href: "/reports", badge: "Live" });
   });
 
   it("marks future Command Control Center modules as planned and unavailable", () => {
@@ -98,6 +99,7 @@ describe("enterprise shell navigation", () => {
       "Marketing",
       "Advertising",
       "Manager Review",
+      "Reports",
       "Team",
       "Activity"
     ]);
@@ -127,6 +129,7 @@ describe("enterprise shell navigation", () => {
       "Marketing",
       "Advertising",
       "Manager Review",
+      "Reports",
       "Team",
       "Activity"
     ]);
@@ -208,6 +211,7 @@ describe("enterprise shell navigation", () => {
       "Settings"
     ]);
     expect(inventoryConsole?.title).toBe("Inventory Console");
+    expect(inventoryConsole?.items.find((item) => item.title === "Reports")?.href).toBe("/vehicles/reports");
     expect(inventoryConsole?.items.map((item) => item.title)).toEqual([
       "Home",
       "Inventory Lifecycle",

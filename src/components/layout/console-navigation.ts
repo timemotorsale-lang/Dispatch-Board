@@ -103,7 +103,7 @@ const inventoryItems: NavigationItem[] = [
     icon: ShieldCheck
   },
   {
-    href: "/reports?scope=inventory",
+    href: "/vehicles/reports",
     title: "Reports",
     description: "Governed inventory, shop, and parts reporting.",
     icon: BarChart3
