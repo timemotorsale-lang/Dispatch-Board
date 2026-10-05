@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, Check, ChevronRight, Download, FileText, RefreshCw, Save, Search, Send, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronRight, Download, FileText, RefreshCw, Save, Search, Send, Star, X } from "lucide-react";
 import { reportDefinitions, type ReportDefinitionId, type ReportResult, type ReportRow } from "@/lib/reporting/contracts";
 import type { ReportCadence, ReportCalendar } from "@/lib/reporting/calendar";
 import { ReportingCalendarPanel } from "./reporting-calendar-panel";
 import { ReportingRecoveryPanel } from "./reporting-recovery-panel";
+import { ReportingCoveragePanel } from "./reporting-coverage-panel";
+import type { reportingManagementCoverage } from "@/server/reporting/management-service";
+import { addReportDays } from "@/lib/reporting/calendar";
+import { parseReportingNavigation, reportingNavigationUrl, type ReportingNavigation } from "@/lib/reporting/navigation";
 import type { preparePeriodReport, reportingHistory, reportingRevision } from "@/server/reporting/period-service";
 import type { reportingLibrary, savedReportingSnapshots } from "@/server/reporting/library-service";
 import type { reportingExpectations } from "@/server/reporting/calendar-service";
@@ -30,29 +35,36 @@ function displayState(state: string) { return state.replaceAll("_", " "); }
 function object(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function rows(value: unknown) { return Array.isArray(value) ? value.map(object) : []; }
 
-export function ReportingConsole({ userId, userName, canReview, today }: { userId: string; userName: string; canReview: boolean; today: string }) {
-  const [tab, setTab] = useState<Tab>("Overview");
-  const [date, setDate] = useState(today), [cadence, setCadence] = useState<ReportCadence>("DAILY");
-  const [definition, setDefinition] = useState<ReportDefinitionId>("operations"), [location, setLocation] = useState("");
-  const [subject, setSubject] = useState("");
+export function ReportingConsole({ userId, userName, canReview, today, initialContext: serverContext }: { userId: string; userName: string; canReview: boolean; today: string; initialContext?: ReportingNavigation }) {
+  const searchParams = useSearchParams();
+  const initialContext = searchParams.toString() ? parseReportingNavigation(new URLSearchParams(searchParams.toString()), today, canReview) : serverContext;
+  const [tab, setTab] = useState<Tab>(initialContext?.tab ?? "Overview");
+  const [date, setDate] = useState(initialContext?.date ?? today), [cadence, setCadence] = useState<ReportCadence>(initialContext?.cadence ?? "DAILY");
+  const [definition, setDefinition] = useState<ReportDefinitionId>(initialContext?.definition ?? "operations"), [location, setLocation] = useState(initialContext?.location ?? "");
+  const [subject, setSubject] = useState(initialContext?.subject ?? "");
   const [settings, setSettings] = useState<Settings>({ people: [{ id: userId, name: userName }], locations: [] });
   const [live, setLive] = useState<ReportResult | null>(null), [prepared, setPrepared] = useState<Prepared | null>(null);
   const [history, setHistory] = useState<History | null>(null), [library, setLibrary] = useState<Library | null>(null);
-  const [revision, setRevision] = useState<Revision | null>(null), [query, setQuery] = useState("");
+  const [coverage, setCoverage] = useState<Awaited<ReturnType<typeof reportingManagementCoverage>> | null>(null);
+  const [revision, setRevision] = useState<Revision | null>(null), [query, setQuery] = useState(initialContext?.query ?? "");
   const [context, setContext] = useState(""), [priorities, setPriorities] = useState(""), [confirmed, setConfirmed] = useState(false);
-  const [comment, setComment] = useState(""), [metric, setMetric] = useState<string | null>(null);
+  const [comment, setComment] = useState(""), [metric, setMetric] = useState<string | null>(initialContext?.metric ?? null);
   const [notice, setNotice] = useState(""), [error, setError] = useState("");
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [saveState, setSaveState] = useState("");
   const [refresh, setRefresh] = useState(0), [dialog, setDialog] = useState<"view" | "snapshot" | "export" | "schedule" | null>(null), [dialogText, setDialogText] = useState("");
   const [download, setDownload] = useState<string | null>(null);
   const [frozen, setFrozen] = useState<ReportResult | null>(null);
   const [expectations, setExpectations] = useState<Awaited<ReturnType<typeof reportingExpectations>>>([]);
-  const [historyFrom, setHistoryFrom] = useState(""), [historyTo, setHistoryTo] = useState("");
+  const [historyFrom, setHistoryFrom] = useState(initialContext?.from ?? ""), [historyTo, setHistoryTo] = useState(initialContext?.to ?? "");
   const dirty = useRef(false), draftVersion = useRef(0), submissionKey = useRef("");
   const saving = useRef<Promise<boolean> | null>(null);
   const editNumber = useRef(0);
   const dialogRef = useRef<HTMLElement | null>(null);
   const outputKey = useRef("");
+  useEffect(() => {
+    const url = reportingNavigationUrl({ tab, date, cadence, definition, location, subject, query, metric, from: historyFrom, to: historyTo });
+    if (`${window.location.pathname}${window.location.search}` !== url) window.history.replaceState(window.history.state, "", url);
+  }, [tab, date, cadence, definition, location, subject, query, metric, historyFrom, historyTo]);
   useEffect(() => { if (dialog) outputKey.current = crypto.randomUUID(); }, [dialog, dialogText]);
 
   useEffect(() => { const abort = new AbortController(); request<Settings>(new URLSearchParams({ view: "settings" }), abort.signal).then(setSettings).catch(() => {}); return () => abort.abort(); }, []);
@@ -65,6 +77,7 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
       request<History>(new URLSearchParams({ view: "history", cadence, ...(historyFrom ? { from: historyFrom } : {}), ...(historyTo ? { to: historyTo } : {}) }), abort.signal).then(setHistory).catch(e => { if (!abort.signal.aborted) setError(errorMessage(e)); });
       request<Awaited<ReturnType<typeof reportingExpectations>>>(new URLSearchParams({ view: "expectations" }), abort.signal).then(setExpectations).catch(() => {});
     } else if (tab === "Team Reports") {
+      request<Awaited<ReturnType<typeof reportingManagementCoverage>>>(new URLSearchParams({ view: "coverage", date, cadence, ...(subject ? { subject } : {}) }), abort.signal).then(setCoverage).catch(e => { if (!abort.signal.aborted) setError(errorMessage(e)); });
       params.set("view", "history"); params.set("team", "true"); if (subject) params.set("subject", subject);
       if (historyFrom) params.set("from", historyFrom); if (historyTo) params.set("to", historyTo);
       request<Awaited<ReturnType<typeof reportingExpectations>>>(new URLSearchParams({ view: "expectations", team: "true" }), abort.signal).then(setExpectations).catch(() => {});
@@ -114,7 +127,7 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
   }, []);
 
   async function navigate(next: () => void) {
-    if (await saveDraft() && !dirty.current) { setLoading(true); setHistory(null); setError(""); setMetric(null); setDownload(null); setRevision(null); setNotice(""); next(); }
+    if (await saveDraft() && !dirty.current) { setLoading(true); setHistory(null); setCoverage(null); setError(""); setMetric(null); setDownload(null); setRevision(null); setNotice(""); next(); }
   }
   async function retrySave() { setError(""); await saveDraft(); }
   useEffect(() => {
@@ -181,6 +194,11 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
     try { await request({ action: "toggle-schedule", id, enabled, expectedVersion }); setRefresh(value => value + 1); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
+  async function favoriteView(id: string, favorite: boolean, expectedVersion: number) {
+    setBusy(true); setError("");
+    try { await request({ action: "favorite-view", id, favorite, expectedVersion }); setLoading(true); setRefresh(value => value + 1); }
+    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
   const available = reportDefinitions.filter(item => canReview || ["operations", "reviews"].includes(item.id));
   const liveRows = live?.rows.filter(row => (!metric || live.metrics.find(item => item.code === metric)?.rowIds.includes(row.id)) && `${row.title} ${row.owner} ${row.state}`.toLowerCase().includes(query.toLowerCase())) ?? [];
   const evidence = object(revision?.content), snapshot = object(evidence.snapshot);
@@ -193,7 +211,7 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
       {tab === "Overview" ? <label>Report<select value={definition} disabled={busy} onChange={e => { const value = e.target.value as ReportDefinitionId; void navigate(() => setDefinition(value)); }}>{available.map(item => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label> : null}
       {tab !== "Library" ? <><label>Covered date<input type="date" value={date} disabled={busy} onChange={e => { const value = e.target.value; if (value && value !== date) void navigate(() => setDate(value)); }} /></label><fieldset><legend>Frequency</legend>{(["DAILY", "WEEKLY", "MONTHLY"] as ReportCadence[]).map(value => <button key={value} aria-pressed={cadence === value} disabled={busy} onClick={() => { if (value !== cadence) void navigate(() => setCadence(value)); }}>{value[0] + value.slice(1).toLowerCase()}</button>)}</fieldset></> : null}
       {tab === "Overview" && settings.locations.length ? <label>Location<select value={location} onChange={e => { const value = e.target.value; void navigate(() => setLocation(value)); }}><option value="">All locations</option>{settings.locations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
-      {tab === "Team Reports" ? <label>Person<select value={subject} onChange={e => { const value = e.target.value; void navigate(() => setSubject(value)); }}><option value="">All staff</option>{settings.people.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
+      {tab === "Team Reports" ? <label>Person<select aria-label="Person" value={subject} onChange={e => { const value = e.target.value; void navigate(() => setSubject(value)); }}><option value="">All staff</option>{settings.people.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
     </section>
     {tab === "My Reports" || tab === "Team Reports" ? <section className={styles.filters} aria-label="Archive range"><label>Archive from<input type="date" value={historyFrom} onChange={e => { const value = e.target.value; void navigate(() => setHistoryFrom(value)); }} /></label><label>Archive through<input type="date" value={historyTo} onChange={e => { const value = e.target.value; void navigate(() => setHistoryTo(value)); }} /></label>{history?.nextCursor ? <button disabled={busy} onClick={() => void nextHistoryPage()}>Load older reports</button> : null}</section> : null}
     {(tab === "My Reports" || tab === "Team Reports") && expectations.length ? <section><h2>Reporting expectations</h2><div className={styles.tableWrap}><table><thead><tr><th>Person</th><th>Period</th><th>Due</th><th>Status</th></tr></thead><tbody>{expectations.filter(item => !subject || settings.people.find(person => person.id === subject)?.name === item.subject).map(item => <tr key={item.id}><td>{item.subject}</td><td>{item.periodStart} · {item.cadence.toLowerCase()}</td><td>{new Date(item.dueAt).toLocaleString()}</td><td>{displayState(item.status)}{item.reason ? <small>{item.reason}</small> : null}</td></tr>)}</tbody></table></div></section> : null}
@@ -226,9 +244,9 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
         {!prepared.writesEnabled ? <p className={styles.quality}>Submission is awaiting rollout activation. Your history remains available.</p> : null}
       </section><HistoryTable history={history} onOpen={openRevision} />
     </> : null}
-    {!loading && !revision && tab === "Team Reports" ? <><HistoryTable history={history} onOpen={openRevision} team />{settings.calendarConfig ? <details><summary>Reporting calendar</summary><ReportingCalendarPanel calendar={settings.calendarConfig} today={today} /></details> : null}</> : null}
+    {!loading && !revision && tab === "Team Reports" ? <>{coverage ? <ReportingCoveragePanel coverage={coverage} busy={busy} onOpen={person => void navigate(() => { setSubject(person); setHistoryFrom(coverage.periodStart); setHistoryTo(addReportDays(coverage.periodEnd, -1)); })} /> : null}<HistoryTable history={history} onOpen={openRevision} team />{settings.calendarConfig ? <details><summary>Reporting calendar</summary><ReportingCalendarPanel calendar={settings.calendarConfig} today={today} /></details> : null}</> : null}
     {!loading && !revision && tab === "Library" && library ? <section><header className={styles.sectionHeader}><h2>Report library</h2><label className={styles.search}><Search size={16} /><input aria-label="Search report library" placeholder="Search reports" value={query} onChange={e => setQuery(e.target.value)} /></label></header><div className={styles.tableWrap}><table><thead><tr><th>Report</th><th>Area</th><th></th></tr></thead><tbody>{library.definitions.filter(item => `${item.title} ${item.area}`.toLowerCase().includes(query.toLowerCase())).map(item => <tr key={item.id}><td>{item.title}</td><td>{item.area}</td><td><button onClick={() => { setDefinition(item.id); setTab("Overview"); }} aria-label={`Open ${item.title}`}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></div>
-      <h3>Saved views</h3>{library.views.length ? library.views.map(view => <button className={styles.savedView} key={view.id} onClick={() => { const filters = object(view.filters); setDefinition(view.definitionId as ReportDefinitionId); setDate(String(filters.date ?? today)); setCadence(String(filters.cadence ?? "DAILY") as ReportCadence); setLocation(String(filters.locationId ?? "")); setQuery(String(filters.query ?? "")); setMetric(typeof filters.metric === "string" ? filters.metric : null); setLoading(true); setTab("Overview"); }}><FileText size={16} /> {view.name}<ChevronRight size={16} /></button>) : <p className={styles.muted}>No saved views.</p>}
+      <h3>Saved views</h3>{library.views.length ? library.views.map(view => <div className={styles.toolbar} key={view.id}><button className={styles.savedView} onClick={() => { const filters = object(view.filters); setDefinition(view.definitionId as ReportDefinitionId); setDate(String(filters.date ?? today)); setCadence(String(filters.cadence ?? "DAILY") as ReportCadence); setLocation(String(filters.locationId ?? "")); setQuery(String(filters.query ?? "")); setMetric(typeof filters.metric === "string" ? filters.metric : null); setLoading(true); setTab("Overview"); }}><FileText size={16} /> {view.name}<ChevronRight size={16} /></button><button title={view.favorite ? "Remove favorite" : "Add favorite"} aria-label={`${view.favorite ? "Remove favorite" : "Favorite"} ${view.name}`} aria-pressed={view.favorite} disabled={busy} onClick={() => void favoriteView(view.id, !view.favorite, view.favoriteVersion)}><Star size={17} fill={view.favorite ? "currentColor" : "none"} /></button></div>) : <p className={styles.muted}>No saved views.</p>}
       <h3>Scheduled deliveries</h3>{library.schedules.length ? library.schedules.map(schedule => <div className={styles.schedule} key={schedule.id}><strong>{reportDefinitions.find(item => item.id === schedule.definitionId)?.title}</strong><span>{schedule.cadence.toLowerCase()} · {schedule.enabled ? "Active" : "Inactive"} · {schedule.timezone}</span><label><input type="checkbox" checked={schedule.enabled} disabled={busy} onChange={e => void toggleSchedule(schedule.id, e.target.checked, schedule.version)} /> Delivery enabled</label>{schedule.jobs.map(job => <span key={job.id}>{displayState(job.status)}{job.lastError ? ` · ${job.lastError}` : ""}{job.status === "SUCCEEDED" ? <button disabled={busy} onClick={() => void openFrozen("delivery", job.id)}>Open delivery</button> : null}</span>)}</div>) : <p className={styles.muted}>No scheduled deliveries.</p>}
       {canReview ? library.schedules.filter(schedule => schedule.enabled).flatMap(schedule => schedule.jobs.filter(job => job.status === "DEAD_LETTER").map(job => <ReportingRecoveryPanel key={job.id} id={job.id} version={schedule.version} title={reportDefinitions.find(item => item.id === schedule.definitionId)?.title ?? "Report"} onRecovered={() => { setNotice("Recovery approved. Delivery is pending the next authorized worker run."); setRefresh(value => value + 1); }} />)) : null}
       <h3>Saved snapshots and exports</h3>{library.snapshots?.length ? library.snapshots.map(item => <div className={styles.schedule} key={item.id}><strong>{reportDefinitions.find(definition => definition.id === item.subjectId)?.title}</strong><span>{new Date(item.createdAt).toLocaleString()}</span>{item.recordType === "REPORT_SNAPSHOT" ? <button disabled={busy} onClick={() => void openFrozen("snapshot", item.id)}>Open snapshot</button> : <a href={`/api/reports/exports/${item.id}`}>Download controlled CSV</a>}</div>) : <p className={styles.muted}>No saved outputs.</p>}

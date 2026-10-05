@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "reports:worker": "tsx scripts/run-reporting-worker.ts",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
     "validate:inventory-console": "tsx scripts/validate-inventory-console-program.ts",

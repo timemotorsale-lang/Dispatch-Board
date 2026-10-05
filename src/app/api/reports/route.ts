@@ -5,9 +5,10 @@ import { reportBusinessDate, reportCadences, validReportDate, type ReportCadence
 import { reportDefinitions, type ReportDefinitionId } from "@/lib/reporting/contracts";
 import { reportingCalendarPreview, reportingHistory, reportingPeople, reportingRevision, preparePeriodReport, savePeriodDraft, submitPeriodReport, reviewPeriodReport } from "@/server/reporting/period-service";
 import { readLiveReport, reportingLocations } from "@/server/reporting/live-service";
-import { reportingLibrary, saveReportingView, saveReportingSchedule, createReportingSnapshot, savedReportingSnapshots, reportingSnapshot } from "@/server/reporting/library-service";
+import { reportingLibrary, saveReportingView, saveReportingSchedule, createReportingSnapshot, savedReportingSnapshots, reportingSnapshot, favoriteReportingView } from "@/server/reporting/library-service";
 import { reportingExpectations, saveReportingCalendar, saveReportingAssignment, generateReportingExpectations, excuseReportingExpectation, previewReportingCalendar, loadReportingCalendar } from "@/server/reporting/calendar-service";
 import { changeReportingSchedule, processReportingSchedules, reportingDelivery, recoverReportingJob } from "@/server/reporting/schedule-service";
+import { reportingManagementCoverage } from "@/server/reporting/management-service";
 
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "no-store" } });
 function cadence(value: unknown): ReportCadence {
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
     const p = new URL(request.url).searchParams, view = p.get("view") ?? "live";
     const date = validReportDate(p.get("date") ?? reportBusinessDate(new Date())), frequency = cadence(p.get("cadence") ?? "DAILY");
     if (view === "prepare") return response(await preparePeriodReport(user, date, frequency, p.get("subject") ?? undefined));
+    if (view === "coverage") return response(await reportingManagementCoverage(user, date, frequency, p.get("subject") ?? undefined));
     if (view === "history") {
       const from = p.get("from") ? validReportDate(p.get("from")!) : undefined, to = p.get("to") ? validReportDate(p.get("to")!) : undefined;
       if (from && to && from > to) throw new Error("Report range is invalid.");
@@ -81,6 +83,10 @@ export async function POST(request: Request) {
     if (action === "assignment") return response(await saveReportingAssignment(user, { subjectUserId: text(raw.subjectUserId, 200), reviewerUserId: text(raw.reviewerUserId, 200), cadence: cadence(raw.cadence), validFrom: validReportDate(text(raw.validFrom, 10)), ...(typeof raw.validTo === "string" && raw.validTo ? { validTo: validReportDate(raw.validTo) } : {}), ...(raw.dailyDueMinute !== undefined ? { dailyDueMinute: version(raw.dailyDueMinute) } : {}) }));
     if (action === "toggle-schedule") return response(await changeReportingSchedule(user, { id: text(raw.id, 200), enabled: raw.enabled === true, expectedVersion: version(raw.expectedVersion) }));
     if (action === "run-jobs") return response(await processReportingSchedules(user));
+    if (action === "favorite-view") {
+      if (typeof raw.favorite !== "boolean") throw new Error("Favorite preference is invalid.");
+      return response(await favoriteReportingView(user, { id: text(raw.id, 200), favorite: raw.favorite, expectedVersion: version(raw.expectedVersion) }));
+    }
     if (action === "recover-job") return response(await recoverReportingJob(user, { id: text(raw.id, 200), expectedVersion: version(raw.expectedVersion), reason: text(raw.reason, 500) }));
     if (action === "review") {
       if (raw.reviewAction !== "APPROVE" && raw.reviewAction !== "RETURN") throw new Error("Review action is invalid.");

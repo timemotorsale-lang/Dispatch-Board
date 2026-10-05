@@ -8,6 +8,13 @@ import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { createGovernanceOperationsRepository } from "@/server/governance-operations/repository";
 import { readLiveReport } from "./live-service";
+import { recordReportingCommand } from "./command";
+import { Prisma } from "@prisma/client";
+
+function viewPreferences(value: Prisma.JsonValue) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Saved report view is invalid.");
+  return { filters: value, favorite: value.favorite === true, version: typeof value.favoriteVersion === "number" && Number.isSafeInteger(value.favoriteVersion) && value.favoriteVersion >= 0 ? value.favoriteVersion : 0 };
+}
 
 export async function reportingLibrary(actor: AuthenticatedUser | null) {
   const user = assertAuthenticatedUser(actor);
@@ -15,7 +22,8 @@ export async function reportingLibrary(actor: AuthenticatedUser | null) {
     prisma.reportingSavedView.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.reportingSchedule.findMany({ where: { userId: user.id }, include: { jobs: { orderBy: { createdAt: "desc" }, take: 5 } }, orderBy: { createdAt: "desc" }, take: 100 })
   ]);
-  return { definitions: reportDefinitions.filter(item => isGeneralManager(user) || ["operations", "reviews"].includes(item.id)), views,
+  const orderedViews = views.map(view => ({ ...view, favorite: viewPreferences(view.filters).favorite, favoriteVersion: viewPreferences(view.filters).version })).sort((a, b) => Number(b.favorite) - Number(a.favorite));
+  return { definitions: reportDefinitions.filter(item => isGeneralManager(user) || ["operations", "reviews"].includes(item.id)), views: orderedViews,
     schedules: schedules.map(schedule => ({ ...schedule, nextRunAt: schedule.nextRunAt.toISOString(), createdAt: schedule.createdAt.toISOString(), jobs: schedule.jobs.map(job => ({ id: job.id, status: job.status, lastError: job.lastError, createdAt: job.createdAt.toISOString() })) })) };
 }
 
@@ -24,6 +32,24 @@ export async function saveReportingView(actor: AuthenticatedUser | null, input: 
   if (!input.name.trim() || input.name.length > 100) throw new Error("Report view name is invalid.");
   filterReportingResult(await readLiveReport(user, input.definitionId, input), input.query, input.metric);
   return prisma.reportingSavedView.create({ data: { userId: user.id, name: input.name.trim(), definitionId: input.definitionId, filters: { locationId: input.locationId ?? "", date: input.date, cadence: input.cadence, query: input.query ?? "", metric: input.metric ?? null } } });
+}
+
+export async function favoriteReportingView(actor: AuthenticatedUser | null, input: { id: string; favorite: boolean; expectedVersion: number }) {
+  const user = assertAuthenticatedUser(actor);
+  if (!user.isActive) throw new Error("Reporting access is unavailable.");
+  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw new Error("Saved view version is invalid.");
+  const view = await prisma.reportingSavedView.findFirstOrThrow({ where: { id: input.id, userId: user.id } });
+  const preference = viewPreferences(view.filters);
+  await readLiveReport(user, view.definitionId as ReportDefinitionId, { locationId: typeof preference.filters.locationId === "string" ? preference.filters.locationId || undefined : undefined });
+  if (preference.version === input.expectedVersion + 1 && preference.favorite === input.favorite) return { id: view.id, version: preference.version, duplicate: true };
+  if (preference.version !== input.expectedVersion) throw new Error("Saved view changed. Reload before saving.");
+  return prisma.$transaction(async tx => {
+    const filters = { ...preference.filters, favorite: input.favorite, favoriteVersion: preference.version + 1 };
+    const changed = await tx.reportingSavedView.updateMany({ where: { id: view.id, userId: user.id, filters: { equals: view.filters as Prisma.InputJsonValue } }, data: { filters } });
+    if (changed.count !== 1) throw new Error("Saved view changed. Reload before saving.");
+    await recordReportingCommand(tx, { actorUserId: user.id, subjectId: view.id, action: "VIEW_FAVORITE_CHANGED", version: preference.version + 1, key: `${view.id}:favorite:${preference.version}`, hash: hashEnterpriseCommand(input), reason: "Personal report favorite preference updated.", result: { viewId: view.id, favorite: input.favorite } });
+    return { id: view.id, version: preference.version + 1, duplicate: false };
+  });
 }
 
 export async function createReportingSnapshot(actor: AuthenticatedUser | null, input: { definitionId: ReportDefinitionId; locationId?: string; date: string; cadence: ReportCadence; reason: string; idempotencyKey: string; exportRows?: boolean; query?: string; metric?: string | null }) {

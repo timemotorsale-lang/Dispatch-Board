@@ -5,6 +5,7 @@ import { createPrismaAuthStore } from "@/server/auth/store";
 import { processReportingSchedules, reportingDelivery, recoverReportingJob } from "@/server/reporting/schedule-service";
 import { draftReportCalendar } from "@/lib/reporting/calendar";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { generateReportingExpectations } from "@/server/reporting/calendar-service";
 
 test.beforeAll(async () => {
   const schema = new URL(process.env.DATABASE_URL!).searchParams.get("schema");
@@ -54,7 +55,7 @@ test("Command Center home navigation launches Reports on desktop and phone", asy
   await expect(consoles.locator('a[href="/command-center"]')).toHaveCount(0);
   await page.screenshot({ path: "test-results/reporting-command-center-desktop.png", fullPage: true });
   await consoles.getByRole("link", { name: /^Reports/ }).click();
-  await expect(page).toHaveURL(/\/reports$/);
+  await expect(page).toHaveURL(/\/reports(?:\?[^#]*)?$/);
   await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toBeVisible();
   await resolveNavigationFixtureReminder(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -108,6 +109,59 @@ test("Dispatch Board sidebar Reports opens today's reporting console, not the le
   await expect(page).toHaveURL(/\/vehicles\/reports$/);
   await expect(page.getByRole("link", { name: "Inventory scorecard", exact: true })).toHaveCount(0);
   await expect(page.getByText("Inventory Console · R10 governed reporting", { exact: true })).toBeVisible();
+});
+
+test("report filters survive opening a source record, returning and reloading", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  const date = await page.getByLabel("Covered date", { exact: true }).inputValue();
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const board = await prisma.boardDay.upsert({ where: { date: new Date(`${date}T00:00:00Z`) }, create: { date: new Date(`${date}T00:00:00Z`) }, update: {} });
+  const task = await prisma.task.create({ data: { boardDayId: board.id, assignedUserId: staff.id, title: "Report return context fixture", sourceType: "STAFF", workflowArea: "SALES", dueAt: new Date(`${date}T18:00:00Z`) } });
+  await page.getByRole("button", { name: "Refresh reports", exact: true }).click();
+  await page.getByRole("button", { name: "Weekly", exact: true }).click();
+  await page.getByRole("textbox", { name: "Search report records" }).fill(task.title);
+  await expect.poll(() => new URL(page.url()).searchParams.get("query")).toBe(task.title);
+  await resolveNavigationFixtureReminder(page);
+  await page.getByRole("link", { name: `Open ${task.title}`, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`));
+  await page.goBack();
+  await expect(page.getByRole("textbox", { name: "Search report records" })).toHaveValue(task.title);
+  await expect(page.getByRole("button", { name: "Weekly", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Search report records" })).toHaveValue(task.title);
+  await expect(page.getByRole("button", { name: "Weekly", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("team coverage reconciles required submissions and denies staff access", async ({ page }) => {
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const manager = await prisma.user.findUniqueOrThrow({ where: { email: "morgan.manager@local.test" } });
+  const other = await prisma.user.findFirstOrThrow({ where: { isActive: true, id: { notIn: [staff.id, manager.id] } }, orderBy: { id: "asc" } });
+  await prisma.reportingExpectation.deleteMany({ where: { organizationId: INITIAL_ORGANIZATION.id, cadence: "WEEKLY", periodStart: "2026-05-11" } });
+  await prisma.reportingExpectation.createMany({ data: [staff.id, other.id].map(subjectUserId => ({ organizationId: INITIAL_ORGANIZATION.id, subjectUserId, reviewerUserId: manager.id, cadence: "WEEKLY", periodStart: "2026-05-11", periodEnd: "2026-05-18", dueAt: new Date("2026-05-18T15:00:00Z"), reviewBy: new Date("2026-05-19T23:00:00Z"), calendarVersion: draftReportCalendar.version })), skipDuplicates: true });
+  await login(page, staff.email);
+  expect((await page.request.get("/api/reports?view=coverage&date=2026-05-13&cadence=WEEKLY")).status()).toBe(403);
+  const prepared = await (await page.request.get("/api/reports?view=prepare&date=2026-05-13&cadence=WEEKLY")).json();
+  expect((await command(page, { action: "submit", date: "2026-05-13", cadence: "WEEKLY", context: "Coverage fixture", priorities: "", expectedVersion: prepared.draftVersion, accuracyConfirmed: true, idempotencyKey: "reporting_coverage_weekly_fixture" })).status).toBe(200);
+  await page.context().clearCookies();
+  await login(page, manager.email);
+  const result = await (await page.request.get("/api/reports?view=coverage&date=2026-05-13&cadence=WEEKLY")).json();
+  expect(result.summary).toMatchObject({ required: 2, submitted: 1, missing: 1, submissionRate: { numerator: 1, denominator: 2, value: 50 } });
+  await page.goto("/reports?tab=Team+Reports&date=2026-05-13&cadence=WEEKLY");
+  await resolveNavigationFixtureReminder(page);
+  const panel = page.getByRole("region", { name: "Team reporting coverage" });
+  await expect(panel.getByText("Submission coverage: 50.0% (1/2 required reports)", { exact: true })).toBeVisible();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
+    await panel.scrollIntoViewIfNeeded();
+    const reminder = page.getByRole("button", { name: "Dismiss reminder", exact: true });
+    if (await reminder.isVisible()) await reminder.click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/reporting-coverage-${width}.png` });
+  }
+  await panel.getByRole("button", { name: `Open ${staff.name} reporting history`, exact: true }).click();
+  await expect(page.getByLabel("Person", { exact: true })).toHaveValue(staff.id);
+  await expect(page.getByLabel("Archive from", { exact: true })).toHaveValue("2026-05-11");
+  await expect(page.getByLabel("Archive through", { exact: true })).toHaveValue("2026-05-17");
 });
 
 test("calendar preview shows deadline changes without activating obligations", async ({ page }) => {
@@ -369,6 +423,81 @@ test("monthly reports retain one calendar identity and reject stale drafts", asy
   expect(history.rows[0].revisionId).toBe(submitted.data.id);
 });
 
+test("saved view favorites persist and cannot be changed by another person", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  const manager = await prisma.user.findUniqueOrThrow({ where: { email: "morgan.manager@local.test" } });
+  await prisma.reportingSavedView.deleteMany({ where: { userId: manager.id, name: "Favorite operational view" } });
+  const date = await page.getByLabel("Covered date", { exact: true }).inputValue();
+  const saved = await command(page, { action: "save-view", definitionId: "operations", name: "Favorite operational view", date, cadence: "DAILY", query: "", metric: null });
+  expect(saved.status).toBe(200);
+  const preference = { action: "favorite-view", id: saved.data.id, favorite: true, expectedVersion: 0 };
+  expect((await command(page, preference)).data.version).toBe(1);
+  expect((await command(page, preference)).data.duplicate).toBe(true);
+  expect((await command(page, { ...preference, favorite: false })).status).toBe(409);
+  await page.goto("/reports?tab=Library");
+  await expect(page.getByRole("button", { name: "Remove favorite Favorite operational view", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Remove favorite Favorite operational view", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await resolveNavigationFixtureReminder(page);
+  await page.getByRole("button", { name: "Remove favorite Favorite operational view", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Favorite Favorite operational view", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await page.context().clearCookies();
+  await login(page, "jordan.sales@local.test");
+  expect((await command(page, { ...preference, expectedVersion: 2 })).status).toBe(404);
+});
+
+test("submission rolls back completely when audit or outbox evidence fails", async ({ page }) => {
+  await login(page, "jordan.sales@local.test");
+  const schema = new URL(process.env.DATABASE_URL!).searchParams.get("schema");
+  if (!schema || !/^dispatch_board_e2e_[a-z0-9_]+$/.test(schema)) throw new Error("Failure injection requires an isolated schema.");
+  const input = { date: "2026-03-17", cadence: "WEEKLY", context: "Draft must survive an evidence failure.", priorities: "", expectedVersion: 0 };
+  expect((await command(page, { ...input, action: "save" })).status).toBe(200);
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const series = await prisma.reportingSeries.findFirstOrThrow({ where: { subjectUserId: staff.id, cadence: "WEEKLY", periodStart: "2026-03-16" } });
+  const before = await prisma.enterpriseCommandLedger.count({ where: { domain: "REPORTING", commandType: "PERIOD_SUBMITTED" } });
+  for (const [table, condition] of [
+    ["EnterpriseAuditEvent", `NEW."domain" = 'REPORTING' AND NEW."eventType" = 'PERIOD_SUBMITTED'`],
+    ["EnterpriseOutboxMessage", `EXISTS (SELECT 1 FROM "${schema}"."EnterpriseDomainEvent" WHERE "id" = NEW."domainEventId" AND "domain" = 'REPORTING' AND "eventType" = 'PERIOD_SUBMITTED')`],
+  ]) {
+    try {
+      await prisma.$executeRawUnsafe(`CREATE FUNCTION "${schema}".reporting_test_evidence_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF ${condition} THEN RAISE EXCEPTION 'Isolated reporting evidence failure'; END IF; RETURN NEW; END $$`);
+      await prisma.$executeRawUnsafe(`CREATE TRIGGER reporting_test_evidence_failure BEFORE INSERT ON "${schema}"."${table}" FOR EACH ROW EXECUTE FUNCTION "${schema}".reporting_test_evidence_failure()`);
+      expect((await command(page, { ...input, action: "submit", expectedVersion: series.version, accuracyConfirmed: true, idempotencyKey: `reporting_failure_${table}` })).status).toBe(503);
+      const retained = await prisma.reportingSeries.findUniqueOrThrow({ where: { id: series.id } });
+      expect(retained.version).toBe(series.version);
+      expect(retained.draft).toEqual(series.draft);
+      expect(await prisma.reportingRevision.count({ where: { seriesId: series.id } })).toBe(0);
+      expect(await prisma.enterpriseCommandLedger.count({ where: { domain: "REPORTING", commandType: "PERIOD_SUBMITTED" } })).toBe(before);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS reporting_test_evidence_failure ON "${schema}"."${table}"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${schema}".reporting_test_evidence_failure()`);
+    }
+  }
+  expect((await command(page, { ...input, action: "submit", expectedVersion: series.version, accuracyConfirmed: true, idempotencyKey: "reporting_evidence_failure_recovered" })).status).toBe(200);
+  expect(await prisma.reportingRevision.count({ where: { seriesId: series.id } })).toBe(1);
+});
+
+test("bounded operational reporting reconciles counts under a 501-task fixture", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const board = await prisma.boardDay.upsert({ where: { date: new Date("2026-04-01T00:00:00Z") }, create: { date: new Date("2026-04-01T00:00:00Z") }, update: {} });
+  await prisma.task.createMany({ data: Array.from({ length: 501 }, (_, index) => ({ boardDayId: board.id, assignedUserId: staff.id, title: `Reporting load fixture ${index}`, sourceType: "STAFF" as const, workflowArea: "SALES" as const, dueAt: new Date("2026-04-01T18:00:00Z") })) });
+  const start = performance.now();
+  const response = await page.request.get("/api/reports?view=live&definition=operations");
+  const result = await response.json();
+  const elapsed = performance.now() - start;
+  expect(response.status()).toBe(200);
+  expect(result.rows).toHaveLength(500);
+  expect(result.limitation).toContain("Limited to the first 500 records");
+  const ids = new Set(result.rows.map((row: { id: string }) => row.id));
+  for (const metric of result.metrics) {
+    if (metric.unit === "COUNT") expect(metric.value).toBe(metric.rowIds.length);
+    expect(metric.rowIds.every((id: string) => ids.has(id))).toBe(true);
+  }
+  console.log(JSON.stringify({ scenario: "reporting-load", insertedTasks: 501, concurrency: 1, elapsedMs: Math.round(elapsed), displayedRows: result.rows.length }));
+  expect(elapsed).toBeLessThan(3000);
+});
+
 test("concurrent schedule workers publish once and exhausted runs remain visible", async () => {
   const actor = await createPrismaAuthStore(prisma).findUserByEmail("morgan.manager@local.test");
   if (!actor) throw new Error("Manager fixture is missing.");
@@ -410,5 +539,38 @@ test("concurrent schedule workers publish once and exhausted runs remain visible
   } finally {
     await prisma.reportingCalendarPolicy.delete({ where: { id: calendar.id } });
     if (prior === undefined) delete process.env.REPORTING_SCHEDULES_ENABLED; else process.env.REPORTING_SCHEDULES_ENABLED = prior;
+  }
+});
+
+test("expectation generation rolls back the complete batch and retries without duplicates", async () => {
+  const schema = new URL(process.env.DATABASE_URL!).searchParams.get("schema");
+  if (!schema || !/^dispatch_board_e2e_[a-z0-9_]+$/.test(schema)) throw new Error("Failure injection requires an isolated schema.");
+  const actor = await createPrismaAuthStore(prisma).findUserByEmail("morgan.manager@local.test");
+  if (!actor) throw new Error("Manager fixture is missing.");
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const scope = { organizationId: INITIAL_ORGANIZATION.id, subjectUserId: staff.id, cadence: "DAILY", periodStart: { in: ["2026-02-02", "2026-02-03"] } };
+  await prisma.reportingExpectation.deleteMany({ where: scope });
+  const assignment = await prisma.reportingAssignment.create({ data: { organizationId: INITIAL_ORGANIZATION.id, subjectUserId: staff.id, reviewerUserId: actor.id, cadence: "DAILY", validFrom: "2026-02-02", validTo: "2026-02-03" } });
+  const policy = await prisma.reportingCalendarPolicy.create({ data: { organizationId: INITIAL_ORGANIZATION.id, version: 100, status: "ACTIVE", createdByUserId: actor.id, config: { ...draftReportCalendar, version: "report-calendar/test-100" } } });
+  const prior = process.env.REPORTING_EXPECTATIONS_ENABLED;
+  process.env.REPORTING_EXPECTATIONS_ENABLED = "true";
+  const before = await prisma.enterpriseCommandLedger.count({ where: { domain: "REPORTING", commandType: "EXPECTATION_GENERATED" } });
+  try {
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION "${schema}".reporting_generation_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."domain" = 'REPORTING' AND NEW."eventType" = 'EXPECTATION_GENERATED' AND NEW."subjectId" LIKE '%:2026-02-03' THEN RAISE EXCEPTION 'Isolated expectation audit failure'; END IF; RETURN NEW; END $$`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER reporting_generation_failure BEFORE INSERT ON "${schema}"."EnterpriseAuditEvent" FOR EACH ROW EXECUTE FUNCTION "${schema}".reporting_generation_failure()`);
+    await expect(generateReportingExpectations(actor, "2026-02-02", "2026-02-03")).rejects.toThrow();
+    expect(await prisma.reportingExpectation.count({ where: scope })).toBe(0);
+    expect(await prisma.enterpriseCommandLedger.count({ where: { domain: "REPORTING", commandType: "EXPECTATION_GENERATED" } })).toBe(before);
+    await prisma.$executeRawUnsafe(`DROP TRIGGER reporting_generation_failure ON "${schema}"."EnterpriseAuditEvent"`);
+    expect(await generateReportingExpectations(actor, "2026-02-02", "2026-02-03")).toEqual({ created: 2 });
+    expect(await generateReportingExpectations(actor, "2026-02-02", "2026-02-03")).toEqual({ created: 0 });
+    expect(await prisma.reportingExpectation.count({ where: scope })).toBe(2);
+    expect(await prisma.enterpriseCommandLedger.count({ where: { domain: "REPORTING", commandType: "EXPECTATION_GENERATED" } })).toBe(before + 2);
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS reporting_generation_failure ON "${schema}"."EnterpriseAuditEvent"`);
+    await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${schema}".reporting_generation_failure()`);
+    await prisma.reportingAssignment.delete({ where: { id: assignment.id } });
+    await prisma.reportingCalendarPolicy.delete({ where: { id: policy.id } });
+    if (prior === undefined) delete process.env.REPORTING_EXPECTATIONS_ENABLED; else process.env.REPORTING_EXPECTATIONS_ENABLED = prior;
   }
 });

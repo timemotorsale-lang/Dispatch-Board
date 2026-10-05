@@ -27,8 +27,8 @@ export function parseReportingCalendar(value: unknown): ReportCalendar {
   resolveReportPeriod("2026-01-01", "WEEKLY", config);
   return config;
 }
-export async function loadReportingCalendar() {
-  const active = await prisma.reportingCalendarPolicy.findFirst({ where: { organizationId, status: "ACTIVE" }, orderBy: { version: "desc" } });
+export async function loadReportingCalendar(client: Prisma.TransactionClient = prisma) {
+  const active = await client.reportingCalendarPolicy.findFirst({ where: { organizationId, status: "ACTIVE" }, orderBy: { version: "desc" } });
   return active ? parseReportingCalendar(active.config) : draftReportCalendar;
 }
 export async function saveReportingCalendar(actor: AuthenticatedUser | null, config: unknown) {
@@ -60,21 +60,24 @@ export async function saveReportingAssignment(actor: AuthenticatedUser | null, i
 }
 export async function previewReportingCalendar(actor: AuthenticatedUser | null, input: { config: unknown; from: string; to: string }) {
   manager(actor);
+  return previewCalendar(input, prisma);
+}
+async function previewCalendar(input: { config: unknown; from: string; to: string }, client: Prisma.TransactionClient) {
   const config = parseReportingCalendar(input.config);
   validReportDate(input.from); validReportDate(input.to);
   if (input.from > input.to || Date.parse(input.to) - Date.parse(input.from) > 366 * 86400000) throw new Error("Expectation preview range is invalid.");
-  const assignments = await prisma.reportingAssignment.findMany({ where: { organizationId, validFrom: { lte: input.to }, OR: [{ validTo: null }, { validTo: { gte: input.from } }] }, orderBy: { id: "asc" }, take: 1001 });
-  const people = await prisma.user.findMany({ where: { id: { in: [...new Set(assignments.flatMap(item => [item.subjectUserId, item.reviewerUserId]))] } }, select: { id: true, name: true, isActive: true, userRoles: { select: { role: { select: { name: true } } } } } });
-  const baseline = await loadReportingCalendar();
+  const assignments = await client.reportingAssignment.findMany({ where: { organizationId, validFrom: { lte: input.to }, OR: [{ validTo: null }, { validTo: { gte: input.from } }] }, orderBy: { id: "asc" }, take: 1001 });
+  const people = await client.user.findMany({ where: { id: { in: [...new Set(assignments.flatMap(item => [item.subjectUserId, item.reviewerUserId]))] } }, select: { id: true, name: true, isActive: true, userRoles: { select: { role: { select: { name: true } } } } } });
+  const baseline = await loadReportingCalendar(client);
   const bounds = [config, baseline].flatMap(calendar => [resolveReportPeriod(input.from, "MONTHLY", calendar), resolveReportPeriod(input.to, "MONTHLY", calendar)]);
   const startsAt = new Date(Math.min(...bounds.map(period => period.startsAt.getTime())));
   const endsAt = new Date(Math.max(...bounds.map(period => period.reviewBy.getTime())));
-  const timeOff = await prisma.timeOffRequest.findMany({ where: { organizationId, status: "APPROVED", requesterUserId: { in: people.map(person => person.id) }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } }, select: { requesterUserId: true, startsAt: true, endsAt: true }, take: 10001 });
+  const timeOff = await client.timeOffRequest.findMany({ where: { organizationId, status: "APPROVED", requesterUserId: { in: people.map(person => person.id) }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } }, select: { requesterUserId: true, startsAt: true, endsAt: true }, take: 10001 });
   if (timeOff.length > 10000) throw new Error("Expectation preview requires a smaller time-off scope.");
   const inputs = assignments.map(item => ({ ...item, cadence: item.cadence as ReportCadence })) satisfies ExpectationAssignment[];
   const proposed = projectReportingExpectations(config, inputs, people, input.from, input.to, timeOff);
   const previous = projectReportingExpectations(baseline, inputs, people, input.from, input.to, timeOff);
-  const existing = await prisma.reportingExpectation.findMany({ where: { organizationId, periodStart: { gte: addReportDays(input.from, -31), lte: input.to } }, take: 10001 });
+  const existing = await client.reportingExpectation.findMany({ where: { organizationId, periodStart: { gte: addReportDays(input.from, -31), lte: input.to } }, take: 10001 });
   if (existing.length > 10000) throw new Error("Expectation preview requires a smaller existing scope.");
   const key = (row: { subjectUserId: string; cadence: string; periodStart: string }) => `${row.subjectUserId}:${row.cadence}:${row.periodStart}`;
   const before = new Map(previous.map(row => [key(row), row]));
@@ -90,20 +93,24 @@ export async function previewReportingCalendar(actor: AuthenticatedUser | null, 
 export async function generateReportingExpectations(actor: AuthenticatedUser | null, from: string, to: string) {
   const user = manager(actor); validReportDate(from); validReportDate(to);
   if (from > to || Date.parse(to) - Date.parse(from) > 366 * 86_400_000) throw new Error("Expectation generation range is invalid.");
-  const calendar = await loadReportingCalendar();
-  if (process.env.REPORTING_EXPECTATIONS_ENABLED !== "true" || calendar.version.includes("draft")) throw new Error("Reporting obligations are not enabled.");
-  const preview = await previewReportingCalendar(user, { config: calendar, from, to });
-  if (preview.rows.some(row => !row.canGenerate || row.partial)) throw new Error("Expectation generation requires resolved leave, reviewer, and partial-period policy conflicts.");
-  let created = 0;
-  for (const row of preview.rows) {
-    created += await prisma.$transaction(async tx => {
+  if (process.env.REPORTING_EXPECTATIONS_ENABLED !== "true") throw new Error("Reporting obligations are not enabled.");
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${organizationId}:REPORT_CALENDAR`}))`;
+    const currentActor = await tx.user.findUnique({ where: { id: user.id }, select: { isActive: true, userRoles: { select: { role: { select: { name: true } } } } } });
+    if (!currentActor?.isActive || !currentActor.userRoles.some(role => role.role.name === "General Manager")) throw new Error("General Manager access is required for reporting policy.");
+    const calendar = await loadReportingCalendar(tx);
+    if (calendar.version.includes("draft")) throw new Error("Reporting obligations are not enabled.");
+    const preview = await previewCalendar({ config: calendar, from, to }, tx);
+    if (preview.rows.some(row => !row.canGenerate || row.partial)) throw new Error("Expectation generation requires resolved leave, reviewer, and partial-period policy conflicts.");
+    let created = 0;
+    for (const row of preview.rows) {
       const key = { organizationId, subjectUserId: row.subjectUserId, cadence: row.cadence, periodStart: row.periodStart };
       const result = await tx.reportingExpectation.createMany({ data: [{ ...key, periodEnd: row.periodEnd, dueAt: new Date(row.dueAt), reviewBy: new Date(row.reviewBy), calendarVersion: row.calendarVersion, reviewerUserId: row.reviewerUserId }], skipDuplicates: true });
       if (result.count) await recordReportingCommand(tx, { actorUserId: user.id, subjectId: `${row.subjectUserId}:${row.cadence}:${row.periodStart}`, action: "EXPECTATION_GENERATED", version: 1, key: `${organizationId}:${row.subjectUserId}:${row.cadence}:${row.periodStart}`, hash: hashEnterpriseCommand(row), reason: "Reporting obligation generated from the approved calendar and assignment.", result: { coveredDates: row.coveredDates, assignmentIds: row.assignmentIds, calendarVersion: row.calendarVersion } });
-      return result.count;
-    });
-  }
-  return { created };
+      created += result.count;
+    }
+    return { created };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
 }
 export async function reportingExpectations(actor: AuthenticatedUser | null, team = false) {
   const user = assertAuthenticatedUser(actor);

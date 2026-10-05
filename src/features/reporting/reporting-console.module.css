@@ -4,6 +4,9 @@
 .console h2 { margin: 0; font-size: 19px; }
 .calendarFields { border: 0; padding: 0; margin: 0; display: grid; gap: 14px; min-width: 0; }
 .calendarDay { display: flex !important; align-items: center; gap: 6px; }
+.coverage { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 16px; margin: 14px 0; padding: 14px 0; border-top: 1px solid #d9e0e9; border-bottom: 1px solid #d9e0e9; }
+.coverage dt { font-size: 12px; color: #59677c; }
+.coverage dd { margin: 4px 0 0; font-size: 24px; font-weight: 700; }
 .console h3 { margin: 24px 0 10px; font-size: 15px; }
 .console button, .console input, .console select, .console textarea { font: inherit; }
 .console button, .headerActions a { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; border: 1px solid #d4dbe5; border-radius: 5px; padding: 8px 12px; color: #243044; background: #fff; cursor: pointer; text-decoration: none; }
@@ -38,7 +41,7 @@
 .console th, .console td { padding: 11px 12px; border-bottom: 1px solid #e2e7ef; vertical-align: top; }
 .console td { max-width: 420px; overflow-wrap: anywhere; }
 .console td small { display: block; margin-top: 5px; color: #687589; }
-.console td:last-child { width: 48px; }
+.console td:last-child { min-width: 96px; }
 .empty { padding: 32px 12px; text-align: center; color: #687589; border-bottom: 1px solid #e2e7ef; }
 .quality, .notice, .error, .reviewNote { padding: 10px 12px; font-size: 13px; line-height: 1.5; border-left: 3px solid #a8b4c7; background: #f3f5f8; overflow-wrap: anywhere; }
 .error { border-color: #c34343; color: #8b2727; background: #fff1f1; }
