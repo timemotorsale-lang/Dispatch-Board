@@ -37,7 +37,8 @@ export async function processReportingSchedules(actor: AuthenticatedUser | null,
   let succeeded = 0, failed = 0;
   for (const schedule of schedules) {
     const runKey = `${schedule.id}:${schedule.nextRunAt.toISOString()}`;
-    const job = await prisma.reportingJob.upsert({ where: { runKey }, update: {}, create: { scheduleId: schedule.id, runKey } });
+    await prisma.reportingJob.createMany({ data: [{ scheduleId: schedule.id, runKey }], skipDuplicates: true });
+    const job = await prisma.reportingJob.findUniqueOrThrow({ where: { runKey } });
     if (job.status === "SUCCEEDED") continue;
     const lease = new Date(now.getTime() + 120_000);
     const claimed = await prisma.reportingJob.updateMany({ where: { id: job.id, status: { in: ["PENDING", "FAILED", "PROCESSING"] }, attempts: { lt: 5 }, OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] }, data: { status: "PROCESSING", lockedUntil: lease, attempts: { increment: 1 } } });
@@ -65,6 +66,26 @@ export async function processReportingSchedules(actor: AuthenticatedUser | null,
     }
   }
   return { succeeded, failed };
+}
+export async function recoverReportingJob(actor: AuthenticatedUser | null, input: { id: string; expectedVersion: number; reason: string }) {
+  const user = assertAuthenticatedUser(actor);
+  if (!user.isActive || !isGeneralManager(user)) throw new Error("General Manager access is required to recover reporting jobs.");
+  enabled();
+  if (input.reason.trim().length < 20 || input.reason.length > 500 || !Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new Error("Recovery reason or schedule version is invalid.");
+  const calendar = await loadReportingCalendar();
+  if (calendar.version.includes("draft")) throw new Error("Recovery requires an active reporting calendar.");
+  const job = await prisma.reportingJob.findFirstOrThrow({ where: { id: input.id, schedule: { userId: user.id } }, include: { schedule: true } });
+  if (job.status !== "DEAD_LETTER") throw new Error("Reporting job changed. Reload before recovery.");
+  if (!job.schedule.enabled) throw new Error("Recovery requires an enabled schedule.");
+  await readLiveReport(user, job.schedule.definitionId as ReportDefinitionId);
+  return prisma.$transaction(async tx => {
+    const schedule = await tx.reportingSchedule.updateMany({ where: { id: job.scheduleId, userId: user.id, enabled: true, version: input.expectedVersion }, data: { version: { increment: 1 } } });
+    if (schedule.count !== 1) throw new Error("Schedule changed. Reload before recovery.");
+    const recovered = await tx.reportingJob.updateMany({ where: { id: job.id, status: "DEAD_LETTER", attempts: job.attempts, lockedUntil: job.lockedUntil }, data: { status: "PENDING", attempts: 0, lockedUntil: null, lastError: null } });
+    if (recovered.count !== 1) throw new Error("Reporting job changed. Reload before recovery.");
+    await recordReportingCommand(tx, { actorUserId: user.id, subjectId: job.id, action: "SCHEDULE_RECOVERY_APPROVED", version: input.expectedVersion + 1, key: `${job.id}:recovery:${input.expectedVersion}`, hash: hashEnterpriseCommand(input), reason: input.reason.trim(), result: { jobId: job.id, runKey: job.runKey, priorStatus: job.status, priorAttempts: job.attempts, priorError: job.lastError, priorLockedUntil: job.lockedUntil?.toISOString() ?? null } });
+    return { id: job.id };
+  });
 }
 export async function reportingDelivery(actor: AuthenticatedUser | null, id: string) {
   const user = assertAuthenticatedUser(actor);

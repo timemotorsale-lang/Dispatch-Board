@@ -6,8 +6,8 @@ import { reportDefinitions, type ReportDefinitionId } from "@/lib/reporting/cont
 import { reportingCalendarPreview, reportingHistory, reportingPeople, reportingRevision, preparePeriodReport, savePeriodDraft, submitPeriodReport, reviewPeriodReport } from "@/server/reporting/period-service";
 import { readLiveReport, reportingLocations } from "@/server/reporting/live-service";
 import { reportingLibrary, saveReportingView, saveReportingSchedule, createReportingSnapshot, savedReportingSnapshots, reportingSnapshot } from "@/server/reporting/library-service";
-import { reportingExpectations, saveReportingCalendar, saveReportingAssignment, generateReportingExpectations, excuseReportingExpectation } from "@/server/reporting/calendar-service";
-import { changeReportingSchedule, processReportingSchedules, reportingDelivery } from "@/server/reporting/schedule-service";
+import { reportingExpectations, saveReportingCalendar, saveReportingAssignment, generateReportingExpectations, excuseReportingExpectation, previewReportingCalendar, loadReportingCalendar } from "@/server/reporting/calendar-service";
+import { changeReportingSchedule, processReportingSchedules, reportingDelivery, recoverReportingJob } from "@/server/reporting/schedule-service";
 
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "no-store" } });
 function cadence(value: unknown): ReportCadence {
@@ -33,7 +33,7 @@ function failure(error: unknown) {
   if (message === "Authentication required.") return response({ error: message }, 401);
   if (/permission|access|required to review|rollout|not enabled|own submission/.test(message)) return response({ error: message }, 403);
   if (/changed|reused|already.*reviewed/.test(message)) return response({ error: message }, 409);
-  if (/invalid|must |requires|Confirm |cannot |Start Day|Unavailable/.test(message)) return response({ error: message }, 422);
+  if (/invalid|must |requires|overlaps|Confirm |cannot |Start Day|Unavailable/.test(message)) return response({ error: message }, 422);
   return response({ error: "Reporting is temporarily unavailable. Your saved work has been retained." }, 503);
 }
 
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     if (view === "expectations") return response(await reportingExpectations(user, p.get("team") === "true"));
     if (view === "delivery") return response(await reportingDelivery(user, text(p.get("id"), 200)));
     if (view === "snapshot") return response(await reportingSnapshot(user, text(p.get("id"), 200)));
-    if (view === "settings") return response({ people: await reportingPeople(user), locations: await reportingLocations(user), calendar: reportingCalendarPreview() });
+    if (view === "settings") return response({ people: await reportingPeople(user), locations: await reportingLocations(user), calendar: reportingCalendarPreview(), calendarConfig: await loadReportingCalendar() });
     if (view !== "live") throw new Error("Report view is invalid.");
     return response(await readLiveReport(user, definition(p.get("definition") ?? "operations"), { locationId: p.get("location") || undefined, date, cadence: frequency }));
   } catch (error) { return failure(error); }
@@ -74,12 +74,14 @@ export async function POST(request: Request) {
     const value: unknown = JSON.parse(body);
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Report request is invalid.");
     const raw = value as Record<string, unknown>, action = text(raw.action, 40);
+    if (action === "preview-calendar") return response(await previewReportingCalendar(user, { config: raw.config, from: validReportDate(text(raw.from, 10)), to: validReportDate(text(raw.to, 10)) }));
     if (action === "save-calendar") return response(await saveReportingCalendar(user, raw.config));
     if (action === "generate-expectations") return response(await generateReportingExpectations(user, validReportDate(text(raw.from, 10)), validReportDate(text(raw.to, 10))));
     if (action === "excuse") return response(await excuseReportingExpectation(user, text(raw.id, 200), text(raw.reason, 500)));
     if (action === "assignment") return response(await saveReportingAssignment(user, { subjectUserId: text(raw.subjectUserId, 200), reviewerUserId: text(raw.reviewerUserId, 200), cadence: cadence(raw.cadence), validFrom: validReportDate(text(raw.validFrom, 10)), ...(typeof raw.validTo === "string" && raw.validTo ? { validTo: validReportDate(raw.validTo) } : {}), ...(raw.dailyDueMinute !== undefined ? { dailyDueMinute: version(raw.dailyDueMinute) } : {}) }));
     if (action === "toggle-schedule") return response(await changeReportingSchedule(user, { id: text(raw.id, 200), enabled: raw.enabled === true, expectedVersion: version(raw.expectedVersion) }));
     if (action === "run-jobs") return response(await processReportingSchedules(user));
+    if (action === "recover-job") return response(await recoverReportingJob(user, { id: text(raw.id, 200), expectedVersion: version(raw.expectedVersion), reason: text(raw.reason, 500) }));
     if (action === "review") {
       if (raw.reviewAction !== "APPROVE" && raw.reviewAction !== "RETURN") throw new Error("Review action is invalid.");
       return response(await reviewPeriodReport(user, { revisionId: text(raw.revisionId, 200), action: raw.reviewAction, comment: text(raw.comment, 5000), expectedSeriesVersion: version(raw.expectedVersion) }));

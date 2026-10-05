@@ -10,6 +10,7 @@ import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { submitDailyHandoff } from "@/server/services/daily-handoff";
 import { recordReportingCommand } from "./command";
 import { loadReportingCalendar } from "./calendar-service";
+import { decodeReportingHistoryCursor, encodeReportingHistoryCursor } from "./history-cursor";
 
 const organizationId = INITIAL_ORGANIZATION.id;
 export function reportingSubject(actor: AuthenticatedUser | null, subjectUserId?: string) {
@@ -160,15 +161,18 @@ export async function reportingHistory(actor: AuthenticatedUser | null, input: {
   const { user, subject } = reportingSubject(actor, input.subjectUserId);
   if (input.team && !isGeneralManager(user)) throw new Error("General Manager access is required for team reports.");
   const subjectWhere = input.team && !input.subjectUserId ? {} : { subjectUserId: subject };
-  const series = await prisma.reportingSeries.findMany({ where: { organizationId, ...subjectWhere, ...(input.cadence ? { cadence: input.cadence } : {}), ...(input.from || input.to ? { periodStart: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}) },
-    orderBy: [{ periodStart: "desc" }, { id: "asc" }], take: 51, ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+  const scope = hashEnterpriseCommand({ actor: user.id, subject: input.team && !input.subjectUserId ? null : subject, team: input.team === true, cadence: input.cadence ?? null, from: input.from ?? null, to: input.to ?? null });
+  const cursor = decodeReportingHistoryCursor(input.cursor, scope);
+  const series = cursor?.seriesDone ? [] : await prisma.reportingSeries.findMany({ where: { organizationId, ...subjectWhere, ...(input.cadence ? { cadence: input.cadence } : {}), ...(input.from || input.to ? { periodStart: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}) },
+    orderBy: [{ periodStart: "desc" }, { id: "asc" }], take: 51, ...(cursor?.series ? { cursor: { id: cursor.series }, skip: 1 } : {}),
     include: { revisions: { orderBy: { version: "desc" }, take: 1, include: { reviews: { orderBy: { createdAt: "desc" }, take: 1 } } } } });
   const rows = series.slice(0, 50).map(item => ({ id: item.id, subject: item.subjectName, subjectUserId: item.subjectUserId, cadence: item.cadence, periodStart: item.periodStart, periodEnd: item.periodEnd, version: item.version,
     revisionId: item.acceptedRevisionId ?? item.revisions[0]?.id ?? null,
     latestRevisionId: item.revisions[0]?.id ?? null,
     status: item.revisions[0] ? reviewState(item.revisions[0].reviews, item.acceptedRevisionId === item.revisions[0].id) : "DRAFT", submittedAt: item.revisions[0]?.submittedAt.toISOString() ?? null }));
-  const legacy = !input.cursor && (!input.cadence || input.cadence === "DAILY") ? await prisma.staffDailyReport.findMany({ where: { reportingRevision: null, staffDay: { ...(input.team && !input.subjectUserId ? {} : { userId: subject }), ...(input.from || input.to ? { boardDay: { date: { ...(input.from ? { gte: new Date(`${input.from}T00:00:00Z`) } : {}), ...(input.to ? { lte: new Date(`${input.to}T00:00:00Z`) } : {}) } } } : {}) } }, orderBy: { submittedAt: "desc" }, take: 50, include: { staffDay: { include: { user: { select: { name: true } }, boardDay: { select: { date: true } } } } } }) : [];
-  return { rows, legacy: legacy.map(item => ({ id: `legacy:${item.id}`, subject: item.staffDay.user.name, subjectUserId: item.staffDay.userId, cadence: "DAILY", periodStart: item.staffDay.boardDay.date.toISOString().slice(0, 10), periodEnd: "", version: item.version, revisionId: `legacy:${item.id}`, latestRevisionId: `legacy:${item.id}`, status: "SUBMITTED", submittedAt: item.submittedAt.toISOString() })), nextCursor: series.length > 50 ? series[49].id : null, canReview: isGeneralManager(user) };
+  const legacy = !cursor?.legacyDone && (!input.cadence || input.cadence === "DAILY") ? await prisma.staffDailyReport.findMany({ where: { reportingRevision: null, staffDay: { ...(input.team && !input.subjectUserId ? {} : { userId: subject }), ...(input.from || input.to ? { boardDay: { date: { ...(input.from ? { gte: new Date(`${input.from}T00:00:00Z`) } : {}), ...(input.to ? { lte: new Date(`${input.to}T00:00:00Z`) } : {}) } } } : {}) } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: 51, ...(cursor?.legacy ? { cursor: { id: cursor.legacy }, skip: 1 } : {}), include: { staffDay: { include: { user: { select: { name: true } }, boardDay: { select: { date: true } } } } } }) : [];
+  const nextCursor = series.length > 50 || legacy.length > 50 ? encodeReportingHistoryCursor({ version: 1, scope, series: series[49]?.id ?? cursor?.series ?? null, legacy: legacy[49]?.id ?? cursor?.legacy ?? null, seriesDone: series.length <= 50, legacyDone: legacy.length <= 50 }) : null;
+  return { rows, legacy: legacy.slice(0, 50).map(item => ({ id: `legacy:${item.id}`, subject: item.staffDay.user.name, subjectUserId: item.staffDay.userId, cadence: "DAILY", periodStart: item.staffDay.boardDay.date.toISOString().slice(0, 10), periodEnd: "", version: item.version, revisionId: `legacy:${item.id}`, latestRevisionId: `legacy:${item.id}`, status: "SUBMITTED", submittedAt: item.submittedAt.toISOString() })), nextCursor, canReview: isGeneralManager(user) };
 }
 
 export async function reportingRevision(actor: AuthenticatedUser | null, id: string) {

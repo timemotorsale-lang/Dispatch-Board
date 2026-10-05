@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "@/server/db/client";
 import { resetDailyWorkflowState, disconnectDailyWorkflowDatabase } from "./daily-workflow.setup";
 import { createPrismaAuthStore } from "@/server/auth/store";
-import { processReportingSchedules, reportingDelivery } from "@/server/reporting/schedule-service";
+import { processReportingSchedules, reportingDelivery, recoverReportingJob } from "@/server/reporting/schedule-service";
 import { draftReportCalendar } from "@/lib/reporting/calendar";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 
@@ -108,6 +108,96 @@ test("Dispatch Board sidebar Reports opens today's reporting console, not the le
   await expect(page).toHaveURL(/\/vehicles\/reports$/);
   await expect(page.getByRole("link", { name: "Inventory scorecard", exact: true })).toHaveCount(0);
   await expect(page.getByText("Inventory Console · R10 governed reporting", { exact: true })).toBeVisible();
+});
+
+test("calendar preview shows deadline changes without activating obligations", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const manager = await prisma.user.findUniqueOrThrow({ where: { email: "morgan.manager@local.test" } });
+  await prisma.reportingAssignment.deleteMany({ where: { subjectUserId: staff.id, cadence: "DAILY", validFrom: "2026-10-05" } });
+  const assigned = await command(page, { action: "assignment", subjectUserId: staff.id, reviewerUserId: manager.id, cadence: "DAILY", validFrom: "2026-10-05", validTo: "2026-10-09" });
+  expect(assigned.status).toBe(200);
+  const before = await prisma.reportingExpectation.count();
+  const activeBefore = await prisma.reportingCalendarPolicy.count({ where: { status: "ACTIVE" } });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
+    await page.getByRole("button", { name: "Team Reports", exact: true }).click();
+    await resolveNavigationFixtureReminder(page);
+    const details = page.locator("details").filter({ hasText: "Reporting calendar" });
+    if (await details.getAttribute("open") === null) await details.locator("summary").click();
+    const panel = page.getByRole("region", { name: "Reporting calendar policy" });
+    await panel.getByLabel("Preview from", { exact: true }).fill("2026-10-05");
+    await panel.getByLabel("Preview through", { exact: true }).fill("2026-10-09");
+    await panel.getByLabel("Deadline minute", { exact: true }).fill("1200");
+    await panel.getByRole("button", { name: "Preview changes", exact: true }).click();
+    await expect(panel.getByRole("status")).toContainText("5 projected periods");
+    await expect(panel.getByRole("status")).toContainText("5 affected");
+    await expect(panel.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const reminder = page.getByRole("button", { name: "Dismiss reminder", exact: true });
+    if (await reminder.isVisible()) await reminder.click();
+    await panel.getByRole("button", { name: "Preview changes", exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `test-results/reporting-calendar-preview-${width}.png` });
+  }
+  expect(await prisma.reportingExpectation.count()).toBe(before);
+  expect(await prisma.reportingCalendarPolicy.count({ where: { status: "ACTIVE" } })).toBe(activeBefore);
+});
+
+test("legacy daily archive retrieves every page without changing frozen submissions", async ({ page }) => {
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  const board = await prisma.boardDay.create({ data: { date: new Date("2026-06-01T00:00:00Z") } });
+  const day = await prisma.staffDay.create({ data: { boardDayId: board.id, userId: staff.id } });
+  await prisma.staffDailyReport.createMany({ data: Array.from({ length: 55 }, (_, index) => ({ staffDayId: day.id, version: index + 1, sourceSnapshot: { fixture: index, completedTasks: [], carryover: [] }, accuracyConfirmed: true, submittedByUserId: staff.id, submittedAt: new Date("2026-06-02T00:00:00Z") })) });
+  const before = await prisma.staffDailyReport.findMany({ where: { staffDayId: day.id }, orderBy: { version: "asc" } });
+  await login(page, staff.email);
+  const query = "view=history&cadence=DAILY&from=2026-06-01&to=2026-06-01";
+  const first = await (await page.request.get(`/api/reports?${query}`)).json();
+  expect(first.legacy).toHaveLength(50); expect(first.nextCursor).toBeTruthy();
+  const second = await (await page.request.get(`/api/reports?${query}&cursor=${first.nextCursor}`)).json();
+  expect(second.legacy).toHaveLength(5); expect(second.nextCursor).toBeNull();
+  expect(new Set([...first.legacy, ...second.legacy].map((row: { id: string }) => row.id)).size).toBe(55);
+  const changed = await page.request.get(`/api/reports?view=history&cadence=DAILY&from=2026-06-01&to=2026-06-02&cursor=${first.nextCursor}`);
+  expect(changed.status()).toBe(422);
+  await page.getByRole("button", { name: "My Reports", exact: true }).click();
+  await resolveNavigationFixtureReminder(page);
+  await page.getByLabel("Archive from", { exact: true }).fill("2026-06-01");
+  await page.getByLabel("Archive through", { exact: true }).fill("2026-06-01");
+  await expect(page.getByRole("button", { name: `Open ${staff.name} 2026-06-01`, exact: true })).toHaveCount(50);
+  await page.getByRole("button", { name: "Load older reports", exact: true }).click();
+  await expect(page.getByRole("button", { name: `Open ${staff.name} 2026-06-01`, exact: true })).toHaveCount(55);
+  expect(await prisma.staffDailyReport.findMany({ where: { staffDayId: day.id }, orderBy: { version: "asc" } })).toEqual(before);
+});
+
+test("interrupted autosave retains input and recovers a lost acknowledgement", async ({ page }) => {
+  await login(page, "jordan.sales@local.test");
+  await page.getByRole("button", { name: "My Reports", exact: true }).click();
+  await page.getByRole("button", { name: "Weekly", exact: true }).click();
+  await page.getByLabel("Covered date", { exact: true }).fill("2026-07-14");
+  await resolveNavigationFixtureReminder(page);
+  const context = page.getByLabel("Context", { exact: true });
+  let failureMode = "before-write";
+  await page.route("**/api/reports", async route => {
+    const request = route.request();
+    if (request.method() === "POST" && request.postDataJSON()?.action === "save") {
+      if (failureMode === "before-write") { await route.abort(); return; }
+      if (failureMode === "after-write") { failureMode = "none"; await route.fetch(); await route.abort(); return; }
+    }
+    await route.continue();
+  });
+  await context.fill("Interrupted draft must remain intact.");
+  await expect(page.getByRole("button", { name: "Retry saving draft", exact: true })).toBeVisible();
+  await expect(context).toHaveValue("Interrupted draft must remain intact.");
+  failureMode = "none";
+  await page.getByRole("button", { name: "Retry saving draft", exact: true }).click();
+  await expect(page.locator("footer").getByRole("status")).toHaveText("Saved");
+  failureMode = "after-write";
+  await context.fill("Server saved this draft but its acknowledgement was lost.");
+  await expect(page.locator("footer").getByRole("status")).toHaveText("Saved");
+  await page.reload();
+  await page.getByRole("button", { name: "My Reports", exact: true }).click();
+  await page.getByRole("button", { name: "Weekly", exact: true }).click();
+  await page.getByLabel("Covered date", { exact: true }).fill("2026-07-14");
+  await expect(context).toHaveValue("Server saved this draft but its acknowledgement was lost.");
 });
 
 test("weekly submissions are idempotent, independently reviewed, and immutable", async ({ page, browser }) => {
@@ -287,7 +377,7 @@ test("concurrent schedule workers publish once and exhausted runs remain visible
   const calendar = await prisma.reportingCalendarPolicy.create({ data: { organizationId: INITIAL_ORGANIZATION.id, version: 99, status: "ACTIVE", createdByUserId: actor.id, config: { ...draftReportCalendar, version: "report-calendar/test-99" } } });
   try {
     const schedule = await prisma.reportingSchedule.create({ data: { userId: actor.id, definitionId: "appointments", cadence: "DAILY", timezone: "America/Chicago", enabled: true, nextRunAt: new Date("2026-09-23T05:00:00Z") } });
-    const now = new Date("2026-09-24T05:00:00Z");
+    const now = new Date("2026-09-23T06:00:00Z");
     const results = await Promise.all([processReportingSchedules(actor, now), processReportingSchedules(actor, now)]);
     expect(results.reduce((sum, item) => sum + item.succeeded, 0)).toBe(1);
     const jobs = await prisma.reportingJob.findMany({ where: { scheduleId: schedule.id } });
@@ -299,7 +389,23 @@ test("concurrent schedule workers publish once and exhausted runs remain visible
     const failed = await prisma.reportingSchedule.create({ data: { userId: actor.id, definitionId: "operations", cadence: "DAILY", timezone: "America/Chicago", enabled: true, nextRunAt: new Date("2026-09-23T05:00:00Z") } });
     await prisma.reportingJob.create({ data: { scheduleId: failed.id, runKey: `${failed.id}:2026-09-23T05:00:00.000Z`, status: "FAILED", attempts: 4 } });
     expect((await processReportingSchedules(actor, now)).failed).toBe(1);
-    expect((await prisma.reportingJob.findFirstOrThrow({ where: { scheduleId: failed.id } })).status).toBe("DEAD_LETTER");
+    const stopped = await prisma.reportingJob.findFirstOrThrow({ where: { scheduleId: failed.id } });
+    expect(stopped.status).toBe("DEAD_LETTER");
+    const recovery = { id: stopped.id, expectedVersion: failed.version, reason: "Corrected the source definition after reviewing the stopped delivery." };
+    await expect(recoverReportingJob({ ...actor, roles: ["Salesperson"] }, recovery)).rejects.toThrow("access");
+    await expect(recoverReportingJob(actor, { ...recovery, reason: "Retry" })).rejects.toThrow("invalid");
+    await expect(recoverReportingJob(actor, { ...recovery, expectedVersion: failed.version + 1 })).rejects.toThrow("changed");
+    expect((await prisma.reportingJob.findUniqueOrThrow({ where: { id: stopped.id } })).status).toBe("DEAD_LETTER");
+    await prisma.reportingSchedule.update({ where: { id: failed.id }, data: { definitionId: "appointments" } });
+    const recoveries = await Promise.allSettled([recoverReportingJob(actor, recovery), recoverReportingJob(actor, recovery)]);
+    expect(recoveries.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    const recovered = await prisma.reportingJob.findUniqueOrThrow({ where: { id: stopped.id } });
+    expect(recovered).toMatchObject({ status: "PENDING", attempts: 0, runKey: stopped.runKey });
+    const audit = await prisma.enterpriseCommandLedger.findMany({ where: { subjectId: stopped.id, commandType: "SCHEDULE_RECOVERY_APPROVED" } });
+    expect(audit).toHaveLength(1);
+    expect(audit[0].resultSnapshot).toMatchObject({ priorStatus: "DEAD_LETTER", priorAttempts: 5, priorError: stopped.lastError });
+    expect((await processReportingSchedules(actor, now)).succeeded).toBe(1);
+    expect(await prisma.reportingJob.count({ where: { scheduleId: failed.id } })).toBe(1);
     await prisma.reportingSchedule.update({ where: { id: failed.id }, data: { enabled: false } });
   } finally {
     await prisma.reportingCalendarPolicy.delete({ where: { id: calendar.id } });

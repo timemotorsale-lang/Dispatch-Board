@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, Check, ChevronRight, Download, FileText, RefreshCw, Save, Search, Send, X } from "lucide-react";
 import { reportDefinitions, type ReportDefinitionId, type ReportResult, type ReportRow } from "@/lib/reporting/contracts";
-import type { ReportCadence } from "@/lib/reporting/calendar";
+import type { ReportCadence, ReportCalendar } from "@/lib/reporting/calendar";
+import { ReportingCalendarPanel } from "./reporting-calendar-panel";
+import { ReportingRecoveryPanel } from "./reporting-recovery-panel";
 import type { preparePeriodReport, reportingHistory, reportingRevision } from "@/server/reporting/period-service";
 import type { reportingLibrary, savedReportingSnapshots } from "@/server/reporting/library-service";
 import type { reportingExpectations } from "@/server/reporting/calendar-service";
@@ -14,7 +16,7 @@ type Prepared = Awaited<ReturnType<typeof preparePeriodReport>>;
 type History = Awaited<ReturnType<typeof reportingHistory>>;
 type Revision = Awaited<ReturnType<typeof reportingRevision>>;
 type Library = Awaited<ReturnType<typeof reportingLibrary>> & { snapshots: Awaited<ReturnType<typeof savedReportingSnapshots>> };
-type Settings = { people: { id: string; name: string }[]; locations: { id: string; name: string }[] };
+type Settings = { people: { id: string; name: string }[]; locations: { id: string; name: string }[]; calendarConfig?: ReportCalendar };
 type Tab = "Overview" | "My Reports" | "Team Reports" | "Library";
 
 async function request<T>(query: URLSearchParams | Record<string, unknown>, signal?: AbortSignal): Promise<T> {
@@ -60,7 +62,7 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
     if (tab === "My Reports") {
       params.set("view", "prepare");
       request<Prepared>(params, abort.signal).then(result => { setPrepared(result); setContext(result.content.context); setPriorities(result.content.priorities); draftVersion.current = result.draftVersion; dirty.current = false; setConfirmed(false); submissionKey.current = crypto.randomUUID(); setSaveState(result.draftVersion ? "Saved" : ""); }).catch(e => { if (!abort.signal.aborted) setError(errorMessage(e)); }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
-      request<History>(new URLSearchParams({ view: "history", cadence, ...(historyFrom ? { from: historyFrom } : {}), ...(historyTo ? { to: historyTo } : {}) }), abort.signal).then(setHistory).catch(() => {});
+      request<History>(new URLSearchParams({ view: "history", cadence, ...(historyFrom ? { from: historyFrom } : {}), ...(historyTo ? { to: historyTo } : {}) }), abort.signal).then(setHistory).catch(e => { if (!abort.signal.aborted) setError(errorMessage(e)); });
       request<Awaited<ReturnType<typeof reportingExpectations>>>(new URLSearchParams({ view: "expectations" }), abort.signal).then(setExpectations).catch(() => {});
     } else if (tab === "Team Reports") {
       params.set("view", "history"); params.set("team", "true"); if (subject) params.set("subject", subject);
@@ -84,7 +86,18 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
     const operation = request<{ version: number }>({ action: "save", date, cadence, context, priorities, expectedVersion: draftVersion.current }).then(result => {
       draftVersion.current = result.version;
       dirty.current = editNumber.current !== savedEditNumber; setSaveState(dirty.current ? "Unsaved changes" : "Saved"); return true;
-    }).catch(e => { setError(errorMessage(e)); setSaveState("Could not save"); return false; });
+    }).catch(async e => {
+      try {
+        const recovered = await request<Prepared>(new URLSearchParams({ view: "prepare", date, cadence }));
+        if (recovered.content.context === context && recovered.content.priorities === priorities && recovered.draftVersion > draftVersion.current) {
+          draftVersion.current = recovered.draftVersion;
+          dirty.current = editNumber.current !== savedEditNumber;
+          setSaveState(dirty.current ? "Unsaved changes" : "Saved");
+          return true;
+        }
+      } catch { /* Retain the local edits if acknowledgement cannot be recovered. */ }
+      setError(errorMessage(e)); setSaveState("Could not save"); return false;
+    });
     saving.current = operation;
     const result = await operation;
     saving.current = null;
@@ -101,8 +114,9 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
   }, []);
 
   async function navigate(next: () => void) {
-    if (await saveDraft() && !dirty.current) { setLoading(true); setError(""); setMetric(null); setDownload(null); setRevision(null); setNotice(""); next(); }
+    if (await saveDraft() && !dirty.current) { setLoading(true); setHistory(null); setError(""); setMetric(null); setDownload(null); setRevision(null); setNotice(""); next(); }
   }
+  async function retrySave() { setError(""); await saveDraft(); }
   useEffect(() => {
     if (!dialog) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -154,7 +168,7 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
     setBusy(true); setError("");
     try {
       const next = await request<History>(new URLSearchParams({ view: "history", cadence, cursor: history.nextCursor, ...(tab === "Team Reports" ? { team: "true", ...(subject ? { subject } : {}) } : {}), ...(historyFrom ? { from: historyFrom } : {}), ...(historyTo ? { to: historyTo } : {}) }));
-      setHistory({ ...next, rows: [...history.rows, ...next.rows], legacy: history.legacy });
+      setHistory({ ...next, rows: [...history.rows, ...next.rows], legacy: [...history.legacy, ...next.legacy] });
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   async function openFrozen(view: "snapshot" | "delivery", id: string) {
@@ -204,15 +218,19 @@ export function ReportingConsole({ userId, userName, canReview, today }: { userI
       <section className={styles.reportDetail}><header className={styles.sectionHeader}><div><h2>{userName}</h2><p>{prepared.content.startDate} through {new Date(`${prepared.content.endDate}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "America/Chicago" })} · {cadence.toLowerCase()}</p></div><span className={styles.badge}>{displayState(prepared.expectation)} · {prepared.calendar.toLowerCase()} calendar</span></header>
         <p className={styles.quality}>{prepared.content.sourceCoverage}</p>
         <Evidence title="Completed work" items={prepared.content.completed} /><Evidence title="Carryover and blockers" items={prepared.content.carryover} />{prepared.content.reopened?.length ? <Evidence title="Reopened work" items={prepared.content.reopened} /> : null}<Evidence title="Updates" items={prepared.content.activity} />
-        <div className={styles.editor}><label>Context<textarea value={context} disabled={!prepared.writesEnabled || busy} maxLength={10000} onChange={e => { dirty.current = true; editNumber.current++; setSaveState("Unsaved changes"); setContext(e.target.value); }} /></label><label>Next priorities<textarea value={priorities} disabled={!prepared.writesEnabled || busy} maxLength={5000} onChange={e => { dirty.current = true; editNumber.current++; setSaveState("Unsaved changes"); setPriorities(e.target.value); }} /></label></div>
-        <footer className={styles.submitBar}><label><input type="checkbox" checked={confirmed} disabled={!prepared.writesEnabled || busy} onChange={e => setConfirmed(e.target.checked)} /> I confirm this report is accurate.</label><span role="status">{saveState}</span><button className={styles.primary} disabled={!confirmed || !prepared.writesEnabled || busy} onClick={() => void submit()}><Send size={17} /> {busy ? "Submitting..." : "Submit report"}</button></footer>
+        <div className={styles.editor}>
+          <div><label htmlFor="report-context">Context</label><textarea id="report-context" value={context} disabled={!prepared.writesEnabled || busy} maxLength={10000} onChange={e => { dirty.current = true; editNumber.current++; setSaveState("Unsaved changes"); setContext(e.target.value); }} /></div>
+          <div><label htmlFor="report-priorities">Next priorities</label><textarea id="report-priorities" value={priorities} disabled={!prepared.writesEnabled || busy} maxLength={5000} onChange={e => { dirty.current = true; editNumber.current++; setSaveState("Unsaved changes"); setPriorities(e.target.value); }} /></div>
+        </div>
+        <footer className={styles.submitBar}><label><input type="checkbox" checked={confirmed} disabled={!prepared.writesEnabled || busy} onChange={e => setConfirmed(e.target.checked)} /> I confirm this report is accurate.</label><span role="status">{saveState}</span>{saveState === "Could not save" ? <button aria-label="Retry saving draft" title="Retry saving draft" disabled={busy} onClick={() => void retrySave()}><RefreshCw size={17} /></button> : null}<button className={styles.primary} disabled={!confirmed || !prepared.writesEnabled || busy} onClick={() => void submit()}><Send size={17} /> {busy ? "Submitting..." : "Submit report"}</button></footer>
         {!prepared.writesEnabled ? <p className={styles.quality}>Submission is awaiting rollout activation. Your history remains available.</p> : null}
       </section><HistoryTable history={history} onOpen={openRevision} />
     </> : null}
-    {!loading && !revision && tab === "Team Reports" ? <HistoryTable history={history} onOpen={openRevision} team /> : null}
+    {!loading && !revision && tab === "Team Reports" ? <><HistoryTable history={history} onOpen={openRevision} team />{settings.calendarConfig ? <details><summary>Reporting calendar</summary><ReportingCalendarPanel calendar={settings.calendarConfig} today={today} /></details> : null}</> : null}
     {!loading && !revision && tab === "Library" && library ? <section><header className={styles.sectionHeader}><h2>Report library</h2><label className={styles.search}><Search size={16} /><input aria-label="Search report library" placeholder="Search reports" value={query} onChange={e => setQuery(e.target.value)} /></label></header><div className={styles.tableWrap}><table><thead><tr><th>Report</th><th>Area</th><th></th></tr></thead><tbody>{library.definitions.filter(item => `${item.title} ${item.area}`.toLowerCase().includes(query.toLowerCase())).map(item => <tr key={item.id}><td>{item.title}</td><td>{item.area}</td><td><button onClick={() => { setDefinition(item.id); setTab("Overview"); }} aria-label={`Open ${item.title}`}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></div>
       <h3>Saved views</h3>{library.views.length ? library.views.map(view => <button className={styles.savedView} key={view.id} onClick={() => { const filters = object(view.filters); setDefinition(view.definitionId as ReportDefinitionId); setDate(String(filters.date ?? today)); setCadence(String(filters.cadence ?? "DAILY") as ReportCadence); setLocation(String(filters.locationId ?? "")); setQuery(String(filters.query ?? "")); setMetric(typeof filters.metric === "string" ? filters.metric : null); setLoading(true); setTab("Overview"); }}><FileText size={16} /> {view.name}<ChevronRight size={16} /></button>) : <p className={styles.muted}>No saved views.</p>}
       <h3>Scheduled deliveries</h3>{library.schedules.length ? library.schedules.map(schedule => <div className={styles.schedule} key={schedule.id}><strong>{reportDefinitions.find(item => item.id === schedule.definitionId)?.title}</strong><span>{schedule.cadence.toLowerCase()} · {schedule.enabled ? "Active" : "Inactive"} · {schedule.timezone}</span><label><input type="checkbox" checked={schedule.enabled} disabled={busy} onChange={e => void toggleSchedule(schedule.id, e.target.checked, schedule.version)} /> Delivery enabled</label>{schedule.jobs.map(job => <span key={job.id}>{displayState(job.status)}{job.lastError ? ` · ${job.lastError}` : ""}{job.status === "SUCCEEDED" ? <button disabled={busy} onClick={() => void openFrozen("delivery", job.id)}>Open delivery</button> : null}</span>)}</div>) : <p className={styles.muted}>No scheduled deliveries.</p>}
+      {canReview ? library.schedules.filter(schedule => schedule.enabled).flatMap(schedule => schedule.jobs.filter(job => job.status === "DEAD_LETTER").map(job => <ReportingRecoveryPanel key={job.id} id={job.id} version={schedule.version} title={reportDefinitions.find(item => item.id === schedule.definitionId)?.title ?? "Report"} onRecovered={() => { setNotice("Recovery approved. Delivery is pending the next authorized worker run."); setRefresh(value => value + 1); }} />)) : null}
       <h3>Saved snapshots and exports</h3>{library.snapshots?.length ? library.snapshots.map(item => <div className={styles.schedule} key={item.id}><strong>{reportDefinitions.find(definition => definition.id === item.subjectId)?.title}</strong><span>{new Date(item.createdAt).toLocaleString()}</span>{item.recordType === "REPORT_SNAPSHOT" ? <button disabled={busy} onClick={() => void openFrozen("snapshot", item.id)}>Open snapshot</button> : <a href={`/api/reports/exports/${item.id}`}>Download controlled CSV</a>}</div>) : <p className={styles.muted}>No saved outputs.</p>}
     </section> : null}
     {dialog ? <div className={styles.backdrop}><section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="report-dialog-title" className={styles.dialog}><header className={styles.sectionHeader}><h2 id="report-dialog-title">{dialog === "view" ? "Save view" : dialog === "export" ? "Controlled export" : dialog === "snapshot" ? "Save snapshot" : "Schedule delivery"}</h2><button title="Cancel" aria-label="Cancel" onClick={() => setDialog(null)} disabled={busy}><X size={18} /></button></header>{dialog === "schedule" ? <p>{cadence.toLowerCase()} · America/Chicago · Secure delivery to your account. Saved inactive until scheduling is approved.</p> : <label>{dialog === "view" ? "View name" : "Business reason"}<textarea value={dialogText} onChange={e => setDialogText(e.target.value)} maxLength={dialog === "view" ? 100 : 500} /></label>}<button className={styles.primary} disabled={busy || (dialog !== "schedule" && dialogText.trim().length < (dialog === "view" ? 1 : 20))} onClick={() => void dialogAction()}><Save size={17} /> {busy ? "Saving..." : "Save"}</button></section></div> : null}
@@ -227,6 +245,6 @@ function ReportTable({ items }: { items: ReportRow[] }) {
   return items.length ? <div className={styles.tableWrap}><table><thead><tr><th>Record</th><th>Status</th><th>Owner</th><th>Age</th><th></th></tr></thead><tbody>{items.map(row => <tr key={row.id}><td><strong>{row.title}</strong>{row.detail ? <small>{row.detail}</small> : null}</td><td>{displayState(row.state)}</td><td>{row.owner}</td><td>{row.ageDays === undefined ? "-" : `${row.ageDays} days`}</td><td><Link href={row.href} aria-label={`Open ${row.title}`}><ChevronRight size={18} /></Link></td></tr>)}</tbody></table></div> : <p className={styles.empty}>No records for this view.</p>;
 }
 function HistoryTable({ history, onOpen, team }: { history: History | null; onOpen: (id: string) => Promise<void>; team?: boolean }) {
-  const items = [...(history?.rows ?? []), ...(history?.legacy ?? [])];
-  return <section><h2>{team ? "Team submissions" : "Report history"}</h2>{items.length ? <div className={styles.tableWrap}><table><thead><tr><th>Person</th><th>Covered period</th><th>Frequency</th><th>Status</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{item.subject}</td><td>{item.periodStart}</td><td>{item.cadence.toLowerCase()}</td><td>{displayState(item.status)}</td><td>{item.revisionId ? <button onClick={() => void onOpen((team ? item.latestRevisionId : item.revisionId)!)} aria-label={`Open ${item.subject} ${item.periodStart}`}><ChevronRight size={17} /></button> : "Draft"}</td></tr>)}</tbody></table></div> : <p className={styles.empty}>No submissions for this view.</p>}{history?.nextCursor ? <p className={styles.muted}>Showing the first 50 report periods.</p> : null}</section>;
+  const items = [...(history?.rows ?? []), ...(history?.legacy ?? [])].sort((a, b) => b.periodStart.localeCompare(a.periodStart) || a.id.localeCompare(b.id));
+  return <section><h2>{team ? "Team submissions" : "Report history"}</h2>{items.length ? <div className={styles.tableWrap}><table><thead><tr><th>Person</th><th>Covered period</th><th>Frequency</th><th>Status</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{item.subject}</td><td>{item.periodStart}</td><td>{item.cadence.toLowerCase()}</td><td>{displayState(item.status)}</td><td>{item.revisionId ? <button onClick={() => void onOpen((team ? item.latestRevisionId : item.revisionId)!)} aria-label={`Open ${item.subject} ${item.periodStart}`}><ChevronRight size={17} /></button> : "Draft"}</td></tr>)}</tbody></table></div> : <p className={styles.empty}>No submissions for this view.</p>}{history?.nextCursor ? <p className={styles.muted}>More report history is available.</p> : null}</section>;
 }
