@@ -1903,6 +1903,9 @@ model DiagnosticWorkspaceDraft {
 }
 
 model User {
+  reportingSeries                              ReportingSeries[]
+  reportingViews                               ReportingSavedView[]
+  reportingSchedules                           ReportingSchedule[]
   diagnosticWorkspaceDrafts                    DiagnosticWorkspaceDraft[]
   id                                           String                                 @id @default(cuid())
   name                                         String
@@ -7750,6 +7753,9 @@ model StaffDay {
 }
 
 model StaffDailyReport {
+  idempotencyKey          String?
+  requestHash             String?
+  reportingRevision      ReportingRevision?
   id                      String                 @id @default(cuid())
   staffDayId              String
   version                 Int
@@ -7767,8 +7773,144 @@ model StaffDailyReport {
   submittedByUser         User                   @relation("StaffDailyReportSubmittedByUser", fields: [submittedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([staffDayId, version])
+  @@unique([staffDayId, idempotencyKey])
   @@index([staffDayId, status, submittedAt])
   @@index([submittedByUserId, submittedAt])
+}
+
+/// Period identity is independent from submission time. Daily contents stay in StaffDailyReport.
+model ReportingSeries {
+  id                 String @id @default(cuid())
+  organizationId     String
+  subjectUserId      String
+  subjectName        String
+  cadence            String
+  periodStart        String
+  periodEnd          String
+  timezone           String
+  calendarVersion    String
+  version            Int @default(0)
+  draft              Json?
+  acceptedRevisionId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  subject            User @relation(fields: [subjectUserId], references: [id], onDelete: Restrict)
+  revisions          ReportingRevision[]
+  acceptedRevision   ReportingRevision? @relation("ReportingAcceptedRevision", fields: [acceptedRevisionId], references: [id], onDelete: SetNull)
+  @@unique([organizationId, subjectUserId, cadence, periodStart])
+  @@index([organizationId, subjectUserId, periodStart])
+}
+
+model ReportingRevision {
+  id                 String @id @default(cuid())
+  seriesId           String
+  version            Int
+  submittedByUserId  String
+  submittedAt        DateTime @default(now())
+  idempotencyKey     String
+  requestHash        String
+  content            Json?
+  legacyDailyId      String? @unique
+  series             ReportingSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  legacyDaily        StaffDailyReport? @relation(fields: [legacyDailyId], references: [id], onDelete: Restrict)
+  reviews            ReportingReview[]
+  acceptedBy         ReportingSeries[] @relation("ReportingAcceptedRevision")
+  @@unique([seriesId, version])
+  @@unique([seriesId, idempotencyKey])
+  @@index([submittedAt])
+}
+
+model ReportingReview {
+  id          String @id @default(cuid())
+  revisionId  String
+  actorUserId String
+  action      String
+  comment     String
+  createdAt   DateTime @default(now())
+  revision    ReportingRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  @@index([revisionId, createdAt])
+}
+
+model ReportingCalendarPolicy {
+  id             String @id @default(cuid())
+  organizationId String
+  version        Int
+  status         String @default("DRAFT")
+  config         Json
+  createdByUserId String
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, version])
+}
+
+model ReportingAssignment {
+  id              String @id @default(cuid())
+  organizationId  String
+  subjectUserId   String
+  reviewerUserId  String
+  cadence         String
+  validFrom       String
+  validTo         String?
+  dailyDueMinute  Int?
+  createdAt       DateTime @default(now())
+  @@index([organizationId, subjectUserId, cadence, validFrom])
+}
+
+model ReportingExpectation {
+  id             String @id @default(cuid())
+  organizationId String
+  subjectUserId  String
+  cadence        String
+  periodStart    String
+  periodEnd      String
+  dueAt          DateTime
+  reviewBy       DateTime
+  calendarVersion String
+  reviewerUserId String
+  disposition    String @default("REQUIRED")
+  reason         String?
+  @@unique([organizationId, subjectUserId, cadence, periodStart])
+  @@index([organizationId, dueAt, disposition])
+}
+
+model ReportingSavedView {
+  id             String @id @default(cuid())
+  userId         String
+  name           String
+  definitionId   String
+  filters        Json
+  createdAt      DateTime @default(now())
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}
+
+model ReportingSchedule {
+  id             String @id @default(cuid())
+  userId         String
+  definitionId   String
+  cadence        String
+  timezone       String
+  enabled        Boolean @default(false)
+  version        Int @default(1)
+  nextRunAt      DateTime
+  createdAt      DateTime @default(now())
+  user           User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  jobs           ReportingJob[]
+  @@index([enabled, nextRunAt])
+}
+
+model ReportingJob {
+  id             String @id @default(cuid())
+  scheduleId     String
+  runKey         String @unique
+  status         String @default("PENDING")
+  attempts       Int @default(0)
+  lockedUntil    DateTime?
+  result         Json?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  schedule       ReportingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  @@index([status, lockedUntil])
 }
 
 model WorkRecommendation {

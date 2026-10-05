@@ -19,6 +19,9 @@ export async function resetDailyWorkflowState() {
     stdio: "inherit"
   });
 
+  await prisma.reportingReview.deleteMany();
+  await prisma.reportingRevision.deleteMany();
+  await prisma.reportingSeries.deleteMany();
   await prisma.activityEvent.deleteMany();
   await prisma.concernTaskLink.deleteMany();
   await prisma.concernCase.deleteMany();
