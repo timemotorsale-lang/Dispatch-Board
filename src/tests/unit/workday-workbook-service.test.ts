@@ -1325,6 +1325,32 @@ describe("workday workbook service", () => {
     expect(harness.activityEvents).toEqual([]);
   });
 
+  it("records a Start The Day delay explanation without adopting the plan", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await recordWorkbookOperatingRhythmEvent(user, {
+      action: "START_DELAY_EXPLAINED",
+      reason: "Urgent customer needed attention before the daily plan could be reviewed.",
+      sourcePath: "/vehicles/repair-workbench",
+      workbookId: "workbook-1"
+    }, { repository: harness.repository });
+
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.rhythm_start_delay_explained",
+        businessImpact: expect.stringContaining("Urgent customer needed attention"),
+        metadata: expect.objectContaining({
+          reason: "Urgent customer needed attention before the daily plan could be reviewed.",
+          sourcePath: "/vehicles/repair-workbench"
+        }),
+        sourceType: "OPERATING_RHYTHM"
+      })
+    ]);
+    expect(harness.closedWorkbooks).toEqual([]);
+  });
+
   it("requires fresh approval when an approved outcome was edited afterward", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
