@@ -41,6 +41,7 @@ const criticalPrefixes = [
   "/vehicles/shop",
   "/vehicles/quality-control"
 ];
+const startReminderSnoozeMs = 15 * 60 * 1000;
 
 function isCriticalWorkflow(pathname: string) {
   return criticalPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -62,13 +63,16 @@ export function OperatingRhythmReminder() {
   const [visibleEndKey, setVisibleEndKey] = useState<string | null>(null);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [snoozedUntil, setSnoozedUntil] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   const insideWorkbook = pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/");
   const criticalWorkflow = isCriticalWorkflow(pathname);
   const startState = model?.operatingRhythm.startTheDay.state ?? "COMPLETE";
-  const showStartReminder = Boolean(model && !model.operatingRhythm.startTheDay.complete && !dismissed);
+  const startSnoozeKey = useMemo(() => model ? `operating-rhythm:start-snooze:${model.boardDate}:${model.workbookId}` : "", [model]);
+  const startSnoozed = snoozedUntil > clock.getTime();
+  const showStartReminder = Boolean(model && !model.operatingRhythm.startTheDay.complete && !dismissed && (!startSnoozed || startState === "LOCKED_UNTIL_REASON"));
   const schedule = getEndOfDayReminderSlot(clock);
   const eligibleEndKey = model && model.boardDate === schedule.boardDate && schedule.slot &&
     ["PREP_NOTICE", "ACTIVE"].includes(model.operatingRhythm.endTheDay.state)
@@ -76,6 +80,19 @@ export function OperatingRhythmReminder() {
   const showEndReminder = Boolean(eligibleEndKey && visibleEndKey === eligibleEndKey && !showStartReminder);
   const locked = showStartReminder && startState === "LOCKED_UNTIL_REASON" && !insideWorkbook && !criticalWorkflow;
   const storageKey = useMemo(() => model ? `operating-rhythm:${model.boardDate}:${model.workbookId}:${startState}:${pathname}` : "", [model, pathname, startState]);
+
+  useEffect(() => {
+    if (!startSnoozeKey) {
+      setSnoozedUntil(0);
+      return;
+    }
+    try {
+      const value = Number(window.localStorage.getItem(startSnoozeKey) ?? 0);
+      setSnoozedUntil(Number.isFinite(value) ? value : 0);
+    } catch {
+      setSnoozedUntil(0);
+    }
+  }, [startSnoozeKey]);
 
   async function refresh() {
     const response = await fetch("/api/coo-workbook/rhythm", { cache: "no-store" });
@@ -97,6 +114,10 @@ export function OperatingRhythmReminder() {
     window.addEventListener("focus", onFocus);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, []);
+
+  useEffect(() => {
+    if (snoozedUntil && snoozedUntil <= clock.getTime()) setDismissed(false);
+  }, [clock, snoozedUntil]);
 
   useEffect(() => {
     if (!model || !showStartReminder || !storageKey) return;
@@ -148,9 +169,50 @@ export function OperatingRhythmReminder() {
       setReason("");
       setReasonOpen(false);
       setMessage("Reason saved. You have another reminder cycle.");
+      snoozeStartReminder(startReminderSnoozeMs);
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save reason.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function snoozeStartReminder(durationMs = startReminderSnoozeMs) {
+    const until = Date.now() + durationMs;
+    setDismissed(true);
+    setSnoozedUntil(until);
+    if (!startSnoozeKey) return;
+    try {
+      window.localStorage.setItem(startSnoozeKey, String(until));
+    } catch {
+      try { window.sessionStorage.setItem(startSnoozeKey, String(until)); } catch { /* Ignore storage failures. */ }
+    }
+  }
+
+  function dismissReminder() {
+    if (showStartReminder) snoozeStartReminder();
+    setVisibleEndKey(null);
+  }
+
+  async function continueForUrgentCustomer() {
+    if (!model) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await postRhythmEvent({
+        action: "START_DELAY_EXPLAINED",
+        reason: "Urgent customer or critical workflow needed attention before Start The Day.",
+        sourcePath: pathname,
+        workbookId: model.workbookId
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Unable to save urgent-work reason.");
+      setMessage("Urgent work noted. Start The Day will stay quiet for a short window.");
+      snoozeStartReminder(startReminderSnoozeMs);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to save urgent-work reason.");
     } finally {
       setBusy(false);
     }
@@ -170,7 +232,7 @@ export function OperatingRhythmReminder() {
             <strong>{showStartReminder ? "Start The Day needed" : "End The Day preparation"}</strong>
             <p>{showStartReminder ? start.message : end.message}</p>
           </div>
-          {!locked ? <button aria-label="Dismiss reminder" onClick={() => { if (showStartReminder) setDismissed(true); setVisibleEndKey(null); }} type="button"><X /></button> : null}
+          {!locked ? <button aria-label="Dismiss reminder" onClick={dismissReminder} type="button"><X /></button> : null}
         </header>
 
         {showEndReminder ? (
@@ -192,7 +254,9 @@ export function OperatingRhythmReminder() {
         <footer>
           {showStartReminder ? (
             <>
-              <Link href="/vehicles/coo-workbook">Start now</Link>
+              <Link href="/vehicles/coo-workbook/effectiveness-pilot#start-the-day">Start now</Link>
+              {!locked ? <button disabled={busy} onClick={() => snoozeStartReminder()} type="button">Remind me in 15</button> : null}
+              {!locked ? <button disabled={busy} onClick={() => void continueForUrgentCustomer()} type="button">Urgent customer first</button> : null}
               {reasonOpen || locked ? (
                 <button disabled={busy || !reason.trim()} onClick={explainDelay} type="button">Save reason</button>
               ) : (
@@ -207,6 +271,7 @@ export function OperatingRhythmReminder() {
             </>
           ) : null}
           {criticalWorkflow && startState === "LOCKED_UNTIL_REASON" ? <span><AlertTriangle /> Critical work stays available.</span> : null}
+          {showStartReminder && !locked && !criticalWorkflow ? <span><Clock3 /> You can keep light work moving.</span> : null}
           {start.complete ? <span><CheckCircle2 /> {model.workbookLabel}</span> : null}
         </footer>
       </div>

@@ -40,6 +40,7 @@ import {
   buildWorkflowGovernanceEngine
 } from "@/server/services/workday-workbook-engines";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
+import { submitDailyHandoff } from "@/server/services/daily-handoff";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 export type WorkdayWorkbookOperatingSignals = {
@@ -55,6 +56,7 @@ export function currentWorkdayBoardDate(now = new Date()) {
 }
 
 type Dependencies = {
+  submitDailyHandoff?: typeof submitDailyHandoff;
   repository?: WorkdayWorkbookRepository;
 };
 
@@ -1982,9 +1984,18 @@ export async function closeWorkbookDay(actor: AuthenticatedUser | null, boardDat
     reportDraftId: workbook.reportDrafts[0]?.id ?? null,
     reportSeedIds: workbook.reportSeeds.map((seed) => seed.id)
   };
+  const additionalContext = normalizeOptionalText(payload.additionalContext, "additionalContext", 10000);
+  const idempotencyKey = normalizeOptionalText(payload.idempotencyKey, "idempotencyKey", 128);
+  const tomorrowFollowUp = normalizeOptionalText(payload.tomorrowFollowUp, "tomorrowFollowUp", 5000);
+  const dailyReport = scope === WorkdayWorkbookScope.STAFF ? await (dependencies.submitDailyHandoff ?? submitDailyHandoff)(user, date, {
+    accuracyConfirmed: true,
+    additionalContext: additionalContext || "Closed from the staff workbook Close My Day workflow.",
+    idempotencyKey: idempotencyKey || `workbook_close_${workbook.id}_${date}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128),
+    tomorrowFollowUp: tomorrowFollowUp || snapshot.closeReadiness.prompts.join(" ")
+  }) : null;
   await repository.closeWorkbook({ closeSnapshot: snapshot, closedByUserId: user.id, id: workbook.id });
-  await recordWorkbookActivity(repository, user, workbook, "workbook.day_closed", `${user.name} reviewed and approved the workbook day close.`, { reviewedDay: true, targetBoardDate });
-  return { carryoverCount: carryovers.length, ok: true };
+  await recordWorkbookActivity(repository, user, workbook, "workbook.day_closed", `${user.name} reviewed and approved the workbook day close.`, { dailyReportId: dailyReport?.id ?? null, dailyReportVersion: dailyReport?.version ?? null, reviewedDay: true, targetBoardDate });
+  return { carryoverCount: carryovers.length, dailyReport, ok: true };
 }
 
 export async function reopenWorkbookDay(actor: AuthenticatedUser | null, workbookId: string, dependencies: Dependencies = {}) {

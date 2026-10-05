@@ -1761,7 +1761,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     { description: "Record a win, lesson, or useful improvement that should not be lost.", href: "/vehicles/coo-workbook/quick-update", icon: CheckCircle2, outcome: "Good habits and useful lessons show up in reports and coaching.", title: "Daily Win / Learning", whenToUse: "Use when someone solved a problem or learned something worth repeating." },
     { description: "Prepare unfinished work for tomorrow with clear ownership and context.", href: "/vehicles/coo-workbook/carryover", icon: CalendarClock, outcome: "Tomorrow starts with cleaner carryover instead of rediscovery.", title: "Smart Carryover Builder", whenToUse: "Use when work cannot be completed today." },
     { description: "Review source-backed items that may belong in the report.", href: "/vehicles/coo-workbook/report-seeds", icon: FileText, outcome: "The report is built from reviewed signals, not noisy raw logs.", title: "Report Seeds", whenToUse: "Use before generating daily, weekly, or monthly summaries." },
-    { description: "Close the day through work review, carryover, and report preparation.", href: "/vehicles/coo-workbook/close-my-day", icon: PackageCheck, outcome: "The day ends cleanly with a manager-ready draft and tomorrow setup.", title: "Close My Day", whenToUse: "Use near close or when the daily report is ready to finalize." }
+    { description: "Close the day through work review, carryover, and report preparation. My work submits the same daily report managers review.", href: "/vehicles/coo-workbook/close-my-day", icon: PackageCheck, outcome: "The day ends cleanly with a manager-ready draft and tomorrow setup.", title: "Close My Day", whenToUse: "Use near close or when the daily report is ready to finalize." }
   ];
   const hasReportDraftBlocker = activeWorkbook.governance.closeBlockers.some((prompt) => prompt.toLocaleLowerCase().includes("report draft"));
   const hasOpenCarryoverBlocker = (activeWorkbook.governance.dispositionCounts?.unconfirmedCarryovers ?? 0) > 0;
@@ -2494,11 +2494,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reviewedDay: true })
         });
-      const payload = await response.json().catch(() => null) as { carryoverCount?: number; error?: string } | null;
+      const payload = await response.json().catch(() => null) as { carryoverCount?: number; dailyReport?: { version: number } | null; error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update workbook close status.");
       await refreshActiveWorkbook();
       setReviewingEndDay(false);
-      setWorkspaceNotice(isClosed ? "Workbook day reopened." : `Workbook day closed with ${payload?.carryoverCount ?? 0} carryover item(s).`);
+      const reportNotice = payload?.dailyReport ? ` Daily report version ${payload.dailyReport.version} was submitted.` : "";
+      setWorkspaceNotice(isClosed ? "Workbook day reopened." : `Workbook day closed with ${payload?.carryoverCount ?? 0} carryover item(s).${reportNotice}`);
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update workbook close status.");
     } finally {
@@ -3181,7 +3182,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div>
           <Link href={scopedWorkbookHref("/vehicles/coo-workbook")}>← {activeWorkbookLabel}</Link>
           <h1>Close My Day</h1>
-          <p>Enterprise closeout across every connected workspace.</p>
+          <p>Enterprise closeout across every connected workspace. My work submits the same daily report managers review.</p>
         </div>
         <div className="advisor-close-day-controls">
           <label><span>Business date</span><strong>{parseBoardDate(model.boardDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</strong></label>
@@ -3257,12 +3258,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 
           <section className="advisor-close-day-tomorrow"><header><h2>Tomorrow starts here</h2><Link href={scopedWorkbookHref("/vehicles/coo-workbook/action-plan")}>Edit plan</Link></header>{tomorrowItems.length ? tomorrowItems.slice(0, 3).map((item, index) => <p key={item.id}><b>{index + 1}</b><span><strong>{item.title}</strong><small>{item.status}</small></span></p>) : <p className="empty"><CheckCircle2 /> Clear start</p>}</section>
 
-          <section className="advisor-close-day-signoff"><header><div><h2>Manager signoff</h2><p>Audit note</p></div><span>{isClosed ? "Approved" : "Not yet approved"}</span></header><p><FileText /><span>{isClosed ? "The closeout is approved and preserved in the workbook history." : "Closeout will be submitted with a record of all decisions and source links."}</span></p></section>
+          <section className="advisor-close-day-signoff"><header><div><h2>Closeout record</h2><p>Audit note</p></div><span>{isClosed ? "Approved" : "Not yet approved"}</span></header><p><FileText /><span>{isClosed ? "The closeout is approved and preserved in the workbook history." : effectiveWorkbookView === "MY" ? "Closeout will submit the staff daily report and update the manager reporting view." : "Closeout will be submitted with a record of all decisions and source links."}</span></p></section>
         </aside>
       </div>
 
       {reviewingEndDay && !isClosed ? <section className="advisor-end-day-final-review advisor-close-day-final" ref={endDayReviewRef} tabIndex={-1}>
-        <header><div><span><ShieldCheck /></span><div><h2>Final closeout review</h2><p>Approval preserves today’s decisions, handoff, and report evidence.</p></div></div><small>{endDayReadyForApproval ? "Ready to approve" : "Needs attention"}</small></header>
+        <header><div><span><ShieldCheck /></span><div><h2>Final closeout review</h2><p>{effectiveWorkbookView === "MY" ? "Approval submits your staff daily report, closes your day, and preserves the handoff evidence." : "Approval preserves today’s decisions, handoff, and report evidence."}</p></div></div><small>{endDayReadyForApproval ? "Ready to approve" : "Needs attention"}</small></header>
         <div><p className={unresolvedEndDayCount ? "blocker" : "ready"}><CheckCircle2 /><span><strong>Work decisions</strong><small>{unresolvedEndDayCount ? `${unresolvedEndDayCount} still open` : "All decided"}</small></span></p><p className={latestReportDraft ? "ready" : "blocker"}><FileText /><span><strong>Daily report</strong><small>{latestReportDraft ? `${latestReportDraftItemCount} items reviewed` : "Generate draft"}</small></span></p><p className={hasUnsavedManualReportItems ? "blocker" : "ready"}><Plus /><span><strong>Staff additions</strong><small>{hasUnsavedManualReportItems ? "Save or discard" : "No unsaved additions"}</small></span></p></div>
         <footer><button className="secondary" onClick={() => setReviewingEndDay(false)} type="button">Back to edit</button><button disabled={saving || !endDayReadyForApproval} onClick={() => void closeOrReopenDay()} type="button">{saving ? "Closing…" : "Approve & Close Day"}</button></footer>
       </section> : null}
@@ -4497,7 +4498,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       </section> : null}
 
       <section className="advisor-end-day-confirm">
-        <div><span>4</span><div><h2>{isClosed ? "The day is closed" : "Review and approve the close"}</h2><p>{isClosed ? "Reopen the day only when a correction is required; the audit history remains preserved." : "The final checkpoint prevents an incomplete plan from being adopted accidentally."}</p><small><ShieldCheck /> Closing is an auditable decision.</small></div></div>
+        <div><span>4</span><div><h2>{isClosed ? "The day is closed" : "Review and approve the close"}</h2><p>{isClosed ? "Reopen the day only when a correction is required; the audit history remains preserved." : "The final checkpoint prevents an incomplete plan from being adopted accidentally."}</p><small><ShieldCheck /> {effectiveWorkbookView === "MY" ? "Approval submits your staff daily report, closes your day, and preserves the handoff evidence." : "Closing is an auditable decision."}</small></div></div>
         {isClosed ? <button disabled={saving} onClick={() => void closeOrReopenDay()} type="button">{saving ? "Reopening…" : "Reopen Day"}</button> : <button disabled={saving} onClick={openEndDayReview} type="button">{reviewingEndDay ? "Return to final review" : "Review End The Day"}</button>}
       </section>
       {closeStepNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice}</p> : null}

@@ -14,7 +14,7 @@ import {
   WorkdayWorkbookScope,
   type BoardDay
 } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WorkdayWorkbookRepository, WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
 import {
@@ -1126,6 +1126,36 @@ describe("workday workbook service", () => {
     expect(harness.reopenedWorkbooks).toEqual([{ id: "workbook-1" }]);
   });
 
+  it("submits the staff daily handoff when a staff workbook day is closed", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+    const submitDailyHandoff = vi.fn(async () => ({ id: "report-1", submittedAt: "2026-08-29T22:00:00.000Z", version: 3 }));
+    harness.currentWorkbook.scope = WorkdayWorkbookScope.STAFF;
+    harness.currentWorkbook.dailyFocusItems[0].status = WorkdayDailyFocusStatus.CARRY_OVER;
+    harness.currentWorkbook.checklistItems[1].done = true;
+
+    const result = await closeWorkbookDay(user, "2026-08-29", WorkdayWorkbookScope.STAFF, {
+      additionalContext: "Customer callbacks completed; roof repair carries to tomorrow.",
+      reviewedDay: true,
+      tomorrowFollowUp: "Confirm roof repair path tomorrow morning."
+    }, { repository: harness.repository, submitDailyHandoff });
+
+    expect(submitDailyHandoff).toHaveBeenCalledWith(user, "2026-08-29", expect.objectContaining({
+      accuracyConfirmed: true,
+      additionalContext: "Customer callbacks completed; roof repair carries to tomorrow.",
+      tomorrowFollowUp: "Confirm roof repair path tomorrow morning."
+    }));
+    expect(result.dailyReport).toEqual(expect.objectContaining({ id: "report-1", version: 3 }));
+    expect(harness.closedWorkbooks).toEqual([
+      expect.objectContaining({ closedByUserId: user.id, id: "workbook-1" })
+    ]);
+    expect(harness.activityEvents).toContainEqual(expect.objectContaining({
+      eventType: "workbook.day_closed",
+      metadata: expect.objectContaining({ dailyReportId: "report-1", dailyReportVersion: 3 })
+    }));
+  });
+
   it("requires an explicit End The Day review before closing", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("morgan.manager@local.test")!;
@@ -1293,6 +1323,32 @@ describe("workday workbook service", () => {
     }, { repository: harness.repository })).rejects.toThrow("Review Start The Day");
 
     expect(harness.activityEvents).toEqual([]);
+  });
+
+  it("records a Start The Day delay explanation without adopting the plan", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await recordWorkbookOperatingRhythmEvent(user, {
+      action: "START_DELAY_EXPLAINED",
+      reason: "Urgent customer needed attention before the daily plan could be reviewed.",
+      sourcePath: "/vehicles/repair-workbench",
+      workbookId: "workbook-1"
+    }, { repository: harness.repository });
+
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.rhythm_start_delay_explained",
+        businessImpact: expect.stringContaining("Urgent customer needed attention"),
+        metadata: expect.objectContaining({
+          reason: "Urgent customer needed attention before the daily plan could be reviewed.",
+          sourcePath: "/vehicles/repair-workbench"
+        }),
+        sourceType: "OPERATING_RHYTHM"
+      })
+    ]);
+    expect(harness.closedWorkbooks).toEqual([]);
   });
 
   it("requires fresh approval when an approved outcome was edited afterward", async () => {
