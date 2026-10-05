@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { draftReportCalendar, reportBusinessDate, resolveReportPeriod, type ReportCadence } from "@/lib/reporting/calendar";
-import { uniqueReportRows, type PeriodContent, type ReportRow } from "@/lib/reporting/contracts";
+import { type PeriodContent } from "@/lib/reporting/contracts";
+import { reconcileReportTasks, type TaskObservation } from "@/lib/reporting/reconciliation";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { assertAuthenticatedUser, isGeneralManager } from "@/server/policies/access";
@@ -29,10 +30,12 @@ function writesEnabled() {
 }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const array = (value: unknown) => Array.isArray(value) ? value.map(object) : [];
-function snapshotRows(value: unknown, owner: string, key: "completedTasks" | "carryover"): ReportRow[] {
+function snapshotRows(value: unknown, owner: string, key: "completedTasks" | "carryover", boardDate: string): TaskObservation[] {
   return array(object(value)[key]).filter(row => typeof row.id === "string" && typeof row.title === "string").map(row => ({
-    id: `task:${row.id}`, title: String(row.title), state: String(row.status ?? (key === "completedTasks" ? "COMPLETED" : "OPEN")),
-    owner, href: `/tasks/${encodeURIComponent(String(row.id))}`, detail: typeof row.blockerReason === "string" ? row.blockerReason : undefined
+    taskId: String(row.id), boardDate,
+    parentTaskId: row.carryoverSourceTaskId === null || typeof row.carryoverSourceTaskId === "string" ? row.carryoverSourceTaskId : undefined,
+    row: { id: `task:${row.id}`, title: String(row.title), state: key === "completedTasks" ? "COMPLETED" : String(row.status ?? "OPEN"),
+    owner, href: `/tasks/${encodeURIComponent(String(row.id))}`, detail: typeof row.blockerReason === "string" ? row.blockerReason : undefined }
   }));
 }
 function json(value: unknown) { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue; }
@@ -53,28 +56,30 @@ export async function preparePeriodReport(actor: AuthenticatedUser | null, date:
     prisma.workdayQuickUpdate.findMany({ where: { workbook: { userId: subject, boardDay: { date: { gte: new Date(`${period.startDate}T00:00:00Z`), lt: new Date(`${period.endDate}T00:00:00Z`) } } } }, orderBy: { createdAt: "asc" }, take: 500 }),
     prisma.reportingExpectation.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: key } })
   ]);
-  const completed: ReportRow[] = [];
-  let carryover: ReportRow[] = [];
+  const observations: TaskObservation[] = [];
   let coverage = 0;
   for (const day of days) {
     const report = day.dailyReports[0];
     if (!report) continue;
     coverage++;
-    completed.push(...snapshotRows(report.sourceSnapshot, person.name, "completedTasks"));
-    carryover = snapshotRows(report.sourceSnapshot, person.name, "carryover");
+    const boardDate = day.boardDay.date.toISOString().slice(0, 10);
+    observations.push(...snapshotRows(report.sourceSnapshot, person.name, "completedTasks", boardDate), ...snapshotRows(report.sourceSnapshot, person.name, "carryover", boardDate));
   }
-  const currentDate = reportBusinessDate(now);
+  const currentDate = reportBusinessDate(now, period.timezone);
+  let currentTasksTruncated = false;
   if (period.startDate <= currentDate && period.endDate > currentDate) {
-    const tasks = await prisma.task.findMany({ where: { assignedUserId: subject, boardDay: { date: new Date(`${currentDate}T00:00:00Z`) } }, select: { id: true, title: true, status: true, blockerReason: true }, orderBy: { id: "asc" }, take: 1000 });
-    completed.push(...tasks.filter(task => task.status === "COMPLETED").map(task => ({ id: `task:${task.id}`, title: task.title, state: task.status, owner: person.name, href: `/tasks/${task.id}` })));
-    if (tasks.length) carryover = tasks.filter(task => task.status !== "COMPLETED").map(task => ({ id: `task:${task.id}`, title: task.title, state: task.status, owner: person.name, href: `/tasks/${task.id}`, detail: task.blockerReason ?? undefined }));
+    const tasks = await prisma.task.findMany({ where: { assignedUserId: subject, boardDay: { date: new Date(`${currentDate}T00:00:00Z`) } }, select: { id: true, title: true, status: true, blockerReason: true, carryoverSourceTaskId: true }, orderBy: { id: "asc" }, take: 1001 });
+    currentTasksTruncated = tasks.length > 1000;
+    observations.push(...tasks.slice(0, 1000).map(task => ({ taskId: task.id, parentTaskId: task.carryoverSourceTaskId, boardDate: currentDate,
+      row: { id: `task:${task.id}`, title: task.title, state: task.status, owner: person.name, href: `/tasks/${encodeURIComponent(task.id)}`, detail: task.blockerReason ?? undefined } })));
   }
   const draft = object(series?.draft);
+  const reconciled = reconcileReportTasks(observations);
   const content: PeriodContent = {
-    version: "period-content/v1", cadence, startDate: period.startDate, endDate: period.endDate, cutoffAt: now.toISOString(),
-    completed: uniqueReportRows(completed), carryover: uniqueReportRows(carryover),
+    version: "period-content/v2", cadence, startDate: period.startDate, endDate: period.endDate, cutoffAt: now.toISOString(),
+    completed: reconciled.completed, carryover: reconciled.carryover, reopened: reconciled.reopened,
     activity: updates.map(update => ({ id: `update:${update.id}`, title: update.text, state: update.followUpNeeded ? "FOLLOW_UP" : "UPDATE", owner: person.name, href: `/vehicles/coo-workbook?date=${period.startDate}`, occurredAt: update.createdAt.toISOString() })),
-    sourceCoverage: `${coverage} of ${days.length} recorded staff days have submitted snapshots. Current-day tasks are current state; earlier unsaved outcomes are not reconstructed. Carryover is from the latest available day, not a historical end-of-period certification.`,
+    sourceCoverage: `${coverage} of ${days.length} recorded staff days have submitted snapshots. Work is counted by its last observed state; outstanding items remain until a later observed completion. Reopened work is included in carryover, not an additional total. Current-day tasks are current state; earlier unsaved outcomes are not reconstructed. ${reconciled.unresolvedLineageCount} task identities have incomplete or conflicting carryover links and may not be fully consolidated. This is not a historical end-of-period certification.${currentTasksTruncated ? " Current-day evidence is limited to 1,000 tasks." : ""}`,
     context: typeof draft.context === "string" ? draft.context : "", priorities: typeof draft.priorities === "string" ? draft.priorities : ""
   };
   return { subject: person, content, seriesId: series?.id ?? null, draftVersion: series?.version ?? 0,

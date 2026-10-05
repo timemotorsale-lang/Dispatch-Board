@@ -10,7 +10,9 @@ import { getDefaultLandingRoute, getPermittedWorkspaces } from "@/server/auth/na
 export default async function CommandCenterHomePage() {
   const user = await requireCurrentUser();
   if (!getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT")) redirect(getDefaultLandingRoute(user));
-  const groups = getNavigationGroups(user);
+  const groups = getNavigationGroups(user)
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/command-center") }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <div className="ccc-home-page">

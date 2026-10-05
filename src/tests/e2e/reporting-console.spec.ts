@@ -34,6 +34,81 @@ async function command(page: Page, body: Record<string, unknown>) {
     return { status: result.status, data: await result.json() };
   }, body);
 }
+async function resolveNavigationFixtureReminder(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "Operating rhythm reminder", exact: true });
+  try { await dialog.waitFor({ state: "visible", timeout: 1500 }); } catch { return; }
+  await dialog.getByRole("textbox").fill("Isolated navigation test: reviewing the reporting console, not starting an operational workday.");
+  await dialog.getByRole("button", { name: "Save reason", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
+test("Command Center home navigation launches Reports on desktop and phone", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  await page.goto("/sales-documents");
+  await expect(page.getByRole("heading", { name: "Sales Documents", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Command Center Home", exact: true }).click();
+  await expect(page).toHaveURL(/\/command-center$/);
+  await expect(page.getByRole("heading", { name: "Command Control Center", exact: true })).toBeVisible();
+  await resolveNavigationFixtureReminder(page);
+  const consoles = page.locator(".ccc-home-console-grid");
+  await expect(consoles.locator('a[href="/command-center"]')).toHaveCount(0);
+  await page.screenshot({ path: "test-results/reporting-command-center-desktop.png", fullPage: true });
+  await consoles.getByRole("link", { name: /^Reports/ }).click();
+  await expect(page).toHaveURL(/\/reports$/);
+  await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toBeVisible();
+  await resolveNavigationFixtureReminder(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: "Command Center Home", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Command Control Center", exact: true })).toBeVisible();
+  await resolveNavigationFixtureReminder(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/reporting-command-center-mobile.png", fullPage: true });
+  await consoles.getByRole("link", { name: /^Reports/ }).click();
+  await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
+});
+
+test("Inventory sidebar Reports stays in the Inventory Console", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
+    await page.goto("/vehicles/outside-vendors");
+    await resolveNavigationFixtureReminder(page);
+    if (width === 390) await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+    const reports = page.locator(".console-sidebar-navigation").getByRole("link", { name: "Reports", exact: true });
+    await expect(reports).toHaveAttribute("href", "/vehicles/reports");
+    await reports.click();
+    await expect(page).toHaveURL(/\/vehicles\/reports$/);
+    await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
+    await expect(page.getByText("Inventory Console · R10 governed reporting", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Inventory scorecard", exact: true })).toHaveCount(0);
+  }
+});
+
+test("Dispatch Board sidebar Reports opens today's reporting console, not the legacy scorecard", async ({ page }) => {
+  await login(page, "morgan.manager@local.test");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
+    await page.goto("/board");
+    await resolveNavigationFixtureReminder(page);
+    if (width === 390) await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+    const reports = page.locator(".console-sidebar-navigation").getByRole("link", { name: "Reports", exact: true });
+    await expect(reports).toHaveAttribute("href", /^\/reports(?:\?date=[^&]+)?$/);
+    await reports.click();
+    await expect(page).toHaveURL(/\/reports(?:\?[^#]*)?$/);
+    expect(new URL(page.url()).pathname).toBe("/reports");
+    expect(new URL(page.url()).searchParams.get("scope")).not.toBe("inventory");
+    await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("button", { name: "My Reports", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
+    await expect(page.getByText("INVENTORY CONSOLE · R10 GOVERNED REPORTING", { exact: true })).toHaveCount(0);
+  }
+  await page.goto("/reports?scope=inventory");
+  await expect(page).toHaveURL(/\/vehicles\/reports$/);
+  await expect(page.getByRole("link", { name: "Inventory scorecard", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Inventory Console · R10 governed reporting", { exact: true })).toBeVisible();
+});
 
 test("weekly submissions are idempotent, independently reviewed, and immutable", async ({ page, browser }) => {
   await login(page, "jordan.sales@local.test");
@@ -80,6 +155,53 @@ test("weekly submissions are idempotent, independently reviewed, and immutable",
   const denied = await page.request.get(`/api/reports?view=prepare&subject=${series.subjectUserId === prepared.subject.id ? series.subjectUserId + "-other" : series.subjectUserId}`);
   expect(denied.status()).toBe(403);
   await managerContext.close();
+});
+
+test("periods reconcile frozen carryover links, reopened work, and missing later observations", async ({ page }) => {
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
+  await login(page, staff.email);
+  let parent: string | null = null;
+  const ids: string[] = [];
+  for (const [index, status] of ["NOT_STARTED", "COMPLETED", "BLOCKED"].entries()) {
+    const date = `2026-08-${24 + index}`;
+    const board = await prisma.boardDay.create({ data: { date: new Date(`${date}T00:00:00Z`) } });
+    await prisma.staffDay.create({ data: { boardDayId: board.id, userId: staff.id, startAcknowledgedAt: new Date() } });
+    const task = await prisma.task.create({ data: { boardDayId: board.id, assignedUserId: staff.id, title: "Carryover lineage fixture", sourceType: "STAFF", workflowArea: "SALES", dueAt: new Date(`${date}T18:00:00Z`), status: status as "NOT_STARTED" | "COMPLETED" | "BLOCKED", blockerReason: status === "BLOCKED" ? "Customer requested a follow-up." : null, carryoverSourceTaskId: parent } });
+    ids.push(task.id);
+    if (!index) await prisma.task.create({ data: { boardDayId: board.id, assignedUserId: staff.id, title: "Still outstanding without a later observation", sourceType: "STAFF", workflowArea: "SALES", dueAt: new Date(`${date}T18:00:00Z`) } });
+    const daily = await (await page.request.get(`/api/reports?view=prepare&date=${date}&cadence=DAILY`)).json();
+    expect((await command(page, { action: "submit", date, cadence: "DAILY", context: "", priorities: "", accuracyConfirmed: true, expectedVersion: daily.draftVersion, idempotencyKey: `lineage_daily_submission_${index}` })).status).toBe(200);
+    parent = task.id;
+  }
+  for (const cadence of ["WEEKLY", "MONTHLY"]) {
+    const prepared = await (await page.request.get(`/api/reports?view=prepare&date=2026-08-26&cadence=${cadence}`)).json();
+    expect(prepared.content.completed).toHaveLength(0);
+    expect(prepared.content.carryover).toHaveLength(2);
+    expect(prepared.content.reopened.map((row: { id: string }) => row.id)).toEqual([`task:${ids[2]}`]);
+    expect(prepared.content.sourceCoverage).toContain("0 task identities");
+  }
+  const weekly = await (await page.request.get("/api/reports?view=prepare&date=2026-08-26&cadence=WEEKLY")).json();
+  const saved = await command(page, { action: "submit", date: "2026-08-26", cadence: "WEEKLY", context: "", priorities: "", accuracyConfirmed: true, expectedVersion: weekly.draftVersion, idempotencyKey: "lineage_weekly_submission" });
+  expect(saved.status).toBe(200);
+  const original = await prisma.reportingRevision.findUniqueOrThrow({ where: { id: saved.data.id } });
+  await prisma.task.updateMany({ where: { id: { in: ids } }, data: { carryoverSourceTaskId: null, status: "COMPLETED", title: "Changed after submission" } });
+  const after = await (await page.request.get("/api/reports?view=prepare&date=2026-08-26&cadence=WEEKLY")).json();
+  expect(after.content.carryover).toEqual(weekly.content.carryover);
+  expect((await prisma.reportingRevision.findUniqueOrThrow({ where: { id: saved.data.id } })).content).toEqual(original.content);
+  await page.getByRole("button", { name: "My Reports", exact: true }).click();
+  await expect(page.getByLabel("Context", { exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Weekly", exact: true }).click();
+  await page.getByLabel("Covered date").fill("2026-08-26");
+  await expect(page.getByRole("heading", { name: "Reopened work" })).toBeVisible();
+  await expect(page.getByText("Observed 2026-08-24", { exact: true })).toBeVisible();
+  const dismiss = page.getByRole("button", { name: "Dismiss reminder", exact: true });
+  if (await dismiss.isVisible()) await dismiss.click();
+  expect(await page.locator("footer").filter({ has: page.getByRole("button", { name: "Submit report", exact: true }) }).evaluate(element => getComputedStyle(element).backgroundColor)).toMatch(/^rgb\(/);
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.screenshot({ path: "test-results/reporting-lineage-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/reporting-lineage-mobile.png", fullPage: true });
 });
 
 test("controlled outputs return usable identifiers and scheduling stays gated", async ({ page }) => {

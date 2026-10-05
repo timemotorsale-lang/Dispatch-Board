@@ -66,6 +66,7 @@
 .dialog { width: min(100%, 480px); max-height: 90dvh; overflow-y: auto; background: #fff; padding: 20px; border-radius: 8px; display: grid; gap: 18px; }
 .console { color: var(--ink); }
 .console button, .headerActions a, .console input:not([type="checkbox"]), .console select, .console textarea, .submitBar, .dialog { color: var(--ink); background: var(--surface); border-color: var(--line-strong); }
+.console .submitBar { background: var(--surface-strong); }
 .console a, .tabs button[aria-current="page"] { color: var(--brand); }
 .sectionHeader p, .muted, .eyebrow, .metrics span, .console td small { color: var(--muted); }
 .console th, .quality, .reviewNote { color: var(--muted); background: var(--surface-soft); }

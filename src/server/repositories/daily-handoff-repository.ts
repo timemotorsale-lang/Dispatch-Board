@@ -11,7 +11,7 @@ export type DailyHandoffRepository = {
   findStaffDay(boardDate: string, userId: string): Promise<{ id: string; boardDayId: string; userId: string; startAcknowledgedAt: Date | null } | null>;
   listTasks(boardDayId: string, userId: string): Promise<Array<{
     id: string; title: string; status: string; priority: string; dueAt: Date; blockerReason: string | null;
-    workflowArea: string; customerReference: string | null; vehicleReference: string | null;
+    workflowArea: string; customerReference: string | null; vehicleReference: string | null; carryoverSourceTaskId?: string | null;
     checklistItems: Array<{ isRequired: boolean; completed: boolean }>;
     comments: Array<{ body: string; createdAt: Date }>;
   }>>;
@@ -25,7 +25,7 @@ export function createDailyHandoffRepository(database: PrismaClient = prisma): D
   return {
     recordsActivity: true,
     findStaffDay: (boardDate, userId) => database.staffDay.findFirst({ where: { userId, boardDay: { date: new Date(`${boardDate}T00:00:00.000Z`) } }, select: { id: true, boardDayId: true, userId: true, startAcknowledgedAt: true } }),
-    listTasks: (boardDayId, userId) => database.task.findMany({ where: { boardDayId, assignedUserId: userId }, select: { id: true, title: true, status: true, priority: true, dueAt: true, blockerReason: true, workflowArea: true, customerReference: true, vehicleReference: true, checklistItems: { select: { isRequired: true, completed: true } }, comments: { select: { body: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 } }, orderBy: [{ dueAt: "asc" }, { id: "asc" }] }),
+    listTasks: (boardDayId, userId) => database.task.findMany({ where: { boardDayId, assignedUserId: userId }, select: { id: true, title: true, status: true, priority: true, dueAt: true, blockerReason: true, workflowArea: true, customerReference: true, vehicleReference: true, carryoverSourceTaskId: true, checklistItems: { select: { isRequired: true, completed: true } }, comments: { select: { body: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 } }, orderBy: [{ dueAt: "asc" }, { id: "asc" }] }),
     listActivity: (boardDayId, userId) => database.activityEvent.findMany({ where: { boardDayId, actorUserId: userId }, select: { eventType: true, message: true, createdAt: true, taskId: true }, orderBy: { createdAt: "asc" } }),
     listRecommendations: (staffDayId) => database.workRecommendation.findMany({ where: { staffDayId }, select: { status: true, dismissalReasonCode: true, taskId: true } }),
     findLatestReport: (staffDayId) => database.staffDailyReport.findFirst({ where: { staffDayId }, select: { id: true, version: true, sourceSnapshot: true, additionalContext: true, tomorrowFollowUp: true, submittedAt: true }, orderBy: { version: "desc" } }),

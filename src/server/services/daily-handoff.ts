@@ -37,8 +37,8 @@ export async function buildDailyHandoffDraft(actor: AuthenticatedUser | null, bo
       waiting: tasks.filter((task) => task.status === TaskStatus.WAITING_ON_PARTS || task.status === TaskStatus.WAITING_ON_APPROVAL).length,
       overdue: tasks.filter((task) => task.status !== TaskStatus.COMPLETED && task.dueAt.getTime() < (dependencies.now ?? (() => new Date()))().getTime()).length
     },
-    completedTasks: completed.map((task) => ({ id: task.id, title: task.title })),
-    carryover: unfinished.map((task) => ({ id: task.id, title: task.title, status: task.status, priority: task.priority, workflowArea: task.workflowArea, customerReference: task.customerReference, vehicleReference: task.vehicleReference, ownerUserId: targetUserId, blockerReason: task.blockerReason, nextStep: task.comments[0]?.body ?? null, dueAt: task.dueAt.toISOString() })),
+    completedTasks: completed.map((task) => ({ id: task.id, title: task.title, carryoverSourceTaskId: task.carryoverSourceTaskId })),
+    carryover: unfinished.map((task) => ({ id: task.id, title: task.title, carryoverSourceTaskId: task.carryoverSourceTaskId, status: task.status, priority: task.priority, workflowArea: task.workflowArea, customerReference: task.customerReference, vehicleReference: task.vehicleReference, ownerUserId: targetUserId, blockerReason: task.blockerReason, nextStep: task.comments[0]?.body ?? null, dueAt: task.dueAt.toISOString() })),
     activityCount: activity.length,
     recommendations: { claimed: recommendations.filter((item) => item.status === "CLAIMED").length, dismissed: recommendations.filter((item) => item.status === "DISMISSED").length }
   };
