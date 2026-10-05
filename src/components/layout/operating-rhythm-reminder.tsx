@@ -55,6 +55,22 @@ function postRhythmEvent(payload: Record<string, unknown>) {
   });
 }
 
+function readStoredSnoozeUntil(key: string) {
+  if (!key || typeof window === "undefined") return 0;
+  try {
+    const localValue = Number(window.localStorage.getItem(key) ?? 0);
+    if (Number.isFinite(localValue)) return localValue;
+  } catch {
+    try {
+      const sessionValue = Number(window.sessionStorage.getItem(key) ?? 0);
+      if (Number.isFinite(sessionValue)) return sessionValue;
+    } catch {
+      return 0;
+    }
+  }
+  return 0;
+}
+
 export function OperatingRhythmReminder() {
   const pathname = usePathname();
   const [model, setModel] = useState<OperatingRhythmModel | null>(null);
@@ -63,7 +79,7 @@ export function OperatingRhythmReminder() {
   const [visibleEndKey, setVisibleEndKey] = useState<string | null>(null);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [snoozedUntil, setSnoozedUntil] = useState(0);
+  const [manualSnooze, setManualSnooze] = useState<{ key: string; until: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -71,8 +87,11 @@ export function OperatingRhythmReminder() {
   const criticalWorkflow = isCriticalWorkflow(pathname);
   const startState = model?.operatingRhythm.startTheDay.state ?? "COMPLETE";
   const startSnoozeKey = useMemo(() => model ? `operating-rhythm:start-snooze:${model.boardDate}:${model.workbookId}` : "", [model]);
+  const storedSnoozeUntil = useMemo(() => readStoredSnoozeUntil(startSnoozeKey), [startSnoozeKey]);
+  const snoozedUntil = manualSnooze?.key === startSnoozeKey ? manualSnooze.until : storedSnoozeUntil;
   const startSnoozed = snoozedUntil > clock.getTime();
-  const showStartReminder = Boolean(model && !model.operatingRhythm.startTheDay.complete && !dismissed && (!startSnoozed || startState === "LOCKED_UNTIL_REASON"));
+  const startDismissed = dismissed && startSnoozed;
+  const showStartReminder = Boolean(model && !model.operatingRhythm.startTheDay.complete && !startDismissed && (!startSnoozed || startState === "LOCKED_UNTIL_REASON"));
   const schedule = getEndOfDayReminderSlot(clock);
   const eligibleEndKey = model && model.boardDate === schedule.boardDate && schedule.slot &&
     ["PREP_NOTICE", "ACTIVE"].includes(model.operatingRhythm.endTheDay.state)
@@ -80,19 +99,6 @@ export function OperatingRhythmReminder() {
   const showEndReminder = Boolean(eligibleEndKey && visibleEndKey === eligibleEndKey && !showStartReminder);
   const locked = showStartReminder && startState === "LOCKED_UNTIL_REASON" && !insideWorkbook && !criticalWorkflow;
   const storageKey = useMemo(() => model ? `operating-rhythm:${model.boardDate}:${model.workbookId}:${startState}:${pathname}` : "", [model, pathname, startState]);
-
-  useEffect(() => {
-    if (!startSnoozeKey) {
-      setSnoozedUntil(0);
-      return;
-    }
-    try {
-      const value = Number(window.localStorage.getItem(startSnoozeKey) ?? 0);
-      setSnoozedUntil(Number.isFinite(value) ? value : 0);
-    } catch {
-      setSnoozedUntil(0);
-    }
-  }, [startSnoozeKey]);
 
   async function refresh() {
     const response = await fetch("/api/coo-workbook/rhythm", { cache: "no-store" });
@@ -114,10 +120,6 @@ export function OperatingRhythmReminder() {
     window.addEventListener("focus", onFocus);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, []);
-
-  useEffect(() => {
-    if (snoozedUntil && snoozedUntil <= clock.getTime()) setDismissed(false);
-  }, [clock, snoozedUntil]);
 
   useEffect(() => {
     if (!model || !showStartReminder || !storageKey) return;
@@ -181,7 +183,7 @@ export function OperatingRhythmReminder() {
   function snoozeStartReminder(durationMs = startReminderSnoozeMs) {
     const until = Date.now() + durationMs;
     setDismissed(true);
-    setSnoozedUntil(until);
+    setManualSnooze({ key: startSnoozeKey, until });
     if (!startSnoozeKey) return;
     try {
       window.localStorage.setItem(startSnoozeKey, String(until));
