@@ -15,6 +15,8 @@ RUN npm ci
 
 FROM dependencies AS builder
 
+ARG RELEASE_SHA=unversioned
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
 COPY . .
 
 # Prisma generation needs a syntactically valid datasource URL, but the image
@@ -28,6 +30,8 @@ RUN npm run build
 
 FROM dependencies AS tooling
 
+ARG RELEASE_SHA=unversioned
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
 COPY . .
 
 ARG BUILD_DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build?schema=public
@@ -39,6 +43,9 @@ FROM node:24-bookworm-slim AS runner
 
 WORKDIR /app
 
+ARG RELEASE_SHA=unversioned
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
+ENV APP_RELEASE_SHA=${RELEASE_SHA}
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 

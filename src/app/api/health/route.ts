@@ -5,11 +5,12 @@ import { prisma } from "@/server/db/client";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const revision = process.env.APP_RELEASE_SHA ?? "unversioned";
   try {
     await prisma.$queryRaw`SELECT 1`;
 
     return NextResponse.json(
-      { status: "ok" },
+      { status: "ok", revision },
       {
         headers: {
           "cache-control": "no-store"
@@ -18,7 +19,7 @@ export async function GET() {
     );
   } catch {
     return NextResponse.json(
-      { status: "unavailable" },
+      { status: "unavailable", revision },
       {
         status: 503,
         headers: {
