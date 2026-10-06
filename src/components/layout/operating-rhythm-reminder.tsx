@@ -3,7 +3,7 @@
 import { AlertTriangle, CheckCircle2, Clock3, FileText, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { claimEndOfDayReminder, endOfDayReminderKey, getEndOfDayReminderSlot } from "@/lib/end-of-day-reminder-schedule";
 
 type OperatingRhythmModel = {
@@ -54,12 +54,30 @@ function postRhythmEvent(payload: Record<string, unknown>) {
   });
 }
 
+const visibleEndReminderListeners = new Set<() => void>();
+let visibleEndReminderKey: string | null = null;
+
+function subscribeVisibleEndReminder(listener: () => void) {
+  visibleEndReminderListeners.add(listener);
+  return () => { visibleEndReminderListeners.delete(listener); };
+}
+
+function getVisibleEndReminderKey() {
+  return visibleEndReminderKey;
+}
+
+function setVisibleEndReminderKey(key: string | null) {
+  if (visibleEndReminderKey === key) return;
+  visibleEndReminderKey = key;
+  visibleEndReminderListeners.forEach(listener => listener());
+}
+
 export function OperatingRhythmReminder() {
   const pathname = usePathname();
   const [model, setModel] = useState<OperatingRhythmModel | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [clock, setClock] = useState(() => new Date());
-  const [visibleEndKey, setVisibleEndKey] = useState<string | null>(null);
+  const visibleEndKey = useSyncExternalStore(subscribeVisibleEndReminder, getVisibleEndReminderKey, getVisibleEndReminderKey);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -122,9 +140,7 @@ export function OperatingRhythmReminder() {
         if (!claimEndOfDayReminder(window.sessionStorage, eligibleEndKey)) return;
       } catch { return; }
     }
-    // Synchronize the visible popup with the external storage claim above.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVisibleEndKey(eligibleEndKey);
+    setVisibleEndReminderKey(eligibleEndKey);
     void postRhythmEvent({
       action: "END_PREP_REMINDER_SHOWN",
       sourcePath: pathname,
@@ -156,6 +172,11 @@ export function OperatingRhythmReminder() {
     }
   }
 
+  function dismissReminder() {
+    if (showStartReminder) setDismissed(true);
+    setVisibleEndReminderKey(null);
+  }
+
   if (!model || (!showStartReminder && !showEndReminder)) return null;
 
   const start = model.operatingRhythm.startTheDay;
@@ -170,7 +191,7 @@ export function OperatingRhythmReminder() {
             <strong>{showStartReminder ? "Start The Day needed" : "End The Day preparation"}</strong>
             <p>{showStartReminder ? start.message : end.message}</p>
           </div>
-          {!locked ? <button aria-label="Dismiss reminder" onClick={() => { if (showStartReminder) setDismissed(true); setVisibleEndKey(null); }} type="button"><X /></button> : null}
+          {!locked ? <button aria-label="Dismiss reminder" onClick={dismissReminder} type="button"><X /></button> : null}
         </header>
 
         {showEndReminder ? (
