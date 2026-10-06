@@ -32,7 +32,7 @@ describe("enterprise shell navigation", () => {
 
     expect(dispatch?.href).toBe("/board");
     expect(dispatch?.badge).toBe("Live");
-    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance", "Document Library"]);
+    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Reports", "Time & Attendance", "Document Library"]);
   });
 
   it("marks future Command Control Center modules as planned and unavailable", () => {
@@ -98,6 +98,7 @@ describe("enterprise shell navigation", () => {
       "Marketing",
       "Advertising",
       "Manager Review",
+      "Reports",
       "Team",
       "Activity"
     ]);
@@ -127,6 +128,7 @@ describe("enterprise shell navigation", () => {
       "Marketing",
       "Advertising",
       "Manager Review",
+      "Reports",
       "Team",
       "Activity"
     ]);
@@ -186,6 +188,7 @@ describe("enterprise shell navigation", () => {
     expect(isDispatchConsolePath("/crm-next/customers/customer-1")).toBe(false);
     expect(isDispatchConsolePath("/command-center")).toBe(false);
     expect(isDispatchConsolePath("/administration")).toBe(false);
+    expect(isDispatchConsolePath("/reports")).toBe(true);
   });
 
   it("assigns each implemented console its own sidebar navigation", () => {
@@ -208,6 +211,7 @@ describe("enterprise shell navigation", () => {
       "Settings"
     ]);
     expect(inventoryConsole?.title).toBe("Inventory Console");
+    expect(inventoryConsole?.items.find((item) => item.title === "Reports")?.href).toBe("/vehicles/reports");
     expect(inventoryConsole?.items.map((item) => item.title)).toEqual([
       "Home",
       "Inventory Lifecycle",

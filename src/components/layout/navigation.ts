@@ -296,6 +296,19 @@ export const dispatchNavigationItems: NavigationItem[] = [
     isVisible: (user) => isManager(user)
   },
   {
+    href: "/reports",
+    title: "Reports",
+    description: "Daily, weekly, and monthly reports, team review, and report history.",
+    icon: BarChart3,
+    parentHref: "/board",
+    isVisible: (user) => getPermittedWorkspaces(user).some((workspace) => (
+      workspace.key === "MANAGEMENT" ||
+      workspace.key === "VEHICLE_OPERATIONS_LEAD" ||
+      workspace.key === "INVENTORY" ||
+      workspace.key === "SERVICE"
+    ))
+  },
+  {
     href: "/staff",
     title: "Team",
     description: "Team duties and execution context.",
@@ -463,6 +476,12 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Operations",
     items: [
       dispatchBoardNavigationItem,
+      {
+        href: "/reports",
+        title: "Reports",
+        description: "Daily, weekly, and monthly reports, team review, and report history.",
+        icon: BarChart3
+      },
       {
         href: "/time-attendance",
         title: "Time & Attendance",
