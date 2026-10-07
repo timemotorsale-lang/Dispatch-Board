@@ -38,6 +38,7 @@ import { TaskSourceContext } from "./task-source-context";
 
 type TaskWorkspaceView = "simple" | "workbench";
 type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "signals";
+type TaskToolSelection = "" | "assignee" | "planner" | "documents" | "subtask" | "checklist" | "workbench";
 
 type TaskSimpleSummaryCardProps = {
   actorIsManager: boolean;
@@ -1205,10 +1206,29 @@ export function TaskSimpleSummaryCard({
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(null);
   const [currentStatus, setCurrentStatus] = useState(task.status as TaskStatus);
   const [deliveryPlannerOpen, setDeliveryPlannerOpen] = useState(false);
-  const [toolsDrawerOpen, setToolsDrawerOpen] = useState(false);
+  const [activeTool, setActiveTool] = useState<TaskToolSelection>("");
 
   const togglePanel = (panel: SummaryPanel) => {
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
+  };
+  const openTool = (tool: TaskToolSelection) => {
+    if (tool === "subtask") {
+      setActivePanel("next");
+      setActiveTool("");
+      return;
+    }
+    if (tool === "checklist") {
+      setActivePanel("checklist");
+      setActiveTool("");
+      return;
+    }
+    if (tool === "workbench") {
+      router.push(viewHref(task.id, "workbench", returnTo));
+      setActiveTool("");
+      return;
+    }
+    setActiveTool(tool);
+    if (tool !== "planner") setDeliveryPlannerOpen(false);
   };
   const openChecklist = checklist.filter((item) => !item.completed);
   const openSubtasks = subtaskItems.filter((item) => !item.completed);
@@ -1251,10 +1271,23 @@ export function TaskSimpleSummaryCard({
               <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small>
             </span>
           </div>
-          <button className="etw-compact-tools-trigger" onClick={() => setToolsDrawerOpen(true)} type="button">
+          <label className="etw-compact-tool-picker">
             <Grid3X3 size={15} />
-            Task tools
-          </button>
+            <span>Available tools</span>
+            <select
+              aria-label="Open task tool"
+              onChange={(event) => openTool(event.currentTarget.value as TaskToolSelection)}
+              value={activeTool}
+            >
+              <option value="">Select a tool...</option>
+              <option value="assignee">Assign staff</option>
+              <option value="planner">Planner</option>
+              <option value="documents">Upload document or photo</option>
+              <option value="subtask">Add subtask</option>
+              <option value="checklist">Open checklist</option>
+              {canOpenFullWorkbench ? <option value="workbench">Full workbench</option> : null}
+            </select>
+          </label>
         </div>
 
         <dl className="etw-compact-task-fields" aria-label="Task details">
@@ -1281,23 +1314,25 @@ export function TaskSimpleSummaryCard({
           </div>
           <nav aria-label="Tools for this next action">
             <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>
-            <button onClick={() => setToolsDrawerOpen(true)} type="button"><Grid3X3 size={14} />Task tools</button>
           </nav>
         </section>
       </div>
 
-      {toolsDrawerOpen ? (
-        <div className="etw-task-tools-backdrop" role="presentation" onClick={() => setToolsDrawerOpen(false)}>
-          <aside aria-label="Task tools drawer" aria-modal="true" className="etw-task-tools-drawer" onClick={(event) => event.stopPropagation()} role="dialog">
-            <header>
-              <div>
-                <small>Task tools</small>
-                <strong>{task.title}</strong>
-              </div>
-              <button aria-label="Close task tools" onClick={() => setToolsDrawerOpen(false)} type="button"><X size={18} /></button>
-            </header>
-            <section>
-              <h2><UserRound size={16} />Assign staff</h2>
+      {activeTool ? (
+        <section className="etw-task-tool-workspace" aria-label="Selected task tool">
+          <header>
+            <div>
+              <small>Selected tool</small>
+              <strong>
+                {activeTool === "assignee" ? "Assign staff" : null}
+                {activeTool === "planner" ? "Planner" : null}
+                {activeTool === "documents" ? "Upload document or photo" : null}
+              </strong>
+            </div>
+            <button aria-label="Close selected task tool" onClick={() => setActiveTool("")} type="button"><X size={17} /></button>
+          </header>
+          {activeTool === "assignee" ? (
+            <>
               <p>Change the owner here. Once assigned, this task appears in that staff member&apos;s My Tasks / Work.</p>
               <TaskPeopleControls
                 assignableUsers={assignableUsers}
@@ -1306,9 +1341,10 @@ export function TaskSimpleSummaryCard({
                 initialExpanded
                 task={task}
               />
-            </section>
-            <section>
-              <h2><CalendarDays size={16} />Planner</h2>
+            </>
+          ) : null}
+          {activeTool === "planner" ? (
+            <>
               <TaskCalendarPlannerLink
                 onHidePlanner={() => setDeliveryPlannerOpen(false)}
                 onOpenDeliveryPlanner={() => setDeliveryPlannerOpen(true)}
@@ -1324,21 +1360,10 @@ export function TaskSimpleSummaryCard({
                   <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
                 </section>
               ) : null}
-            </section>
-            <section>
-              <h2><Paperclip size={16} />Documents</h2>
-              <TaskDocumentUploadControl task={task} />
-            </section>
-            <section>
-              <h2><ListChecks size={16} />Workbench links</h2>
-              <div className="etw-task-tools-actions">
-                <button onClick={() => { togglePanel("next"); setToolsDrawerOpen(false); }} type="button"><ListChecks size={14} />Add subtask</button>
-                <button onClick={() => { togglePanel("checklist"); setToolsDrawerOpen(false); }} type="button"><ClipboardCheck size={14} />Open checklist</button>
-                {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full tools</Link> : null}
-              </div>
-            </section>
-          </aside>
-        </div>
+            </>
+          ) : null}
+          {activeTool === "documents" ? <TaskDocumentUploadControl task={task} /> : null}
+        </section>
       ) : null}
 
       <nav className="etw-compact-task-links" aria-label="Open task sections">
