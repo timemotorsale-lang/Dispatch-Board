@@ -532,11 +532,13 @@ function TaskPeopleControls({
   assignableUsers,
   canManageCollaborators,
   canReassign,
+  initialExpanded = false,
   task
 }: {
   assignableUsers: ActiveUserSummary[];
   canManageCollaborators: boolean;
   canReassign: boolean;
+  initialExpanded?: boolean;
   task: TaskReadModel;
 }) {
   const router = useRouter();
@@ -550,7 +552,7 @@ function TaskPeopleControls({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSavingOwner, setIsSavingOwner] = useState(false);
   const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded);
 
   function collaboratorRequests(nextCollaborators: SimpleCollaborator[]) {
     return nextCollaborators.map((collaborator) => ({
@@ -618,7 +620,7 @@ function TaskPeopleControls({
       const nextOwner = result.task.assignedUser;
       setOwner(nextOwner);
       setOwnerDraftId(nextOwner.id);
-      setMessage(`Owner changed to ${nextOwner.name}.`);
+      setMessage(`Owner changed to ${nextOwner.name}. This task is now available in ${nextOwner.name}'s My Tasks / Work.`);
 
       if (collaborators.some((item) => item.id === nextOwner.id)) {
         await saveCollaborators(
@@ -1203,7 +1205,7 @@ export function TaskSimpleSummaryCard({
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(null);
   const [currentStatus, setCurrentStatus] = useState(task.status as TaskStatus);
   const [deliveryPlannerOpen, setDeliveryPlannerOpen] = useState(false);
-  const [plannerHidden, setPlannerHidden] = useState(false);
+  const [toolsDrawerOpen, setToolsDrawerOpen] = useState(false);
 
   const togglePanel = (panel: SummaryPanel) => {
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
@@ -1242,44 +1244,18 @@ export function TaskSimpleSummaryCard({
 
         <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>
         <div className="etw-compact-task-utility-row">
-          <TaskPeopleControls
-            assignableUsers={assignableUsers}
-            canManageCollaborators={canManageCollaborators}
-            canReassign={actorIsManager}
-            task={task}
-          />
-          <div className="etw-compact-task-schedule-strip">
-            {plannerHidden ? (
-              <button
-                className="etw-compact-calendar-restore"
-                onClick={() => setPlannerHidden(false)}
-                type="button"
-              >
-                <CalendarDays size={15} />
-                Show planner
-              </button>
-            ) : (
-              <TaskCalendarPlannerLink
-                onHidePlanner={() => {
-                  setDeliveryPlannerOpen(false);
-                  setPlannerHidden(true);
-                }}
-                onOpenDeliveryPlanner={() => setDeliveryPlannerOpen(true)}
-                returnTo={returnTo}
-                task={task}
-              />
-            )}
+          <div className="etw-compact-owner-summary">
+            <UserRound size={17} />
+            <span>
+              <strong>{task.assignedUser.name}</strong>
+              <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small>
+            </span>
           </div>
+          <button className="etw-compact-tools-trigger" onClick={() => setToolsDrawerOpen(true)} type="button">
+            <Grid3X3 size={15} />
+            Task tools
+          </button>
         </div>
-        {!plannerHidden && deliveryPlannerOpen ? (
-          <section className="etw-inline-delivery-planner" id="task-delivery-schedule">
-            <header>
-              <strong>Plan delivery events</strong>
-              <button onClick={() => setDeliveryPlannerOpen(false)} type="button">Close</button>
-            </header>
-            <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
-          </section>
-        ) : null}
 
         <dl className="etw-compact-task-fields" aria-label="Task details">
           <div><dt><CalendarDays size={17} />Due</dt><DueDateEditor canEdit={actorIsManager} dueAt={dueAt} dueLabel={dueLabel} taskId={task.id} /></div>
@@ -1295,7 +1271,6 @@ export function TaskSimpleSummaryCard({
               task={task}
             />
           </div>
-          <TaskDocumentUploadControl task={task} />
         </dl>
 
         <section className="etw-compact-next-action" aria-label={hasClaimWorkflow ? "Task coordination" : "Next action"}>
@@ -1306,12 +1281,65 @@ export function TaskSimpleSummaryCard({
           </div>
           <nav aria-label="Tools for this next action">
             <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>
-            <button onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Add subtask</button>
-            <button onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Open checklist</button>
-            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full tools</Link> : null}
+            <button onClick={() => setToolsDrawerOpen(true)} type="button"><Grid3X3 size={14} />Task tools</button>
           </nav>
         </section>
       </div>
+
+      {toolsDrawerOpen ? (
+        <div className="etw-task-tools-backdrop" role="presentation" onClick={() => setToolsDrawerOpen(false)}>
+          <aside aria-label="Task tools drawer" aria-modal="true" className="etw-task-tools-drawer" onClick={(event) => event.stopPropagation()} role="dialog">
+            <header>
+              <div>
+                <small>Task tools</small>
+                <strong>{task.title}</strong>
+              </div>
+              <button aria-label="Close task tools" onClick={() => setToolsDrawerOpen(false)} type="button"><X size={18} /></button>
+            </header>
+            <section>
+              <h2><UserRound size={16} />Assign staff</h2>
+              <p>Change the owner here. Once assigned, this task appears in that staff member&apos;s My Tasks / Work.</p>
+              <TaskPeopleControls
+                assignableUsers={assignableUsers}
+                canManageCollaborators={canManageCollaborators}
+                canReassign={actorIsManager}
+                initialExpanded
+                task={task}
+              />
+            </section>
+            <section>
+              <h2><CalendarDays size={16} />Planner</h2>
+              <TaskCalendarPlannerLink
+                onHidePlanner={() => setDeliveryPlannerOpen(false)}
+                onOpenDeliveryPlanner={() => setDeliveryPlannerOpen(true)}
+                returnTo={returnTo}
+                task={task}
+              />
+              {deliveryPlannerOpen ? (
+                <section className="etw-inline-delivery-planner" id="task-delivery-schedule">
+                  <header>
+                    <strong>Plan delivery events</strong>
+                    <button onClick={() => setDeliveryPlannerOpen(false)} type="button">Close</button>
+                  </header>
+                  <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
+                </section>
+              ) : null}
+            </section>
+            <section>
+              <h2><Paperclip size={16} />Documents</h2>
+              <TaskDocumentUploadControl task={task} />
+            </section>
+            <section>
+              <h2><ListChecks size={16} />Workbench links</h2>
+              <div className="etw-task-tools-actions">
+                <button onClick={() => { togglePanel("next"); setToolsDrawerOpen(false); }} type="button"><ListChecks size={14} />Add subtask</button>
+                <button onClick={() => { togglePanel("checklist"); setToolsDrawerOpen(false); }} type="button"><ClipboardCheck size={14} />Open checklist</button>
+                {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full tools</Link> : null}
+              </div>
+            </section>
+          </aside>
+        </div>
+      ) : null}
 
       <nav className="etw-compact-task-links" aria-label="Open task sections">
         <button aria-pressed={activePanel === "progress"} onClick={() => togglePanel("progress")} type="button"><Activity size={14} />Progress / Updates</button>

@@ -82,7 +82,8 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Task coordination:");
     expect(markup).not.toContain("Next Action:");
     expect(markup).toContain("Record update");
-    expect(markup).toContain("Open checklist");
+    expect(markup).toContain("Task tools");
+    expect(markup).not.toContain("Open checklist");
   });
   it("keeps task actions available when completion progress is absent", () => {
     const markup = renderToStaticMarkup(
@@ -224,26 +225,24 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Shop execution");
     expect(markup).toContain("Next Action");
     expect(markup).toContain("Contact Bobby, confirm the next commitment, and record the outcome.");
-    expect(markup).toContain("Tools for this next action");
+    expect(markup).toContain("Task tools");
     expect(markup).toContain("Record update");
-    expect(markup).toContain("Add subtask");
-    expect(markup).toContain("Open checklist");
+    expect(markup).not.toContain("Add subtask");
+    expect(markup).not.toContain("Open checklist");
     expect(markup).not.toContain("Full tools");
     expect(markup).toContain("Owner");
     expect(markup).toContain("Due");
-    expect(markup).toContain("Calendar planner");
-    expect(markup).toContain("No linked appointment yet");
-    expect(markup).toContain("Plan event");
-    expect(markup).toContain("Board");
+    expect(markup).not.toContain("Calendar planner");
+    expect(markup).not.toContain("No linked appointment yet");
+    expect(markup).not.toContain("Plan event");
+    expect(markup).not.toContain("Board");
     expect(markup).not.toContain("Open events");
     expect(markup).toContain("Change");
     expect(markup).toContain("Path");
     expect(markup).toContain("Shop &amp; Recon");
     expect(markup).toContain("Initiate path");
-    expect(markup).toContain("Documents");
-    expect(markup).toContain("Attach documents");
-    expect(markup).toContain('aria-label="Attach task documents"');
-    expect(markup).toContain("multiple");
+    expect(markup).not.toContain("Attach documents");
+    expect(markup).not.toContain('aria-label="Attach task documents"');
     expect(markup).toContain("Past due");
     expect(markup).toContain("Elevated");
     expect(markup).toContain("Progress / Updates");
@@ -280,12 +279,13 @@ describe("task detail workspace", () => {
       />
     );
 
-    expect(markup).toContain("Delivery planner");
-    expect(markup).toContain("No linked appointment yet");
-    expect(markup).toContain("Plan deliveries");
-    expect(markup).toContain("Hide scheduling planner");
-    expect(markup).toContain("Board");
-    expect(markup).toContain("/appointments?sourceTask=TMS-1493");
+    expect(markup).toContain("Task tools");
+    expect(markup).not.toContain("Delivery planner");
+    expect(markup).not.toContain("No linked appointment yet");
+    expect(markup).not.toContain("Plan deliveries");
+    expect(markup).not.toContain("Hide scheduling planner");
+    expect(markup).not.toContain("Board");
+    expect(markup).not.toContain("/appointments?sourceTask=TMS-1493");
   });
 
   it("opens linked scheduled events under the task when appointments already exist", () => {
@@ -326,10 +326,10 @@ describe("task detail workspace", () => {
       />
     );
 
-    expect(markup).toContain("1 scheduled / 1 linked");
-    expect(markup).toContain("Open events");
-    expect(markup).toContain("task-linked-appointments");
-    expect(markup).toContain("Plan event");
+    expect(markup).not.toContain("1 scheduled / 1 linked");
+    expect(markup).not.toContain("Open events");
+    expect(markup).not.toContain("task-linked-appointments");
+    expect(markup).not.toContain("Plan event");
   });
 
   it("keeps full workbench retrievable when archived access is allowed", () => {
