@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -161,6 +161,10 @@ describe("enterprise service intake workspace", () => {
     const command = buildServiceIntakeVehicleCommand({ color: "White", description: "Customer reports an airbag warning light.", idempotencyKey: "service-intake-vin-1", locationId: "location-1", make: "HONDA", model: "Accord", odometer: "125000", odometerUnit: "MILES", vin: "1HGCM82633A004352", year: "2003" });
 
     expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ addMode: "QUICK", color: "White", description: "Customer reports an airbag warning light.", odometer: 125000, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin: "1HGCM82633A004352" });
+  });
+
+  it("uses the service-intake vehicle endpoint for intake-created canonical vehicles", () => {
+    expect(SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT).toBe("/api/service-intake/vehicles");
   });
 
   it("lets intake create a VIN-validated vehicle when external decode is unavailable", () => {

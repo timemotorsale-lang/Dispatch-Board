@@ -152,7 +152,7 @@ export async function previewAddVehicleIdentity(actor: AuthenticatedUser | null,
   }
 }
 
-export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, value: unknown) {
+export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, value: unknown, options: { enforceRegistryRollout?: boolean } = {}) {
   const input = normalizeAddVehicleWorkflowInput(value); const recommendation = recommendAddVehicleWorkflow(input);
   let decode: NhtsaDecodeResult | null = null; let decodeWarning: string | null = null;
   if (input.vin) {
@@ -172,13 +172,14 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
     const explicitOverrides = new Set(["bodyClass", "cabType", "displacementLiters", "doors", "driveType", "engineConfiguration", "engineCylinders", "fuelTypePrimary", "gvwr", "series", "transmissionStyle", "trim"].filter(key => Boolean(input[key as keyof Input])));
     return [field, staffFields.has(field) || explicitOverrides.has(field) ? staffOrigin : decodedOrigin];
   }));
+  const registryOptions = options.enforceRegistryRollout === undefined ? {} : { enforceRollout: options.enforceRegistryRollout };
   const result = await createRegistryVehicle(actor, {
     color: input.color || null, idempotencyKey: input.idempotencyKey, licensePlate: input.licensePlate || null, licensePlateState: input.licensePlateState || null,
     locationId: input.locationId, make, model, nonVinReason: input.nonVinReason || null,
     reason: `Add vehicle for ${input.reasonCode.toLowerCase().replaceAll("_", " ")}: ${input.description}`,
     vin: input.vin || null, year,
     workflowContext: { acquisitionSource: input.acquisitionSource ?? null, addMode: input.addMode, conditionSummary: input.description, description: input.description, externalLocation: input.externalLocation || null, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode, whereabouts: input.whereabouts }
-  }, {}, {
+  }, registryOptions, {
     canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? vinOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },
     specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? (input.vin ? "STAFF_CONFIRMED_NHTSA_UNAVAILABLE" : "STAFF_CONFIRMED"), specifications, vin: input.vin || null, warnings: decode?.warnings ?? [decodeWarning ?? "No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }

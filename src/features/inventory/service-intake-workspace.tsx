@@ -131,6 +131,7 @@ const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
   `${[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"} · ${vehicle.vehicleNumber}`;
 
 const serviceIntakeDraftKey = "service-intake-active-draft-v1";
+export const SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT = "/api/service-intake/vehicles";
 const directTechnicianRoleNames = new Set(["Mechanic", "Technician"]);
 const repairCapableRoleNames = new Set(["Mechanic", "Technician", "Vehicle Operations Lead"]);
 
@@ -842,7 +843,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     setNotice("");
     try {
       const decoded = vehicleIdentityPreview.decode?.decoded;
-      const response = await fetch("/api/inventory-console/workflows/add-vehicle", {
+      const response = await fetch(SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(buildServiceIntakeVehicleCommand({ acquisitionSource: inventoryUnitDraft.acquisitionSource, color: vehicleQuickDetails.color, decoded, description: form.concernSummary, idempotencyKey: crypto.randomUUID(), locationId: form.locationId, make: vehicleQuickDetails.make, manualDecodeAcknowledged: Boolean(vehicleIdentityPreview.decodeUnavailable && vehicleIdentityConfirmed), model: vehicleQuickDetails.model, odometer: vehicleOdometer, odometerUnit: vehicleOdometerUnit, relationship: isDealershipInventory ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE", vin: vehicleIdentityPreview.identity.vin, year: vehicleQuickDetails.year })),
