@@ -82,8 +82,9 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Task coordination:");
     expect(markup).not.toContain("Next Action:");
     expect(markup).toContain("Record update");
-    expect(markup).toContain("Task tools");
-    expect(markup).not.toContain("Open checklist");
+    expect(markup).toContain("Available tools");
+    expect(markup).toContain("Select a tool...");
+    expect(markup).toContain("Assign staff");
   });
   it("keeps task actions available when completion progress is absent", () => {
     const markup = renderToStaticMarkup(
@@ -225,10 +226,11 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Shop execution");
     expect(markup).toContain("Next Action");
     expect(markup).toContain("Contact Bobby, confirm the next commitment, and record the outcome.");
-    expect(markup).toContain("Task tools");
+    expect(markup).toContain("Available tools");
+    expect(markup).toContain("Select a tool...");
     expect(markup).toContain("Record update");
-    expect(markup).not.toContain("Add subtask");
-    expect(markup).not.toContain("Open checklist");
+    expect(markup).toContain("Add subtask");
+    expect(markup).toContain("Open checklist");
     expect(markup).not.toContain("Full tools");
     expect(markup).toContain("Owner");
     expect(markup).toContain("Due");
@@ -279,7 +281,8 @@ describe("task detail workspace", () => {
       />
     );
 
-    expect(markup).toContain("Task tools");
+    expect(markup).toContain("Available tools");
+    expect(markup).toContain("Planner");
     expect(markup).not.toContain("Delivery planner");
     expect(markup).not.toContain("No linked appointment yet");
     expect(markup).not.toContain("Plan deliveries");
