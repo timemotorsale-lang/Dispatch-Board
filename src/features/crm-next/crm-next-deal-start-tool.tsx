@@ -56,6 +56,21 @@ const EMPTY_CUSTOMER_DEAL_PREFILL: CustomerDealPrefill = {
   ssnLast4: ""
 };
 
+function normalizeCustomerDealPrefill(prefill?: Partial<CustomerDealPrefill> | null): CustomerDealPrefill {
+  return { ...EMPTY_CUSTOMER_DEAL_PREFILL, ...(prefill ?? {}) };
+}
+
+export function applyCustomerPrefillToTestDriveFacts<T extends { driverEmail: string; driverLicense: string; driverPhone: string; licenseState: string }>(current: T, prefill?: Partial<CustomerDealPrefill> | null): T {
+  const normalized = normalizeCustomerDealPrefill(prefill);
+  return {
+    ...current,
+    driverEmail: current.driverEmail || normalized.email,
+    driverLicense: current.driverLicense || (normalized.idLast4 ? `ID on file ending ${normalized.idLast4}` : ""),
+    driverPhone: current.driverPhone || normalized.phoneNumber,
+    licenseState: normalized.idState && current.licenseState === "MN" ? normalized.idState : current.licenseState,
+  };
+}
+
 export function crmNextDealDraftStorageKey(customerId: string) {
   return `crm-next:deal-draft:${customerId}`;
 }
@@ -3344,6 +3359,7 @@ function DealerFinanceExecutionDesk({
 }
 
 function TestDriveExecutionDesk({
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3406,6 +3422,21 @@ function TestDriveExecutionDesk({
   const agreementRevision = useRef(0);
   const [agreementPreviewOpen, setAgreementPreviewOpen] = useState(false);
   const [agreementStatus, setAgreementStatus] = useState({ kind: "idle", message: "" });
+  const normalizedCustomerPrefill = useMemo(() => normalizeCustomerDealPrefill(customerPrefill), [customerPrefill]);
+  const customerDetailRows = [
+    ["Phone", normalizedCustomerPrefill.phoneNumber],
+    ["Email", normalizedCustomerPrefill.email],
+    ["Address", normalizedCustomerPrefill.address],
+    ["Date of birth", normalizedCustomerPrefill.dateOfBirth],
+    ["ID type", normalizedCustomerPrefill.idType],
+    ["ID state", normalizedCustomerPrefill.idState],
+    ["ID last 4", normalizedCustomerPrefill.idLast4],
+  ].filter(([, value]) => Boolean(value));
+
+  useEffect(() => {
+    setFacts((current) => applyCustomerPrefillToTestDriveFacts(current, normalizedCustomerPrefill));
+  }, [normalizedCustomerPrefill, setFacts]);
+
   function localInstant(value: string) {
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toISOString() : "";
@@ -3548,6 +3579,7 @@ function TestDriveExecutionDesk({
           <label><span>Authorizing employee</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
           <label><span>Drive type</span><select value={facts.driveMode} onChange={(event) => update("driveMode", event.target.value)}><option value="SUPERVISED">Supervised</option><option value="UNACCOMPANIED">Unaccompanied</option></select></label>
           {facts.driveMode === "SUPERVISED" && <label><span>Accompanying employee</span><input value={facts.accompanyingEmployee} onChange={(event) => update("accompanyingEmployee", event.target.value)} /></label>}
+          {customerDetailRows.length ? <div className={`${styles.retailWide} ${styles.customerPrefillSummary}`}><span>Selected customer details</span><dl>{customerDetailRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div> : null}
           <fieldset className={styles.leaseCalculationMode}><legend>Staff verification</legend><label><input type="checkbox" checked={facts.licenseVerified} onChange={(event) => update("licenseVerified", event.target.checked)} />Valid license verified</label><label><input type="checkbox" checked={facts.insuranceVerified} onChange={(event) => update("insuranceVerified", event.target.checked)} />Coverage reviewed for this drive</label></fieldset>
         </div>
       </section>
@@ -4300,9 +4332,9 @@ function DealStartDesk({
     return () => controller.abort();
   }, [selectedCustomerId]);
   const customerPrefill = useMemo(() => selectedCustomer ? {
-    ...selectedCustomer.dealPrefill,
-    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : "",
-    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : ""
+    ...normalizeCustomerDealPrefill(selectedCustomer.dealPrefill),
+    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : selectedCustomer.phone,
+    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : selectedCustomer.email
   } : EMPTY_CUSTOMER_DEAL_PREFILL, [selectedCustomer, selectedCustomerId, authorizedContact]);
   const manualCustomer = manualCustomerName.trim();
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
