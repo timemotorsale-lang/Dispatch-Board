@@ -247,6 +247,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
+  const vehicleAddSectionRef = useRef<HTMLElement>(null);
   const inventoryUnitSectionRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialTimestamp, initialVehicleId, initialVehicleRelationship));
   const [arrivalQuery, setArrivalQuery] = useState(initialArrivalQuery);
@@ -334,6 +335,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const isCustomerVehicle = form.vehicleRelationship === "CUSTOMER_VEHICLE";
   const isDealershipInventory = form.vehicleRelationship === "DEALERSHIP_INVENTORY";
   const canCompleteRelationshipIntake = isCustomerVehicle || isDealershipInventory;
+  const decodedVehicleReadyToCreate = Boolean(vehicleIdentityPreview?.identity?.vin && vehicleIdentityConfirmed && vehicleOdometer && vehicleQuickDetails.year && vehicleQuickDetails.make.trim() && vehicleQuickDetails.model.trim());
   const selectedLocation = options.locations.find((location) => location.id === form.locationId);
   const selectedOwner = assignableTechnicians.find((user) => user.id === form.ownerUserId);
   const selectedVendor = repairVendorRecords.find((vendor) => vendor.id === form.vendorId);
@@ -354,7 +356,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     : isCustomerVehicle && !form.customerId && !sameConcernOrder
     ? "Add / Select Customer"
     : !form.vehicleId
-      ? "Add / Select Vehicle"
+      ? arrivalQueryIsVin
+        ? !vehicleIdentityPreview
+          ? vehicleIdentityBusy ? "Decoding VIN" : "Decode VIN"
+          : decodedVehicleReadyToCreate ? "Add & Select Vehicle" : "Confirm Vehicle & Odometer"
+        : "Add / Select Vehicle"
       : form.concernSummary.trim().length < 10
         ? isDealershipInventory ? "Capture Inventory Concern" : "Capture Customer Concern"
         : sameConcernOrder
@@ -728,8 +734,22 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     }
     if (!form.vehicleId) {
       setVehicleAddOpen(true);
+      if (arrivalQueryIsVin) {
+        if (!vehicleIdentityPreview) {
+          if (!vehicleIdentityBusy) void decodeVehicleForIntake();
+          setNotice(vehicleIdentityBusy ? "Decoding this VIN now. The vehicle details will appear here when the check finishes." : "Decoding this VIN now so it can be added and selected without leaving intake.");
+          return;
+        }
+        if (decodedVehicleReadyToCreate) {
+          void createAndSelectDecodedVehicle();
+          return;
+        }
+        vehicleAddSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setNotice(vehicleIdentityPreview.decodeUnavailable ? "Enter the year, make, model, and current odometer, then confirm the vehicle to add it." : "Confirm the decoded vehicle and enter the current odometer, then add and select it.");
+        return;
+      }
       arrivalSearchRef.current?.focus();
-      setNotice(arrivalQueryIsVin ? "This VIN is not in local records. Decode it to add and select the canonical vehicle." : "Search the local database by VIN first. If no vehicle is found, enter the 17-character VIN to decode and add it here.");
+      setNotice("Search the local database by VIN first. If no vehicle is found, enter the 17-character VIN to decode and add it here.");
       return;
     }
     if (isDealershipInventory && !form.inventoryUnitId) {
@@ -1198,7 +1218,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
             {arrivalMatches.vehicles.map((vehicle) => { const exactVinMatch = arrivalQueryIsVin && vehicle.vin?.toUpperCase().replace(/[^A-Z0-9]/g, "") === normalizedArrivalVin; return <button className={exactVinMatch ? "exact-vin-match" : ""} key={vehicle.id} onClick={() => chooseVehicle(vehicle.id)} type="button"><CarFront /><span><strong>{vehicleLabel(vehicle)}</strong><small>{vehicle.vin ?? vehicle.licensePlate ?? "Canonical vehicle"}</small></span><b>{exactVinMatch ? "Exact VIN Match" : "Vehicle"}</b></button>; })}
             {!arrivalMatches.appointments.length && !arrivalMatches.customers.length && !arrivalMatches.inventoryUnits.length && !arrivalMatches.repairOrders.length && !arrivalMatches.vehicles.length ? <div className="sic-arrival-empty"><strong>No matching local record found</strong><span>{arrivalQueryIsVin ? "This VIN can be decoded and added below without leaving intake." : isCustomerVehicle ? "Add a customer now, or enter the complete VIN to identify and add a vehicle." : "Enter the complete VIN to identify and add the dealership vehicle."}</span>{!arrivalQueryIsVin ? <div>{isCustomerVehicle ? <button onClick={() => { setCustomerDrawerMessage(""); setNewCustomer((value) => ({ ...value, displayName: arrivalQuery.trim() })); setDrawer("customer"); }} type="button"><UserRound />Add New Customer</button> : null}<button onClick={() => { setArrivalQuery(""); setVehicleAddOpen(true); resetVehicleIdentityPreview(); window.requestAnimationFrame(() => { arrivalSearchRef.current?.focus(); arrivalSearchRef.current?.select(); }); setNotice("Enter the complete 17-character VIN, then click Search to check local records and decode the vehicle if needed."); }} type="button"><CarFront />Enter VIN to Add Vehicle</button></div> : null}</div> : null}
           </div> : null}
-          {(vehicleAddOpen || arrivalQueryIsVin && !localVinMatch) ? <section className="sic-inline-vehicle-add" aria-label="Add vehicle from VIN">
+          {(vehicleAddOpen || arrivalQueryIsVin && !localVinMatch) ? <section className="sic-inline-vehicle-add" aria-label="Add vehicle from VIN" ref={vehicleAddSectionRef}>
             {!arrivalQueryIsVin ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>Enter the vehicle&apos;s VIN above</strong><span>The dealership database is searched first. A new vehicle can be decoded only after a complete 17-character VIN is entered.</span></div></div> : !vehicleIdentityPreview ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>VIN not found in local records</strong><span>{normalizedArrivalVin} can be checked with NHTSA and added without leaving this intake.</span></div><button disabled={vehicleIdentityBusy} onClick={() => void decodeVehicleForIntake()} type="button">{vehicleIdentityBusy ? "Decoding…" : "Decode VIN"}</button></div> : <div className="sic-decoded-vehicle">
               <header><CheckCircle2 /><div><small>{vehicleIdentityPreview.decode ? `Decoded by ${vehicleIdentityPreview.decode.provider}` : "VIN validated · manual details required"}</small><strong>{[vehicleQuickDetails.year, vehicleQuickDetails.make, vehicleQuickDetails.model, vehicleIdentityPreview.decode?.decoded.trim].filter(Boolean).join(" ") || "Enter year, make, and model"}</strong><span>VIN {vehicleIdentityPreview.identity?.vin}</span></div><button aria-label="Cancel vehicle addition" onClick={() => { setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><X /></button></header>
               <div className="sic-decoded-facts"><span><b>Body</b>{vehicleIdentityPreview.decode?.decoded.bodyClass || "Not reported"}</span><span><b>Engine</b>{[vehicleIdentityPreview.decode?.decoded.engineCylinders && `${vehicleIdentityPreview.decode.decoded.engineCylinders} cyl`, vehicleIdentityPreview.decode?.decoded.displacementLiters && `${vehicleIdentityPreview.decode.decoded.displacementLiters} L`].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Drive</b>{vehicleIdentityPreview.decode?.decoded.driveType || "Not reported"}</span><span><b>Fuel</b>{vehicleIdentityPreview.decode?.decoded.fuelTypePrimary || "Not reported"}</span></div>

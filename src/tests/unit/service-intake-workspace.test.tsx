@@ -116,6 +116,14 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("Next: Add / Select Customer");
   });
 
+  it("lets the sticky footer start VIN decode for intake vehicles that are not in local records", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialArrivalQuery="5TDYARAH6PS524303" initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
+
+    expect(html).toContain("VIN not found in local records");
+    expect(html).toContain("Next: Decode VIN");
+    expect(html).toContain(">Decode VIN");
+  });
+
   it("keeps the final check-in action app-controlled instead of relying on native form validation", () => {
     const inventoryOptions = { ...options, inventoryUnits: [{ id: "inventory-1", inventoryNumber: "INV-100", locationId: "location-1", vehicle: options.vehicles[0] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
