@@ -14145,15 +14145,73 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .etw-compact-task-description b { color: #263a55; }
 .etw-compact-task-utility-row {
   display: grid;
-  grid-template-columns: minmax(250px, 1fr) minmax(260px, 330px);
+  grid-template-columns: minmax(250px, 1fr) auto;
   gap: 10px;
-  align-items: start;
+  align-items: center;
   margin-top: 12px;
 }
 
-.etw-compact-task-schedule-strip {
-  display: flex;
-  justify-content: flex-end;
+.etw-compact-owner-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+  padding: 9px 12px;
+  background: #f8fbff;
+  border: 1px solid #d8e4f3;
+  border-radius: 8px;
+}
+
+.etw-compact-owner-summary > svg {
+  flex-shrink: 0;
+  color: #2f5be5;
+}
+
+.etw-compact-owner-summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.etw-compact-owner-summary strong {
+  overflow: hidden;
+  color: #071c39;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etw-compact-owner-summary small {
+  color: #5d6f86;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.etw-compact-tools-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  color: #173ea7;
+  background: #eef5ff;
+  border: 1px solid #c5d8f8;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.etw-compact-tools-trigger:hover {
+  color: #fff;
+  background: #2858dc;
+  border-color: #2858dc;
 }
 
 .etw-compact-task-fields { grid-template-columns: minmax(240px, 1fr) minmax(220px, .95fr) minmax(190px, .72fr); gap: 0; margin-top: 14px; padding-top: 14px; border-top: 1px solid #dfe7f1; }
@@ -14266,6 +14324,158 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .etw-document-drawer a { display: inline-flex; align-items: center; gap: 3px; color: #214fd2; font-size: 11px; text-decoration: none; }
 .etw-document-drawer a:hover { text-decoration: underline; }
 .etw-document-drawer header button { min-width: 32px; padding: 0; }
+.etw-task-tools-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(7, 18, 42, .48);
+}
+
+.etw-task-tools-drawer {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  width: min(520px, 100vw);
+  height: 100dvh;
+  overflow: auto;
+  padding: 18px;
+  color: #172b4d;
+  background: #fff;
+  border-left: 1px solid #d8e4f3;
+  box-shadow: -18px 0 42px rgba(16, 36, 74, .2);
+}
+
+.etw-task-tools-drawer > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e8f2;
+}
+
+.etw-task-tools-drawer > header div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.etw-task-tools-drawer > header small {
+  color: #5d6f86;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.etw-task-tools-drawer > header strong {
+  overflow: hidden;
+  color: #071c39;
+  font-size: 17px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etw-task-tools-drawer > header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  color: #52627a;
+  background: #fff;
+  border: 1px solid #cbd8e8;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.etw-task-tools-drawer > section {
+  display: grid;
+  gap: 9px;
+  padding: 13px;
+  background: #f8fbff;
+  border: 1px solid #d8e4f3;
+  border-radius: 10px;
+}
+
+.etw-task-tools-drawer h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #10274a;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.etw-task-tools-drawer h2 svg {
+  color: #2858dc;
+}
+
+.etw-task-tools-drawer p {
+  margin: 0;
+  color: #5d6f86;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.etw-task-tools-drawer .etw-compact-people-control,
+.etw-task-tools-drawer .etw-compact-calendar-planner {
+  width: 100%;
+}
+
+.etw-task-tools-drawer .etw-compact-document-field {
+  display: grid;
+  gap: 8px;
+}
+
+.etw-task-tools-drawer .etw-compact-document-field dt {
+  display: none;
+}
+
+.etw-task-tools-drawer .etw-compact-document-field dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+}
+
+.etw-task-tools-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.etw-task-tools-actions a,
+.etw-task-tools-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 11px;
+  color: #214fd2;
+  background: #fff;
+  border: 1px solid #c5d8f8;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.etw-task-tools-actions a:hover,
+.etw-task-tools-actions button:hover {
+  color: #fff;
+  background: #2858dc;
+  border-color: #2858dc;
+}
 .etw-compact-calendar-planner {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
