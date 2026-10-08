@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AddVehicleWorkflow } from "@/features/inventory/add-vehicle-workflow";
+import { AddVehicleWorkflow, addVehicleSubmitEndpoint } from "@/features/inventory/add-vehicle-workflow";
 import { recommendAddVehicleWorkflow } from "@/lib/add-vehicle-workflow";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
@@ -26,6 +26,16 @@ describe("Add Vehicle workflow", () => {
     const result = recommendAddVehicleWorkflow(base);
     expect(result.code).toBe("CREATE_SERVICE_INTAKE");
     expect(result.title).toBe("Create Service Intake");
+  });
+
+  it("submits service and diagnostics vehicle adds through the intake-safe endpoint", () => {
+    const service = recommendAddVehicleWorkflow(base);
+    expect(service.code).toBe("CREATE_SERVICE_INTAKE");
+    expect(addVehicleSubmitEndpoint(service.code)).toBe("/api/service-intake/vehicles");
+
+    const inventory = recommendAddVehicleWorkflow({ description: "Prepare acquired vehicle for recon.", reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY" });
+    expect(inventory.code).toBe("REVIEW_INVENTORY_CONTROL");
+    expect(addVehicleSubmitEndpoint(inventory.code)).toBe("/api/inventory-console/workflows/add-vehicle");
   });
 
   it("uses appraisal for trade and acquisition intent", () => {
