@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -173,6 +173,7 @@ describe("enterprise service intake workspace", () => {
 
   it("uses the service-intake vehicle endpoint for intake-created canonical vehicles", () => {
     expect(SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT).toBe("/api/service-intake/vehicles");
+    expect(serviceIntakeVehicleRelationshipEndpoint("vehicle 1")).toBe("/api/service-intake/vehicles/vehicle%201/relationship");
   });
 
   it("lets intake create a VIN-validated vehicle when external decode is unavailable", () => {

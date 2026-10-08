@@ -132,6 +132,9 @@ const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
 
 const serviceIntakeDraftKey = "service-intake-active-draft-v1";
 export const SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT = "/api/service-intake/vehicles";
+export function serviceIntakeVehicleRelationshipEndpoint(vehicleId: string) {
+  return `/api/service-intake/vehicles/${encodeURIComponent(vehicleId)}/relationship`;
+}
 const directTechnicianRoleNames = new Set(["Mechanic", "Technician"]);
 const repairCapableRoleNames = new Set(["Mechanic", "Technician", "Vehicle Operations Lead"]);
 
@@ -889,7 +892,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       update("vehicleId", vehicle.id);
       let relationshipLinked = true;
       if (form.customerId) {
-        const relationshipResponse = await fetch(`/api/vehicles/${encodeURIComponent(vehicle.id)}/commands`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "ADD_RELATIONSHIP", customerId: form.customerId, effectiveFrom: new Date().toISOString(), expectedVersion: Number(body.version ?? body.result.version ?? 1), idempotencyKey: crypto.randomUUID(), locationId: form.locationId, reason: "Link the newly created service vehicle to the intake customer.", relationshipType: "SERVICE_ONLY", sourceCode: "SERVICE_INTAKE" }) });
+        const relationshipResponse = await fetch(serviceIntakeVehicleRelationshipEndpoint(vehicle.id), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ customerId: form.customerId, effectiveFrom: new Date().toISOString(), expectedVersion: Number(body.version ?? body.result.version ?? 1), idempotencyKey: crypto.randomUUID(), locationId: form.locationId, reason: "Link the newly created service vehicle to the intake customer.", relationshipType: "SERVICE_ONLY", sourceCode: "SERVICE_INTAKE" }) });
         relationshipLinked = relationshipResponse.ok;
       }
       setArrivalQuery("");
