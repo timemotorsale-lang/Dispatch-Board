@@ -234,7 +234,10 @@ function appendRepairOrderContext(href: string, repairOrderId: string) {
 
 export function buildServiceIntakeCompletionLinks(repairOrderId: string, returnTo?: string) {
   const repairWorkbenchHref = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}`;
+  const repairPlanningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(repairOrderId)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
   return {
+    laborGuideHref: `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(repairOrderId)}&returnLabel=${encodeURIComponent("Return to repair planning")}&returnTo=${encodeURIComponent(repairPlanningHref)}`,
+    repairPlanningHref,
     repairWorkbenchHref,
     returnHref: returnTo ? appendRepairOrderContext(returnTo, repairOrderId) : "/vehicles/recon-repair-advisor",
     shopDispatchHref: `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(repairOrderId)}`,
@@ -1187,8 +1190,8 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       <p>{created.reused ? "Existing repair order found" : "Check-in complete"}</p>
       <h1>{created.repairOrderNumber}</h1>
       <span>{isDealershipInventory ? selectedInventoryUnit?.inventoryNumber ?? "Dealership inventory" : selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
-      <div className="sic-success-summary"><strong>{created.reused ? "One synchronized vehicle card" : "Ready for intake review"}</strong><span>{created.reused ? "This VIN already had an open repair card, so all location, vendor, repair, QC, and handoff work stays on that record." : "The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Recon / Repair Advisor."}</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={completionLinks.repairWorkbenchHref}>Continue working this RO <ChevronRight /></Link><Link href={completionLinks.shopDispatchHref}>Open Shop Dispatch</Link>{returnTo ? <Link href={completionLinks.returnHref}>Return to source workspace</Link> : null}<Link href="/vehicles/recon-repair-advisor">Return to Recon / Repair Advisor</Link></div>
+      <div className="sic-success-summary"><strong>{created.reused ? "One synchronized vehicle card" : "Ready to estimate"}</strong><span>{created.reused ? "This VIN already had an open repair card, so all location, vendor, repair, QC, estimate, and handoff work stays on that record." : "The repair order is ready for diagnosis, Labor Guide estimate work, and customer authorization."}</span></div>
+      <div className="sic-success-actions"><Link className="primary" href={completionLinks.laborGuideHref}>Build estimate in Labor Guide <ChevronRight /></Link><Link href={completionLinks.repairPlanningHref}>Open repair planning</Link><Link href={completionLinks.shopDispatchHref}>Open Shop Dispatch</Link>{returnTo ? <Link href={completionLinks.returnHref}>Return to source workspace</Link> : null}<Link href="/vehicles/recon-repair-advisor">Return to Recon / Repair Advisor</Link></div>
     </section>;
   }
 

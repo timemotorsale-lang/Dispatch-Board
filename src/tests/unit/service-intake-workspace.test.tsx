@@ -83,6 +83,8 @@ describe("enterprise service intake workspace", () => {
 
   it("keeps the created repair order available before returning to the source workspace", () => {
     expect(buildServiceIntakeCompletionLinks("ro-123", "/diagnostics/labor-guide")).toEqual({
+      laborGuideHref: "/diagnostics/labor-guide?repairOrderId=ro-123&returnLabel=Return%20to%20repair%20planning&returnTo=%2Fvehicles%2Fshop-planning%3FrepairOrderId%3Dro-123%26returnTo%3D%252Fdiagnostics%252Flabor-guide",
+      repairPlanningHref: "/vehicles/shop-planning?repairOrderId=ro-123&returnTo=%2Fdiagnostics%2Flabor-guide",
       repairWorkbenchHref: "/vehicles/repair-workbench?repairOrderId=ro-123",
       returnHref: "/diagnostics/labor-guide?repairOrderId=ro-123",
       shopDispatchHref: "/vehicles/shop-dispatch?repairOrderId=ro-123",
