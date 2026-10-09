@@ -83,6 +83,8 @@ export function OperatingRhythmReminder() {
 
   useEffect(() => {
     if (!startSnoozeKey) {
+      // Synchronize local reminder state with the active workbook key.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSnoozedUntil(0);
       return;
     }
@@ -116,6 +118,8 @@ export function OperatingRhythmReminder() {
   }, []);
 
   useEffect(() => {
+    // Re-open the reminder after the stored snooze window expires.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (snoozedUntil && snoozedUntil <= clock.getTime()) setDismissed(false);
   }, [clock, snoozedUntil]);
 
