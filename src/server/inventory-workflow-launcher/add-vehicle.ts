@@ -178,7 +178,7 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
     reason: `Add vehicle for ${input.reasonCode.toLowerCase().replaceAll("_", " ")}: ${input.description}`,
     vin: input.vin || null, year,
     workflowContext: { acquisitionSource: input.acquisitionSource ?? null, addMode: input.addMode, conditionSummary: input.description, description: input.description, externalLocation: input.externalLocation || null, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode, whereabouts: input.whereabouts }
-  }, {}, {
+  }, { enforceRollout: false }, {
     canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? vinOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },
     specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins: { ...fieldOrigins, conditionSummary: { source: "STAFF_CONFIRMED" } }, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? (input.vin ? "STAFF_CONFIRMED_NHTSA_UNAVAILABLE" : "STAFF_CONFIRMED"), specifications: { ...specifications, conditionSummary: input.description }, vin: input.vin || null, warnings: decode?.warnings ?? [decodeWarning ?? "No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }

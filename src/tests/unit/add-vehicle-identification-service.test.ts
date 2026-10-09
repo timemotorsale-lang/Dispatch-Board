@@ -69,25 +69,25 @@ describe("Add Vehicle canonical identification service", () => {
     mocks.decodeVinWithNhtsa.mockRejectedValueOnce(new TypeError("fetch failed"));
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     await startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Vehicle needs an initial inspection.", idempotencyKey: "add-manual-decode", locationId: "loc-1", make: "Honda", manualDecodeAcknowledged: true, model: "CR-V", odometer: 20, reasonCode: "INSPECTION_DIAGNOSIS", relationship: "CUSTOMER_VEHICLE", vin, year: 2018 });
-    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ make: "Honda", model: "CR-V", vin, year: 2018 }), {}, expect.objectContaining({ canonicalOrigins: expect.objectContaining({ make: expect.objectContaining({ source: "STAFF_CONFIRMED" }), vin: expect.objectContaining({ source: "ISO_3779_CHECK_DIGIT_V1" }) }), specificationSnapshot: expect.objectContaining({ provider: "STAFF_CONFIRMED_NHTSA_UNAVAILABLE", warnings: [expect.stringContaining("temporarily unavailable")] }) }));
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ make: "Honda", model: "CR-V", vin, year: 2018 }), { enforceRollout: false }, expect.objectContaining({ canonicalOrigins: expect.objectContaining({ make: expect.objectContaining({ source: "STAFF_CONFIRMED" }), vin: expect.objectContaining({ source: "ISO_3779_CHECK_DIGIT_V1" }) }), specificationSnapshot: expect.objectContaining({ provider: "STAFF_CONFIRMED_NHTSA_UNAVAILABLE", warnings: [expect.stringContaining("temporarily unavailable")] }) }));
   });
 
   it("creates one canonical record with decode origins, specifications, and initial odometer", async () => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     await startAddVehicleWorkflow(null, { addMode: "DETAILED", description: "Customer reports a brake warning light.", idempotencyKey: "add-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, odometerUnit: "MILES", reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin, year: 2000 });
-    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ make: "HONDA", model: "Accord", year: 2003 }), {}, expect.objectContaining({ canonicalOrigins: expect.objectContaining({ make: expect.objectContaining({ source: "NHTSA_VPIC" }) }), initialOdometer: expect.objectContaining({ reading: 42183, unit: "MILES" }), specificationSnapshot: expect.objectContaining({ provider: "NHTSA_VPIC", specifications: expect.objectContaining({ trim: "EX" }) }) }));
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ make: "HONDA", model: "Accord", year: 2003 }), { enforceRollout: false }, expect.objectContaining({ canonicalOrigins: expect.objectContaining({ make: expect.objectContaining({ source: "NHTSA_VPIC" }) }), initialOdometer: expect.objectContaining({ reading: 42183, unit: "MILES" }), specificationSnapshot: expect.objectContaining({ provider: "NHTSA_VPIC", specifications: expect.objectContaining({ trim: "EX" }) }) }));
   });
 
   it("can start from a service-intake path without requiring registry rollout execution", async () => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     await startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Customer repair intake with warning light.", idempotencyKey: "service-intake-vehicle-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, odometerUnit: "MILES", reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin, year: 2000 });
-    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ vin }), {}, expect.objectContaining({ initialOdometer: expect.objectContaining({ reading: 42183 }) }));
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ vin }), { enforceRollout: false }, expect.objectContaining({ initialOdometer: expect.objectContaining({ reading: 42183 }) }));
   });
 
   it("opens the new canonical vehicle in Inventory Control", async () => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     const result = await startAddVehicleWorkflow(null, { acquisitionSource: "AUCTION", addMode: "QUICK", description: "Visible front damage; vehicle remains drivable.", externalLocation: "Copart — Des Moines, IA", idempotencyKey: "add-inventory-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY", vin, whereabouts: "AUCTION_FACILITY", year: 2000 });
     expect(result.nextWorkflow.href).toBe("/vehicles/vehicle-1/intake");
-    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.anything(), {}, expect.objectContaining({ specificationSnapshot: expect.objectContaining({ specifications: expect.objectContaining({ externalLocation: "Copart — Des Moines, IA", whereabouts: "AUCTION_FACILITY" }) }) }));
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.anything(), { enforceRollout: false }, expect.objectContaining({ specificationSnapshot: expect.objectContaining({ specifications: expect.objectContaining({ externalLocation: "Copart — Des Moines, IA", whereabouts: "AUCTION_FACILITY" }) }) }));
   });
 });
