@@ -194,7 +194,7 @@ describe("auth service", () => {
     const authenticatedUser = await readAuthenticatedUser(store, loginResult.sessionToken);
 
     expect(getProtectedRouteRedirect(authenticatedUser)).toBeNull();
-    expect(getLoginRouteRedirect(authenticatedUser)).toBe("/my-tasks");
+    expect(getLoginRouteRedirect(authenticatedUser)).toBe("/time-attendance");
   });
 
   it("supports users with multiple roles", async () => {
@@ -220,7 +220,7 @@ describe("auth service", () => {
       expect.arrayContaining(["Marketing/Advertisement Manager", "Office Manager"])
     );
     expect(isOperationsCoordinatorDefaultUser(result.user)).toBe(true);
-    expect(getLoginRouteRedirect(result.user)).toBe("/operations-coordinator");
+    expect(getLoginRouteRedirect(result.user)).toBe("/time-attendance");
   });
 
   it("supports direct user duties in the authenticated summary", async () => {
