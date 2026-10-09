@@ -930,7 +930,7 @@ export function RepairOrderEnterpriseWorkbench({
       ? "Outside repair in progress"
       : diagnosis
         ? "Diagnosis recorded"
-        : "Technician diagnosis is next";
+        : "Labor Guide estimate is next";
   const stageSummary = vendorWaitingParts
     ? activeVendorWork?.lastUpdateSummary || activeVendorWork?.nextAction || "The outside vendor is blocked until the dealership delivers the requested parts."
     : vendorNeedsInternalCompletion
@@ -941,7 +941,7 @@ export function RepairOrderEnterpriseWorkbench({
       ? activeVendorWork?.lastUpdateSummary || vendorDispatchSummary(activeVendorWork) || activeVendorWork?.nextAction || "The vehicle is currently with the outside vendor and needs progress tracking."
       : diagnosis
         ? "Diagnosis is already on file. Use this repair order to move into estimate, approval, parts, and repair coordination."
-        : "The repair order remains the source of truth and is ready for technician evidence-led diagnosis.";
+        : "Open Labor Guide for this repair order to diagnose the issue and build the estimate without leaving the current work.";
   const stageSupport = vendorWaitingParts
     ? "Lead with parts receiving, approval, and delivery updates. Keep the diagnosis record visible as supporting evidence only."
     : vendorNeedsInternalCompletion
@@ -952,7 +952,7 @@ export function RepairOrderEnterpriseWorkbench({
       ? "Lead with vendor progress, ETA, and return requirements. Keep the diagnosis record available underneath as supporting context."
       : diagnosis
         ? "Keep the recorded diagnosis available while guiding staff into the next governed step."
-        : "Tests and findings should be recorded here before estimate and approval.";
+        : "Keep the form compact: identify the issue, choose labor, add estimate lines, and move to approval.";
   const relatedDraftPurchaseOrders = relatedPurchaseOrders.filter((item) => item.status === "DRAFT");
   const relatedApprovedPurchaseOrders = relatedPurchaseOrders.filter((item) => item.status && item.status !== "DRAFT");
   const hasOffsiteVendorWithoutDiagnosis = Boolean(activeVendorWork) && !diagnosis;
