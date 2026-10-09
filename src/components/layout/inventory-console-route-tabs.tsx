@@ -12,6 +12,8 @@ import {
   Search,
   ShieldCheck,
   Wrench,
+  Wallet,
+  Tags,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -34,7 +36,7 @@ function safeReturnTo(value: string | null) { return value?.startsWith("/") && !
 function withReturnTo(href: string, returnTo: string) { const url = new URL(href, "http://inventory-console.local"); url.searchParams.set("returnTo", returnTo); return `${url.pathname}${url.search}`; }
 function vehicleIdFrom(pathname: string, searchParams: URLSearchParams) {
   const vehicle360 = pathname.match(/^\/vehicles\/360\/([^/]+)/)?.[1];
-  const vehicleWorkspace = pathname.match(/^\/vehicles\/([^/]+)\/(?:inventory-planning|workbench)$/)?.[1];
+  const vehicleWorkspace = pathname.match(/^\/vehicles\/([^/]+)\/(?:inventory-planning|workbench|costs|pricing|journey|intake)$/)?.[1];
   return vehicle360 ?? vehicleWorkspace ?? searchParams.get("vehicleId") ?? "";
 }
 function currentHref(pathname: string, searchParams: URLSearchParams) { const safeParams = new URLSearchParams(searchParams); if (safeParams.has("returnTo") && !safeReturnTo(safeParams.get("returnTo"))) safeParams.delete("returnTo"); const query = safeParams.toString(); return `${pathname}${query ? `?${query}` : ""}`; }
@@ -48,9 +50,13 @@ export function InventoryConsoleRouteTabs({ allowedHrefs = [], pathname, searchP
   const here = currentHref(pathname, searchParams);
   const vehicleId = vehicleIdFrom(pathname, searchParams);
   const vehicleTabs: Tab[] = vehicleId ? [
+    { href: `/vehicles/${encodeURIComponent(vehicleId)}/intake`, label: "Acquisition & Intake", icon: ClipboardList, matchExact: true },
+    { href: `/vehicles/${encodeURIComponent(vehicleId)}/journey`, label: "Inventory Journey", icon: CarFront, matchExact: true },
     { href: withReturnTo(`/vehicles/360/${encodeURIComponent(vehicleId)}`, sourceReturn || here), label: "Vehicle 360", icon: CarFront, matchExact: true },
     ...(showFullNavigation ? [{ href: `/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning`, label: "Inventory Planning", icon: ClipboardList, matchExact: true }] : []),
     { href: `/vehicles/${encodeURIComponent(vehicleId)}/workbench`, label: "Vehicle Workbench", icon: Wrench, matchExact: true },
+    { href: `/vehicles/${encodeURIComponent(vehicleId)}/costs`, label: "Costs & Investment", icon: Wallet, matchExact: true },
+    { href: `/vehicles/${encodeURIComponent(vehicleId)}/pricing`, label: "Pricing & Margin", icon: Tags, matchExact: true },
   ] : [];
   const permittedPaths = allowedHrefs.map(href => href.split("?")[0]);
   const visibleGlobalTabs = showFullNavigation ? globalTabs : globalTabs.filter(tab => permittedPaths.some(path => path === tab.href || tab.activePaths?.includes(path)));

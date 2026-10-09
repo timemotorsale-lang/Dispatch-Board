@@ -3851,6 +3851,7 @@ model Vehicle {
   mergedVehicles                  Vehicle[]                        @relation("VehicleMergeLineage")
   tasks                           Task[]
   inventoryUnits                  InventoryUnit[]
+  inventoryIntakeRevisions        InventoryIntakeRevision[]
   inventoryAcquisitionCases       InventoryAcquisitionCase[]
   serviceVisits                   ServiceVisit[]
   serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
@@ -3899,6 +3900,8 @@ model InventoryUnit {
   serviceVisits          ServiceVisit[]
   repairOrders           RepairOrder[]
   costEntries            InventoryUnitCost[]
+  pricingProposals       InventoryPricingProposal[]
+  intakeRevisions        InventoryIntakeRevision[]
   acquisitionAppraisals  InventoryAcquisitionAppraisal[]
   purchaseAuthorizations InventoryPurchaseAuthorization[]
   receipts               InventoryReceipt[]
@@ -4170,6 +4173,49 @@ model InventoryRetailCompletionEvent {
   @@unique([completionId, version])
   @@index([organizationId, occurredAt])
   @@index([correlationId])
+}
+
+/// Append-only staff intake revisions; confirmation does not authorize purchase or release.
+model InventoryIntakeRevision {
+  id              String        @id @default(cuid())
+  organizationId  String
+  vehicleId       String
+  inventoryUnitId String?
+  version         Int
+  status          String
+  details         Json
+  pendingItems    Json
+  costRecordIds   Json
+  actorUserId     String
+  reason          String
+  createdAt       DateTime      @default(now())
+  vehicle         Vehicle       @relation(fields: [vehicleId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryIntakeRevision_vehicle_fkey")
+  inventoryUnit   InventoryUnit? @relation(fields: [inventoryUnitId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryIntakeRevision_unit_fkey")
+
+  @@unique([vehicleId, version], map: "InventoryIntakeRevision_vehicle_version_key")
+  @@index([organizationId, vehicleId, version], map: "InventoryIntakeRevision_scope_idx")
+}
+
+/// Append-only selling-price proposals with their recorded-cost comparison.
+model InventoryPricingProposal {
+  id                 String        @id @default(cuid())
+  organizationId     String
+  inventoryUnitId    String
+  actorUserId        String
+  inventoryVersion   Int
+  priceCents         Int
+  packCents          Int           @default(0)
+  packEnabled        Boolean       @default(false)
+  includeEstimates   Boolean       @default(false)
+  marginMode         String        @default("OFF")
+  threshold          Int?
+  comparisonSnapshot Json
+  reason             String
+  createdAt          DateTime      @default(now())
+  inventoryUnit      InventoryUnit @relation(fields: [inventoryUnitId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryPricingProposal_unit_fkey")
+
+  @@unique([inventoryUnitId, inventoryVersion])
+  @@index([organizationId, inventoryUnitId, createdAt], map: "InventoryPricingProposal_organizationId_inventoryUnitId_created")
 }
 
 /// Immutable financial observations supporting inventory exposure and gross-per-day reporting.

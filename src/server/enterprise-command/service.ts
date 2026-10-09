@@ -30,7 +30,7 @@ export async function executeEnterpriseVehicleCommand(actor: AuthenticatedUser |
   return { commandId: result.command.id, correlationId: result.command.correlationId, duplicate: result.duplicate, version: result.version, result: result.command.resultSnapshot };
 }
 
-export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE"] as const;
+export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "INVENTORY_INTAKE", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE"] as const;
 export type VehicleOperationsFeatureCode = (typeof VEHICLE_OPERATIONS_FEATURES)[number];
 
 export const DIAGNOSTICS_FEATURES = ["DIAGNOSTICS_MASTER", "DIAGNOSTIC_CASES", "DIAGNOSTIC_EVIDENCE", "DIAGNOSTIC_REASONING", "DIAGNOSTIC_PUBLISHING", "DIAGNOSTIC_KNOWLEDGE", "DIAGNOSTIC_AI"] as const;

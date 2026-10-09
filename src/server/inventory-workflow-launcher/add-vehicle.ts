@@ -118,7 +118,7 @@ function nextHref(code: string, vehicleId: string, description: string) {
   if (code === "CREATE_SERVICE_INTAKE") return `/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "WALK_IN", vehicleId }).toString()}`;
   if (code === "SCHEDULE_APPOINTMENT") return `/appointments?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "START_ACQUISITION_APPRAISAL") return `/vehicles/acquisition-appraisal?${new URLSearchParams({ vehicleId }).toString()}`;
-  if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
+  if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/${encodeURIComponent(vehicleId)}/intake`;
   return `/vehicles/360/${vehicleId}`;
 }
 
@@ -181,7 +181,7 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
   }, {}, {
     canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? vinOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },
-    specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? (input.vin ? "STAFF_CONFIRMED_NHTSA_UNAVAILABLE" : "STAFF_CONFIRMED"), specifications, vin: input.vin || null, warnings: decode?.warnings ?? [decodeWarning ?? "No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }
+    specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins: { ...fieldOrigins, conditionSummary: { source: "STAFF_CONFIRMED" } }, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? (input.vin ? "STAFF_CONFIRMED_NHTSA_UNAVAILABLE" : "STAFF_CONFIRMED"), specifications: { ...specifications, conditionSummary: input.description }, vin: input.vin || null, warnings: decode?.warnings ?? [decodeWarning ?? "No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }
   });
   const created = result.result as { duplicateReviewId?: string | null; id: string; vehicleNumber: string };
   return { ...result, nextWorkflow: { ...recommendation, href: nextHref(recommendation.code, created.id, input.description) } };
