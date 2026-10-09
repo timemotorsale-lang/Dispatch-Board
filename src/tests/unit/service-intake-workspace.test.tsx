@@ -142,7 +142,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("Customer reports a check engine warning lamp.");
     expect(html).not.toContain("Same open concern detected");
     expect(html).toContain("RO-EXISTING");
-    expect(html).toContain("Save technician &amp; open");
+    expect(html).toContain("Open Labor Guide for this RO");
     expect(html).toContain("The concern appears different");
     expect(html).not.toContain("Duplicate RO blocked");
     expect(html).toContain("Repair-order decision");
@@ -162,7 +162,7 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports vibration above highway speed." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
     expect(html).toContain("The concern appears different");
-    expect(html).toContain("Save technician &amp; open");
+    expect(html).toContain("Open Labor Guide for this RO");
     expect(html).toContain("Create separate RO for this concern");
     expect(html).toContain("Repair-order decision");
   });
