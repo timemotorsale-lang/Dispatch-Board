@@ -711,6 +711,7 @@ export function RepairOrderEnterpriseWorkbench({
   const safetyReview = /brake|steer|airbag|fire|smoke|fuel|overheat|safety|not operable/i.test(concernSummary);
   const planningReturn = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}&vehicleId=${encodeURIComponent(order.vehicle.id)}`;
   const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}`;
+  const laborGuideHref = `/diagnostics/labor-guide?${new URLSearchParams({ query: concernSummary, repairOrderId: order.id, returnLabel: "Return to repair order", returnTo: planningReturn }).toString()}`;
   const vendorFollowUpPlanningHref = `${planningHref}&vendorFollowUp=1`;
   const vendorProgressHref = "#vendor-repair-progress";
   const estimatePlanningHref = `${planningHref}#repair-planning-step-3`;
@@ -830,10 +831,10 @@ export function RepairOrderEnterpriseWorkbench({
               summary: "Use inspection-only when the vehicle needs condition verification without repair work."
             }
           : {
-              href: planningHref,
-              label: "Start Diagnosis",
-              nextAction: concernSummary === "Concern not recorded." && !order.nextAction.trim() ? "Continue governed repair flow" : "Start an evidence-led mechanical diagnosis for this repair order.",
-              summary: safetyReview ? "Use diagnosis with safety-first handling before operating or road-testing this vehicle." : "Use diagnosis when the cause, tests, or mechanical repair plan still needs to be proven."
+              href: laborGuideHref,
+              label: "Open Labor Guide",
+              nextAction: concernSummary === "Concern not recorded." && !order.nextAction.trim() ? "Open the compact Labor Guide workflow for this repair order." : "Open Labor Guide to diagnose the issue and build the estimate from this repair order.",
+              summary: safetyReview ? "Use the Labor Guide with safety-first handling before operating or road-testing this vehicle." : "Use the Labor Guide when the cause, tests, or mechanical repair estimate still needs to be proven."
             };
   const displayedNextAction = vendorWaitingParts
     ? activeVendorWork?.nextAction || activeVendorWork?.lastUpdateSummary || "Vendor is waiting on parts from the dealership before repair can continue."
@@ -858,7 +859,7 @@ export function RepairOrderEnterpriseWorkbench({
           ? reconPathRecommendation.href
         : diagnosis || directBodyPath
           ? estimatePlanningHref
-          : planningHref;
+          : laborGuideHref;
   const primaryActionLabel = vendorWaitingParts
     ? "Update parts and delivery"
     : vendorNeedsInternalCompletion
@@ -875,7 +876,7 @@ export function RepairOrderEnterpriseWorkbench({
         ? "Open Estimate Planning"
         : directBodyPath
           ? "Record Direct Repair Scope"
-          : "Start Diagnosis";
+          : "Open Labor Guide";
   const primaryActionSummary = vendorWaitingParts
     ? "Receive the requested parts, approve any draft purchase order, and record delivery to the outside vendor so repair can continue."
     : vendorNeedsInternalCompletion
@@ -892,7 +893,7 @@ export function RepairOrderEnterpriseWorkbench({
         ? "Use the recorded evidence to prepare the repair scope and estimate."
         : directBodyPath
           ? "Capture the visible damage scope, direct evidence, and the reason troubleshooting diagnosis is not required."
-          : "Open the guided diagnostic plan for this exact repair order and vehicle.";
+          : "Open the compact diagnostic and Labor Guide tool for this exact issue, repair order, and vehicle.";
   const workflowGateLabel = vendorWaitingParts
     ? "Parts action required"
     : vendorNeedsInternalCompletion
@@ -915,10 +916,10 @@ export function RepairOrderEnterpriseWorkbench({
     : activeVendorWork
       ? "Record vendor update"
       : safetyReview
-        ? "Start Safety Diagnosis"
+        ? "Open Safety Labor Guide"
         : diagnosis
           ? "Review estimate planning"
-          : "Start Diagnosis";
+          : "Open Labor Guide";
   const stageHeadline = vendorWaitingParts
     ? "Vendor waiting on our parts"
     : vendorNeedsInternalCompletion
