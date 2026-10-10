@@ -11,11 +11,15 @@ import { inventoryUnitAge, normalizeInventoryUnitControlUpdate, normalizeInvento
 import { createInventoryUnitRepository, type InventoryUnitRepository } from "./repository";
 import { normalizeCostRecord, summarizeRecordedCosts } from "./cost-domain";
 import { normalizePricing, comparePricing } from "./pricing-domain";
+import { assertPricingAccess } from "./pricing-access";
 
 type Dependencies = { enforceRollout?: boolean; foundationRepository?: EnterpriseCommandRepository; now?: () => Date; organizationId?: string; repository?: InventoryUnitRepository };
 function deps(input: Dependencies) { return { enforceRollout: input.enforceRollout ?? true, foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createInventoryUnitRepository() }; }
 async function authorize(actor: AuthenticatedUser | null, capability: VehicleCapability, locationId: string | null, input: ReturnType<typeof deps>, mutation = false, amountCents?: number, feature: VehicleOperationsFeatureCode = "RETAIL_INVENTORY") {
-  const user = assertAuthenticatedUser(actor); const grants = await input.foundationRepository.listCapabilityGrants(user.id, input.organizationId); assertVehicleCapability({ actor: user, capability, grants, locationId, amountCents, now: input.now() });
+  const user = assertAuthenticatedUser(actor); const grants = await input.foundationRepository.listCapabilityGrants(user.id, input.organizationId);
+  const access = { actor: user, grants, locationId, amountCents, now: input.now() };
+  if (capability === "INVENTORY_PRICING_MANAGE") assertPricingAccess(access);
+  else assertVehicleCapability({ ...access, capability });
   if (mutation && input.enforceRollout) { const flags = await input.foundationRepository.listFeatureFlags(input.organizationId); const decision = evaluateVehicleOperationsFeature(flags, feature, user.id, locationId); if (!decision.executable) throw new Error(`${feature === "INVENTORY_INTAKE" ? "Acquisition intake writes" : "Retail inventory mutations"} are not enabled (${decision.reason}).`); }
   return user;
 }

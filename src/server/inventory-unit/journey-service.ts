@@ -8,6 +8,7 @@ import { assertAuthenticatedUser } from "@/server/policies/access";
 import { comparePricing } from "./pricing-domain";
 import { summarizeRecordedCosts } from "./cost-domain";
 import { nextJourneyStep, vehicleJourneySteps } from "./journey-domain";
+import { evaluatePricingAccess } from "./pricing-access";
 
 export async function getVehicleJourney(actor: AuthenticatedUser | null, vehicleId: string, input: { database?: PrismaClient; organizationId?: string; foundationRepository?: EnterpriseCommandRepository; now?: () => Date } = {}) {
   const user = assertAuthenticatedUser(actor), database = input.database ?? prisma;
@@ -19,7 +20,7 @@ export async function getVehicleJourney(actor: AuthenticatedUser | null, vehicle
     const unit = await tx.inventoryUnit.findFirst({ where: { organizationId, vehicleId, closedAt: null }, select: { id: true, inventoryNumber: true, version: true, lifecycleStage: true, operatingState: true, nextAction: true, stateReason: true, targetAt: true, locationId: true, ownerUser: { select: { name: true } }, location: { select: { name: true } } } });
     const custody = !unit ? await tx.vehicleCustodyEvent.findFirst({ where: { organizationId, vehicleId, occurredAt: { lte: now } }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], select: { locationId: true } }) : null;
     const allowed = (capability: VehicleCapability) => evaluateVehicleCapability({ actor: user, capability, grants, locationId: unit?.locationId ?? custody?.locationId ?? null, now }).allowed;
-    const access = { inventory: allowed("INVENTORY_UNIT_VIEW"), costs: allowed("INVENTORY_UNIT_MANAGE"), pricing: allowed("INVENTORY_PRICING_MANAGE"), repair: allowed("REPAIR_ORDER_VIEW"), evidence: allowed("VEHICLE_EVIDENCE_VIEW") };
+    const access = { inventory: allowed("INVENTORY_UNIT_VIEW"), costs: allowed("INVENTORY_UNIT_MANAGE"), pricing: evaluatePricingAccess({ actor: user, grants, locationId: unit?.locationId ?? custody?.locationId ?? null, now }).allowed, repair: allowed("REPAIR_ORDER_VIEW"), evidence: allowed("VEHICLE_EVIDENCE_VIEW") };
     if (!access.inventory && !access.pricing) throw new Error("Vehicle capability required: inventory journey.");
     const costEntries = unit && (access.costs || access.pricing) ? await tx.inventoryUnitCost.findMany({ where: { organizationId, inventoryUnitId: unit.id }, select: { id: true, category: true, status: true, currency: true, amountCents: true } }) : [];
     const proposal = unit && access.pricing ? await tx.inventoryPricingProposal.findFirst({ where: { organizationId, inventoryUnitId: unit.id }, orderBy: { inventoryVersion: "desc" }, select: { inventoryVersion: true, priceCents: true, packCents: true, includeEstimates: true, marginMode: true, threshold: true } }) : null;

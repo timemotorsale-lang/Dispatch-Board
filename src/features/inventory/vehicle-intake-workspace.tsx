@@ -27,8 +27,8 @@ export function VehicleIntakeWorkspace({ model, costs = null }: { model: Vehicle
   const id = encodeURIComponent(model.vehicle.id), here = `/vehicles/${id}/intake`;
   const recon = `/vehicles/${id}/inventory-planning?${new URLSearchParams({ returnTo: here })}`;
   const cycle = `/vehicles/inventory/units?${new URLSearchParams({ vehicleId: model.vehicle.id, returnTo: here })}`;
-  const nextLabel = model.unit ? "Confirm intake & continue to recon" : "Save & open inventory cycle";
-  const nextAction = () => save(model.unit ? "CONFIRMED" : "DRAFT", model.unit ? "STAY" : "CYCLE");
+  const nextLabel = !model.canManageInventory ? "Save draft" : model.unit ? "Confirm intake & continue to recon" : "Save & open inventory cycle";
+  const nextAction = () => !model.canManageInventory ? save("DRAFT") : save(model.unit ? "CONFIRMED" : "DRAFT", model.unit ? "STAY" : "CYCLE");
   const update = <K extends keyof IntakeDetails>(key: K, value: IntakeDetails[K]) => { pending.current = null; setDirty(true); setDetails(previous => ({ ...previous, [key]: value })); };
   const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
   const purchaseValue = /^\d+(\.\d{1,2})?$/.test(purchase) ? Math.round(Number(purchase) * 100) : null;
@@ -54,7 +54,7 @@ export function VehicleIntakeWorkspace({ model, costs = null }: { model: Vehicle
       pending.current = null; setReason(""); setDirty(false);
       if (status === "CONFIRMED") router.push(recon);
       else if (destination === "CYCLE") router.push(cycle);
-      else if (destination === "JOURNEY") router.push(`/vehicles/${id}/journey`);
+      else if (destination === "JOURNEY") router.push(model.canManageInventory ? `/vehicles/${id}/journey` : `/vehicles/360/${id}`);
       else { setNotice("Intake draft saved."); router.refresh(); }
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request interrupted. Retry the same submission."); }
     finally { setBusy(false); }

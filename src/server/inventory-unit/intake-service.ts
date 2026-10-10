@@ -9,6 +9,8 @@ import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/ent
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { executeInventoryMutation } from "./repository";
 import { intakePending, normalizeIntake, type IntakeDetails } from "./intake-domain";
+import { assertIntakeAccess } from "./intake-access";
+import { assertPricingAccess, evaluatePricingAccess } from "./pricing-access";
 
 type Dependencies = { database?: PrismaClient; organizationId?: string; enforceRollout?: boolean; now?: () => Date };
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -18,12 +20,12 @@ async function context(actor: AuthenticatedUser | null, vehicleId: string, input
   const user = assertAuthenticatedUser(actor), database = input.database ?? prisma, organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id, now = (input.now ?? (() => new Date()))();
   const grants = await createEnterpriseCommandRepository(database).listCapabilityGrants(user.id, organizationId);
   // Check the role before reading any acquisition or financial details.
-  assertVehicleCapability({ actor: user, capability: "INVENTORY_UNIT_MANAGE", grants, locationId: null, now });
+  assertIntakeAccess({ actor: user, grants, locationId: null, now });
   const vehicle = await database.vehicle.findFirst({ where: { id: vehicleId, organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, include: { custodyEvents: { where: { occurredAt: { lte: now } }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: 1 }, odometerObservations: { where: { status: "ACCEPTED", observedAt: { lte: now } }, orderBy: [{ observedAt: "desc" }, { id: "desc" }], take: 1 } } });
   if (!vehicle) throw new Error("Intake vehicle was not found.");
   const unit = await database.inventoryUnit.findFirst({ where: { vehicleId, organizationId, closedAt: null }, include: { location: { select: { name: true } } } });
   const locationId = unit?.locationId ?? vehicle.custodyEvents[0]?.locationId ?? null;
-  assertVehicleCapability({ actor: user, capability: "INVENTORY_UNIT_MANAGE", grants, locationId, now });
+  assertIntakeAccess({ actor: user, grants, locationId, now });
   return { user, database, organizationId, now, grants, vehicle, unit, locationId };
 }
 
@@ -43,13 +45,15 @@ export async function getVehicleIntake(actor: AuthenticatedUser | null, vehicleI
     if (specs.whereabouts === "AT_DEALERSHIP" && !specs.externalLocation) details.whereabouts = c.unit?.location.name ?? "At dealership";
   }
   if (!["AUCTION", "TRADE", "DIRECT_PURCHASE", "DEALER_TRANSFER", "CONSIGNMENT", "OTHER"].includes(details.source)) details.source = "";
-  const canPrice = evaluateVehicleCapability({ actor: c.user, capability: "INVENTORY_PRICING_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now }).allowed;
-  return { vehicle: { id: vehicleId, vehicleNumber: c.vehicle.vehicleNumber, vin: c.vehicle.vin, stockNumber: c.vehicle.stockNumber, year: c.vehicle.year, make: c.vehicle.make, model: c.vehicle.model }, unit: c.unit ? { id: c.unit.id, inventoryNumber: c.unit.inventoryNumber, version: c.unit.version, operatingState: c.unit.operatingState, stateReason: c.unit.stateReason } : null, version: latest?.version ?? 0, status: eligible?.status ?? "NOT_STARTED", details, pendingItems: intakePending(details), canPrice, purchaseRecords: purchase.map(row => ({ id: row.id, amountCents: row.amountCents, status: row.status, currency: row.currency, reference: row.reference })) };
+  const canPrice = evaluatePricingAccess({ actor: c.user, grants: c.grants, locationId: c.locationId, now: c.now }).allowed;
+  const canManageInventory = evaluateVehicleCapability({ actor: c.user, capability: "INVENTORY_UNIT_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now }).allowed;
+  return { vehicle: { id: vehicleId, vehicleNumber: c.vehicle.vehicleNumber, vin: c.vehicle.vin, stockNumber: c.vehicle.stockNumber, year: c.vehicle.year, make: c.vehicle.make, model: c.vehicle.model }, unit: c.unit ? { id: c.unit.id, inventoryNumber: c.unit.inventoryNumber, version: c.unit.version, operatingState: c.unit.operatingState, stateReason: c.unit.stateReason } : null, version: latest?.version ?? 0, status: eligible?.status ?? "NOT_STARTED", details, pendingItems: intakePending(details), canPrice, canManageInventory, purchaseRecords: purchase.map(row => ({ id: row.id, amountCents: row.amountCents, status: row.status, currency: row.currency, reference: row.reference })) };
 }
 export type VehicleIntakeModel = Awaited<ReturnType<typeof getVehicleIntake>>;
 
 export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
   const c = await context(actor, vehicleId, input), data = normalizeIntake(value, c.now);
+  if (data.status === "CONFIRMED") assertVehicleCapability({ actor: c.user, capability: "INVENTORY_UNIT_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
   if (input.enforceRollout !== false) {
     const flags = await createEnterpriseCommandRepository(c.database).listFeatureFlags(c.organizationId);
     const decision = evaluateVehicleOperationsFeature(flags, "INVENTORY_INTAKE", c.user.id, c.locationId);
@@ -60,7 +64,7 @@ export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicle
     const previous = await tx.inventoryIntakeRevision.findFirst({ where: { organizationId: c.organizationId, vehicleId }, orderBy: { version: "desc" } });
     if ((previous?.version ?? 0) !== data.expectedVersion) throw new EnterpriseCommandConflictError("Intake changed; reload before saving.", "VERSION_CONFLICT");
     const previousDetails = previous && (previous.inventoryUnitId === null || previous.inventoryUnitId === c.unit?.id) ? object(previous.details) : {};
-    if (data.details.proposedPriceCents !== (previousDetails.proposedPriceCents ?? null)) assertVehicleCapability({ actor: c.user, capability: "INVENTORY_PRICING_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now, amountCents: data.details.proposedPriceCents ?? undefined });
+    if (data.details.proposedPriceCents !== (previousDetails.proposedPriceCents ?? null)) assertPricingAccess({ actor: c.user, grants: c.grants, locationId: c.locationId, now: c.now, amountCents: data.details.proposedPriceCents ?? undefined });
     const activeVehicle = await tx.vehicle.findFirst({ where: { id: vehicleId, organizationId: c.organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, select: { id: true } });
     if (!activeVehicle) throw new Error("Intake vehicle was not found.");
     const scope = JSON.stringify([c.organizationId, "OPEN_INVENTORY_UNIT", vehicleId]);

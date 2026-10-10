@@ -7,7 +7,7 @@ import { getVehicleCosts } from "@/server/inventory-unit/service";
 function intakeUnavailableMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   if (message.startsWith("Vehicle capability required")) {
-    return "This compact acquisition intake includes protected inventory and cost details. Open the vehicle record, or use an Inventory Manager, Service Advisor, Vehicle Operations Lead, manager, or granted user to continue intake.";
+    return "Ask a manager to assign Edit acquisition intake in team management, directly to you or through your role's default functions, then reopen intake.";
   }
   if (message === "Authentication required.") {
     return "Sign in again to continue acquisition intake. Your vehicle record was not changed by this failed page load.";
