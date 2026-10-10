@@ -15,7 +15,7 @@ function hundredths(value: string) {
   const number = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
   return Number.isSafeInteger(number) ? number : null;
 }
-export function VehiclePricingWorkspace({ unit, vehicleId }: { unit: PricingModel | null; vehicleId: string }) {
+export function VehiclePricingWorkspace({ unit, vehicleId, embedded = false }: { unit: PricingModel | null; vehicleId: string; embedded?: boolean }) {
   const router = useRouter(), pending = useRef<{ signature: string; body: Record<string, unknown> } | null>(null);
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   const [form, setForm] = useState(() => ({ price: unit?.latest ? decimal(unit.latest.priceCents) : unit?.intakePriceCents != null ? decimal(unit.intakePriceCents) : "", packEnabled: unit?.latest?.packEnabled ?? false, pack: unit?.latest?.packEnabled ? decimal(unit.latest.packCents) : "", includeEstimates: unit?.latest?.includeEstimates ?? false, marginMode: unit?.latest?.marginMode ?? "OFF", threshold: unit?.latest?.threshold != null ? decimal(unit.latest.threshold) : "", reason: "" }));
@@ -40,8 +40,8 @@ export function VehiclePricingWorkspace({ unit, vehicleId }: { unit: PricingMode
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request failed. Retry the same proposal."); }
     finally { setBusy(false); }
   }
-  return <section className={styles.workspace}>
-    <header><h1>Pricing &amp; Margin</h1><p>{unit?.inventoryNumber ?? "No open inventory cycle"}</p><nav><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/journey`}>Inventory Journey</Link><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/costs`}>Costs &amp; Investment</Link><Link href={`/vehicles/360/${encodeURIComponent(vehicleId)}`}>Vehicle 360</Link></nav></header>
+  return <section className={`${styles.workspace} ${embedded ? styles.embedded : ""}`}>
+    {!embedded ? <header><h1>Pricing &amp; Margin</h1><p>{unit?.inventoryNumber ?? "No open inventory cycle"}</p><nav><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/journey`}>Inventory Journey</Link><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/costs`}>Costs &amp; Investment</Link><Link href={`/vehicles/360/${encodeURIComponent(vehicleId)}`}>Vehicle 360</Link></nav></header> : null}
     {!unit ? <p>An open inventory cycle is required before proposing a price.</p> : <>
       <dl className={styles.totals}><div><dt>Recorded incurred costs</dt><dd>{money(unit.costs.incurredCents)}</dd></div><div><dt>Separate estimates</dt><dd>{money(unit.costs.estimatedCents)}</dd></div><div><dt>Latest proposed selling price</dt><dd>{unit.latest ? money(unit.latest.priceCents) : "Not set"}</dd></div></dl>
       <p className={styles.note}>USD · Proposals do not publish a price or authorize final release. Recorded-cost comparisons are not accounting net profit. Pack is optional and separate from incurred expenses.</p>

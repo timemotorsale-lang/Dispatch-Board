@@ -86,6 +86,11 @@ describe("inventory path workspaces", () => {
     expect(html).toContain("Release Review");
     expect(html).toContain("Runs and drives");
     expect(html).not.toContain("Mark as Sold");
+    expect(html.indexOf("<aside")).toBeLessThan(html.indexOf('role="tablist"'));
+    expect(html.match(/role="tabpanel"/g)).toHaveLength(5);
+    expect(html.match(/hidden=""/g)).toHaveLength(4);
+    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(html.match(/<h1>/g)).toHaveLength(1);
     review("frontline-preparation", html, "src/features/inventory/frontline-preparation-workspace.module.css", frontlineStyles);
   });
 });

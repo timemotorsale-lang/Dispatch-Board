@@ -37,7 +37,7 @@ export function VehicleCostWorkspace({ unit, vehicleId, embedded = false }: { un
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request failed. Retry to check the same submission."); }
     finally { setBusy(false); }
   }
-  return <section className={styles.workspace}>
+  return <section className={`${styles.workspace} ${embedded ? styles.embedded : ""}`}>
     {!embedded ? <header><h1>Costs &amp; Investment</h1><p>{unit ? [unit.inventoryNumber, unit.vehicle.year, unit.vehicle.make, unit.vehicle.model].filter(Boolean).join(" · ") : "No open inventory cycle"}</p>
       <nav><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/journey`}>Inventory Journey</Link><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/pricing`}>Pricing &amp; Margin</Link><Link href={`/vehicles/360/${encodeURIComponent(vehicleId)}`}>Vehicle 360</Link><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning`}>Receiving &amp; recon</Link><Link href={`/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(vehicleId)}`}>Acquisition review</Link></nav>
     </header> : null}

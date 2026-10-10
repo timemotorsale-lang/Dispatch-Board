@@ -1,5 +1,21 @@
 # Current Implementation Status
 
+## 2026-10-10 - DealerCenter-Inspired Preparation Workspace Layout
+
+The frontline preparation page now keeps vehicle photo/identity in a left sidebar
+and places the section tabs at the top of the right-hand workspace. Only the
+selected panel is visible; pricing and costs use compact embedded layouts without
+duplicated standalone headers or centered page padding. Forms stay mounted across
+tab changes to preserve unsaved edits. Accessible tabs support arrow keys, Home
+and End. Existing section names, data sources, permissions, save APIs and release
+gates are unchanged; unsupported third-party sections are not simulated.
+Twelve focused unit tests, typecheck and scoped lint pass. Interactive component
+checks at 1440px and 390px verify one visible panel, retained pricing edits,
+keyboard navigation, stable sidebar dimensions and no page overflow. The live
+authenticated page loaded the new structure; further live tab interaction was
+blocked by the existing Start The Day reminder, which was not modified.
+Production deployment and live save operations were not verified for this slice.
+
 ## 2026-10-10 - Vehicle Sale Preparation And As-Is Disposition Entry
 
 Registry rows, Vehicle Workbench and Vehicle 360 now link to Prepare for Sale and

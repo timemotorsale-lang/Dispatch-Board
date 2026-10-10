@@ -5,11 +5,13 @@
 .workspace a, .workspace button { display: inline-flex; align-items: center; gap: 8px; color: #22578c; text-decoration: none; }
 .commands { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .primary { background: #235785; color: #fff !important; padding: 10px 14px; border-radius: 4px; }
-.tabs { display: flex; overflow-x: auto; border-top: 1px solid #d6dce4; border-bottom: 1px solid #d6dce4; }
-.tabs button { border: 0; border-bottom: 3px solid transparent; background: none; padding: 14px 18px; font-size: 14px; white-space: nowrap; }
-.tabs button[aria-current="page"] { border-bottom-color: #247d66; background: #eff7f5; color: #175b48; }
-.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); }
-.identity { padding: 20px 18px 20px 0; border-right: 1px solid #d6dce4; }
+.tabs { display: flex; gap: 3px; overflow-x: auto; min-width: 0; background: #edf1f5; border-bottom: 1px solid #c9d6e3; }
+.tabs button { flex: 0 0 auto; border: 1px solid transparent; border-top: 3px solid transparent; background: #dfebf8; padding: 11px 16px; font-size: 14px; white-space: nowrap; cursor: pointer; }
+.tabs button[aria-selected="true"] { border-color: #c9d6e3; border-top-color: #3478df; border-bottom-color: #fff; background: #fff; color: #172b40; }
+.workspace button:focus-visible, .workspace a:focus-visible { outline: 2px solid #3478df; outline-offset: -2px; }
+.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 12px; align-items: start; border-top: 1px solid #d6dce4; padding-top: 12px; }
+.identity { padding: 12px; background: #f4f9fc; border: 1px solid #d6dce4; }
+.workbench { min-width: 0; background: #fff; border: 1px solid #d6dce4; }
 .photo { aspect-ratio: 4/3; background: #e8edf2; display: grid; place-items: center; color: #607e95; }
 .photo img { width: 100%; height: 100%; object-fit: contain; }
 .status { display: block; padding: 10px 12px; background: #edf6f2; color: #1d684f; font-size: 13px; margin: 12px 0; }
@@ -17,14 +19,18 @@
 .workspace dl > div { display: flex; justify-content: space-between; gap: 14px; border-bottom: 1px solid #e3e7ec; padding: 10px 0; font-size: 13px; }
 .workspace dt { color: #657286; flex-shrink: 0; }
 .workspace dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
-.content { min-width: 0; padding: 20px; background: #fff; }
-.overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.workspace h2 { font-size: 16px; margin: 0 0 14px; padding-bottom: 12px; border-bottom: 1px solid #d6dce4; }
+.content { min-width: 0; padding: 12px; background: #fff; }
+.content [role="tabpanel"] { min-width: 0; }
+.content [role="tabpanel"][hidden] { display: none; }
+.overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.overview > section, .description { min-width: 0; border: 1px solid #d6dce4; padding: 0 12px 12px; }
+.workspace h2 { font-size: 15px; margin: 0 0 12px; padding: 10px 0; border-bottom: 1px solid #d6dce4; }
+.overview > section > h2, .description > h2 { margin: 0 -12px 12px; padding: 9px 12px; background: #f3fbfc; }
 .workspace p { font-size: 14px; line-height: 1.6; }
 .content button { border: 1px solid #bac9d6; border-radius: 4px; padding: 8px 12px; background: #fff; }
-.description { border-top: 1px solid #d6dce4; margin-top: 24px; padding-top: 20px; }
+.description { margin-top: 12px; }
 .checklist > div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; border-bottom: 1px solid #e3e7ec; padding: 14px 0; font-size: 13px; }
 .checklist { margin-bottom: 20px; }
 .hold { border-left: 3px solid #b84949; padding: 12px; background: #fcf2f2; }
 @media (max-width: 900px) { .layout { grid-template-columns: 220px minmax(0, 1fr); } .overview { grid-template-columns: 1fr; } }
-@media (max-width: 650px) { .layout { grid-template-columns: 1fr; } .identity { border-right: 0; padding: 16px 0; } .photo { max-width: 320px; } .content { padding: 16px 0; } .header h1 { font-size: 22px; } .checklist > div { grid-template-columns: minmax(0, 1fr) auto; } }
+@media (max-width: 650px) { .layout { grid-template-columns: 1fr; } .identity { padding: 12px; } .photo { max-width: 320px; margin: 0 auto; } .content { padding: 12px; } .header h1 { font-size: 22px; } .checklist > div { grid-template-columns: minmax(0, 1fr) auto; } .tabs button { padding: 11px 12px; } }
