@@ -56,6 +56,14 @@ export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord
   return evaluateRolloutFeature(flags, "VEHICLE_OPERATIONS_MASTER", code, userId, locationId);
 }
 
+export function describeVehicleOperationsBlock(reason: string) {
+  if (reason === "MASTER_DISABLED") return "Vehicle operations are paused or not configured. Ask a rollout administrator to enable the vehicle operations master setting in Settings > Vehicle Operations.";
+  if (reason === "FEATURE_DISABLED") return "This workflow is paused or not configured in Settings > Vehicle Operations.";
+  if (reason === "OUTSIDE_PILOT") return "Your account is outside this workflow's pilot. Ask a rollout administrator to add you to the pilot.";
+  if (reason === "SHADOW_ONLY") return "This workflow is in preview mode; saving is not enabled yet.";
+  return "Ask a rollout administrator to review this workflow's rollout settings.";
+}
+
 export function evaluateDiagnosticsFeature(flags: VehicleFeatureFlagRecord[], code: DiagnosticsFeatureCode, userId: string, locationId: string | null) {
   return evaluateRolloutFeature(flags, "DIAGNOSTICS_MASTER", code, userId, locationId);
 }

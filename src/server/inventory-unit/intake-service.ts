@@ -4,7 +4,7 @@ import { prisma } from "@/server/db/client";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { EnterpriseCommandConflictError, normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
+import { describeVehicleOperationsBlock, evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { executeInventoryMutation } from "./repository";
@@ -19,7 +19,7 @@ const text = (value: unknown) => typeof value === "string" ? value : "";
 async function context(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies) {
   const user = assertAuthenticatedUser(actor), database = input.database ?? prisma, organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id, now = (input.now ?? (() => new Date()))();
   const grants = await createEnterpriseCommandRepository(database).listCapabilityGrants(user.id, organizationId);
-  // Check the role before reading any acquisition or financial details.
+  // Check intake authority before reading acquisition or financial details.
   assertIntakeAccess({ actor: user, grants, locationId: null, now });
   const vehicle = await database.vehicle.findFirst({ where: { id: vehicleId, organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, include: { custodyEvents: { where: { occurredAt: { lte: now } }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: 1 }, odometerObservations: { where: { status: "ACCEPTED", observedAt: { lte: now } }, orderBy: [{ observedAt: "desc" }, { id: "desc" }], take: 1 } } });
   if (!vehicle) throw new Error("Intake vehicle was not found.");
@@ -46,18 +46,18 @@ export async function getVehicleIntake(actor: AuthenticatedUser | null, vehicleI
   }
   if (!["AUCTION", "TRADE", "DIRECT_PURCHASE", "DEALER_TRANSFER", "CONSIGNMENT", "OTHER"].includes(details.source)) details.source = "";
   const canPrice = evaluatePricingAccess({ actor: c.user, grants: c.grants, locationId: c.locationId, now: c.now }).allowed;
-  const canManageInventory = evaluateVehicleCapability({ actor: c.user, capability: "INVENTORY_UNIT_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now }).allowed;
+  const canManageInventory = evaluateVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now }).allowed;
   return { vehicle: { id: vehicleId, vehicleNumber: c.vehicle.vehicleNumber, vin: c.vehicle.vin, stockNumber: c.vehicle.stockNumber, year: c.vehicle.year, make: c.vehicle.make, model: c.vehicle.model }, unit: c.unit ? { id: c.unit.id, inventoryNumber: c.unit.inventoryNumber, version: c.unit.version, operatingState: c.unit.operatingState, stateReason: c.unit.stateReason } : null, version: latest?.version ?? 0, status: eligible?.status ?? "NOT_STARTED", details, pendingItems: intakePending(details), canPrice, canManageInventory, purchaseRecords: purchase.map(row => ({ id: row.id, amountCents: row.amountCents, status: row.status, currency: row.currency, reference: row.reference })) };
 }
 export type VehicleIntakeModel = Awaited<ReturnType<typeof getVehicleIntake>>;
 
 export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
   const c = await context(actor, vehicleId, input), data = normalizeIntake(value, c.now);
-  if (data.status === "CONFIRMED") assertVehicleCapability({ actor: c.user, capability: "INVENTORY_UNIT_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
+  if (data.status === "CONFIRMED") assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
   if (input.enforceRollout !== false) {
     const flags = await createEnterpriseCommandRepository(c.database).listFeatureFlags(c.organizationId);
     const decision = evaluateVehicleOperationsFeature(flags, "INVENTORY_INTAKE", c.user.id, c.locationId);
-    if (!decision.executable) throw new Error(`Acquisition intake writes are not enabled (${decision.reason}).`);
+    if (!decision.executable) throw new Error(`Acquisition intake writes are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`);
   }
   const command = normalizeEnterpriseCommand({ actorUserId: c.user.id, organizationId: c.organizationId, locationId: c.locationId, domain: "RETAIL_INVENTORY", subjectType: "VEHICLE_INTAKE", subjectId: vehicleId, commandType: data.status === "CONFIRMED" ? "CONFIRM_INVENTORY_INTAKE" : "SAVE_INVENTORY_INTAKE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, reason: data.reason, payload: { details: data.details, status: data.status, expectedUnitVersion: data.expectedUnitVersion } });
   return executeInventoryMutation(c.database, command, async (tx, version) => {
@@ -91,7 +91,7 @@ export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicle
         costRecordIds.push(...purchase.map(row => row.id));
       } else if (data.details.purchaseCents !== null) {
         if (!data.details.acquiredOn) throw new Error("Acquisition date is required to record purchase cost.");
-        assertVehicleCapability({ actor: c.user, capability: "INVENTORY_UNIT_MANAGE", grants: c.grants, locationId: unit.locationId, now: c.now, amountCents: data.details.purchaseCents });
+        assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: unit.locationId, now: c.now, amountCents: data.details.purchaseCents });
         const duplicate = await tx.inventoryUnitCost.findFirst({ where: { organizationId: c.organizationId, inventoryUnitId: unit.id, reference: { equals: data.details.reference, mode: "insensitive" }, status: { in: ["ESTIMATED", "INCURRED"] } } });
         if (duplicate) throw new Error("This purchase reference already has an active cost record. Review Costs & Investment.");
         const key = { organizationId_domain_subjectType_subjectId: { organizationId: c.organizationId, domain: "RETAIL_INVENTORY", subjectType: "INVENTORY_UNIT", subjectId: unit.id } };

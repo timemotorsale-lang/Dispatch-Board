@@ -16,6 +16,7 @@
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
     "validate:inventory-console": "tsx scripts/validate-inventory-console-program.ts",
+    "check:inventory-access": "tsx scripts/check-inventory-console-access.ts",
     "audit:inventory-console-slices": "tsx scripts/audit-inventory-console-vertical-slices.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

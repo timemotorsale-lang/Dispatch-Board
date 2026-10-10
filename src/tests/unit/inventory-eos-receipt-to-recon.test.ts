@@ -21,7 +21,7 @@ describe("Inventory EOS receipt-to-recon vertical slice", () => {
 
   it("requires manager authority and emits exactly five Task-backed packet identities", async () => {
     const repository = { launch: vi.fn(async (_command, data) => ({ duplicate: false, result: { steps: data.ids }, version: 1 })) };
-    await expect(launchReceiptToRecon(staff, "unit-1", input, { organizationId: "org", repository: repository as never })).rejects.toThrow("Manager authority");
+    await expect(launchReceiptToRecon({ ...staff, roles: ["Staff"] }, "unit-1", input, { organizationId: "org", foundationRepository: { listCapabilityGrants: vi.fn(async () => []) } as never, repository: repository as never })).rejects.toThrow("INVENTORY_RECON_MANAGE");
     const result = await launchReceiptToRecon(manager, "unit-1", input, { now: () => now, organizationId: "org", repository: repository as never });
     expect(result.result.steps).toHaveLength(5);
     expect(new Set(result.result.steps.flatMap((item: { packetId: string; taskId: string }) => [item.packetId, item.taskId])).size).toBe(10);

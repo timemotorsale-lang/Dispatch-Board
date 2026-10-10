@@ -1,5 +1,18 @@
 # Current Implementation Status
 
+## 2026-10-10 - Inventory Lifecycle Team Functions Implemented Locally
+
+Inventory lifecycle authorization now uses existing Team Management functions
+for acquisition, recon, readiness, pricing, publishing and release. Server-side
+action checks and workspace buttons use the corresponding authorities while
+retaining independent approvals, readiness evidence and technical qualification.
+The local migration adds assignable functions without assigning staff or changing
+rollout flags. The read-only `check:inventory-access` command distinguishes missing
+functions from rollout blockers, including MASTER_DISABLED. See
+[`INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md`](INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md)
+for assignment, verified local evidence, acceptance and rollback. This slice has
+not been deployed or verified in production.
+
 ## 2026-09-14 — Vendor Registry v1 review slice implemented
 
 The CRM Vendor Registry review slice is now implemented behind the existing authenticated app shell. It adds vendor master records for lenders/banks, warranty companies, transport providers, parts suppliers, recon/repair vendors, auction/wholesale partners, and internal contacts; controlled vendor status/category rules; vendor profile notes; activity history; linked work records; and a simple create-task handoff into the universal Task ledger.

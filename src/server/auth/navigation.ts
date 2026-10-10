@@ -64,7 +64,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     description: "Inventory lifecycle, readiness, recon, and disposition.",
     landingRoute: "/vehicles",
     roleNames: ["Inventory Manager"],
-    dutyTerms: ["inventory management", "inventory lifecycle", "vehicle readiness"]
+    dutyTerms: ["inventory management", "inventory lifecycle", "vehicle readiness", "work on inventory", "manage inventory acquisition", "execute inventory recon", "verify inventory readiness", "publish inventory listings", "authorize inventory release", "edit acquisition intake", "edit inventory pricing"]
   },
   {
     key: "ADVISOR",

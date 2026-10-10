@@ -46,7 +46,7 @@ describe("existing team functions authorize acquisition intake", () => {
     await saveVehicleIntake(actor, "vehicle", { details: model.details, status: "DRAFT", expectedVersion: 0, expectedUnitVersion: null, idempotencyKey: "draft", reason: "Record arrival details" }, deps);
     expect(db.inventoryIntakeRevision.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "DRAFT", actorUserId: staff.id }) }));
     expect(evaluateVehicleCapability({ actor, capability: "INVENTORY_UNIT_MANAGE", locationId: null }).allowed).toBe(false);
-    await expect(saveVehicleIntake(actor, "vehicle", { details: { ...model.details, whereabouts: "Receiving", condition: "Arrival inspection pending", pendingNotes: "Manager will confirm purchasing details" }, status: "CONFIRMED", expectedVersion: 0, expectedUnitVersion: null, idempotencyKey: "confirm", reason: "Confirm arrival details" }, deps)).rejects.toThrow("INVENTORY_UNIT_MANAGE");
+    await expect(saveVehicleIntake(actor, "vehicle", { details: { ...model.details, whereabouts: "Receiving", condition: "Arrival inspection pending", pendingNotes: "Manager will confirm purchasing details" }, status: "CONFIRMED", expectedVersion: 0, expectedUnitVersion: null, idempotencyKey: "confirm", reason: "Confirm arrival details" }, deps)).rejects.toThrow("INVENTORY_ACQUISITION_MANAGE");
   });
 
   it("rejects staff without the function or after it is removed, before reading intake", async () => {

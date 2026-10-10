@@ -34,12 +34,14 @@ describe("Inventory EOS shared work packet", () => {
     expect(explainWorkPacketEligibility({ readiness: "NOT_READY", dependencies: { items: [{ required: true, satisfied: false }] }, state: "PLANNED" })).toEqual({ eligible: false, reasons: ["READINESS_NOT_READY", "REQUIRED_DEPENDENCY_UNSATISFIED"], ruleVersion: "inventory-eos-mvp/v1" });
   });
 
-  it("requires manager authority to create or position work", async () => {
+  it("requires recon authority to create or position work", async () => {
     const delegatedFoundation = { listCapabilityGrants: vi.fn(async () => [{ capability: "INVENTORY_UNIT_MANAGE", constraints: {}, effect: "ALLOW" as const, locationId: null, validFrom: new Date("2026-01-01"), validTo: null }]), listFeatureFlags: vi.fn(async () => []) };
     const repository = { create: vi.fn(), find: vi.fn(), setPosition: vi.fn() };
-    await expect(createInventoryWorkPacket(technician, createInput, { foundationRepository: delegatedFoundation as never, now: () => now, organizationId: "org", repository })).rejects.toThrow("Manager authority is required");
-    await expect(setInventoryWorkPacketPosition(technician, "packet-1", { expectedVersion: 1, idempotencyKey: "position-1", reason: "Stage the approved next work.", state: "STAGED" }, { foundationRepository: delegatedFoundation as never, now: () => now, organizationId: "org", repository })).rejects.toThrow("Manager authority is required");
+    await expect(createInventoryWorkPacket(technician, createInput, { foundationRepository: foundation as never, now: () => now, organizationId: "org", repository })).rejects.toThrow("INVENTORY_RECON_MANAGE");
+    await expect(setInventoryWorkPacketPosition(technician, "packet-1", { expectedVersion: 1, idempotencyKey: "position-1", reason: "Stage the approved next work.", state: "STAGED" }, { foundationRepository: foundation as never, now: () => now, organizationId: "org", repository })).rejects.toThrow("INVENTORY_RECON_MANAGE");
     expect(repository.create).not.toHaveBeenCalled();
+    await createInventoryWorkPacket(technician, createInput, { foundationRepository: delegatedFoundation as never, now: () => now, organizationId: "org", repository });
+    expect(repository.create).toHaveBeenCalledOnce();
   });
 
   it("issues a versioned, auditable create command through the existing enterprise ledger", async () => {

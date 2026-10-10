@@ -4,7 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { hashEnterpriseCommand, normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { evaluateVehicleOperationsFeature, type VehicleOperationsFeatureCode } from "@/server/enterprise-command/service";
+import { describeVehicleOperationsBlock, evaluateVehicleOperationsFeature, type VehicleOperationsFeatureCode } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { inventoryUnitAge, normalizeInventoryUnitControlUpdate, normalizeInventoryUnitCreate } from "./domain";
@@ -20,17 +20,17 @@ async function authorize(actor: AuthenticatedUser | null, capability: VehicleCap
   const access = { actor: user, grants, locationId, amountCents, now: input.now() };
   if (capability === "INVENTORY_PRICING_MANAGE") assertPricingAccess(access);
   else assertVehicleCapability({ ...access, capability });
-  if (mutation && input.enforceRollout) { const flags = await input.foundationRepository.listFeatureFlags(input.organizationId); const decision = evaluateVehicleOperationsFeature(flags, feature, user.id, locationId); if (!decision.executable) throw new Error(`${feature === "INVENTORY_INTAKE" ? "Acquisition intake writes" : "Retail inventory mutations"} are not enabled (${decision.reason}).`); }
+  if (mutation && input.enforceRollout) { const flags = await input.foundationRepository.listFeatureFlags(input.organizationId); const decision = evaluateVehicleOperationsFeature(flags, feature, user.id, locationId); if (!decision.executable) throw new Error(`${feature === "INVENTORY_INTAKE" ? "Acquisition intake writes" : "Retail inventory mutations"} are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`); }
   return user;
 }
 function command(input: { actorUserId: string; commandType: string; expectedVersion: number; idempotencyKey: string; locationId: string; organizationId: string; payload: Record<string, unknown>; reason: string; subjectId: string }) { return normalizeEnterpriseCommand({ ...input, domain: "RETAIL_INVENTORY", subjectType: "INVENTORY_UNIT" }); }
 
 export async function getVehicleCosts(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies = {}) {
   const context = deps(input);
-  await authorize(actor, "INVENTORY_UNIT_MANAGE", null, context);
+  await authorize(actor, "INVENTORY_COST_VIEW", null, context);
   const unit = await context.repository.getCostDetail(context.organizationId, vehicleId);
   if (!unit) return null;
-  await authorize(actor, "INVENTORY_UNIT_MANAGE", unit.locationId, context);
+  await authorize(actor, "INVENTORY_COST_VIEW", unit.locationId, context);
   return { ...unit, summary: summarizeRecordedCosts(unit.costEntries) };
 }
 
@@ -62,7 +62,7 @@ export async function recordInventoryCost(actor: AuthenticatedUser | null, id: s
   const unit = await context.repository.getDetail(context.organizationId, id);
   if (!unit) throw new Error("Inventory unit was not found.");
   const normalized = normalizeCostRecord(value, context.now());
-  await authorize(user, "INVENTORY_UNIT_MANAGE", unit.locationId, context, true, normalized.action === "RECORD_COST" ? normalized.amountCents : undefined);
+  await authorize(user, normalized.action === "RECORD_COST" && normalized.category === "ACQUISITION" ? "INVENTORY_ACQUISITION_MANAGE" : "INVENTORY_RECON_MANAGE", unit.locationId, context, true, normalized.action === "RECORD_COST" ? normalized.amountCents : undefined);
   const payload = normalized.action === "RECORD_COST" ? { ...normalized, observedAt: normalized.observedAt.toISOString() } : { ...normalized };
   return context.repository.recordCost(command({ actorUserId: user.id, commandType: normalized.action === "RECORD_COST" ? "RECORD_INVENTORY_COST" : "VOID_INVENTORY_COST", expectedVersion: normalized.expectedVersion, idempotencyKey: normalized.idempotencyKey, locationId: unit.locationId, organizationId: context.organizationId, payload, reason: normalized.reason, subjectId: id }), normalized);
 }
@@ -106,7 +106,7 @@ export async function createInventoryUnit(actor: AuthenticatedUser | null, value
   const workflow = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>).workflow : undefined;
   if (workflow !== undefined && workflow !== "ACQUISITION_INTAKE") throw new Error("Inventory creation workflow is invalid.");
   const intakeDraftRequired = workflow === "ACQUISITION_INTAKE";
-  const context = deps(input); const normalized = normalizeInventoryUnitCreate(value, context.now()); const user = await authorize(actor, "INVENTORY_UNIT_MANAGE", normalized.locationId, context, true, undefined, intakeDraftRequired ? "INVENTORY_INTAKE" : "RETAIL_INVENTORY"); const id = randomUUID();
+  const context = deps(input); const normalized = normalizeInventoryUnitCreate(value, context.now()); const user = await authorize(actor, "INVENTORY_ACQUISITION_MANAGE", normalized.locationId, context, true, undefined, intakeDraftRequired ? "INVENTORY_INTAKE" : "RETAIL_INVENTORY"); const id = randomUUID();
   const payload = { acquisitionSource: normalized.acquisitionSource, financialAcquiredAt: normalized.financialAcquiredAt.toISOString(), inventoryNumber: normalized.inventoryNumber, lifecycleStage: normalized.lifecycleStage, locationId: normalized.locationId, nextAction: normalized.nextAction, operatingState: normalized.operatingState, ownerUserId: normalized.ownerUserId, stateReason: normalized.stateReason, targetAt: normalized.targetAt.toISOString(), vehicleId: normalized.vehicleId, ...(intakeDraftRequired ? { workflow } : {}) };
   const createCommand = command({ actorUserId: user.id, commandType: "CREATE_INVENTORY_UNIT", expectedVersion: 0, idempotencyKey: normalized.idempotencyKey, locationId: normalized.locationId, organizationId: context.organizationId, payload, reason: normalized.reason, subjectId: id });
   // Keep command identity and caller input stable while allocating the new unit ID.
@@ -115,7 +115,7 @@ export async function createInventoryUnit(actor: AuthenticatedUser | null, value
 }
 
 export async function updateInventoryUnitControl(actor: AuthenticatedUser | null, id: string, value: unknown, input: Dependencies = {}) {
-  const context = deps(input); const normalized = normalizeInventoryUnitControlUpdate(value); const user = await authorize(actor, "INVENTORY_UNIT_MANAGE", normalized.locationId, context, true);
+  const context = deps(input); const normalized = normalizeInventoryUnitControlUpdate(value); const user = await authorize(actor, "INVENTORY_RECON_MANAGE", normalized.locationId, context, true);
   const payload = { locationId: normalized.locationId, nextAction: normalized.nextAction, operatingState: normalized.operatingState, ownerUserId: normalized.ownerUserId, stateReason: normalized.stateReason, targetAt: normalized.targetAt.toISOString() };
   return context.repository.updateControl(command({ actorUserId: user.id, commandType: "UPDATE_INVENTORY_UNIT_CONTROL", expectedVersion: normalized.expectedVersion, idempotencyKey: normalized.idempotencyKey, locationId: normalized.locationId, organizationId: context.organizationId, payload, reason: normalized.reason, subjectId: id }), { actorUserId: user.id, locationId: normalized.locationId, nextAction: normalized.nextAction, operatingState: normalized.operatingState, ownerUserId: normalized.ownerUserId, stateReason: normalized.stateReason, targetAt: normalized.targetAt });
 }

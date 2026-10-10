@@ -18,7 +18,7 @@ describe("Inventory EOS manager next plan", () => {
 
   it("requires manager authority and does not publish for staff", async () => {
     const repository = { getContext: vi.fn(), publish: vi.fn() };
-    await expect(publishManagerNextPlan(technician, "packet", base, { organizationId: "org", repository: repository as never })).rejects.toThrow("Manager authority");
+    await expect(publishManagerNextPlan(technician, "packet", base, { organizationId: "org", foundationRepository: { listCapabilityGrants: vi.fn(async () => []) } as never, repository: repository as never })).rejects.toThrow("INVENTORY_RECON_MANAGE");
     expect(repository.getContext).not.toHaveBeenCalled();
   });
 

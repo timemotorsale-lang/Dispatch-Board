@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isGeneralManager, isManager } from "@/server/policies/access";
+import { INVENTORY_TEAM_FUNCTIONS } from "@/lib/inventory-team-functions";
 
 export const VEHICLE_CAPABILITIES = [
   "VEHICLE_OPERATIONS_VIEW",
@@ -11,6 +12,13 @@ export const VEHICLE_CAPABILITIES = [
   "VEHICLE_DUPLICATE_RESOLVE",
   "INVENTORY_UNIT_VIEW",
   "INVENTORY_UNIT_MANAGE",
+  "INVENTORY_INTAKE_EDIT",
+  "INVENTORY_ACQUISITION_MANAGE",
+  "INVENTORY_RECON_MANAGE",
+  "INVENTORY_READINESS_VERIFY",
+  "INVENTORY_PUBLISH_MANAGE",
+  "INVENTORY_RELEASE_MANAGE",
+  "INVENTORY_COST_VIEW",
   "INVENTORY_PRICING_MANAGE",
   "REPAIR_ORDER_VIEW",
   "REPAIR_ORDER_MANAGE",
@@ -124,9 +132,11 @@ export function evaluateVehicleCapability(input: {
   now?: Date;
 }) {
   if (!input.actor?.isActive) return { allowed: false, reason: "AUTHENTICATION_REQUIRED" } as const;
+  const inventoryTask = ["INVENTORY_INTAKE_EDIT", "INVENTORY_ACQUISITION_MANAGE", "INVENTORY_RECON_MANAGE", "INVENTORY_READINESS_VERIFY", "INVENTORY_PUBLISH_MANAGE", "INVENTORY_RELEASE_MANAGE", "INVENTORY_COST_VIEW"].includes(input.capability);
+  const legacyCapability = inventoryTask ? "INVENTORY_UNIT_MANAGE" : input.capability;
   const now = input.now ?? new Date();
   const scopedGrants = (input.grants ?? []).filter((grant) => {
-    return grant.capability === input.capability &&
+    return (grant.capability === input.capability || (inventoryTask && grant.capability === legacyCapability)) &&
       !(grant.locationId && grant.locationId !== input.locationId) &&
       grant.validFrom <= now &&
       !(grant.validTo && grant.validTo < now);
@@ -153,21 +163,34 @@ export function evaluateVehicleCapability(input: {
       : { allowed: false, reason: "GENERAL_MANAGER_OR_GRANT_REQUIRED" } as const;
   }
   if (isManager(input.actor)) return { allowed: true, reason: "MANAGER_DEFAULT" } as const;
-  if (input.actor.roles.some((role) => ROLE_DEFAULT_CAPABILITIES[role]?.includes(input.capability))) {
+  if (input.actor.roles.some((role) => ROLE_DEFAULT_CAPABILITIES[role]?.includes(legacyCapability))) {
     return { allowed: true, reason: "ROLE_DEFAULT" } as const;
   }
   if (
     isEffectiveVehicleOperationsLead(input.actor) &&
-    VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES.includes(input.capability)
+    VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES.includes(legacyCapability)
   ) {
     return { allowed: true, reason: "VEHICLE_OPERATIONS_LEAD_DEFAULT" } as const;
   }
   if (
     isEffectiveOperationsCoordinator(input.actor) &&
-    ROLE_DEFAULT_CAPABILITIES["Operations Coordinator"].includes(input.capability)
+    ROLE_DEFAULT_CAPABILITIES["Operations Coordinator"].includes(legacyCapability)
   ) {
     return { allowed: true, reason: "OPERATIONS_COORDINATOR_DEFAULT" } as const;
   }
+  const duties = input.actor.duties.all;
+  const assignedFunctions = INVENTORY_TEAM_FUNCTIONS.filter(item => duties.includes(item.name));
+  const inventoryView = ["INVENTORY_UNIT_VIEW", "VEHICLE_OPERATIONS_VIEW", "VEHICLE_EVIDENCE_VIEW", "REPAIR_ORDER_VIEW", "PARTS_VIEW"].includes(input.capability);
+  const acquisition = duties.includes("Manage inventory acquisition");
+  const recon = duties.includes("Execute inventory recon");
+  const assigned = assignedFunctions.some(item => item.capability === input.capability) ||
+    (inventoryView && assignedFunctions.length > 0) ||
+    (input.capability === "INVENTORY_INTAKE_EDIT" && (acquisition || duties.includes("Edit acquisition intake"))) ||
+    (input.capability === "INVENTORY_PRICING_MANAGE" && duties.includes("Edit inventory pricing")) ||
+    (input.capability === "INVENTORY_COST_VIEW" && (acquisition || recon || duties.includes("Edit inventory pricing"))) ||
+    (input.capability === "VEHICLE_IDENTITY_CREATE" && acquisition) ||
+    (["REPAIR_ORDER_MANAGE", "PARTS_MANAGE", "VEHICLE_EVIDENCE_MANAGE"].includes(input.capability) && recon);
+  if (assigned) return { allowed: true, reason: "ASSIGNED_TEAM_FUNCTION" } as const;
   return matching.some((grant) => grant.effect === "ALLOW")
     ? { allowed: true, reason: "EXPLICIT_GRANT" } as const
     : { allowed: false, reason: "CAPABILITY_REQUIRED" } as const;

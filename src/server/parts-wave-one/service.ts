@@ -3,7 +3,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
+import { describeVehicleOperationsBlock, evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { normalizeBarcodeAlias, normalizeCycleCountAction, normalizeCycleCountCreate, normalizeCycleCountLine, normalizeInventoryPolicy, normalizeRecommendationDecision, normalizeRecommendationRun } from "./domain";
@@ -20,7 +20,7 @@ async function authorize(actor: AuthenticatedUser | null, manage: boolean, locat
   assertVehicleCapability({ actor: user, capability: manage ? "PARTS_MANAGE" : "PARTS_VIEW", grants, locationId, now: context.now() });
   if (manage && context.enforceRollout) {
     const flags = await context.foundationRepository.listFeatureFlags(context.organizationId), decision = evaluateVehicleOperationsFeature(flags, "PARTS_OPERATIONS", user.id, locationId);
-    if (!decision.executable) throw new Error(`Parts Operations mutations are not enabled (${decision.reason}).`);
+    if (!decision.executable) throw new Error(`Parts Operations mutations are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`);
   }
   return user;
 }
