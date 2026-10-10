@@ -9,6 +9,13 @@
 .pathBar a, .pathBar button, .search button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #bdc8d4; border-radius: 4px; padding: 10px 14px; background: #fff; color: #173c75; font-size: 14px; text-decoration: none; }
 .pathBar a:first-of-type { color: #176147; border-color: #a2cabb; background: #f1faf5; }
 .pathBar button:disabled { opacity: .5; }
+.pathDialog { width: min(480px, calc(100% - 32px)); border: 1px solid #bdc8d4; border-radius: 4px; padding: 24px; color: #253347; }
+.pathDialog::backdrop { background: rgb(0 0 0 / 35%); }
+.pathDialog form { display: grid; gap: 16px; }
+.pathDialog h2 { font-size: 18px; margin: 0; }
+.pathDialog select { width: 100%; min-width: 0; padding: 10px; font: inherit; }
+.pathDialog form > div { display: flex; justify-content: flex-end; gap: 12px; }
+.pathDialog button { display: inline-flex; gap: 8px; align-items: center; border: 1px solid #bdc8d4; border-radius: 4px; padding: 10px 14px; font: inherit; cursor: pointer; }
 .search { display: flex; gap: 16px; justify-content: space-between; align-items: end; flex-wrap: wrap; }
 .search form { width: min(100%, 650px); }
 .search label { display: block; font-size: 13px; margin-bottom: 6px; }

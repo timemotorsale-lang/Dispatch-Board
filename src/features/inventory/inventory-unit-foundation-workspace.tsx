@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, Wrench, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import styles from "./inventory-unit-foundation-workspace.module.css";
@@ -24,6 +24,21 @@ function vehicleLabel(item: ListItem) {
 
 export function InventoryUnitFoundationWorkspace({ initial, initialSelected = null, initialView = "units", initialVehicleId, options }: { initial: ListModel; initialSelected?: Detail | null; initialView?: InventoryUnitView; initialVehicleId?: string; options: Options }) {
   const router = useRouter();
+  const pathDialog = useRef<HTMLDialogElement>(null);
+  const [pendingPath, setPendingPath] = useState<"frontline" | "inventory-planning">("frontline");
+  const [pathVehicleId, setPathVehicleId] = useState("");
+  function choosePath(path: "frontline" | "inventory-planning") {
+    setPendingPath(path);
+    setPathVehicleId("");
+    pathDialog.current?.showModal();
+  }
+  function openPath(event: FormEvent) {
+    event.preventDefault();
+    const item = list.items.find(unit => unit.vehicle.id === pathVehicleId);
+    if (!item) return;
+    pathDialog.current?.close();
+    router.push(`/vehicles/${encodeURIComponent(item.vehicle.id)}/${pendingPath}`);
+  }
   const acquired = new Date(); const target = new Date(acquired.getTime() + 72 * 3_600_000);
   const [list, setList] = useState(initial); const [selected, setSelected] = useState<Detail | null>(initialSelected); const [query, setQuery] = useState(""); const [notice, setNotice] = useState(""); const [busy, setBusy] = useState(false);
   const [create, setCreate] = useState({ financialAcquiredAt: local(acquired), inventoryNumber: "", locationId: options.locations[0]?.id ?? "", nextAction: "Confirm transportation or receipt plan", operatingState: "ACTIVE", ownerUserId: options.users[0]?.id ?? "", stateReason: "", targetAt: local(target), vehicleId: initialVehicleId ?? options.vehicles[0]?.id ?? "" });
@@ -57,7 +72,8 @@ export function InventoryUnitFoundationWorkspace({ initial, initialSelected = nu
   async function saveControl() { if (!selected) return; setBusy(true); setNotice(""); try { await request(`/api/inventory-units/${selected.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...control, expectedVersion: selected.version, idempotencyKey: crypto.randomUUID(), reason: "Update accountable inventory control state and next action." }) }); setNotice("Inventory control state updated and appended to history."); await load(selected.id); await refresh(); } catch (error) { if (error instanceof Error && (error as Error & { status?: number }).status === 409) { await load(selected.id); setNotice("This unit changed elsewhere. The latest version was loaded; review and try again."); } else setNotice(error instanceof Error ? error.message : "Unable to update inventory control state."); } finally { setBusy(false); } }
   return <section className={styles.workspace}>
     <header className={styles.header}><div><h1>Inventory unit worklist</h1><span>{list.total} open units</span></div><nav aria-label="Inventory navigation"><Link href="/vehicles/inventory">Inventory Lifecycle</Link><Link href="/vehicles/control-tower">Control Tower</Link><Link href="/vehicles/registry">Vehicle Registry</Link><Link href="/settings/vehicle-operations">Rollout &amp; health</Link></nav></header>
-    <div className={styles.pathBar}><div><strong>{selected ? `${selected.inventoryNumber} - ${vehicleLabel(selected)}` : "Choose a vehicle"}</strong><small>{selected ? selected.nextAction : "Select an inventory row to continue"}</small></div>{selected ? <><Link href={`/vehicles/${encodeURIComponent(selected.vehicle.id)}/frontline`}><CheckCircle2 size={18}/>Prepare for Sale<ArrowRight size={16}/></Link><Link href={`/vehicles/${encodeURIComponent(selected.vehicle.id)}/inventory-planning`}><Wrench size={18}/>Recon Path<ArrowRight size={16}/></Link></> : <><button disabled type="button"><CheckCircle2 size={18}/>Prepare for Sale</button><button disabled type="button"><Wrench size={18}/>Recon Path</button></>}</div>
+    <div className={styles.pathBar}><div><strong>{selected ? `${selected.inventoryNumber} - ${vehicleLabel(selected)}` : "Choose a vehicle"}</strong><small>{selected ? selected.nextAction : "Select an inventory row to continue"}</small></div>{selected ? <><Link href={`/vehicles/${encodeURIComponent(selected.vehicle.id)}/frontline`}><CheckCircle2 size={18}/>Prepare for Sale<ArrowRight size={16}/></Link><Link href={`/vehicles/${encodeURIComponent(selected.vehicle.id)}/inventory-planning`}><Wrench size={18}/>Recon Path<ArrowRight size={16}/></Link></> : <><button disabled={!list.items.length} onClick={() => choosePath("frontline")} type="button"><CheckCircle2 size={18}/>Prepare for Sale</button><button disabled={!list.items.length} onClick={() => choosePath("inventory-planning")} type="button"><Wrench size={18}/>Recon Path</button></>}</div>
+    <dialog ref={pathDialog} className={styles.pathDialog} aria-labelledby="inventory-path-title"><form onSubmit={openPath}><h2 id="inventory-path-title">{pendingPath === "frontline" ? "Prepare for Sale" : "Recon Path"}</h2><label htmlFor="inventory-path-vehicle">Vehicle</label><select id="inventory-path-vehicle" autoFocus required value={pathVehicleId} onChange={event => setPathVehicleId(event.target.value)}><option value="">Choose a vehicle</option>{list.items.map(item => <option key={item.id} value={item.vehicle.id}>{item.inventoryNumber} - {vehicleLabel(item)}</option>)}</select><div><button type="button" onClick={() => pathDialog.current?.close()}>Cancel</button><button disabled={!pathVehicleId} type="submit">Open workflow<ArrowRight size={16}/></button></div></form></dialog>
     {notice ? <div className={notice.includes("not enabled") || notice.includes("required") || notice.includes("must") ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
     <nav aria-label="Inventory unit views" className="ict-module-nav">{inventoryUnitViews.map((view) => <Link aria-current={initialView === view.id ? "page" : undefined} className={initialView === view.id ? "active" : ""} href={view.href} key={view.id}>{view.label}</Link>)}</nav>
     {initialView === "locations" ? <section className="settings-overview-grid" aria-label="Inventory location health">{locationSummaries.map((location) => <article className="panel-card" key={location.id}><span className="eyebrow">{location.code}</span><h2>{location.name}</h2><dl className="etw-facts compact"><div><dt>Units</dt><dd>{location.total}</dd></div><div><dt>Active</dt><dd>{location.active}</dd></div><div><dt>Waiting</dt><dd>{location.waiting}</dd></div><div><dt>Blocked</dt><dd>{location.blocked}</dd></div><div><dt>Overdue</dt><dd>{location.overdue}</dd></div></dl></article>)}</section> : null}

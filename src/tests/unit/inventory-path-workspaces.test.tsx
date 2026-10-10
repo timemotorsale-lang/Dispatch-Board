@@ -61,11 +61,14 @@ describe("inventory path workspaces", () => {
     expect(html).toContain("<summary>Create inventory unit</summary>");
     review("inventory-worklist", html, "src/features/inventory/inventory-unit-foundation-workspace.module.css", unitStyles);
   });
-  it("requires a vehicle before offering either path", () => {
+  it("offers a vehicle chooser when no row is selected", () => {
     const html = renderToStaticMarkup(<InventoryUnitFoundationWorkspace initial={initial} options={options}/>);
     expect(html).toContain("Choose a vehicle");
     expect(html).not.toContain("/vehicles/vehicle-1/frontline");
-    expect(html).toMatch(/<button disabled="" type="button">/);
+    expect(html).toContain('aria-labelledby="inventory-path-title"');
+    expect(html).toContain('id="inventory-path-vehicle"');
+    expect(html).toContain('value="vehicle-1"');
+    expect(html).toContain('disabled="" type="submit">Open workflow');
   });
   it("presents real preparation data without declaring the vehicle released", () => {
     const html = renderToStaticMarkup(<FrontlinePreparationWorkspace journey={journey} costs={null} pricing={null} documents={[]}/>);

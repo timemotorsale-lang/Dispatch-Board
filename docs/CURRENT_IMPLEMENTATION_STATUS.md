@@ -1,5 +1,17 @@
 # Current Implementation Status
 
+## 2026-10-10 - Worklist Path Actions Without Row Selection
+
+Prepare for Sale and Recon Path now open a native vehicle-selection dialog when
+no inventory row is selected, instead of appearing disabled. A vehicle is required
+before navigation; the chosen canonical vehicle ID routes to the existing
+frontline-preparation or inventory-planning page and its authenticated services.
+Selected-row links remain direct, and an empty worklist keeps actions unavailable.
+Interactive component-fixture checks pass for both paths, required selection,
+Escape dismissal and mocked row-detail API selection at desktop/mobile widths.
+Focused tests, typecheck and lint pass. Live signed-in acceptance and production
+deployment have not been verified for this change.
+
 ## 2026-10-10 - Inventory Intake Path Choice And Frontline Preparation
 
 Confirmed intake opens `/vehicles/[id]/workflow`, a dedicated vehicle workflow
