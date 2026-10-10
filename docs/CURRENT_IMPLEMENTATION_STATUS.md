@@ -1,5 +1,25 @@
 # Current Implementation Status
 
+## 2026-10-10 - Inventory Intake Path Choice And Frontline Preparation
+
+Confirmed intake opens `/vehicles/[id]/workflow`, a dedicated vehicle workflow
+choice screen with identity, intake handoff, holds and pending items. Prepare for
+Sale opens the preparation workspace; Inventory Recon opens existing recon planning.
+Customer Repair is visible but unavailable for an active inventory cycle. Add
+Vehicle now presents all three choices before acquisition; selecting Customer Repair
+uses the existing customer relationship and direct service-intake handoff, without
+creating an inventory cycle. The worklist remains separate with full-width
+horizontal rows and vehicle-specific Prepare for Sale and Recon Path links;
+controls/history and cycle creation use
+progressive disclosure. Intake-originated cycle creation preserves the vehicle
+and returns to its intake form. Prepare for Sale opens `/vehicles/[id]/frontline`,
+a preparation workspace using authorized journey, price, cost and document data.
+Choosing a path does not mutate lifecycle state or bypass release evidence or
+independent approval. External valuation/history providers are not simulated.
+Focused unit/service tests and typecheck pass; component-fixture screenshots were
+reviewed at 1440px and 390px with no page overflow. Authenticated browser acceptance
+and production deployment remain unverified.
+
 ## 2026-10-10 - Inventory Lifecycle Team Functions Implemented Locally
 
 Inventory lifecycle authorization now uses existing Team Management functions

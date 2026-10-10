@@ -27,7 +27,7 @@ export function VehicleIntakeWorkspace({ model, costs = null }: { model: Vehicle
   const id = encodeURIComponent(model.vehicle.id), here = `/vehicles/${id}/intake`;
   const recon = `/vehicles/${id}/inventory-planning?${new URLSearchParams({ returnTo: here })}`;
   const cycle = `/vehicles/inventory/units?${new URLSearchParams({ vehicleId: model.vehicle.id, returnTo: here })}`;
-  const nextLabel = !model.canManageInventory ? "Save draft" : model.unit ? "Confirm intake & continue to recon" : "Save & open inventory cycle";
+  const nextLabel = !model.canManageInventory ? "Save draft" : model.unit ? "Confirm intake & choose path" : "Save & open inventory cycle";
   const nextAction = () => !model.canManageInventory ? save("DRAFT") : save(model.unit ? "CONFIRMED" : "DRAFT", model.unit ? "STAY" : "CYCLE");
   const update = <K extends keyof IntakeDetails>(key: K, value: IntakeDetails[K]) => { pending.current = null; setDirty(true); setDetails(previous => ({ ...previous, [key]: value })); };
   const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
@@ -52,7 +52,7 @@ export function VehicleIntakeWorkspace({ model, costs = null }: { model: Vehicle
       const result = await response.json();
       if (!response.ok) { if (response.status === 409) { pending.current = null; router.refresh(); } throw new Error(result.error ?? "Intake could not be saved."); }
       pending.current = null; setReason(""); setDirty(false);
-      if (status === "CONFIRMED") router.push(recon);
+      if (status === "CONFIRMED" && model.unit) router.push(`/vehicles/${id}/workflow`);
       else if (destination === "CYCLE") router.push(cycle);
       else if (destination === "JOURNEY") router.push(model.canManageInventory ? `/vehicles/${id}/journey` : `/vehicles/360/${id}`);
       else { setNotice("Intake draft saved."); router.refresh(); }

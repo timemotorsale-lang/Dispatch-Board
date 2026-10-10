@@ -22,6 +22,13 @@ const base = {
 };
 
 describe("Add Vehicle workflow", () => {
+  it("offers all three entry paths before acquisition intake", () => {
+    const html = renderToStaticMarkup(createElement(AddVehicleWorkflow, { options: { locations: [] } }));
+    expect(html).toContain("Vehicle workflow");
+    expect(html).toContain("Prepare for Sale");
+    expect(html).toContain("Inventory Recon");
+    expect(html).toContain("Customer Repair");
+  });
   it("recommends service intake without implying a repair order", () => {
     const result = recommendAddVehicleWorkflow(base);
     expect(result.code).toBe("CREATE_SERVICE_INTAKE");
