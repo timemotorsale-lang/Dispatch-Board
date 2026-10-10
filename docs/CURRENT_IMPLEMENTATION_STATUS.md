@@ -1,5 +1,15 @@
 # Current Implementation Status
 
+## 2026-10-10 - Horizontal Find Vehicle Registry
+
+Find Vehicle now presents canonical vehicles in a full-width horizontal table
+with vehicle/registry number, stock, VIN, plate, status and row actions. Existing
+Workbench, Vehicle 360 and preview routes/handlers are preserved. The selected
+preview appears beneath the list rather than reserving an empty right column.
+The table scrolls within its container on narrow screens. Fifteen focused registry
+tests, typecheck and lint pass; desktop/mobile component-fixture screenshots show
+no page overflow. Live authenticated acceptance and deployment remain unverified.
+
 ## 2026-10-10 - Worklist Path Actions Without Row Selection
 
 Prepare for Sale and Recon Path now open a native vehicle-selection dialog when

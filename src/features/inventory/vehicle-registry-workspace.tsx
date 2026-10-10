@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { ArrowRight, Eye } from "lucide-react";
+import styles from "./vehicle-registry-workspace.module.css";
 
 type VehicleListItem = {
   id: string;
@@ -473,7 +475,7 @@ export function VehicleRegistryWorkspace({
   const activeQuery = query.trim();
 
   return (
-    <section className="page-stack">
+    <section className={`page-stack ${styles.workspace}`}>
       <header className="page-copy">
         <span className="eyebrow">Vehicle Operations · Canonical registry</span>
         <h1>Find the vehicle and go straight to work</h1>
@@ -512,29 +514,24 @@ export function VehicleRegistryWorkspace({
         </p>
       </section>
 
-      <div className="settings-workspace">
-        <section className="panel-card">
+      <div className={styles.layout}>
+        <section className={styles.registry}>
           <div className="page-copy"><h2>Registry</h2></div>
-          <div className="page-stack">
-            {list.items.length ? list.items.map((item) => (
-              <article className="panel-card settings-callout-card inventory-vehicle-result-card" key={item.id}>
-                <Link className="inventory-vehicle-result-link" href={vehicleWorkbenchHref(item.id)}>
-                  <strong>{vehicleTitle(item)}</strong>
-                  <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {stockNumberForDisplay(item)}</span>
-                  {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
-                  <small>Click vehicle to open the Vehicle Workbench</small>
-                </Link>
-                <div className="form-actions">
-                  <Link className="button button-primary" href={vehicleWorkbenchHref(item.id)}>Open Vehicle Workbench</Link>
-                  <Link className="button button-secondary" href={`/vehicles/360/${item.id}`}>Open Vehicle 360</Link>
-                  <button className="button button-secondary" disabled={busy} onClick={() => void load(item.id)} type="button">Preview here</button>
-                </div>
-              </article>
-            )) : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
+          <div className={styles.table}>
+            {list.items.length ? <table><thead><tr><th>Vehicle</th><th>Stock</th><th>VIN</th><th>Plate</th><th>Status</th><th>Actions</th></tr></thead><tbody>{list.items.map(item => (
+              <tr key={item.id} aria-selected={selected?.id === item.id}>
+                <td><Link href={vehicleWorkbenchHref(item.id)}><strong>{vehicleTitle(item)}</strong></Link><small>{item.vehicleNumber}</small></td>
+                <td>{stockNumberForDisplay(item)}</td>
+                <td>{item.vin ?? item.vinState}</td>
+                <td>{item.licensePlate ?? "Not recorded"}</td>
+                <td>{item.status}{item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}</td>
+                <td><div className={styles.actions}><Link href={vehicleWorkbenchHref(item.id)} aria-label={`Open Vehicle Workbench for ${vehicleTitle(item)}`} title="Open Vehicle Workbench">Workbench<ArrowRight size={16}/></Link><Link href={`/vehicles/360/${item.id}`} aria-label={`Open Vehicle 360 for ${vehicleTitle(item)}`} title="Open Vehicle 360">Vehicle 360<ArrowRight size={16}/></Link><button disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Preview ${vehicleTitle(item)}`} title="Preview here"><Eye size={18}/></button></div></td>
+              </tr>
+            ))}</tbody></table> : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
           </div>
         </section>
 
-        <section className="panel-card">
+        {selected ? <section className={styles.preview}>
           {selected ? (
             <div className="page-stack">
               <div className="page-copy">
@@ -582,7 +579,7 @@ export function VehicleRegistryWorkspace({
             <p>Search by VIN, stock number, plate, customer, or external ID. If there is one match, it opens here automatically and gives staff a direct Vehicle Workbench button.</p>
           </div>
           )}
-        </section>
+        </section> : null}
       </div>
 
       <div className="settings-overview-grid">

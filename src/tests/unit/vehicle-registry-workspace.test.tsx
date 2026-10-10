@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import styles from "@/features/inventory/vehicle-registry-workspace.module.css";
 import { parseQuickVehicleIdentity, VehicleRegistryWorkspace } from "@/features/inventory/vehicle-registry-workspace";
 
 describe("vehicle registry workspace", () => {
@@ -10,7 +13,7 @@ describe("vehicle registry workspace", () => {
     expect(html).toContain("Import preview");
     expect(html).toContain("Search VIN, partial VIN");
     expect(html).toContain("Search and open");
-    expect(html).toContain("Open the vehicle workspace faster");
+    expect(html).not.toContain("Open the vehicle workspace faster");
     expect(html).toContain("Quick add from description");
     expect(html).toContain("Fill form from sentence");
   });
@@ -47,7 +50,10 @@ describe("vehicle registry workspace", () => {
             make: "Honda",
             model: "Accord",
             color: "Blue",
-            lifecycleState: "ACTIVE",
+            status: "ACTIVE",
+            vinRaw: null,
+            licensePlate: null,
+            version: 1,
             updatedAt: "2026-07-24T10:00:00.000Z",
             _count: { duplicateCasesAsCandidate: 0, duplicateCasesAsPrimary: 0 },
           }],
@@ -60,10 +66,17 @@ describe("vehicle registry workspace", () => {
     );
 
     expect(html).toContain("VEH-100");
-    expect(html).toContain("Click vehicle to open the Vehicle Workbench");
+    expect(html).toContain("<table>");
+    expect(html).toContain("Stock</th>");
+    expect(html).toContain("VIN</th>");
+    expect(html).not.toContain("inventory-vehicle-result-card");
     expect(html).toContain("/vehicles/360/veh-1");
     expect(html).toContain("/vehicles/veh-1/workbench");
     expect(html).toContain("Preview here");
+    if (process.env.INVENTORY_REVIEW_OUTPUT) {
+      const css = readFileSync("src/features/inventory/vehicle-registry-workspace.module.css", "utf8").replace(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g, (_, key) => `.${styles[key]}`);
+      writeFileSync(join(process.env.INVENTORY_REVIEW_OUTPUT, "vehicle-registry.html"), `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial;margin:24px;background:#f5f7f9}*{box-sizing:border-box}.page-stack{display:grid;gap:16px}.page-copy h1{font-size:24px}.form-actions{display:flex;flex-wrap:wrap;gap:12px}.panel-card{padding:16px;background:white}.form-field{display:grid;gap:6px}${css}</style></head><body>${html}</body></html>`);
+    }
   });
 
   it("shows the active search as a filtered vehicle match count", () => {
