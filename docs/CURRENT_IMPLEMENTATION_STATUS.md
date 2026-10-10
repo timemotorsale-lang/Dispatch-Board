@@ -1,5 +1,25 @@
 # Current Implementation Status
 
+## 2026-10-10 - Vehicle Sale Preparation And As-Is Disposition Entry
+
+Registry rows, Vehicle Workbench and Vehicle 360 now link to Prepare for Sale and
+Start As-Is Sale for the exact canonical vehicle. The authenticated sale entry
+requires inventory access, current dealership-controlled ownership, an open unit
+and confirmed intake; customer-only ownership cannot enter inventory sale. Missing
+intake routes to acquisition intake. Ordinary preparation reuses the existing
+frontline workspace. As-is review records attributable recon rationale and defect
+disclosure in the existing disposition case snapshot, with no new vehicle record.
+A documented manual as-is review may start for newly acquired units without
+changing the automated aged-candidate policy. Repository transaction checks recheck
+ownership and current-cycle intake. Existing cases are reopened rather than cloned.
+As-is retail completion retains approvals/title/release/settlement gates and now
+requires buyer-acknowledgment evidence server-side; it records SOLD without falsely
+marking recon completed or frontline ready. Normal disposition behavior remains.
+Focused automated tests, typecheck/lint and desktop/mobile fixture checks pass.
+Live signed-in registry links and the selected-vehicle intake redirect were checked;
+no real sale/disposition record was created during verification. End-to-end sale
+completion and production deployment remain unverified. No migration is required.
+
 ## 2026-10-10 - Horizontal Find Vehicle Registry
 
 Find Vehicle now presents canonical vehicles in a full-width horizontal table

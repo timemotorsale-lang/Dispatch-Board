@@ -17,5 +17,9 @@
 .paths button { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border: 1px solid #d6dce4; border-radius: 4px; }
 .paths span { color: #617080; font-size: 12px; }
 .hold { border-left: 3px solid #b44a38; padding: 12px; background: #fff2ef; }
+.saleForm { display: grid; gap: 20px; max-width: 800px; }
+.saleForm label { display: grid; gap: 8px; }
+.saleForm textarea { padding: 12px; font: inherit; width: 100%; min-width: 0; border: 1px solid #bdc8d4; border-radius: 4px; }
+.saleForm button { display: inline-flex; align-items: center; gap: 8px; width: max-content; max-width: 100%; padding: 10px 14px; font: inherit; border: 1px solid #bdc8d4; border-radius: 4px; }
 .handoff { border-top: 1px solid #d6dce4; padding-top: 20px; }
 @media (max-width: 760px) { .paths { grid-template-columns: minmax(0, 1fr); } .identity { grid-template-columns: 100px minmax(0, 1fr); gap: 16px; } .identity dl { display: grid; gap: 12px; } }

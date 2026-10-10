@@ -9,6 +9,7 @@ import unitStyles from "@/features/inventory/inventory-unit-foundation-workspace
 import frontlineStyles from "@/features/inventory/frontline-preparation-workspace.module.css";
 import { VehicleWorkflowChoice } from "@/features/inventory/vehicle-workflow-choice";
 import choiceStyles from "@/features/inventory/vehicle-workflow-choice.module.css";
+import { AsIsSaleWorkspace } from "@/features/inventory/as-is-sale-workspace";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
@@ -31,6 +32,13 @@ function review(name: string, html: string, cssFile: string, styles: Record<stri
 }
 
 describe("inventory path workspaces", () => {
+  it("starts as-is review with recorded condition and without declaring retail readiness", () => {
+    const html = renderToStaticMarkup(<AsIsSaleWorkspace journey={journey} canStart ownerUserId="staff"/>);
+    expect(html).toContain("Why recon is being declined");
+    expect(html).toContain("Runs and drives");
+    expect(html).not.toContain("Frontline verified");
+    review("as-is-sale", html, "src/features/inventory/vehicle-workflow-choice.module.css", choiceStyles);
+  });
   it("offers sale and recon after confirmed intake without converting inventory to customer service", () => {
     const html = renderToStaticMarkup(<VehicleWorkflowChoice journey={journey}/>);
     expect(html).toContain("Choose Vehicle Workflow");

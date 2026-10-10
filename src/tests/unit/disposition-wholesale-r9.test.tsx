@@ -2,11 +2,25 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DispositionWholesaleWorkspace } from "@/features/inventory/disposition-wholesale-workspace";
+import { assertAsIsBuyerAcknowledgment, normalizeCandidateCreate } from "@/server/disposition-wholesale/domain";
 import { assertIndependentDispositionDecision, calculateDispositionRecommendation, normalizeActivation, normalizeBelowReserveOfferApproval, normalizeCandidateReview, normalizeChannelProposal, normalizeCompletion, normalizeDispositionAppraisal, normalizeOffer, normalizeOfferDecision, normalizeProposalDecision, normalizeSettlement } from "@/server/disposition-wholesale/domain";
 
 const base = { expectedCaseVersion: 1, idempotencyKey: "r9-command", occurredAt: "2026-07-18T15:00:00.000Z", reason: "Record governed disposition evidence and decision." };
 
 describe("R9 Disposition & Wholesale", () => {
+  it("requires useful as-is recon decision and defect disclosures", () => {
+    const candidate = { ...base, inventoryUnitId: "unit", ownerUserId: "staff", targetAt: base.occurredAt, reasonCodes: ["AS_IS_SALE_REVIEW"], saleCondition: "AS_IS", reconDecisionReason: "Repair costs exceed expected recovery", knownDefects: "Engine fault; vehicle does not run" };
+    expect(normalizeCandidateCreate(candidate).asIsReview?.knownDefects).toBe(candidate.knownDefects);
+    expect(() => normalizeCandidateCreate({ ...candidate, knownDefects: "" })).toThrow("disclosure");
+    expect(() => normalizeCandidateCreate({ ...candidate, reconDecisionReason: "No" })).toThrow("10 characters");
+  });
+  it("requires buyer acknowledgment evidence only for the recorded as-is case", () => {
+    const snapshot = [{ asIsReview: { saleCondition: "AS_IS" } }];
+    expect(() => assertAsIsBuyerAcknowledgment(snapshot, {})).toThrow("Buyer acknowledgment");
+    expect(() => assertAsIsBuyerAcknowledgment(snapshot, { buyerAcknowledgedDisclosures: true })).toThrow("evidence reference");
+    expect(() => assertAsIsBuyerAcknowledgment(snapshot, { buyerAcknowledgedDisclosures: true, buyerAcknowledgmentReference: "signed-disclosure-123" })).not.toThrow();
+    expect(() => assertAsIsBuyerAcknowledgment([], {})).not.toThrow();
+  });
   it("ranks eligible candidates but remains advisory", () => {
     expect(calculateDispositionRecommendation({ ageDays: 65, blocked: false, costExposureCents: 2_000_000, titleReady: true })).toMatchObject({ eligible: true, recommendation: "REVIEW_DISPOSITION", execution: "ADVISORY_NON_EXECUTING" });
     expect(calculateDispositionRecommendation({ ageDays: 10, blocked: false, costExposureCents: 100_000, titleReady: true }).eligible).toBe(false);

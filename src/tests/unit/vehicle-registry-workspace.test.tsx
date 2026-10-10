@@ -72,6 +72,8 @@ describe("vehicle registry workspace", () => {
     expect(html).not.toContain("inventory-vehicle-result-card");
     expect(html).toContain("/vehicles/360/veh-1");
     expect(html).toContain("/vehicles/veh-1/workbench");
+    expect(html).toContain("/vehicles/veh-1/sale");
+    expect(html).toContain("/vehicles/veh-1/sale?mode=as-is");
     expect(html).toContain("Preview here");
     if (process.env.INVENTORY_REVIEW_OUTPUT) {
       const css = readFileSync("src/features/inventory/vehicle-registry-workspace.module.css", "utf8").replace(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g, (_, key) => `.${styles[key]}`);

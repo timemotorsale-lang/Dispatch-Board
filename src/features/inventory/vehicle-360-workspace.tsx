@@ -302,7 +302,7 @@ function VehicleTruthMap({ view, missingCanonical, onOpenEvidence, onOpenIdentit
     { action: "Continue", detail: view.summary.risks[0] ? sentence(view.summary.risks[0]) : "No active blocker recorded", href: primaryHref, icon: AlertTriangle, label: "Current blocker", value: view.summary.risks.length || "Clear" },
   ];
   return <section className={`${styles.panel} ${styles.truthCenter}`}>
-    <SectionHeading eyebrow="Vehicle truth center" title="Everything important about this vehicle, one jump away" detail="Open only the part of the record needed for the next decision or task." action={<Link className={styles.primaryButton} href={primaryHref}>Next best action<ArrowRight /></Link>} />
+    <SectionHeading eyebrow="Vehicle truth center" title="Everything important about this vehicle, one jump away" detail="Open only the part of the record needed for the next decision or task." action={<div className={styles.heroActions}><Link className={styles.secondaryButton} href={`/vehicles/${encodeURIComponent(view.summary.vehicle.id)}/sale`}>Prepare for Sale<ArrowRight /></Link><Link className={styles.secondaryButton} href={`/vehicles/${encodeURIComponent(view.summary.vehicle.id)}/sale?mode=as-is`}>Start As-Is Sale<ArrowRight /></Link><Link className={styles.primaryButton} href={primaryHref}>Next best action<ArrowRight /></Link></div>} />
     <div className={styles.truthGrid}>{cards.map(card => {
       const Icon = card.icon;
       const body = <><Icon /><div><small>{card.label}</small><strong>{card.value}</strong><p>{card.detail}</p></div><b>{card.action}<ArrowRight /></b></>;
