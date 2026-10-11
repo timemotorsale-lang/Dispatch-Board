@@ -12,4 +12,5 @@ it("opens the requested import or export workspace directly", () => {
 it("opens purchase import directly from its saved link", () => {
   const markup = renderToStaticMarkup(<InventoryTransferWorkspace initialMode="import" initialImportKind="documents" locations={[{ id: "lot", code: "TMS", name: "Lot" }]} />);
   expect(markup).toContain("Choose purchase file"); expect(markup).not.toContain("Choose CSV");
+  expect(markup).toContain("Import history"); expect(markup).toContain("Correction queue");
 });

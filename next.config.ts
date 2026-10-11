@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
   serverExternalPackages: ["@prisma/client", "prisma", "tesseract.js"],
   outputFileTracingIncludes: {
+    "/api/vehicles/transfers/pdf-worker": ["./node_modules/pdfjs-dist/build/pdf.worker.min.mjs"],
     "/api/vehicles/transfers/documents": ["./node_modules/@tesseract.js-data/eng/**/*", "./node_modules/tesseract.js-core/**/*"]
   },
   typedRoutes: false

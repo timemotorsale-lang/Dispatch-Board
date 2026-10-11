@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:inventory-import-ui": "node scripts/check-purchase-import-ui.mjs",
     "reports:worker": "tsx scripts/run-reporting-worker.ts",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
@@ -39,6 +40,7 @@
     "next": "^16.2.9",
     "papaparse": "^5.7.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tesseract.js": "^7.0.0"

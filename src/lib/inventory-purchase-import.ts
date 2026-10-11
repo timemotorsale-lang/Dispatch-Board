@@ -17,6 +17,12 @@ export const PURCHASE_HEADER_ALIASES: Partial<Record<PurchaseField, string[]>> =
 export type PurchaseReading = { values: PurchaseValues; evidence: Partial<Record<PurchaseField, string>>; warnings: string[]; category: "AUCTION_INVOICE" | "BILL_OF_SALE" | "VEHICLE_RECORD" | "UNKNOWN" };
 export type PurchaseRead = PurchaseReading & { readId: string; fileName: string; method: string; text: string };
 export type PurchaseReview = { previewId: string; vehicleId: string | null; vehicleLabel: string; existing: boolean; allocations: { field: string; current: string; proposed: string; conflict: boolean }[]; warnings: string[] };
+export type PurchaseImportJob = {
+  readId: string; fileName: string; vin: string; createdAt: string;
+  status: "NEEDS_REVIEW" | "READY" | "FAILED" | "IMPORTED";
+  expired: boolean; message: string; vehicleId: string | null;
+};
+export type PurchaseImportHistory = { jobs: PurchaseImportJob[]; nextCursor: string | null };
 
 export function moneyCents(value: string) {
   const clean = value.trim().replace(/^\$\s*/, "");

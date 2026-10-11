@@ -14,7 +14,7 @@ import { INTAKE_SOURCES, normalizeIntake, type IntakeDetails } from "@/server/in
 import { extractDocumentText } from "@/server/document-library/text-extraction";
 import { scanVehicleEvidence } from "@/server/vehicle-360/domain";
 import { uploadVehicleEvidence } from "@/server/vehicle-360/service";
-import { PURCHASE_FIELDS, PURCHASE_HEADER_ALIASES, purchaseAmount, readPurchaseText, type PurchaseRead, type PurchaseReview, type PurchaseValues } from "@/lib/inventory-purchase-import";
+import { PURCHASE_FIELDS, PURCHASE_HEADER_ALIASES, purchaseAmount, readPurchaseText, type PurchaseRead, type PurchaseReview, type PurchaseValues, type PurchaseImportHistory } from "@/lib/inventory-purchase-import";
 import { parseInventoryCsv } from "@/lib/inventory-transfer";
 
 const organizationId = INITIAL_ORGANIZATION.id;
@@ -45,7 +45,8 @@ async function load<T>(user: AuthenticatedUser, id: unknown, eventType: string) 
   if (typeof id !== "string" || id.length > 100) throw new Error("Read and review the document first.");
   const saved = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, actorUserId: user.id, subjectType: "PURCHASE_IMPORT", subjectId: id, eventType } });
   if (!saved?.locationId) throw new Error("Purchase preview was not found for this staff account.");
-  const data = saved.metadata as unknown as T & { expiresAt: string };
+  const resumed = eventType === "PURCHASE_DOCUMENT_READ" ? await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, actorUserId: user.id, subjectType: "PURCHASE_IMPORT", subjectId: id, eventType: "PURCHASE_DOCUMENT_RESUMED" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }) : null;
+  const data = (resumed ?? saved).metadata as unknown as T & { expiresAt: string };
   if (Date.parse(data.expiresAt) <= Date.now()) throw new Error("Purchase preview expired. Read the document again.");
   await authorize(user, saved.locationId);
   return { data, locationId: saved.locationId };
@@ -102,14 +103,79 @@ export async function readPurchaseSpreadsheet(actor: AuthenticatedUser | null, l
   return { rows };
 }
 const emptyDetails = (): IntakeDetails => ({ source: "", seller: "", boughtFrom: "", buyer: "", acquiredOn: "", reference: "", priceStatus: "PENDING", purchaseCents: null, proposedPriceCents: null, whereabouts: "", odometer: null, odometerUnit: "MILES", condition: "", keys: null, titleStatus: "PENDING", documents: "", pendingNotes: "" });
-export async function reviewPurchaseDocument(actor: AuthenticatedUser | null, value: unknown): Promise<PurchaseReview> {
-  const user = assertAuthenticatedUser(actor), input = record(value);
-  const { data: source, locationId } = await load<StoredRead>(user, input.readId, "PURCHASE_DOCUMENT_READ");
-  const raw = record(input.values), values: PurchaseValues = {};
+const allocationFields = ["source", "seller", "boughtFrom", "buyer", "acquiredOn", "reference", "condition", "odometer", "purchaseCents"];
+function corrections(value: unknown) {
+  const input = record(value), raw = record(input.values), values: PurchaseValues = {};
   for (const [key] of PURCHASE_FIELDS) {
     if (raw[key] != null && (typeof raw[key] !== "string" || (raw[key] as string).length > 500)) throw new Error("Purchase field is invalid or too long.");
     values[key] = typeof raw[key] === "string" ? (raw[key] as string).trim() : "";
   }
+  if (!Array.isArray(input.fields) || input.fields.some(key => typeof key !== "string" || !allocationFields.includes(key))) throw new Error("Choose valid acquisition fields.");
+  return { values, fields: [...new Set(input.fields as string[])] };
+}
+export async function savePurchaseCorrections(actor: AuthenticatedUser | null, value: unknown) {
+  const user = assertAuthenticatedUser(actor), input = record(value);
+  const { locationId } = await load<StoredRead>(user, input.readId, "PURCHASE_DOCUMENT_READ");
+  const corrected = corrections(input);
+  await authorize(user, locationId, false, corrected.fields);
+  await audit(user, locationId, String(input.readId), "PURCHASE_DOCUMENT_CORRECTED", corrected);
+  return { saved: true };
+}
+export async function recordPurchaseImportFailure(actor: AuthenticatedUser, readId: unknown, previewId: unknown) {
+  // Do not persist raw exception messages, document contents or untrusted identifiers.
+  if (typeof readId !== "string" && typeof previewId !== "string") return;
+  const loaded = typeof readId === "string" ? await load<StoredRead>(actor, readId, "PURCHASE_DOCUMENT_READ") : await load<StoredReview>(actor, previewId, "PURCHASE_DOCUMENT_REVIEW");
+  const id = typeof readId === "string" ? readId : (loaded.data as StoredReview).readId;
+  await audit(actor, loaded.locationId, id, "PURCHASE_DOCUMENT_FAILED", { message: typeof previewId === "string" ? "Save did not finish. Reattach the original and review current vehicle values before retrying." : "Allocation needs correction. Check VIN, purchase reference, amounts and existing vehicle conflicts." });
+}
+export async function purchaseImportHistory(actor: AuthenticatedUser | null, locationId: string, cursor?: string): Promise<PurchaseImportHistory> {
+  const user = assertAuthenticatedUser(actor);
+  const grants = await foundation.listCapabilityGrants(user.id, organizationId);
+  for (const capability of ["VEHICLE_OPERATIONS_VIEW", "INVENTORY_INTAKE_EDIT", "VEHICLE_EVIDENCE_MANAGE"] as VehicleCapability[]) assertVehicleCapability({ actor: user, capability, grants, locationId, now: new Date() });
+  if (!locationId || !await prisma.location.findFirst({ where: { organizationId, id: locationId }, select: { id: true } })) throw new Error("Select a valid location.");
+  const where = { organizationId, actorUserId: user.id, locationId, subjectType: "PURCHASE_IMPORT", eventType: "PURCHASE_DOCUMENT_READ" };
+  if (cursor && (cursor.length > 100 || !await prisma.enterpriseAuditEvent.findFirst({ where: { ...where, id: cursor }, select: { id: true } }))) throw new Error("Invalid import history page.");
+  const sources = await prisma.enterpriseAuditEvent.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 26, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const page = sources.slice(0, 25);
+  const events = page.length ? await prisma.enterpriseAuditEvent.findMany({ where: { organizationId, actorUserId: user.id, locationId, subjectType: "PURCHASE_IMPORT", subjectId: { in: page.map(source => source.subjectId) }, eventType: { in: ["PURCHASE_DOCUMENT_RESUMED", "PURCHASE_DOCUMENT_CORRECTED", "PURCHASE_DOCUMENT_READY", "PURCHASE_DOCUMENT_FAILED", "PURCHASE_DOCUMENT_COMPLETED"] } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }) : [];
+  const allocated = page.length ? await prisma.enterpriseAuditEvent.findMany({ where: { organizationId, actorUserId: user.id, locationId, subjectType: "PURCHASE_IMPORT", eventType: "PURCHASE_DOCUMENT_ALLOCATED", subjectId: { in: page.map(source => { const data = source.metadata as unknown as StoredRead; return data.sourceKey ?? data.checksum; }) } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }) : [];
+  return { jobs: page.map(source => {
+    const reading = source.metadata as unknown as StoredRead;
+    const related = events.filter(event => event.subjectId === source.subjectId);
+    const completed = related.find(event => event.eventType === "PURCHASE_DOCUMENT_COMPLETED") ?? allocated.find(event => event.subjectId === (reading.sourceKey ?? reading.checksum));
+    const latest = completed ?? related[0];
+    const metadata = record(latest?.metadata);
+    const corrected = related.find(event => event.eventType === "PURCHASE_DOCUMENT_CORRECTED");
+    const resumed = related.find(event => event.eventType === "PURCHASE_DOCUMENT_RESUMED");
+    const expiry = (resumed?.metadata as unknown as StoredRead | undefined)?.expiresAt ?? reading.expiresAt;
+    return { readId: reading.readId, fileName: reading.fileName, vin: String(record(corrected?.metadata).values ? record(record(corrected?.metadata).values).vin ?? "" : reading.values.vin ?? ""), createdAt: source.createdAt.toISOString(), status: completed ? "IMPORTED" : latest?.eventType === "PURCHASE_DOCUMENT_FAILED" ? "FAILED" : latest?.eventType === "PURCHASE_DOCUMENT_READY" ? "READY" : "NEEDS_REVIEW", expired: Date.parse(expiry) <= Date.now(), message: typeof metadata.message === "string" ? metadata.message : "", vehicleId: typeof metadata.vehicleId === "string" ? metadata.vehicleId : null };
+  }), nextCursor: sources.length > 25 ? page[page.length - 1].id : null };
+}
+export async function resumePurchaseImport(actor: AuthenticatedUser | null, readId: string, file: { bytes: Buffer; fileName: string; contentType: string }) {
+  const user = assertAuthenticatedUser(actor);
+  if (!readId || readId.length > 100) throw new Error("Select an import from history.");
+  const saved = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, actorUserId: user.id, subjectType: "PURCHASE_IMPORT", subjectId: readId, eventType: "PURCHASE_DOCUMENT_READ" } });
+  if (!saved?.locationId) throw new Error("Purchase import was not found for this staff account.");
+  await authorize(user, saved.locationId);
+  const source = saved.metadata as unknown as StoredRead;
+  validatePurchaseFile(file);
+  if (hash(file.bytes) !== source.checksum || file.contentType !== source.contentType) throw new Error("Reattach the exact original file for this import. To import a changed file, start a new import.");
+  const done = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, actorUserId: user.id, subjectType: "PURCHASE_IMPORT", subjectId: readId, eventType: "PURCHASE_DOCUMENT_COMPLETED" } });
+  const allocated = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, actorUserId: user.id, subjectType: "PURCHASE_IMPORT", subjectId: source.sourceKey ?? source.checksum, eventType: "PURCHASE_DOCUMENT_ALLOCATED" } });
+  if (done || allocated) throw new Error("This import is already saved. Open its vehicle record instead.");
+  const corrected = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, actorUserId: user.id, subjectType: "PURCHASE_IMPORT", subjectId: readId, eventType: "PURCHASE_DOCUMENT_CORRECTED" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+  const data = { ...source, expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() };
+  await audit(user, saved.locationId, readId, "PURCHASE_DOCUMENT_RESUMED", data);
+  const { checksum: _checksum, sourceKey: _sourceKey, contentType: _contentType, expiresAt: _expiresAt, ...reading } = data;
+  void _checksum; void _sourceKey; void _contentType; void _expiresAt;
+  return { reading, correction: corrected ? corrections(corrected.metadata) : null };
+}
+export async function reviewPurchaseDocument(actor: AuthenticatedUser | null, value: unknown): Promise<PurchaseReview> {
+  const user = assertAuthenticatedUser(actor), input = record(value);
+  const { data: source, locationId } = await load<StoredRead>(user, input.readId, "PURCHASE_DOCUMENT_READ");
+  const corrected = corrections(input), values = corrected.values;
+  await authorize(user, locationId, false, corrected.fields);
+  await audit(user, locationId, source.readId, "PURCHASE_DOCUMENT_CORRECTED", corrected);
   if (!values.vin) throw new Error("A valid VIN is required for purchase matching.");
   const identity = normalizeVehicleIdentity({ ...values, vehicleNumber: "PURCHASE-PREVIEW", reason: "Reviewed purchase import", idempotencyKey: source.readId });
   values.vin = identity.vin!;
@@ -152,6 +218,7 @@ export async function reviewPurchaseDocument(actor: AuthenticatedUser | null, va
   const previewId = randomUUID();
   const preview: StoredReview = { previewId, readId: source.readId, vehicleId: existing?.id ?? null, vehicleLabel: existing?.vehicleNumber ?? identity.vin!, existing: !!existing, allocations, warnings, values, fields: selected as string[], details, version: intake?.version ?? 0, unitVersion: intake?.unit?.version ?? null, expiresAt: source.expiresAt, vehicleNumber: `DOC-${hash(source.checksum).slice(0, 12).toUpperCase()}`, newVehicleId: randomUUID() };
   await audit(user, locationId, previewId, "PURCHASE_DOCUMENT_REVIEW", preview);
+  await audit(user, locationId, source.readId, "PURCHASE_DOCUMENT_READY", { previewId });
   return { previewId, vehicleId: preview.vehicleId, vehicleLabel: preview.vehicleLabel, existing: preview.existing, allocations, warnings };
 }
 export async function applyPurchaseDocument(actor: AuthenticatedUser | null, previewId: string, file: { bytes: Buffer; fileName: string; contentType: string }) {
@@ -165,6 +232,7 @@ export async function applyPurchaseDocument(actor: AuthenticatedUser | null, pre
   if (already) {
     const priorVehicleId = (already.metadata as { vehicleId: string }).vehicleId;
     await getVehicleIntake(user, priorVehicleId);
+    await audit(user, locationId, source.readId, "PURCHASE_DOCUMENT_COMPLETED", { vehicleId: priorVehicleId, duplicate: true });
     return { vehicleId: priorVehicleId, duplicate: true };
   }
   const transactionKey = hash(`${preview.values.vin?.toUpperCase()}:${preview.details.reference.trim().toUpperCase() || source.checksum}`);
@@ -173,6 +241,7 @@ export async function applyPurchaseDocument(actor: AuthenticatedUser | null, pre
   if (prior) {
     const priorVehicleId = (prior.resultSnapshot as { vehicleId: string }).vehicleId;
     await getVehicleIntake(user, priorVehicleId);
+    await audit(user, locationId, source.readId, "PURCHASE_DOCUMENT_COMPLETED", { vehicleId: priorVehicleId, duplicate: true });
     return { vehicleId: priorVehicleId, duplicate: true };
   }
   let vehicleId = preview.vehicleId;
@@ -191,5 +260,6 @@ export async function applyPurchaseDocument(actor: AuthenticatedUser | null, pre
   const details = { ...preview.details, documents: [preview.details.documents, `Purchase document: ${source.fileName}`].filter(Boolean).join("; ").slice(0, 1000), pendingNotes: [preview.details.pendingNotes, `Document breakdown (USD): vehicle ${preview.values.purchasePrice || "pending"}; buyer fee ${preview.values.buyerFee || "pending"}; transport ${preview.values.transportFee || "pending"}; other ${preview.values.otherFees || "pending"}.`].filter(Boolean).join("\n").slice(0, 1000) };
   const result = await saveVehicleIntake(user, vehicleId, { details, status: "DRAFT", expectedVersion: preview.version, expectedUnitVersion: preview.unitVersion, idempotencyKey: key, reason: "Reviewed purchase document allocation" });
   await audit(user, locationId, source.sourceKey ?? source.checksum, "PURCHASE_DOCUMENT_ALLOCATED", { vehicleId, previewId, category: source.category, allocations: preview.allocations });
+  await audit(user, locationId, source.readId, "PURCHASE_DOCUMENT_COMPLETED", { vehicleId, duplicate: false });
   return { vehicleId, duplicate: false, result };
 }

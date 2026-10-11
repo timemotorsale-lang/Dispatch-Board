@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Check, FileSearch, Upload } from "lucide-react";
-import { PURCHASE_FIELDS, type PurchaseRead, type PurchaseReview, type PurchaseValues } from "@/lib/inventory-purchase-import";
+import { Check, FileSearch, Upload, History, ListChecks, Save } from "lucide-react";
+import { PURCHASE_FIELDS, type PurchaseRead, type PurchaseReview, type PurchaseValues, type PurchaseImportJob } from "@/lib/inventory-purchase-import";
+import { PurchaseImportHistoryPanel } from "./purchase-import-history";
+import { PurchaseSourcePreview } from "./purchase-source-preview";
 import { INTAKE_SOURCES } from "@/server/inventory-unit/intake-domain";
 import styles from "./inventory-transfer-workspace.module.css";
 
@@ -16,6 +18,9 @@ async function send(body: FormData | object) {
 const fieldLabel = (field: string) => field === "purchaseCents" ? "Purchase amount" : field === "source" ? "Acquisition source" : field === "priceStatus" ? "Purchase amount status" : PURCHASE_FIELDS.find(([key]) => key === field)?.[1] ?? field;
 const displayValue = (field: string, value: string) => !value ? "Pending" : field === "purchaseCents" ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) / 100) : value.replaceAll("_", " ");
 export function PurchaseDocumentImport({ locationId, onBusyChange }: { locationId: string; onBusyChange?: (label: string) => void }) {
+  const [view, setView] = useState<"import" | "history" | "corrections">("import");
+  const [resumeJob, setResumeJob] = useState<PurchaseImportJob | null>(null);
+  const [savedCorrections, setSavedCorrections] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [reading, setReading] = useState<PurchaseRead | null>(null);
   const [readings, setReadings] = useState<PurchaseRead[]>([]);
@@ -26,7 +31,7 @@ export function PurchaseDocumentImport({ locationId, onBusyChange }: { locationI
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<{ vehicleId: string; duplicate: boolean } | null>(null);
   const [busy, setBusy] = useState(""); const [error, setError] = useState("");
-  function invalidate() { setReview(null); setConfirmed(false); setResult(null); setError(""); }
+  function invalidate() { setReview(null); setConfirmed(false); setResult(null); setError(""); setSavedCorrections(false); }
   function selectReading(data: PurchaseRead) {
     setReading(data); setValues(data.values); setFields([...new Set(["source", ...Object.keys(data.values).flatMap(key => fieldTargets[key] ? [fieldTargets[key]] : [])])]); invalidate();
   }
@@ -41,22 +46,39 @@ export function PurchaseDocumentImport({ locationId, onBusyChange }: { locationI
   const primaryFields = ["vin", "seller", "source", "acquiredOn", "reference", "purchasePrice", "invoiceTotal"];
   const identityFields = ["stockNumber", "year", "make", "model"];
   return <section aria-label="Purchase documents" aria-busy={!!busy}>
+    <div className={styles.toolbar} role="tablist" aria-label="Purchase import views">{(["import", "history", "corrections"] as const).map(mode => <button key={mode} role="tab" aria-selected={view === mode} disabled={!!busy} onClick={() => setView(mode)}>{mode === "history" ? <History size={16} /> : mode === "corrections" ? <ListChecks size={16} /> : <Upload size={16} />}{mode === "import" ? "Import" : mode === "history" ? "Import history" : "Correction queue"}</button>)}</div>
+    {view !== "import" ? <PurchaseImportHistoryPanel key={locationId} locationId={locationId} correctionsOnly={view === "corrections"} onResume={job => { setResumeJob(job); setFile(null); setReading(null); setReadings([]); setCompleted([]); setValues({}); invalidate(); setView("import"); }} /> : <>
     {error ? <div role="alert" className={styles.error}>{error}</div> : null}
+    {resumeJob ? <div className={styles.toolbar}><strong>Continue: {resumeJob.fileName}</strong><span>Reattach the exact original file.</span><button disabled={!!busy} onClick={() => { setResumeJob(null); setFile(null); setReading(null); setReadings([]); setValues({}); invalidate(); }}>Cancel retry</button></div> : null}
     <div className={styles.toolbar}>
       <label className={styles.upload}><Upload size={16} />Choose purchase file<input aria-label="Choose purchase file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv" disabled={!!busy} onChange={event => { const next = event.target.files?.[0] ?? null; setFile(next); setReading(null); setReadings([]); setCompleted([]); setValues({}); invalidate(); if (next && next.size > 10 * 1024 * 1024) { setFile(null); setError("Document must be 10 MB or smaller."); } event.target.value = ""; }} /></label>
       <span>{file?.name ?? "No document selected"}</span>
-      <button disabled={!!busy || !file || !locationId} onClick={() => run("Reading document", async () => { const data: PurchaseRead | { rows: PurchaseRead[] } = await send(form("read")); const items = "rows" in data ? data.rows : [data]; setReadings(items); setCompleted([]); selectReading(items[0]); })}><FileSearch size={16} />Read purchase file</button>
+      <button disabled={!!busy || !file || !locationId} onClick={() => run(resumeJob ? "Restoring import" : "Reading document", async () => {
+        if (resumeJob) {
+          const body = form("resume"); body.set("readId", resumeJob.readId);
+          const data = await send(body); setReadings([data.reading]); selectReading(data.reading);
+          if (data.correction) { setValues(data.correction.values); setFields(data.correction.fields); }
+          setResumeJob(null);
+        } else {
+          const data: PurchaseRead | { rows: PurchaseRead[] } = await send(form("read")); const items = "rows" in data ? data.rows : [data]; setReadings(items); setCompleted([]); selectReading(items[0]);
+        }
+      })}><FileSearch size={16} />{resumeJob ? "Resume import" : "Read purchase file"}</button>
     </div>
     {reading ? <>
       {readings.length > 1 ? <div className={styles.fields}><label>Vehicle / spreadsheet row<select aria-label="Vehicle / spreadsheet row" disabled={!!busy} value={reading.readId} onChange={event => selectReading(readings.find(item => item.readId === event.target.value)!)}>{readings.map((item, index) => <option key={item.readId} value={item.readId}>Row {index + 2}: {item.values.vin || "VIN missing"}{completed.includes(item.readId) ? " - saved" : ""}</option>)}</select></label><span>{completed.length} of {readings.length} rows saved</span></div> : null}
       <div className={styles.toolbar}><strong>{reading.category.replaceAll("_", " ")}</strong><span>{reading.method.replaceAll("_", " ")}</span></div>
       {reading.warnings.map((warning, index) => <p key={index} className={styles.meta}>{warning}</p>)}
+      <div className={styles.documentReview}>
+      {file ? <PurchaseSourcePreview file={file} /> : null}
+      <div className={styles.reviewFields}>
       <fieldset disabled={!!busy} className={`${styles.mapping} ${styles.purchaseMapping}`}>{PURCHASE_FIELDS.filter(([key]) => primaryFields.includes(key)).map(renderField)}</fieldset>
       <details className={styles.band} open={identityFields.some(key => values[key as keyof PurchaseValues])}><summary>Vehicle details</summary><fieldset disabled={!!busy} className={`${styles.mapping} ${styles.purchaseMapping}`}>{PURCHASE_FIELDS.filter(([key]) => identityFields.includes(key)).map(renderField)}</fieldset></details>
       <details className={styles.band} open={PURCHASE_FIELDS.some(([key]) => !primaryFields.includes(key) && !identityFields.includes(key) && values[key])}><summary>Fees and additional purchase details</summary><fieldset disabled={!!busy} className={`${styles.mapping} ${styles.purchaseMapping}`}>{PURCHASE_FIELDS.filter(([key]) => !primaryFields.includes(key) && !identityFields.includes(key)).map(renderField)}</fieldset></details>
       <section className={styles.band}><h3>Allocate to acquisition draft</h3><fieldset disabled={!!busy} className={styles.columns}>{[...new Set(["source", ...Object.values(fieldTargets)])].map(field => <label key={field}><input type="checkbox" checked={fields.includes(field)} onChange={event => { setFields(event.target.checked ? [...fields, field] : fields.filter(key => key !== field)); invalidate(); }} />{field === "purchaseCents" ? "Purchase amount including fees" : field === "source" ? "Acquisition source" : PURCHASE_FIELDS.find(([key]) => key === field)?.[1] ?? field}</label>)}</fieldset></section>
       <details className={styles.band}><summary>Extracted document text</summary><pre className={styles.sourceText}>{reading.text}</pre></details>
-      <div className={styles.toolbar}><button disabled={!!busy || !values.vin || !fields.length} onClick={() => run("Matching vehicle and reviewing values", async () => { setReview(await send({ readId: reading.readId, values, fields })); setConfirmed(false); setResult(null); })}><FileSearch size={16} />Review allocation</button></div>
+      <div className={styles.toolbar}><button disabled={!!busy || !!result} onClick={() => run("Saving corrections", async () => { await send({ action: "save-corrections", readId: reading.readId, values, fields }); setSavedCorrections(true); setReview(null); setConfirmed(false); })}><Save size={16} />Save corrections</button><button disabled={!!busy || !values.vin || !fields.length} onClick={() => run("Matching vehicle and reviewing values", async () => { setReview(await send({ readId: reading.readId, values, fields })); setConfirmed(false); setResult(null); })}><FileSearch size={16} />Review allocation</button></div>
+      {savedCorrections ? <p role="status" className={styles.meta}>Corrections saved. No vehicle or purchase values have been changed.</p> : null}
+      </div></div>
     </> : null}
     {review && !result ? <>
       <h3>{review.existing ? "Existing vehicle" : "New vehicle"}: {review.vehicleLabel}</h3>
@@ -66,5 +88,6 @@ export function PurchaseDocumentImport({ locationId, onBusyChange }: { locationI
     </> : null}
     {result ? <div role="status" className={styles.success}>{result.duplicate ? "This purchase was already imported. No duplicate values were saved." : "Purchase draft saved with the original document."} <Link href={`/vehicles/${encodeURIComponent(result.vehicleId)}/intake`}>Open acquisition intake</Link> <Link href={`/vehicles/${encodeURIComponent(result.vehicleId)}/details`}>Inventory details</Link></div> : null}
     {busy ? <p role="status" className={styles.progress}>{busy}...</p> : null}
+    </>}
   </section>;
 }

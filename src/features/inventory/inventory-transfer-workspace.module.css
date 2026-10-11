@@ -52,9 +52,23 @@
 .sourceText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; font-size: 12px; }
 .mapping small { overflow-wrap: anywhere; }
 .purchaseMapping { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 12px 0; }
+.documentReview { display: grid; grid-template-columns: minmax(240px, 2fr) minmax(0, 3fr); gap: 20px; align-items: start; }
+.reviewFields { min-width: 0; }
+.documentReview .purchaseMapping { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sourcePreview { position: sticky; top: 12px; min-width: 0; border: 1px solid #dbe3ec; background: #f7f9fb; padding: 10px; }
+.sourcePreview .toolbar { padding-top: 0; overflow-wrap: anywhere; }
+.pdfViewport { overflow: auto; max-height: 620px; background: white; }
+.pdfViewport canvas { display: block; height: auto; max-width: none; }
+.sourcePreview img { display: block; width: 100%; height: auto; max-height: 75vh; object-fit: contain; }
+.originalText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 620px; overflow: auto; font-size: 12px; }
+.status[data-status="IMPORTED"] { background: #e7f4ed; color: #226044; }
 @media (max-width: 1000px) { .purchaseMapping { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .toolbar button[aria-selected="true"] { background: #edf6f3; border-color: #368266; color: #245e46; }
 @media (max-width: 700px) {
+  .documentReview { grid-template-columns: minmax(0, 1fr); }
+  .sourcePreview { position: static; }
+  .pdfViewport { max-height: 360px; }
+  .documentReview .purchaseMapping { grid-template-columns: minmax(0, 1fr); }
   .workspace { padding: 12px; }
   .heading { align-items: flex-start; }
   .heading h1 { font-size: 19px; }
