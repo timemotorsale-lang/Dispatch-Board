@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowDownToLine, ArrowUpFromLine, Check, ChevronLeft, ChevronRight, FileDown, Search, Upload, X } from "lucide-react";
 import { EXPORT_FIELDS, IMPORT_FIELDS, inventoryCsv, MAX_CSV_BYTES, parseInventoryCsv, suggestMapping, type ImportPreview, type Mapping, type TransferRow } from "@/lib/inventory-transfer";
 import styles from "./inventory-transfer-workspace.module.css";
+import { PurchaseDocumentImport } from "./purchase-document-import";
 
 type ExportPreview = { headers: string[]; rows: (string | number | null)[][]; total: number };
 function download(blob: Blob, name: string) {
@@ -22,8 +23,9 @@ async function request(action: string, values: object) {
   return response;
 }
 
-export function InventoryTransferWorkspace({ locations, initialMode = "export" }: { locations: { id: string; name: string; code: string }[]; initialMode?: "export" | "import" }) {
+export function InventoryTransferWorkspace({ locations, initialMode = "export", initialImportKind = "csv" }: { locations: { id: string; name: string; code: string }[]; initialMode?: "export" | "import"; initialImportKind?: "csv" | "documents" }) {
   const [mode, setMode] = useState<"export" | "import">(initialMode);
+  const [importKind, setImportKind] = useState<"csv" | "documents">(initialImportKind);
   const [locationId, setLocationId] = useState(locations.length === 1 ? locations[0].id : "");
   const [query, setQuery] = useState("");
   const [columns, setColumns] = useState<string[]>(["vin", "stockNumber", "year", "make", "model", "lifecycleStage", "operatingState", "location"]);
@@ -50,6 +52,12 @@ export function InventoryTransferWorkspace({ locations, initialMode = "export" }
     window.history.replaceState(null, "", url);
   }
   function invalidateImport() { setPreview(null); setResults(null); setConfirmed(false); setPage(1); setError(""); setNotice(""); }
+  function changeImportKind(kind: "csv" | "documents") {
+    setImportKind(kind);
+    const url = new URL(window.location.href);
+    url.searchParams.set("kind", kind);
+    window.history.replaceState(null, "", url);
+  }
   async function run(label: string, task: () => Promise<void>) {
     setBusy(label); setError(""); setNotice("");
     try { await task(); } catch (error) { setError(error instanceof Error ? error.message : "Transfer failed."); } finally { setBusy(""); }
@@ -73,7 +81,8 @@ export function InventoryTransferWorkspace({ locations, initialMode = "export" }
         <button disabled={!!busy} aria-current={mode === "import" ? "page" : undefined} onClick={() => changeMode("import")}><ArrowUpFromLine size={17} />Import</button>
       </nav>
       <section className={styles.content} aria-label={mode === "export" ? "Export inventory" : "Import vehicles"} aria-busy={!!busy}>
-        <header className={styles.sectionHeading}><h2>{mode === "export" ? "Export inventory" : "Import vehicles"}</h2><span className={styles.badge}>CSV</span></header>
+        <header className={styles.sectionHeading}><h2>{mode === "export" ? "Export inventory" : "Import vehicles"}</h2><span className={styles.badge}>{mode === "import" && importKind === "documents" ? "Purchase documents" : "CSV"}</span></header>
+        {mode === "import" ? <div className={styles.toolbar} role="tablist" aria-label="Import source"><button role="tab" aria-selected={importKind === "csv"} disabled={!!busy} onClick={() => changeImportKind("csv")}>Spreadsheet</button><button role="tab" aria-selected={importKind === "documents"} disabled={!!busy} onClick={() => changeImportKind("documents")}>Purchase documents</button></div> : null}
         {error ? <div role="alert" className={styles.error}>{error}</div> : null}
         {notice ? <div role="status" className={styles.success}>{notice}</div> : null}
         <fieldset disabled={!!busy} className={styles.fields}>
@@ -88,7 +97,7 @@ export function InventoryTransferWorkspace({ locations, initialMode = "export" }
             {exportPreview ? <span>{exportPreview.total} active inventory vehicles{exportPreview.total > 25 ? " · first 25 shown" : ""}</span> : null}
           </div>
           {exportPreview ? <div className={styles.tableScroll}><table><caption className={styles.srOnly}>Export preview</caption><thead><tr>{exportPreview.headers.map(header => <th key={header}>{header}</th>)}</tr></thead><tbody>{exportPreview.rows.map((row, index) => <tr key={index}>{row.map((cell, column) => <td key={column}>{cell ?? "—"}</td>)}</tr>)}</tbody></table>{!exportPreview.total ? <p className={styles.empty}>No matching inventory vehicles.</p> : null}</div> : null}
-        </> : <>
+        </> : importKind === "documents" ? <PurchaseDocumentImport key={locationId} locationId={locationId} onBusyChange={setBusy} /> : <>
           <div className={styles.toolbar}>
             <label className={styles.upload}><Upload size={16} />Choose CSV<input aria-label="Choose CSV" disabled={!!busy} type="file" accept=".csv,text/csv" onChange={event => { void loadFile(event.target.files?.[0]); event.target.value = ""; }} /></label>
             <button disabled={!!busy} onClick={() => download(new Blob([inventoryCsv(IMPORT_FIELDS.map(([key]) => key), [])], { type: "text/csv;charset=utf-8" }), "inventory-import-template.csv")}><FileDown size={16} />Template</button>

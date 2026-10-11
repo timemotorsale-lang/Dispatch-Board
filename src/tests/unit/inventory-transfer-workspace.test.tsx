@@ -9,3 +9,7 @@ it("opens the requested import or export workspace directly", () => {
     expect(markup).not.toContain(mode === "import" ? "Download CSV" : "Choose CSV");
   }
 });
+it("opens purchase import directly from its saved link", () => {
+  const markup = renderToStaticMarkup(<InventoryTransferWorkspace initialMode="import" initialImportKind="documents" locations={[{ id: "lot", code: "TMS", name: "Lot" }]} />);
+  expect(markup).toContain("Choose purchase file"); expect(markup).not.toContain("Choose CSV");
+});
