@@ -217,6 +217,7 @@ jobs:
           exit 1
           fi
           if [[ ! -f deploy/docker/.env]]; then
+          echo 'ERROR; Production environment file missing." >82
           exit 1
           fi
           if [[ ! -f deploy/docker/import-release-approval.json ]]; then 
