@@ -1,5 +1,9 @@
 .workspace { min-width: 0; color: #253347; }
-.tabs { display: flex; border-bottom: 1px solid #d6dce4; gap: 8px; }
+.tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid #d6dce4; gap: 8px; }
+.purpose, .coverage h3 { font-size: 13px; margin: 14px 0 8px; }
+.coverage { padding: 10px 0; border-bottom: 1px solid #d6dce4; }
+.coverage > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.coverage button[aria-pressed="true"] { background: #edf6f0; border-color: #478967; }
 .workspace .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: #fff; padding: 10px 14px; }
 .workspace .tabs button[aria-pressed="true"] { border-bottom-color: #3478df; color: #142c43; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 0; border-bottom: 1px solid #e3e7ec; }

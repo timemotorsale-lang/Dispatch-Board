@@ -29,6 +29,40 @@ function database(items = [photo], version = 0) {
 }
 
 describe("vehicle sales media", () => {
+  it("shows intake coverage separately without treating eleven angles as a photo limit", () => {
+    const intakeItems = Array.from({ length: 13 }, (_, index) => ({ ...photo, id: `intake-${index}`, name: index ? `damage-closeup-${index}.png` : "front-left-arrival.png", reusable: index === 0 }));
+    const html = renderToStaticMarkup(<VehicleSalesMediaWorkspace vehicleId="v1" initialKind="intake" initialModel={{ vehicleId: "v1", version: 0, canManage: true, items: [photo], intakeItems }}/>);
+    expect(html).toContain("Intake &amp; Condition (13)");
+    expect(html).toContain("Required coverage: 1 / 10 angles");
+    expect(html).toContain("Photos (1 / 40)");
+    expect(html).toContain("Damage evidence");
+    expect(html).toContain("Use selected for advertising");
+    expect(html).not.toContain("Remove selected");
+    expect(html).not.toContain("as primary");
+    const service = renderToStaticMarkup(<VehicleSalesMediaWorkspace vehicleId="v1" intakeOnly initialModel={{ vehicleId: "v1", version: 0, canManage: true, items: [], intakeItems }}/>);
+    expect(service).not.toContain("Use selected for advertising");
+    expect(service).not.toContain("Photos (0 / 40)");
+  });
+  it("reuses an eligible intake photo by linking its original, without creating bytes or changing intake", async () => {
+    const { tx, repository } = database([]);
+    tx.vehicleEvidenceLink.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ evidenceObjectId: "arrival", evidenceObject: { ...photo, id: "arrival", fileName: "front-arrival.png", byteSize: 20, malwareStatus: "CLEAN", accessLevel: "INTERNAL", legalHold: false } }] as never);
+    await repository.changeSalesMedia(command(), { order: ["arrival"], removeIds: [], addIds: ["arrival"] });
+    expect(tx.vehicleEvidenceLink.create).toHaveBeenCalledWith({ data: expect.objectContaining({ evidenceObjectId: "arrival", vehicleId: "v1", subjectType: "SALES_MEDIA", relationship: "SUPPORTS" }) });
+    expect(tx.vehicleEvidenceObject.create).not.toHaveBeenCalled();
+    expect(tx.vehicleEvidenceLink.updateMany).not.toHaveBeenCalled();
+    expect(tx.enterpriseAuditEvent.create).toHaveBeenCalledOnce();
+  });
+  it.each([{ fileName: "odometer-damage.png" }, { legalHold: true }, { malwareStatus: "DETECTED" }, { status: "QUARANTINED" }, { accessLevel: "RESTRICTED" }])("rejects unsafe intake reuse: %j", async change => {
+    const { tx, repository } = database([]);
+    tx.vehicleEvidenceLink.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ evidenceObjectId: "arrival", evidenceObject: { ...photo, id: "arrival", fileName: "front.png", byteSize: 20, malwareStatus: "CLEAN", accessLevel: "INTERNAL", legalHold: false, ...change } }] as never);
+    await expect(repository.changeSalesMedia(command(), { order: ["arrival"], removeIds: [], addIds: ["arrival"] })).rejects.toThrow("Select safe, internal intake photos");
+    expect(tx.vehicleEvidenceLink.create).not.toHaveBeenCalled();
+  });
+  it("does not let reused intake photos exceed the advertising cap", async () => {
+    const { tx, repository } = database(Array.from({ length: 40 }, (_, index) => ({ ...photo, id: `p${index}` })));
+    tx.vehicleEvidenceLink.findMany.mockResolvedValueOnce(Array.from({ length: 40 }, (_, index) => ({ evidenceObjectId: `p${index}`, evidenceObject: { ...photo, id: `p${index}`, fileName: "front.png", byteSize: 20, malwareStatus: "CLEAN", legalHold: false } }))).mockResolvedValueOnce([{ evidenceObjectId: "arrival", evidenceObject: { ...photo, id: "arrival", fileName: "front.png", byteSize: 20, malwareStatus: "CLEAN", accessLevel: "INTERNAL", legalHold: false } }] as never);
+    await expect(repository.changeSalesMedia(command(), { order: [], removeIds: [], addIds: ["arrival"] })).rejects.toThrow("40 sales photos");
+  });
   it("separates sales files from evidence and rejects forged ownership/access", () => {
     expect(normalizeEvidenceUpload(base, now).scan.malwareStatus).toBe("CLEAN");
     for (const change of [{ subjectId: "another-vehicle" }, { accessLevel: "RESTRICTED" }, { relationship: "ARCHIVED_SALES_MEDIA" }]) expect(() => normalizeEvidenceUpload({ ...base, ...change }, now)).toThrow("selected vehicle");

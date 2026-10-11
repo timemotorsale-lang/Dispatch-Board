@@ -21,6 +21,11 @@ beforeEach(() => {
   mocks.gallery.mockResolvedValue({ items: [], canManage: false });
 });
 describe("inventory vehicle detail landing", () => {
+  it("opens Media and intake coverage directly from Vehicle 360", async () => {
+    const page = await VehicleDetailsPage({ params: Promise.resolve({ id: "v1" }), searchParams: Promise.resolve({ tab: "media", purpose: "intake" }) });
+    expect(page.props.initialTab).toBe("Media");
+    expect(page.props.initialMediaKind).toBe("intake");
+  });
   it("opens the same tabbed workspace before confirmed intake, without a cycle, and while held", async () => {
     const page = await open();
     expect(page.props.journey.intake.status).toBe("DRAFT");

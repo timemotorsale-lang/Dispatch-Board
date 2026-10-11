@@ -64,9 +64,11 @@ export async function changeVehicleSalesMedia(actor: AuthenticatedUser | null, v
   const expectedVersion = Number(raw.expectedVersion);
   if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Expected media version is invalid.");
   const removeIds = raw.removeIds ?? [];
+  const addIds = raw.addIds ?? [];
+  if (!Array.isArray(addIds) || addIds.some(id => typeof id !== "string") || new Set(addIds).size !== addIds.length || addIds.length > 40) throw new Error("Intake photo selection is invalid.");
   if (!Array.isArray(removeIds) || removeIds.some(id => typeof id !== "string") || new Set(removeIds).size !== removeIds.length || removeIds.length > 45) throw new Error("Removal selection is invalid.");
   const id = required(vehicleId, "Vehicle ID", 100);
-  return context.repository.changeSalesMedia(normalizeEnterpriseCommand({ actorUserId: user.id, commandType: "UPDATE_SALES_MEDIA", expectedVersion, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), organizationId: context.organizationId, domain: "VEHICLE_EVIDENCE", subjectType: "SALES_MEDIA", subjectId: id, locationId: null, payload: { order: raw.order, removeIds }, reason: required(raw.reason, "Business reason", 500) }), { order: raw.order, removeIds });
+  return context.repository.changeSalesMedia(normalizeEnterpriseCommand({ actorUserId: user.id, commandType: "UPDATE_SALES_MEDIA", expectedVersion, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), organizationId: context.organizationId, domain: "VEHICLE_EVIDENCE", subjectType: "SALES_MEDIA", subjectId: id, locationId: null, payload: { order: raw.order, removeIds, addIds }, reason: required(raw.reason, "Business reason", 500) }), { order: raw.order, removeIds, addIds });
 }
 
 export async function updateVehicleEvidenceGovernance(actor: AuthenticatedUser | null, evidenceId: string, value: unknown, input: Dependencies = {}) {

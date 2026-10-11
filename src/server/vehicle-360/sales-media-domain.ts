@@ -1,5 +1,6 @@
 export type SalesMediaItem = { id: string; name: string; contentType: string; bytes: number; status: string; href: string | null };
-export type SalesMediaModel = { vehicleId: string; version: number; canManage: boolean; items: SalesMediaItem[] };
+export type IntakeMediaItem = SalesMediaItem & { reusable: boolean };
+export type SalesMediaModel = { vehicleId: string; version: number; canManage: boolean; items: SalesMediaItem[]; intakeItems?: IntakeMediaItem[] };
 
 export function orderSalesMedia<T extends { id: string }>(items: T[], order: unknown): T[] {
   const ids = Array.isArray(order) ? order.filter((id): id is string => typeof id === "string") : [];

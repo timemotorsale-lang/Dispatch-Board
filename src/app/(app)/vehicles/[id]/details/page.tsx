@@ -8,8 +8,9 @@ import { getVehicleIntake } from "@/server/inventory-unit/intake-service";
 import { prisma } from "@/server/db/client";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 
-export default async function VehicleDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function VehicleDetailsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; purpose?: string }> }) {
   const user = await requireCurrentUser(), { id } = await params;
+  const query = await searchParams;
   const now = new Date();
   const relationships = await prisma.vehicleRelationship.findMany({ where: { organizationId: INITIAL_ORGANIZATION.id, vehicleId: id, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] }, select: { relationshipType: true } });
   const inventory = relationships.some(record => ["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"].includes(record.relationshipType));
@@ -34,5 +35,5 @@ export default async function VehicleDetailsPage({ params }: { params: Promise<{
     getVehicleIntake(user, id).catch(() => null),
     getVehicleSalesMedia(user, id).catch(() => null)
   ]);
-  return <FrontlinePreparationWorkspace journey={JSON.parse(JSON.stringify(journey))} pricing={JSON.parse(JSON.stringify(pricing))} costs={JSON.parse(JSON.stringify(costs))} documents={media.documents} mediaUnavailable={!media.available} intake={JSON.parse(JSON.stringify(intake))} recordContext={JSON.parse(JSON.stringify(media.context))} salesMedia={salesMedia}/>;
+  return <FrontlinePreparationWorkspace journey={JSON.parse(JSON.stringify(journey))} pricing={JSON.parse(JSON.stringify(pricing))} costs={JSON.parse(JSON.stringify(costs))} documents={media.documents} mediaUnavailable={!media.available} intake={JSON.parse(JSON.stringify(intake))} recordContext={JSON.parse(JSON.stringify(media.context))} salesMedia={salesMedia} initialTab={query?.tab === "media" ? "Media" : "Vehicle Info"} initialMediaKind={query?.purpose === "intake" ? "intake" : "photos"}/>;
 }

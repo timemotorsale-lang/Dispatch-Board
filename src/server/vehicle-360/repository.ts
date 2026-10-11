@@ -4,6 +4,7 @@ import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/r
 import { prisma } from "@/server/db/client";
 import { SALES_PHOTO_LIMIT, SALES_VIDEO_LIMIT, sortVehicleTimeline, type Vehicle360TimelineItem } from "./domain";
 import { orderSalesMedia, validateSalesMediaOrder } from "./sales-media-domain";
+import { inferVehiclePhotoAngle } from "@/lib/vehicle-photo-coverage";
 
 const evidenceMetadataSelect = {
   id: true, fileName: true, contentType: true, byteSize: true, checksumSha256: true, storageProvider: true,
@@ -13,6 +14,15 @@ const evidenceMetadataSelect = {
 } satisfies Prisma.VehicleEvidenceObjectSelect;
 
 function json(value: unknown) { return value as Prisma.InputJsonValue; }
+
+async function readIntakePhotos(tx: Prisma.TransactionClient, organizationId: string, vehicleId: string) {
+  const links = await tx.vehicleEvidenceLink.findMany({ where: { organizationId, vehicleId, category: "PHOTO", subjectType: { in: ["VEHICLE", "INTAKE_PHOTO"] }, subjectId: vehicleId, relationship: "SUPPORTS", evidenceObject: { organizationId, accessLevel: "INTERNAL", status: { not: "DELETED" }, contentType: { in: ["image/jpeg", "image/png", "image/webp"] } } }, orderBy: { createdAt: "asc" }, include: { evidenceObject: { select: evidenceMetadataSelect } } });
+  return [...new Map(links.map(link => [link.evidenceObjectId, link])).values()].map(link => {
+    const evidence = link.evidenceObject;
+    const safe = evidence.accessLevel === "INTERNAL" && evidence.status === "AVAILABLE" && evidence.malwareStatus === "CLEAN";
+    return { id: link.evidenceObjectId, name: evidence.fileName, contentType: evidence.contentType, bytes: evidence.byteSize, status: evidence.status, href: safe ? `/api/vehicle-evidence/${link.evidenceObjectId}/content` : null, reusable: safe && !evidence.legalHold && inferVehiclePhotoAngle(evidence.fileName) !== "damage_closeup" };
+  });
+}
 
 async function lockSalesVehicle(tx: Prisma.TransactionClient, organizationId: string, vehicleId: string) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT id FROM "Vehicle" WHERE id = ${vehicleId} AND "organizationId" = ${organizationId} AND "mergedIntoVehicleId" IS NULL FOR UPDATE`);
@@ -99,7 +109,7 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         await tx.vehicleEvidenceEvent.create({ data: { organizationId: command.organizationId, evidenceObjectId: current.id, actorUserId: data.actorUserId, eventType: "RETENTION_CHANGED", reason: command.reason, metadata: json({ accessLevel: evidence.accessLevel, legalHold: evidence.legalHold, retentionUntil: evidence.retentionUntil.toISOString(), version }) } });
         await recordEnterpriseEvidence(tx, command, version, { accessLevel: evidence.accessLevel, evidenceId: evidence.id, legalHold: evidence.legalHold, retentionUntil: evidence.retentionUntil.toISOString(), version });
         return { duplicate: false, evidence };
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     },
 
     async deleteEvidence(command: EnterpriseCommandCommitInput, actorUserId: string, now: Date) {
@@ -130,11 +140,11 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
       return database.$transaction(async tx => {
         await lockSalesVehicle(tx, organizationId, vehicleId);
         const collection = await readSalesCollection(tx, organizationId, vehicleId);
-        return { vehicleId: collection.vehicleId, version: collection.version, items: collection.items };
+        return { vehicleId: collection.vehicleId, version: collection.version, items: collection.items, intakeItems: await readIntakePhotos(tx, organizationId, vehicleId) };
       });
     },
 
-    async changeSalesMedia(command: EnterpriseCommandCommitInput, data: { order: unknown; removeIds: string[] }) {
+    async changeSalesMedia(command: EnterpriseCommandCommitInput, data: { order: unknown; removeIds: string[]; addIds?: string[] }) {
       return database.$transaction(async tx => {
         await lockSalesVehicle(tx, command.organizationId, command.subjectId);
         const prior = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: command.organizationId, domain: command.domain, commandType: command.commandType, idempotencyKey: command.idempotencyKey } } });
@@ -143,16 +153,22 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
           return { duplicate: true };
         }
         const collection = await readSalesCollection(tx, command.organizationId, command.subjectId);
+        const addIds = data.addIds ?? [];
+        const intake = addIds.length ? await readIntakePhotos(tx, command.organizationId, command.subjectId) : [];
+        if (addIds.some(id => !intake.some(item => item.id === id && item.reusable) || collection.items.some(item => item.id === id))) throw new Error("Select safe, internal intake photos that are not damage evidence or already in the gallery.");
+        const additions = intake.filter(item => addIds.includes(item.id));
+        if (collection.items.filter(item => item.contentType.startsWith("image/") && !data.removeIds.includes(item.id)).length + additions.length > SALES_PHOTO_LIMIT) throw new Error(`A vehicle can have at most ${SALES_PHOTO_LIMIT} sales photos.`);
         if (data.removeIds.some(id => !collection.items.some(item => item.id === id))) throw new Error("Media item was not found in this vehicle collection.");
         if (collection.links.some(link => data.removeIds.includes(link.evidenceObjectId) && link.evidenceObject.legalHold)) throw new Error("Media under legal hold cannot be removed.");
-        const order = validateSalesMediaOrder(collection.items.filter(item => !data.removeIds.includes(item.id)), data.order);
+        const order = validateSalesMediaOrder([...collection.items.filter(item => !data.removeIds.includes(item.id)), ...additions], data.order);
         const firstPhoto = collection.items.find(item => item.id === order.find(id => collection.items.some(candidate => candidate.id === id && candidate.contentType.startsWith("image/"))));
         if (firstPhoto && !firstPhoto.href) throw new Error("The primary photo must pass the file safety scan.");
         const version = await currentAggregateVersion(tx, command);
+        for (const item of additions) await tx.vehicleEvidenceLink.create({ data: { organizationId: command.organizationId, evidenceObjectId: item.id, vehicleId: command.subjectId, category: "PHOTO", subjectType: "SALES_MEDIA", subjectId: command.subjectId, relationship: "SUPPORTS", createdByUserId: command.actorUserId } });
         if (data.removeIds.length) await tx.vehicleEvidenceLink.updateMany({ where: { organizationId: command.organizationId, vehicleId: command.subjectId, subjectType: "SALES_MEDIA", relationship: "SUPPORTS", evidenceObjectId: { in: data.removeIds } }, data: { relationship: "ARCHIVED_SALES_MEDIA" } });
-        await recordEnterpriseEvidence(tx, command, version, { order, removedIds: data.removeIds, vehicleId: command.subjectId, version });
+        await recordEnterpriseEvidence(tx, command, version, { order, removedIds: data.removeIds, reusedIntakeIds: addIds, vehicleId: command.subjectId, version });
         return { duplicate: false };
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     },
 
     async recordEvidenceAccess(organizationId: string, evidenceObjectId: string, actorUserId: string, reason: string) {

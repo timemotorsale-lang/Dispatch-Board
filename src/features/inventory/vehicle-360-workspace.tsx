@@ -1,4 +1,5 @@
 "use client";
+import { inferVehiclePhotoAngle } from "@/lib/vehicle-photo-coverage";
 
 import {
   AlertTriangle,
@@ -86,22 +87,10 @@ function relationship(view: Vehicle360View) { if (view.tabs.inventory.items.leng
 function sourceIcon(source: string) { if (source === "SERVICE") return Wrench; if (source === "EVIDENCE") return FileText; if (source === "APPOINTMENT") return CalendarClock; if (source === "INVENTORY") return ClipboardCheck; return History; }
 function normalizeEvidenceText(item: EvidenceItem) { return `${item.evidenceObject.fileName} ${item.category} ${item.relationship} ${item.subjectType} ${item.subjectId}`.toLowerCase().replaceAll(/[_-]+/g, " "); }
 function inferWalkaroundAngle(item: EvidenceItem): WalkaroundAngleCode | null {
-  const text = normalizeEvidenceText(item);
-  if (text.includes("odometer") || text.includes("mileage") || text.includes("cluster")) return "odometer";
-  if (text.includes("interior") || text.includes("dash") || text.includes("cabin")) return "interior_dash";
-  if (text.includes("damage") || text.includes("dent") || text.includes("scratch") || text.includes("close up") || text.includes("closeup")) return "damage_closeup";
-  if (text.includes("front left") || text.includes("driver front")) return "front_left";
-  if (text.includes("front right") || text.includes("passenger front")) return "front_right";
-  if (text.includes("rear left") || text.includes("driver rear")) return "rear_left";
-  if (text.includes("rear right") || text.includes("passenger rear")) return "rear_right";
-  if (text.includes("driver side") || text.includes("left side")) return "driver_side";
-  if (text.includes("passenger side") || text.includes("right side")) return "passenger_side";
-  if (text.includes("rear") || text.includes("back")) return "rear";
-  if (text.includes("front")) return "front";
-  return null;
+  return inferVehiclePhotoAngle(normalizeEvidenceText(item));
 }
 function walkaroundPhotoItems(items: EvidenceItem[]) {
-  return items.filter(item => item.category === "PHOTO" && item.evidenceObject.status === "AVAILABLE" && item.evidenceObject.contentType.toLowerCase().startsWith("image/"));
+  return items.filter(item => item.category === "PHOTO" && ["VEHICLE", "INTAKE_PHOTO"].includes(item.subjectType) && item.evidenceObject.malwareStatus === "CLEAN" && item.evidenceObject.status === "AVAILABLE" && item.evidenceObject.contentType.toLowerCase().startsWith("image/"));
 }
 function walkaroundCoverage(items: EvidenceItem[]) {
   const photos = walkaroundPhotoItems(items);
@@ -171,7 +160,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [category, setCategory] = useState(() => searchParams.get("category") || "PHOTO");
+  const [category, setCategory] = useState(() => searchParams.get("category") === "PHOTO" ? "OTHER" : searchParams.get("category") || "OTHER");
   const [accessLevel, setAccessLevel] = useState("INTERNAL");
   const [retention, setRetention] = useState(() => { const next = new Date(); next.setUTCFullYear(next.getUTCFullYear() + 3); return next.toISOString().slice(0, 10); });
   const [safety, setSafety] = useState<NhtsaSafetyIntelligence | null>(null);
@@ -203,7 +192,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Vehicle 360 request failed."); return body; }
   async function refresh() { setView(await request(`/api/vehicles/${vehicle.id}/360`) as Vehicle360View); }
   function base64(selected: File) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error("Unable to read the selected file.")); reader.onload = () => { const result = String(reader.result ?? ""), comma = result.indexOf(","); resolve(comma >= 0 ? result.slice(comma + 1) : result); }; reader.readAsDataURL(selected); }); }
-  async function upload(event: FormEvent) { event.preventDefault(); if (!file) return; setBusy(true); setNotice(""); try { const result = await request("/api/vehicle-evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vehicleId: vehicle.id, fileName: file.name, contentType: file.type || "application/octet-stream", contentBase64: await base64(file), category, accessLevel, retentionUntil: new Date(`${retention}T23:59:59.999Z`).toISOString(), subjectType: "VEHICLE", subjectId: vehicle.id, relationship: "SUPPORTS", idempotencyKey: crypto.randomUUID(), reason: "Attach governed operational evidence to Vehicle 360." }) }); setNotice(result.evidence?.status === "QUARANTINED" ? "The file was stored in quarantine and is not available for download." : "Evidence uploaded, verified, and linked to Vehicle 360."); setFile(null); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence upload failed."); } finally { setBusy(false); } }
+  async function upload(event: FormEvent) { event.preventDefault(); if (!file) return; if (file.type.startsWith("image/") || file.type === "video/mp4") { setNotice("Photos and videos are managed in Media."); window.location.assign(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); return; } setBusy(true); setNotice(""); try { const result = await request("/api/vehicle-evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vehicleId: vehicle.id, fileName: file.name, contentType: file.type || "application/octet-stream", contentBase64: await base64(file), category, accessLevel, retentionUntil: new Date(`${retention}T23:59:59.999Z`).toISOString(), subjectType: "VEHICLE", subjectId: vehicle.id, relationship: "SUPPORTS", idempotencyKey: crypto.randomUUID(), reason: "Attach governed operational evidence to Vehicle 360." }) }); setNotice(result.evidence?.status === "QUARANTINED" ? "The file was stored in quarantine and is not available for download." : "Evidence uploaded, verified, and linked to Vehicle 360."); setFile(null); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence upload failed."); } finally { setBusy(false); } }
   async function govern(item: EvidenceItem, changes: Record<string, unknown>, reason: string) { setBusy(true); try { await request(`/api/vehicle-evidence/${item.evidenceObjectId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedVersion: item.evidenceObject.version, idempotencyKey: crypto.randomUUID(), reason, ...changes }) }); setNotice("Evidence governance updated with an audit record."); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence governance update failed."); } finally { setBusy(false); } }
   const safetyYear = Number(specifications.modelYear ?? vehicle.year);
   const safetyMake = String(specifications.make ?? vehicle.make ?? "").trim();
@@ -249,7 +238,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
     {decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
     {active === "evidence" && view.tabs.documents.allowed ? <Link className={styles.secondaryButton} href={`/sales-documents?q=${encodeURIComponent(vehicle.vin || vehicle.stockNumber || identityName)}`}><FileText />Saved sales packets</Link> : null}
     {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenPhotos={() => setActive("photos")} onOpenSafety={() => setActive("safety")} onOpenWork={() => setActive("work")} primaryHref={primaryHref} vehicle360Return={vehicle360Return} /> : null}
-    {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { setCategory("PHOTO"); setActive("evidence"); setNotice("Choose a vehicle photo file, label the angle in the file name, then store it as governed evidence."); }} /> : null}
+    {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { window.location.assign(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); }} /> : null}
     {active === "identity" ? <VehicleSpecifications view={specificationView} /> : null}
     {active === "work" ? <WorkHistory view={view} /> : null}
     {active === "safety" ? <SafetyIntelligence intelligence={safety} loading={safetyLoading} error={safetyError} onRefresh={() => void loadSafety()} vehicle={vehicle} /> : null}
@@ -342,8 +331,8 @@ function PhotoWalkaround({ allowed, items, onAddPhoto, vehicle }: { allowed: boo
       <SectionHeading
         eyebrow="360 photo walkaround"
         title="Vehicle photo coverage"
-        detail="Use normal phone photos. Vehicle 360 organizes the evidence by required angle so intake, recon, sales, warranty, and reports can reuse the same governed source."
-        action={<button className={styles.primaryButton} disabled={!allowed} onClick={onAddPhoto} type="button"><Camera />Add photo evidence</button>}
+        detail="Arrival and condition evidence · 10 required angles, not a photo limit."
+        action={<button className={styles.primaryButton} disabled={!allowed} onClick={onAddPhoto} type="button"><Camera />Open Media</button>}
       />
       <div className={styles.photoStats}>
         <div><small>Required coverage</small><strong>{capturedRequired}/{requiredWalkaroundAngles.length}</strong><span>{capturedRequired === requiredWalkaroundAngles.length ? "Ready for review" : "More angles needed"}</span></div>
@@ -375,8 +364,8 @@ function PhotoWalkaround({ allowed, items, onAddPhoto, vehicle }: { allowed: boo
             <div><dt>Uploaded</dt><dd>{dateTime(selectedItem.evidenceObject.createdAt)}</dd></div>
             <div><dt>Access</dt><dd>{sentence(selectedItem.evidenceObject.accessLevel)}</dd></div>
             <div><dt>Malware result</dt><dd>{sentence(selectedItem.evidenceObject.malwareStatus)}</dd></div>
-          </dl> : <div className={styles.empty}><AlertTriangle /><div><strong>Photo needed</strong><p>Add a photo for this angle and include the angle name in the file name, such as front-left or odometer.</p></div></div>}
-          <div className={styles.cardActions}>{selectedItem?.downloadUrl ? <a className={styles.secondaryButton} href={selectedItem.downloadUrl}>Open photo</a> : null}<button className={styles.secondaryButton} disabled={!allowed} onClick={onAddPhoto} type="button">{selectedItem ? "Add another angle" : "Add this angle"}</button></div>
+          </dl> : <div className={styles.empty}><AlertTriangle /><div><strong>Photo needed</strong><p>No intake photo recorded for this angle.</p></div></div>}
+          <div className={styles.cardActions}>{selectedItem?.downloadUrl ? <a className={styles.secondaryButton} href={selectedItem.downloadUrl}>Open photo</a> : null}<button className={styles.secondaryButton} disabled={!allowed} onClick={onAddPhoto} type="button">{selectedItem ? "Open Media" : "Capture in Media"}</button></div>
         </section>
 
         <section className={styles.panel}>
@@ -397,7 +386,7 @@ function PhotoWalkaround({ allowed, items, onAddPhoto, vehicle }: { allowed: boo
 }
 
 function EvidenceWorkspace({ accessLevel, allowed, busy, category, file, items, retention, onAccessLevel, onCategory, onFile, onGovern, onRetention, onUpload }: { accessLevel: string; allowed: boolean; busy: boolean; category: string; file: File | null; items: EvidenceItem[]; retention: string; onAccessLevel: (value: string) => void; onCategory: (value: string) => void; onFile: (value: File | null) => void; onGovern: (item: EvidenceItem, changes: Record<string, unknown>, reason: string) => Promise<void>; onRetention: (value: string) => void; onUpload: (event: FormEvent) => Promise<void> }) {
-  return <div className={styles.sectionStack}><form className={styles.panel} onSubmit={onUpload}><SectionHeading eyebrow="Evidence & documents" title="Upload governed evidence" detail="Attach evidence once, preserve its origin, and reuse it across receiving, recon, repair, QC, and future diagnosis." /><div className={styles.uploadGrid}><label><span>File</span><input accept="application/pdf,image/jpeg,image/png,image/webp,text/plain" disabled={busy || !allowed} onChange={event => onFile(event.target.files?.[0] ?? null)} required type="file" /></label><label><span>Category</span><select onChange={event => onCategory(event.target.value)} value={category}>{["PHOTO", "INSPECTION", "REPAIR", "TITLE", "WARRANTY", "CUSTOMER_APPROVAL", "DELIVERY", "OTHER"].map(item => <option key={item}>{item}</option>)}</select></label><label><span>Access</span><select onChange={event => onAccessLevel(event.target.value)} value={accessLevel}><option>INTERNAL</option><option>RESTRICTED</option></select></label><label><span>Retain through</span><input onChange={event => onRetention(event.target.value)} required type="date" value={retention} /></label></div><button className={styles.primaryButton} disabled={busy || !file || !allowed} type="submit">Verify and store evidence<ArrowRight /></button></form>
+  return <div className={styles.sectionStack}><form className={styles.panel} onSubmit={onUpload}><SectionHeading eyebrow="Evidence & documents" title="Upload documents" detail="Attach evidence once, preserve its origin, and reuse it across receiving, recon, repair, QC, and future diagnosis." /><div className={styles.uploadGrid}><label><span>File</span><input accept="application/pdf,text/plain" disabled={busy || !allowed} onChange={event => onFile(event.target.files?.[0] ?? null)} required type="file" /></label><label><span>Category</span><select onChange={event => onCategory(event.target.value)} value={category}>{["INSPECTION", "REPAIR", "TITLE", "WARRANTY", "CUSTOMER_APPROVAL", "DELIVERY", "OTHER"].map(item => <option key={item}>{item}</option>)}</select></label><label><span>Access</span><select onChange={event => onAccessLevel(event.target.value)} value={accessLevel}><option>INTERNAL</option><option>RESTRICTED</option></select></label><label><span>Retain through</span><input onChange={event => onRetention(event.target.value)} required type="date" value={retention} /></label></div><button className={styles.primaryButton} disabled={busy || !file || !allowed} type="submit">Verify and store evidence<ArrowRight /></button></form>
     <section className={styles.panel}><SectionHeading eyebrow="Connected evidence" title={`${items.length} governed object${items.length === 1 ? "" : "s"}`} detail="Integrity, access classification, retention, legal hold, and uploader attribution remain visible." />{allowed ? items.length ? <div className={styles.evidenceGrid}>{items.map(item => <article className={styles.evidenceCard} key={item.id}><header><FileText /><div><small>{sentence(item.category)} · {sentence(item.evidenceObject.status)}</small><h3>{item.evidenceObject.fileName}</h3></div></header><dl><div><dt>Integrity</dt><dd>{item.evidenceObject.checksumSha256.slice(0, 16)}…</dd></div><div><dt>Malware result</dt><dd>{sentence(item.evidenceObject.malwareStatus)}</dd></div><div><dt>Access</dt><dd>{sentence(item.evidenceObject.accessLevel)}</dd></div><div><dt>Retention</dt><dd>{dateTime(item.evidenceObject.retentionUntil)}</dd></div><div><dt>Legal hold</dt><dd>{item.evidenceObject.legalHold ? "Active" : "Not active"}</dd></div><div><dt>Uploaded by</dt><dd>{item.evidenceObject.uploadedByUser.name}</dd></div></dl><div className={styles.cardActions}>{item.downloadUrl ? <a className={styles.secondaryButton} href={item.downloadUrl}>Download</a> : null}<button className={styles.secondaryButton} disabled={busy} onClick={() => void onGovern(item, { legalHold: !item.evidenceObject.legalHold }, `${item.evidenceObject.legalHold ? "Release" : "Apply"} evidence legal hold after governance review.`)} type="button">{item.evidenceObject.legalHold ? "Release hold" : "Apply legal hold"}</button><button className={styles.secondaryButton} disabled={busy} onClick={() => void onGovern(item, { accessLevel: item.evidenceObject.accessLevel === "INTERNAL" ? "RESTRICTED" : "INTERNAL" }, "Change evidence access classification after governance review.")} type="button">Set {item.evidenceObject.accessLevel === "INTERNAL" ? "restricted" : "internal"}</button></div></article>)}</div> : <AccessEmpty allowed labelText="Evidence" /> : <AccessEmpty allowed={false} labelText="Evidence" />}</section>
   </div>;
 }
