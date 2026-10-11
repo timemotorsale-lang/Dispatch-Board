@@ -211,9 +211,20 @@ jobs:
             "DEPLOY_PATH='${DEPLOY_PATH}' RELEASE_REF='${RELEASE_REF}' RELEASE_SHA='${RELEASE_SHA}' bash -s" <<'REMOTE'
           set -euo pipefail
 
-          cd "$DEPLOY_PATH"
-          test -f deploy/docker/.env
-          test -f deploy/docker/import-release-approval.json
+          echo "Deployment diagnostic: remote script started."
+          if ! cd "$DEPLOY_PATH"; then
+          echo "ERRO: Deployment directory unavailable." >82
+          exit 1
+          fi
+          if [[ ! -f deploy/docker/.env]]; then
+          echo 'ERROR; Production environment file missing." >82
+          exit 1
+          fi
+          if [[ ! -f deploy/docker/import-release-approval.json ]]; then 
+          echo "ERRO: Production environment file missing." >82
+          exit 1
+          fi
+          echo "Deployment prerequisites found."
           export APP_VERSION="$RELEASE_SHA"
 
           compose() {
