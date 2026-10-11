@@ -116,7 +116,7 @@ export function stableEvidenceId(organizationId: string, idempotencyKey: string)
   return `evi-${createHash("sha256").update(`${organizationId}:${idempotencyKey.trim()}`).digest("hex").slice(0, 24)}`;
 }
 
-export type Vehicle360TimelineItem = { id: string; occurredAt: Date; source: string; type: string; title: string; detail: string | null; subjectType: string; subjectId: string };
+export type Vehicle360TimelineItem = { id: string; occurredAt: Date; source: string; type: string; title: string; detail: string | null; subjectType: string; subjectId: string; actorName?: string | null };
 
 export function sortVehicleTimeline(items: Vehicle360TimelineItem[], limit = 200) {
   return orderUnifiedTimelineItems(items, limit);

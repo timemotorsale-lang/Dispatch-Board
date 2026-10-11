@@ -4239,21 +4239,23 @@ function readDealDraft(customerId: string): CrmNextDealDraft | null {
   }
 }
 
-export function CrmNextDealStartTool(props: { initialCustomerId?: string; initialWorkflowId?: string; model: CrmNextCommandCenter }) {
-  return <DealDraftWorkspace initialCustomerId={props.initialCustomerId} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
+export function CrmNextDealStartTool(props: { initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
+  return <DealDraftWorkspace initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
 }
 
 function DealStartDesk({
   initialCustomerId,
   initialWorkflowId,
+  initialVehicleReference,
   model
 }: {
   initialCustomerId?: string;
   initialWorkflowId?: string;
+  initialVehicleReference?: string;
   model: CrmNextCommandCenter;
 }) {
   const savedDeal = useDealDraft();
-  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? model.customers[0] ?? null;
+  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? (initialVehicleReference ? null : model.customers[0]) ?? null;
   const documentUploadQueue = useRef(Promise.resolve());
   const pendingDocumentUploads = useRef(0);
   const [documentUploadBusy, setDocumentUploadBusy] = useState(false);
@@ -4271,7 +4273,7 @@ function DealStartDesk({
     customerId: preferredCustomer?.id ?? "",
     note: "",
     ownerUserId: model.userId,
-    vehicle: ""
+    vehicle: initialVehicleReference ?? ""
   });
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
@@ -4327,7 +4329,7 @@ function DealStartDesk({
         customerId,
         note: "",
         ownerUserId: current.ownerUserId || model.userId,
-        vehicle: ""
+        vehicle: initialVehicleReference ? current.vehicle : ""
       }));
       return;
     }
@@ -4335,13 +4337,13 @@ function DealStartDesk({
     setManualCustomerName("");
     setForm((current) => ({
       ...current,
-      amount: draft?.amount ?? "",
+      amount: initialVehicleReference ? current.amount : draft?.amount ?? "",
       customerId,
-      note: draft?.note ?? "",
-      ownerUserId: draft?.ownerUserId || current.ownerUserId || model.userId,
-      vehicle: draft?.vehicle ?? ""
+      note: initialVehicleReference ? current.note : draft?.note ?? "",
+      ownerUserId: initialVehicleReference ? current.ownerUserId || model.userId : draft?.ownerUserId || current.ownerUserId || model.userId,
+      vehicle: initialVehicleReference ? current.vehicle : draft?.vehicle ?? ""
     }));
-    if (draft?.workflowId) setWorkflowId(draft.workflowId as DealWorkflowId);
+    if (draft?.workflowId && !initialVehicleReference) setWorkflowId(draft.workflowId as DealWorkflowId);
   }
 
   function updateManualCustomerName(value: string) {
@@ -4352,7 +4354,7 @@ function DealStartDesk({
       customerId: MANUAL_CUSTOMER_ID,
       note: "",
       ownerUserId: current.ownerUserId || model.userId,
-      vehicle: ""
+      vehicle: initialVehicleReference ? current.vehicle : ""
     });
   }
 

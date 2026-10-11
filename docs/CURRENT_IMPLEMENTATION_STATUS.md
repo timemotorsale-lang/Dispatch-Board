@@ -1,5 +1,33 @@
 # Current Implementation Status
 
+## 2026-10-10 - Vehicle Workspace Tabs And Contextual Tools
+
+The preparation workspace now has Vehicle Info, Marketing, Media, Market Data,
+Purchase Info, Activities, Files, Accounting, Recon, Logs and Release Review tabs
+beside the persistent vehicle sidebar. Vehicle Info has Summary, General Info,
+Pricing and Description sections. Existing pricing, cost and acquisition forms
+are reused with their authorization, validation and save controls intact; edits
+remain mounted while switching tabs. Documents, decoded specifications, journey
+steps and history come from existing authorized vehicle services. Logs support
+date/source/text filtering and pagination, using recorded actors when available.
+
+The overflow menu links Start Deal and Start Desk with selected-vehicle reference
+and document facts, without selecting a buyer or replacing an existing saved deal.
+It also links as-is sale, governed sale/reservation review, appraisal and Vehicle
+360. Appraisal and retail-completion views retain the requested vehicle scope on
+refresh and do not silently substitute another vehicle. Deposit opens reservation
+review, not payment collection. Deletion and customer-facing preview are explicitly
+unavailable because no supported workflow exists. External publishing connectors
+and valuation subscriptions are not simulated or enabled. Release gates remain.
+
+Fourteen focused test files (80 tests), typecheck, scoped lint and diff checks pass.
+Interactive component checks at 1440px and 390px verify tabs, keyboard navigation,
+retained pricing/intake edits, overflow-menu links, log filters/pagination and no
+page overflow. The authenticated local page loaded the new tabs; the existing
+Start The Day reminder limits further live interaction. Live deal creation, saves,
+payment, sale completion and production deployment were not verified. No migration
+is required; this slice has not been committed, pushed or deployed.
+
 ## 2026-10-10 - DealerCenter-Inspired Preparation Workspace Layout
 
 The frontline preparation page now keeps vehicle photo/identity in a left sidebar

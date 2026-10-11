@@ -85,10 +85,14 @@ describe("inventory path workspaces", () => {
     expect(html).toContain("$28,995.00");
     expect(html).toContain("Release Review");
     expect(html).toContain("Runs and drives");
-    expect(html).not.toContain("Mark as Sold");
+    expect(html).toContain('href="/vehicles/retail-completion?vehicleId=vehicle-1"');
+    expect(html).not.toContain('>Mark as Sold</button>');
     expect(html.indexOf("<aside")).toBeLessThan(html.indexOf('role="tablist"'));
-    expect(html.match(/role="tabpanel"/g)).toHaveLength(5);
-    expect(html.match(/hidden=""/g)).toHaveLength(4);
+    expect(html.match(/role="tabpanel"/g)).toHaveLength(11);
+    expect(html).toContain("More vehicle tools");
+    expect(html).toContain("/crm-next/deals/start?vehicleId=vehicle-1&amp;pathway=retail-sale&amp;new=1");
+    expect(html).toContain("Purchase Info");
+    expect(html).toContain("Vehicle Logs");
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
     expect(html.match(/<h1>/g)).toHaveLength(1);
     review("frontline-preparation", html, "src/features/inventory/frontline-preparation-workspace.module.css", frontlineStyles);

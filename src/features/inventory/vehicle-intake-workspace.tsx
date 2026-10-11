@@ -10,7 +10,7 @@ import { VehicleCostWorkspace, type VehicleCostModel } from "./vehicle-cost-work
 import styles from "./vehicle-intake-workspace.module.css";
 
 const dollars = (value: number | null) => value === null ? "" : (value / 100).toFixed(2);
-export function VehicleIntakeWorkspace({ model, costs = null }: { model: VehicleIntakeModel; costs?: VehicleCostModel | null }) {
+export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }: { model: VehicleIntakeModel; costs?: VehicleCostModel | null; embedded?: boolean }) {
   const router = useRouter(), [details, setDetails] = useState(model.details);
   const [purchase, setPurchase] = useState(dollars(model.details.purchaseCents)), [price, setPrice] = useState(dollars(model.details.proposedPriceCents));
   const [reason, setReason] = useState(model.status === "NOT_STARTED" ? "Record initial acquisition intake" : ""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
@@ -59,9 +59,9 @@ export function VehicleIntakeWorkspace({ model, costs = null }: { model: Vehicle
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request interrupted. Retry the same submission."); }
     finally { setBusy(false); }
   }
-  return <section className={styles.workspace}>
+  return <section className={`${styles.workspace} ${embedded ? styles.embedded : ""}`}>
     <div className={styles.toolbar}>
-      <div><h1>Acquisition &amp; Intake</h1><span>{[model.vehicle.year, model.vehicle.make, model.vehicle.model].filter(Boolean).join(" ")}{dirty ? " · Unsaved changes" : ""}</span></div>
+      <div>{embedded ? <h2>Purchase &amp; Acquisition Intake</h2> : <h1>Acquisition &amp; Intake</h1>}<span>{[model.vehicle.year, model.vehicle.make, model.vehicle.model].filter(Boolean).join(" ")}{dirty ? " · Unsaved changes" : ""}</span></div>
       <div className={styles.actions}>
         <button type="button" disabled={busy} onClick={() => save("DRAFT")}><Save size={16}/>Save draft</button>
         <button type="button" disabled={busy} onClick={() => save("DRAFT", "JOURNEY")}>Save &amp; close</button>

@@ -1620,16 +1620,20 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
 export function CrmNextDealStartView({
   initialCustomerId,
   initialWorkflowId,
+  initialVehicleReference,
+  initialVehicleFacts,
   model
 }: {
   initialCustomerId?: string;
   initialWorkflowId?: string;
+  initialVehicleReference?: string;
+  initialVehicleFacts?: Record<string, string>;
   model: CrmNextCommandCenter;
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} model={model} />
+      <CrmNextDealStartTool initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
 }

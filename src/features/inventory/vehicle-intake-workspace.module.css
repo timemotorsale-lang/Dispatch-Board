@@ -10,6 +10,14 @@
   font-size: 12px;
 }
 .workspace h1 { font-size: 18px; margin: 0; }
+.embedded { max-width: none; margin: 0; padding: 0; }
+.embedded .toolbar, .embedded .nextActions { position: static; }
+.embedded .columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.embedded .vehicle { grid-column: 1 / -1; border: 0; padding: 0; }
+.embedded .vehicle > h2, .embedded .vehicle > dl, .embedded .vehicle > a { display: none; }
+.embedded .vehicle .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.embedded .columns > section:last-of-type { grid-column: auto; }
+@media(max-width:650px){.workspace.embedded{padding:0}.embedded .columns{grid-template-columns:1fr}}
 .workspace p { margin: 0; overflow-wrap: anywhere; }
 .toolbar {
   display: flex;
