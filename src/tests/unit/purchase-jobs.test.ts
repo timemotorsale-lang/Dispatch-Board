@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-const mock = vi.hoisted(() => ({ sourceCreate: vi.fn(), sourceUpdate: vi.fn(), jobCreate: vi.fn(), jobFind: vi.fn(), jobUpdate: vi.fn(), jobUpdateMany: vi.fn(), scan: vi.fn(), audit: vi.fn() }));
+const mock = vi.hoisted(() => ({ activeCount: vi.fn(), sourceCreate: vi.fn(), sourceUpdate: vi.fn(), jobCreate: vi.fn(), jobFind: vi.fn(), jobUpdate: vi.fn(), jobUpdateMany: vi.fn(), scan: vi.fn(), audit: vi.fn() }));
 vi.mock("@/server/db/client", () => {
-  const db = { $executeRaw: vi.fn(), vehicleEvidenceObject: { count: async () => 0, create: mock.sourceCreate, update: mock.sourceUpdate }, purchaseImportJob: { create: mock.jobCreate, findUniqueOrThrow: mock.jobFind, findFirst: mock.jobFind, update: mock.jobUpdate, updateMany: mock.jobUpdateMany }, enterpriseAuditEvent: { create: mock.audit } };
+  const db = { $executeRaw: vi.fn(), vehicleEvidenceObject: { count: async () => 0, create: mock.sourceCreate, update: mock.sourceUpdate }, purchaseImportJob: { count: mock.activeCount, create: mock.jobCreate, findUniqueOrThrow: mock.jobFind, findFirst: mock.jobFind, update: mock.jobUpdate, updateMany: mock.jobUpdateMany }, enterpriseAuditEvent: { create: mock.audit } };
   return { prisma: { ...db, $transaction: async (fn: (tx: typeof db) => unknown) => fn(db) } };
 });
 vi.mock("@/server/inventory-transfer/purchase-scanner", () => ({ scanPurchaseSource: mock.scan }));
 import { stagePurchaseSource, storedPurchaseSource, claimPurchaseSave, recordPurchaseJobEvent } from "@/server/inventory-transfer/purchase-jobs";
 const bytes = Buffer.from("invoice"), file = { bytes, fileName: "invoice.txt", contentType: "text/plain" };
-beforeEach(() => { vi.resetAllMocks(); mock.sourceCreate.mockResolvedValue({ id: "source" }); mock.jobFind.mockResolvedValue({ sourceEvidenceId: "source", version: 1 }); mock.scan.mockResolvedValue({ malwareStatus: "CLEAN", scanner: "TEST" }); mock.jobUpdateMany.mockResolvedValue({ count: 1 }); });
+beforeEach(() => { vi.resetAllMocks(); mock.activeCount.mockResolvedValue(0); mock.sourceCreate.mockResolvedValue({ id: "source" }); mock.jobFind.mockResolvedValue({ sourceEvidenceId: "source", version: 1 }); mock.scan.mockResolvedValue({ malwareStatus: "CLEAN", scanner: "TEST" }); mock.jobUpdateMany.mockResolvedValue({ count: 1 }); });
 describe("durable purchase source safety", () => {
+  it("bounds scanning and extraction before accepting source bytes or claiming saves", async () => {
+    mock.activeCount.mockResolvedValue(2);
+    await expect(stagePurchaseSource("staff", "lot", file)).rejects.toThrow("busy");
+    await expect(claimPurchaseSave("job", 4)).rejects.toThrow("busy");
+    expect(mock.sourceCreate).not.toHaveBeenCalled(); expect(mock.scan).not.toHaveBeenCalled(); expect(mock.jobUpdateMany).not.toHaveBeenCalled();
+  });
   it("stores quarantined source and processing job before scanning", async () => {
     await stagePurchaseSource("staff", "lot", file);
     expect(mock.sourceCreate.mock.calls[0][0].data).toMatchObject({ status: "QUARANTINED", malwareStatus: "ERROR", content: new Uint8Array(bytes) });

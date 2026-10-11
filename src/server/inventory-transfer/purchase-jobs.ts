@@ -9,8 +9,10 @@ const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.Inp
 export async function stagePurchaseSource(userId: string, locationId: string, file: { bytes: Buffer; fileName: string; contentType: string }) {
   const id = randomUUID(), retention = new Date(Date.now() + 30 * 24 * 60 * 60_000);
   await prisma.$transaction(async tx => {
-    const scope = `${organizationId}:PURCHASE_SOURCE_LIMIT:${userId}`;
+    const scope = `${organizationId}:PURCHASE_ACTIVE_LIMIT`;
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
+    const active = await tx.purchaseImportJob.count({ where: { organizationId, status: { in: ["SCANNING", "PROCESSING", "APPLYING"] }, leaseUntil: { gt: new Date() } } });
+    if (active >= 2) throw new Error("Purchase processing is busy. Wait for the current jobs, then retry your file.");
     const count = await tx.vehicleEvidenceObject.count({ where: { organizationId, uploadedByUserId: userId, storageKey: { startsWith: "purchase-import:" }, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60_000) } } });
     if (count >= 100) throw new Error("Daily purchase upload limit reached. Contact your inventory manager.");
     const source = await tx.vehicleEvidenceObject.create({ data: { organizationId, uploadedByUserId: userId, fileName: file.fileName, contentType: file.contentType, byteSize: file.bytes.length, checksumSha256: createHash("sha256").update(file.bytes).digest("hex"), storageKey: `purchase-import:${id}`, content: new Uint8Array(file.bytes), malwareStatus: "ERROR", malwareScanner: "PENDING", malwareScannedAt: new Date(), accessLevel: "RESTRICTED", retentionUntil: retention, status: "QUARANTINED" } });
@@ -61,7 +63,13 @@ export async function recordPurchaseJobEvent(userId: string, locationId: string,
   if (job && changed.count !== 1) throw new Error("Import changed concurrently. Refresh its review.");
 }
 export async function claimPurchaseSave(id: string, expectedVersion: number) {
-  const changed = await prisma.purchaseImportJob.updateMany({ where: { id, organizationId, version: expectedVersion, status: "READY" }, data: { status: "APPLYING", leaseUntil: new Date(Date.now() + 120_000), version: { increment: 1 } } });
-  if (changed.count !== 1) throw new Error("Import review changed or another save is running. Review it again.");
+  await prisma.$transaction(async tx => {
+    const scope = `${organizationId}:PURCHASE_ACTIVE_LIMIT`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
+    const active = await tx.purchaseImportJob.count({ where: { organizationId, status: { in: ["SCANNING", "PROCESSING", "APPLYING"] }, leaseUntil: { gt: new Date() } } });
+    if (active >= 2) throw new Error("Purchase processing is busy. Wait for the current jobs, then review again.");
+    const changed = await tx.purchaseImportJob.updateMany({ where: { id, organizationId, version: expectedVersion, status: "READY" }, data: { status: "APPLYING", leaseUntil: new Date(Date.now() + 120_000), version: { increment: 1 } } });
+    if (changed.count !== 1) throw new Error("Import review changed or another save is running. Review it again.");
+  });
 }
 export async function markPurchaseBatch(id: string) { await prisma.purchaseImportJob.update({ where: { id }, data: { status: "BATCH" } }); }

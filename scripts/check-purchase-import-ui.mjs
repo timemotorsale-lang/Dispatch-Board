@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import esbuild from "esbuild";
 import { chromium, expect } from "@playwright/test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import AxeBuilder from "@axe-core/playwright";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
@@ -14,7 +15,8 @@ const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
   const browser = await chromium.launch({channel:process.platform === 'win32' ? 'msedge' : undefined,headless:true});
   try {
     for (const width of [1440,390]) {
-      const page=await browser.newPage({viewport:{width,height:1000}}), errors=[], calls=[];
+      const context=await browser.newContext({viewport:{width,height:1000}});
+      const page=await context.newPage(), errors=[], calls=[];
       page.on('pageerror',error=>errors.push(error.message));
       let csv=false, managed=false;
       await page.route('https://inventory.test/**',async route=>{
@@ -56,6 +58,13 @@ const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
       await expect(page.getByRole('button',{name:'Save purchase draft'})).toBeDisabled();
       if(calls.some(call=>call.includes('name="action"\r\n\r\napply'))) throw Error('Applied without consent');
       await page.screenshot({path:output+`/review-${width}.png`,fullPage:true});
+      const accessibility = await new AxeBuilder({page}).include('#root').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+      if(accessibility.violations.length) throw Error('Import accessibility: '+JSON.stringify(accessibility.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))));
+      await page.getByRole('checkbox',{name:/I reviewed the original/}).focus();
+      await page.keyboard.press('Space');
+      await expect(page.getByRole('checkbox',{name:/I reviewed the original/})).toBeChecked();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button',{name:'Save purchase draft'})).toBeFocused();
       await page.getByRole('checkbox',{name:/I reviewed the original/}).check();
       await page.getByRole('button',{name:'Save purchase draft'}).click();
       await expect(page.getByRole('link',{name:'Open acquisition intake'})).toHaveAttribute('href','/vehicles/vehicle-1/intake');
@@ -117,8 +126,8 @@ const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
       const size=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:innerWidth}));
       if(size.scroll>size.viewport+1) throw Error('Page overflow '+JSON.stringify(size));
       if(errors.length) throw Error(errors.join('\n'));
-      console.log(`PASS ${width}px: review/consent, corrections, retry, CSV/mapping templates, metrics/undo, PDF pixels/pages/zoom, location reset, no overflow`);
-      await page.close();
+      console.log(`PASS ${width}px: review/consent, keyboard save focus, axe accessibility, corrections, retry, CSV/mapping templates, metrics/undo, PDF pixels/pages/zoom, location reset, no overflow`);
+      await context.close();
     }
     console.log(`Screenshots: ${output}`);
   } finally { await browser.close(); }

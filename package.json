@@ -47,8 +47,16 @@
     "react-dom": "^19.2.7",
     "tesseract.js": "^7.0.0"
   },
-  "overrides": { "exceljs": { "uuid": "^11.1.1" } },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.0"
+    }
+  },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.51.1",
     "@types/node": "^25.9.3",
     "@types/papaparse": "^5.5.2",

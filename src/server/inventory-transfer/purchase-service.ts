@@ -286,8 +286,6 @@ export async function applyPurchaseDocument(actor: AuthenticatedUser | null, pre
   const { data: preview, locationId } = await load<StoredReview>(user, previewId, "PURCHASE_DOCUMENT_REVIEW");
   const { data: source } = await load<StoredRead>(user, preview.readId, "PURCHASE_DOCUMENT_READ");
   validatePurchaseFile(file);
-  const scan = await scanPurchaseSource(file.bytes, file.contentType);
-  if (scan.malwareStatus !== "CLEAN") throw new Error("Purchase save blocked: file scanner unavailable or file unsafe.");
   if (hash(file.bytes) !== source.checksum || file.contentType !== source.contentType) throw new Error("Document changed. Read and review it again.");
   await authorize(user, locationId, !preview.existing, preview.fields, preview.fields.includes("purchaseCents") ? preview.details.purchaseCents : null);
   const already = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, subjectType: "PURCHASE_IMPORT", subjectId: source.sourceKey ?? source.checksum, eventType: "PURCHASE_DOCUMENT_ALLOCATED" }, select: { metadata: true } });
@@ -307,6 +305,8 @@ export async function applyPurchaseDocument(actor: AuthenticatedUser | null, pre
     return { vehicleId: priorVehicleId, duplicate: true };
   }
   if (preview.jobVersion) await claimPurchaseSave(source.readId, preview.jobVersion);
+  const scan = await scanPurchaseSource(file.bytes, file.contentType);
+  if (scan.malwareStatus !== "CLEAN") throw new Error("Purchase save blocked: file scanner unavailable or file unsafe.");
   let vehicleId = preview.vehicleId;
   if (!vehicleId) {
     const nowExisting = await prisma.vehicle.findFirst({ where: { organizationId, vin: preview.values.vin?.toUpperCase(), mergedIntoVehicleId: null }, select: { id: true } });
