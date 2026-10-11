@@ -116,10 +116,13 @@ jobs:
       - name: Production scanner detection proof
         run: |
           sudo apt-get update
-          sudo apt-get install -y clamav
+          sudo apt-get install -y clamav poppler-utils
           sudo systemctl stop clamav-freshclam || true
           sudo freshclam
           RUN_SCANNER_INTEGRATION=1 IMPORT_MALWARE_SCANNER_PATH=/usr/bin/clamscan npx vitest run src/tests/integration/purchase-scanner.test.ts
+
+      - name: Scanned purchase PDF OCR proof
+        run: RUN_OCR_INTEGRATION=1 DOCUMENT_TEXT_PDF_RENDERER_PATH=/usr/bin/pdftoppm npx vitest run src/tests/integration/purchase-ocr.test.ts
 
   build:
     name: Build

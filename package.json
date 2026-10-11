@@ -53,6 +53,9 @@
     },
     "@prisma/config": {
       "deepmerge-ts": "8.0.0"
+    },
+    "@next/eslint-plugin-next": {
+      "fast-glob": "$fast-glob"
     }
   },
   "devDependencies": {
@@ -64,6 +67,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.9",
+    "fast-glob": "file:tools/next-eslint-glob",
     "prisma": "^6.19.3",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

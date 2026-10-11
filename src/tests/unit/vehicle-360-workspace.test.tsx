@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { Vehicle360Workspace, type Vehicle360View } from "@/features/inventory/vehicle-360-workspace";
@@ -8,6 +8,7 @@ const navigationMock = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(navigationMock.search),
 }));
 

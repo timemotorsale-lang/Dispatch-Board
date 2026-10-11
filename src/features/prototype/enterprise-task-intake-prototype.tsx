@@ -32,6 +32,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
@@ -196,6 +197,7 @@ type TaskIntakeProps = {
 const draftStorageKey = "dispatch-board.task-intake-draft.v1";
 
 export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, currentUserId = "", defaultDueDate, initialDraft, returnTo = "/tasks", staff = [] }: TaskIntakeProps) {
+  const router = useRouter();
   const collaboratorOptions = staff.length ? staff.map((user) => ({
     id: user.id,
     initials: user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
@@ -365,7 +367,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       const payload = await response.json().catch(() => null) as { error?: string; task?: { id: string } } | null;
       if (!response.ok || !payload?.task?.id) throw new Error(payload?.error ?? "Unable to create the task right now.");
       window.localStorage.removeItem(draftStorageKey);
-      window.location.assign(`/tasks/${encodeURIComponent(payload.task.id)}?returnTo=${encodeURIComponent(returnTo)}`);
+      router.push(`/tasks/${encodeURIComponent(payload.task.id)}?returnTo=${encodeURIComponent(returnTo)}`);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to create the task right now.");
       submitLock.current = false;

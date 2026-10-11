@@ -2,6 +2,7 @@
 
 import { BookOpen, Brain, Check, ChevronLeft, ClipboardCheck, Edit3, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -194,6 +195,7 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
 }
 
 export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
+  const router = useRouter();
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
   const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
@@ -745,7 +747,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       });
       setNotice(`Estimate presented${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}. Opening the official estimate document.`);
       if (!result.result?.id) throw new Error("Estimate response was incomplete. Retry to retrieve the same estimate; do not create a second one.");
-      window.location.assign(`/repair-estimate?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&estimateId=${encodeURIComponent(result.result.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`);
+      router.push(`/repair-estimate?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&estimateId=${encodeURIComponent(result.result.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`);
     } catch (error) {
       // A definite rejection can start a fresh attempt after the prerequisite is corrected.
       // Network failures and uncertain server errors retain the saved retry identity.

@@ -8,6 +8,8 @@ Configure `IMPORT_OPERATIONS_ACTOR_EMAIL` with an active staff account that has 
 
 The app and release tooling install ClamAV. The signatures service updates the shared signature volume. Imports fail closed when scanning fails or signatures are older than seven days. Promotion verifies both a clean file and the harmless EICAR detection test through the engine. Never enable the development baseline in production.
 
+Both images also install Poppler for scanned-PDF rendering. The app uses `/app/data/tesseract-cache`, owned by the non-root application user; release tooling uses `/tmp/tesseract-cache`. Promotion renders an image-only PDF and requires the OCR engine to read its known VIN and price. Missing renderer, disabled OCR, or misread fixture values block promotion. This runtime check is not an accuracy score for real auction documents.
+
 Create the protected, server-local `deploy/docker/import-release-approval.json` from the example only after checks pass. Use named reviewers, dated evidence references, and the exact 40-character release SHA. Protect the file through the existing production approval process; it is an evidence gate, not a substitute for independent human review. Missing, failed, stale, or wrong-version evidence blocks promotion.
 
 ## Acceptance Checks
@@ -37,6 +39,8 @@ Failed/quarantined jobs updated within 24 hours and expired processing leases tr
 
 ## Current Release Gate
 
-The patched DeepmergeTS override is regression-tested through Prisma validation. The braces advisory has no published patched version and remains a security blocker; do not force a framework downgrade or suppress the audit. Production scanner execution, real-document accuracy, staff acceptance, restore/rollback drills, capacity, and alert delivery need results from the target environment before signing the approval file. Implementation alone does not satisfy these checks.
+The patched DeepmergeTS override is regression-tested through Prisma validation. Next ESLint's directory-root discovery uses the scoped `tools/next-eslint-glob` CommonJS adapter backed by Tinyglobby, removing the vulnerable braces dependency chain without suppressing the audit. Clean dependency installation, directory patterns, Windows paths, and the actual Next link rule have regression coverage. The adapter intentionally rejects unsupported APIs/options so an upstream change is not silently accepted. Full dependency audit reports zero vulnerabilities as of October 11, 2026.
 
-References: [ClamAV scanning](https://docs.clamav.net/manual/Usage/Scanning.html), [ClamAV command options](https://github.com/Cisco-Talos/clamav/blob/main/docs/man/clamscan.1.in), [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [DeepmergeTS advisory](https://github.com/advisories/GHSA-ggr8-5vv4-36mx).
+The previously pushed revision's CI build, typecheck, and test jobs passed; security and lint failed, so deployment was skipped. The fixes must still be committed, pushed, and pass CI before promotion. Local image-only PDF OCR has passed through the real renderer and OCR engine. Production scanner/OCR execution, real-document accuracy, staff acceptance, restore/rollback drills, capacity, and alert delivery still need results from the target environment before signing the approval file. Implementation and local checks alone do not satisfy those production checks.
+
+References: [ClamAV scanning](https://docs.clamav.net/manual/Usage/Scanning.html), [ClamAV command options](https://github.com/Cisco-Talos/clamav/blob/main/docs/man/clamscan.1.in), [Tinyglobby](https://github.com/SuperchupuDev/tinyglobby), [DeepmergeTS advisory](https://github.com/advisories/GHSA-ggr8-5vv4-36mx).

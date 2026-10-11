@@ -7,10 +7,11 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl clamav clamav-freshclam \
+  && apt-get install -y --no-install-recommends openssl clamav clamav-freshclam poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
+COPY tools/next-eslint-glob ./tools/next-eslint-glob
 RUN npm ci
 
 FROM dependencies AS builder
@@ -50,10 +51,11 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl clamav \
+  && apt-get install -y --no-install-recommends openssl clamav poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
+COPY tools/next-eslint-glob ./tools/next-eslint-glob
 RUN npm ci --omit=dev
 
 COPY --from=builder --chown=node:node /app/.next ./.next
@@ -63,7 +65,7 @@ COPY --from=builder --chown=node:node /app/node_modules/.prisma ./node_modules/.
 COPY --from=builder --chown=node:node /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder --chown=node:node /app/deploy/docker/scripts/run-production-scheduler.mjs ./scripts/run-production-scheduler.mjs
 
-RUN mkdir -p /app/data/document-library \
+RUN mkdir -p /app/data/document-library /app/data/tesseract-cache \
   && chown -R node:node /app/data
 
 USER node

@@ -23,7 +23,7 @@ import {
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import type { VehicleDecode } from "@/server/vehicle-identification/nhtsa";
@@ -151,6 +151,7 @@ function SafetyIntelligence({ intelligence, loading, error, onRefresh, vehicle }
 }
 
 export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section");
   const returnTo = validReturnTo(searchParams.get("returnTo"));
@@ -192,7 +193,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Vehicle 360 request failed."); return body; }
   async function refresh() { setView(await request(`/api/vehicles/${vehicle.id}/360`) as Vehicle360View); }
   function base64(selected: File) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error("Unable to read the selected file.")); reader.onload = () => { const result = String(reader.result ?? ""), comma = result.indexOf(","); resolve(comma >= 0 ? result.slice(comma + 1) : result); }; reader.readAsDataURL(selected); }); }
-  async function upload(event: FormEvent) { event.preventDefault(); if (!file) return; if (file.type.startsWith("image/") || file.type === "video/mp4") { setNotice("Photos and videos are managed in Media."); window.location.assign(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); return; } setBusy(true); setNotice(""); try { const result = await request("/api/vehicle-evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vehicleId: vehicle.id, fileName: file.name, contentType: file.type || "application/octet-stream", contentBase64: await base64(file), category, accessLevel, retentionUntil: new Date(`${retention}T23:59:59.999Z`).toISOString(), subjectType: "VEHICLE", subjectId: vehicle.id, relationship: "SUPPORTS", idempotencyKey: crypto.randomUUID(), reason: "Attach governed operational evidence to Vehicle 360." }) }); setNotice(result.evidence?.status === "QUARANTINED" ? "The file was stored in quarantine and is not available for download." : "Evidence uploaded, verified, and linked to Vehicle 360."); setFile(null); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence upload failed."); } finally { setBusy(false); } }
+  async function upload(event: FormEvent) { event.preventDefault(); if (!file) return; if (file.type.startsWith("image/") || file.type === "video/mp4") { setNotice("Photos and videos are managed in Media."); router.push(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); return; } setBusy(true); setNotice(""); try { const result = await request("/api/vehicle-evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vehicleId: vehicle.id, fileName: file.name, contentType: file.type || "application/octet-stream", contentBase64: await base64(file), category, accessLevel, retentionUntil: new Date(`${retention}T23:59:59.999Z`).toISOString(), subjectType: "VEHICLE", subjectId: vehicle.id, relationship: "SUPPORTS", idempotencyKey: crypto.randomUUID(), reason: "Attach governed operational evidence to Vehicle 360." }) }); setNotice(result.evidence?.status === "QUARANTINED" ? "The file was stored in quarantine and is not available for download." : "Evidence uploaded, verified, and linked to Vehicle 360."); setFile(null); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence upload failed."); } finally { setBusy(false); } }
   async function govern(item: EvidenceItem, changes: Record<string, unknown>, reason: string) { setBusy(true); try { await request(`/api/vehicle-evidence/${item.evidenceObjectId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedVersion: item.evidenceObject.version, idempotencyKey: crypto.randomUUID(), reason, ...changes }) }); setNotice("Evidence governance updated with an audit record."); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence governance update failed."); } finally { setBusy(false); } }
   const safetyYear = Number(specifications.modelYear ?? vehicle.year);
   const safetyMake = String(specifications.make ?? vehicle.make ?? "").trim();
@@ -238,7 +239,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
     {decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
     {active === "evidence" && view.tabs.documents.allowed ? <Link className={styles.secondaryButton} href={`/sales-documents?q=${encodeURIComponent(vehicle.vin || vehicle.stockNumber || identityName)}`}><FileText />Saved sales packets</Link> : null}
     {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenPhotos={() => setActive("photos")} onOpenSafety={() => setActive("safety")} onOpenWork={() => setActive("work")} primaryHref={primaryHref} vehicle360Return={vehicle360Return} /> : null}
-    {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { window.location.assign(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); }} /> : null}
+    {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { router.push(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); }} /> : null}
     {active === "identity" ? <VehicleSpecifications view={specificationView} /> : null}
     {active === "work" ? <WorkHistory view={view} /> : null}
     {active === "safety" ? <SafetyIntelligence intelligence={safety} loading={safetyLoading} error={safetyError} onRefresh={() => void loadSafety()} vehicle={vehicle} /> : null}

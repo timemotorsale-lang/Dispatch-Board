@@ -2,6 +2,7 @@
 
 import { ArrowLeft, BadgeCheck, Building2, CarFront, Check, ChevronRight, ClipboardCheck, FileCheck2, Gauge, LockKeyhole, PackageCheck, ShieldCheck, Stethoscope, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import { copyEstimateForRevision, type RevisableEstimate } from "@/lib/estimate-revision";
@@ -228,6 +229,7 @@ const inspectionClearanceSeed: ClearanceItem[] = [
 ];
 
 export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false }: { initial: Model; returnTo?: string; vendorFollowUp?: boolean }) {
+  const router = useRouter();
   const [model, setModel] = useState(initial);
   const [selectedId, setSelectedId] = useState(initial.repairOrders[0]?.id ?? "");
   const [notice, setNotice] = useState("");
@@ -732,7 +734,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setReleaseJobs([]);
     if (firstRepairJobId) {
       setNotice(`${firstRepairJobNumber || "Repair job"} created. Opening the repair workbench now.`);
-      window.setTimeout(() => window.location.assign(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
+      window.setTimeout(() => router.push(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
       return;
     }
     setNotice("Repair job created. Open repair work order below to assign work, update parts, complete repair, then move to Final QC.");
@@ -847,7 +849,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       const jobId = response.result?.job?.id;
       setNotice(`Completion job ${response.result?.job?.jobNumber ?? ""} created. Opening the repair work order.`.trim());
       await refresh();
-      if (jobId) window.location.assign(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
+      if (jobId) router.push(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
       else window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Completion job creation failed.");

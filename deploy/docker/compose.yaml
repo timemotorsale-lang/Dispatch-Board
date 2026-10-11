@@ -41,6 +41,8 @@ services:
       IMPORT_ALERT_WEBHOOK_URL: ${IMPORT_ALERT_WEBHOOK_URL:-}
       APP_RELEASE_SHA: ${RELEASE_SHA:-unversioned}
       IMPORT_RELEASE_APPROVAL_PATH: /run/import-release-approval.json
+      DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm
+      DOCUMENT_TEXT_OCR_CACHE_PATH: /tmp/tesseract-cache
     volumes:
       - clamav_signatures:/var/lib/clamav:ro
       - ./import-release-approval.json:/run/import-release-approval.json:ro
@@ -71,6 +73,8 @@ services:
       DOCUMENT_LIBRARY_DURABLE_REPOSITORY_ENABLED: "true"
       DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT: /app/data/document-library
       DOCUMENT_LIBRARY_ORGANIZATION_ID: ${DOCUMENT_LIBRARY_ORGANIZATION_ID:-org-time-motor-sales}
+      DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm
+      DOCUMENT_TEXT_OCR_CACHE_PATH: /app/data/tesseract-cache
       TZ: ${APP_TIMEZONE:-America/Chicago}
       IMPORT_MALWARE_SCANNER_PATH: /usr/bin/clamscan
       IMPORT_OPERATIONS_ACTOR_EMAIL: ${IMPORT_OPERATIONS_ACTOR_EMAIL:-}

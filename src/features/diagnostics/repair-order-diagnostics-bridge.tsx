@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowRight, Check, Stethoscope } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
@@ -11,6 +12,7 @@ type Bridge = Awaited<ReturnType<typeof getRepairOrderDiagnosticsBridge>>;
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 
 export function RepairOrderDiagnosticsBridge({ bridge }: { bridge: Bridge | { state: "UNAVAILABLE"; reason: string; repairOrderId: string } }) {
+  const router = useRouter();
   const [riskTier, setRiskTier] = useState("R1");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -22,7 +24,7 @@ export function RepairOrderDiagnosticsBridge({ bridge }: { bridge: Bridge | { st
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Diagnostic case could not be created.");
       const caseId = body.result?.id;
-      if (caseId) window.location.assign(`/diagnostics/cases/${encodeURIComponent(caseId)}`);
+      if (caseId) router.push(`/diagnostics/cases/${encodeURIComponent(caseId)}`);
       else { setNotice("Diagnostic case recorded. Refresh to open the authoritative record."); window.location.reload(); }
     } catch (error) { setNotice(error instanceof Error ? error.message : "Diagnostic case could not be created."); }
     finally { setBusy(false); }

@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
