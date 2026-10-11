@@ -2,7 +2,8 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { EnterpriseCommandConflictError, type EnterpriseCommandInput } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { prisma } from "@/server/db/client";
-import { sortVehicleTimeline, type Vehicle360TimelineItem } from "./domain";
+import { SALES_PHOTO_LIMIT, SALES_VIDEO_LIMIT, sortVehicleTimeline, type Vehicle360TimelineItem } from "./domain";
+import { orderSalesMedia, validateSalesMediaOrder } from "./sales-media-domain";
 
 const evidenceMetadataSelect = {
   id: true, fileName: true, contentType: true, byteSize: true, checksumSha256: true, storageProvider: true,
@@ -12,6 +13,20 @@ const evidenceMetadataSelect = {
 } satisfies Prisma.VehicleEvidenceObjectSelect;
 
 function json(value: unknown) { return value as Prisma.InputJsonValue; }
+
+async function lockSalesVehicle(tx: Prisma.TransactionClient, organizationId: string, vehicleId: string) {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT id FROM "Vehicle" WHERE id = ${vehicleId} AND "organizationId" = ${organizationId} AND "mergedIntoVehicleId" IS NULL FOR UPDATE`);
+  if (!rows.length) throw new Error("Vehicle was not found.");
+}
+
+async function readSalesCollection(tx: Prisma.TransactionClient, organizationId: string, vehicleId: string) {
+  const links = await tx.vehicleEvidenceLink.findMany({ where: { organizationId, vehicleId, subjectType: "SALES_MEDIA", subjectId: vehicleId, relationship: "SUPPORTS", evidenceObject: { status: { not: "DELETED" } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { evidenceObject: { select: evidenceMetadataSelect } } });
+  const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: { organizationId_domain_subjectType_subjectId: { organizationId, domain: "VEHICLE_EVIDENCE", subjectType: "SALES_MEDIA", subjectId: vehicleId } } });
+  const latest = aggregate ? await tx.enterpriseCommandLedger.findFirst({ where: { organizationId, domain: "VEHICLE_EVIDENCE", subjectType: "SALES_MEDIA", subjectId: vehicleId, resultingVersion: aggregate.version, status: "SUCCEEDED" }, select: { resultSnapshot: true } }) : null;
+  const snapshot = latest?.resultSnapshot as { order?: unknown } | null;
+  const items = links.map(link => ({ id: link.evidenceObjectId, name: link.evidenceObject.fileName, contentType: link.evidenceObject.contentType, bytes: link.evidenceObject.byteSize, status: link.evidenceObject.status, href: link.evidenceObject.status === "AVAILABLE" && link.evidenceObject.malwareStatus === "CLEAN" ? `/api/vehicle-evidence/${link.evidenceObjectId}/content` : null }));
+  return { vehicleId, version: aggregate?.version ?? 0, items: orderSalesMedia(items, snapshot?.order), links };
+}
 
 async function currentAggregateVersion(tx: Prisma.TransactionClient, command: EnterpriseCommandInput) {
   const key = { organizationId_domain_subjectType_subjectId: { organizationId: command.organizationId, domain: command.domain, subjectType: command.subjectType, subjectId: command.subjectId } };
@@ -49,6 +64,12 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         }
         const vehicle = await tx.vehicle.findFirst({ where: { id: data.vehicleId, organizationId: command.organizationId, mergedIntoVehicleId: null }, select: { id: true } });
         if (!vehicle) throw new Error("Vehicle was not found.");
+        if (data.subjectType === "SALES_MEDIA") {
+          await lockSalesVehicle(tx, command.organizationId, data.vehicleId);
+          const collection = await readSalesCollection(tx, command.organizationId, data.vehicleId);
+          const video = data.contentType === "video/mp4";
+          if (collection.items.filter(item => (item.contentType === "video/mp4") === video).length >= (video ? SALES_VIDEO_LIMIT : SALES_PHOTO_LIMIT)) throw new Error(video ? "A vehicle can have at most 5 sales videos." : "A vehicle can have at most 40 sales photos.");
+        }
         const version = await currentAggregateVersion(tx, command);
         const quarantined = data.malwareStatus !== "CLEAN";
         const evidence = await tx.vehicleEvidenceObject.create({ data: { id: command.subjectId, organizationId: command.organizationId, uploadedByUserId: data.actorUserId, fileName: data.fileName, contentType: data.contentType, byteSize: data.byteSize, checksumSha256: data.checksumSha256, storageKey: command.subjectId, content: Uint8Array.from(data.content), malwareStatus: data.malwareStatus, malwareScanner: data.malwareScanner, malwareScannedAt: new Date(), accessLevel: data.accessLevel, retentionUntil: data.retentionUntil, status: quarantined ? "QUARANTINED" : "AVAILABLE", version }, select: evidenceMetadataSelect });
@@ -71,6 +92,7 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         }
         const current = await tx.vehicleEvidenceObject.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, status: { not: "DELETED" } } });
         if (!current) throw new Error("Evidence object was not found.");
+        if (data.accessLevel === "RESTRICTED" && await tx.vehicleEvidenceLink.count({ where: { evidenceObjectId: current.id, subjectType: "SALES_MEDIA", relationship: "SUPPORTS" } })) throw new Error("Remove this item from sales media before restricting its evidence access.");
         if (current.version !== command.expectedVersion) throw new EnterpriseCommandConflictError(`Expected version ${command.expectedVersion}, but current version is ${current.version}.`, "VERSION_CONFLICT");
         const version = await currentAggregateVersion(tx, command);
         const evidence = await tx.vehicleEvidenceObject.update({ where: { id: current.id }, data: { ...(data.accessLevel ? { accessLevel: data.accessLevel } : {}), ...(data.legalHold == null ? {} : { legalHold: data.legalHold }), ...(data.retentionUntil ? { retentionUntil: data.retentionUntil } : {}), version }, select: evidenceMetadataSelect });
@@ -102,6 +124,35 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
 
     async getEvidence(organizationId: string, evidenceId: string) {
       return database.vehicleEvidenceObject.findFirst({ where: { id: evidenceId, organizationId }, include: { links: true } });
+    },
+
+    async readSalesMedia(organizationId: string, vehicleId: string) {
+      return database.$transaction(async tx => {
+        await lockSalesVehicle(tx, organizationId, vehicleId);
+        const collection = await readSalesCollection(tx, organizationId, vehicleId);
+        return { vehicleId: collection.vehicleId, version: collection.version, items: collection.items };
+      });
+    },
+
+    async changeSalesMedia(command: EnterpriseCommandCommitInput, data: { order: unknown; removeIds: string[] }) {
+      return database.$transaction(async tx => {
+        await lockSalesVehicle(tx, command.organizationId, command.subjectId);
+        const prior = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: command.organizationId, domain: command.domain, commandType: command.commandType, idempotencyKey: command.idempotencyKey } } });
+        if (prior) {
+          if (prior.requestHash !== command.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
+          return { duplicate: true };
+        }
+        const collection = await readSalesCollection(tx, command.organizationId, command.subjectId);
+        if (data.removeIds.some(id => !collection.items.some(item => item.id === id))) throw new Error("Media item was not found in this vehicle collection.");
+        if (collection.links.some(link => data.removeIds.includes(link.evidenceObjectId) && link.evidenceObject.legalHold)) throw new Error("Media under legal hold cannot be removed.");
+        const order = validateSalesMediaOrder(collection.items.filter(item => !data.removeIds.includes(item.id)), data.order);
+        const firstPhoto = collection.items.find(item => item.id === order.find(id => collection.items.some(candidate => candidate.id === id && candidate.contentType.startsWith("image/"))));
+        if (firstPhoto && !firstPhoto.href) throw new Error("The primary photo must pass the file safety scan.");
+        const version = await currentAggregateVersion(tx, command);
+        if (data.removeIds.length) await tx.vehicleEvidenceLink.updateMany({ where: { organizationId: command.organizationId, vehicleId: command.subjectId, subjectType: "SALES_MEDIA", relationship: "SUPPORTS", evidenceObjectId: { in: data.removeIds } }, data: { relationship: "ARCHIVED_SALES_MEDIA" } });
+        await recordEnterpriseEvidence(tx, command, version, { order, removedIds: data.removeIds, vehicleId: command.subjectId, version });
+        return { duplicate: false };
+      });
     },
 
     async recordEvidenceAccess(organizationId: string, evidenceObjectId: string, actorUserId: string, reason: string) {

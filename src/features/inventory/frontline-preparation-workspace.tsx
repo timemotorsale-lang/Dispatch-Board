@@ -11,18 +11,21 @@ import { VehicleIntakeWorkspace } from "./vehicle-intake-workspace";
 import type { VehicleIntakeModel } from "@/server/inventory-unit/intake-service";
 import { VehicleLogs, VehicleTools, type VehicleRecordContext } from "./vehicle-record-tools";
 import styles from "./frontline-preparation-workspace.module.css";
+import { VehicleSalesMediaWorkspace } from "./vehicle-sales-media-workspace";
+import type { SalesMediaModel } from "@/server/vehicle-360/sales-media-domain";
 
 type Document = { id: string; name: string; href: string | null; image: boolean };
 const tabs = ["Vehicle Info", "Marketing", "Media", "Market Data", "Purchase Info", "Activities", "Files", "Accounting", "Recon", "Logs", "Release Review"] as const;
 type Tab = typeof tabs[number];
 const money = (value: number | undefined) => value === undefined ? "Not recorded" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 
-export function FrontlinePreparationWorkspace({ journey, pricing, costs, documents, mediaUnavailable = false, intake = null, recordContext = null }: { journey: VehicleJourneyModel; pricing: PricingModel | null; costs: VehicleCostModel | null; documents: Document[]; mediaUnavailable?: boolean; intake?: VehicleIntakeModel | null; recordContext?: VehicleRecordContext | null }) {
+export function FrontlinePreparationWorkspace({ journey, pricing, costs, documents, mediaUnavailable = false, intake = null, recordContext = null, salesMedia = null }: { journey: VehicleJourneyModel; pricing: PricingModel | null; costs: VehicleCostModel | null; documents: Document[]; mediaUnavailable?: boolean; intake?: VehicleIntakeModel | null; recordContext?: VehicleRecordContext | null; salesMedia?: SalesMediaModel | null }) {
   const [tab, setTab] = useState<Tab>("Vehicle Info");
   const [info, setInfo] = useState("Summary");
+  const [gallery, setGallery] = useState(salesMedia);
   const tabGroup = useId();
   const id = encodeURIComponent(journey.vehicle.id), vehicle = journey.vehicle;
-  const photo = documents.find(item => item.image && item.href);
+  const photo = gallery?.items.find(item => item.contentType.startsWith("image/") && item.href);
   const ready = journey.frontline?.stage === "POST_RELEASE_VERIFICATION" && journey.frontline.operatingState === "COMPLETED";
   const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
   const status = journey.blocked ? "On hold" : ready ? "Frontline verified" : "Preparation required";
@@ -65,7 +68,7 @@ export function FrontlinePreparationWorkspace({ journey, pricing, costs, documen
         <div role="tabpanel" id={`${tabGroup}-panel-6`} aria-labelledby={`${tabGroup}-tab-6`} hidden={tab !== "Files"} tabIndex={0}><section><h2>Files</h2>{mediaUnavailable ? <p>Document data is temporarily unavailable.</p> : documents.length ? documents.map(item => <p key={item.id}>{item.href ? <a href={item.href}><FileText size={16}/>{item.name}</a> : `${item.name} / unavailable`}</p>) : <p>No linked files.</p>}<Link href={`/vehicles/360/${id}?section=documents`}>Manage documents &amp; photos</Link></section></div>
         <div role="tabpanel" id={`${tabGroup}-panel-10`} aria-labelledby={`${tabGroup}-tab-10`} hidden={tab !== "Release Review"} tabIndex={0}><section><h2>Release Readiness</h2><div className={styles.checklist}>{journey.steps.map(step => <div key={step.id}><strong>{step.label}</strong><span>{step.status}</span>{step.href ? <Link href={step.href}>Open<ArrowRight size={16}/></Link> : null}</div>)}</div><Link className={styles.primary} href={`/vehicles/inventory-to-frontline?vehicleId=${id}`}>Open release workflow<ArrowRight size={16}/></Link></section></div>
         <div role="tabpanel" id={`${tabGroup}-panel-1`} aria-labelledby={`${tabGroup}-tab-1`} hidden={tab !== "Marketing"} tabIndex={0}><section><h2>Active Exports &amp; Publishing</h2><dl><div><dt>Current workflow</dt><dd>{journey.frontline?.stage.replaceAll("_", " ") ?? "Not started"}</dd></div><div><dt>Release status</dt><dd>{status}</dd></div></dl><p>External listing connectors are disabled. No external publication has been confirmed by this screen.</p><Link href={`/vehicles/inventory-to-frontline?vehicleId=${id}`}>Open merchandising &amp; publishing review<ArrowRight size={16}/></Link></section></div>
-        <div role="tabpanel" id={`${tabGroup}-panel-2`} aria-labelledby={`${tabGroup}-tab-2`} hidden={tab !== "Media"} tabIndex={0}><section><h2>Vehicle Media</h2>{mediaUnavailable ? <p>Media is temporarily unavailable.</p> : <div className={styles.media}>{documents.filter(item => item.image && item.href).map(item => <a key={item.id} href={item.href!}><Image src={item.href!} alt={item.name} width={320} height={240} unoptimized/><span>{item.name}</span></a>)}</div>}<Link href={`/vehicles/360/${id}?section=documents`}>Manage photos &amp; evidence<ArrowRight size={16}/></Link></section></div>
+        <div role="tabpanel" id={`${tabGroup}-panel-2`} aria-labelledby={`${tabGroup}-tab-2`} hidden={tab !== "Media"} tabIndex={0}><VehicleSalesMediaWorkspace vehicleId={vehicle.id} initialModel={salesMedia} onChange={setGallery}/></div>
         <div role="tabpanel" id={`${tabGroup}-panel-3`} aria-labelledby={`${tabGroup}-tab-3`} hidden={tab !== "Market Data"} tabIndex={0}><section><h2>Market Data &amp; Appraisal</h2><p>External valuation subscriptions are not connected.</p><Link href={`/vehicles/acquisition-appraisal?vehicleId=${id}`}>Open recorded appraisal<ArrowRight size={16}/></Link><p><Link href={`/vehicles/${id}/sale?mode=as-is`}>Review as-is disposition</Link></p></section></div>
         <div role="tabpanel" id={`${tabGroup}-panel-4`} aria-labelledby={`${tabGroup}-tab-4`} hidden={tab !== "Purchase Info"} tabIndex={0}>{intake ? <VehicleIntakeWorkspace model={intake} costs={costs} embedded/> : <section><h2>Purchase Info</h2><p>Acquisition intake access is required, or the record is temporarily unavailable.</p><Link href={`/vehicles/${id}/intake`}>Open acquisition intake</Link></section>}</div>
         <div role="tabpanel" id={`${tabGroup}-panel-5`} aria-labelledby={`${tabGroup}-tab-5`} hidden={tab !== "Activities"} tabIndex={0}><section><h2>Current Activities</h2><div className={styles.checklist}>{journey.steps.map(step => <div key={step.id}><strong>{step.label}</strong><span>{step.status}</span>{step.href ? <Link href={step.href}>Open<ArrowRight size={16}/></Link> : null}</div>)}</div></section></div>

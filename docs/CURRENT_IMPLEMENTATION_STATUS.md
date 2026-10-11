@@ -1,5 +1,51 @@
 # Current Implementation Status
 
+## 2026-10-10 - Local Vehicle 360 Runtime Recovery
+
+Two verified development servers were using the same `.next-local` junction;
+the second review launch retargeted that shared alias while the original server
+was still running. Development logs showed EBUSY client-reference manifest errors.
+Both local Dispatch Board server trees were stopped and one fresh isolated-cache
+instance was started on port 3000. The exact reported Vehicle 360 record
+`9980b769-4d3a-4673-a8cc-eeeb262a0764` rendered its authenticated Tacoma workspace
+successfully after recovery. No vehicle data, feature flags or permissions were
+changed, and no application-code patch was required for this recovery. Port 3001
+is no longer the review server. Future local review launches must reuse the active
+server rather than retarget a cache alias used by another running instance.
+This runtime recovery does not represent a production deployment.
+
+## 2026-10-10 - Vehicle Sales Media Gallery
+
+The preparation workspace Media tab now has Photos and Videos views, batch upload,
+per-file progress/retry, camera capture entry, selectable thumbnail grids, small/
+large sizes, saved ordering, primary-photo selection, a photo/video viewer and
+selected ZIP downloads. The primary sales photo updates the persistent vehicle
+sidebar. Sales media is explicitly tagged in existing protected evidence links;
+inspection and acquisition files are not automatically copied into the gallery.
+The server enforces 40 active sales photos and a separate five-video limit under
+a scoped vehicle row lock. Each file retains the existing 10 MB maximum. Accepted
+formats are JPEG, PNG, WebP and MP4; the existing baseline signature scan quarantines
+mismatches. MP4 container validation is not full antivirus scanning, transcoding
+or a guarantee of browser codec support. Uploaded files retain a one-year date.
+
+Ordering and removal reuse versioned enterprise commands, audited snapshots and
+outbox events, with stable upload retry identities. Concurrent/stale gallery
+changes fail safely. Confirmed removal archives only selected sales links, not
+protected bytes or operational evidence; legal holds prevent removal. Existing
+evidence view/manage capabilities and Vehicle 360 rollout controls govern access.
+No new permission system, public publishing connector or schema migration is added.
+Photo overlays and full video processing are not implemented in this slice.
+
+Sixteen focused regression files (96 tests), typecheck and scoped lint pass.
+Desktop/mobile interactive fixtures at 1440px and 390px verify gallery image
+rendering, primary/sidebar updates, previews, reorder, removal confirmation,
+batch/retry identity, ZIP download, stale recovery, limit controls, retained UI
+state and no overflow. The authenticated local Media tab loaded with enabled
+upload controls on port 3001; port 3000 remains occupied and its process was not
+stopped. No real vehicle files were uploaded or removed. Production deployment
+and real upload/video playback acceptance remain unverified. These changes are
+not committed, pushed or deployed.
+
 ## 2026-10-10 - Vehicle Workspace Tabs And Contextual Tools
 
 The preparation workspace now has Vehicle Info, Marketing, Media, Market Data,

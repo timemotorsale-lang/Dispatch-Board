@@ -1,0 +1,34 @@
+.workspace { min-width: 0; color: #253347; }
+.tabs { display: flex; border-bottom: 1px solid #d6dce4; gap: 8px; }
+.workspace .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: #fff; padding: 10px 14px; }
+.workspace .tabs button[aria-pressed="true"] { border-bottom-color: #3478df; color: #142c43; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 0; border-bottom: 1px solid #e3e7ec; }
+.toolbar label { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 12px; }
+.toolbar select { padding: 7px; border: 1px solid #bac9d6; background: #fff; }
+.workspace button, .dialog button, .confirm button { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border: 1px solid #bac9d6; padding: 7px 10px; background: #fff; border-radius: 4px; color: #22578c; }
+.workspace button:disabled { cursor: default; opacity: .55; }
+.selectAll { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; padding: 12px 0; }
+.large { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.tile { min-width: 0; border-bottom: 1px solid #e3e7ec; padding-bottom: 8px; }
+.tileHeader { height: 26px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #23724e; }
+.tileHeader span { display: flex; align-items: center; gap: 4px; }
+.workspace .preview { width: 100%; aspect-ratio: 4/3; padding: 0; overflow: hidden; border-radius: 0; background: #edf2f5; }
+.preview img { width: 100%; height: 100%; object-fit: contain; }
+.preview div { display: grid; justify-items: center; gap: 8px; }
+.fileName { display: block; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 0; }
+.tileActions { display: flex; gap: 4px; min-height: 34px; }
+.tileActions a { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; }
+.queue { margin-top: 16px; font-size: 12px; border-top: 1px solid #d6dce4; padding: 12px 0; }
+.queue > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-bottom: 1px solid #e3e7ec; padding: 8px 0; }
+.queue span { overflow-wrap: anywhere; display: inline-flex; align-items: center; gap: 6px; }
+.error { color: #a63030; padding: 8px; border-left: 3px solid #bd4545; background: #fff4f4; }
+.dialog, .confirm { border: 1px solid #bac9d6; border-radius: 6px; padding: 16px; color: #253347; max-width: min(960px, calc(100vw - 32px)); }
+.dialog::backdrop, .confirm::backdrop { background: #0c172bb3; }
+.dialog header, .dialog footer, .confirm footer { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.dialog header strong { overflow-wrap: anywhere; min-width: 0; }
+.dialog img, .dialog video { width: 100%; max-height: 65vh; height: auto; object-fit: contain; margin: 12px 0; }
+.confirm { max-width: min(460px, calc(100vw - 32px)); }
+.confirm h2 { font-size: 18px; }
+.confirm p { line-height: 1.5; }
+@media (max-width: 650px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .large { grid-template-columns: 1fr; } .toolbar label { margin-left: 0; } .toolbar button { min-height: 40px; } }
