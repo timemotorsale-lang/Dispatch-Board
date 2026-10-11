@@ -4,6 +4,12 @@ import { describe, expect, it } from "vitest";
 import { InventoryConsoleRouteTabs } from "@/components/layout/inventory-console-route-tabs";
 
 describe("Inventory Console route tabs", () => {
+  it("provides one import/export destination for inventory staff", () => {
+    const markup = renderToStaticMarkup(<InventoryConsoleRouteTabs allowedHrefs={["/vehicles/inventory"]} pathname="/vehicles/import-export" searchParams={new URLSearchParams()} />);
+    expect(markup).toContain('href="/vehicles/import-export"');
+    expect(markup).toContain("Import / Export");
+    expect(markup).toContain('aria-current="page"');
+  });
   it("provides a return link, shared pages, and vehicle-context tabs", () => {
     const markup = renderToStaticMarkup(<InventoryConsoleRouteTabs pathname="/vehicles/360/vehicle-1" searchParams={new URLSearchParams("returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning")} showFullNavigation />);
 

@@ -8875,6 +8875,15 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .console-sidebar-status small { padding: 3px 5px; color: #d9ffe7; background: #11713c; border-radius: 4px; font-size:11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .console-sidebar-navigation { align-content: start; gap: 2px; padding-top: 8px; }
 .console-sidebar-navigation .sidebar-link { min-height: 34px; }
+.console-inventory-menu summary { cursor: pointer; list-style: none; }
+.console-inventory-menu summary::-webkit-details-marker { display: none; }
+.console-inventory-menu .console-inventory-chevron { margin-left: auto; transition: transform .15s; }
+.console-inventory-menu:not([open]) .console-inventory-chevron { transform: rotate(-90deg); }
+.console-inventory-menu > div { border-left: 1px solid #345371; margin-left: 19px; }
+.console-inventory-menu .sidebar-link-child { display: flex; padding: 7px 10px; margin: 1px 0 1px 8px; min-height: 32px; font-weight: 500; }
+.console-inventory-menu .sidebar-link-child span { min-width: 0; }
+@media (max-width: 768px) { .console-inventory-menu .sidebar-link-child { min-height: 44px; } }
+.console-inventory-menu summary:focus-visible { outline: 2px solid #82b4ff; outline-offset: -2px; }
 .console-sidebar .sidebar-account { margin-top: 0; }
 
 /* Global sidebar readability: lift navigation labels to match the main board comfort pass. */

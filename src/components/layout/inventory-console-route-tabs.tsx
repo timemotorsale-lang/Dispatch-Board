@@ -14,6 +14,7 @@ import {
   Wrench,
   Wallet,
   Tags,
+  ArrowLeftRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -25,6 +26,7 @@ const globalTabs: Tab[] = [
   { href: "/vehicles/registry", label: "Find Vehicle", icon: Search },
   { href: "/vehicles/workflows/add-vehicle", label: "Add Vehicle", icon: Plus },
   { href: "/vehicles/coo-workbook", label: "Inventory Workbook", icon: ClipboardList },
+  { href: "/vehicles/import-export", label: "Import / Export", icon: ArrowLeftRight },
   { href: "/vehicles/outside-vendors", label: "Outside Vendors", icon: Building2 },
   { href: "/vehicles/recon-repair-advisor", label: "Recon / Repair Advisor", icon: Wrench, activePaths: ["/vehicles/shop-recon", "/vehicles/advisor"] },
   { href: "/vehicles/repair-workbench", label: "Repair Workbench", icon: ClipboardList, activePaths: ["/vehicles/repair-orders"] },
@@ -59,7 +61,7 @@ export function InventoryConsoleRouteTabs({ allowedHrefs = [], pathname, searchP
     { href: `/vehicles/${encodeURIComponent(vehicleId)}/pricing`, label: "Pricing & Margin", icon: Tags, matchExact: true },
   ] : [];
   const permittedPaths = allowedHrefs.map(href => href.split("?")[0]);
-  const visibleGlobalTabs = showFullNavigation ? globalTabs : globalTabs.filter(tab => permittedPaths.some(path => path === tab.href || tab.activePaths?.includes(path)));
+  const visibleGlobalTabs = showFullNavigation ? globalTabs : globalTabs.filter(tab => permittedPaths.some(path => path === tab.href || tab.activePaths?.includes(path)) || (tab.href === "/vehicles/import-export" && permittedPaths.includes("/vehicles/inventory")));
   const returnHref = sourceReturn && sourceReturn !== here ? sourceReturn : pathname === "/vehicles" ? "" : "/vehicles";
 
   return <nav className="inventory-console-route-tabs" aria-label="Inventory Console page navigation">

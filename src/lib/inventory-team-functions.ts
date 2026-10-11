@@ -1,4 +1,6 @@
 export const INVENTORY_TEAM_FUNCTIONS = [
+  { name: "Import inventory records", capability: "VEHICLE_IDENTITY_CREATE", description: "Import new vehicle identity records without approving acquisition, pricing or release." },
+  { name: "Export inventory data", capability: "VEHICLE_OUTPUT_CREATE", description: "Download inventory data for authorized locations." },
   { name: "Work on inventory", capability: "INVENTORY_UNIT_VIEW", description: "Access inventory vehicles and their lifecycle workspaces." },
   { name: "Manage inventory acquisition", capability: "INVENTORY_ACQUISITION_MANAGE", description: "Manage acquisition, receiving, inventory cycles and intake confirmation." },
   { name: "Execute inventory recon", capability: "INVENTORY_RECON_MANAGE", description: "Coordinate inspections, repairs, parts, outside vendors and recon work." },

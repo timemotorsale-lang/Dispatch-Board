@@ -248,8 +248,6 @@ export function VehicleRegistryWorkspace({
   const [notice, setNotice] = useState("");
   const [registryLocked, setRegistryLocked] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [previewText, setPreviewText] = useState('[{"vehicleNumber":"TMS-1001","vin":"1HGCM82633A004352","stockNumber":"1001","year":2003,"make":"Honda","model":"Accord"}]');
-  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
 
   async function request(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
@@ -453,23 +451,6 @@ export function VehicleRegistryWorkspace({
     }
   }
 
-  async function runPreview() {
-    setBusy(true);
-    try {
-      const rows = JSON.parse(previewText);
-      setPreview(await request("/api/vehicles/import-preview", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows })
-      }));
-      setNotice("Import preview completed without writing vehicle records.");
-    } catch (error) {
-      handleError(error, "Import preview failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const duplicateCases = selected ? [...selected.duplicateCasesAsPrimary, ...selected.duplicateCasesAsCandidate].filter((item) => item.status === "OPEN") : [];
   const mutationNotice = registryLocked || isMutationDisabled(notice);
   const activeQuery = query.trim();
@@ -619,12 +600,7 @@ export function VehicleRegistryWorkspace({
           <button className="button button-primary" disabled={busy || registryLocked} type="submit">Validate and create</button>
         </form>
 
-        <section className="panel-card page-stack">
-          <div className="page-copy"><h2>Import preview</h2><p>Paste a JSON array. Preview validates and detects conflicts without writing.</p></div>
-          <textarea onChange={(event) => setPreviewText(event.target.value)} rows={10} value={previewText} />
-          <button className="button button-secondary" disabled={busy} onClick={runPreview} type="button">Preview import</button>
-          {preview ? <pre>{JSON.stringify(preview, null, 2)}</pre> : null}
-        </section>
+        <Link className="button button-secondary" href="/vehicles/import-export">Import / Export</Link>
       </div>
 
       {selected && registryLocked ? (

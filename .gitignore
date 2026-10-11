@@ -1,6 +1,7 @@
 node_modules
 .next
 .next-local/
+.next-import-export/
 .next-local.workspace-backup-*
 .next-dev-cache/
 .next-runtime/
