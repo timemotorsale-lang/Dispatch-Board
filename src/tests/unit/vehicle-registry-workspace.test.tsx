@@ -36,7 +36,7 @@ describe("vehicle registry workspace", () => {
     });
   });
 
-  it("renders each vehicle result as a direct route into the Vehicle Workbench", () => {
+  it("renders each vehicle result as a direct route into Vehicle Details", () => {
     const html = renderToStaticMarkup(
       <VehicleRegistryWorkspace
         initial={{
@@ -71,7 +71,7 @@ describe("vehicle registry workspace", () => {
     expect(html).toContain("VIN</th>");
     expect(html).not.toContain("inventory-vehicle-result-card");
     expect(html).toContain("/vehicles/360/veh-1");
-    expect(html).toContain("/vehicles/veh-1/workbench");
+    expect(html).toContain("/vehicles/veh-1/details");
     expect(html).toContain("/vehicles/veh-1/sale");
     expect(html).toContain("/vehicles/veh-1/sale?mode=as-is");
     expect(html).toContain("Preview here");

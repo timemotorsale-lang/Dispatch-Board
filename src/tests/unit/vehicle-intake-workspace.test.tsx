@@ -28,9 +28,9 @@ describe("unified intake workspace", () => {
     expect(html).toContain("<footer");
     expect(html).not.toContain("Confirm intake &amp; continue to recon");
   });
-  it("offers a path choice after confirmation when the inventory cycle exists", () => {
+  it("offers vehicle details after confirmation when the inventory cycle exists", () => {
     const html = renderToStaticMarkup(<VehicleIntakeWorkspace model={model}/>);
-    expect(html).toContain("Confirm intake &amp; choose path");
+    expect(html).toContain("Confirm intake &amp; open vehicle details");
     expect(html).toContain("Record / revision reason (required)");
     expect(html).not.toContain("Save &amp; open inventory cycle");
   });

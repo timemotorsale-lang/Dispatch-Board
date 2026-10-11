@@ -25,9 +25,8 @@ export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   const id = encodeURIComponent(model.vehicle.id), here = `/vehicles/${id}/intake`;
-  const recon = `/vehicles/${id}/inventory-planning?${new URLSearchParams({ returnTo: here })}`;
   const cycle = `/vehicles/inventory/units?${new URLSearchParams({ vehicleId: model.vehicle.id, returnTo: here })}`;
-  const nextLabel = !model.canManageInventory ? "Save draft" : model.unit ? "Confirm intake & choose path" : "Save & open inventory cycle";
+  const nextLabel = !model.canManageInventory ? "Save draft" : model.unit ? "Confirm intake & open vehicle details" : "Save & open inventory cycle";
   const nextAction = () => !model.canManageInventory ? save("DRAFT") : save(model.unit ? "CONFIRMED" : "DRAFT", model.unit ? "STAY" : "CYCLE");
   const update = <K extends keyof IntakeDetails>(key: K, value: IntakeDetails[K]) => { pending.current = null; setDirty(true); setDetails(previous => ({ ...previous, [key]: value })); };
   const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
@@ -52,9 +51,9 @@ export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }
       const result = await response.json();
       if (!response.ok) { if (response.status === 409) { pending.current = null; router.refresh(); } throw new Error(result.error ?? "Intake could not be saved."); }
       pending.current = null; setReason(""); setDirty(false);
-      if (status === "CONFIRMED" && model.unit) router.push(`/vehicles/${id}/workflow`);
+      if (status === "CONFIRMED" && model.unit) router.push(`/vehicles/${id}/details`);
       else if (destination === "CYCLE") router.push(cycle);
-      else if (destination === "JOURNEY") router.push(model.canManageInventory ? `/vehicles/${id}/journey` : `/vehicles/360/${id}`);
+      else if (destination === "JOURNEY") router.push(model.canManageInventory ? `/vehicles/${id}/details` : `/vehicles/360/${id}`);
       else { setNotice("Intake draft saved."); router.refresh(); }
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request interrupted. Retry the same submission."); }
     finally { setBusy(false); }
@@ -69,7 +68,7 @@ export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }
       </div>
     </div>
     <header className={styles.context}>
-      <nav onClick={event => { if (dirty && !window.confirm("Leave without saving your intake changes?")) event.preventDefault(); }}><span aria-current="step">1. Acquisition &amp; Intake</span><Link href={recon}>2. Recon lifecycle</Link><Link href={`/vehicles/${id}/journey`}>Inventory Journey</Link></nav>
+      <nav onClick={event => { if (dirty && !window.confirm("Leave without saving your intake changes?")) event.preventDefault(); }}><span aria-current="step">Acquisition &amp; Intake</span><Link href={`/vehicles/${id}/details`}>Vehicle Details</Link><Link href={`/vehicles/${id}/journey`}>Inventory Journey</Link></nav>
       <p role="status">{model.status === "CONFIRMED" ? "Intake confirmed" : model.status === "DRAFT" ? "Intake draft" : "Intake not started"} · {model.unit?.inventoryNumber ?? "No inventory cycle"}</p>
     </header>
     {model.unit?.operatingState === "BLOCKED" ? <p className={styles.hold} role="alert">Hold retained: {model.unit.stateReason ?? "Review required"}</p> : null}
@@ -79,7 +78,7 @@ export function VehicleIntakeWorkspace({ model, costs = null, embedded = false }
         <dl className={styles.identity}>{[["VIN", model.vehicle.vin ?? "VIN pending"], ["Stock number", model.vehicle.stockNumber ?? model.vehicle.vehicleNumber], ["Year", model.vehicle.year ?? "Pending"], ["Make", model.vehicle.make ?? "Pending"], ["Model", model.vehicle.model ?? "Pending"]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
         <div className={styles.fields}>{field("odometer", "Odometer", "number")}
         <div><label htmlFor="intake-odometer-unit">Odometer unit</label><select id="intake-odometer-unit" value={details.odometerUnit} onChange={event => update("odometerUnit", event.target.value)}><option value="MILES">Miles</option><option value="KILOMETERS">Kilometers</option></select></div></div>
-        <Link href={`/vehicles/360/${id}`} onClick={event => { if (dirty && !window.confirm("Leave without saving your intake changes?")) event.preventDefault(); }}>Vehicle details &amp; photos</Link>
+        <Link href={`/vehicles/${id}/details`} onClick={event => { if (dirty && !window.confirm("Leave without saving your intake changes?")) event.preventDefault(); }}>Vehicle details &amp; photos</Link>
       </section>
       <section aria-labelledby="acquisition-heading"><h2 id="acquisition-heading"><MapPin size={18}/>Acquisition &amp; arrival</h2><h3>Purchase info</h3><div className={styles.fields}>
       <div><label htmlFor="intake-source">Acquisition source</label><select id="intake-source" value={details.source} onChange={event => update("source", event.target.value)}><option value="">Pending</option>{INTAKE_SOURCES.map(source => <option value={source} key={source}>{source.replaceAll("_", " ")}</option>)}</select></div>

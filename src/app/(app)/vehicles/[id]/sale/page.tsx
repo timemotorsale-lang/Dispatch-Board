@@ -19,9 +19,9 @@ export default async function VehicleSaleEntryPage({ params, searchParams }: { p
   const controlled = relationships.some(record => ["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"].includes(record.relationshipType));
   const customerOwned = relationships.some(record => ["CUSTOMER_OWNER", "SOLD_TO_CUSTOMER", "SERVICE_ONLY"].includes(record.relationshipType));
   if (!controlled && customerOwned) return <section className="page-stack"><h1>Vehicle not available for inventory sale</h1><p>This is a customer vehicle. A dealership acquisition must be recorded before starting an inventory sale.</p><Link href={`/vehicles/${encodeURIComponent(id)}/workbench`}>Return to Vehicle Workbench</Link></section>;
+  if (mode !== "as-is") redirect(`/vehicles/${encodeURIComponent(id)}/details`);
   if (!journey.unit || journey.intake?.status !== "CONFIRMED") redirect(`/vehicles/${encodeURIComponent(id)}/intake`);
   if (!controlled) redirect(`/vehicles/${encodeURIComponent(id)}/intake`);
-  if (mode !== "as-is") redirect(`/vehicles/${encodeURIComponent(id)}/frontline`);
   const [workspace, grants] = await Promise.all([getDispositionWholesaleWorkspace(user), createEnterpriseCommandRepository().listCapabilityGrants(user.id, INITIAL_ORGANIZATION.id)]);
   const canStart = evaluateVehicleCapability({ actor: user, capability: "INVENTORY_RELEASE_MANAGE", grants, locationId: journey.unit.locationId, now: new Date() }).allowed;
   const existingCaseId = workspace.cases.find(record => record.inventoryUnitId === journey.unit?.id)?.id;
