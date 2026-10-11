@@ -25,6 +25,9 @@ export function addVehicleEntryRelationship(returnTo?: string): AddVehicleRelati
 }
 
 export function recommendAddVehicleWorkflow(input: { description: string; reasonCode: AddVehicleReason; relationship: AddVehicleRelationship }) {
+  if (input.relationship === "DEALERSHIP_INVENTORY" && ["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"].includes(input.reasonCode)) {
+    return { code: "CREATE_INTERNAL_REPAIR_INTAKE", title: "Internal Repair Intake", description: "Dealership repairs use internal service intake without purchase or sale preparation.", confidence: "HIGH" as const, commandLabel: "Add Vehicle & Start Internal Repair" };
+  }
   if (input.relationship === "CUSTOMER_VEHICLE" && ["SERVICE_REPAIR", "INSPECTION_DIAGNOSIS"].includes(input.reasonCode)) {
     return { code: "CREATE_SERVICE_INTAKE", title: "Create Service Intake", description: "Customer vehicle and service intent prepare a walk-in repair-order intake.", confidence: "HIGH" as const, commandLabel: "Add Vehicle & Create Service Intake" };
   }

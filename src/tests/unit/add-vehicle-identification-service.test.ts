@@ -10,10 +10,10 @@ const vin = "1HGCM82633A004352";
 const decode = { provider: "NHTSA_VPIC", mappingVersion: 1, retrievedAt: "2026-07-31T12:00:00.000Z", vin, warnings: [], decoded: { bodyClass: "Sedan/Saloon", cabType: null, displacementLiters: "3", doors: "4", driveType: "FWD", engineConfiguration: "V-Shaped", engineCylinders: "6", fuelTypePrimary: "Gasoline", fuelTypeSecondary: null, gvwr: null, make: "HONDA", manufacturer: "HONDA", model: "Accord", modelYear: 2003, plantCountry: "USA", series: null, transmissionStyle: "Automatic", trim: "EX", vehicleType: "PASSENGER CAR" } };
 
 describe("Add Vehicle canonical identification service", () => {
-  it.each(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS", "REFERENCE_ONLY", "OTHER"])("returns the compact intake destination for dealership reason %s", async reasonCode => {
+  it.each(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS", "REFERENCE_ONLY", "OTHER"])("returns the intent-specific destination for dealership reason %s", async reasonCode => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     const result = await startAddVehicleWorkflow(null, { acquisitionSource: "AUCTION", description: "Record the dealership vehicle arrival condition.", idempotencyKey: "inventory-route-" + reasonCode, locationId: "loc-1", make: "Honda", model: "Accord", odometer: 100, reasonCode, relationship: "DEALERSHIP_INVENTORY", vin, year: 2003 });
-    expect(result.nextWorkflow).toMatchObject({ code: "REVIEW_INVENTORY_CONTROL", href: "/vehicles/vehicle-1/intake", commandLabel: "Add Vehicle & Continue Intake" });
+    expect(result.nextWorkflow).toMatchObject(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"].includes(reasonCode) ? { code: "CREATE_INTERNAL_REPAIR_INTAKE", href: "/vehicles/repair-orders?concernSummary=Record+the+dealership+vehicle+arrival+condition.&intakeSource=INVENTORY_RECON&vehicleId=vehicle-1" } : { code: "REVIEW_INVENTORY_CONTROL", href: "/vehicles/vehicle-1/intake", commandLabel: "Add Vehicle & Continue Intake" });
   });
 
   it("returns the registry duplicate response when creation is replayed", async () => {
@@ -87,7 +87,7 @@ describe("Add Vehicle canonical identification service", () => {
   it("opens the new canonical vehicle in Inventory Control", async () => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     const result = await startAddVehicleWorkflow(null, { acquisitionSource: "AUCTION", addMode: "QUICK", description: "Visible front damage; vehicle remains drivable.", externalLocation: "Copart — Des Moines, IA", idempotencyKey: "add-inventory-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY", vin, whereabouts: "AUCTION_FACILITY", year: 2000 });
-    expect(result.nextWorkflow.href).toBe("/vehicles/vehicle-1/intake");
+    expect(new URL(result.nextWorkflow.href, "http://local").searchParams.get("intakeSource")).toBe("INVENTORY_RECON");
     expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.anything(), { enforceRollout: false }, expect.objectContaining({ specificationSnapshot: expect.objectContaining({ specifications: expect.objectContaining({ externalLocation: "Copart — Des Moines, IA", whereabouts: "AUCTION_FACILITY" }) }) }));
   });
 });

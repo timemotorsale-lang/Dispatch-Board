@@ -85,7 +85,7 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
   const reasonCode = enumValue(raw.reasonCode, "Operational reason", ADD_VEHICLE_REASONS);
   if (!ADD_VEHICLE_ALLOWED_REASONS[relationship].includes(reasonCode)) throw new Error("Operational reason is not valid for the selected vehicle relationship.");
   const acquisitionSource = raw.acquisitionSource ? enumValue(raw.acquisitionSource, "Acquisition source", ADD_VEHICLE_ACQUISITION_SOURCES) : undefined;
-  if (relationship === "DEALERSHIP_INVENTORY" && !acquisitionSource) throw new Error("Acquisition source is required for dealership inventory.");
+  if (relationship === "DEALERSHIP_INVENTORY" && !["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"].includes(reasonCode) && !acquisitionSource) throw new Error("Acquisition source is required for dealership inventory.");
   const whereabouts = enumValue(raw.whereabouts ?? "AT_DEALERSHIP", "Vehicle whereabouts", ADD_VEHICLE_WHEREABOUTS);
   const externalLocation = optional(raw.externalLocation, 240);
   if (whereabouts !== "AT_DEALERSHIP" && externalLocation.length < 3) throw new Error("Off-site facility or location detail is required.");
@@ -115,6 +115,7 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
 }
 
 function nextHref(code: string, vehicleId: string, description: string) {
+  if (code === "CREATE_INTERNAL_REPAIR_INTAKE") return `/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "INVENTORY_RECON", vehicleId }).toString()}`;
   if (code === "CREATE_SERVICE_INTAKE") return `/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "WALK_IN", vehicleId }).toString()}`;
   if (code === "SCHEDULE_APPOINTMENT") return `/appointments?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "START_ACQUISITION_APPRAISAL") return `/vehicles/acquisition-appraisal?${new URLSearchParams({ vehicleId }).toString()}`;
