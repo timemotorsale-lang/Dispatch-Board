@@ -7166,6 +7166,7 @@ model VehicleDuplicateCase {
 }
 
 model VehicleEvidenceObject {
+  purchaseImports  PurchaseImportJob[]
   id               String                       @id @default(cuid())
   organizationId   String
   uploadedByUserId String
@@ -9249,6 +9250,46 @@ model EnterpriseAuditEvent {
   @@index([subjectType, subjectId, occurredAt])
   @@index([actorUserId, occurredAt])
   @@index([correlationId])
+}
+
+model PurchaseImportJob {
+  id                String   @id @default(cuid())
+  organizationId    String
+  locationId        String
+  createdByUserId   String
+  assignedToUserId  String
+  sourceEvidenceId  String
+  status            String   @default("PROCESSING")
+  fileName          String
+  vin               String   @default("")
+  reading           Json?
+  corrections       Json?
+  outcome           Json?
+  failureCode       String?
+  version           Int      @default(1)
+  attempts          Int      @default(0)
+  leaseUntil        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  source            VehicleEvidenceObject @relation(fields: [sourceEvidenceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, locationId, status, createdAt])
+  @@index([organizationId, assignedToUserId, createdAt])
+  @@index([sourceEvidenceId])
+}
+
+model PurchaseImportTemplate {
+  id               String   @id @default(cuid())
+  organizationId   String
+  locationId       String
+  createdByUserId  String
+  name             String
+  mapping          Json
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([organizationId, locationId, createdByUserId, name])
 }
 
 model EnterpriseOutboxMessage {

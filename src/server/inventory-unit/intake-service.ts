@@ -12,7 +12,7 @@ import { intakePending, normalizeIntake, type IntakeDetails } from "./intake-dom
 import { assertIntakeAccess } from "./intake-access";
 import { assertPricingAccess, evaluatePricingAccess } from "./pricing-access";
 
-type Dependencies = { database?: PrismaClient; organizationId?: string; enforceRollout?: boolean; now?: () => Date };
+type Dependencies = { database?: PrismaClient; organizationId?: string; enforceRollout?: boolean; now?: () => Date; undoImportRevisionId?: string };
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown) => typeof value === "string" ? value : "";
@@ -53,6 +53,10 @@ export type VehicleIntakeModel = Awaited<ReturnType<typeof getVehicleIntake>>;
 
 export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
   const c = await context(actor, vehicleId, input), data = normalizeIntake(value, c.now);
+  if (input.undoImportRevisionId) {
+    if (data.status !== "DRAFT") throw new Error("Only import drafts can be undone.");
+    assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
+  }
   if (data.status === "CONFIRMED") assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
   if (input.enforceRollout !== false) {
     const flags = await createEnterpriseCommandRepository(c.database).listFeatureFlags(c.organizationId);
@@ -105,6 +109,14 @@ export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicle
         await tx.enterpriseAggregateVersion.update({ where: { id: aggregate.id }, data: { version: unitVersion } });
         await tx.inventoryUnitStateEvent.create({ data: { organizationId: c.organizationId, inventoryUnitId: unit.id, version: unitVersion, fromStage: unit.lifecycleStage, toStage: unit.lifecycleStage, fromOperatingState: unit.operatingState, toOperatingState: unit.operatingState, ownerUserId: unit.ownerUserId, locationId: unit.locationId, targetAt: unit.targetAt, nextAction: unit.nextAction, reason: data.reason, source: "USER", actorUserId: c.user.id, correlationId: command.correlationId } });
       }
+    }
+    if (input.undoImportRevisionId) {
+      await tx.$executeRaw`SELECT 1 FROM "Vehicle" WHERE id = ${vehicleId} AND "organizationId" = ${c.organizationId} FOR UPDATE`;
+      if (previous?.id !== input.undoImportRevisionId || previous.status !== "DRAFT" || previous.inventoryUnitId !== (unit?.id ?? null) || !Array.isArray(previous.costRecordIds) || previous.costRecordIds.length) throw new Error("Import undo blocked: intake was confirmed, changed or posted.");
+      const costs = unit ? await tx.inventoryUnitCost.count({ where: { organizationId: c.organizationId, inventoryUnitId: unit.id, category: "ACQUISITION", status: { notIn: ["VOID", "REVERSED"] } } }) : 0;
+      const repair = await tx.repairOrder.count({ where: { organizationId: c.organizationId, vehicleId } });
+      const handoff = await tx.vehicleCommercialHandoff.count({ where: { organizationId: c.organizationId, vehicleId } });
+      if (costs || repair || handoff) throw new Error("Import undo blocked: downstream work exists. Reconcile in the vehicle workspace.");
     }
     const revision = await tx.inventoryIntakeRevision.create({ data: { organizationId: c.organizationId, vehicleId, inventoryUnitId: unit?.id ?? null, version, status: data.status, details: json(data.details), pendingItems: json(data.pendingItems), costRecordIds: json(costRecordIds), actorUserId: c.user.id, reason: data.reason } });
     return { previous, result: { id: revision.id, version, status: revision.status, vehicleId, inventoryUnitId: revision.inventoryUnitId, pendingItems: data.pendingItems, costRecordIds } };

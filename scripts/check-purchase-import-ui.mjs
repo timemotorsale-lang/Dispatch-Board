@@ -16,19 +16,26 @@ const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
     for (const width of [1440,390]) {
       const page=await browser.newPage({viewport:{width,height:1000}}), errors=[], calls=[];
       page.on('pageerror',error=>errors.push(error.message));
-      let csv=false;
+      let csv=false, managed=false;
       await page.route('https://inventory.test/**',async route=>{
         const req=route.request();
         if(req.url().includes('/api/vehicles/transfers/pdf-worker')) return route.fulfill({contentType:'text/javascript',body:fs.readFileSync(`${root}/node_modules/pdfjs-dist/build/pdf.worker.min.mjs`)});
         if (!req.url().includes('/api/')) return route.fulfill({contentType:'text/html',body:'<div id="root"></div>'});
         const raw=req.postData() || ''; calls.push(raw);
-        if(req.method()==='GET') return route.fulfill({json:{jobs:[{readId:'source-1',fileName:'purchase.txt',vin:'1HGCM82633A004352',createdAt:new Date().toISOString(),status:'FAILED',expired:true,message:'Allocation needs correction.',vehicleId:null}],nextCursor:null}});
+        if(req.method()==='GET') {
+          if(req.url().includes('templates=1')) return route.fulfill({json:[{id:'template-1',name:'Auction mapping',mapping:{vin:'VIN',purchasePrice:'Purchase Cost'}}]});
+          if(req.url().includes('reviewers=1')) return route.fulfill({json:[{id:'staff',name:'Authorized reviewer'}]});
+          if(req.url().includes('source=')) return route.fulfill({contentType:'text/plain',body:'Auction invoice'});
+          return route.fulfill({json:{jobs:[{readId:'source-1',fileName:'purchase.txt',vin:'1HGCM82633A004352',createdAt:new Date().toISOString(),status:managed?'IMPORTED':'FAILED',expired:true,message:'Allocation needs correction.',vehicleId:managed?'vehicle-1':null,...(managed?{version:4,assignedToUserId:'staff'}:{})}],nextCursor:null,...(managed?{canManage:true,metrics:{failed:1,stalled:1}}:{})}});
+        }
         if (req.headers()['content-type'].includes('application/json')) {
           const data=req.postDataJSON();
           if(data.action==='save-corrections') return route.fulfill({json:{saved:true}});
+          if(['save-template','assign','undo'].includes(data.action)) return route.fulfill({json:{saved:true}});
           return route.fulfill({json:{previewId:'review-1',vehicleId:'vehicle-1',existing:true,vehicleLabel:'KNOWN-001',allocations:[{field:'seller',current:'',proposed:data.values.seller,conflict:false},{field:'purchaseCents',current:'',proposed:'630000',conflict:false}],warnings:['Acquisition draft only. No costs posted.']}});
         }
         if (raw.includes('name="action"\r\n\r\napply')) return route.fulfill({json:{vehicleId:'vehicle-1',duplicate:false}});
+        if (raw.includes('name="action"\r\n\r\ninspect-columns')) return route.fulfill({json:{headers:['VIN','Purchase Cost'],rows:2}});
         const reading={readId:'source-1',fileName:'purchase.txt',method:'PLAIN_TEXT',category:'AUCTION_INVOICE',text:'Auction: Test Auction\nVIN: 1HGCM82633A004352\nPurchase Price: $6000\nBuyer Fee: $300',values:{vin:'1HGCM82633A004352',seller:'Test Auction',reference:'INV-123',purchasePrice:'6000',buyerFee:'300'},evidence:{seller:'Auction: Test Auction'},warnings:['Review suggestions against original document.']};
         if(raw.includes('name="action"\r\n\r\nresume')) return route.fulfill({json:{reading,correction:{values:{...reading.values,seller:'Corrected Auction'},fields:['reference','seller','purchaseCents']}}});
         return route.fulfill({json:csv ? {rows:[reading,{...reading,readId:'source-2',values:{...reading.values,vin:'5TFCZ5AN3LX230055',reference:'INV-124'}}]} : reading});
@@ -56,6 +63,11 @@ const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
       await expect(page.getByRole('button',{name:'Save purchase draft'})).toHaveCount(0);
       csv=true;
       await page.getByLabel('Choose purchase file',{exact:true}).setInputFiles({name:'purchases.csv',mimeType:'text/csv',buffer:Buffer.from('VIN,Purchase Cost\n1HGCM82633A004352,6000\n5TFCZ5AN3LX230055,6000')});
+      await page.getByRole('button',{name:'Map columns',exact:true}).click();
+      await page.getByLabel('Saved mapping',{exact:true}).selectOption('template-1');
+      await expect(page.getByRole('combobox',{name:'VIN column',exact:true})).toHaveValue('VIN');
+      await page.getByRole('button',{name:'Save mapping',exact:true}).click();
+      await page.screenshot({path:output+`/mapping-${width}.png`,fullPage:true});
       await page.getByRole('button',{name:'Read purchase file'}).click();
       await page.getByRole('combobox',{name:'Vehicle / spreadsheet row'}).selectOption('source-2');
       await expect(page.getByLabel('VIN',{exact:true})).toHaveValue('5TFCZ5AN3LX230055');
@@ -89,13 +101,25 @@ const output = fs.mkdtempSync(join(tmpdir(), "purchase-import-review-"));
       await page.getByRole('button',{name:'Zoom out document',exact:true}).click();
       await expect(page.getByText('Rendering original PDF...',{exact:true})).toHaveCount(0);
       await page.screenshot({path:output+`/pdf-${width}.png`,fullPage:true});
+      managed=true;
+      await page.getByRole('tab',{name:'Import history',exact:true}).click();
+      await expect(page.getByText('1 failed / quarantined; 1 stalled jobs at this location.',{exact:true})).toBeVisible();
+      await page.getByRole('button',{name:'Undo draft',exact:true}).click();
+      await expect(page.getByRole('button',{name:'Confirm draft undo',exact:true})).toBeDisabled();
+      await page.getByLabel('Reason',{exact:true}).fill('Wrong purchase document selected');
+      await page.getByRole('button',{name:'Confirm draft undo',exact:true}).click();
+      await expect(page.getByRole('button',{name:'Confirm draft undo',exact:true})).toHaveCount(0);
+      await page.getByLabel('Search',{exact:true}).fill('purchase');
+      await expect.poll(()=>calls.filter(call=>call.includes('"action":"undo"')).length).toBe(1);
+      await page.screenshot({path:output+`/queue-${width}.png`,fullPage:true});
       await page.getByRole('combobox',{name:'Location',exact:true}).selectOption('');
       await expect(page.getByLabel('VIN',{exact:true})).toHaveCount(0);
       const size=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:innerWidth}));
       if(size.scroll>size.viewport+1) throw Error('Page overflow '+JSON.stringify(size));
       if(errors.length) throw Error(errors.join('\n'));
-      console.log(`PASS ${width}px: review, consent, saved corrections, history retry, CSV selection, rendered PDF pixels/pages/zoom, location reset, no overflow`);
+      console.log(`PASS ${width}px: review/consent, corrections, retry, CSV/mapping templates, metrics/undo, PDF pixels/pages/zoom, location reset, no overflow`);
       await page.close();
     }
+    console.log(`Screenshots: ${output}`);
   } finally { await browser.close(); }
 })().catch(error=>{console.error(error);process.exit(1)});

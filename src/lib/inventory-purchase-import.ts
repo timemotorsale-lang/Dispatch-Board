@@ -4,7 +4,7 @@ export const PURCHASE_FIELDS = [
   ["source", "Acquisition source"],
   ["acquiredOn", "Purchase date"], ["reference", "Invoice / sale reference"],
   ["purchasePrice", "Vehicle purchase price (USD)"], ["buyerFee", "Buyer fee (USD)"],
-  ["transportFee", "Transport fee (USD)"], ["otherFees", "Other fees (USD)"], ["invoiceTotal", "Invoice total (USD)"],
+  ["transportFee", "Transport fee (USD)"], ["otherFees", "Other fees (USD)"], ["taxes", "Taxes (USD)"], ["credits", "Credits (USD)"], ["invoiceTotal", "Invoice total (USD)"],
   ["odometer", "Odometer"], ["condition", "Condition"],
 ] as const;
 export type PurchaseField = typeof PURCHASE_FIELDS[number][0];
@@ -19,10 +19,11 @@ export type PurchaseRead = PurchaseReading & { readId: string; fileName: string;
 export type PurchaseReview = { previewId: string; vehicleId: string | null; vehicleLabel: string; existing: boolean; allocations: { field: string; current: string; proposed: string; conflict: boolean }[]; warnings: string[] };
 export type PurchaseImportJob = {
   readId: string; fileName: string; vin: string; createdAt: string;
-  status: "NEEDS_REVIEW" | "READY" | "FAILED" | "IMPORTED";
+  status: "NEEDS_REVIEW" | "READY" | "FAILED" | "IMPORTED" | "UNDONE" | "SCANNING" | "PROCESSING" | "APPLYING" | "QUARANTINED" | "RETRIED";
   expired: boolean; message: string; vehicleId: string | null;
+  version?: number; assignedToUserId?: string;
 };
-export type PurchaseImportHistory = { jobs: PurchaseImportJob[]; nextCursor: string | null };
+export type PurchaseImportHistory = { jobs: PurchaseImportJob[]; nextCursor: string | null; metrics?: { failed: number; stalled: number }; canManage?: boolean };
 
 export function moneyCents(value: string) {
   const clean = value.trim().replace(/^\$\s*/, "");
@@ -33,15 +34,22 @@ export function moneyCents(value: string) {
   return cents;
 }
 export function purchaseAmount(values: PurchaseValues) {
+  return reconcilePurchase(values).totalCents;
+}
+export function reconcilePurchase(values: PurchaseValues) {
   const has = (key: PurchaseField) => !!values[key]?.trim();
   const base = has("purchasePrice") ? moneyCents(values.purchasePrice!) : null;
   const total = has("invoiceTotal") ? moneyCents(values.invoiceTotal!) : null;
-  const fees = (["buyerFee", "transportFee", "otherFees"] as const).reduce((sum, key) => sum + (has(key) ? moneyCents(values[key]!) : 0), 0);
-  if (base !== null && total !== null && base + fees !== total) throw new Error("Invoice total does not match vehicle price plus entered fees. Reconcile the amounts before saving.");
-  if (base === null && fees && total === null) throw new Error("Enter vehicle price or invoice total before allocating fees.");
-  const amount = total ?? (base === null ? null : base + fees);
+  const components = Object.fromEntries((["buyerFee", "transportFee", "otherFees", "taxes", "credits"] as const).map(key => [key, has(key) ? moneyCents(values[key]!) : 0])) as Record<"buyerFee" | "transportFee" | "otherFees" | "taxes" | "credits", number>;
+  const fees = components.buyerFee + components.transportFee + components.otherFees + components.taxes;
+  const computed = base === null ? null : base + fees - components.credits;
+  if (base !== null && total !== null && computed !== total) throw new Error("Invoice total does not match vehicle price plus entered fees and taxes minus credits. Reconcile the amounts before saving.");
+  if (base === null && (fees || components.credits) && total === null) throw new Error("Enter vehicle price or invoice total before allocating fees or credits.");
+  const amount = total ?? computed;
   if (amount === 0) throw new Error("Purchase amount must be positive or left pending.");
-  return amount;
+  if (amount !== null && (!Number.isSafeInteger(amount) || amount < 0 || amount > 2_000_000_000)) throw new Error("Reconciled purchase amount is outside the supported range.");
+  if (base === null && total !== null && fees - components.credits > total) throw new Error("Purchase components exceed the invoice total.");
+  return { currency: "USD" as const, vehicleCents: base, ...components, invoiceTotalCents: total, totalCents: amount, basis: base === null ? "INVOICE_TOTAL_ONLY" : "RECONCILED_COMPONENTS" };
 }
 
 // Only labeled, unambiguous values are suggested. Never infer purchase price from an asking price.
@@ -57,7 +65,7 @@ export function readPurchaseText(text: string): PurchaseReading {
     source: "acquisition source|purchase source",
     acquiredOn: "purchase date|sale date|invoice date", reference: "invoice(?: number| no\\.?| #)|sale reference|transaction(?: number| id)",
     purchasePrice: "purchase price|vehicle price|hammer price|sale price", buyerFee: "buyer(?:'s)? fee|auction fee",
-    transportFee: "transport(?:ation)? fee|shipping fee", otherFees: "other fees", invoiceTotal: "invoice total|total due|total amount",
+    transportFee: "transport(?:ation)? fee|shipping fee", otherFees: "other fees", taxes: "tax|taxes|sales tax", credits: "credit|credits|discount|rebate", invoiceTotal: "invoice total|total due|total amount",
     odometer: "odometer|mileage", condition: "condition",
   };
   for (const [key, label] of Object.entries(labels) as [PurchaseField, string][]) {
@@ -68,7 +76,7 @@ export function readPurchaseText(text: string): PurchaseReading {
       if (match) return [{ value: match[1].trim(), line }];
       const next = lines[index + 1];
       if (labelOnly.test(line) && next && !/^[A-Za-z][^:]*:/.test(next)) return [{ value: next, line: `${line} ${next}` }];
-      if (["purchasePrice", "buyerFee", "transportFee", "otherFees", "invoiceTotal", "odometer", "year"].includes(key)) {
+      if (["purchasePrice", "buyerFee", "transportFee", "otherFees", "taxes", "credits", "invoiceTotal", "odometer", "year"].includes(key)) {
         const numeric = line.match(new RegExp(`^(?:${label})\\s+(\\$?\\s*[\\d,]+(?:\\.\\d{1,2})?(?:\\s+miles)?)$`, "i"));
         if (numeric) return [{ value: numeric[1], line }];
       }

@@ -23,6 +23,17 @@ env:
   CRON_SECRET: ci-build-placeholder
 
 jobs:
+  security:
+    name: Dependency Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -99,6 +110,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Purchase import undo database proof
+        run: RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/purchase-import-undo.test.ts
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -123,6 +137,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs:
+      - security
       - lint
       - typecheck
       - test

@@ -9,6 +9,8 @@ vi.mock("@/server/document-library/text-extraction", () => ({ extractDocumentTex
 vi.mock("@/server/inventory-unit/intake-service", () => ({ getVehicleIntake: mocks.intake, saveVehicleIntake: mocks.save }));
 vi.mock("@/server/vehicle-registry/service", () => ({ createRegistryVehicle: mocks.create }));
 vi.mock("@/server/vehicle-360/service", () => ({ uploadVehicleEvidence: mocks.evidence }));
+vi.mock("@/server/inventory-transfer/purchase-jobs", () => ({ stagePurchaseSource: async () => crypto.randomUUID(), finishPurchaseRead: vi.fn(), recordPurchaseJobEvent: vi.fn(), storedPurchaseSource: vi.fn(), registerPurchaseRow: vi.fn(), linkPurchaseSource: mocks.evidence, markPurchaseBatch: vi.fn(), claimPurchaseSave: vi.fn() }));
+vi.mock("@/server/inventory-transfer/purchase-team", () => ({ purchaseJobAccess: async () => null }));
 import { applyPurchaseDocument, readPurchaseDocument, readPurchaseSpreadsheet, reviewPurchaseDocument, validatePurchaseFile, savePurchaseCorrections, resumePurchaseImport, purchaseImportHistory, recordPurchaseImportFailure } from "@/server/inventory-transfer/purchase-service";
 const user: AuthenticatedUser = { id: "staff", name: "Staff", email: "staff@example.test", isActive: true, roles: ["Staff"], duties: { all: [], direct: [], roleDefaults: [] } };
 const file = { bytes: Buffer.from("Auction invoice source document"), contentType: "text/plain", fileName: "purchase.txt" };
