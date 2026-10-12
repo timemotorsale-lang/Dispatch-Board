@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "prebuild": "node scripts/prepare-prisma-client.mjs",
+    "pretypecheck": "node scripts/prepare-prisma-client.mjs",
     "predev": "node scripts/clean-dev-runtime-cache.mjs && node scripts/prepare-dev-runtime.mjs",
     "dev": "node scripts/run-dev.mjs",
     "build": "next build",
