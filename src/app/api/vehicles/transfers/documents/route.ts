@@ -9,8 +9,18 @@ import { purchaseTemplates, savePurchaseTemplate } from "@/server/inventory-tran
 export const runtime = "nodejs";
 export const maxDuration = 120;
 const MAX_REQUEST = 11 * 1024 * 1024;
+function purchaseImportDisabled(headers: HeadersInit) {
+  if (process.env.NODE_ENV !== "production") return null;
+  if (process.env.PURCHASE_IMPORT_RELEASE_ENABLED === "true") return null;
+  return NextResponse.json(
+    { error: "Purchase document imports are not enabled for this deployment." },
+    { status: 403, headers }
+  );
+}
 export async function GET(request: Request) {
   const headers = { "Cache-Control": "no-store" };
+  const disabled = purchaseImportDisabled(headers);
+  if (disabled) return disabled;
   try {
     const url = new URL(request.url);
     if (url.searchParams.get("templates") === "1") return NextResponse.json(await purchaseTemplates(assertAuthenticatedUser(await getCurrentUser()), url.searchParams.get("locationId") ?? ""), { headers });
@@ -28,6 +38,8 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   const headers = { "Cache-Control": "no-store" };
+  const disabled = purchaseImportDisabled(headers);
+  if (disabled) return disabled;
   try {
     const user = assertAuthenticatedUser(await getCurrentUser());
     if (request.headers.get("sec-fetch-site") === "cross-site" || request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return NextResponse.json({ error: "Cross-site purchase requests are not allowed." }, { status: 403, headers });
