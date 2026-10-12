@@ -38,6 +38,7 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
+import { applyCustomerPrefillToTestDriveFacts } from "@/features/crm-next/crm-next-deal-start-tool";
 import { CrmNextActionReadinessView, CrmNextCommandCenterView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextNeedsAttentionView, CrmNextSearchView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
@@ -534,6 +535,20 @@ describe("CRM Next pages", () => {
     expect(markup).not.toContain("Complete intake");
     expect(markup).not.toContain("Review shell");
     expect(markup).not.toContain("review mode");
+  });
+
+  it("prefills test-drive driver details from the selected customer record", () => {
+    const facts = applyCustomerPrefillToTestDriveFacts(
+      { driverEmail: "", driverLicense: "", driverPhone: "", licenseState: "MN" },
+      { email: "gada@example.test", idLast4: "4321", idState: "WI", phoneNumber: "+16123580677" }
+    );
+
+    expect(facts).toEqual({
+      driverEmail: "gada@example.test",
+      driverLicense: "ID on file ending 4321",
+      driverPhone: "+16123580677",
+      licenseState: "WI",
+    });
   });
 
   it("keeps the selected customer attached when opening an action", () => {

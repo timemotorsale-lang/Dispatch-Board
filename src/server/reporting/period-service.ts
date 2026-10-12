@@ -31,6 +31,7 @@ function writesEnabled() {
 }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const array = (value: unknown) => Array.isArray(value) ? value.map(object) : [];
+const pathwayLabel = (value: string) => value.split("-").filter(Boolean).map(word => word[0]?.toUpperCase() + word.slice(1)).join(" ");
 function snapshotRows(value: unknown, owner: string, key: "completedTasks" | "carryover", boardDate: string): TaskObservation[] {
   return array(object(value)[key]).filter(row => typeof row.id === "string" && typeof row.title === "string").map(row => ({
     taskId: String(row.id), boardDate,
@@ -51,12 +52,15 @@ function reviewState(reviews: { action: string }[], accepted: boolean) {
 export async function preparePeriodReport(actor: AuthenticatedUser | null, date: string, cadence: ReportCadence, subjectUserId?: string, now = new Date()) {
   const { user, subject } = reportingSubject(actor, subjectUserId), { period, key } = await identity(subject, cadence, date);
   const person = await prisma.user.findUniqueOrThrow({ where: { id: subject }, select: { id: true, name: true } });
-  const [days, series, updates, expectation] = await Promise.all([
+  const [days, series, updates, workbookSignals, dealDrafts, expectation] = await Promise.all([
     prisma.staffDay.findMany({ where: { userId: subject, boardDay: { date: { gte: new Date(`${period.startDate}T00:00:00Z`), lt: new Date(`${period.endDate}T00:00:00Z`) } } }, include: { boardDay: { select: { date: true } }, dailyReports: { orderBy: { version: "desc" }, take: 1 } }, orderBy: { boardDay: { date: "asc" } } }),
     prisma.reportingSeries.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: key }, include: { revisions: { orderBy: { version: "desc" }, take: 1, include: { reviews: { orderBy: { createdAt: "desc" }, take: 1 } } } } }),
     prisma.workdayQuickUpdate.findMany({ where: { workbook: { userId: subject, boardDay: { date: { gte: new Date(`${period.startDate}T00:00:00Z`), lt: new Date(`${period.endDate}T00:00:00Z`) } } } }, orderBy: { createdAt: "asc" }, take: 500 }),
+    prisma.workdayActivitySignal.findMany({ where: { actorUserId: subject, occurredAt: { gte: period.startsAt, lt: period.endsAt }, OR: [{ reportRelevant: true }, { actionType: "workbook.rhythm_start_confirmed" }] }, select: { id: true, actionType: true, businessImpact: true, metadata: true, occurredAt: true }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }], take: 501 }),
+    prisma.dealDeskDraft.findMany({ where: { organizationId, ownerUserId: subject, updatedAt: { gte: period.startsAt, lt: period.endsAt } }, select: { id: true, customerName: true, pathway: true, vehicleReference: true, status: true, updatedAt: true }, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], take: 501 }),
     prisma.reportingExpectation.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: key } })
   ]);
+  if (workbookSignals.length > 500 || dealDrafts.length > 500) throw new Error("Report preparation requires a narrower period scope.");
   const observations: TaskObservation[] = [];
   let coverage = 0;
   for (const day of days) {
@@ -79,8 +83,14 @@ export async function preparePeriodReport(actor: AuthenticatedUser | null, date:
   const content: PeriodContent = {
     version: "period-content/v2", cadence, startDate: period.startDate, endDate: period.endDate, cutoffAt: now.toISOString(),
     completed: reconciled.completed, carryover: reconciled.carryover, reopened: reconciled.reopened,
-    activity: updates.map(update => ({ id: `update:${update.id}`, title: update.text, state: update.followUpNeeded ? "FOLLOW_UP" : "UPDATE", owner: person.name, href: `/vehicles/coo-workbook?date=${period.startDate}`, occurredAt: update.createdAt.toISOString() })),
-    sourceCoverage: `${coverage} of ${days.length} recorded staff days have submitted snapshots. Work is counted by its last observed state; outstanding items remain until a later observed completion. Reopened work is included in carryover, not an additional total. Current-day tasks are current state; earlier unsaved outcomes are not reconstructed. ${reconciled.unresolvedLineageCount} task identities have incomplete or conflicting carryover links and may not be fully consolidated. This is not a historical end-of-period certification.${currentTasksTruncated ? " Current-day evidence is limited to 1,000 tasks." : ""}`,
+    activity: [...updates.map(update => ({ id: `update:${update.id}`, title: update.text, state: update.followUpNeeded ? "FOLLOW_UP" : "UPDATE", owner: person.name, href: `/vehicles/coo-workbook?date=${period.startDate}`, occurredAt: update.createdAt.toISOString() })),
+      ...workbookSignals.map(signal => {
+        const metadata = object(signal.metadata);
+        const href = typeof metadata.sourcePath === "string" && metadata.sourcePath.startsWith("/") && !metadata.sourcePath.startsWith("//") ? metadata.sourcePath : `/vehicles/coo-workbook?date=${period.startDate}`;
+        return { id: `workbook-signal:${signal.id}`, title: signal.businessImpact || signal.actionType.replace(/[._]/g, " "), state: signal.actionType === "workbook.rhythm_start_confirmed" ? "STARTED_DAY" : "ACTIVITY", owner: person.name, href, occurredAt: signal.occurredAt.toISOString() };
+      }),
+      ...dealDrafts.map(draft => ({ id: `deal-draft:${draft.id}`, title: `${draft.customerName} - ${pathwayLabel(draft.pathway)}`, state: draft.status, owner: person.name, href: `/crm-next/deals/start?draft=${encodeURIComponent(draft.id)}`, occurredAt: draft.updatedAt.toISOString(), detail: draft.vehicleReference || undefined }))],
+    sourceCoverage: `${coverage} of ${days.length} recorded staff days have submitted snapshots. Work is counted by its last observed state; outstanding items remain until a later observed completion. Reopened work is included in carryover, not an additional total. Current-day tasks are current state; earlier unsaved outcomes are not reconstructed. Start Day confirmations, report-relevant workbook signals, and saved deal drafts updated in the covered period are included as activity evidence. ${reconciled.unresolvedLineageCount} task identities have incomplete or conflicting carryover links and may not be fully consolidated. This is not a historical end-of-period certification.${currentTasksTruncated ? " Current-day evidence is limited to 1,000 tasks." : ""}`,
     context: typeof draft.context === "string" ? draft.context : "", priorities: typeof draft.priorities === "string" ? draft.priorities : ""
   };
   return { subject: person, content, seriesId: series?.id ?? null, draftVersion: series?.version ?? 0,

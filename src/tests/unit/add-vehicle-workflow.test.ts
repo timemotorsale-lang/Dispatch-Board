@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { AddVehicleWorkflow } from "@/features/inventory/add-vehicle-workflow";
 import { ADD_VEHICLE_ALLOWED_REASONS, addVehicleEntryRelationship, recommendAddVehicleWorkflow } from "@/lib/add-vehicle-workflow";
+import { addVehicleSubmitEndpoint } from "@/features/inventory/add-vehicle-workflow";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -36,6 +37,16 @@ describe("Add Vehicle workflow", () => {
     const result = recommendAddVehicleWorkflow(base);
     expect(result.code).toBe("CREATE_SERVICE_INTAKE");
     expect(result.title).toBe("Create Service Intake");
+  });
+
+  it("submits customer service through intake and dealership recon through inventory workflow", () => {
+    const service = recommendAddVehicleWorkflow(base);
+    expect(service.code).toBe("CREATE_SERVICE_INTAKE");
+    expect(addVehicleSubmitEndpoint(service.code)).toBe("/api/service-intake/vehicles");
+
+    const inventory = recommendAddVehicleWorkflow({ description: "Prepare acquired vehicle for recon.", reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY" });
+    expect(inventory.code).toBe("CREATE_INTERNAL_REPAIR_INTAKE");
+    expect(addVehicleSubmitEndpoint(inventory.code)).toBe("/api/inventory-console/workflows/add-vehicle");
   });
 
   it("uses appraisal for trade and acquisition intent", () => {

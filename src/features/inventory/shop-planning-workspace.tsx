@@ -1123,9 +1123,9 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     <header className={styles.hero}>
       <div>
         <nav aria-label="Repair planning breadcrumb"><Link href="/vehicles/repair-workbench">Repair Workbench</Link><ChevronRight /><span>Repair Planning</span></nav>
-        <span className={styles.eyebrow}>Shop Operations · Governed repair planning</span>
-        <h1>Repair Planning Command Center</h1>
-        <p>Turn intake into the right governed path: full diagnosis when troubleshooting is needed, direct repair scope when damage is visible, or outside vendor repair when the work should move offsite.</p>
+        <span className={styles.eyebrow}>Shop Operations · Estimate-ready intake</span>
+        <h1>Repair Planning</h1>
+        <p>Pick the repair path, open the Labor Guide, and keep staff moving from intake to estimate, authorization, and release.</p>
       </div>
       <div className={styles.heroActions}><Link href={summaryCardHref}><ArrowLeft />Return to summary card</Link>{safeReturnTo !== summaryCardHref ? <Link href={safeReturnTo}>Return to source workbench</Link> : null}{selected ? <Link className={styles.primary} href={`/vehicles/360/${encodeURIComponent(selected.vehicle.id)}?returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(summaryCardHref)}`)}`}>Open Vehicle 360</Link> : null}</div>
       <div className={styles.truthBar}><span><BadgeCheck /><b>Authoritative repair plan</b></span><span><LockKeyhole />Immutable evidence versions</span><span>Exact-version customer authorization required</span><span>Repair work remains blocked until readiness passes.</span></div>
@@ -1139,7 +1139,15 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     </section>
 
     {selected ? <>
-      {!stageTwoComplete ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair type</span><h2>Select the repair type now</h2><p>This choice prepares the correct inspection and planning form. It becomes authoritative after the inspection and repair scope are recorded.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Diagnostic / mechanical</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
+      {!stageTwoComplete ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair path</span><h2>Choose path</h2><p>Pick how this RO should be estimated. Details stay available inside each step.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Diagnostic / mechanical</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
+      <section className={styles.toolStrip} aria-label="Quick repair actions">
+        <div><span>Quick action flow</span><h2>Intake &rarr; diagnosis &rarr; Labor Guide estimate &rarr; authorization</h2></div>
+        <nav>
+          {staffNext ? staffNext.href.startsWith("/") ? <Link href={staffNext.href}>{staffNext.action}<ChevronRight /></Link> : <button onClick={() => navigateToInternalTarget(staffNext.href)} type="button">{staffNext.action}<ChevronRight /></button> : null}
+          {!vendorPath ? <Link className={styles.toolPrimary} href={laborGuideHref}><Gauge />Build Labor Guide estimate</Link> : null}
+          <Link href={dispatchHref}><Truck />Shop Dispatch</Link>
+        </nav>
+      </section>
       {staffNext ? <section className={styles.staffNow} aria-label="What staff should do now"><div><span>What staff should do now</span><h2>{staffNext.title}</h2><p>{staffNext.detail}</p></div>{staffNext.href.startsWith("/") ? <Link href={staffNext.href}>{staffNext.action}<ChevronRight /></Link> : <button className={styles.primaryJumpAction} onClick={() => navigateToInternalTarget(staffNext.href)} type="button">{staffNext.action}<ChevronRight /></button>}</section> : null}
       <section className={styles.mission}>{vendorPath ? <Building2 /> : directPath ? <Wrench /> : <Stethoscope />}<div><span>{missionLabel}</span><h2>{missionTitle}</h2><p>{selected.serviceVisit.concernSummary}</p></div><aside><strong>{displayCurrentStep + 1} of {displaySteps.length}</strong><span>{vendorPath ? "vendor steps" : "repair stages"}</span></aside></section>
 

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
+  CarFront,
   Circle,
   ClipboardCheck,
   Grid3X3,
@@ -17,7 +18,8 @@ import {
   ShieldCheck,
   Sparkles,
   UserPlus,
-  UserRound
+  UserRound,
+  Wrench
 } from "lucide-react";
 import { TaskStatus } from "@prisma/client";
 import Link from "next/link";
@@ -37,7 +39,8 @@ import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { TaskSourceContext } from "./task-source-context";
 
 type TaskWorkspaceView = "simple" | "workbench";
-type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "signals";
+type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "repairDetails";
+type TaskToolSelection = "" | "assignee" | "planner" | "documents" | "subtask" | "checklist" | "workbench";
 
 type TaskSimpleSummaryCardProps = {
   actorIsManager: boolean;
@@ -364,65 +367,27 @@ function formatSourceType(value: string) {
   return value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function buildTaskSignals(task: TaskReadModel, roleLabel: string, dueLabel: string, currentStatus: TaskStatus) {
-  const signals = [
-    {
-      className: "etw-compact-signal-ready",
-      icon: <ShieldCheck size={14} />,
-      label: `Status: ${statusLabelFromValue(currentStatus)}`
-    },
-    {
-      className: "etw-compact-signal-watch",
-      icon: <Activity size={14} />,
-      label: `Priority: ${formatSourceType(task.priority)}`
-    },
-    {
-      className: "etw-compact-signal-ready",
-      icon: <Grid3X3 size={14} />,
-      label: `Path: ${executionPathLabel(executionPathValue(task.workflowArea))}`
-    },
-    {
-      className: "etw-compact-signal-open",
-      icon: <Building2 size={14} />,
-      label: `Source: ${formatSourceType(task.sourceType)}`
-    },
-    {
-      className: "etw-compact-signal-open",
-      icon: <CalendarDays size={14} />,
-      label: `Due: ${dueLabel}`
-    },
-    {
-      className: "etw-compact-signal-ready",
-      icon: <ShieldCheck size={14} />,
-      label: `Role: ${roleLabel}`
-    }
-  ];
-
-  if (task.vehicleReference) {
-    signals.push({
-      className: "etw-compact-signal-open",
-      icon: <Building2 size={14} />,
-      label: `Vehicle: ${task.vehicleReference}`
-    });
-  }
-
-  if (task.customerReference) {
-    signals.push({
-      className: "etw-compact-signal-open",
-      icon: <UserRound size={14} />,
-      label: `Customer: ${task.customerReference}`
-    });
-  }
-
-  if (task.requiresManagerApproval) {
-    signals.push({
-      className: "etw-compact-signal-watch",
-      icon: <AlertTriangle size={14} />,
-      label: "Manager review required"
-    });
-  }
-
-  return signals;
+function buildRepairDetails(task: TaskReadModel, roleLabel: string, dueLabel: string, currentStatus: TaskStatus) {
+  return {
+    linkedCount: [
+      task.vehicleReference,
+      task.customerReference,
+      task.workflowArea,
+      task.sourceType
+    ].filter(Boolean).length,
+    overview: [
+      { label: "Vehicle", value: task.vehicleReference ?? "Not linked yet" },
+      { label: "Customer", value: task.customerReference ?? "Not linked yet" },
+      { label: "Due", value: dueLabel },
+      { label: "Source", value: formatSourceType(task.sourceType) }
+    ],
+    workflow: [
+      { label: "Repair path", value: executionPathLabel(executionPathValue(task.workflowArea)) },
+      { label: "Role", value: roleLabel },
+      { label: "Status", value: statusLabelFromValue(currentStatus) },
+      { label: "Priority", value: formatSourceType(task.priority) }
+    ]
+  };
 }
 
 function ExecutionPathSwitch({
@@ -532,11 +497,13 @@ function TaskPeopleControls({
   assignableUsers,
   canManageCollaborators,
   canReassign,
+  initialExpanded = false,
   task
 }: {
   assignableUsers: ActiveUserSummary[];
   canManageCollaborators: boolean;
   canReassign: boolean;
+  initialExpanded?: boolean;
   task: TaskReadModel;
 }) {
   const router = useRouter();
@@ -550,7 +517,7 @@ function TaskPeopleControls({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSavingOwner, setIsSavingOwner] = useState(false);
   const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded);
 
   function collaboratorRequests(nextCollaborators: SimpleCollaborator[]) {
     return nextCollaborators.map((collaborator) => ({
@@ -618,7 +585,7 @@ function TaskPeopleControls({
       const nextOwner = result.task.assignedUser;
       setOwner(nextOwner);
       setOwnerDraftId(nextOwner.id);
-      setMessage(`Owner changed to ${nextOwner.name}.`);
+      setMessage(`Owner changed to ${nextOwner.name}. This task is now available in ${nextOwner.name}'s My Tasks / Work.`);
 
       if (collaborators.some((item) => item.id === nextOwner.id)) {
         await saveCollaborators(
@@ -1203,15 +1170,34 @@ export function TaskSimpleSummaryCard({
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(null);
   const [currentStatus, setCurrentStatus] = useState(task.status as TaskStatus);
   const [deliveryPlannerOpen, setDeliveryPlannerOpen] = useState(false);
-  const [plannerHidden, setPlannerHidden] = useState(false);
+  const [activeTool, setActiveTool] = useState<TaskToolSelection>("");
 
   const togglePanel = (panel: SummaryPanel) => {
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
   };
+  const openTool = (tool: TaskToolSelection) => {
+    if (tool === "subtask") {
+      setActivePanel("next");
+      setActiveTool("");
+      return;
+    }
+    if (tool === "checklist") {
+      setActivePanel("checklist");
+      setActiveTool("");
+      return;
+    }
+    if (tool === "workbench") {
+      router.push(viewHref(task.id, "workbench", returnTo));
+      setActiveTool("");
+      return;
+    }
+    setActiveTool(tool);
+    if (tool !== "planner") setDeliveryPlannerOpen(false);
+  };
   const openChecklist = checklist.filter((item) => !item.completed);
   const openSubtasks = subtaskItems.filter((item) => !item.completed);
   const checklistCount = missingUpdateLabels.length + openChecklist.length;
-  const taskSignals = buildTaskSignals(task, roleLabel, dueLabel, currentStatus);
+  const repairDetails = buildRepairDetails(task, roleLabel, dueLabel, currentStatus);
   const cardTone = getCardTone(task, currentStatus);
   const displayStatusItems = getDisplayStatusItems(task, currentStatus, priorityLabel);
 
@@ -1242,44 +1228,31 @@ export function TaskSimpleSummaryCard({
 
         <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>
         <div className="etw-compact-task-utility-row">
-          <TaskPeopleControls
-            assignableUsers={assignableUsers}
-            canManageCollaborators={canManageCollaborators}
-            canReassign={actorIsManager}
-            task={task}
-          />
-          <div className="etw-compact-task-schedule-strip">
-            {plannerHidden ? (
-              <button
-                className="etw-compact-calendar-restore"
-                onClick={() => setPlannerHidden(false)}
-                type="button"
-              >
-                <CalendarDays size={15} />
-                Show planner
-              </button>
-            ) : (
-              <TaskCalendarPlannerLink
-                onHidePlanner={() => {
-                  setDeliveryPlannerOpen(false);
-                  setPlannerHidden(true);
-                }}
-                onOpenDeliveryPlanner={() => setDeliveryPlannerOpen(true)}
-                returnTo={returnTo}
-                task={task}
-              />
-            )}
+          <div className="etw-compact-owner-summary">
+            <UserRound size={17} />
+            <span>
+              <strong>{task.assignedUser.name}</strong>
+              <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small>
+            </span>
           </div>
+          <label className="etw-compact-tool-picker">
+            <Grid3X3 size={15} />
+            <span>Available tools</span>
+            <select
+              aria-label="Open task tool"
+              onChange={(event) => openTool(event.currentTarget.value as TaskToolSelection)}
+              value={activeTool}
+            >
+              <option value="">Select a tool...</option>
+              <option value="assignee">Assign staff</option>
+              <option value="planner">Planner</option>
+              <option value="documents">Upload document or photo</option>
+              <option value="subtask">Add subtask</option>
+              <option value="checklist">Open checklist</option>
+              {canOpenFullWorkbench ? <option value="workbench">Full workbench</option> : null}
+            </select>
+          </label>
         </div>
-        {!plannerHidden && deliveryPlannerOpen ? (
-          <section className="etw-inline-delivery-planner" id="task-delivery-schedule">
-            <header>
-              <strong>Plan delivery events</strong>
-              <button onClick={() => setDeliveryPlannerOpen(false)} type="button">Close</button>
-            </header>
-            <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
-          </section>
-        ) : null}
 
         <dl className="etw-compact-task-fields" aria-label="Task details">
           <div><dt><CalendarDays size={17} />Due</dt><DueDateEditor canEdit={actorIsManager} dueAt={dueAt} dueLabel={dueLabel} taskId={task.id} /></div>
@@ -1295,7 +1268,6 @@ export function TaskSimpleSummaryCard({
               task={task}
             />
           </div>
-          <TaskDocumentUploadControl task={task} />
         </dl>
 
         <section className="etw-compact-next-action" aria-label={hasClaimWorkflow ? "Task coordination" : "Next action"}>
@@ -1306,19 +1278,64 @@ export function TaskSimpleSummaryCard({
           </div>
           <nav aria-label="Tools for this next action">
             <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>
-            <button onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Add subtask</button>
-            <button onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Open checklist</button>
-            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full tools</Link> : null}
           </nav>
         </section>
       </div>
+
+      {activeTool ? (
+        <section className="etw-task-tool-workspace" aria-label="Selected task tool">
+          <header>
+            <div>
+              <small>Selected tool</small>
+              <strong>
+                {activeTool === "assignee" ? "Assign staff" : null}
+                {activeTool === "planner" ? "Planner" : null}
+                {activeTool === "documents" ? "Upload document or photo" : null}
+              </strong>
+            </div>
+            <button aria-label="Close selected task tool" onClick={() => setActiveTool("")} type="button"><X size={17} /></button>
+          </header>
+          {activeTool === "assignee" ? (
+            <>
+              <p>Change the owner here. Once assigned, this task appears in that staff member&apos;s My Tasks / Work.</p>
+              <TaskPeopleControls
+                assignableUsers={assignableUsers}
+                canManageCollaborators={canManageCollaborators}
+                canReassign={actorIsManager}
+                initialExpanded
+                task={task}
+              />
+            </>
+          ) : null}
+          {activeTool === "planner" ? (
+            <>
+              <TaskCalendarPlannerLink
+                onHidePlanner={() => setDeliveryPlannerOpen(false)}
+                onOpenDeliveryPlanner={() => setDeliveryPlannerOpen(true)}
+                returnTo={returnTo}
+                task={task}
+              />
+              {deliveryPlannerOpen ? (
+                <section className="etw-inline-delivery-planner" id="task-delivery-schedule">
+                  <header>
+                    <strong>Plan delivery events</strong>
+                    <button onClick={() => setDeliveryPlannerOpen(false)} type="button">Close</button>
+                  </header>
+                  <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
+                </section>
+              ) : null}
+            </>
+          ) : null}
+          {activeTool === "documents" ? <TaskDocumentUploadControl task={task} /> : null}
+        </section>
+      ) : null}
 
       <nav className="etw-compact-task-links" aria-label="Open task sections">
         <button aria-pressed={activePanel === "progress"} onClick={() => togglePanel("progress")} type="button"><Activity size={14} />Progress / Updates</button>
         <button aria-pressed={activePanel === "next"} onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Subtasks <span>{openSubtasks.length}</span></button>
         <button aria-pressed={activePanel === "checklist"} onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Checklist <span>{checklistCount}</span></button>
         <button aria-pressed={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={14} />Comments <span>{commentCount}</span></button>
-        <button aria-pressed={activePanel === "signals"} onClick={() => togglePanel("signals")} type="button"><Activity size={14} />Signals <span>{taskSignals.length}</span></button>
+        <button aria-pressed={activePanel === "repairDetails"} onClick={() => togglePanel("repairDetails")} type="button"><Wrench size={14} />Repair Details <span>{repairDetails.linkedCount}</span></button>
       </nav>
 
       <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} />
@@ -1385,20 +1402,31 @@ export function TaskSimpleSummaryCard({
           />
         ) : null}
 
-        {activePanel === "signals" ? (
-          <section className="etw-compact-action-panel etw-compact-signals">
+        {activePanel === "repairDetails" ? (
+          <section className="etw-compact-action-panel etw-compact-repair-details">
             <header>
-              <strong><Activity size={15} />Signals</strong>
-              <span>{taskSignals.length}</span>
+              <strong><Wrench size={15} />Repair Details</strong>
+              <span>Review vehicle, customer, path, and task source before opening the full workbench.</span>
             </header>
-            <div>
-              {taskSignals.map((signal) => (
-                <p className={signal.className} key={signal.label}>
-                  {signal.icon}
-                  <span>{signal.label}</span>
-                </p>
-              ))}
+            <div className="etw-compact-repair-grid">
+              <article>
+                <small><CarFront size={14} />Vehicle / Customer</small>
+                <dl>
+                  {repairDetails.overview.map((item) => (
+                    <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>
+                  ))}
+                </dl>
+              </article>
+              <article>
+                <small><Wrench size={14} />Workflow</small>
+                <dl>
+                  {repairDetails.workflow.map((item) => (
+                    <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>
+                  ))}
+                </dl>
+              </article>
             </div>
+            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Open full repair/workbench details</Link> : null}
           </section>
         ) : null}
       </div> : null}
