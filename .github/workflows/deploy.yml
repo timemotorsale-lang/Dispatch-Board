@@ -211,9 +211,35 @@ jobs:
             "DEPLOY_PATH='${DEPLOY_PATH}' RELEASE_REF='${RELEASE_REF}' RELEASE_SHA='${RELEASE_SHA}' bash -s" <<'REMOTE'
           set -euo pipefail
 
-          cd "$DEPLOY_PATH"
-          test -f deploy/docker/.env
-          test -f deploy/docker/import-release-approval.json
+          fail_preflight() {
+            printf 'Deployment preflight failed: %s\n' "$1" >&2
+            exit 1
+          }
+
+          cd "$DEPLOY_PATH" || fail_preflight "deployment directory is unavailable at $DEPLOY_PATH."
+
+          require_file() {
+            file="$1"
+            description="$2"
+            if [ ! -f "$file" ]; then
+              fail_preflight "$description is missing at $DEPLOY_PATH/$file."
+            fi
+            if [ ! -r "$file" ]; then
+              fail_preflight "$description is not readable by the deployment user at $DEPLOY_PATH/$file."
+            fi
+          }
+
+          require_command() {
+            command -v "$1" >/dev/null 2>&1 || fail_preflight "required command '$1' is not available on the production host."
+          }
+
+          require_command curl
+          require_command jq
+          require_file deploy/docker/.env "production environment file"
+          require_file deploy/docker/import-release-approval.json "purchase import release approval file"
+          jq -e --arg revision "$RELEASE_SHA" '.revision == $revision' deploy/docker/import-release-approval.json >/dev/null ||
+            fail_preflight "purchase import release approval file must contain revision $RELEASE_SHA."
+          echo "Deployment preflight passed."
           export APP_VERSION="$RELEASE_SHA"
 
           compose() {
