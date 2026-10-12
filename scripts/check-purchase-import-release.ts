@@ -7,6 +7,10 @@ import { validatePurchaseOperationsConfiguration } from "../src/server/inventory
 import { prisma } from "../src/server/db/client";
 async function main() {
   Object.assign(process.env, { NODE_ENV: "production" });
+  if (process.env.PURCHASE_IMPORT_RELEASE_ENABLED !== "true") {
+    console.log(JSON.stringify({ purchaseImportReleaseEnabled: false, skipped: true }));
+    return;
+  }
   const scanner = await verifyPurchaseScanner();
   const ocr = await verifyPurchaseOcr();
   const tables = await prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('PurchaseImportJob', 'PurchaseImportTemplate')`;

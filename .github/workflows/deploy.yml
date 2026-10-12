@@ -236,9 +236,14 @@ jobs:
           require_command curl
           require_command jq
           require_file deploy/docker/.env "production environment file"
-          require_file deploy/docker/import-release-approval.json "purchase import release approval file"
-          jq -e --arg revision "$RELEASE_SHA" '.revision == $revision' deploy/docker/import-release-approval.json >/dev/null ||
-            fail_preflight "purchase import release approval file must contain revision $RELEASE_SHA."
+
+          purchase_import_release_enabled=false
+          if grep -Eq '^[[:space:]]*PURCHASE_IMPORT_RELEASE_ENABLED[[:space:]]*=[[:space:]]*true[[:space:]]*($|#)' deploy/docker/.env; then
+            purchase_import_release_enabled=true
+            require_file deploy/docker/import-release-approval.json "purchase import release approval file"
+            jq -e --arg revision "$RELEASE_SHA" '.revision == $revision' deploy/docker/import-release-approval.json >/dev/null ||
+              fail_preflight "purchase import release approval file must contain revision $RELEASE_SHA."
+          fi
           echo "Deployment preflight passed."
           export APP_VERSION="$RELEASE_SHA"
 
@@ -268,8 +273,14 @@ jobs:
           compose run --rm -T --no-deps backup /bin/sh /opt/dispatch/verify-postgres-restore.sh </dev/null
           # Compose must not consume the remaining SSH here-document from stdin.
           compose run --rm -T migrate </dev/null
-          compose run --rm -T --no-deps signatures freshclam </dev/null
-          compose run --rm -T --no-deps migrate npm run check:purchase-import-release </dev/null
+          if [ "$purchase_import_release_enabled" = "true" ]; then
+            compose run --rm -T --no-deps signatures freshclam </dev/null
+            compose run --rm -T --no-deps \
+              -v "$DEPLOY_PATH/deploy/docker/import-release-approval.json:/run/import-release-approval.json:ro" \
+              migrate npm run check:purchase-import-release </dev/null
+          else
+            echo "Purchase import release is disabled; skipping purchase import promotion checks."
+          fi
           compose up -d --remove-orphans
           compose ps
 

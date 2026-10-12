@@ -39,13 +39,13 @@ services:
       IMPORT_MALWARE_SCANNER_PATH: /usr/bin/clamscan
       IMPORT_OPERATIONS_ACTOR_EMAIL: ${IMPORT_OPERATIONS_ACTOR_EMAIL:-}
       IMPORT_ALERT_WEBHOOK_URL: ${IMPORT_ALERT_WEBHOOK_URL:-}
+      PURCHASE_IMPORT_RELEASE_ENABLED: ${PURCHASE_IMPORT_RELEASE_ENABLED:-false}
       APP_RELEASE_SHA: ${RELEASE_SHA:-unversioned}
       IMPORT_RELEASE_APPROVAL_PATH: /run/import-release-approval.json
       DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm
       DOCUMENT_TEXT_OCR_CACHE_PATH: /tmp/tesseract-cache
     volumes:
       - clamav_signatures:/var/lib/clamav:ro
-      - ./import-release-approval.json:/run/import-release-approval.json:ro
     command: ["npm", "run", "db:migrate:deploy"]
     depends_on:
       db:
@@ -79,6 +79,7 @@ services:
       IMPORT_MALWARE_SCANNER_PATH: /usr/bin/clamscan
       IMPORT_OPERATIONS_ACTOR_EMAIL: ${IMPORT_OPERATIONS_ACTOR_EMAIL:-}
       IMPORT_ALERT_WEBHOOK_URL: ${IMPORT_ALERT_WEBHOOK_URL:-}
+      PURCHASE_IMPORT_RELEASE_ENABLED: ${PURCHASE_IMPORT_RELEASE_ENABLED:-false}
       IMPORT_RETENTION_CLEANUP_ENABLED: ${IMPORT_RETENTION_CLEANUP_ENABLED:-false}
     depends_on:
       db:
