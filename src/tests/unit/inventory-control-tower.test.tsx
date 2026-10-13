@@ -22,6 +22,7 @@ describe("InventoryControlTower", () => {
     expect(markup).toContain("Flow Clock");
     expect(markup).toContain("Next Best Action");
     expect(markup).toContain("Coaching &amp; Operating Health");
+    expect(markup).toContain("Simplified Command Forms");
     expect(markup).toContain("Open Vehicle Workbench");
     expect(markup).toContain("Resolve Blocker");
     expect(markup).toContain("Escalate");

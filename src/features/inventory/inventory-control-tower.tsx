@@ -22,15 +22,33 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 
 type Tone = "blue" | "cyan" | "green" | "amber" | "red" | "slate";
+type CommandType = "assign" | "stage" | "blocker" | "escalate";
 
 type LifecycleStage = {
   age: string;
   count: number;
   label: string;
   tone?: Tone;
+};
+
+type CommandField = {
+  defaultValue: string;
+  label: string;
+  name: string;
+  options?: string[];
+  required?: boolean;
+  type: "date" | "select" | "text" | "textarea" | "time";
+};
+
+type CommandConfig = {
+  auditImpact: string;
+  fields: CommandField[];
+  label: string;
+  primaryAction: string;
+  summary: string;
 };
 
 const moduleTabs = [
@@ -120,6 +138,60 @@ const capacity = [
 
 const executionSteps = ["Assigned", "Ack.", "Started", "Active", "Paused", "Resumed", "Ready for QC", "Completed"];
 
+const commandConfigs: Record<CommandType, CommandConfig> = {
+  assign: {
+    auditImpact: "Creates assignment review evidence before work is moved.",
+    fields: [
+      { defaultValue: "Shop recon", label: "Work type", name: "workType", options: ["Shop recon", "Title follow-up", "Merchandising", "Parts resolution"], required: true, type: "select" },
+      { defaultValue: "Jordan P.", label: "Owner", name: "owner", options: ["Jordan P.", "Maya R.", "Devin L.", "Brock Inventory", "Parts Counter"], required: true, type: "select" },
+      { defaultValue: "High", label: "Priority", name: "priority", options: ["Critical", "High", "Medium", "Normal"], required: true, type: "select" },
+      { defaultValue: "Parts readiness and bay availability confirmed before reassignment.", label: "Readiness check", name: "readiness", type: "textarea" },
+      { defaultValue: "Protect Friday frontline target.", label: "Reason", name: "reason", required: true, type: "textarea" }
+    ],
+    label: "Assign Work",
+    primaryAction: "Prepare Assignment Review",
+    summary: "Choose a clear owner, priority, and readiness basis before work moves."
+  },
+  stage: {
+    auditImpact: "Previews a lifecycle command with reason, owner, and target evidence.",
+    fields: [
+      { defaultValue: "Order Parts", label: "Next stage", name: "stage", options: ["Receive", "Inspect", "Recon Handoff", "Order Parts", "Repair", "QC", "Inventory Handoff", "Frontline"], required: true, type: "select" },
+      { defaultValue: "Brock Inventory", label: "Target owner", name: "owner", options: ["Brock Inventory", "Jordan P.", "Maya R.", "Carlos M.", "Parts Counter"], required: true, type: "select" },
+      { defaultValue: "2026-10-13", label: "Target date", name: "targetDate", required: true, type: "date" },
+      { defaultValue: "Alternate vendor approval unlocks repair continuation.", label: "Reason", name: "reason", required: true, type: "textarea" },
+      { defaultValue: "Parts ETA note or vendor confirmation", label: "Evidence needed", name: "evidence", type: "text" }
+    ],
+    label: "Update Stage",
+    primaryAction: "Prepare Stage Update",
+    summary: "Move the asset only when the next state, owner, and reason are explicit."
+  },
+  blocker: {
+    auditImpact: "Keeps the blocker accountable without opening a full vehicle edit form.",
+    fields: [
+      { defaultValue: "Parts ETA", label: "Blocker type", name: "blockerType", options: ["Parts ETA", "Title documents", "Customer approval", "QC return", "Location/custody"], required: true, type: "select" },
+      { defaultValue: "Approve alternate vendor for brake kit.", label: "Resolution", name: "resolution", required: true, type: "textarea" },
+      { defaultValue: "Parts Counter", label: "Next owner", name: "owner", options: ["Parts Counter", "Jordan P.", "Maya R.", "Devin L.", "Brock Inventory"], required: true, type: "select" },
+      { defaultValue: "14:30", label: "Due time", name: "dueTime", required: true, type: "time" },
+      { defaultValue: "Manager review requested because value at risk exceeds normal parts delay threshold.", label: "Manager note", name: "managerNote", type: "textarea" }
+    ],
+    label: "Resolve Blocker",
+    primaryAction: "Prepare Blocker Resolution",
+    summary: "Record the blocker, the next accountable action, and the reason it is safe to proceed."
+  },
+  escalate: {
+    auditImpact: "Routes a manager decision request with risk, due time, and requested outcome.",
+    fields: [
+      { defaultValue: "Frontline commitment risk", label: "Escalation reason", name: "reason", options: ["Frontline commitment risk", "Safety gate", "Title/compliance", "Spend approval", "Customer promise"], required: true, type: "select" },
+      { defaultValue: "Capital and cycle-time exposure", label: "Risk type", name: "riskType", options: ["Capital and cycle-time exposure", "Safety/compliance", "Customer promise", "Margin erosion", "Missing evidence"], required: true, type: "select" },
+      { defaultValue: "Approve alternate vendor or confirm hold.", label: "Requested decision", name: "decision", required: true, type: "textarea" },
+      { defaultValue: "16:00", label: "Decision due", name: "dueTime", required: true, type: "time" }
+    ],
+    label: "Escalate",
+    primaryAction: "Prepare Escalation",
+    summary: "Ask for a specific manager decision instead of sending a vague alert."
+  }
+};
+
 function LifecycleLane({ icon: Icon, label, stages, selectedStage, setSelectedStage, tone }: {
   icon: typeof Car;
   label: string;
@@ -158,12 +230,56 @@ function MiniBar({ label, value, tone = "blue" }: { label: string; value: number
   );
 }
 
+function CommandFieldControl({ field }: { field: CommandField }) {
+  const controlId = `ict-command-${field.name}`;
+
+  return (
+    <label className={`ict-command-field ${field.type === "textarea" ? "wide" : ""}`} htmlFor={controlId}>
+      <span>{field.label}{field.required ? <b>Required</b> : null}</span>
+      {field.type === "select" ? (
+        <select defaultValue={field.defaultValue} id={controlId} name={field.name} required={field.required}>
+          {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      ) : field.type === "textarea" ? (
+        <textarea defaultValue={field.defaultValue} id={controlId} name={field.name} required={field.required} rows={3} />
+      ) : (
+        <input defaultValue={field.defaultValue} id={controlId} name={field.name} required={field.required} type={field.type} />
+      )}
+    </label>
+  );
+}
+
 export function InventoryControlTower() {
   const [activeTab, setActiveTab] = useState("Control Tower");
   const [selectedStage, setSelectedStage] = useState("Title");
   const [selectedAsset, setSelectedAsset] = useState("TMS19045");
   const [notice, setNotice] = useState("Live operating view synchronized at 9:45 AM.");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeCommand, setActiveCommand] = useState<CommandType | null>(null);
+  const [commandReview, setCommandReview] = useState<string | null>(null);
+
+  const openCommand = (command: CommandType, asset = selectedAsset) => {
+    setSelectedAsset(asset);
+    setActiveCommand(command);
+    setCommandReview(null);
+    setNotice(`${commandConfigs[command].label} review opened for ${asset}.`);
+  };
+
+  const handleCommandSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!activeCommand) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const command = commandConfigs[activeCommand];
+    const primaryField = command.fields[0];
+    const primaryValue = String(formData.get(primaryField.name) ?? primaryField.defaultValue);
+
+    setCommandReview(`${command.label} ready for review: ${primaryField.label.toLowerCase()} ${primaryValue}.`);
+    setNotice(`${command.label} review prepared for ${selectedAsset}. No live record was changed.`);
+  };
 
   return (
     <section className="inventory-control-tower">
@@ -216,7 +332,7 @@ export function InventoryControlTower() {
             <section className="ict-panel ict-exceptions">
               <header><strong>Flow Exceptions</strong><button onClick={() => setNotice("Exception queue ranked by safety, SLA, and value at risk.")} type="button">Priority order</button></header>
               <div className="ict-table-scroll"><table><thead><tr><th>Priority</th><th>Asset</th><th>Exception</th><th>Age</th><th>Owner</th><th>Value at Risk</th><th>Next Action</th></tr></thead><tbody>
-                {exceptions.map((item) => <tr className={selectedAsset === item.asset ? "selected" : ""} key={item.asset} onClick={() => { setSelectedAsset(item.asset); setNotice(`${item.asset} selected in the command rail.`); }}><td><span className={`ict-priority ict-priority-${item.priority.toLowerCase()}`}>{item.priority}</span></td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.issue}</td><td className="ict-danger-copy">{item.age}</td><td>{item.owner}</td><td>{item.risk}</td><td><button type="button">{item.action}</button></td></tr>)}
+                {exceptions.map((item) => <tr className={selectedAsset === item.asset ? "selected" : ""} key={item.asset} onClick={() => { setSelectedAsset(item.asset); setNotice(`${item.asset} selected in the command rail.`); }}><td><span className={`ict-priority ict-priority-${item.priority.toLowerCase()}`}>{item.priority}</span></td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.issue}</td><td className="ict-danger-copy">{item.age}</td><td>{item.owner}</td><td>{item.risk}</td><td><button onClick={(event) => { event.stopPropagation(); openCommand("blocker", item.asset); }} type="button">{item.action}</button></td></tr>)}
               </tbody></table></div>
               <button className="ict-panel-link" type="button">View all exceptions (5)</button>
             </section>
@@ -249,11 +365,43 @@ export function InventoryControlTower() {
           <section><h3>Financial Exposure</h3><div className="ict-financial-grid"><span>Acquisition<strong>$12,450</strong></span><span>Recon<strong>$1,842</strong></span><span>Carrying<strong>$268</strong></span><span>Forecast Margin<strong>$2,940</strong></span></div></section>
           <section className="ict-constraint"><h3>Current Constraint</h3><div><Wrench size={22} /><span><strong>Brake parts ETA</strong><small>Expected arrival May 23-24<br />Alternate vendor available</small></span></div></section>
           <section className="ict-next-action"><h3>Next Best Action</h3><div><CheckCircle2 size={22} /><span><strong>Approve alternate vendor and protect Friday frontline target.</strong><small>Reason codes: margin protect, frontline commitment, low risk.</small></span><b>High confidence</b></div></section>
+          {activeCommand ? (
+            <section aria-live="polite" className="ict-command-drawer">
+              <header>
+                <div>
+                  <h3>{commandConfigs[activeCommand].label}</h3>
+                  <p>{commandConfigs[activeCommand].summary}</p>
+                </div>
+                <button onClick={() => setActiveCommand(null)} type="button">Close</button>
+              </header>
+              <form onSubmit={handleCommandSubmit}>
+                <div className="ict-command-fields">
+                  {commandConfigs[activeCommand].fields.map((field) => <CommandFieldControl field={field} key={field.name} />)}
+                </div>
+                <div className="ict-audit-preview">
+                  <strong>Review Preview</strong>
+                  <span>Asset: {selectedAsset}</span>
+                  <span>Actor: current signed-in user</span>
+                  <span>{commandConfigs[activeCommand].auditImpact}</span>
+                </div>
+                {commandReview ? <p className="ict-command-confirmation">{commandReview}</p> : null}
+                <div className="ict-command-submit-row">
+                  <button type="submit">{commandConfigs[activeCommand].primaryAction}</button>
+                  <button onClick={() => setCommandReview(null)} type="reset">Reset</button>
+                </div>
+              </form>
+            </section>
+          ) : (
+            <section className="ict-command-empty-state">
+              <h3>Simplified Command Forms</h3>
+              <p>Use the action buttons below to review focused assignment, stage, blocker, and escalation forms without changing live records.</p>
+            </section>
+          )}
           <section><h3>Shop Work Execution</h3><div className="ict-execution-steps">{executionSteps.map((step, index) => <span className={index < 4 ? "complete" : index === 4 ? "blocked" : ""} key={step}><i />{step}</span>)}</div></section>
           <section><h3>Coaching &amp; Operating Health <small>System delays excluded</small></h3><MiniBar label="Schedule adherence" value={82} /><MiniBar label="Productive touch-time" value={76} /><MiniBar label="First-time-fix & QC" value={91} /><MiniBar label="Checkpoint reliability" value={84} /><MiniBar label="Blocker documentation" value={88} /><MiniBar label="Handoff evidence" value={72} /></section>
           <section><h3>Linked Work</h3><div className="ict-linked-work"><span><ClipboardCheck size={14} />3 Tasks</span><span><ShoppingCart size={14} />1 Purchase Order</span><span><ShieldCheck size={14} />1 Approval</span></div></section>
           <section><h3>Audit Trail</h3><ol className="ict-audit"><li><time>May 16, 9:22 AM</time><span>Paused - waiting on brake parts ETA.</span></li><li><time>May 15, 10:11 AM</time><span>Started repair - brake replacement.</span></li><li><time>May 14, 8:37 AM</time><span>Assigned to shop - intake complete.</span></li></ol></section>
-          <div className="ict-command-actions"><Link href="/tasks">Open Vehicle Workbench</Link><button onClick={() => setNotice(`${selectedAsset} is ready for assignment review.`)} type="button">Assign</button><button onClick={() => setNotice("Stage update form opened.")} type="button">Update Stage</button><button onClick={() => setNotice("Blocker resolution workflow opened.")} type="button">Resolve Blocker</button><button className="danger" onClick={() => setNotice(`${selectedAsset} escalated for manager review.`)} type="button">Escalate</button></div>
+          <div className="ict-command-actions"><Link href="/tasks">Open Vehicle Workbench</Link><button onClick={() => openCommand("assign")} type="button">Assign</button><button onClick={() => openCommand("stage")} type="button">Update Stage</button><button onClick={() => openCommand("blocker")} type="button">Resolve Blocker</button><button className="danger" onClick={() => openCommand("escalate")} type="button">Escalate</button></div>
         </aside>
       </div>
     </section>

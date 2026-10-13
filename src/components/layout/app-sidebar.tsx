@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronDown, ChevronsRight, LogOut, X } from "lucide-react";
+import { ChevronDown, ChevronsLeft, ChevronsRight, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -13,6 +14,7 @@ type AppSidebarProps = {
   compact: boolean;
   isOpen: boolean;
   onClose(): void;
+  onToggleCompact(): void;
   user: AuthenticatedUser;
 };
 
@@ -20,7 +22,7 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) {
+export function AppSidebar({ compact, isOpen, onClose, onToggleCompact, user }: AppSidebarProps) {
   const pathname = usePathname();
   const navigationGroups = getNavigationGroups(user);
 
@@ -28,9 +30,17 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
     <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
         <Link aria-label="Time Motor Sales" className="sidebar-brand" href="/board" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
-          <span className="sidebar-logo" aria-hidden="true">T</span>
-          <span><strong>TIME</strong><small>MOTOR SALES</small></span>
+          <TimeMotorSalesLogo className={compact ? "sidebar-brand-logo sidebar-brand-logo-mark" : "sidebar-brand-logo"} decorative={compact} variant={compact ? "mark" : "horizontal-reversed"} />
         </Link>
+        <button
+          aria-label={compact ? "Expand navigation" : "Collapse navigation"}
+          className="sidebar-collapse-button"
+          onClick={onToggleCompact}
+          title={compact ? "Expand navigation" : "Collapse navigation"}
+          type="button"
+        >
+          {compact ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+        </button>
         <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
 
@@ -76,12 +86,6 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
         <div className="sidebar-logout"><LogOut size={15} aria-hidden="true" /><LogoutButton /></div>
         <small className="sidebar-store">Store ID: TMS-001</small>
       </div>
-      {compact ? (
-        <div className="sidebar-compact-hint" title="Use Workspace View in Tasks to expand navigation">
-          <ChevronsRight size={17} />
-          <span>Expand navigation</span>
-        </div>
-      ) : null}
     </aside>
   );
 }

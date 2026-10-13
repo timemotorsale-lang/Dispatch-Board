@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { ClipboardPlus } from "lucide-react";
@@ -20,10 +20,25 @@ type AppShellProps = {
 
 function AppShellContent({ children, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [sidebarPreference, setSidebarPreference] = useState<"collapsed" | "expanded" | null>(null);
   const pathname = usePathname();
   const { mode } = useWorkspaceMode();
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const sidebarCompact = tasksWorkspace && mode !== "standard";
+  const autoCompactSidebar = tasksWorkspace && mode !== "standard";
+  const sidebarCompact = sidebarPreference ? sidebarPreference === "collapsed" : autoCompactSidebar;
+
+  useEffect(() => {
+    const savedPreference = window.localStorage.getItem("dispatch-board.sidebar");
+    if (savedPreference === "collapsed" || savedPreference === "expanded") {
+      setSidebarPreference(savedPreference);
+    }
+  }, []);
+
+  function toggleSidebarCompact() {
+    const nextPreference = sidebarCompact ? "expanded" : "collapsed";
+    setSidebarPreference(nextPreference);
+    window.localStorage.setItem("dispatch-board.sidebar", nextPreference);
+  }
 
   return (
     <div
@@ -34,7 +49,13 @@ function AppShellContent({ children, user }: AppShellProps) {
       ].filter(Boolean).join(" ")}
     >
       <SessionHealthGuard />
-      <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} />
+      <AppSidebar
+        compact={sidebarCompact}
+        isOpen={navigationOpen}
+        onClose={() => setNavigationOpen(false)}
+        onToggleCompact={toggleSidebarCompact}
+        user={user}
+      />
       {navigationOpen ? (
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
