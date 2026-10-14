@@ -1,0 +1,249 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { AlertTriangle, Boxes, Camera, CarFront, CheckCircle2, ClipboardCheck, Clock3, FileText, Pencil, ShieldCheck, UserRound, Wrench, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import type { VehicleExecutionWorkbenchProjection } from "@/server/inventory-execution/workbench-service";
+
+type Tab = "overview" | "work" | "orders" | "parts" | "evidence" | "activity";
+type RoleLens = "Overview" | "Inventory Manager" | "Technician" | "Parts" | "Sales / Marketing" | "Service Advisor" | "General Manager";
+type VehiclePartsRequest = { id: string; actorName: string; costCents: number; createdAt: string; nextAction: string; notes: string | null; orderedAt: string | null; partDescription: string; quantity: number; repairOrderId: string | null; status: string; vendorOrSource: string | null };
+const label = (value: unknown) => String(value ?? "Unavailable").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
+const date = (value: unknown) => {
+  const parsed = typeof value === "string" || value instanceof Date ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Unavailable";
+};
+const object = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const array = (value: unknown) => Array.isArray(value) ? value : [];
+
+export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview" }: { initial: VehicleExecutionWorkbenchProjection; initialRoleLens?: RoleLens }) {
+  const roleLenses = (initial.roleLenses ?? ["Overview"]).filter((lens): lens is RoleLens => ["Overview", "Inventory Manager", "Technician", "Parts", "Sales / Marketing", "Service Advisor", "General Manager"].includes(lens));
+  const authorizedInitialLens = roleLenses.includes(initialRoleLens) ? initialRoleLens : "Overview";
+  const [active, setActive] = useState<Tab>(authorizedInitialLens === "Technician" ? "work" : authorizedInitialLens === "Parts" ? "parts" : "overview"), vehicle = initial.identity, current = initial.work.current, overview = object(initial.overview), staged = initial.work.staged, task = object(current?.task);
+  const [roleLens, setRoleLens] = useState<RoleLens>(authorizedInitialLens);
+  const vehicleId = text(vehicle.id, text(vehicle.vehicleNumber, "vehicle"));
+  const rapidUpdateHref = `/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning?focus=recon-update&returnTo=${encodeURIComponent(`/vehicles/${vehicleId}/workbench`)}`;
+  const [partsRequests, setPartsRequests] = useState<VehiclePartsRequest[]>([]);
+  const [partsRequestNotice, setPartsRequestNotice] = useState("");
+  const [partsRequestBusy, setPartsRequestBusy] = useState(false);
+  const [partsRequest, setPartsRequest] = useState({ costDollars: "", nextAction: "Order or source this part.", notes: "", orderedAt: "", partDescription: "Left lower control arm bolt", quantity: "1", status: "NEEDED", vendorOrSource: "" });
+  const tabs: Array<{ id: Tab; label: string; count?: number }> = [{ id: "overview", label: "Overview" }, { id: "work", label: "Current Work" }, { id: "orders", label: "Work Orders", count: initial.workOrders.items.length }, { id: "parts", label: "Parts", count: initial.parts.demands.length }, { id: "evidence", label: "Photos & Documents", count: initial.evidence.items.length }, { id: "activity", label: "Activity", count: initial.activity.length }];
+
+  useEffect(() => {
+    let activeRequest = true;
+    void fetch(`/api/vehicles/${encodeURIComponent(vehicleId)}/parts-requests`).then(async response => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Parts requests could not be loaded.");
+      if (activeRequest) setPartsRequests(body.items ?? []);
+    }).catch(() => undefined);
+    return () => { activeRequest = false; };
+  }, [vehicleId]);
+
+  function updatePartsRequest(field: keyof typeof partsRequest, value: string) {
+    setPartsRequest(current => ({ ...current, [field]: value }));
+  }
+
+  async function savePartsRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPartsRequestBusy(true);
+    setPartsRequestNotice("");
+    try {
+      const response = await fetch(`/api/vehicles/${encodeURIComponent(vehicleId)}/parts-requests`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...partsRequest, costCents: dollarsToCents(partsRequest.costDollars), quantity: Number(partsRequest.quantity), repairOrderId: text(object(initial.workOrders.items[0]).id, "") || null })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Parts request could not be saved.");
+      setPartsRequests(current => [body, ...current].slice(0, 10));
+      setPartsRequestNotice("Parts request saved. Parts can convert it into the official demand or purchase workflow when ready.");
+    } catch (error) {
+      setPartsRequestNotice(error instanceof Error ? error.message : "Parts request could not be saved.");
+    } finally {
+      setPartsRequestBusy(false);
+    }
+  }
+
+  async function removePartsRequest(requestId: string) {
+    setPartsRequestBusy(true);
+    setPartsRequestNotice("");
+    try {
+      const response = await fetch(`/api/vehicles/${encodeURIComponent(vehicleId)}/parts-requests`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requestId, reason: "Remove mistaken simple vehicle parts request." })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Parts request could not be removed.");
+      setPartsRequests(current => current.filter(item => item.id !== requestId));
+      setPartsRequestNotice("Parts request removed from this list.");
+    } catch (error) {
+      setPartsRequestNotice(error instanceof Error ? error.message : "Parts request could not be removed.");
+    } finally {
+      setPartsRequestBusy(false);
+    }
+  }
+
+  return <section className="vehicle-workbench" aria-label={`Vehicle Workbench for ${text(vehicle.vehicleNumber)}`}>
+    <header className="vehicle-workbench-header"><Link href="/vehicles/control-tower">← Control Tower</Link><div className="vehicle-workbench-identity"><span><CarFront /></span><div><small>Vehicle Workbench</small><h1>{vehicleName(vehicle)}</h1><p>{text(vehicle.vin, text(vehicle.vinState))} · Stock {text(vehicle.stockNumber, "No stock number")} · {mileage(initial.operation.latestOdometer)}</p></div></div><div className="vehicle-workbench-action"><small>Do This Now</small><strong>{text(object(overview.nextBestAction).action, text(current?.nextAction, text(initial.operation.nextAction, "No current action")))}</strong><span>{text(object(overview.nextBestAction).reason, current ? `Target ${date(current.targetAt)}` : "Overview first; open deeper work only when needed.")}</span></div><div className="vehicle-workbench-header-actions"><Link className="button button-secondary" href={`/vehicles/${encodeURIComponent(vehicleId)}/sale`}>Prepare for Sale</Link><Link className="button button-secondary" href={`/vehicles/${encodeURIComponent(vehicleId)}/sale?mode=as-is`}>Start As-Is Sale</Link><Link className="button button-secondary" href={initial.links.vehicle360}>Open Vehicle 360</Link><Link className="button button-primary" href={rapidUpdateHref}>Record recon update</Link></div></header>
+    <div className="vehicle-workbench-role-lenses"><span>View as:</span>{roleLenses.map((lens) => <button aria-pressed={roleLens === lens} className={roleLens === lens ? "active" : ""} key={lens} onClick={() => { setRoleLens(lens); if (lens === "Technician") setActive("work"); if (lens === "Parts") setActive("parts"); if (lens === "Overview") setActive("overview"); }} type="button">{lens}</button>)}<small>{roleLens === "Technician" ? "Technician landing is active." : roleLens === "Parts" ? "Parts lens shows canonical work-order parts records." : roleLens === "Overview" ? "Neutral vehicle home." : "Role lens shell — deeper implementation follows approved role-view slices."}</small></div>
+    <nav aria-label="Vehicle workbench sections">{tabs.map(tab => <button aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} key={tab.id} onClick={() => setActive(tab.id)} type="button">{tab.label}{tab.count == null ? "" : ` (${tab.count})`}</button>)}</nav>
+    <main>
+      {active === "overview" ? <OverviewPanel initial={initial} rapidUpdateHref={rapidUpdateHref} setActive={setActive} /> : null}
+      {roleLens === "Technician" ? <TechnicianRoleLanding initial={initial} setActive={setActive} /> : null}
+      {active === "work" ? <div className="vehicle-workbench-grid"><section className="vehicle-workbench-panel primary"><header><div><small>Current Work</small><h2>{text(task.title, text(current?.purpose, "No current work packet"))}</h2></div>{current ? <b>{label(current.state)}</b> : null}</header>{initial.work.status === "UNAVAILABLE" ? <Notice icon={AlertTriangle} title="Work packet unavailable" detail={initial.work.unavailableReason ?? "The authoritative work source is unavailable."} /> : current ? <><dl><Fact label="Owner" value={text(object(task.assignedUser).name)} /><Fact label="Stage" value={label(current.stageCode)} /><Fact label="Due" value={date(current.targetAt)} /><Fact label="Estimate" value={current.estimatedMinutes ? `${current.estimatedMinutes} minutes` : "Unavailable"} /></dl><article><h3>Purpose</h3><p>{text(current.purpose)}</p></article><article><h3>Definition of Done</h3><p>{text(current.definitionOfDone)}</p></article><article><h3>Readiness & Dependencies</h3><StructuredItems value={current.readinessSnapshot} /><StructuredItems value={current.dependencySnapshot} /></article><article><h3>Required Evidence</h3><StructuredItems value={current.evidenceRequirements} /></article><div className="vehicle-workbench-actions"><Link className="button button-primary" href={`${initial.links.tasks}&taskId=${task.id ?? ""}`}>Open Task</Link><button className="button button-secondary" disabled>Start Work</button><button className="button button-secondary" disabled>Block / Wait</button></div></> : <Notice icon={ClipboardCheck} title="No current work" detail="A manager can prepare one eligible current Inventory Work Packet from the workflow launcher." />}</section>
+        <aside className="vehicle-workbench-side"><section><h2>Staged Next Work</h2>{staged ? <><strong>{text(object(staged.task).title, text(staged.nextAction))}</strong><p>{label(staged.readiness)} · Target {date(staged.targetAt)}</p></> : <p>No verified-ready staged work.</p>}</section><section><h2>Vehicle Context</h2><p><b>Stage:</b> {label(initial.operation.stage)}</p><p><b>State:</b> {label(initial.operation.operatingState)}</p><p><b>Location:</b> {text(object(initial.operation.location).name)}</p><p><b>Target:</b> {date(initial.operation.targetAt)}</p></section><section><h2>Execution Tools</h2><Link href={initial.links.evidence}><Camera /> Add photos or documents</Link><button onClick={() => setActive("orders")} type="button"><Wrench /> Open work orders</button><button onClick={() => setActive("parts")} type="button"><Boxes /> Review or order parts</button></section></aside></div> : null}
+      {active === "work" && current ? <TechnicianExecutionPanel packet={current} /> : null}
+      {active === "work" && current && object(current.closeout).id ? <ManagerNextPlanPanel packet={current} /> : null}
+      {active === "orders" ? <WorkbenchList allowed={initial.workOrders.allowed} empty="No vehicle-specific work orders are linked." items={initial.workOrders.items} kind="Work Order" render={(order) => <><h3>{text(order.repairOrderNumber, text(order.id))}</h3><p>{label(order.stage)} · {label(order.operatingState)}</p><div className="vehicle-workbench-actions"><Link className="button button-primary" href={`/vehicles/repair-orders?repairOrderId=${encodeURIComponent(text(order.id))}`}>Open Work Order</Link><Link className="button button-secondary" href={`${initial.links.parts}&repairOrderId=${encodeURIComponent(text(order.id))}`}>Order / Review Parts</Link></div></>} /> : null}
+      {active === "parts" ? <VehiclePartsPanel allowed={initial.parts.allowed} busy={partsRequestBusy} demands={initial.parts.demands} links={initial.links} notice={partsRequestNotice} onChange={updatePartsRequest} onRemove={removePartsRequest} onSubmit={savePartsRequest} request={partsRequest} requests={partsRequests} /> : null}
+      {active === "parts" && initial.parts.allowed && initial.parts.demands.length ? <section className="vehicle-workbench-panel"><header><div><small>Canonical Parts Records</small><h2>Same demand records shown in Parts Workspace</h2></div><Link className="button button-secondary" href={initial.links.parts}>Review in Parts Workspace</Link></header><div className="vehicle-workbench-list">{initial.parts.demands.map((demand, index) => <article key={`canonical-${text(demand.id, String(index))}`}><Boxes /><div><strong>{partDemandTitle(demand)}</strong><p>{label(demand.status)} / {partDemandQuantity(demand)} / Required {date(demand.requiredAt)}</p><small>{partDemandDescription(demand)} / {text(demand.repairOrderNumber, "Repair order linked")} / {partDemandCustodyCount(demand, initial.parts.custody)} custody event(s)</small></div></article>)}</div></section> : null}
+      {active === "evidence" ? <section className="vehicle-workbench-panel"><header><div><small>Evidence</small><h2>Photos, documents, and work-order attachments</h2></div><Link className="button button-primary" href={initial.links.evidence}>Upload in Vehicle 360</Link></header>{!initial.evidence.allowed ? <Notice icon={AlertTriangle} title="Evidence restricted" detail="Your role does not include vehicle evidence access." /> : initial.evidence.items.length ? <div className="vehicle-workbench-list">{initial.evidence.items.map((entry, index) => { const evidence = object(entry.evidenceObject); return <article key={text(entry.id, String(index))}><FileText /><div><strong>{text(evidence.fileName)}</strong><p>{label(entry.category)} · {label(evidence.status)}</p><small>Uploaded by {text(object(evidence.uploadedByUser).name)}</small></div></article>; })}</div> : <Notice icon={Camera} title="No evidence attached" detail="Add photos or documents once; Vehicle 360 governs access, retention, integrity, and reuse." />}</section> : null}
+      {active === "activity" ? <section className="vehicle-workbench-panel"><header><div><small>Attributable History</small><h2>Recent vehicle activity</h2></div></header>{initial.activity.length ? <div className="vehicle-workbench-list">{initial.activity.map(event => <article key={event.id}><Clock3 /><div><strong>{event.title}</strong><p>{date(event.occurredAt)} · {label(event.source)}</p><small>{event.detail ?? `${event.subjectType} ${event.subjectId}`}</small></div></article>)}</div> : <Notice icon={Clock3} title="No activity available" detail="No permitted vehicle activity is available in this projection." />}</section> : null}
+    </main>
+  </section>;
+}
+
+function OverviewPanel({ initial, rapidUpdateHref, setActive }: { initial: VehicleExecutionWorkbenchProjection; rapidUpdateHref: string; setActive: (tab: Tab) => void }) {
+  const overview = object(initial.overview), currentSituation = object(overview.currentSituation), deepLinks = object(overview.deepLinks), counts = object(overview.workCounts), partsReadiness = object(overview.partsReadiness), evidenceCompleteness = object(overview.evidenceCompleteness), nextBestAction = object(overview.nextBestAction), recentActivity = array(overview.recentActivity).map(object);
+  return <div className="vehicle-workbench-overview">
+    <section className="vehicle-workbench-overview-main">
+      <OverviewCard icon={ClipboardCheck} title="Current situation">
+        <FactList items={[["Stage", label(currentSituation.stage)], ["Blocker", text(currentSituation.blocker)], ["Owner", text(currentSituation.owner)], ["Target", date(currentSituation.targetAt)], ["Next action", text(currentSituation.nextAction)]]} />
+      </OverviewCard>
+      <OverviewCard icon={Pencil} title="Record recon update now">
+        <p>Document what is done, what remains, and who owns the next move without forcing the workflow sequence first.</p>
+        <Link className="button button-primary" href={rapidUpdateHref}>Record update</Link>
+        <small>Formal receiving, RO, diagnosis, QC, and frontline steps can still be completed afterward.</small>
+      </OverviewCard>
+      <OverviewCard icon={ShieldCheck} title="Lifecycle Planning">
+        <p>Movement plan, approval gates, repair planning, QC, and frontline handoff stay connected from this vehicle home.</p>
+        <Link className="button button-secondary" href={text(deepLinks.lifecycle, "/vehicles/control-tower")}>Open planning</Link>
+      </OverviewCard>
+      <OverviewCard icon={Wrench} title="Repair & Shop">
+        <FactList items={[["Repair orders", String(counts.repairOrders ?? 0)], ["Current work", initial.work.current ? text(initial.work.current.nextAction, text(initial.work.current.purpose)) : "No current packet"], ["Staged next", initial.work.staged ? text(initial.work.staged.nextAction) : "None"]]} />
+        <Link className="button button-secondary" href={text(deepLinks.repair, "/vehicles/repair-workbench")}>Open Repair Workbench</Link>
+      </OverviewCard>
+      <OverviewCard icon={Boxes} title="Parts Readiness">
+        <FactList items={[["Status", label(partsReadiness.status)], ["Needed", String(partsReadiness.needed ?? 0)], ["Ready", String(partsReadiness.ready ?? 0)], ["Summary", text(partsReadiness.summary)]]} />
+        <div className="vehicle-workbench-actions compact"><button className="button button-primary" onClick={() => setActive("parts")} type="button">Request / order part</button><Link className="button button-secondary" href={text(deepLinks.parts, initial.links.parts)}>Open parts tracker</Link></div>
+      </OverviewCard>
+      <OverviewCard icon={CheckCircle2} title="Approvals & Decisions">
+        <p>Approval decisions remain structured commands. Comments help explain context but do not authorize work by themselves.</p>
+        <Link className="button button-secondary" href={text(deepLinks.approvals, "/manager-review?scope=inventory&view=approvals")}>Review approvals</Link>
+      </OverviewCard>
+      <OverviewCard icon={CarFront} title="Sales / Frontline">
+        <p>Detail, photos, pricing, title, and listing readiness are summarized here and opened only when deeper work is needed.</p>
+        <Link className="button button-secondary" href={text(deepLinks.sales, "/vehicles/inventory-to-frontline")}>Open frontline checklist</Link>
+      </OverviewCard>
+      <OverviewCard icon={Camera} title="Evidence, files & comments">
+        <FactList items={[["Evidence", `${counts.evidence ?? 0} linked item${counts.evidence === 1 ? "" : "s"}`], ["Completeness", text(evidenceCompleteness.summary)], ["Status", label(evidenceCompleteness.status)]]} />
+        <div className="vehicle-workbench-actions compact"><Link className="button button-secondary" href={text(deepLinks.evidence, initial.links.evidence)}>Attach file</Link><button className="button button-secondary" onClick={() => setActive("activity")} type="button">View comments</button></div>
+      </OverviewCard>
+      <OverviewCard icon={UserRound} title="Customer / Ownership">
+        <FactList items={[["Relationship", label(initial.operation.owner ? "Assigned owner" : "Vehicle record")], ["Location", text(object(initial.operation.location).name)], ["Vehicle status", label(initial.identity.status)]]} />
+      </OverviewCard>
+    </section>
+    <aside className="vehicle-workbench-overview-rail">
+      <section><h2>Do this now</h2><strong>{text(nextBestAction.action)}</strong><p>{text(nextBestAction.reason)}</p><div className="vehicle-workbench-actions compact"><button className="button button-primary" onClick={() => setActive("work")} type="button">Open current work tab</button><Link className="button button-secondary" href={text(deepLinks.repair, "/vehicles/repair-workbench")}>Open Repair Workbench</Link><Link className="button button-secondary" href={text(deepLinks.audit, initial.links.vehicle360)}>View audit</Link></div></section>
+      <section><h2>Recent activity</h2>{recentActivity.length ? recentActivity.map((item) => <p key={text(item.id)}><strong>{text(item.title)}</strong><span>{date(item.occurredAt)}</span></p>) : <p>No permitted recent activity is available.</p>}</section>
+      <section><h2>Return rule</h2><p>Every deep page opened from this Workbench carries a return link back to this vehicle home.</p></section>
+    </aside>
+  </div>;
+}
+
+function OverviewCard({ children, icon: Icon, title }: { children: ReactNode; icon: LucideIcon; title: string }) {
+  return <article className="vehicle-workbench-overview-card"><header><Icon /><h2>{title}</h2></header>{children}</article>;
+}
+
+function VehiclePartsPanel({ allowed, busy, demands, links, notice, onChange, onRemove, onSubmit, request, requests }: { allowed: boolean; busy: boolean; demands: Record<string, unknown>[]; links: VehicleExecutionWorkbenchProjection["links"]; notice: string; onChange: (field: "costDollars" | "nextAction" | "notes" | "orderedAt" | "partDescription" | "quantity" | "status" | "vendorOrSource", value: string) => void; onRemove: (requestId: string) => Promise<void>; onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>; request: { costDollars: string; nextAction: string; notes: string; orderedAt: string; partDescription: string; quantity: string; status: string; vendorOrSource: string }; requests: VehiclePartsRequest[] }) {
+  return <section className="vehicle-workbench-panel">
+    <header><div><small>Vehicle-specific Parts</small><h2>Request, order, and document parts without leaving this vehicle</h2></div><Link className="button button-secondary" href={links.parts}>Open Parts Operations</Link></header>
+    {!allowed ? <Notice icon={AlertTriangle} title="Parts restricted" detail="Your role does not include Parts access." /> : <>
+      <form className="vehicle-workbench-closeout" onSubmit={onSubmit}>
+        <div className="vehicle-workbench-form-grid">
+          <label className="span-two"><span>Part needed / ordered</span><input maxLength={500} onChange={event => onChange("partDescription", event.target.value)} placeholder="Example: left lower control arm bolt" required value={request.partDescription} /></label>
+          <label><span>Quantity</span><input min="1" onChange={event => onChange("quantity", event.target.value)} required type="number" value={request.quantity} /></label>
+          <label><span>Status</span><select onChange={event => onChange("status", event.target.value)} value={request.status}><option value="NEEDED">Needed</option><option value="ORDERED">Ordered</option><option value="WAITING_VENDOR">Waiting vendor</option><option value="RECEIVED">Received</option><option value="INSTALLED">Installed</option></select></label>
+          <label><span>Vendor / source</span><input maxLength={200} onChange={event => onChange("vendorOrSource", event.target.value)} placeholder="Dealer, aftermarket, used, unknown" value={request.vendorOrSource} /></label>
+          <label><span>Ordered when</span><input onChange={event => onChange("orderedAt", event.target.value)} type="datetime-local" value={request.orderedAt} /></label>
+          <label><span>Cost</span><input min="0" onChange={event => onChange("costDollars", event.target.value)} placeholder="0.00" step="0.01" type="number" value={request.costDollars} /></label>
+          <label className="span-two"><span>Next action</span><input maxLength={500} onChange={event => onChange("nextAction", event.target.value)} required value={request.nextAction} /></label>
+        </div>
+        <label><span>Notes</span><textarea maxLength={1000} onChange={event => onChange("notes", event.target.value)} placeholder="Add quote, ETA, part number, who called, or why this blocks frontline readiness." value={request.notes} /></label>
+        <div className="vehicle-workbench-actions"><button className="button button-primary" disabled={busy || !request.partDescription.trim() || !request.nextAction.trim()} type="submit">{busy ? "Saving..." : "Save parts request"}</button><Link className="button button-secondary" href={links.parts}>Go deeper only if needed</Link></div>
+        {notice ? <p className="vehicle-workbench-form-notice" role="status">{notice}</p> : <small>This does not fake a purchase order. It records the practical need now so Parts can convert it into official demand, sourcing, PO, receiving, and custody later.</small>}
+      </form>
+      <div className="vehicle-workbench-list">
+        {requests.map(item => <article key={item.id}><Boxes /><div><strong>{item.quantity} × {item.partDescription}</strong><p>{label(item.status)}{item.vendorOrSource ? ` · ${item.vendorOrSource}` : ""}{item.orderedAt ? ` · Ordered ${date(item.orderedAt)}` : ""}{item.costCents ? ` · ${money(item.costCents)}` : ""} · Saved {date(item.createdAt)}</p><small>{item.nextAction} · {item.actorName}{item.notes ? ` · ${item.notes}` : ""}</small></div><button className="button button-secondary" disabled={busy} onClick={() => void onRemove(item.id)} type="button">Remove</button></article>)}
+        {demands.map((demand, index) => <article key={text(demand.id, String(index))}><Boxes /><div><strong>{text(demand.partNumber, text(demand.description, "Official part demand"))}</strong><p>{label(demand.status)} · Required {date(demand.requiredAt)}</p><small>Official demand is linked through this vehicle&apos;s authoritative Repair Order.</small></div></article>)}
+        {!requests.length && !demands.length ? <article><Boxes /><div><strong>No parts recorded yet</strong><p>Use the form above to capture the need immediately.</p><small>Example: left lower control arm bolt, quantity 1, order/source next.</small></div></article> : null}
+      </div>
+    </>}
+  </section>;
+}
+
+function FactList({ items }: { items: Array<[string, string]> }) {
+  return <dl className="vehicle-workbench-overview-facts">{items.map(([term, value]) => <div key={term}><dt>{term}</dt><dd>{value}</dd></div>)}</dl>;
+}
+
+function text(value: unknown, fallback = "Unavailable") { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
+function numberText(value: unknown, fallback = "0") { return typeof value === "number" ? String(value) : fallback; }
+function dollarsToCents(value: string) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : 0; }
+function money(cents: number) { return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }); }
+function partDemandTitle(demand: Record<string, unknown>) {
+  const part = object(demand.part);
+  return text(part.partNumber, text(demand.partNumber, text(part.description, text(demand.description, "Part demand"))));
+}
+function partDemandDescription(demand: Record<string, unknown>) {
+  const part = object(demand.part);
+  return text(part.description, text(demand.description, "Canonical repair-order part demand"));
+}
+function partDemandQuantity(demand: Record<string, unknown>) {
+  return `${numberText(demand.quantityReserved)}/${numberText(demand.quantityRequired)} reserved`;
+}
+function partDemandCustodyCount(demand: Record<string, unknown>, custody: Record<string, unknown>[]) {
+  const part = object(demand.part), partId = text(part.id, text(demand.partId, ""));
+  return partId ? custody.filter((event) => text(event.partId, text(object(event.part).id, "")) === partId).length : 0;
+}
+function vehicleName(vehicle: Record<string, unknown>) {
+  return [vehicle.year, vehicle.make, vehicle.model].map((value) => typeof value === "number" ? String(value) : text(value, "")).filter(Boolean).join(" ") || text(vehicle.vehicleNumber, "Vehicle");
+}
+function mileage(value: unknown) { const reading = object(value).reading; return typeof reading === "number" ? `${reading.toLocaleString()} mi` : "Mileage unavailable"; }
+function Fact({ label: term, value }: { label: string; value: string }) { return <div><dt>{term}</dt><dd>{value}</dd></div>; }
+function StructuredItems({ value }: { value: unknown }) { const items = array(object(value).items).map(object); return items.length ? <ul>{items.map((item, index) => <li key={text(item.code, String(index))}>{item.satisfied === true ? <CheckCircle2 /> : <AlertTriangle />}<span><strong>{text(item.label)}</strong><small>{text(item.source)}{item.detail ? ` · ${text(item.detail)}` : ""}</small></span></li>)}</ul> : <p>Structured requirements unavailable.</p>; }
+function Notice({ detail, icon: Icon, title }: { detail: string; icon: typeof AlertTriangle; title: string }) { return <div className="vehicle-workbench-notice"><Icon /><div><strong>{title}</strong><p>{detail}</p></div></div>; }
+function WorkbenchList({ allowed, empty, items, kind, render }: { allowed: boolean; empty: string; items: Record<string, unknown>[]; kind: string; render: (item: Record<string, unknown>) => React.ReactNode }) { return <section className="vehicle-workbench-panel"><header><div><small>{kind}</small><h2>Authoritative vehicle-linked records</h2></div></header>{!allowed ? <Notice icon={AlertTriangle} title={`${kind} restricted`} detail={`Your role does not include ${kind.toLowerCase()} access.`} /> : items.length ? <div className="vehicle-workbench-cards">{items.map((item, index) => <article key={text(item.id, String(index))}>{render(item)}</article>)}</div> : <Notice icon={Wrench} title={`No linked ${kind.toLowerCase()}`} detail={empty} />}</section>; }
+
+function TechnicianRoleLanding({ initial, setActive }: { initial: VehicleExecutionWorkbenchProjection; setActive: (tab: Tab) => void }) {
+  const packet = initial.work.current, task = object(packet?.task), session = object(array(packet?.workSessions)[0]);
+  const readiness = object(packet?.readinessSnapshot), evidence = object(packet?.evidenceRequirements);
+  const partsReady = initial.parts.demands.length ? initial.parts.demands.every((item) => ["RESERVED", "READY", "ISSUED", "INSTALLED", "RECONCILED"].includes(text(item.status).toUpperCase())) : null;
+  return <section className="technician-role-landing" aria-label="Technician role landing page">
+    <header><div><small>Technician View</small><h2>{packet ? text(task.title, text(packet.purpose, "Assigned work")) : "No current assigned work packet"}</h2><p>The system measures work state and evidence, not personal blame. If work is stalled, capture what happened so the next person can help.</p></div><UserRound /></header>
+    <div className="technician-role-grid">
+      <article><h3>Current assignment</h3>{packet ? <dl><Fact label="Next action" value={text(packet.nextAction)} /><Fact label="Stage" value={label(packet.stageCode)} /><Fact label="Due" value={date(packet.targetAt)} /><Fact label="Session" value={session.id ? label(session.status) : "Not started"} /></dl> : <p>No current work packet is assigned or ready. Open the Repair Workbench to create, release, or inspect repair work.</p>}<div className="vehicle-workbench-actions compact"><button className="button button-primary" onClick={() => setActive("work")} type="button">{packet ? "Open work controls" : "Open current work tab"}</button><Link className="button button-secondary" href={text(object(object(initial.overview).deepLinks).repair, `/vehicles/repair-workbench?vehicleId=${encodeURIComponent(text(initial.identity.id))}`)}>Open Repair Workbench</Link></div></article>
+      <article><h3>Readiness before work</h3><p><ShieldCheck /> Parts: {partsReady == null ? "No linked parts demand" : partsReady ? "Ready" : "Needs attention"}</p><StructuredItems value={readiness} /></article>
+      <article><h3>Required evidence</h3><p>Attach photos, notes, measurements, scans, or documents once. Vehicle 360 keeps the record reusable for managers, QC, and future diagnosis.</p><StructuredItems value={evidence} /><Link className="button button-secondary" href={initial.links.evidence}>Attach evidence</Link></article>
+      <article><h3>Stalled / incomplete work details</h3><p>If work is not complete, the closeout form requires: why it stopped, what was observed, tests performed, diagnostic minutes, operability, recommended next step, recovery owner, next check, and escalation time.</p><button className="button button-secondary" onClick={() => setActive("work")} type="button">Open incomplete update form</button></article>
+    </div>
+  </section>;
+}
+
+function TechnicianExecutionPanel({ packet }: { packet: Record<string, unknown> }) {
+  const initialSession = object(array(packet.workSessions)[0]), [session, setSession] = useState(initialSession), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [outcome, setOutcome] = useState("COMPLETED"), incomplete = outcome !== "COMPLETED";
+  async function request(url: string, method: "POST" | "PATCH", body: Record<string, unknown>) { setBusy(true); setNotice(""); try { const response = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Execution command failed."); if (result.result?.status) setSession(result.result); setNotice("Saved with audit history."); return result; } catch (error) { setNotice(error instanceof Error ? error.message : "Execution command failed."); return null; } finally { setBusy(false); } }
+  async function sessionCommand(action: string, checkpointCode?: string) { const idempotencyKey = crypto.randomUUID(); if (!session.id) { await request(`/api/inventory-work-packets/${packet.id}/sessions`, "POST", { idempotencyKey, reason: "Start assigned Inventory Work Packet execution." }); return; } await request(`/api/inventory-work-sessions/${session.id}`, "PATCH", { action, checkpointCode, expectedVersion: session.version, idempotencyKey, reason: `${action.toLowerCase()} assigned Inventory Work Packet execution.` }); }
+  async function closeout(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget), value = (name: string) => String(form.get(name) ?? "").trim(), body: Record<string, unknown> = { expectedVersion: packet.version, idempotencyKey: crypto.randomUUID(), reason: "Submit required technician execution closeout.", outcome, workPerformed: [value("workPerformed")], partsDisposition: value("partsDisposition"), findings: [value("findings")], verification: [value("verification")], qcState: value("qcState"), evidenceSnapshot: packet.evidenceRequirements, optionalNotes: value("optionalNotes") || undefined };
+    if (incomplete) Object.assign(body, { explanation: value("explanation"), observation: value("observation"), testsPerformed: value("testsPerformed"), recommendedNextStep: value("recommendedNextStep"), diagnosticMinutes: Number(value("diagnosticMinutes")), operability: value("operability"), blockerRecovery: { ownerUserId: value("recoveryOwner"), requestedAction: value("requestedAction"), impact: value("impact"), nextCheckAt: new Date(value("nextCheckAt")).toISOString(), escalateAt: new Date(value("escalateAt")).toISOString(), substituteAction: value("substituteAction") || undefined } });
+    await request(`/api/inventory-work-packets/${packet.id}/closeout`, "POST", body);
+  }
+  return <section className="vehicle-workbench-panel vehicle-workbench-closeout"><header><div><small>Required technician update</small><h2>Finish in about 15–30 seconds</h2></div></header>{notice ? <p role="status" className="vehicle-workbench-form-notice">{notice}</p> : null}<div className="vehicle-workbench-session"><div><strong>Task time</strong><span>{session.id ? `${label(session.status)} · started ${date(session.startedAt)}` : "Not started"}</span></div>{!session.id ? <button className="button button-primary" disabled={busy} onClick={() => sessionCommand("START")} type="button">Start Work</button> : session.status === "ACTIVE" ? <button className="button button-secondary" disabled={busy} onClick={() => sessionCommand("PAUSE", "ON_TRACK")} type="button">Pause</button> : session.status === "PAUSED" ? <button className="button button-primary" disabled={busy} onClick={() => sessionCommand("RESUME")} type="button">Resume</button> : null}</div><form onSubmit={closeout}><div className="vehicle-workbench-form-grid"><label><span>Outcome</span><select name="outcome" onChange={event => setOutcome(event.target.value)} value={outcome}><option>COMPLETED</option><option>PARTIAL</option><option>CANNOT_COMPLETE</option><option>FURTHER_DIAGNOSIS</option></select></label><label><span>What was done?</span><select name="workPerformed"><option>REPAIRED</option><option>REPLACED</option><option>ADJUSTED</option><option>DIAGNOSED</option><option>INSPECTED</option><option>TESTED</option><option>DOCUMENTED</option><option>NO_WORK_PERFORMED</option></select></label><label><span>Parts</span><select name="partsDisposition"><option>NO_PARTS</option><option>INSTALLED</option><option>PARTIAL_INSTALL</option><option>RETURN_REQUIRED</option><option>ADDITIONAL_PARTS_REQUIRED</option></select></label><label><span>Finding</span><select name="findings"><option>EXPECTED_CONDITION</option><option>NO_ADDITIONAL_FINDING</option><option>NEW_CONDITION</option><option>SAFETY_CONCERN</option><option>SCOPE_CHANGE</option></select></label><label><span>Verification</span><select name="verification"><option>FUNCTION_TEST</option><option>VISUAL_CHECK</option><option>ROAD_TEST</option><option>SCAN_CLEAR</option><option>MEASUREMENT</option><option>NOT_VERIFIED</option></select></label><label><span>QC</span><select name="qcState" defaultValue={incomplete ? "NOT_READY" : "READY_FOR_REVIEW"}><option>READY_FOR_REVIEW</option><option>SELF_CHECK_PASSED</option><option>INDEPENDENT_QC_REQUIRED</option><option>NOT_READY</option></select></label></div>{incomplete ? <fieldset><legend>Required because work is incomplete or needs diagnosis</legend><label><span>Why could work not be completed?</span><textarea name="explanation" required /></label><label><span>What did you observe?</span><textarea name="observation" required /></label><label><span>Tests performed</span><input name="testsPerformed" required /></label><label><span>Recommended next step</span><input name="recommendedNextStep" required /></label><div className="vehicle-workbench-form-grid"><label><span>Diagnostic minutes</span><input min="0" name="diagnosticMinutes" required type="number" /></label><label><span>Operability</span><select name="operability"><option>OPERABLE</option><option>OPERABLE_WITH_RESTRICTION</option><option>NOT_OPERABLE</option><option>UNKNOWN</option></select></label><label><span>Recovery owner ID</span><input name="recoveryOwner" required /></label><label><span>Requested action</span><input name="requestedAction" required /></label><label><span>Impact</span><input name="impact" required /></label><label><span>Next check</span><input name="nextCheckAt" required type="datetime-local" /></label><label><span>Escalate at</span><input name="escalateAt" required type="datetime-local" /></label><label><span>Substitute action (optional)</span><input name="substituteAction" /></label></div></fieldset> : null}<label><span>More information (optional)</span><textarea name="optionalNotes" placeholder="Add detail only when it helps the next person." /></label><button className="button button-primary" disabled={busy} type="submit">Submit Technician Update</button></form></section>;
+}
+
+function ManagerNextPlanPanel({ packet }: { packet: Record<string, unknown> }) {
+  const [publishNextWork, setPublishNextWork] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setNotice(""); const form = new FormData(event.currentTarget), value = (name: string) => String(form.get(name) ?? "").trim(); try { const body: Record<string, unknown> = { decision: value("decision"), direction: value("direction"), expectedVersion: packet.version, idempotencyKey: crypto.randomUUID(), internalNote: value("internalNote") || undefined, publishNextWork, reason: "Publish manager review direction and structured next plan." }; if (publishNextWork) body.nextWork = { assignedUserId: value("assignedUserId"), title: value("title"), description: value("description"), dueAt: new Date(value("dueAt")).toISOString(), priority: value("priority"), workflowArea: value("workflowArea"), requiresManagerApproval: true, stageCode: packet.stageCode, purpose: value("description"), nextAction: value("nextAction"), definitionOfDone: value("definitionOfDone"), urgency: packet.urgency, urgencyReason: packet.urgencyReason, readiness: packet.readiness, readinessSnapshot: packet.readinessSnapshot, dependencySnapshot: packet.dependencySnapshot, evidenceRequirements: packet.evidenceRequirements, targetAt: new Date(value("dueAt")).toISOString(), estimatedMinutes: Number(value("estimatedMinutes")), policyVersion: packet.policyVersion }; const response = await fetch(`/api/inventory-work-packets/${packet.id}/manager-plan`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Manager plan failed."); setNotice(result.result?.nextTaskId ? "Plan published and the Task-backed staged work was created." : "Manager direction published."); } catch (error) { setNotice(error instanceof Error ? error.message : "Manager plan failed."); } finally { setBusy(false); } }
+  return <section className="vehicle-workbench-panel vehicle-workbench-closeout manager-plan"><header><div><small>Manager decision &amp; next plan</small><h2>Review the work and direct what happens next</h2></div></header>{notice ? <p className="vehicle-workbench-form-notice" role="status">{notice}</p> : null}<form onSubmit={submit}><div className="vehicle-workbench-form-grid"><label><span>Decision</span><select name="decision"><option>APPROVE_COMPLETE</option><option>RETURN_FOR_REWORK</option><option>REQUIRE_DIAGNOSIS</option><option>HOLD</option><option>CANCEL</option></select></label><label className="span-two"><span>Next step / plan for staff</span><input name="direction" required /></label></div><label><span>Manager comment (private, optional)</span><textarea name="internalNote" placeholder="Context for manager review; never grants command authority." /></label><label className="manager-plan-toggle"><input checked={publishNextWork} onChange={event => setPublishNextWork(event.target.checked)} type="checkbox" /><span>Launch structured follow-up work from this plan</span></label>{publishNextWork ? <fieldset><legend>Next Task preview</legend><div className="vehicle-workbench-form-grid"><label><span>Task title</span><input name="title" required /></label><label><span>Next owner ID</span><input name="assignedUserId" required /></label><label><span>Due</span><input name="dueAt" required type="datetime-local" /></label><label><span>Priority</span><select name="priority"><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option><option>LOW</option></select></label><label><span>Workflow</span><select name="workflowArea"><option>SHOP</option><option>INVENTORY</option><option>ADMIN</option><option>SALES</option></select></label><label><span>Estimate (minutes)</span><input min="1" name="estimatedMinutes" required type="number" /></label></div><label><span>Description / purpose</span><textarea name="description" required /></label><label><span>Next action</span><input name="nextAction" required /></label><label><span>Definition of Done</span><input name="definitionOfDone" required /></label></fieldset> : null}<button className="button button-primary" disabled={busy} type="submit">Publish Manager Plan</button></form></section>;
+}

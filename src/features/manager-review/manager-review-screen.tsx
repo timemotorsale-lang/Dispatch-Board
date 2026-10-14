@@ -831,6 +831,29 @@ export function ManagerReviewScreen({
         </label>
       </div>
 
+      <section className="manager-command-brief" aria-label="Manager operating brief">
+        <article>
+          <span>Command posture</span>
+          <strong>{summary.awaiting > 0 ? `${summary.awaiting} decision${summary.awaiting === 1 ? "" : "s"} waiting` : "Queue controlled"}</strong>
+          <small>{summary.critical > 0 ? `${summary.critical} critical priority item${summary.critical === 1 ? "" : "s"}` : "No critical priority waiting"}</small>
+        </article>
+        <article>
+          <span>Operating risk</span>
+          <strong>{summary.blocked + summary.overdue}</strong>
+          <small>Blocked or past due items requiring attention</small>
+        </article>
+        <article>
+          <span>Decision quality</span>
+          <strong>{summary.missingUpdates > 0 ? `${summary.missingUpdates} gap${summary.missingUpdates === 1 ? "" : "s"}` : "Evidence clean"}</strong>
+          <small>Submissions with missing decision fields</small>
+        </article>
+        <article>
+          <span>Manager move</span>
+          <strong>{summary.awaiting > 0 ? "Work highest risk first" : "Monitor live flow"}</strong>
+          <small>{isRefreshPending ? "Refreshing queue now" : "Review health or return to Sales Console"}</small>
+        </article>
+      </section>
+
       {summary.critical > 0 ? (
         <div className="manager-command-critical-alert" role="status">
           <div>
@@ -880,16 +903,16 @@ export function ManagerReviewScreen({
           <span>Submission gaps</span>
           <small>Required update fields</small>
         </button>
-        <button aria-disabled="true" disabled type="button">
+        <article aria-label="Returned work planned metric">
           <strong>—</strong>
           <span>Returned work</span>
           <small>Review history planned</small>
-        </button>
-        <button aria-disabled="true" disabled type="button">
+        </article>
+        <article aria-label="Review SLA planned metric">
           <strong>—</strong>
           <span>Within review SLA</span>
           <small>Review SLA planned</small>
-        </button>
+        </article>
       </section>
 
       {lastActionMessage ? (
@@ -917,12 +940,37 @@ export function ManagerReviewScreen({
       ) : null}
 
       {!errorMessage && boardExists && commandItems.length === 0 ? (
-        <EmptyStateCard
-          actions={[{ href: fullBoardHref, label: "Back to board" }]}
-          eyebrow="Queue clear"
-          message="No approval-ready, blocked, waiting, or claimable work is asking for manager attention right now."
-          title="The manager queue is clear"
-        />
+        <section className="manager-command-clear-state" aria-label="Manager queue clear">
+          <div className="manager-command-clear-icon">
+            <FileQuestion aria-hidden="true" size={30} />
+          </div>
+          <div className="manager-command-clear-copy">
+            <span>Queue clear</span>
+            <h2>The manager queue is clear</h2>
+            <p>No approval-ready, blocked, waiting, or claimable work is asking for manager attention right now.</p>
+          </div>
+          <div className="manager-command-clear-grid">
+            <article>
+              <strong>Watch next</strong>
+              <span>Critical priority, blocked work, past-due work, and submission gaps.</span>
+            </article>
+            <article>
+              <strong>Operating check</strong>
+              <span>Use Review Health to confirm team flow, load, and source freshness.</span>
+            </article>
+            <article>
+              <strong>Return path</strong>
+              <span>Go back to Sales Console or open the full board when manager work appears.</span>
+            </article>
+          </div>
+          <div className="manager-command-clear-actions">
+            <button className="manager-command-button" onClick={() => setShowReviewHealth(true)} type="button">
+              <Gauge aria-hidden="true" size={16} />
+              Review health
+            </button>
+            <Link className="manager-command-button" href={fullBoardHref}>Back to board</Link>
+          </div>
+        </section>
       ) : null}
 
       {!errorMessage && boardExists && commandItems.length > 0 ? (
@@ -936,11 +984,16 @@ export function ManagerReviewScreen({
               <ListFilter aria-hidden="true" size={16} />
             </div>
             <div className="manager-command-queue-list">
-              {queueDefinitions.map((queue) => (
+              {queueDefinitions.map((queue) => queue.disabled ? (
+                <article className="manager-command-queue-button manager-command-queue-planned" key={queue.key}>
+                  <span>{queue.label}</span>
+                  <strong>{queue.count ?? "—"}</strong>
+                  <small>{queue.detail}</small>
+                </article>
+              ) : (
                 <button
                   aria-pressed={activeFilter === queue.key}
                   className="manager-command-queue-button"
-                  disabled={queue.disabled}
                   key={queue.key}
                   onClick={() => selectFilter(queue.key)}
                   type="button"

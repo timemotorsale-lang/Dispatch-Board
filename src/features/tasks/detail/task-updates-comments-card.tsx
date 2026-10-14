@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
@@ -20,8 +21,10 @@ type UnifiedFeedItem = {
 type TaskUpdatesCommentsCardProps = {
   canComment: boolean;
   compact?: boolean;
+  heading?: string;
   initialFeedItems: UnifiedFeedItem[];
   onActivityChanged?: () => void;
+  quickNoteShortcuts?: Array<{ label: string; text: string }>;
   refreshKey?: number;
   taskId: string;
 };
@@ -31,18 +34,30 @@ type TaskCommentCreateResponse = {
   error?: string;
 } | null;
 
+const TASK_NOTE_SHORTCUTS = [
+  { label: "Customer contacted", text: "Customer contacted — outcome: " },
+  { label: "DMV called", text: "DMV called — outcome: " },
+  { label: "Waiting on document", text: "Waiting on document — document/owner: " },
+  { label: "Follow-up scheduled", text: "Follow-up scheduled — date/time: " }
+];
+
 export function TaskUpdatesCommentsCard({
   canComment,
   compact = false,
+  heading = "Case Notes",
   initialFeedItems,
   onActivityChanged,
+  quickNoteShortcuts = TASK_NOTE_SHORTCUTS,
   refreshKey = 0,
   taskId
 }: TaskUpdatesCommentsCardProps) {
   const [feedItems, setFeedItems] = useState(initialFeedItems);
   const [draftBody, setDraftBody] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quickNotesOpen, setQuickNotesOpen] = useState(false);
+  const progressItems = feedItems.filter((item) => item.kind === "comment");
 
   useEffect(() => {
     if (refreshKey === 0) {
@@ -137,29 +152,107 @@ export function TaskUpdatesCommentsCard({
     }
   }
 
+  function insertQuickNote(text: string) {
+    setDraftBody((current) => `${current.trimEnd()}${current.trim() ? "\n" : ""}${text}`.slice(0, 2000));
+    setErrorMessage(null);
+    setQuickNotesOpen(false);
+  }
+
   if (compact) {
     return (
       <section className="etw-notes-card">
-        <div className="etw-note-tabs"><button className="active" type="button">Case Notes ({feedItems.filter((item) => item.kind === "comment").length})</button><button type="button">Internal Notes (Manager Only)</button></div>
+        <button
+          aria-expanded={historyOpen}
+          className="etw-note-heading etw-note-heading-button"
+          onClick={() => setHistoryOpen((current) => !current)}
+          type="button"
+        >
+          <span><strong>{heading}</strong><em>{progressItems.length}</em></span>
+          <ChevronDown size={15} />
+        </button>
+        {historyOpen ? (
+          <div className="etw-note-history" aria-label={`${heading} history`}>
+            {progressItems.length ? progressItems.map((item) => (
+              <article key={item.id}>
+                <span>
+                  <strong>{item.actorName}</strong>
+                  <small>{formatTaskDetailDateTime(item.createdAt)}</small>
+                </span>
+                <RichTextContent value={item.message} />
+              </article>
+            )) : <p className="task-workspace-empty-copy">No progress updates have been saved yet.</p>}
+          </div>
+        ) : null}
         {canComment ? (
           <form className="etw-note-composer" onSubmit={handleSubmit}>
+            <div className="etw-note-template-strip" aria-label="Progress update templates">
+              {quickNoteShortcuts.slice(0, 6).map((shortcut) => (
+                <button
+                  disabled={isSubmitting}
+                  key={shortcut.label}
+                  onClick={() => insertQuickNote(shortcut.text)}
+                  type="button"
+                >
+                  {shortcut.label}
+                </button>
+              ))}
+            </div>
             <RichTextComposer
               ariaLabel="Post a comment"
               compact
               disabled={isSubmitting}
-              helperText="Format the note or use @ to mention a teammate."
+              helperText="Use formatting or + to start a structured note."
               onChange={(value) => {
                 setDraftBody(value);
                 setErrorMessage(null);
               }}
               placeholder="Add a note... use @ to mention"
-              rows={2}
+              rows={5}
+              toolbarLeadingContent={(
+                <div className="etw-note-quick-menu">
+                  <button
+                    aria-expanded={quickNotesOpen}
+                    aria-haspopup="menu"
+                    aria-label="Open note templates"
+                    disabled={isSubmitting}
+                    onClick={() => setQuickNotesOpen((current) => !current)}
+                    title="Insert a structured note"
+                    type="button"
+                  >
+                    <Plus size={17} />
+                  </button>
+                  {quickNotesOpen ? (
+                    <div aria-label="Note templates" className="etw-note-quick-menu-popover" role="menu">
+                      <strong>Start a structured note</strong>
+                      {quickNoteShortcuts.map((shortcut) => (
+                        <button
+                          aria-label={`Insert ${shortcut.label} note`}
+                          key={shortcut.label}
+                          onClick={() => insertQuickNote(shortcut.text)}
+                          role="menuitem"
+                          type="button"
+                        >
+                          {shortcut.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+              toolbarTrailingContent={(
+                <button
+                  className="etw-note-submit"
+                  disabled={!canSubmitTaskComment(draftBody, isSubmitting)}
+                  type="submit"
+                >
+                  {isSubmitting ? "Adding..." : "Comment"}
+                </button>
+              )}
+              toolbarVariant="task-note"
               value={draftBody}
             />
-            <button disabled={!canSubmitTaskComment(draftBody, isSubmitting)} type="submit">{isSubmitting ? "Adding..." : "Add Note"}</button>
           </form>
         ) : <p className="task-workspace-empty-copy">Only the assigned staff member or a manager can add notes.</p>}
-        <div className="etw-note-actions"><button type="button">Customer contacted</button><button type="button">DMV called</button><button type="button">Waiting on document</button><button type="button">Follow-up scheduled</button><button type="button">Escalate</button><button aria-label="More note actions" type="button">...</button></div>
         {errorMessage ? <div className="notice notice-danger my-task-inline-notice" role="alert"><p>{errorMessage}</p></div> : null}
       </section>
     );

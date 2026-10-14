@@ -12,8 +12,9 @@ Use this checklist before calling the Dispatch Board MVP release-ready.
 - [ ] No real secrets are committed to the repository.
 - [ ] Local and production `DATABASE_URL` values are kept separate.
 - [ ] Build and runtime expectations are clear for the deployment target.
-- [ ] `CRON_SECRET` is configured anywhere the scheduled generation route will run.
-- [ ] The deployment scheduler is enabled for `/api/cron/generate-board` in the chosen hosting environment.
+- [ ] `CRON_SECRET` is configured anywhere protected scheduler routes will run.
+- [ ] `CRM_NEXT` is intentionally set for the deployment: `REVIEW` to open Customer Console, or `OFF` to keep it protected.
+- [ ] The deployment scheduler is enabled for `/api/cron/generate-board` and `/api/cron/evaluate-concerns` in the chosen hosting environment.
 
 ## 2. Database readiness
 
@@ -43,6 +44,7 @@ Use this section before calling autonomous board generation production-ready.
 
 - [ ] `CRON_SECRET` is configured in the deployed app runtime.
 - [ ] The hosting scheduler is enabled for `/api/cron/generate-board`.
+- [ ] The hosting scheduler is enabled for `/api/cron/evaluate-concerns`.
 - [ ] The hosting scheduler sends a supported authorization header shape.
 - [ ] App generation settings were reviewed for timezone, generation time, and business days.
 - [ ] The first expected scheduled request was observed after the configured local generation time.

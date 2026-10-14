@@ -12,6 +12,8 @@ import {
 } from "@/server/services/app-settings-service";
 import {
   createMissingGeneratedTasksForDate,
+  previewBoardGenerationForDate,
+  type BoardGenerationPreview,
   type GenerationFailureCode,
   type GenerationFailureDiagnostic,
   type GenerationFailureStage,
@@ -84,6 +86,7 @@ export type TriggerManualBoardGenerationDependencies = {
   repository?: GenerationTasksRepository;
   now?: () => Date;
   loadGenerationInputs?: CreateMissingGeneratedTasksDependencies["loadGenerationInputs"];
+  selectedCandidateKeys?: string[];
   generateStaffDayPlans?: typeof generateStaffDayPlansForBoardDate;
   generateDailyCarryover?: typeof generateDailyCarryoverForBoardDate;
 };
@@ -95,6 +98,7 @@ export type TriggerScheduledBoardGenerationDependencies = TriggerManualBoardGene
 type TriggerBoardGenerationOptions = {
   boardDate: string;
   createdByUserId: string | null;
+  selectedCandidateKeys?: string[];
   triggeredBy: "manual" | "scheduled";
   triggeredByUserId: string | null;
 };
@@ -435,6 +439,7 @@ async function runBoardGenerationForDate(
       normalizedBoardDate,
       {
         createdByUserId: options.createdByUserId,
+        selectedCandidateKeys: options.selectedCandidateKeys,
         triggeredBy: options.triggeredBy,
         triggeredByUserId: options.triggeredByUserId
       },
@@ -571,11 +576,25 @@ export async function triggerManualBoardGeneration(
     {
       boardDate,
       createdByUserId: manager.id,
+      selectedCandidateKeys: dependencies.selectedCandidateKeys,
       triggeredBy: "manual",
       triggeredByUserId: manager.id
     },
     dependencies
   );
+}
+
+export async function previewManualBoardGeneration(
+  user: AuthenticatedUser | null,
+  boardDate: string,
+  dependencies: TriggerManualBoardGenerationDependencies = {}
+): Promise<BoardGenerationPreview> {
+  assertCanManageBoardGeneration(user);
+
+  return previewBoardGenerationForDate(boardDate, {
+    repository: dependencies.repository,
+    loadGenerationInputs: dependencies.loadGenerationInputs
+  });
 }
 
 export async function triggerScheduledBoardGeneration(
@@ -692,10 +711,19 @@ export async function triggerScheduledBoardGeneration(
     });
   }
 
+  const generationPreview = await previewBoardGenerationForDate(boardDate, {
+    repository: dependencies.repository,
+    loadGenerationInputs: dependencies.loadGenerationInputs
+  });
+  const selectedCandidateKeys = generationPreview.items
+    .filter((item) => item.recommended)
+    .map((item) => item.candidateKey);
+
   return runBoardGenerationForDate(
     {
       boardDate,
       createdByUserId: null,
+      selectedCandidateKeys,
       triggeredBy: "scheduled",
       triggeredByUserId: null
     },

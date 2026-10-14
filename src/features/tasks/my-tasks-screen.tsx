@@ -51,6 +51,8 @@ type MyTasksScreenProps = {
   generationStatus: string | null;
   initialTasks: BoardReadTask[];
   isManager: boolean;
+  specialistHrefByTask?: Record<string, string>;
+  technicianMode?: boolean;
   nowIso: string;
   userName: string;
   initialStaffDay?: StaffDayReadModel | null;
@@ -82,6 +84,7 @@ type SelfCreateTaskForm = {
 
 const selfCreateWorkflowAreas: WorkflowArea[] = [
   WorkflowArea.INVENTORY,
+  WorkflowArea.SERVICE_ADVISOR,
   WorkflowArea.SHOP,
   WorkflowArea.SALES,
   WorkflowArea.ADVERTISING,
@@ -819,6 +822,8 @@ export function MyTasksScreen({
   initialTasks,
   isManager,
   nowIso,
+  specialistHrefByTask = {},
+  technicianMode = false,
   userName
 }: MyTasksScreenProps) {
   const router = useRouter();
@@ -871,6 +876,7 @@ export function MyTasksScreen({
   const blockedQueue = getBlockedQueue(tasks);
   const latestUpdate = selectedTask ? getLatestUpdate(selectedTask, now) : null;
   const selectedReadiness = selectedTask ? initialReadinessByTask[selectedTask.id] ?? null : null;
+  const taskHref = (taskId: string) => specialistHrefByTask[taskId] ?? `/tasks/${taskId}`;
 
   function refreshTasks() {
     startRefreshTransition(() => {
@@ -963,8 +969,8 @@ export function MyTasksScreen({
     <section className="page-stack dashboard-page enterprise-prototype-page my-tasks-live-page">
       <div className="dashboard-page-header enterprise-prototype-header">
         <div className="dashboard-page-copy">
-          <h1>My Tasks</h1>
-          <p>My Work queue for today: assigned tasks, self-created work, and live status updates.</p>
+          <h1>{technicianMode ? "Assigned Tasks" : "My Tasks"}</h1>
+          <p>{technicianMode ? "General assigned work that is not owned by a repair or diagnostic workbench." : "My Work queue for today: assigned tasks, self-created work, and live status updates."}</p>
           <div className="board-page-meta my-tasks-header-meta">
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
@@ -981,10 +987,8 @@ export function MyTasksScreen({
 
         <div className="board-toolbar my-tasks-toolbar">
           <div className="board-toolbar-actions">
-            <Link className="pill pill-primary" href="/tasks/intake?returnTo=%2Fmy-tasks">Task Intake</Link>
-            <Link className="pill pill-primary" href={fullBoardHref}>
-              Open full board
-            </Link>
+            {technicianMode ? <Link className="pill pill-primary" href="/my-tasks/available">Available Work</Link> : <Link className="pill pill-primary" href="/tasks/intake?returnTo=%2Fmy-tasks">Task Intake</Link>}
+            {!technicianMode ? <Link className="pill pill-primary" href={fullBoardHref}>Open full board</Link> : null}
             <button className="pill pill-secondary" onClick={refreshTasks} type="button">
               Refresh
             </button>
@@ -993,7 +997,7 @@ export function MyTasksScreen({
       </div>
 
       {initialStaffDay ? <StaffStartDayCard boardDate={boardDate} initialStaffDay={initialStaffDay} /> : null}
-      {availableWorkEnabled ? <AvailableWorkCard boardDate={boardDate} /> : null}
+      {availableWorkEnabled && !technicianMode ? <AvailableWorkCard boardDate={boardDate} /> : null}
       {endOfDayHandoffEnabled ? <DailyHandoffCard boardDate={boardDate} /> : null}
 
       {selfCreateOpen ? (
@@ -1136,18 +1140,22 @@ export function MyTasksScreen({
 
       {!errorMessage && !boardExists ? (
         <EmptyStateCard
-          actions={[{ href: fullBoardHref, label: "Open full board", tone: "secondary" }]}
+          actions={[technicianMode
+            ? { href: "/my-tasks/available", label: "Check Available Work", tone: "secondary" }
+            : { href: fullBoardHref, label: "Open full board", tone: "secondary" }]}
           eyebrow="No board yet"
-          message="Once the board exists, your assigned tasks will appear here automatically."
+          message={technicianMode ? "Repair assignments appear above. General assigned tasks will appear here when the daily board is ready." : "Once the board exists, your assigned tasks will appear here automatically."}
           title="Today's board has not been generated"
         />
       ) : null}
 
       {!errorMessage && boardExists && tasks.length === 0 ? (
         <EmptyStateCard
-          actions={[{ href: fullBoardHref, label: "Check full board" }]}
+          actions={[technicianMode
+            ? { href: "/my-tasks/available", label: "Check Available Work" }
+            : { href: fullBoardHref, label: "Check full board" }]}
           eyebrow="All clear"
-          message="Check the full board if you need broader context or want to confirm whether work was reassigned."
+          message={technicianMode ? "No general tasks are assigned. Continue with the repair work above or check eligible available work." : "Check the full board if you need broader context or want to confirm whether work was reassigned."}
           title="No tasks are assigned to you right now"
         />
       ) : null}
@@ -1265,7 +1273,7 @@ export function MyTasksScreen({
                             </div>
                           </button>
                           <div className="enterprise-list-row-actions">
-                            <Link className="pill pill-primary" href={`/tasks/${task.id}`}>
+                            <Link className="pill pill-primary" href={taskHref(task.id)}>
                               Open Workspace
                             </Link>
                           </div>
@@ -1328,19 +1336,17 @@ export function MyTasksScreen({
                           <span>Workflow: {formatStatusLabel(selectedTask.workflowArea)}</span>
                           <span>Source: {formatStatusLabel(selectedTask.sourceType)}</span>
                         </div>
-                        {selectedReadiness ? <div className={selectedReadiness.ready ? "my-day-readiness-summary my-day-readiness-ready" : "my-day-readiness-summary"} aria-label="Selected task completion readiness" role="region"><strong>{selectedReadiness.ready ? "Completion evidence ready" : `${selectedReadiness.requirements.filter((item) => !item.satisfied).length} completion requirements remain`}</strong>{!selectedReadiness.ready ? <span>Next: {selectedReadiness.requirements.find((item) => !item.satisfied)?.label}</span> : null}<Link href={`/tasks/${selectedTask.id}#approvals`}>Review evidence</Link></div> : null}
+                        {selectedReadiness ? <div className={selectedReadiness.ready ? "my-day-readiness-summary my-day-readiness-ready" : "my-day-readiness-summary"} aria-label="Selected task completion readiness" role="region"><strong>{selectedReadiness.ready ? "Completion evidence ready" : `${selectedReadiness.requirements.filter((item) => !item.satisfied).length} completion requirements remain`}</strong>{!selectedReadiness.ready ? <span>Next: {selectedReadiness.requirements.find((item) => !item.satisfied)?.label}</span> : null}<Link href={taskHref(selectedTask.id)}>Review evidence</Link></div> : null}
                       </div>
                       <div className="my-tasks-optimized-actions">
-                        <Link className="pill pill-primary" href={`/tasks/${selectedTask.id}`}>
+                        <Link className="pill pill-primary" href={taskHref(selectedTask.id)}>
                           Open Workspace
                         </Link>
                         <button className="pill pill-secondary" onClick={() => setInspectorTab("Updates")} type="button">
                           View Updates
                         </button>
-                        <Link className="pill pill-secondary" href={fullBoardHref}>
-                          Full Board
-                        </Link>
-                        <Link className="pill pill-secondary" href={`/tasks/${selectedTask.id}`}>
+                        {!technicianMode ? <Link className="pill pill-secondary" href={fullBoardHref}>Full Board</Link> : null}
+                        <Link className="pill pill-secondary" href={taskHref(selectedTask.id)}>
                           More
                         </Link>
                       </div>

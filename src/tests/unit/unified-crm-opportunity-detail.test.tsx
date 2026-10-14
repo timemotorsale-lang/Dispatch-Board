@@ -1,0 +1,433 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh() {} })
+}));
+
+import { UnifiedCrmOpportunityDetail, UnifiedCrmOpportunityDetailLoading } from "@/features/unified-crm/unified-crm-opportunity-detail";
+import type { UnifiedCrmOpportunityDetailReadModel } from "@/server/unified-crm/opportunity-detail-contract";
+
+function fixture(): UnifiedCrmOpportunityDetailReadModel {
+  return {
+    contractVersion: "ucrm.opportunity-detail/v1",
+    state: "HELD",
+    generatedAt: "2026-08-14T18:00:00.000Z",
+    requestedOpportunityId: "review01",
+    visibility: "organization",
+    source: {
+      authority: "UNIFIED_CRM",
+      href: "/crm?view=pipeline",
+      label: "Unified CRM opportunity foundation",
+      observedAt: "2026-08-14T18:00:00.000Z",
+      readMode: "HELD_REVIEW"
+    },
+    freshness: {
+      status: "CURRENT",
+      observedAt: "2026-08-14T18:00:00.000Z",
+      sourceRecordUpdatedAt: null
+    },
+    identity: {
+      lifecycleStatus: "HELD",
+      ownerScopeLabel: "Organization review scope",
+      title: "Opportunity detail review"
+    },
+    summary: {
+      customer: "Will appear after the first governed opportunity create path is approved.",
+      dueState: "No committed due state is active while lifecycle rules are held.",
+      nextAction: "Next actions stay source-owned until operational opportunity commands are approved.",
+      owner: "Assigned by CRM policy when operational create is enabled."
+    },
+    customerContext: null,
+    lifecycle: {
+      allowedNextStages: [],
+      nextActionDueAt: null,
+      nextActionLabel: null,
+      stage: "HELD",
+      terminal: false,
+      transitionHref: null,
+      version: null
+    },
+    stageHistory: [],
+    taskActivity: {
+      createTaskHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Task activity is held until the first durable opportunity record exists and task linkage is approved."
+    },
+    appointmentActivity: {
+      createAppointmentHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Appointment bridge activity is held until a durable opportunity record and appointment authority are available."
+    },
+    dispatchActivity: {
+      createDispatchHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Dispatch bridge activity is held until a durable opportunity record and dispatch authority are available."
+    },
+    sourceBridge: {
+      label: "Lead bridge",
+      state: "HELD",
+      detail: "Customer leads remain source-owned. CRM will correlate them without rewriting source stages or scores."
+    },
+    relatedRecordsObservation: {
+      detail: "No additional same-customer persisted read-only opportunity is visible right now for organization review. Continue with held review surfaces until one is available.",
+      freshnessLabel: "No additional visible persisted opportunity update is available yet.",
+      newestVisibleRecordUpdatedAt: null,
+      state: "EMPTY",
+      visibleRecordCount: 0
+    },
+    relatedRecords: [],
+    workBridges: [
+      { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage is held until the first durable opportunity record exists and tenant-safe correlation is proven." },
+      { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment handoff contracts are ready, but no appointment draft or existing-link action is enabled from this detail yet." },
+      { domain: "DISPATCH", label: "Dispatch and jobs", state: "HELD", detail: "Dispatch remains the owning system. CRM will link or hand off work only after an approved opportunity lifecycle exists." }
+    ],
+    nextUnlocks: [
+      "Approve stage definitions, transition evidence, and close or loss rules before enabling create or movement.",
+      "Verify the first governed opportunity detail against permissions, audit history, and rollback before turning on live writes."
+    ]
+  };
+}
+
+describe("Unified CRM opportunity detail", () => {
+  it("renders an honest held detail view", () => {
+    const markup = renderToStaticMarkup(<UnifiedCrmOpportunityDetail model={fixture()} returnHref="/crm?view=pipeline" />);
+    expect(markup).toContain("Opportunity detail review");
+    expect(markup).toContain("Requested review id review01");
+    expect(markup).toContain("No persisted source record is visible yet.");
+    expect(markup).toContain("Stage history");
+    expect(markup).toContain("Current stage is Held");
+    expect(markup).toContain("Same-customer read-only opportunities");
+    expect(markup).toContain("Lead bridge");
+    expect(markup).toContain("Opportunity activity");
+    expect(markup).toContain("No linked opportunity tasks have been recorded yet.");
+    expect(markup).toContain("Appointment bridge");
+    expect(markup).toContain("No linked opportunity appointments have been recorded yet.");
+    expect(markup).toContain("Dispatch bridge");
+    expect(markup).toContain("No linked repair order or job has been recorded yet.");
+    expect(markup).toContain("Appointments");
+    expect(markup).toContain("Dispatch and jobs");
+    expect(markup).toContain("Approve stage definitions, transition evidence, and close or loss rules before enabling create or movement.");
+    expect(markup).toContain("Review create flow");
+    expect(markup).toContain("Review queue flow");
+    expect(markup).toContain("Review transition flow");
+    expect(markup).toContain("Keep the opportunity flow one click away");
+    expect(markup).toContain("Return to pipeline");
+    expect(markup).not.toContain("Move to proposal");
+    expect(markup).toContain("<main");
+    expect(markup).toContain('aria-label="Opportunity summary"');
+    expect(markup).not.toContain("<form");
+    expect(markup).not.toContain("<button");
+  });
+
+  it("renders safe failure and loading states", () => {
+    const unavailable = renderToStaticMarkup(<UnifiedCrmOpportunityDetail failureKind="unavailable" returnHref="/crm?view=pipeline" />);
+    const missing = renderToStaticMarkup(<UnifiedCrmOpportunityDetail failureKind="not-available" returnHref="/crm?view=pipeline" />);
+    const loading = renderToStaticMarkup(<UnifiedCrmOpportunityDetailLoading />);
+    expect(unavailable).toContain("Opportunity detail is temporarily unavailable");
+    expect(unavailable).toContain('role="alert"');
+    expect(missing).toContain("Opportunity detail isn’t available");
+    expect(missing).toContain("may not exist, may be held, or may be outside your permitted opportunity scope.");
+    expect(missing).not.toContain("review01");
+    expect(loading).toContain("Loading permitted opportunity detail");
+    expect(loading).toContain('aria-busy="true"');
+  });
+
+  it("keeps customer return continuity in detail review", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={fixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+    expect(markup).toContain("Return to customer");
+  });
+
+  it("shows the newest visible source update for a persisted read-only record", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          state: "READY",
+          source: {
+            ...fixture().source,
+            label: "Unified CRM opportunity record",
+            readMode: "LIVE_READ_ONLY"
+          },
+          freshness: {
+            ...fixture().freshness,
+            sourceRecordUpdatedAt: "2026-08-14T17:30:00.000Z"
+          },
+          identity: {
+            ...fixture().identity,
+            lifecycleStatus: "READ_ONLY",
+            title: "Alex Morgan renewal review"
+          },
+          lifecycle: {
+            allowedNextStages: ["QUALIFIED", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Call customer",
+            stage: "NEW_INQUIRY",
+            terminal: false,
+            transitionHref: "/crm/opportunities/review01/transition",
+            version: 2
+          },
+          stageHistory: [{
+            actorLabel: "CRM Manager",
+            fromStage: null,
+            occurredAt: "2026-08-14T17:30:00.000Z",
+            reason: "Create CRM opportunity.",
+            toStage: "NEW_INQUIRY"
+          }],
+          taskActivity: {
+            createTaskHref: "/api/crm/v1/opportunities/review01/tasks",
+            links: [],
+            state: "READY",
+            summary: "No governed task link has been attached yet. Create one here when the next action needs tracked work."
+          },
+          dispatchActivity: {
+            createDispatchHref: "/api/crm/v1/opportunities/review01/dispatch",
+            links: [],
+            state: "READY",
+            summary: "No governed dispatch link has been attached yet. Link existing repair work when the opportunity is ready for operational handoff."
+          }
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Latest visible source update");
+    expect(markup).toContain("Allowed next moves");
+    expect(markup).toContain("Move opportunity stage");
+    expect(markup).toContain("Create linked task");
+    expect(markup).toContain("Link dispatch work");
+    expect(markup).toContain("Aug");
+  });
+
+  it("keeps owned live-read-only detail honest without introducing write language", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          state: "READY",
+          visibility: "owned",
+          source: {
+            ...fixture().source,
+            label: "Unified CRM opportunity record",
+            readMode: "LIVE_READ_ONLY"
+          },
+          identity: {
+            lifecycleStatus: "READ_ONLY",
+            ownerScopeLabel: "Owned review scope",
+            title: "Alex Morgan renewal review"
+          },
+          summary: {
+            customer: "Alex Morgan · CUS-18",
+            dueState: "Due today",
+            nextAction: "Confirm Saturday appointment",
+            owner: "Taylor B."
+          },
+          customerContext: {
+            customerId: "customer-1"
+          },
+          lifecycle: {
+            allowedNextStages: ["QUOTE_PRESENTED", "WON", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Confirm Saturday appointment",
+            stage: "CUSTOMER_DECIDING",
+            terminal: false,
+            transitionHref: "/crm/opportunities/opp_123456/transition",
+            version: 5
+          },
+          stageHistory: [{
+            actorLabel: "Taylor B.",
+            fromStage: "QUOTE_PRESENTED",
+            occurredAt: "2026-08-14T16:45:00.000Z",
+            reason: "Customer is deciding after quote.",
+            toStage: "CUSTOMER_DECIDING"
+          }],
+          sourceBridge: {
+            label: "Source bridge",
+            state: "CONNECTED",
+            detail: "Customer and lead context are correlated here while the source workflow stays authoritative."
+          },
+          relatedRecordsObservation: {
+            detail: "Only same-customer persisted read-only opportunities are shown here for owned review. Lifecycle movement remains off.",
+            freshnessLabel: "Newest additional visible persisted update observed at 2026-08-14T16:30:00.000Z.",
+            newestVisibleRecordUpdatedAt: "2026-08-14T16:30:00.000Z",
+            state: "READY",
+            visibleRecordCount: 1
+          },
+          relatedRecords: [{
+            href: "/crm/opportunities/opp_123457",
+            id: "opp_123457",
+            ownerLabel: "Taylor B.",
+            state: "LIVE_READ_ONLY",
+            summary: "Open this same-customer persisted opportunity in read-only mode.",
+            title: "Warranty retention follow-up",
+            updatedAt: "2026-08-14T16:30:00.000Z"
+          }],
+          workBridges: [
+            { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage remains review only from this surface." },
+            { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
+            { domain: "DISPATCH", label: "Dispatch and jobs", state: "HELD", detail: "Dispatch authority remains outside CRM." }
+          ],
+          nextUnlocks: ["Verify read-only detail before any operational command is enabled."]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Owned only");
+    expect(markup).toContain("Unified CRM opportunity record");
+    expect(markup).toContain("read only");
+    expect(markup).toContain("Customer Deciding");
+    expect(markup).toContain("Quote Presented -&gt; Customer Deciding");
+    expect(markup).toContain("Alex Morgan · CUS-18");
+    expect(markup).toContain("Open Customer 360");
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
+    expect(markup).toContain("Warranty retention follow-up");
+    expect(markup).toContain('href="/crm/opportunities/opp_123457?crmReturnTo=%2Fcrm%3Fview%3Dpipeline"');
+    expect(markup).toContain("Source bridge");
+    expect(markup).not.toContain("Move to proposal");
+    expect(markup).not.toContain("Save opportunity");
+    expect(markup).not.toContain("<form");
+  });
+
+  it("renders linked opportunity task activity with safe task return links", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          requestedOpportunityId: "opp_123456",
+          state: "READY",
+          identity: {
+            ...fixture().identity,
+            lifecycleStatus: "READ_ONLY",
+            title: "Alex Morgan renewal review"
+          },
+          lifecycle: {
+            allowedNextStages: ["QUALIFIED", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Call customer",
+            stage: "NEW_INQUIRY",
+            terminal: false,
+            transitionHref: "/crm/opportunities/opp_123456/transition",
+            version: 3
+          },
+          taskActivity: {
+            createTaskHref: "/api/crm/v1/opportunities/opp_123456/tasks",
+            links: [{
+              actorLabel: "CRM Manager",
+              brief: "Document the opportunity follow-up and next operational step.",
+              createdAt: "2026-08-14T17:35:00.000Z",
+              dueAt: "2026-08-15T19:00:00.000Z",
+              href: "/tasks/task-1",
+              relationship: "FOLLOW_UP",
+              state: "ACTIVE",
+              taskId: "task-1",
+              title: "Follow up with Alex Morgan"
+            }],
+            state: "READY",
+            summary: "1 governed task link is attached to this opportunity."
+          },
+          workBridges: [
+            { actionHref: "/api/crm/v1/opportunities/opp_123456/tasks", domain: "TASKS", label: "Governed tasks", state: "READY", detail: "Create a governed Dispatch task from this opportunity while preserving CRM opportunity correlation and audit history." },
+            { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
+            { domain: "DISPATCH", label: "Dispatch and jobs", state: "HELD", detail: "Dispatch authority remains outside CRM." }
+          ]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Create a linked follow-up task");
+    expect(markup).toContain("Follow up with Alex Morgan");
+    expect(markup).toContain("Document the opportunity follow-up and next operational step.");
+    expect(markup).toContain("Open task");
+    expect(markup).toContain("returnTo=%2Fcrm%2Fopportunities%2Fopp_123456%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dpipeline");
+    expect(markup).toContain("Use the Opportunity activity panel above to create this governed task link.");
+  });
+
+  it("renders linked dispatch activity with safe repair return links", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          requestedOpportunityId: "opp_123456",
+          state: "READY",
+          identity: {
+            ...fixture().identity,
+            lifecycleStatus: "READ_ONLY",
+            title: "Alex Morgan renewal review"
+          },
+          lifecycle: {
+            allowedNextStages: ["QUALIFIED", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Call customer",
+            stage: "NEW_INQUIRY",
+            terminal: false,
+            transitionHref: "/crm/opportunities/opp_123456/transition",
+            version: 3
+          },
+          dispatchActivity: {
+            createDispatchHref: "/api/crm/v1/opportunities/opp_123456/dispatch",
+            links: [{
+              actorLabel: "CRM Manager",
+              createdAt: "2026-08-14T17:45:00.000Z",
+              href: "/vehicles/shop-dispatch?repairJobId=job-1",
+              relationship: "Repair job",
+              repairJobId: "job-1",
+              repairJobNumber: "JOB-01",
+              repairOrderId: "ro-1",
+              repairOrderNumber: "RO-1001",
+              state: "ACTIVE",
+              targetKind: "REPAIR_JOB",
+              title: "Diagnose Accord lighting concern",
+              version: 2
+            }],
+            state: "READY",
+            summary: "1 governed dispatch link is attached to this opportunity."
+          },
+          workBridges: [
+            { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage remains review only from this surface." },
+            { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
+            { actionHref: "/api/crm/v1/opportunities/opp_123456/dispatch", domain: "DISPATCH", label: "Dispatch and jobs", state: "READY", detail: "Link existing repair orders or jobs from Dispatch while Dispatch remains the operational authority." }
+          ]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Link existing repair work");
+    expect(markup).toContain("Diagnose Accord lighting concern");
+    expect(markup).toContain("RO RO-1001");
+    expect(markup).toContain("job JOB-01");
+    expect(markup).toContain("Open dispatch work");
+    expect(markup).toContain("returnTo=%2Fcrm%2Fopportunities%2Fopp_123456%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dpipeline");
+    expect(markup).toContain("Use the Dispatch bridge panel above to link existing repair work.");
+  });
+
+  it("reuses the existing customer return when detail is opened from Customer 360", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          state: "READY",
+          customerContext: {
+            customerId: "customer-1"
+          }
+        }}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
+  });
+});

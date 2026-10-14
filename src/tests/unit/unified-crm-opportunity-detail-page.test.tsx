@@ -1,0 +1,214 @@
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { AuthenticatedUser } from "@/server/auth/store";
+
+const mocks = vi.hoisted(() => ({
+  getUnifiedCrmOpportunityDetail: vi.fn(),
+  requireCurrentUser: vi.fn(),
+  requireUnifiedCrmOpportunityDetailAccess: vi.fn(),
+  resolveUnifiedCrmShellAccess: vi.fn()
+}));
+
+vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: mocks.requireCurrentUser }));
+vi.mock("@/server/services/unified-crm-opportunity-detail-service", () => ({ getUnifiedCrmOpportunityDetail: mocks.getUnifiedCrmOpportunityDetail }));
+vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifiedCrmOpportunityDetailAccess: mocks.requireUnifiedCrmOpportunityDetailAccess }));
+vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
+import OpportunityPage from "@/app/(app)/crm/opportunities/[opportunityId]/page";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
+
+const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.test", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
+
+function detailFixture() {
+  return {
+    contractVersion: "ucrm.opportunity-detail/v1",
+    state: "HELD",
+    generatedAt: "2026-08-14T18:00:00.000Z",
+    requestedOpportunityId: "review01",
+    visibility: "organization",
+    source: { authority: "UNIFIED_CRM", href: "/crm?view=pipeline", label: "Unified CRM opportunity foundation", observedAt: "2026-08-14T18:00:00.000Z", readMode: "HELD_REVIEW" },
+    freshness: { status: "CURRENT", observedAt: "2026-08-14T18:00:00.000Z", sourceRecordUpdatedAt: null },
+    identity: { lifecycleStatus: "HELD", ownerScopeLabel: "Organization review scope", title: "Opportunity detail review" },
+    summary: { customer: "Held", dueState: "Held", nextAction: "Held", owner: "Held" },
+    customerContext: null,
+    lifecycle: { allowedNextStages: [], nextActionDueAt: null, nextActionLabel: null, stage: "HELD", terminal: false, transitionHref: null, version: null },
+    stageHistory: [],
+    taskActivity: {
+      createTaskHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Task creation is held for this fixture."
+    },
+    appointmentActivity: {
+      createAppointmentHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Appointment creation is held for this fixture."
+    },
+    dispatchActivity: {
+      createDispatchHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Dispatch linking is held for this fixture."
+    },
+    sourceBridge: { label: "Lead bridge", state: "HELD", detail: "Held" },
+    relatedRecordsObservation: { detail: "Held", freshnessLabel: "Held", newestVisibleRecordUpdatedAt: null, state: "EMPTY", visibleRecordCount: 0 },
+    relatedRecords: [],
+    workBridges: [],
+    nextUnlocks: ["Unlock"]
+  };
+}
+
+describe("Unified CRM opportunity detail page", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireCurrentUser.mockResolvedValue(actor);
+    mocks.requireUnifiedCrmOpportunityDetailAccess.mockResolvedValue({ recordScope: { kind: "ORGANIZATION" }, organizationId: "org-a" });
+    mocks.resolveUnifiedCrmShellAccess.mockReturnValue({ allowed: true, mode: "REVIEW", reason: "ALLOWED", fallbackHref: "/manager-workspace" });
+    mocks.getUnifiedCrmOpportunityDetail.mockResolvedValue(detailFixture());
+  });
+
+  it("loads an exact opportunity and preserves only a safe Pipeline return", async () => {
+    const markup = renderToStaticMarkup(await OpportunityPage({ params: Promise.resolve({ opportunityId: "review01" }), searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" }) }));
+    expect(mocks.getUnifiedCrmOpportunityDetail).toHaveBeenCalledWith(actor, "review01", expect.objectContaining({ accessContext: expect.any(Object) }));
+    expect(markup).toContain('href="/crm?view=pipeline"');
+  });
+
+  it("preserves a safe CRM customer-detail return when detail review is opened from customer context", async () => {
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "review01" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex" })
+    }));
+
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"');
+    expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex">Open pipeline source review');
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+  });
+
+  it("preserves one safe customer return when persisted read-only detail is loaded", async () => {
+    mocks.getUnifiedCrmOpportunityDetail.mockResolvedValue({
+      ...detailFixture(),
+      state: "READY",
+      requestedOpportunityId: "opp_123456",
+      source: {
+        ...detailFixture().source,
+        label: "Unified CRM opportunity record",
+        readMode: "LIVE_READ_ONLY"
+      },
+      identity: {
+        ...detailFixture().identity,
+        lifecycleStatus: "READ_ONLY",
+        title: "Alex Morgan renewal review"
+      },
+      freshness: {
+        ...detailFixture().freshness,
+        sourceRecordUpdatedAt: "2026-08-14T17:30:00.000Z"
+      }
+    });
+
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "opp_123456" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex" })
+    }));
+
+    expect(markup).toContain("Unified CRM opportunity record");
+    expect(markup).toContain("Latest visible source update");
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"');
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
+
+  it("rejects external, protocol-relative, wrong-view, and unknown return parameters", () => {
+    for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
+    }
+  });
+
+  it("accepts only safe CRM customer-detail return parameters", () => {
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
+    );
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+    );
+  });
+
+  it("does not read or serialize detail when the CRM shell is off", async () => {
+    mocks.resolveUnifiedCrmShellAccess.mockReturnValue({ allowed: false, mode: "OFF", reason: "SHELL_OFF", fallbackHref: "/manager-workspace" });
+    const markup = renderToStaticMarkup(await OpportunityPage({ params: Promise.resolve({ opportunityId: "secret-review" }), searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" }) }));
+    expect(markup).toContain("Unified CRM is turned off");
+    expect(mocks.getUnifiedCrmOpportunityDetail).not.toHaveBeenCalled();
+    expect(markup).not.toContain("secret-review");
+  });
+
+  it("does not invoke the detail service when the full opportunity guard rejects", async () => {
+    mocks.requireUnifiedCrmOpportunityDetailAccess.mockRejectedValue(Object.assign(new Error("private feature detail"), { code: "OPPORTUNITY_OFF" }));
+    const markup = renderToStaticMarkup(await OpportunityPage({ params: Promise.resolve({ opportunityId: "held-review" }), searchParams: Promise.resolve({}) }));
+    expect(markup).toContain("Opportunity detail is temporarily unavailable");
+    expect(mocks.getUnifiedCrmOpportunityDetail).not.toHaveBeenCalled();
+    expect(markup).not.toContain("held-review");
+    expect(markup).not.toContain("private feature detail");
+  });
+
+  it.each([
+    ["INVALID_OPPORTUNITY_ID", "Opportunity detail isn’t available"],
+    ["OPPORTUNITY_NOT_AUTHORIZED", "Opportunity detail isn’t available to you"],
+    ["ORGANIZATION_SCOPE_AMBIGUOUS", "Opportunity detail is temporarily unavailable"]
+  ])("maps %s to a safe state without echoing the route id or backend message", async (code, expectedTitle) => {
+    mocks.requireUnifiedCrmOpportunityDetailAccess.mockRejectedValue(
+      Object.assign(new Error(`backend ${code} for private-review-id`), { code })
+    );
+
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "private-review-id" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    expect(markup).toContain(expectedTitle);
+    expect(mocks.getUnifiedCrmOpportunityDetail).not.toHaveBeenCalled();
+    expect(markup).not.toContain("private-review-id");
+    expect(markup).not.toContain(`backend ${code}`);
+  });
+
+  it.each([
+    ["OPPORTUNITY_DETAIL_NOT_FOUND", "Opportunity detail isn’t available"],
+    ["OPPORTUNITY_DETAIL_SOURCE_UNAVAILABLE", "Opportunity detail is temporarily unavailable"]
+  ])("maps persisted-read %s without enumerating the record or leaking backend text", async (code, expectedTitle) => {
+    mocks.getUnifiedCrmOpportunityDetail.mockRejectedValue(
+      Object.assign(new Error(`postgres secret for private-opportunity`), { code })
+    );
+
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "private-opportunity" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    expect(markup).toContain(expectedTitle);
+    expect(mocks.getUnifiedCrmOpportunityDetail).toHaveBeenCalledOnce();
+    expect(markup).not.toContain("private-opportunity");
+    expect(markup).not.toContain("postgres secret");
+  });
+
+  it("renders byte-equivalent not-available output for invalid and missing persisted opportunity ids", async () => {
+    mocks.getUnifiedCrmOpportunityDetail.mockRejectedValueOnce(
+      Object.assign(new Error("invalid private id"), { code: "INVALID_OPPORTUNITY_ID" })
+    );
+    const invalidMarkup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "invalid-private-id" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    mocks.getUnifiedCrmOpportunityDetail.mockRejectedValueOnce(
+      Object.assign(new Error("missing private id"), { code: "OPPORTUNITY_DETAIL_NOT_FOUND" })
+    );
+    const missingMarkup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "missing-private-id" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    expect(missingMarkup).toBe(invalidMarkup);
+    expect(missingMarkup).not.toContain("private-id");
+  });
+});

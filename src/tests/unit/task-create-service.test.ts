@@ -252,8 +252,9 @@ describe("task create service", () => {
         assignedUserId: assignee?.id,
         boardDayId: "board-day-1",
         checklistItems: expect.arrayContaining([
-          expect.objectContaining({ key: "customer_1" }),
-          expect.objectContaining({ key: "customer_6" })
+          expect.objectContaining({ key: "sales_1" }),
+          expect.objectContaining({ key: "sales_6" }),
+          expect.objectContaining({ key: "sales_subtask_customer" })
         ]),
         sourceType: TaskSourceType.MANAGER,
         priority: "HIGH",
@@ -311,6 +312,77 @@ describe("task create service", () => {
       )
     ).rejects.toThrow("Task creation requires a due time.");
     expect(readTasks()).toHaveLength(0);
+  });
+
+  it("converts customer-facing repair workbook updates into Service Advisor tasks with linked shop work", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const assignee = usersByEmail.get("morgan.manager@local.test");
+    const { repository, readActivityEvents, readTasks } = createTaskCreateRepositoryHarness(
+      [...usersByEmail.values()].map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isActive: user.isActive
+      }))
+    );
+
+    const result = await createManualTask(
+      managerUser,
+      {
+        assignedUserId: assignee?.id,
+        boardDate: "2026-09-01",
+        conversionContext: {
+          category: "CUSTOMER",
+          originText: "Customer wants us to check brakes and everything else that is not okay and advise.",
+          sourceId: "quick-1",
+          sourceKind: "COO_WORKBOOK_QUICK_UPDATE"
+        },
+        description: "Converted from COO Workbook Quick Update. Customer wants us to check brakes and everything else that is not okay and advise.",
+        dueAt: "2026-09-01T22:00:00.000Z",
+        intakeMetadata: {
+          channel: "COO Workbook",
+          expectedOutcome: "The converted workbook item has a clear owner, next update, and completion result for the daily report trail.",
+          intakeType: "Quick Task",
+          requiredUpdates: ["Record the outcome or blocker before end of day."]
+        },
+        priority: "MEDIUM",
+        requiresManagerApproval: false,
+        title: "Abdirisaak Mahdi - 2018 Ford Fusion - Shop ticket - repairs",
+        workflowArea: WorkflowArea.GENERAL_MANAGER
+      },
+      repository
+    );
+
+    expect(result.workflowArea).toBe(WorkflowArea.SERVICE_ADVISOR);
+    expect(readTasks()[0]).toMatchObject({
+      workflowArea: WorkflowArea.SERVICE_ADVISOR,
+      conversionContract: expect.objectContaining({
+        selectedWorkflowArea: WorkflowArea.SERVICE_ADVISOR,
+        suggestedWorkflowArea: WorkflowArea.SERVICE_ADVISOR,
+        linkedWorkflowAreas: [WorkflowArea.SHOP]
+      }),
+      checklistItems: expect.arrayContaining([
+        expect.objectContaining({
+          key: "service_advisor_1",
+          kind: "DEFINITION_OF_DONE"
+        }),
+        expect.objectContaining({
+          key: "service_advisor_subtask_context",
+          kind: "SUBTASK"
+        }),
+        expect.objectContaining({
+          key: "conversion_linked_shop_child_task",
+          label: "Create or open the linked Shop & Recon task for inspection, diagnosis, parts, repair, or QC"
+        })
+      ])
+    });
+    expect(readActivityEvents()[0].metadata).toMatchObject({
+      workflowArea: WorkflowArea.SERVICE_ADVISOR,
+      conversionContract: expect.objectContaining({
+        executionIntent: "CUSTOMER_ADVISOR_FOLLOW_UP"
+      })
+    });
   });
 
   it("rejects task creation without a title and does not persist a task", async () => {

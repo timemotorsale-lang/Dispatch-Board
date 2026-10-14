@@ -25,6 +25,7 @@ export type { GenerationTasksRepository } from "@/server/repositories/generation
 
 export type CreateMissingGeneratedTasksOptions = {
   createdByUserId?: string | null;
+  selectedCandidateKeys?: string[];
   triggeredBy?: GenerationTriggerType | "manual" | "scheduled";
   triggeredByUserId?: string | null;
 };
@@ -110,7 +111,42 @@ export type GenerationRunSummary = Pick<
 };
 
 type GeneratedTaskCandidate = CreateGeneratedTaskInput & {
+  candidateKey: string;
   identityKey: string;
+};
+
+export type BoardGenerationPreviewTier = "MUST_TODAY" | "SHOULD_TODAY" | "UPCOMING" | "MONITOR";
+
+export type BoardGenerationPreviewItem = {
+  candidateKey: string;
+  title: string;
+  description: string;
+  assignedUserId: string;
+  assignedUserName: string;
+  dueAt: string;
+  priority: GeneratedTaskCandidate["priority"];
+  workflowArea: WorkflowArea;
+  requiresManagerApproval: boolean;
+  tier: BoardGenerationPreviewTier;
+  recommended: boolean;
+};
+
+export type BoardGenerationPreview = {
+  boardDate: string;
+  totalCandidates: number;
+  existingTaskCount: number;
+  publishableCandidateCount: number;
+  recommendedTaskCount: number;
+  deferredTaskCount: number;
+  teamFocusLimit: number;
+  perPersonFocusLimit: number;
+  items: BoardGenerationPreviewItem[];
+  warnings: GenerationInputWarning[];
+};
+
+export type PreviewBoardGenerationDependencies = {
+  repository?: GenerationTasksRepository;
+  loadGenerationInputs?: (boardDate: string) => Promise<GenerationInput>;
 };
 
 type RecommendationDetails = {
@@ -145,6 +181,10 @@ type GenerationFailureSummary = {
 
 function buildGeneratedTaskIdentityKey(boardDayId: string, sourceTemplateId: string, assignedUserId: string) {
   return `${boardDayId}:${sourceTemplateId}:${assignedUserId}`;
+}
+
+function buildCandidateKey(sourceTemplateId: string, assignedUserId: string) {
+  return `${sourceTemplateId}:${assignedUserId}`;
 }
 
 function buildTemplateSnapshot(template: GenerationInput["users"][number]["templates"][number]) {
@@ -448,6 +488,7 @@ function buildGeneratedTaskCandidates(
       const recommendation = buildRecommendationDetails(user, template);
 
       return {
+        candidateKey: buildCandidateKey(template.templateId, user.userId),
         identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
         boardDayId,
         title: template.title,
@@ -467,6 +508,114 @@ function buildGeneratedTaskCandidates(
       };
     })
   );
+}
+
+function getPreviewTier(priority: GeneratedTaskCandidate["priority"]): BoardGenerationPreviewTier {
+  if (priority === "CRITICAL") return "MUST_TODAY";
+  if (priority === "HIGH") return "SHOULD_TODAY";
+  if (priority === "MEDIUM") return "UPCOMING";
+  return "MONITOR";
+}
+
+const previewTierRank: Record<BoardGenerationPreviewTier, number> = {
+  MUST_TODAY: 0,
+  SHOULD_TODAY: 1,
+  UPCOMING: 2,
+  MONITOR: 3
+};
+
+export async function previewBoardGenerationForDate(
+  boardDate: string,
+  dependencies: PreviewBoardGenerationDependencies = {}
+): Promise<BoardGenerationPreview> {
+  const normalizedBoardDate = normalizeBoardDate(boardDate);
+  const repository = dependencies.repository ?? createGenerationTasksRepository();
+  const loadGenerationInputs = dependencies.loadGenerationInputs ?? loadGenerationInputsForDate;
+  const generationInput = await loadGenerationInputs(normalizedBoardDate);
+  const boardDay = repository.findBoardDay
+    ? await repository.findBoardDay(normalizedBoardDate)
+    : null;
+  const previewBoardDayId = boardDay?.id ?? "preview";
+  const candidates = buildGeneratedTaskCandidates(
+    normalizedBoardDate,
+    previewBoardDayId,
+    generationInput,
+    {}
+  );
+  const existingCandidateKeys = new Set<string>();
+
+  if (boardDay) {
+    for (const task of await repository.listExistingGeneratedTasks(boardDay.id)) {
+      if (task.sourceTemplateId) {
+        existingCandidateKeys.add(buildCandidateKey(task.sourceTemplateId, task.assignedUserId));
+      }
+    }
+  }
+
+  const availableCandidates = candidates
+    .filter((candidate) => !existingCandidateKeys.has(candidate.candidateKey))
+    .map((candidate) => {
+      const user = generationInput.users.find((entry) => entry.userId === candidate.assignedUserId);
+      return {
+        candidate,
+        assignedUserName: user?.userName ?? "Unassigned",
+        tier: getPreviewTier(candidate.priority)
+      };
+    })
+    .sort(
+      (left, right) =>
+        previewTierRank[left.tier] - previewTierRank[right.tier] ||
+        left.candidate.dueAt.getTime() - right.candidate.dueAt.getTime() ||
+        left.assignedUserName.localeCompare(right.assignedUserName) ||
+        left.candidate.title.localeCompare(right.candidate.title)
+    );
+
+  const teamFocusLimit = 15;
+  const perPersonFocusLimit = 6;
+  const recommendedKeys = new Set<string>();
+  const perPersonCounts = new Map<string, number>();
+
+  for (const entry of availableCandidates) {
+    const isMustToday = entry.tier === "MUST_TODAY";
+    const personCount = perPersonCounts.get(entry.candidate.assignedUserId) ?? 0;
+    const hasCapacity = recommendedKeys.size < teamFocusLimit && personCount < perPersonFocusLimit;
+
+    if (!isMustToday && (!hasCapacity || entry.tier === "MONITOR")) {
+      continue;
+    }
+
+    recommendedKeys.add(entry.candidate.candidateKey);
+    perPersonCounts.set(entry.candidate.assignedUserId, personCount + 1);
+  }
+
+  const items: BoardGenerationPreviewItem[] = availableCandidates.map(
+    ({ candidate, assignedUserName, tier }) => ({
+      candidateKey: candidate.candidateKey,
+      title: candidate.title,
+      description: candidate.description,
+      assignedUserId: candidate.assignedUserId,
+      assignedUserName,
+      dueAt: candidate.dueAt.toISOString(),
+      priority: candidate.priority,
+      workflowArea: candidate.workflowArea,
+      requiresManagerApproval: candidate.requiresManagerApproval,
+      tier,
+      recommended: recommendedKeys.has(candidate.candidateKey)
+    })
+  );
+
+  return {
+    boardDate: normalizedBoardDate,
+    totalCandidates: candidates.length,
+    existingTaskCount: existingCandidateKeys.size,
+    publishableCandidateCount: items.length,
+    recommendedTaskCount: recommendedKeys.size,
+    deferredTaskCount: items.length - recommendedKeys.size,
+    teamFocusLimit,
+    perPersonFocusLimit,
+    items,
+    warnings: generationInput.warnings
+  };
 }
 
 function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGeneratedTaskReference {
@@ -535,14 +684,20 @@ export async function createMissingGeneratedTasksForDate(
     }
 
     phase = "building_candidates";
-    const taskCandidates = buildGeneratedTaskCandidates(
+    const allTaskCandidates = buildGeneratedTaskCandidates(
       normalizedBoardDate,
       boardDay.id,
       generationInput,
       options
     );
+    const selectedCandidateKeys = options.selectedCandidateKeys
+      ? new Set(options.selectedCandidateKeys)
+      : null;
+    const taskCandidates = selectedCandidateKeys
+      ? allTaskCandidates.filter((candidate) => selectedCandidateKeys.has(candidate.candidateKey))
+      : allTaskCandidates;
 
-    templatesConsidered = taskCandidates.length;
+    templatesConsidered = allTaskCandidates.length;
     phase = "loading_existing_tasks";
     const existingTaskKeys = new Set(
       (await repository.listExistingGeneratedTasks(boardDay.id))

@@ -1,6 +1,7 @@
 "use client";
-import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { type TaskChecklistItemKindValue } from "@/lib/task-checklist-kind";
 import type {
@@ -19,9 +20,20 @@ type TaskChecklistItemResponse = {
   error?: string;
 } | null;
 
+type TaskSubtaskExpandResponse = {
+  task?: {
+    id: string;
+    href: string;
+    title: string;
+  };
+  error?: string;
+} | null;
+
 type TaskExecutionChecklistCardProps = {
   allowCreate?: boolean;
   allowDelete?: boolean;
+  allowExpandToTask?: boolean;
+  allowToggle?: boolean;
   createPlaceholder?: string;
   embedded?: boolean;
   initialItems: ExecutionChecklistItem[];
@@ -31,9 +43,33 @@ type TaskExecutionChecklistCardProps = {
   title: string;
 };
 
+function normalizeChecklistLabelForView(label: string) {
+  return label.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function dedupeChecklistItems(items: ExecutionChecklistItem[]) {
+  const byLabel = new Map<string, ExecutionChecklistItem>();
+
+  for (const item of items) {
+    const key = normalizeChecklistLabelForView(item.label);
+    const existingItem = byLabel.get(key);
+
+    if (!existingItem || item.completed) {
+      byLabel.set(key, {
+        ...item,
+        completed: existingItem?.completed || item.completed
+      });
+    }
+  }
+
+  return Array.from(byLabel.values());
+}
+
 export function TaskExecutionChecklistCard({
   allowCreate = false,
   allowDelete = false,
+  allowExpandToTask = false,
+  allowToggle = true,
   createPlaceholder = "Add item",
   embedded = false,
   initialItems,
@@ -42,34 +78,57 @@ export function TaskExecutionChecklistCard({
   taskId,
   title
 }: TaskExecutionChecklistCardProps) {
-  const [items, setItems] = useState(initialItems);
+  const router = useRouter();
+  const [items, setItems] = useState(() => dedupeChecklistItems(initialItems));
   const [draftLabel, setDraftLabel] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  async function toggleItem(itemId: string, completed: boolean) {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- checklist rows are a local editable projection of refreshed server props.
+    setItems(dedupeChecklistItems(initialItems));
+  }, [initialItems]);
+
+  function isTransientItemId(itemId: string) {
+    return itemId.includes("-adaptive-") || itemId.includes("-template-") || itemId.includes("-subtask-");
+  }
+
+  async function ensurePersistedItem(item: ExecutionChecklistItem) {
+    if (!isTransientItemId(item.id)) {
+      return item.id;
+    }
+
+    const createResponse = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/checklist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, label: item.label })
+    });
+    const createResult = (await createResponse.json().catch(() => null)) as TaskChecklistItemResponse;
+
+    if (!createResponse.ok || !createResult?.item) {
+      setErrorMessage(createResult?.error ?? "Unable to initialize this checklist item right now.");
+      return null;
+    }
+
+    const persistedItem = createResult.item;
+    setItems((currentItems) =>
+      currentItems.map((currentItem) =>
+        currentItem.id === item.id
+          ? { ...currentItem, id: persistedItem.id, completed: persistedItem.completed }
+          : currentItem
+      )
+    );
+
+    return persistedItem.id;
+  }
+
+  async function toggleItem(item: ExecutionChecklistItem) {
     setIsSaving(true);
     setErrorMessage(null);
 
     try {
-      let persistedItemId = itemId;
-
-      if (itemId.includes("-adaptive-") || itemId.includes("-template-") || itemId.includes("-subtask-")) {
-        const fallbackItem = items.find((item) => item.id === itemId);
-        const createResponse = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/checklist`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind, label: fallbackItem?.label ?? "Checklist item" })
-        });
-        const createResult = (await createResponse.json().catch(() => null)) as TaskChecklistItemResponse;
-
-        if (!createResponse.ok || !createResult?.item) {
-          setErrorMessage(createResult?.error ?? "Unable to initialize this checklist item right now.");
-          return;
-        }
-
-        persistedItemId = createResult.item.id;
-      }
+      const persistedItemId = await ensurePersistedItem(item);
+      if (!persistedItemId) return;
 
       const response = await fetch(
         `/api/tasks/${encodeURIComponent(taskId)}/checklist/${encodeURIComponent(persistedItemId)}`,
@@ -79,7 +138,7 @@ export function TaskExecutionChecklistCard({
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            completed: !completed
+            completed: !item.completed
           })
         }
       );
@@ -92,7 +151,7 @@ export function TaskExecutionChecklistCard({
 
       setItems((currentItems) =>
         currentItems.map((item) =>
-          item.id === itemId ? { ...item, id: persistedItemId, completed: result.item?.completed ?? item.completed } : item
+          item.id === persistedItemId ? { ...item, completed: result.item?.completed ?? item.completed } : item
         )
       );
       onActivityChanged?.();
@@ -100,6 +159,35 @@ export function TaskExecutionChecklistCard({
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to update this checklist item right now."
       );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function expandItemToTask(item: ExecutionChecklistItem) {
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      const persistedItemId = await ensurePersistedItem(item);
+      if (!persistedItemId) return;
+
+      const response = await fetch(
+        `/api/tasks/${encodeURIComponent(taskId)}/checklist/${encodeURIComponent(persistedItemId)}/expand`,
+        { method: "POST" }
+      );
+      const result = (await response.json().catch(() => null)) as TaskSubtaskExpandResponse;
+
+      if (!response.ok || !result?.task) {
+        setErrorMessage(result?.error ?? "Unable to open this subtask as a task right now.");
+        return;
+      }
+
+      const returnPath = `${window.location.pathname}${window.location.search}`;
+      const destination = `${result.task.href}&returnTo=${encodeURIComponent(returnPath)}`;
+      router.push(destination);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to open this subtask as a task right now.");
     } finally {
       setIsSaving(false);
     }
@@ -195,23 +283,37 @@ export function TaskExecutionChecklistCard({
             <label>
               <input
                 checked={item.completed}
-                disabled={isSaving}
-                onChange={() => toggleItem(item.id, item.completed)}
+                disabled={isSaving || !allowToggle}
+                onChange={() => void toggleItem(item)}
                 type="checkbox"
               />
               <span>{item.label}</span>
             </label>
-            {allowDelete && !item.id.includes("-subtask-") ? (
-              <button
-                aria-label={`Delete subtask ${item.label}`}
-                className="task-workspace-subtask-delete"
-                disabled={isSaving}
-                onClick={() => void deleteItem(item)}
-                type="button"
-              >
-                <Trash2 aria-hidden="true" size={14} />
-              </button>
-            ) : null}
+            <div className="task-workspace-subtask-actions">
+              {allowExpandToTask ? (
+                <button
+                  aria-label={`Open subtask ${item.label} as a task`}
+                  className="task-workspace-subtask-open"
+                  disabled={isSaving}
+                  onClick={() => void expandItemToTask(item)}
+                  type="button"
+                >
+                  <ExternalLink aria-hidden="true" size={13} />
+                  <span>Open task</span>
+                </button>
+              ) : null}
+              {allowDelete && !isTransientItemId(item.id) ? (
+                <button
+                  aria-label={`Delete subtask ${item.label}`}
+                  className="task-workspace-subtask-delete"
+                  disabled={isSaving}
+                  onClick={() => void deleteItem(item)}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                </button>
+              ) : null}
+            </div>
           </div>
         ))}
       </div>

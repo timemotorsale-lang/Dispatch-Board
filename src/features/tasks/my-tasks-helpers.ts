@@ -16,7 +16,7 @@ export type MyTasksFilterOption = {
 };
 
 const MY_TASKS_FILTER_LABELS: Record<MyTasksFilter, string> = {
-  all: "Assigned today",
+  all: "My work today",
   open: "Open work",
   dueSoon: "Due soon",
   blockedWaiting: "Blocked / waiting",
@@ -25,7 +25,7 @@ const MY_TASKS_FILTER_LABELS: Record<MyTasksFilter, string> = {
 };
 
 export function getTasksAssignedToUser(tasks: BoardReadTask[], userId: string) {
-  return tasks.filter((task) => task.assignedUser.id === userId);
+  return tasks.filter((task) => task.assignedUser.id === userId || task.collaborators?.some((collaborator) => collaborator.id === userId));
 }
 
 function isCompleted(task: Pick<BoardReadTask, "status">) {

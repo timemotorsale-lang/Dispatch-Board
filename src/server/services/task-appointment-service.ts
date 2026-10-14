@@ -5,6 +5,7 @@ import {
   INITIAL_MINNEAPOLIS_LOCATION,
   INITIAL_ORGANIZATION
 } from "@/server/appointments/location-foundation";
+import { locationLocalDateMinuteToInstant } from "@/server/appointments/location-time-service";
 import {
   createAppointmentPurposeSnapshot,
   getInitialAppointmentTemplateDefinition
@@ -48,8 +49,15 @@ type TaskAppointmentDraftDependencies = {
 };
 
 type NormalizedTaskAppointmentDraftInput = {
+  customerReference: string | null;
+  deliveryNotes: string | null;
+  durationMinutes: number | null;
+  localDate: string | null;
+  purposeCode: string | null;
   title: string | null;
+  startTime: string | null;
   reasonNotes: string;
+  vehicleReference: string | null;
   idempotencyKey: string | null;
 };
 
@@ -103,6 +111,56 @@ function requiredText(value: unknown, label: string, maximumLength: number) {
   return normalized;
 }
 
+function optionalPositiveInteger(value: unknown, label: string, maximum: number) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const normalizedValue = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+
+  if (!Number.isInteger(normalizedValue) || normalizedValue <= 0 || normalizedValue > maximum) {
+    throw new Error(`${label} must be a whole number between 1 and ${maximum}.`);
+  }
+
+  return normalizedValue;
+}
+
+function optionalLocalDate(value: unknown, label: string) {
+  const normalizedValue = optionalText(value, label, 10);
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    throw new Error(`${label} must use YYYY-MM-DD.`);
+  }
+
+  return normalizedValue;
+}
+
+function optionalLocalTime(value: unknown, label: string) {
+  const normalizedValue = optionalText(value, label, 5);
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (!/^\d{2}:\d{2}$/.test(normalizedValue)) {
+    throw new Error(`${label} must use HH:MM.`);
+  }
+
+  const [hourText, minuteText] = normalizedValue.split(":");
+  const hour = Number.parseInt(hourText ?? "", 10);
+  const minute = Number.parseInt(minuteText ?? "", 10);
+
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    throw new Error(`${label} must be a valid local time.`);
+  }
+
+  return normalizedValue;
+}
+
 function normalizeTaskAppointmentDraftInput(
   input: unknown
 ): NormalizedTaskAppointmentDraftInput {
@@ -111,8 +169,15 @@ function normalizeTaskAppointmentDraftInput(
   }
 
   return {
+    customerReference: optionalText(input.customerReference, "Task appointment customer", 180),
+    deliveryNotes: optionalText(input.deliveryNotes, "Task appointment delivery notes", 600),
+    durationMinutes: optionalPositiveInteger(input.durationMinutes, "Task appointment duration", 480),
+    localDate: optionalLocalDate(input.localDate, "Task appointment local date"),
+    purposeCode: optionalText(input.purposeCode, "Task appointment purpose code", 96),
     title: optionalText(input.title, "Task appointment title", 160),
+    startTime: optionalLocalTime(input.startTime, "Task appointment start time"),
     reasonNotes: requiredText(input.reasonNotes, "Task appointment reason", 1200),
+    vehicleReference: optionalText(input.vehicleReference, "Task appointment vehicle", 220),
     idempotencyKey: optionalText(input.idempotencyKey, "Task appointment idempotency key", 160)
   };
 }
@@ -155,12 +220,44 @@ function buildDraftTitle(input: NormalizedTaskAppointmentDraftInput, task: TaskR
   return input.title ?? `Appointment for ${task.title}`;
 }
 
+function minuteOfDayFromLocalTime(localTime: string) {
+  const [hourText, minuteText] = localTime.split(":");
+  return Number.parseInt(hourText ?? "0", 10) * 60 + Number.parseInt(minuteText ?? "0", 10);
+}
+
+function buildRequestedScheduleWindow(input: NormalizedTaskAppointmentDraftInput) {
+  if (!input.localDate || !input.startTime) {
+    return {
+      startsAt: null,
+      endsAt: null
+    };
+  }
+
+  const durationMinutes = input.durationMinutes ?? 60;
+  const startMinute = minuteOfDayFromLocalTime(input.startTime);
+  const startsAt = locationLocalDateMinuteToInstant({
+    localDate: input.localDate,
+    minuteOfDay: startMinute,
+    timezone: INITIAL_MINNEAPOLIS_LOCATION.timezone
+  });
+  const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+
+  return {
+    startsAt,
+    endsAt
+  };
+}
+
 function buildPurposeSnapshot(input: {
+  purposeCode: string | null;
   task: TaskReadModel;
   reasonNotes: string;
   options: TaskAppointmentDraftOptions | undefined;
 }) {
-  const purposeCode = input.options?.purposeCode?.trim().toUpperCase() ?? null;
+  const purposeCode =
+    input.purposeCode?.trim().toUpperCase() ??
+    input.options?.purposeCode?.trim().toUpperCase() ??
+    null;
   const template = purposeCode ? getInitialAppointmentTemplateDefinition(purposeCode) : null;
 
   if (template) {
@@ -221,6 +318,7 @@ export async function createAppointmentDraftFromTask(
   const ownerUserId = getAppointmentOwnerUserId({ actor, task });
   const appointmentNumber = createAppointmentNumber(now);
   const title = buildDraftTitle(normalizedInput, task);
+  const requestedScheduleWindow = buildRequestedScheduleWindow(normalizedInput);
   const idempotencyKey =
     normalizedInput.idempotencyKey ??
     createCommandIdentifier({
@@ -244,23 +342,24 @@ export async function createAppointmentDraftFromTask(
         title,
         sourceType: dependencies.draftOptions?.sourceType ?? "TASK",
         sourceReference: task.id,
-        startsAt: null,
-        endsAt: null,
+          startsAt: requestedScheduleWindow.startsAt,
+          endsAt: requestedScheduleWindow.endsAt,
         schedulingTimezone: INITIAL_MINNEAPOLIS_LOCATION.timezone,
         purposeSnapshot: buildPurposeSnapshot({
+          purposeCode: normalizedInput.purposeCode,
           task,
           reasonNotes: normalizedInput.reasonNotes,
           options: dependencies.draftOptions
         }),
-        customerSnapshot: task.customerReference
+        customerSnapshot: (normalizedInput.customerReference ?? task.customerReference)
           ? {
-              displayName: task.customerReference
+              displayName: normalizedInput.customerReference ?? task.customerReference
             }
           : null,
-        vehicleSnapshot: task.vehicleReference
+        vehicleSnapshot: (normalizedInput.vehicleReference ?? task.vehicleReference)
           ? {
-              displayName: task.vehicleReference,
-              vehicleNumber: task.vehicleReference
+              displayName: normalizedInput.vehicleReference ?? task.vehicleReference,
+              vehicleNumber: normalizedInput.vehicleReference ?? task.vehicleReference
             }
           : null,
         sourceSnapshot: {
@@ -271,7 +370,13 @@ export async function createAppointmentDraftFromTask(
           boardDate: task.boardDate,
           assignedUserId: task.assignedUser.id,
           assignedUserName: task.assignedUser.name,
+          customerReference: normalizedInput.customerReference ?? task.customerReference ?? null,
+          deliveryNotes: normalizedInput.deliveryNotes,
+          durationMinutes: normalizedInput.durationMinutes,
+          requestedLocalDate: normalizedInput.localDate,
+          requestedStartTime: normalizedInput.startTime,
           reasonNotes: normalizedInput.reasonNotes,
+          vehicleReference: normalizedInput.vehicleReference ?? task.vehicleReference ?? null,
           automationRuleCode: dependencies.draftOptions?.automationRuleCode ?? null,
           automationRuleVersion: dependencies.draftOptions?.automationRuleVersion ?? null,
           triggerCode: dependencies.draftOptions?.triggerCode ?? null

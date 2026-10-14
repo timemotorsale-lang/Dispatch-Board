@@ -1,0 +1,57 @@
+"use client";
+
+import { useState } from "react";
+
+type BridgeState = "idle" | "creating" | "created" | "error";
+
+export function CrmNextTaskBridgeControl({ attentionItemId, enabled }: { attentionItemId: string; enabled: boolean }) {
+  const [state, setState] = useState<BridgeState>("idle");
+  const [message, setMessage] = useState("");
+  const [taskHref, setTaskHref] = useState("");
+
+  async function createTask() {
+    setState("creating");
+    setMessage("");
+    setTaskHref("");
+
+    const response = await fetch("/api/crm-next/action-bridge", {
+      body: JSON.stringify({
+        attentionItemId,
+        idempotencyKey: `crm-next-${attentionItemId}-${Date.now()}`,
+        operation: "CREATE_DISPATCH_TASK"
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => null) as { error?: string; reason?: string; task?: { id?: string; title?: string } } | null;
+
+    if (!response.ok || !payload?.task?.id) {
+      setState("error");
+      setMessage(payload?.error ?? "Customer Console could not create the Dispatch handoff.");
+      return;
+    }
+
+    setState("created");
+    setMessage(payload.reason ?? `Created Dispatch handoff: ${payload.task.title ?? "Customer follow-up"}.`);
+    setTaskHref(`/tasks/${encodeURIComponent(payload.task.id)}`);
+  }
+
+  if (!enabled) {
+    return (
+      <div className="crm-next-bridge-control" data-state="held">
+        <strong>Dispatch handoff is not available right now.</strong>
+        <span>Keep ordinary customer follow-ups as CRM tasks unless operations must execute work.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="crm-next-bridge-control" data-state={state}>
+      <button disabled={state === "creating" || state === "created"} onClick={() => void createTask()} type="button">
+        {state === "creating" ? "Creating Dispatch handoff..." : state === "created" ? "Dispatch handoff created" : "Create Dispatch handoff"}
+      </button>
+      {message ? <span role={state === "error" ? "alert" : "status"}>{message}</span> : <span>Creates an operational Dispatch task assigned to the right work queue.</span>}
+      {taskHref ? <a href={taskHref}>Open Dispatch task</a> : null}
+    </div>
+  );
+}

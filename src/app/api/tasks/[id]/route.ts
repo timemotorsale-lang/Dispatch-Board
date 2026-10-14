@@ -36,6 +36,7 @@ function getTaskReadErrorStatus(message: string) {
     message === "Task metadata updates require customerReference to be a string when provided." ||
     message === "Task title is required." ||
     message.startsWith("Task metadata title must be ") ||
+    message === "Task metadata updates require workflowArea to be a valid execution path." ||
     message.startsWith("Task metadata description must be ") ||
     message.startsWith("Task metadata vehicleReference must be ") ||
     message.startsWith("Task metadata customerReference must be ") ||

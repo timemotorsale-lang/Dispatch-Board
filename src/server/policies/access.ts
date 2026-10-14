@@ -34,6 +34,17 @@ export function isGeneralManager(user: AuthenticatedUser | null) {
   return user.roles.includes(GENERAL_MANAGER_ROLE_NAME);
 }
 
+export function isAppointmentCoordinator(user: AuthenticatedUser | null) {
+  if (!user) {
+    return false;
+  }
+
+  return user.roles.includes("Service Advisor") ||
+    user.roles.includes("Operations Coordinator") ||
+    user.roles.includes("Front Desk Operations Coordinator") ||
+    (user.roles.includes("Office Manager") && user.roles.includes("Marketing/Advertisement Manager"));
+}
+
 export function canGrantManagerPowers(user: AuthenticatedUser | null) {
   return isGeneralManager(user);
 }
@@ -91,12 +102,14 @@ export function canCreateAppointment(input: AppointmentPermissionInput) {
 
   const managerAtLocation =
     isManager(input.actor) && input.locationAccess.canManageAppointments;
+  const coordinatorAtLocation =
+    isAppointmentCoordinator(input.actor) && input.locationAccess.canManageAppointments;
   const eligibleOwner =
     input.ownerUserId === input.actor.id &&
     input.locationAccess.canOwnAppointments &&
     input.locationAccess.canParticipate;
 
-  return managerAtLocation || eligibleOwner;
+  return managerAtLocation || coordinatorAtLocation || eligibleOwner;
 }
 
 export function canMutateAppointment(input: AppointmentPermissionInput) {
@@ -106,12 +119,14 @@ export function canMutateAppointment(input: AppointmentPermissionInput) {
 
   const managerAtLocation =
     isManager(input.actor) && input.locationAccess.canManageAppointments;
+  const coordinatorAtLocation =
+    isAppointmentCoordinator(input.actor) && input.locationAccess.canManageAppointments;
   const eligibleOwner =
     input.ownerUserId === input.actor.id &&
     input.locationAccess.canOwnAppointments &&
     input.locationAccess.canParticipate;
 
-  return managerAtLocation || eligibleOwner;
+  return managerAtLocation || coordinatorAtLocation || eligibleOwner;
 }
 
 export type AppointmentLocationManagerPermissionInput = {

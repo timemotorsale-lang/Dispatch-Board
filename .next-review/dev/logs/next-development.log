@@ -1,0 +1,14 @@
+{"timestamp":"00:00:17.247","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:17.247","source":"Server","level":"LOG","message":"  We detected TypeScript in your project and reconfigured your tsconfig.json file for you."}
+{"timestamp":"00:00:17.247","source":"Server","level":"LOG","message":"  The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:\n"}
+{"timestamp":"00:00:17.247","source":"Server","level":"LOG","message":"  \t- include was updated to add '.next-review/types/**/*.ts'"}
+{"timestamp":"00:00:17.247","source":"Server","level":"LOG","message":"  \t- include was updated to add '.next-review/dev/types/**/*.ts'"}
+{"timestamp":"00:00:17.247","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:19.874","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:23.651","source":"Server","level":"LOG","message":"○ Compiling /time-attendance ..."}
+{"timestamp":"00:03:23.957","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:03:46.729","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:04:15.483","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:04:28.126","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:04:36.262","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:04:40.988","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}

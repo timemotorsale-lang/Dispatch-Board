@@ -6,6 +6,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks/intake",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() })
 }));
 
@@ -24,9 +25,9 @@ describe("AppSidebar", () => {
       <AppSidebar compact={false} isOpen={false} onClose={() => undefined} onToggleCompact={() => undefined} user={user} />
     );
 
-    expect(markup).toContain("time-motor-sales-horizontal-reversed");
+    expect(markup).toContain("time-motor-sales-mark");
     expect(markup).toContain('aria-label="Collapse navigation"');
-    expect(markup).toContain("Task Intake");
+    expect(markup).toContain("TIME MOTOR SALES");
   });
 
   it("uses the official mark and icon-only navigation when collapsed", () => {
@@ -36,6 +37,6 @@ describe("AppSidebar", () => {
 
     expect(markup).toContain("time-motor-sales-mark");
     expect(markup).toContain('aria-label="Expand navigation"');
-    expect(markup).toContain('title="Task Intake"');
+    expect(markup).toContain('title="Time Motor Sales"');
   });
 });

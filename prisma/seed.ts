@@ -86,7 +86,7 @@ function buildStaffResourceCode(email: string) {
   return `STAFF-${normalizedLocalPart || "USER"}`;
 }
 
-async function main() {
+export async function seedDevelopmentData() {
   const defaultAppSettings = getDefaultAppSettings();
   const initialOrganization = getInitialOrganization();
   const initialLocation = getInitialMinneapolisLocation();
@@ -359,6 +359,12 @@ async function main() {
       const isGeneralManager = userDefinition.roleNames.some(
         (roleName) => roleName === "General Manager"
       );
+      const userRoleNames = new Set<string>(userDefinition.roleNames);
+      const isAppointmentCoordinator =
+        userRoleNames.has("Service Advisor") ||
+        userRoleNames.has("Operations Coordinator") ||
+        userRoleNames.has("Front Desk Operations Coordinator") ||
+        (userRoleNames.has("Office Manager") && userRoleNames.has("Marketing/Advertisement Manager"));
 
       await prisma.userLocationAccess.upsert({
         where: {
@@ -367,15 +373,21 @@ async function main() {
             locationId: location.id
           }
         },
-        update: {},
+        update: {
+          canViewSchedule: true,
+          canParticipate: true,
+          canOwnAppointments: true,
+          canManageAppointments: isGeneralManager || isAppointmentCoordinator,
+          canViewLimitedData: isGeneralManager || isAppointmentCoordinator
+        },
         create: {
           userId,
           locationId: location.id,
           canViewSchedule: true,
           canParticipate: true,
           canOwnAppointments: true,
-          canManageAppointments: isGeneralManager,
-          canViewLimitedData: isGeneralManager,
+          canManageAppointments: isGeneralManager || isAppointmentCoordinator,
+          canViewLimitedData: isGeneralManager || isAppointmentCoordinator,
           validFrom: new Date("2026-07-05T00:00:00.000Z"),
           validTo: null
         }
@@ -436,12 +448,20 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error("Seed failed.", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+const isDirectSeedRun = process.argv.some(
+  (argument) =>
+    argument.endsWith("prisma/seed.ts") ||
+    argument.endsWith("prisma\\seed.ts")
+);
+
+if (isDirectSeedRun) {
+  seedDevelopmentData()
+    .catch((error) => {
+      console.error("Seed failed.", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
 

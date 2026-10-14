@@ -1,8 +1,10 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 import {
   TASK_CHECKLIST_ITEM_KIND,
   type TaskChecklistItemKindValue
 } from "@/lib/task-checklist-kind";
+import { prisma } from "@/server/db/client";
 import { canUpdateAssignedWork } from "@/server/policies/access";
 import { createTaskChecklistRepository, type TaskChecklistItemRecord, type TaskChecklistRepository } from "@/server/repositories/task-checklist-repository";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
@@ -34,6 +36,24 @@ export type TaskChecklistSeedItem = {
   completed?: boolean;
   key?: string | null;
   required?: boolean;
+};
+
+type TaskSubtaskExpansionDatabase = Pick<PrismaClient, "task" | "taskChecklistItem">;
+
+const expandedTaskSelect = {
+  id: true,
+  title: true,
+  status: true,
+  dueAt: true
+} satisfies Prisma.TaskSelect;
+
+export type ExpandedTaskFromSubtaskModel = {
+  id: string;
+  title: string;
+  status: string;
+  dueAt: string;
+  href: string;
+  created: boolean;
 };
 
 function normalizeRequiredId(value: string, message: string) {
@@ -127,6 +147,24 @@ function buildChecklistUpdateMessage(
   return `${actorName} reopened a ${itemType} on ${taskTitle}: ${item.label}.`;
 }
 
+function normalizeChecklistLabelForMatch(label: string) {
+  return label.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function toExpandedTaskModel(
+  task: Prisma.TaskGetPayload<{ select: typeof expandedTaskSelect }>,
+  created: boolean
+): ExpandedTaskFromSubtaskModel {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    dueAt: task.dueAt.toISOString(),
+    href: `/tasks/${encodeURIComponent(task.id)}?view=simple`,
+    created
+  };
+}
+
 export async function listTaskChecklistItems(
   user: AuthenticatedUser | null,
   taskId: string,
@@ -151,6 +189,14 @@ export async function createTaskChecklistItem(
   const normalizedInput = normalizeTaskChecklistCreateInput(input);
   const task = await requireTaskForChecklist(repository, normalizedTaskId);
   const authenticatedUser = assertCanManageTaskChecklist(user, task);
+  const existingItems = await repository.listItemsForTask(normalizedTaskId, normalizedInput.kind);
+  const existingItem = existingItems.find((item) =>
+    normalizeChecklistLabelForMatch(item.label) === normalizeChecklistLabelForMatch(normalizedInput.label)
+  );
+
+  if (existingItem) {
+    return toTaskChecklistItemModel(existingItem);
+  }
 
   const item = await repository.createItem(normalizedTaskId, normalizedInput);
 
@@ -262,6 +308,162 @@ export async function deleteTaskSubtaskItem(
   return toTaskChecklistItemModel(deletedItem);
 }
 
+export async function expandTaskSubtaskToTask(
+  user: AuthenticatedUser | null,
+  taskId: string,
+  itemId: string,
+  database: TaskSubtaskExpansionDatabase = prisma
+) {
+  const normalizedTaskId = normalizeRequiredId(taskId, "Task id is required.");
+  const normalizedItemId = normalizeRequiredId(itemId, "Task checklist item id is required.");
+  const parentTask = await database.task.findUnique({
+    where: { id: normalizedTaskId },
+    select: {
+      id: true,
+      boardDayId: true,
+      title: true,
+      description: true,
+      assignedUserId: true,
+      createdByUserId: true,
+      requiresManagerApproval: true,
+      vehicleReference: true,
+      customerReference: true,
+      customerId: true,
+      vehicleId: true,
+      priority: true,
+      dueAt: true,
+      sourceType: true,
+      workflowArea: true,
+      collaborators: { select: { userId: true } }
+    }
+  });
+
+  if (!parentTask) {
+    throw new Error("Task not found.");
+  }
+
+  const authenticatedUser = assertCanManageTaskChecklist(user, parentTask);
+  const subtask = await database.taskChecklistItem.findFirst({
+    where: {
+      id: normalizedItemId,
+      taskId: normalizedTaskId
+    },
+    select: {
+      id: true,
+      kind: true,
+      label: true
+    }
+  });
+
+  if (!subtask) {
+    throw new Error("Task checklist item not found.");
+  }
+
+  if (subtask.kind !== TASK_CHECKLIST_ITEM_KIND.SUBTASK) {
+    throw new Error("Only subtasks can be expanded into task tickets.");
+  }
+
+  const existingTask = await database.task.findFirst({
+    where: {
+      boardDayId: parentTask.boardDayId,
+      templateSnapshot: {
+        path: ["expandedFromSubtaskId"],
+        equals: subtask.id
+      }
+    },
+    select: expandedTaskSelect
+  });
+
+  if (existingTask) {
+    return toExpandedTaskModel(existingTask, false);
+  }
+
+  const templateSnapshot: Prisma.InputJsonObject = {
+    source: "task_subtask_expansion",
+    expandedFromTaskId: parentTask.id,
+    expandedFromTaskTitle: parentTask.title,
+    expandedFromSubtaskId: subtask.id,
+    expandedFromSubtaskLabel: subtask.label,
+    version: 1
+  };
+  const description = [
+    `Expanded from subtask on ${parentTask.title}.`,
+    parentTask.description ? `Parent task context: ${parentTask.description}` : null
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const childTask = await database.task.create({
+    data: {
+      assignedUserId: parentTask.assignedUserId,
+      boardDayId: parentTask.boardDayId,
+      createdByUserId: authenticatedUser.id,
+      customerId: parentTask.customerId,
+      customerReference: parentTask.customerReference,
+      description,
+      dueAt: parentTask.dueAt,
+      priority: parentTask.priority,
+      requiresManagerApproval: parentTask.requiresManagerApproval,
+      sourceType: parentTask.sourceType,
+      status: TaskStatus.NOT_STARTED,
+      templateSnapshot,
+      title: subtask.label,
+      vehicleId: parentTask.vehicleId,
+      vehicleReference: parentTask.vehicleReference,
+      workflowArea: parentTask.workflowArea,
+      checklistItems: {
+        createMany: {
+          data: [
+            {
+              kind: TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE,
+              key: "confirm_subtask_scope",
+              label: "Confirm what needs to be done for this subtask.",
+              isRequired: true,
+              sortOrder: 0
+            },
+            {
+              kind: TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE,
+              key: "record_subtask_progress",
+              label: "Record the progress update before closing.",
+              isRequired: true,
+              sortOrder: 1
+            }
+          ]
+        }
+      }
+    },
+    select: expandedTaskSelect
+  });
+
+  await recordBoardActivityEvent({
+    boardDayId: parentTask.boardDayId,
+    actorUserId: authenticatedUser.id,
+    taskId: parentTask.id,
+    eventType: "task.subtask_expanded",
+    message: `${authenticatedUser.name} expanded a subtask into its own task ticket: ${subtask.label}.`,
+    metadata: {
+      childTaskId: childTask.id,
+      itemId: subtask.id,
+      label: subtask.label
+    }
+  });
+
+  await recordBoardActivityEvent({
+    boardDayId: parentTask.boardDayId,
+    actorUserId: authenticatedUser.id,
+    taskId: childTask.id,
+    eventType: "task.created_from_subtask",
+    message: `${authenticatedUser.name} created this task from a subtask on ${parentTask.title}.`,
+    metadata: {
+      parentTaskId: parentTask.id,
+      parentTaskTitle: parentTask.title,
+      sourceSubtaskId: subtask.id
+    }
+  });
+
+  return toExpandedTaskModel(childTask, true);
+}
+
 export async function seedTaskChecklistItems(
   taskId: string,
   items: TaskChecklistSeedItem[],
@@ -280,13 +482,18 @@ export async function seedTaskChecklistItems(
   }
 
   const createdItems: TaskChecklistItemModel[] = [];
+  const seededLabels = new Set<string>();
 
   for (const item of items) {
     const normalizedLabel = item.label.trim();
 
-    if (!normalizedLabel) {
+    const labelKey = normalizeChecklistLabelForMatch(normalizedLabel);
+
+    if (!normalizedLabel || seededLabels.has(`${item.kind}:${labelKey}`)) {
       continue;
     }
+
+    seededLabels.add(`${item.kind}:${labelKey}`);
 
     const createdItem = await repository.createItem(normalizedTaskId, {
       kind: item.kind,

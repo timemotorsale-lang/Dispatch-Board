@@ -122,7 +122,7 @@ describe("task checklist service", () => {
       actorUserId: staffUser?.id ?? null,
       boardDayId: "board-day-1",
       eventType: "task.subtask_added",
-      message: "Walter Mechanic added a subtask to Vehicle Recon & Inspection: Confirm rotor thickness.",
+      message: "Walter Hernandez added a subtask to Vehicle Recon & Inspection: Confirm rotor thickness.",
       metadata: {
         itemId: "item-2",
         kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
@@ -130,6 +130,48 @@ describe("task checklist service", () => {
       },
       taskId: "task-1"
     });
+  });
+
+  it("lets staff add a contextual subtask longer than a checklist label", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+    const { repository, items } = createTaskChecklistRepositoryHarness();
+    const label =
+      "Review Billboard Signage - AJ wants the full signage details including size, design, and the exact message we want displayed before the next vendor conversation.";
+
+    const item = await createTaskChecklistItem(
+      staffUser,
+      "task-1",
+      {
+        kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+        label
+      },
+      repository
+    );
+
+    expect(item.kind).toBe(TASK_CHECKLIST_ITEM_KIND.SUBTASK);
+    expect(item.label).toBe(label);
+    expect(items).toHaveLength(2);
+  });
+
+  it("reuses an existing checklist item instead of creating duplicate labels", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+    const { repository, items } = createTaskChecklistRepositoryHarness();
+
+    const item = await createTaskChecklistItem(
+      staffUser,
+      "task-1",
+      {
+        kind: TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE,
+        label: "  Keep the task status current  "
+      },
+      repository
+    );
+
+    expect(item.id).toBe("item-dod-1");
+    expect(items).toHaveLength(1);
+    expect(recordBoardActivityEvent).not.toHaveBeenCalled();
   });
 
   it("updates completion state and records checklist activity", async () => {

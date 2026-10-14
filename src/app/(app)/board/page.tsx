@@ -1,5 +1,7 @@
 import { BoardScreen } from "@/features/board/board-screen";
+import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { canOpenDispatchBoard, getDefaultLandingRoute } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
@@ -8,6 +10,7 @@ import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/
 type BoardPageProps = {
   searchParams?: Promise<{
     date?: string | string[];
+    view?: string | string[];
   }>;
 };
 
@@ -36,13 +39,19 @@ function resolveSelectedBoardDate(
 }
 
 export default async function BoardPage({ searchParams }: BoardPageProps) {
-  const user = await requireCurrentUser();
+  const [user, resolvedSearchParams, settings] = await Promise.all([
+    requireCurrentUser(),
+    searchParams,
+    getGenerationSettings()
+  ]);
+  if (!canOpenDispatchBoard(user)) redirect(getDefaultLandingRoute(user));
   const manager = isManager(user);
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams?.date[0]
     : resolvedSearchParams?.date;
-  const settings = await getGenerationSettings();
+  const requestedView = Array.isArray(resolvedSearchParams?.view)
+    ? resolvedSearchParams?.view[0]
+    : resolvedSearchParams?.view;
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage } = resolveSelectedBoardDate(requestedBoardDate, todayBoardDate);
   const assignableUsers = manager ? await listActiveUserSummaries() : [];
@@ -52,6 +61,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
       assignableUsers={assignableUsers}
       initialBoardDate={boardDate}
       initialDateError={errorMessage}
+      initialView={requestedView === "live" ? "live" : "overview"}
       isManager={manager}
       key={boardDate}
       todayBoardDate={todayBoardDate}

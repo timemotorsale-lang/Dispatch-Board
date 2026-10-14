@@ -1,0 +1,160 @@
+"use client";
+
+import { Activity, AlertTriangle, BarChart3, Binary, CheckCircle2, ChevronRight, CirclePause, CirclePlay, FileClock, Gauge, GitBranch, History, Layers3, ListChecks, RadioTower, RotateCcw, Search, ShieldAlert, SlidersHorizontal, Stethoscope, TableProperties, TimerReset, Wrench, Zap } from "lucide-react";
+import { useMemo, useState } from "react";
+
+import type { DiagnosticCaseWorkspaceModel } from "@/server/diagnostics/service";
+import { ADVANCED_DIAGNOSTIC_FAMILIES_VERSION, ADVANCED_DIAGNOSTIC_FAMILY_LIST, type AdvancedDiagnosticFamilyKey } from "@/server/diagnostics/advanced-diagnostic-families";
+import styles from "./diagnostics.module.css";
+
+const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+const labs = [
+  { id: "SYSTEMS", name: "Systems", icon: GitBranch }, { id: "SCAN", name: "Scan", icon: RadioTower }, { id: "LIVE_DATA", name: "Live data", icon: Gauge },
+  { id: "ELECTRICAL", name: "Electrical", icon: Zap }, { id: "WAVEFORM", name: "Waveform", icon: Activity }, { id: "MECHANICAL", name: "Mechanical", icon: Wrench },
+  { id: "HYPOTHESIS", name: "Hypothesis", icon: Stethoscope }, { id: "TEST_NAVIGATOR", name: "Tests", icon: ListChecks }, { id: "INTERMITTENT", name: "Intermittent", icon: TimerReset },
+  { id: "ADVANCED", name: "Advanced", icon: Layers3 },
+  { id: "VERIFICATION", name: "Verification", icon: CheckCircle2 }
+] as const;
+type LabId = (typeof labs)[number]["id"];
+type Execute = (url: string, body: Record<string, unknown>) => Promise<void>;
+
+function asArray(value: unknown) { return Array.isArray(value) ? value : []; }
+function asRecord(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function entryCode(value: unknown, prefix: string, index: number) { return String(typeof value === "string" ? value : asRecord(value).code ?? asRecord(value).id ?? `${prefix}_${index + 1}`).trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_"); }
+
+export function DiagnosticLabWorkspace({ model, busy, execute }: { model: DiagnosticCaseWorkspaceModel; busy: boolean; execute: Execute }) {
+  const item = model.diagnosticCase;
+  const testPlans = item.testPlans ?? [];
+  const [activeLab, setActiveLab] = useState<LabId>("TEST_NAVIGATOR");
+  const activePlan = testPlans.find((plan) => plan.status === "ACTIVE") ?? null;
+  const [selectedNodeId, setSelectedNodeId] = useState(activePlan?.nodes[0]?.id ?? "");
+  const selectedNode = activePlan?.nodes.find((node) => node.id === selectedNodeId) ?? activePlan?.nodes[0] ?? null;
+  const latestExecutions = useMemo(() => { const seen = new Set<string>(); return (item.testExecutions ?? []).filter((entry) => { if (seen.has(entry.executionKey)) return false; seen.add(entry.executionKey); return true; }); }, [item.testExecutions]);
+  const selectedExecution = selectedNode ? latestExecutions.find((entry) => entry.planNode.id === selectedNode.id) ?? null : null;
+  const [prerequisitesConfirmed, setPrerequisitesConfirmed] = useState(false);
+  const [hazardsControlled, setHazardsControlled] = useState(false);
+  const [toolsReady, setToolsReady] = useState(false);
+  const [vehicleStateConfirmed, setVehicleStateConfirmed] = useState(false);
+  const [resultSummary, setResultSummary] = useState("");
+  const [resultOutcome, setResultOutcome] = useState("PASS");
+  const [evidenceSatisfied, setEvidenceSatisfied] = useState(false);
+  const [pauseReason, setPauseReason] = useState("TEST_PAUSED_VEHICLE");
+  const definition = selectedNode?.definition ?? null;
+  const hasHazards = asArray(definition?.hazards).length > 0;
+  const hasTools = asArray(definition?.tools).length > 0;
+  const hasVehicleState = Object.keys(asRecord(definition?.vehicleState)).length > 0;
+  const requiredEvidence = asArray(definition?.requiredEvidence);
+  const prerequisiteCodes = asArray(definition?.prerequisites).map((entry, index) => entryCode(entry, "PREREQUISITE", index));
+  const hazardCodes = asArray(definition?.hazards).map((entry, index) => entryCode(entry, "HAZARD", index));
+  const toolCodes = asArray(definition?.tools).map((entry, index) => entryCode(entry, "TOOL", index));
+  const evidenceCodes = requiredEvidence.map((entry, index) => entryCode(entry, "EVIDENCE", index));
+  const canCommand = model.evidenceRollout.executable && model.permissions.canExecuteTests && !busy;
+
+  async function lifecycle(action: string, body: Record<string, unknown>) {
+    await execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/test-executions/${action}`, body);
+  }
+
+  const relevantMeasurements = (quantities: string[]) => item.measurements.filter((entry) => quantities.includes(entry.quantity));
+
+  return <section className={styles.labWorkspace} aria-labelledby="diagnostic-labs-heading">
+    <header className={styles.labWorkspaceHeader}><div><span className={styles.eyebrow}>DGN-017 · Shared case context</span><h2 id="diagnostic-labs-heading">Technician labs</h2><p>Every lab stays attached to {item.repairOrder.repairOrderNumber}, concern v{item.concernVersion}, and case record v{item.version}.</p></div><span className={styles.contextLock}><FileClock /> Context locked</span></header>
+    <nav className={styles.labNav} aria-label="Diagnostic laboratory"><div>{labs.map(({ id, name, icon: Icon }) => <button aria-current={activeLab === id ? "page" : undefined} className={activeLab === id ? styles.activeLab : ""} key={id} onClick={() => setActiveLab(id)} type="button"><Icon />{name}</button>)}</div></nav>
+
+    {activeLab === "TEST_NAVIGATOR" ? <div className={styles.testNavigator}>
+      <aside aria-label="Test plan"><header><ListChecks /><strong>Active test plan</strong><span>{activePlan ? `v${activePlan.version}` : "Unavailable"}</span></header>{activePlan ? activePlan.nodes.map((node) => { const execution = latestExecutions.find((entry) => entry.planNode.id === node.id); return <button aria-current={selectedNode?.id === node.id ? "step" : undefined} className={selectedNode?.id === node.id ? styles.selectedTestNode : ""} key={node.id} onClick={() => setSelectedNodeId(node.id)} type="button"><i>{node.sequence}</i><span><strong>{node.title}</strong><small>{execution ? label(execution.state) : "Ready for review"}</small></span><ChevronRight /></button>; }) : <div className={styles.labEmpty}><ListChecks /><strong>No active test plan</strong><p>Create a governed plan before test execution. The workspace will not invent a procedure.</p></div>}</aside>
+      <main>{selectedNode && definition ? <>
+        <header className={styles.testTitle}><div><span>{definition.definitionKey} · v{definition.version}</span><h3>{selectedNode.title}</h3><p>{definition.purpose}</p></div><b data-risk={definition.riskTier}>{definition.riskTier}</b></header>
+        <div className={styles.testMeta}><span><TimerReset /> {definition.estimatedMinutes} min</span><span><ShieldAlert /> {asArray(definition.hazards).length} hazards</span><span><SlidersHorizontal /> {asArray(definition.tools).length} tools</span><span><Binary /> {requiredEvidence.length} evidence requirements</span></div>
+        <details className={styles.procedure} open><summary>Procedure and prerequisites</summary><div className={styles.procedureGrid}><section><h4>Procedure</h4><ol>{asArray(definition.procedure).map((step, index) => <li key={index}>{typeof step === "string" ? step : String(asRecord(step).instruction ?? asRecord(step).description ?? `Procedure step ${index + 1}`)}</li>)}</ol></section><section><h4>Prerequisites</h4>{asArray(definition.prerequisites).length ? <ul>{asArray(definition.prerequisites).map((entry, index) => <li key={index}>{typeof entry === "string" ? entry : String(asRecord(entry).label ?? asRecord(entry).code ?? `Prerequisite ${index + 1}`)}</li>)}</ul> : <p>No definition-specific prerequisites.</p>}<h4>Hazards</h4>{hasHazards ? <ul>{asArray(definition.hazards).map((entry, index) => <li key={index}>{typeof entry === "string" ? entry : String(asRecord(entry).label ?? asRecord(entry).code ?? `Hazard ${index + 1}`)}</li>)}</ul> : <p>No definition-specific hazards recorded.</p>}</section></div></details>
+        {!selectedExecution ? <section className={styles.executionAction}><div><span className={styles.eyebrow}>Primary action</span><h4>Start this governed test</h4><p>Confirm readiness at the vehicle. Applicability, sources, dependencies, qualifications, and hard gates are rechecked by the server.</p></div><label><input checked={prerequisitesConfirmed} onChange={(event) => setPrerequisitesConfirmed(event.target.checked)} type="checkbox" /> Prerequisites satisfied</label>{hasHazards ? <label><input checked={hazardsControlled} onChange={(event) => setHazardsControlled(event.target.checked)} type="checkbox" /> Hazards controlled</label> : null}{hasTools ? <label><input checked={toolsReady} onChange={(event) => setToolsReady(event.target.checked)} type="checkbox" /> Required tools ready</label> : null}{hasVehicleState ? <label><input checked={vehicleStateConfirmed} onChange={(event) => setVehicleStateConfirmed(event.target.checked)} type="checkbox" /> Required vehicle state confirmed</label> : null}<button disabled={!canCommand || !prerequisitesConfirmed || (hasHazards && !hazardsControlled) || (hasTools && !toolsReady) || (hasVehicleState && !vehicleStateConfirmed)} onClick={() => void lifecycle("start", { actualConditions: vehicleStateConfirmed ? asRecord(definition.vehicleState) : {}, reason: "Technician started the selected governed diagnostic test.", reasonCode: "TEST_STARTED", planNodeId: selectedNode.id, prerequisiteSnapshot: { prerequisitesSatisfied: prerequisitesConfirmed, satisfiedPrerequisiteCodes: prerequisiteCodes, hazardsControlled, controlledHazardCodes: hazardCodes, toolsReady, availableToolCodes: toolCodes, vehicleStateConfirmed } })} type="button"><CirclePlay /> Start test</button></section> : null}
+        {selectedExecution?.state === "RUNNING" ? <section className={styles.runningTest}><header><span><i className={styles.liveDot} /> Test running</span><small>Started {selectedExecution.startedAt ? new Date(selectedExecution.startedAt).toLocaleString() : "time unavailable"}</small></header><div className={styles.runningActions}><label><span>Pause reason</span><select onChange={(event) => setPauseReason(event.target.value)} value={pauseReason}><option value="TEST_PAUSED_VEHICLE">Vehicle unavailable</option><option value="TEST_PAUSED_TOOL">Tool unavailable</option><option value="TEST_PAUSED_INFORMATION">Information needed</option><option value="TEST_PAUSED_SAFETY">Safety review</option><option value="TEST_CONNECTION_LOST">Connection lost</option></select></label><button disabled={!canCommand} onClick={() => void lifecycle("pause", { executionKey: selectedExecution.executionKey, reason: "Technician paused the active diagnostic test with recovery context.", reasonCode: pauseReason })} type="button"><CirclePause /> Pause safely</button></div><form onSubmit={(event) => { event.preventDefault(); void lifecycle("complete", { executionKey: selectedExecution.executionKey, reason: "Technician completed the governed test and recorded structured results.", reasonCode: "TEST_COMPLETED", results: { outcome: resultOutcome, summary: resultSummary }, evidenceSummary: { requirementsSatisfied: !requiredEvidence.length || evidenceSatisfied, satisfiedRequirementCodes: evidenceSatisfied ? evidenceCodes : [] } }); }}><h4>Complete test</h4><label><span>Outcome</span><select onChange={(event) => setResultOutcome(event.target.value)} value={resultOutcome}><option>PASS</option><option>FAIL</option><option>INCONCLUSIVE</option><option>NOT_REPRODUCED</option></select></label><label className={styles.wideField}><span>Structured result summary</span><textarea maxLength={2000} onChange={(event) => setResultSummary(event.target.value)} required rows={3} value={resultSummary} /></label>{requiredEvidence.length ? <label className={styles.checkField}><input checked={evidenceSatisfied} onChange={(event) => setEvidenceSatisfied(event.target.checked)} type="checkbox" /> Required evidence has been captured and reviewed</label> : null}<button disabled={!canCommand || resultSummary.trim().length < 3 || (requiredEvidence.length > 0 && !evidenceSatisfied)} type="submit"><CheckCircle2 /> Complete test</button></form></section> : null}
+        {selectedExecution?.state === "PAUSED" ? <section className={styles.executionAction}><div><span className={styles.eyebrow}>Recovery action</span><h4>Resume interrupted test</h4><p>{selectedExecution.reason}</p></div><button disabled={!canCommand} onClick={() => void lifecycle("resume", { executionKey: selectedExecution.executionKey, reason: "Technician confirmed recovery conditions and resumed the paused test.", reasonCode: selectedExecution.reasonCode === "TEST_CONNECTION_LOST" ? "TEST_CONNECTION_RECOVERED" : "TEST_RESUMED" })} type="button"><CirclePlay /> Resume test</button><button className={styles.secondaryLabAction} disabled={!canCommand} onClick={() => void lifecycle("cancel", { executionKey: selectedExecution.executionKey, reason: "Technician cancelled the paused test because the active plan or applicability changed.", reasonCode: "TEST_CANCELLED_PLAN_CHANGED" })} type="button">Cancel test</button></section> : null}
+        {selectedExecution && ["COMPLETED", "INVALIDATED", "CANCELLED"].includes(selectedExecution.state) ? <section className={styles.completedTest}><CheckCircle2 /><div><strong>{label(selectedExecution.state)}</strong><p>{selectedExecution.reason}</p><small>Revision {selectedExecution.revision} · {new Date(selectedExecution.occurredAt).toLocaleString()}</small></div><label><input checked={prerequisitesConfirmed} onChange={(event) => setPrerequisitesConfirmed(event.target.checked)} type="checkbox" /> Ready to repeat</label>{hasHazards ? <label><input checked={hazardsControlled} onChange={(event) => setHazardsControlled(event.target.checked)} type="checkbox" /> Hazards controlled</label> : null}{hasTools ? <label><input checked={toolsReady} onChange={(event) => setToolsReady(event.target.checked)} type="checkbox" /> Required tools ready</label> : null}{hasVehicleState ? <label><input checked={vehicleStateConfirmed} onChange={(event) => setVehicleStateConfirmed(event.target.checked)} type="checkbox" /> Required vehicle state confirmed</label> : null}{selectedExecution.state === "COMPLETED" ? <button disabled={!canCommand} onClick={() => void lifecycle("invalidate", { executionKey: selectedExecution.executionKey, reason: "Technician invalidated the completed result after reviewing setup or evidence integrity.", reasonCode: "TEST_INVALID_RESULT" })} type="button">Invalidate result</button> : null}<button disabled={!canCommand || !prerequisitesConfirmed || (hasHazards && !hazardsControlled) || (hasTools && !toolsReady) || (hasVehicleState && !vehicleStateConfirmed)} onClick={() => void lifecycle("start", { actualConditions: vehicleStateConfirmed ? asRecord(definition.vehicleState) : {}, reason: "Technician repeated the governed diagnostic test with explicit lineage.", reasonCode: "TEST_REPEATED", planNodeId: selectedNode.id, repeatOfExecutionKey: selectedExecution.executionKey, prerequisiteSnapshot: { prerequisitesSatisfied: prerequisitesConfirmed, satisfiedPrerequisiteCodes: prerequisiteCodes, hazardsControlled, controlledHazardCodes: hazardCodes, toolsReady, availableToolCodes: toolCodes, vehicleStateConfirmed } })} type="button"><RotateCcw /> Repeat test</button></section> : null}
+      </> : <div className={styles.labEmpty}><Search /><strong>Select a test</strong><p>Choose a node from the active plan to review its exact procedure, prerequisites, hazards, and evidence requirements.</p></div>}</main>
+    </div> : null}
+
+    {activeLab !== "TEST_NAVIGATOR" ? <div className={styles.labPanel}>
+      <LabPanel activeLab={activeLab} item={item} measurements={activeLab === "ELECTRICAL" ? relevantMeasurements(["VOLTAGE", "CURRENT", "RESISTANCE"]) : activeLab === "MECHANICAL" ? relevantMeasurements(["PRESSURE", "ROTATIONAL_SPEED", "TEMPERATURE", "MASS_FLOW"]) : item.measurements} />
+    </div> : null}
+  </section>;
+}
+
+function LabPanel({ activeLab, item, measurements }: { activeLab: Exclude<LabId, "TEST_NAVIGATOR">; item: DiagnosticCaseWorkspaceModel["diagnosticCase"]; measurements: DiagnosticCaseWorkspaceModel["diagnosticCase"]["measurements"] }) {
+  const definitions: Record<Exclude<LabId, "TEST_NAVIGATOR">, { title: string; description: string }> = {
+    SYSTEMS: { title: "Systems explorer", description: "Review the concern, plan graph, and shared case relationships without asserting an unproven cause." },
+    SCAN: { title: "Scan and network lab", description: "Review imported vehicle-system observations and governed scan attachments. Hardware acquisition is not connected yet." },
+    LIVE_DATA: { title: "Live data lab", description: "Review recorded measurements in shared context. Streaming and PID adapters remain unavailable." },
+    ELECTRICAL: { title: "Electrical lab", description: "Compare voltage, current, and resistance evidence with preserved units and instrument quality." },
+    WAVEFORM: { title: "Waveform lab", description: "Review governed waveform attachments. Capture hardware and automated waveform interpretation remain unavailable." },
+    MECHANICAL: { title: "Mechanical lab", description: "Review pressure, speed, temperature, and flow measurements without converting them into a diagnosis." },
+    HYPOTHESIS: { title: "Hypothesis lab", description: "Review the latest governed candidates, causal state, contradictions, and reasoning rank before making a human conclusion." },
+    INTERMITTENT: { title: "Intermittent lab", description: "Reconstruct time-ordered observations, tests, and repeat lineage. Automated trigger capture is not connected." },
+    ADVANCED: { title: "Advanced diagnostics", description: "Use specialty-specific stages for transmission, ADAS, networks, diesel, hybrid/EV, and intermittent concerns without replacing the governed test plan." },
+    VERIFICATION: { title: "Verification lab", description: "Use the closed-loop verification panel above to plan proof checks, record pass/fail evidence, escalate unsafe results, and close only after the repair is verified." }
+  };
+  const definition = definitions[activeLab];
+  const vehicleSystemFacts = item.observations.filter((entry) => entry.source === "VEHICLE_SYSTEM" || entry.source === "IMPORTED_RECORD");
+  if (activeLab === "ADVANCED") return <AdvancedDiagnosticsLab caseReference={`${item.id.slice(-8)} · v${item.version}`} />;
+  return <><header><div><span className={styles.eyebrow}>Focused laboratory</span><h3>{definition.title}</h3><p>{definition.description}</p></div><span>{item.id.slice(-8)} · v{item.version}</span></header>
+    {activeLab === "SYSTEMS" ? <div className={styles.systemMap}><article><strong>Customer concern</strong><span>{item.concern}</span></article><ChevronRight /><article><strong>Evidence</strong><span>{item.observations.length + item.measurements.length} structured facts</span></article><ChevronRight /><article><strong>Tests</strong><span>{item.testPlans[0]?.nodes.length ?? 0} planned nodes</span></article><ChevronRight /><article><strong>Cause</strong><span>{item.conclusionVersions?.[0]?.causeStatement ?? "Not established"}</span></article></div> : null}
+    {activeLab === "SCAN" ? <EvidenceList title="Vehicle-system facts" empty="No scan or network facts have been imported." items={vehicleSystemFacts.map((entry) => ({ id: entry.id, title: entry.statement, detail: `${label(entry.source)} · ${label(entry.qualityStatus)}` }))} /> : null}
+    {["LIVE_DATA", "ELECTRICAL", "MECHANICAL"].includes(activeLab) ? <EvidenceList title="Shared measurements" empty="No applicable measurements are available in this case." items={measurements.map((entry) => ({ id: entry.id, title: `${entry.quantity}: ${entry.value} ${entry.unit}`, detail: `Normalized ${entry.normalizedValue} ${entry.normalizedUnit} · ${label(entry.qualityStatus)}` }))} /> : null}
+    {activeLab === "WAVEFORM" ? <EvidenceList title="Governed waveform evidence" empty="No waveform attachment is linked to this case." items={item.evidenceLinks.filter((entry) => /wave|scope|oscill/i.test(`${entry.evidence.fileName} ${entry.purpose}`)).map((entry) => ({ id: entry.id, title: entry.evidence.fileName, detail: `${label(entry.evidence.status)} · SHA-256 ${entry.evidence.checksumSha256.slice(0, 12)}…` }))} /> : null}
+    {activeLab === "INTERMITTENT" ? <EvidenceList title="Temporal evidence" empty="No time-series evidence has been recorded." items={item.testExecutions.map((entry) => ({ id: entry.id, title: `${entry.planNode.title} · ${label(entry.state)}`, detail: `${new Date(entry.occurredAt).toLocaleString()} · revision ${entry.revision}` }))} /> : null}
+    {activeLab === "HYPOTHESIS" ? <EvidenceList title="Current reasoning candidates" empty="No reasoning evaluation is available for this case." items={(item.reasoningEvaluations?.[0]?.hypotheses ?? []).map((entry) => ({ id: entry.id, title: `${entry.hypothesisKey} · ${label(entry.status)}`, detail: `${label(entry.causalState)} · rank ${entry.rank} · ${(entry.supportingEvidenceKeys as string[]).length} supporting / ${(entry.contradictingEvidenceKeys as string[]).length} contradicting evidence links` }))} /> : null}
+    {activeLab === "VERIFICATION" ? <div className={styles.labEmpty}><AlertTriangle /><strong>Verification governed above</strong><p>{definition.description}</p></div> : null}
+  </>;
+}
+
+export function AdvancedDiagnosticsLab({ caseReference = "Case context locked" }: { caseReference?: string }) {
+  const [familyKey, setFamilyKey] = useState<AdvancedDiagnosticFamilyKey>("TRANSMISSION");
+  const [stageIndex, setStageIndex] = useState(0);
+  const family = ADVANCED_DIAGNOSTIC_FAMILY_LIST.find((entry) => entry.key === familyKey) ?? ADVANCED_DIAGNOSTIC_FAMILY_LIST[0];
+  const activeStage = family.stages[stageIndex] ?? family.stages[0];
+
+  function selectFamily(nextFamily: AdvancedDiagnosticFamilyKey) {
+    setFamilyKey(nextFamily);
+    setStageIndex(0);
+  }
+
+  return <section className={styles.advancedFamilyLab} aria-labelledby="advanced-diagnostics-heading">
+    <header><div><span className={styles.eyebrow}>Specialty diagnostic guide · {ADVANCED_DIAGNOSTIC_FAMILIES_VERSION}</span><h3 id="advanced-diagnostics-heading">Advanced diagnostics</h3><p>Select the vehicle system, then work through its six evidence-gated stages. This guide strengthens the existing test plan; it does not bypass it.</p></div><span>{caseReference}</span></header>
+    <nav className={styles.advancedFamilyTabs} aria-label="Advanced diagnostic specialties">{ADVANCED_DIAGNOSTIC_FAMILY_LIST.map((entry) => <button aria-current={entry.key === family.key ? "page" : undefined} key={entry.key} onClick={() => selectFamily(entry.key)} type="button"><strong>{entry.title}</strong><small>{entry.description}</small></button>)}</nav>
+    <div className={styles.advancedFamilyHeader}><div><span>Selected specialty</span><h4>{family.title}</h4><p>{family.description}</p></div><dl><div><dt>Qualification</dt><dd>{family.qualification}</dd></div><div><dt>Procedure boundary</dt><dd>{family.sourceBoundary}</dd></div></dl></div>
+    <nav className={styles.advancedStageNav} aria-label={`${family.title} stages`}>{family.stages.map((stage, index) => <button aria-current={index === stageIndex ? "step" : undefined} key={stage.key} onClick={() => setStageIndex(index)} type="button"><i>{index + 1}</i><span><small>Stage {index + 1}</small><strong>{stage.title}</strong></span></button>)}</nav>
+    <article className={styles.advancedStageDetail}>
+      <header><div><span>Stage {stageIndex + 1} of {family.stages.length}</span><h4>{activeStage.title}</h4><p>{activeStage.objective}</p></div><b>Review guide</b></header>
+      <div className={styles.advancedStageColumns}>
+        <AdvancedStageList title="What to check" items={activeStage.checks} />
+        <AdvancedStageList title="Required evidence" items={activeStage.requiredEvidence} />
+        <AdvancedStageList title="Exit criteria" items={activeStage.exitCriteria} />
+        <AdvancedStageList danger title="Stop & escalate" items={activeStage.stopConditions} />
+      </div>
+    </article>
+    <footer className={styles.advancedBoundary}><ShieldAlert /><p><strong>Exact procedure required.</strong> Apply VIN- and equipment-specific service information, thresholds, safety controls, and technician qualifications. Reviewing a stage here does not authorize a hazardous test or advance the case record.</p></footer>
+  </section>;
+}
+
+function AdvancedStageList({ title, items, danger = false }: { title: string; items: string[]; danger?: boolean }) {
+  return <section data-danger={danger || undefined}><h5>{title}</h5><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></section>;
+}
+
+function EvidenceList({ title, empty, items }: { title: string; empty: string; items: Array<{ id: string; title: string; detail: string }> }) {
+  return <section className={styles.labEvidenceList}><h4>{title}</h4>{items.length ? items.map((item) => <article key={item.id}><span><strong>{item.title}</strong><small>{item.detail}</small></span></article>) : <div className={styles.labEmpty}><BarChart3 /><strong>No evidence available</strong><p>{empty}</p></div>}</section>;
+}
+
+export function DiagnosticEvidenceReview({ model }: { model: DiagnosticCaseWorkspaceModel }) {
+  const review = model.evidenceReview ?? { state: "COMPLETE" as const, reconstructionComplete: false, timeline: [], measurementMatrix: [], comparisons: [], conflicts: [], sources: [], lineage: [] };
+  const [view, setView] = useState<"TIMELINE" | "MATRIX" | "COMPARE" | "LINEAGE">("TIMELINE");
+  const [expanded, setExpanded] = useState(false);
+  const visibleTimeline = expanded ? review.timeline : review.timeline.slice(0, 25);
+  return <section className={styles.evidenceReview} aria-labelledby="evidence-review-heading"><header><div><span className={styles.eyebrow}>DGN-018 · Permission-filtered reconstruction</span><h2 id="evidence-review-heading">Evidence review</h2><p>Expected versus actual, conflicts, source freshness, and immutable lineage in one case record.</p></div><span>{review.reconstructionComplete ? "Reconstructable" : review.state === "RESTRICTED" ? "Restricted" : "No evidence"}</span></header>
+    {review.state === "RESTRICTED" ? <div className={styles.labEmpty}><ShieldAlert /><strong>Evidence review restricted</strong><p>Your case access does not include diagnostic evidence.</p></div> : <><nav aria-label="Evidence review views"><button aria-current={view === "TIMELINE" ? "page" : undefined} onClick={() => setView("TIMELINE")} type="button"><History /> Timeline</button><button aria-current={view === "MATRIX" ? "page" : undefined} onClick={() => setView("MATRIX")} type="button"><TableProperties /> Matrix</button><button aria-current={view === "COMPARE" ? "page" : undefined} onClick={() => setView("COMPARE")} type="button"><SlidersHorizontal /> Expected / actual</button><button aria-current={view === "LINEAGE" ? "page" : undefined} onClick={() => setView("LINEAGE")} type="button"><GitBranch /> Provenance</button></nav>
+      {review.conflicts.length ? <div className={styles.conflictBanner}><AlertTriangle /><span><strong>{review.conflicts.length} evidence items require review.</strong> Invalid, suspect, corrected, or superseded evidence is retained and visibly separated.</span></div> : null}
+      {view === "TIMELINE" ? <div className={styles.reviewTimeline}>{visibleTimeline.map((entry) => <article key={`${entry.kind}:${entry.id}`}><i data-kind={entry.kind} /><time>{new Date(entry.occurredAt).toLocaleString()}</time><div><strong>{entry.title}</strong><small>{label(entry.kind)} · {entry.detail}</small></div><span>{label(entry.status)}</span></article>)}{review.timeline.length > 25 ? <button onClick={() => setExpanded(!expanded)} type="button">{expanded ? "Show latest 25" : `Show all ${review.timeline.length}`}</button> : null}{!review.timeline.length ? <p>No evidence events are available.</p> : null}</div> : null}
+      {view === "MATRIX" ? <div className={styles.matrix} role="table" aria-label="Measurement matrix"><div role="row"><strong>Quantity</strong><strong>Current</strong><strong>Range</strong><strong>Samples</strong><strong>Quality</strong></div>{review.measurementMatrix.map((entry) => <div key={entry.key} role="row"><span>{label(entry.quantity)}</span><b>{entry.currentValue} {entry.normalizedUnit}</b><span>{entry.minimum}–{entry.maximum}</span><span>{entry.validSamples}/{entry.sampleCount} valid</span><span>{label(entry.currentQuality)}</span></div>)}</div> : null}
+      {view === "COMPARE" ? <div className={styles.comparisonGrid}>{review.comparisons.map((entry) => <article data-disposition={entry.disposition} key={entry.id}><header><strong>{label(entry.quantity)}</strong><span>{label(entry.disposition)}</span></header><b>{entry.actual} {entry.unit}</b><small>Expected {entry.minimum ?? "—"} to {entry.maximum ?? "—"} {entry.unit}</small></article>)}{!review.comparisons.length ? <div className={styles.labEmpty}><SlidersHorizontal /><strong>No comparisons available</strong><p>Reference bounds have not been recorded with a measurement.</p></div> : null}</div> : null}
+      {view === "LINEAGE" ? <div className={styles.lineageGrid}><section><h3>Immutable lineage</h3>{review.lineage.map((entry) => <article key={entry.id}><GitBranch /><span><strong>{label(entry.kind)}</strong><small>{entry.fromId} → {entry.toId}</small></span></article>)}{!review.lineage.length ? <p>No correction, supersession, revision, or repeat lineage recorded.</p> : null}</section><section><h3>Procedure sources</h3>{review.sources.map((source) => <article key={`${source.id}:${source.version}`}><FileClock /><span><strong>{source.name} · v{source.version}</strong><small>{label(source.freshness)} · {source.checksum.slice(0, 12)}…</small></span></article>)}{!review.sources.length ? <p>No permitted test-definition source snapshots are available.</p> : null}</section></div> : null}
+    </>}
+  </section>;
+}

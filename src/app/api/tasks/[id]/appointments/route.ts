@@ -30,11 +30,21 @@ function getTaskAppointmentErrorStatus(message: string) {
     message === "Task id is required." ||
     message === "Task appointment payload must be an object." ||
     message === "Task appointment reason is required." ||
+    message === "Task appointment local date must use YYYY-MM-DD." ||
+    message === "Task appointment start time must use HH:MM." ||
+    message === "Task appointment start time must be a valid local time." ||
     message === "Task appointment title must be text." ||
     message === "Task appointment reason must be text." ||
     message === "Task appointment idempotency key must be text." ||
+    message.startsWith("Task appointment customer") ||
+    message.startsWith("Task appointment delivery notes") ||
+    message.startsWith("Task appointment duration") ||
+    message.startsWith("Task appointment local date") ||
+    message.startsWith("Task appointment purpose code") ||
     message.startsWith("Task appointment title cannot exceed") ||
     message.startsWith("Task appointment reason cannot exceed") ||
+    message.startsWith("Task appointment start time") ||
+    message.startsWith("Task appointment vehicle") ||
     message.startsWith("Task appointment idempotency key cannot exceed") ||
     message.startsWith("Appointment command") ||
     message.startsWith("CREATE_DRAFT")

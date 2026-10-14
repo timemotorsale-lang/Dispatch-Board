@@ -23,6 +23,9 @@ function createTaskReadRepository(): TaskReadRepository {
         sourceType: "MANAGER",
         requiresManagerApproval: true,
         templateSnapshot: {
+          conversionContract: {
+            origin: { channel: "Workbook", sourceId: "update-1", sourceKind: "COO_WORKBOOK_QUICK_UPDATE", text: "Customer asked for a return call." }
+          },
           checklistItems: [
             {
               key: "confirm_customer",
@@ -138,6 +141,17 @@ function createTaskReadRepository(): TaskReadRepository {
 }
 
 describe("task read service", () => {
+  it("exposes an encoded repair-order link for RO assignments", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const repository = createTaskReadRepository();
+    const record = await repository.findTaskById("task-1");
+    if (!record) throw new Error("Missing test task");
+    const result = await getTaskReadModelById(usersByEmail.get("jordan.sales@local.test") ?? null, "task-1", {
+      ...repository,
+      findTaskById: async () => ({ ...record, sourceType: "REPAIR_ORDER", templateSnapshot: { repairOrderId: "ro/1" } })
+    });
+    expect(result?.repairOrderHref).toBe("/vehicles/repair-workbench?repairOrderId=ro%2F1");
+  });
   it("returns a normalized task detail read model for authenticated users", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
@@ -153,8 +167,34 @@ describe("task read service", () => {
       status: "IN_PROGRESS",
       priority: "HIGH",
       dueAt: "2026-06-18T16:00:00.000Z",
+      executionAssurance: {
+        startedAt: null,
+        lastProgressAt: null,
+        nextCheckpointAt: null,
+        lastProgressNote: null,
+        blockerPlan: null,
+        planReview: {
+          status: "DRAFT_GENERATED",
+          note: null,
+          reviewedAt: null,
+          reviewedByUserId: null,
+          reviewedByName: null
+        },
+        state: "CHECK_IN_DUE"
+      },
       workflowArea: "SALES",
       sourceType: "MANAGER",
+      sourceContext: {
+        channel: "Workbook",
+        href: "/vehicles/coo-workbook/quick-update#source-update-1",
+        sourceId: "update-1",
+        sourceKind: "COO_WORKBOOK_QUICK_UPDATE",
+        text: "Customer asked for a return call."
+      },
+      repairOrderHref: null,
+      nextActionRecommendation: expect.objectContaining({
+        triggers: ["latest-update:waiting"]
+      }),
       requiresManagerApproval: true,
       requiredUpdateFields: [
         {

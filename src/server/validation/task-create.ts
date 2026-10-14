@@ -10,6 +10,8 @@ const taskCreateAllowedKeys = new Set([
   "boardDate",
   "customerReference",
   "collaboratorIds",
+  "collaboratorRequests",
+  "conversionContext",
   "description",
   "dueAt",
   "intakeMetadata",
@@ -45,9 +47,19 @@ export type NormalizedTaskIntakeMetadata = {
   };
 };
 
+export type NormalizedTaskConversionContext = {
+  category?: string;
+  company?: string;
+  originText?: string;
+  person?: string;
+  sourceId?: string;
+  sourceKind?: string;
+};
+
 export type NormalizedTaskCreateInput = {
   assignedUserId: string;
   collaboratorIds: string[];
+  collaboratorRequests: Array<{ userId: string; collaborationScope: string; capacityRequested?: string }>;
   appointmentAutomationReasonNotes?: string;
   appointmentAutomationTriggerCode?: string;
   blockerReason?: string;
@@ -55,6 +67,7 @@ export type NormalizedTaskCreateInput = {
   customerReference?: string;
   description: string;
   dueAt: Date;
+  conversionContext?: NormalizedTaskConversionContext;
   intakeMetadata?: NormalizedTaskIntakeMetadata;
   priority: TaskTemplatePriority;
   requiresManagerApproval: boolean;
@@ -198,6 +211,30 @@ function normalizeStringList(value: unknown, fieldName: string, maxLength = 25) 
   return items;
 }
 
+function normalizeCollaboratorRequests(value: unknown) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error("Task creation requires collaboratorRequests to be an array when provided.");
+  const requests = value.map((entry) => {
+    if (!isPlainObject(entry)) throw new Error("Every collaborator request must be an object.");
+    const allowedKeys = new Set(["userId", "collaborationScope", "capacityRequested"]);
+    for (const key of Object.keys(entry)) {
+      if (!allowedKeys.has(key)) throw new Error(`Task collaborator request contains an unsupported field: "${key}".`);
+    }
+    const collaborationScope = normalizeRequiredText(entry.collaborationScope, "Every collaborator request needs a collaboration scope.");
+    if (collaborationScope.length > 600) throw new Error("Collaboration scope must be 600 characters or fewer.");
+    const capacityRequested = normalizeOptionalText(entry.capacityRequested, "capacityRequested");
+    if (capacityRequested && capacityRequested.length > 240) throw new Error("Collaboration capacity must be 240 characters or fewer.");
+    return {
+      userId: normalizeRequiredText(entry.userId, "Every collaborator id must be a non-empty string."),
+      collaborationScope,
+      ...(capacityRequested ? { capacityRequested } : {})
+    };
+  });
+  if (requests.length > 25) throw new Error("A task can have at most 25 collaborators.");
+  if (new Set(requests.map((request) => request.userId)).size !== requests.length) throw new Error("Task collaborators cannot contain duplicates.");
+  return requests;
+}
+
 function normalizePriority(value: unknown) {
   if (value === undefined) return TaskTemplatePriority.MEDIUM;
   if (typeof value !== "string" || !taskPriorityValues.has(value as TaskTemplatePriority)) {
@@ -256,17 +293,45 @@ function normalizeIntakeMetadata(value: unknown) {
   return normalizedMetadata;
 }
 
+function normalizeConversionContext(value: unknown) {
+  if (value === undefined) return undefined;
+  const context = assertTaskCreateObject(value);
+  const allowedKeys = new Set(["category", "company", "originText", "person", "sourceId", "sourceKind"]);
+  for (const key of Object.keys(context)) {
+    if (!allowedKeys.has(key)) throw new Error(`Task conversion context contains an unsupported field: "${key}".`);
+  }
+
+  const normalizedContext: NormalizedTaskConversionContext = {};
+  for (const key of allowedKeys) {
+    const normalizedValue = normalizeOptionalText(context[key], key);
+    if (normalizedValue) {
+      normalizedContext[key as keyof NormalizedTaskConversionContext] = normalizedValue;
+    }
+  }
+
+  return Object.keys(normalizedContext).length ? normalizedContext : undefined;
+}
+
+function intakeTypeRequiresCustomerOrVehicle(value: string) {
+  const normalizedValue = value.toLocaleLowerCase();
+
+  return /advisor|appointment|customer|repair|service|vehicle|vin/.test(normalizedValue);
+}
+
 export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateInput {
   const input = assertTaskCreateObject(value);
 
   rejectUnknownKeys(input);
 
+  const collaboratorRequests = normalizeCollaboratorRequests(input.collaboratorRequests);
+  const collaboratorIds = collaboratorRequests?.map((request) => request.userId) ?? normalizeCollaboratorIds(input.collaboratorIds);
   const normalizedInput: NormalizedTaskCreateInput = {
     assignedUserId: normalizeRequiredText(
       input.assignedUserId,
       "Task creation requires an assigned user."
     ),
-    collaboratorIds: normalizeCollaboratorIds(input.collaboratorIds),
+    collaboratorIds,
+    collaboratorRequests: collaboratorRequests ?? collaboratorIds.map((userId) => ({ userId, collaborationScope: "" })),
     boardDate: normalizeBoardDateInput(input.boardDate),
     description: normalizeOptionalText(input.description, "description") ?? "",
     dueAt: normalizeDueAt(input.dueAt),
@@ -281,11 +346,16 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
   };
 
   const intakeMetadata = normalizeIntakeMetadata(input.intakeMetadata);
+  const conversionContext = normalizeConversionContext(input.conversionContext);
+  if (conversionContext) {
+    normalizedInput.conversionContext = conversionContext;
+  }
+
   if (intakeMetadata) {
     if (normalizedInput.title.length < 8) throw new Error("Task intake requires an executable title of at least 8 characters.");
-    if (normalizedInput.description.length < 16) throw new Error("Task intake requires a clear brief of at least 16 characters.");
+    if (normalizedInput.description.length < 16) throw new Error("Task intake requires clear task details of at least 16 characters.");
     if (intakeMetadata.expectedOutcome.length < 20) throw new Error("Task intake requires an expected outcome of at least 20 characters.");
-    if (intakeMetadata.intakeType !== "Quick Task" && !intakeMetadata.contextOmitted && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
+    if (intakeTypeRequiresCustomerOrVehicle(intakeMetadata.intakeType) && !intakeMetadata.contextOmitted && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
       throw new Error("Task intake requires customer or vehicle context for this intake type.");
     }
     normalizedInput.intakeMetadata = intakeMetadata;

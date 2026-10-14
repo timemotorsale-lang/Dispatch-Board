@@ -1,409 +1,628 @@
-"use client";
-
-import {
-  AlertTriangle,
-  ArrowRight,
-  Banknote,
-  Boxes,
-  CalendarDays,
-  Car,
-  CheckCircle2,
-  ChevronDown,
-  ClipboardCheck,
-  Clock3,
-  Download,
-  Filter,
-  Gauge,
-  MapPin,
-  Settings2,
-  ShieldCheck,
-  ShoppingCart,
-  Sparkles,
-  Wrench
-} from "lucide-react";
+import { AlertTriangle, Boxes, CarFront, Clock3, Gauge, Landmark, Wrench } from "lucide-react";
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
 
-type Tone = "blue" | "cyan" | "green" | "amber" | "red" | "slate";
-type CommandType = "assign" | "stage" | "blocker" | "escalate";
+import { buildInventoryLifecycleHref } from "@/features/inventory/lifecycle/shell";
+import type { InventoryControlTowerBaseProjection, InventoryControlTowerProjection } from "@/server/inventory-control-tower/service";
+import { buildVehicleLifecycleCardProjection } from "@/server/inventory-execution/vehicle-card-projection";
 
-type LifecycleStage = {
-  age: string;
-  count: number;
-  label: string;
-  tone?: Tone;
-};
+import { ExpandedVehicleCommandCard } from "./vehicle-lifecycle-card";
 
-type CommandField = {
-  defaultValue: string;
-  label: string;
-  name: string;
-  options?: string[];
-  required?: boolean;
-  type: "date" | "select" | "text" | "textarea" | "time";
-};
+const currency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
 
-type CommandConfig = {
-  auditImpact: string;
-  fields: CommandField[];
-  label: string;
-  primaryAction: string;
-  summary: string;
-};
+const formatCurrency = (cents: number) => currency.format(cents / 100);
 
-const moduleTabs = [
-  "Control Tower",
-  "Vehicles",
-  "Acquisition",
-  "Recon",
-  "Shop Work",
-  "Parts",
-  "Purchase Orders",
-  "Locations",
-  "Aging",
-  "Exceptions"
-];
+const isConnected = (
+  projection: InventoryControlTowerProjection | InventoryControlTowerBaseProjection,
+): projection is InventoryControlTowerProjection => "crossLane" in projection;
 
-const kpis = [
-  { icon: Banknote, label: "Inventory Capital", value: "$742K", tone: "slate" },
-  { icon: Car, label: "Vehicles", value: "61", tone: "blue" },
-  { icon: CalendarDays, label: "Days to Frontline", value: "4.2", tone: "blue" },
-  { icon: Wrench, label: "Recon WIP", value: "11", tone: "slate" },
-  { icon: Gauge, label: "Shop Load", value: "82%", tone: "green" },
-  { icon: Boxes, label: "Parts Fill", value: "94%", tone: "slate" },
-  { icon: Clock3, label: "Aged Exposure", value: "$118K", tone: "slate" },
-  { icon: AlertTriangle, label: "Critical Exceptions", value: "5", tone: "red" }
-] as const;
-
-const flowHealth = [
-  { label: "Retail Flow", tone: "green", value: 87 },
-  { label: "Shop Flow", tone: "amber", value: 76 },
-  { label: "Parts Readiness", tone: "green", value: 91 },
-  { label: "Data Confidence", tone: "green", value: 96 }
-] as const;
-
-const retailStages: LifecycleStage[] = [
-  { label: "Source", count: 12, age: "3d" },
-  { label: "Appraise", count: 9, age: "2d" },
-  { label: "Acquire", count: 8, age: "4d" },
-  { label: "Receive", count: 8, age: "2d" },
-  { label: "Inspect", count: 8, age: "1d", tone: "amber" },
-  { label: "Recon Handoff", count: 8, age: "2d" },
-  { label: "Title", count: 6, age: "5d", tone: "red" },
-  { label: "Merchandise", count: 10, age: "3d" },
-  { label: "Frontline", count: 7, age: "2d" },
-  { label: "Deal", count: 5, age: "1d" },
-  { label: "Sold", count: 3, age: "1d", tone: "green" },
-  { label: "Delivered", count: 3, age: "0d", tone: "green" }
-];
-
-const shopStages: LifecycleStage[] = [
-  { label: "Intake", count: 8, age: "1d" },
-  { label: "Diagnose", count: 11, age: "1d" },
-  { label: "Estimate", count: 11, age: "1d" },
-  { label: "Approve", count: 10, age: "1d" },
-  { label: "Order Parts", count: 9, age: "2d", tone: "amber" },
-  { label: "Repair", count: 9, age: "3d", tone: "amber" },
-  { label: "QC", count: 6, age: "2d", tone: "blue" },
-  { label: "Inventory Handoff", count: 6, age: "1d", tone: "green" }
-];
-
-const partsStages: LifecycleStage[] = [
-  { label: "Demand", count: 15, age: "1d" },
-  { label: "Source", count: 15, age: "1d" },
-  { label: "Compare", count: 12, age: "1d" },
-  { label: "PO", count: 10, age: "1d" },
-  { label: "Ordered", count: 10, age: "2d", tone: "amber" },
-  { label: "Received", count: 8, age: "2d" },
-  { label: "Binned", count: 8, age: "1d" },
-  { label: "Reserved", count: 6, age: "2d", tone: "red" },
-  { label: "Issued", count: 6, age: "1d" },
-  { label: "Installed", count: 6, age: "1d" },
-  { label: "Reconciled", count: 6, age: "0d", tone: "green" }
-];
-
-const exceptions = [
-  { priority: "Critical", asset: "TMS19045", vehicle: "2019 Toyota Camry", issue: "Brake parts ETA", age: "2d 4h", owner: "Jordan P.", risk: "$1,120", action: "Approve alt vendor" },
-  { priority: "High", asset: "TMS18422", vehicle: "2018 Honda Accord", issue: "Title hold", age: "4d 6h", owner: "Maya R.", risk: "$1,850", action: "Resolve title docs" },
-  { priority: "High", asset: "CUST-8831", vehicle: "2020 Ford Escape", issue: "Awaiting approval", age: "1d 3h", owner: "Devin L.", risk: "$760", action: "Customer approval" },
-  { priority: "Medium", asset: "CORE-7781", vehicle: "Engine Core", issue: "Core return deadline", age: "5d 2h", owner: "Alex K.", risk: "$320", action: "Ship core" }
-];
-
-const capacity = [
-  { tech: "Carlos M.", asset: "TMS19045", vehicle: "2019 Toyota Camry", touch: "2h 15m", checkpoint: "Repair / In Progress", readiness: 60, finish: "Today 2:30 PM", bay: 3 },
-  { tech: "Brianna T.", asset: "TMS18801", vehicle: "2018 Honda Accord", touch: "1h 45m", checkpoint: "QC / Today 11:00 AM", readiness: 100, finish: "Today 12:45 PM", bay: 1 },
-  { tech: "Marcus J.", asset: "CUST-8831", vehicle: "2020 Ford Escape", touch: "1h 20m", checkpoint: "Approval Pending", readiness: 40, finish: "Today 4:15 PM", bay: 2 },
-  { tech: "Nina K.", asset: "TMS18777", vehicle: "2021 Mazda CX-5", touch: "1h 10m", checkpoint: "Order Parts / Today 10:30 AM", readiness: 70, finish: "Today 3:00 PM", bay: 4 }
-];
-
-const executionSteps = ["Assigned", "Ack.", "Started", "Active", "Paused", "Resumed", "Ready for QC", "Completed"];
-
-const commandConfigs: Record<CommandType, CommandConfig> = {
-  assign: {
-    auditImpact: "Creates assignment review evidence before work is moved.",
-    fields: [
-      { defaultValue: "Shop recon", label: "Work type", name: "workType", options: ["Shop recon", "Title follow-up", "Merchandising", "Parts resolution"], required: true, type: "select" },
-      { defaultValue: "Jordan P.", label: "Owner", name: "owner", options: ["Jordan P.", "Maya R.", "Devin L.", "Brock Inventory", "Parts Counter"], required: true, type: "select" },
-      { defaultValue: "High", label: "Priority", name: "priority", options: ["Critical", "High", "Medium", "Normal"], required: true, type: "select" },
-      { defaultValue: "Parts readiness and bay availability confirmed before reassignment.", label: "Readiness check", name: "readiness", type: "textarea" },
-      { defaultValue: "Protect Friday frontline target.", label: "Reason", name: "reason", required: true, type: "textarea" }
-    ],
-    label: "Assign Work",
-    primaryAction: "Prepare Assignment Review",
-    summary: "Choose a clear owner, priority, and readiness basis before work moves."
-  },
-  stage: {
-    auditImpact: "Previews a lifecycle command with reason, owner, and target evidence.",
-    fields: [
-      { defaultValue: "Order Parts", label: "Next stage", name: "stage", options: ["Receive", "Inspect", "Recon Handoff", "Order Parts", "Repair", "QC", "Inventory Handoff", "Frontline"], required: true, type: "select" },
-      { defaultValue: "Brock Inventory", label: "Target owner", name: "owner", options: ["Brock Inventory", "Jordan P.", "Maya R.", "Carlos M.", "Parts Counter"], required: true, type: "select" },
-      { defaultValue: "2026-10-13", label: "Target date", name: "targetDate", required: true, type: "date" },
-      { defaultValue: "Alternate vendor approval unlocks repair continuation.", label: "Reason", name: "reason", required: true, type: "textarea" },
-      { defaultValue: "Parts ETA note or vendor confirmation", label: "Evidence needed", name: "evidence", type: "text" }
-    ],
-    label: "Update Stage",
-    primaryAction: "Prepare Stage Update",
-    summary: "Move the asset only when the next state, owner, and reason are explicit."
-  },
-  blocker: {
-    auditImpact: "Keeps the blocker accountable without opening a full vehicle edit form.",
-    fields: [
-      { defaultValue: "Parts ETA", label: "Blocker type", name: "blockerType", options: ["Parts ETA", "Title documents", "Customer approval", "QC return", "Location/custody"], required: true, type: "select" },
-      { defaultValue: "Approve alternate vendor for brake kit.", label: "Resolution", name: "resolution", required: true, type: "textarea" },
-      { defaultValue: "Parts Counter", label: "Next owner", name: "owner", options: ["Parts Counter", "Jordan P.", "Maya R.", "Devin L.", "Brock Inventory"], required: true, type: "select" },
-      { defaultValue: "14:30", label: "Due time", name: "dueTime", required: true, type: "time" },
-      { defaultValue: "Manager review requested because value at risk exceeds normal parts delay threshold.", label: "Manager note", name: "managerNote", type: "textarea" }
-    ],
-    label: "Resolve Blocker",
-    primaryAction: "Prepare Blocker Resolution",
-    summary: "Record the blocker, the next accountable action, and the reason it is safe to proceed."
-  },
-  escalate: {
-    auditImpact: "Routes a manager decision request with risk, due time, and requested outcome.",
-    fields: [
-      { defaultValue: "Frontline commitment risk", label: "Escalation reason", name: "reason", options: ["Frontline commitment risk", "Safety gate", "Title/compliance", "Spend approval", "Customer promise"], required: true, type: "select" },
-      { defaultValue: "Capital and cycle-time exposure", label: "Risk type", name: "riskType", options: ["Capital and cycle-time exposure", "Safety/compliance", "Customer promise", "Margin erosion", "Missing evidence"], required: true, type: "select" },
-      { defaultValue: "Approve alternate vendor or confirm hold.", label: "Requested decision", name: "decision", required: true, type: "textarea" },
-      { defaultValue: "16:00", label: "Decision due", name: "dueTime", required: true, type: "time" }
-    ],
-    label: "Escalate",
-    primaryAction: "Prepare Escalation",
-    summary: "Ask for a specific manager decision instead of sending a vague alert."
-  }
-};
-
-function LifecycleLane({ icon: Icon, label, stages, selectedStage, setSelectedStage, tone }: {
-  icon: typeof Car;
-  label: string;
-  selectedStage: string;
-  setSelectedStage(stage: string): void;
-  stages: LifecycleStage[];
-  tone: Tone;
+export function InventoryControlTower({
+  projection,
+  backHref = "/vehicles/inventory",
+}: {
+  projection: InventoryControlTowerProjection | InventoryControlTowerBaseProjection;
+  backHref?: string;
 }) {
-  return (
-    <div className="ict-lifecycle-lane">
-      <div className={`ict-lane-label ict-tone-${tone}`}><Icon size={22} /><strong>{label}</strong></div>
-      <div className="ict-lane-stages">
-        {stages.map((stage, index) => (
-          <div className="ict-stage-wrap" key={stage.label}>
-            <button
-              aria-pressed={selectedStage === stage.label}
-              className={`ict-stage ict-stage-${stage.tone ?? tone} ${selectedStage === stage.label ? "ict-stage-selected" : ""}`}
-              onClick={() => setSelectedStage(stage.label)}
-              type="button"
-            >
-              <span>{stage.label}</span><strong>{stage.count}</strong><small>{stage.age}</small>
-            </button>
-            {index < stages.length - 1 ? <ArrowRight aria-hidden="true" className="ict-stage-arrow" size={14} /> : null}
-          </div>
-        ))}
-      </div>
-    </div>
+  const connected = isConnected(projection) ? projection : null;
+  const selected = projection.selectedAsset;
+  const avgStageDays = projection.totals.units
+    ? projection.byStage.reduce(
+        (sum, stage) => sum + (stage.averageStageAgeDays ?? 0) * stage.count,
+        0,
+      ) / projection.totals.units
+    : 0;
+  const reconWip =
+    projection.byStage.find((stage) => stage.stage === "RECONDITIONING")?.count ?? 0;
+  const agedExposure = projection.agingBands
+    .filter((band) => ["31_45", "46_60", "61_plus"].includes(band.key))
+    .reduce((sum, band) => sum + band.exposureCents, 0);
+  const retailHealth = projection.totals.units
+    ? Math.round(
+        ((projection.totals.units - projection.totals.overdue) / projection.totals.units) *
+          100,
+      )
+    : 100;
+  const shopHealth = connected?.crossLane.activeOrders
+    ? Math.max(
+        0,
+        Math.round(
+          ((connected.crossLane.activeOrders - connected.crossLane.blockedOrders) /
+            connected.crossLane.activeOrders) *
+            100,
+        ),
+      )
+    : null;
+  const partsHealth = connected?.crossLane.waitingPartDemands
+    ? Math.max(
+        0,
+        Math.round(
+          (1 -
+            connected.crossLane.unreservedPartUnits /
+              Math.max(
+                1,
+                connected.crossLane.waitingPartDemands +
+                  connected.crossLane.unreservedPartUnits,
+              )) *
+            100,
+        ),
+      )
+    : null;
+  const confidence =
+    projection.dataQualityGrade === "A"
+      ? 96
+      : projection.dataQualityGrade === "B"
+        ? 82
+        : 65;
+
+  const vehicleCard = selected
+    ? buildVehicleLifecycleCardProjection({
+        inventoryUnit: {
+          ...selected,
+          owner: selected.ownerUser.name,
+          location: selected.location.name,
+        },
+        context: connected?.selectedContext ?? null,
+        freshness: projection.freshness,
+      })
+    : null;
+
+  const lifecycleHref = selected
+    ? buildInventoryLifecycleHref(selected.id)
+    : buildInventoryLifecycleHref();
+
+  const rollupNow = new Date();
+  const readinessRollup = projection.items.reduce(
+    (total, item) => {
+      if (item.operatingState === "BLOCKED") total.blocked += 1;
+      if (item.targetAt < rollupNow) total.overdue += 1;
+      if (item.operatingState === "ACTIVE" && item.targetAt >= rollupNow) total.ready += 1;
+      return total;
+    },
+    { blocked: 0, overdue: 0, ready: 0 },
   );
-}
 
-function MiniBar({ label, value, tone = "blue" }: { label: string; value: number; tone?: Tone }) {
-  return (
-    <div className="ict-mini-bar">
-      <span>{label}</span><div><i className={`ict-bg-${tone}`} style={{ width: `${value}%` }} /></div><strong>{value}%</strong>
-    </div>
-  );
-}
+  const agingByStage = [...projection.byStage]
+    .sort(
+      (left, right) =>
+        (right.averageStageAgeDays ?? 0) - (left.averageStageAgeDays ?? 0),
+    )
+    .slice(0, 3);
 
-function CommandFieldControl({ field }: { field: CommandField }) {
-  const controlId = `ict-command-${field.name}`;
-
-  return (
-    <label className={`ict-command-field ${field.type === "textarea" ? "wide" : ""}`} htmlFor={controlId}>
-      <span>{field.label}{field.required ? <b>Required</b> : null}</span>
-      {field.type === "select" ? (
-        <select defaultValue={field.defaultValue} id={controlId} name={field.name} required={field.required}>
-          {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      ) : field.type === "textarea" ? (
-        <textarea defaultValue={field.defaultValue} id={controlId} name={field.name} required={field.required} rows={3} />
-      ) : (
-        <input defaultValue={field.defaultValue} id={controlId} name={field.name} required={field.required} type={field.type} />
-      )}
-    </label>
-  );
-}
-
-export function InventoryControlTower() {
-  const [activeTab, setActiveTab] = useState("Control Tower");
-  const [selectedStage, setSelectedStage] = useState("Title");
-  const [selectedAsset, setSelectedAsset] = useState("TMS19045");
-  const [notice, setNotice] = useState("Live operating view synchronized at 9:45 AM.");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [activeCommand, setActiveCommand] = useState<CommandType | null>(null);
-  const [commandReview, setCommandReview] = useState<string | null>(null);
-
-  const openCommand = (command: CommandType, asset = selectedAsset) => {
-    setSelectedAsset(asset);
-    setActiveCommand(command);
-    setCommandReview(null);
-    setNotice(`${commandConfigs[command].label} review opened for ${asset}.`);
+  const towerHref = (context: { stage?: string; inventoryUnitId?: string }) => {
+    const params = new URLSearchParams({ returnTo: backHref });
+    if (projection.filters.locationId) params.set("locationId", projection.filters.locationId);
+    if (context.stage) params.set("stage", context.stage);
+    if (context.inventoryUnitId) params.set("inventoryUnitId", context.inventoryUnitId);
+    return `/vehicles/control-tower?${params.toString()}`;
   };
 
-  const handleCommandSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const retailNode = (label: string, stages: string[]) => {
+    const matches = projection.byStage.filter((stage) => stages.includes(stage.stage));
+    const count = matches.reduce((sum, stage) => sum + stage.count, 0);
+    const age = count
+      ? matches.reduce(
+          (sum, stage) => sum + (stage.averageStageAgeDays ?? 0) * stage.count,
+          0,
+        ) / count
+      : 0;
 
-    if (!activeCommand) {
-      return;
-    }
-
-    const formData = new FormData(event.currentTarget);
-    const command = commandConfigs[activeCommand];
-    const primaryField = command.fields[0];
-    const primaryValue = String(formData.get(primaryField.name) ?? primaryField.defaultValue);
-
-    setCommandReview(`${command.label} ready for review: ${primaryField.label.toLowerCase()} ${primaryValue}.`);
-    setNotice(`${command.label} review prepared for ${selectedAsset}. No live record was changed.`);
+    return {
+      label,
+      count,
+      meta: `${age.toFixed(0)}d`,
+      attention: matches.some((stage) => stage.blocked > 0 || stage.overdue > 0),
+      href: matches[0] ? towerHref({ stage: matches[0].stage }) : backHref,
+    };
   };
 
+  const flowNodes = [
+    { label: "Source", count: "—", meta: "—", href: "/vehicles/acquisition-appraisal" },
+    { label: "Appraise", count: "—", meta: "—", href: "/vehicles/acquisition-appraisal" },
+    retailNode("Acquire", ["PURCHASED_OR_TRADE_IN"]),
+    retailNode("Receive", ["TRANSPORTATION", "RECEIVED"]),
+    retailNode("Inspect", ["INSPECTION"]),
+    retailNode("Recon Handoff", ["RECONDITIONING"]),
+    retailNode("Title", ["TITLE_DOCUMENT_READINESS"]),
+    retailNode("Merchandise", ["PHOTOGRAPHY_MERCHANDISING"]),
+    retailNode("Frontline", ["FRONTLINE_READY"]),
+    retailNode("Deal", ["RESERVED_DEAL_PENDING"]),
+    retailNode("Sold", ["SOLD"]),
+    retailNode("Delivered", ["DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"]),
+  ];
+
+  const shopNodes = connected
+    ? [
+        { label: "Intake", count: connected.crossLane.activeOrders, meta: "Open" },
+        { label: "Diagnose", count: connected.crossLane.openJobs, meta: "Jobs" },
+        {
+          label: "Estimate",
+          count: connected.decisions.approvals,
+          meta: "Decisions",
+        },
+        {
+          label: "Approve",
+          count: connected.decisions.approvals,
+          meta: "Pending",
+        },
+        {
+          label: "Order Parts",
+          count: connected.crossLane.waitingPartDemands,
+          meta: "Demand",
+          attention: connected.crossLane.waitingPartDemands > 0,
+        },
+        { label: "Repair", count: connected.crossLane.openJobs, meta: "WIP" },
+        { label: "QC", count: connected.crossLane.qcPassedJobs, meta: "Passed" },
+        {
+          label: "Inventory Handoff",
+          count: Math.max(
+            0,
+            connected.crossLane.qcPassedJobs - connected.crossLane.blockedOrders,
+          ),
+          meta: "Ready",
+        },
+      ]
+    : [];
+
+  const partsNodes = connected
+    ? [
+        { label: "Demand", count: connected.crossLane.waitingPartDemands, meta: "Open" },
+        { label: "Source", count: connected.crossLane.waitingPartDemands, meta: "Needs" },
+        { label: "Compare", count: "—", meta: "—" },
+        { label: "PO", count: "—", meta: "—" },
+        { label: "Ordered", count: "—", meta: "—" },
+        { label: "Received", count: "—", meta: "—" },
+        { label: "Binned", count: "—", meta: "—" },
+        {
+          label: "Reserved",
+          count: connected.crossLane.unreservedPartUnits,
+          meta: "Unreserved",
+          attention: connected.crossLane.unreservedPartUnits > 0,
+        },
+        { label: "Issued", count: "—", meta: "—" },
+        { label: "Installed", count: connected.crossLane.qcPassedJobs, meta: "Jobs" },
+        { label: "Reconciled", count: connected.crossLane.qcPassedJobs, meta: "QC" },
+      ]
+    : [];
+
   return (
-    <section className="inventory-control-tower">
-      <nav aria-label="Inventory module" className="ict-module-nav">
-        {moduleTabs.map((tab) => (
-          <button aria-current={activeTab === tab ? "page" : undefined} className={activeTab === tab ? "active" : ""} key={tab} onClick={() => { setActiveTab(tab); setNotice(`${tab} workspace selected.`); }} type="button">{tab}</button>
-        ))}
+    <section
+      aria-label={`Inventory Lifecycle Control Tower; ${projection.freshness}; quality ${projection.dataQualityGrade}`}
+      className="ict-exact"
+    >
+      <nav aria-label="Control Tower workspaces" className="ict-exact-tabs">
+        <Link className="active" href="/vehicles/control-tower">
+          Control Tower
+        </Link>
+        <Link href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Fcontrol-tower">
+          Vehicle Intake
+        </Link>
+        <Link href="/vehicles/inventory/units">Vehicles</Link>
+        <Link href="/vehicles/acquisition-appraisal">Acquisition</Link>
+        <Link href="/vehicles/inventory-to-frontline">Recon</Link>
+        <Link href="/vehicles/recon-repair-advisor">Recon / Repair</Link>
+        <Link href="/vehicles/parts-operations">Parts</Link>
+        <Link href="/vehicles/parts-operations?view=purchase-orders">Purchase Orders</Link>
+        <Link href="/vehicles/inventory/units?view=locations">Locations</Link>
+        <Link href="/vehicles/inventory/units?view=aging">Aging</Link>
+        <Link href="/vehicles/workflow-operations">Exceptions</Link>
       </nav>
 
-      <div className="ict-shell">
-        <main className="ict-main">
-          <header className="ict-header">
-            <div><p>Inventory operations</p><h1>Inventory Lifecycle Control Tower</h1><span>Protect flow, capital, readiness, and customer commitments.</span></div>
-            <div className="ict-header-actions">
-              <button type="button"><CalendarDays size={15} />Today</button>
-              <button type="button"><MapPin size={15} />Location: All<ChevronDown size={13} /></button>
-              <button type="button"><ClipboardCheck size={15} />Saved Views<ChevronDown size={13} /></button>
-              <button aria-expanded={filtersOpen} onClick={() => setFiltersOpen((current) => !current)} type="button"><Filter size={15} />Filters</button>
-              <button onClick={() => setNotice("Export prepared for the current operating view.")} type="button"><Download size={15} />Export</button>
-              <button onClick={() => setNotice("Console configuration controls opened.")} type="button"><Settings2 size={15} />Configure</button>
-            </div>
-          </header>
+      <header className="ict-exact-header">
+        <div>
+          <h1>Inventory Lifecycle Control Tower</h1>
+          <p>Protect flow, capital, readiness, and accountable commitments.</p>
+        </div>
+        <div>
+          <Link
+            className="ict-exact-primary-action"
+            href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Fcontrol-tower"
+          >
+            Start Vehicle Intake
+          </Link>
+          <Link className="ict-exact-secondary-action" href="/vehicles/registry">
+            Find / Create Identity
+          </Link>
+          <button disabled title="Alternate operating dates are not activated">
+            Today
+          </button>
+          <button
+            disabled
+            title="Location selection is controlled by the permitted Inventory Lifecycle view"
+          >
+            Location: All
+          </button>
+          <button disabled title="Control Tower saved views are not activated">
+            Saved Views
+          </button>
+          <button disabled title="Additional Control Tower filters are not activated">
+            Filters
+          </button>
+          <button disabled title="Use Reports & Exports from Inventory Console Home">
+            Export
+          </button>
+          <button disabled title="Control Tower configuration is managed in Administration">
+            Configure
+          </button>
+        </div>
+      </header>
 
-          {filtersOpen ? (
-            <div className="ict-filter-bar">
-              <strong>Active scope</strong><button type="button">All locations</button><button type="button">All ownership</button><button type="button">Exceptions first</button><button onClick={() => setFiltersOpen(false)} type="button">Clear</button>
-            </div>
-          ) : null}
-
-          <section aria-label="Inventory operating KPIs" className="ict-kpi-strip">
-            {kpis.map(({ icon: Icon, label, tone, value }) => <article key={label}><Icon className={`ict-text-${tone}`} size={22} /><span>{label}<strong>{value}</strong></span></article>)}
+      <div className="ict-exact-shell">
+        <main>
+          <section className="ict-exact-kpis">
+            {[
+              {
+                icon: Landmark,
+                label: "Inventory Capital",
+                value: formatCurrency(projection.totals.exposureCents),
+              },
+              { icon: CarFront, label: "Vehicles", value: projection.totals.units },
+              { icon: Clock3, label: "Days to Frontline", value: avgStageDays.toFixed(1) },
+              { icon: Wrench, label: "Recon WIP", value: reconWip },
+              {
+                icon: Gauge,
+                label: "Shop Load",
+                value: shopHealth === null ? "—" : `${shopHealth}%`,
+              },
+              {
+                icon: Boxes,
+                label: "Parts Fill",
+                value: partsHealth === null ? "—" : `${partsHealth}%`,
+              },
+              {
+                icon: Clock3,
+                label: "Aged Exposure",
+                value: formatCurrency(agedExposure),
+              },
+              {
+                icon: AlertTriangle,
+                label: "Critical Exceptions",
+                value: projection.totals.blocked + projection.totals.overdue,
+              },
+            ].map(({ icon: Icon, label, value }) => (
+              <article key={label}>
+                <Icon size={18} />
+                <span>
+                  {label}
+                  <strong>{value}</strong>
+                </span>
+              </article>
+            ))}
           </section>
 
-          <section aria-label="Flow health" className="ict-flow-health">
-            {flowHealth.map((metric) => <MiniBar key={metric.label} {...metric} />)}
+          <section className="ict-exact-health">
+            {[
+              ["Retail Flow", retailHealth],
+              ["Shop Flow", shopHealth],
+              ["Parts Readiness", partsHealth],
+              ["Data Confidence", confidence],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value === null ? "—" : `${value}%`}</strong>
+                <i>
+                  <b style={{ width: `${value ?? 0}%` }} />
+                </i>
+              </div>
+            ))}
           </section>
 
-          <section className="ict-panel ict-lifecycle-map">
-            <header><div><strong>Lifecycle Flow Map</strong><span>Selected stage: {selectedStage}</span></div><div className="ict-legend"><span><i className="green" />No blocker</span><span><i className="amber" />Waiting</span><span><i className="red" />Critical</span><span><i className="blue" />QC</span></div></header>
-            <div className="ict-lifecycle-scroll">
-              <LifecycleLane icon={Car} label="Retail Inventory" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={retailStages} tone="blue" />
-              <div className="ict-handoff"><span>Inspection creates recon work</span><ArrowRight size={14} /><span>QC returns to frontline flow</span></div>
-              <LifecycleLane icon={Wrench} label="Shop / Recon" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={shopStages} tone="cyan" />
-              <div className="ict-handoff"><span>Parts demand</span><ArrowRight size={14} /><span>Reserved parts feed repair</span></div>
-              <LifecycleLane icon={Boxes} label="Repair Parts" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={partsStages} tone="slate" />
-            </div>
+          <section className="ict-flow-map">
+            <header>
+              <strong>Lifecycle Flow Map</strong>
+              <span>
+                <i className="green" />
+                No blocker
+                <i className="amber" />
+                Waiting
+                <i className="red" />
+                Critical
+                <i className="blue" />
+                QC
+              </span>
+            </header>
+            <FlowLane label="Retail Inventory" nodes={flowNodes} tone="retail" />
+            <FlowLane
+              label="Shop / Recon"
+              nodes={shopNodes.map((node) => ({ ...node, href: "/vehicles/recon-repair-advisor" }))}
+              tone="shop"
+            />
+            <FlowLane
+              label="Repair Parts"
+              nodes={partsNodes.map((node) => ({
+                ...node,
+                href: "/vehicles/parts-operations",
+              }))}
+              tone="parts"
+            />
           </section>
 
-          <div className="ict-operations-grid">
-            <section className="ict-panel ict-exceptions">
-              <header><strong>Flow Exceptions</strong><button onClick={() => setNotice("Exception queue ranked by safety, SLA, and value at risk.")} type="button">Priority order</button></header>
-              <div className="ict-table-scroll"><table><thead><tr><th>Priority</th><th>Asset</th><th>Exception</th><th>Age</th><th>Owner</th><th>Value at Risk</th><th>Next Action</th></tr></thead><tbody>
-                {exceptions.map((item) => <tr className={selectedAsset === item.asset ? "selected" : ""} key={item.asset} onClick={() => { setSelectedAsset(item.asset); setNotice(`${item.asset} selected in the command rail.`); }}><td><span className={`ict-priority ict-priority-${item.priority.toLowerCase()}`}>{item.priority}</span></td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.issue}</td><td className="ict-danger-copy">{item.age}</td><td>{item.owner}</td><td>{item.risk}</td><td><button onClick={(event) => { event.stopPropagation(); openCommand("blocker", item.asset); }} type="button">{item.action}</button></td></tr>)}
-              </tbody></table></div>
-              <button className="ict-panel-link" type="button">View all exceptions (5)</button>
+          <div className="ict-exact-work-grid">
+            <section className="ict-exact-panel">
+              <header>
+                <strong>Flow Exceptions</strong>
+              </header>
+              <div className="ict-exact-table">
+                <div className="head">
+                  <span>Priority</span>
+                  <span>Asset</span>
+                  <span>Exception</span>
+                  <span>Age</span>
+                  <span>Owner</span>
+                  <span>Value at Risk</span>
+                  <span>Next Action</span>
+                </div>
+                {projection.priorityWork.slice(0, 5).map((item) => (
+                  <Link href={towerHref({ inventoryUnitId: item.id })} key={item.id}>
+                    <b
+                      className={
+                        item.blocker ? "critical" : item.overdue ? "high" : "medium"
+                      }
+                    >
+                      {item.blocker ? "Critical" : item.overdue ? "High" : "Medium"}
+                    </b>
+                    <span>
+                      <strong>{item.inventoryNumber}</strong>
+                      <small>{item.vehicle}</small>
+                    </span>
+                    <span>{item.blocker ?? (item.overdue ? "Target overdue" : item.nextAction)}</span>
+                    <em>{item.ageDays}d</em>
+                    <span>{item.owner}</span>
+                    <span>{formatCurrency(item.exposureCents)}</span>
+                    <span>{item.nextAction}</span>
+                  </Link>
+                ))}
+                {!projection.priorityWork.length ? (
+                  <p>No current flow exceptions in this permitted scope.</p>
+                ) : null}
+              </div>
             </section>
 
-            <section className="ict-panel ict-capacity">
-              <header><div><strong>Shop Capacity Board</strong><span>Recommendations require manager approval</span></div><button onClick={() => setNotice("Optimization complete: one load-balancing recommendation is ready for manager review.")} type="button"><Sparkles size={13} />Optimize Assignment</button></header>
-              <div className="ict-table-scroll"><table><thead><tr><th>Tech</th><th>Current Vehicle / Job</th><th>Productive Touch Time</th><th>Next Checkpoint</th><th>Parts Readiness</th><th>Est. Finish</th><th>Bay</th></tr></thead><tbody>
-                {capacity.map((item) => <tr key={item.asset}><td><span className="ict-tech-dot" />{item.tech}</td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.touch}</td><td>{item.checkpoint}</td><td><strong className={item.readiness < 60 ? "ict-danger-copy" : item.readiness < 80 ? "ict-warning-copy" : "ict-success-copy"}>{item.readiness}%</strong></td><td>{item.finish}</td><td>{item.bay}</td></tr>)}
-              </tbody></table></div>
+            <section className="ict-exact-panel">
+              <header>
+                <strong>Shop Capacity Board</strong>
+                <Link href="/vehicles/shop-dispatch">Optimize Assignment</Link>
+              </header>
+              <div className="ict-exact-table capacity">
+                <div className="head">
+                  <span>Technician</span>
+                  <span>Current Vehicle / Job</span>
+                  <span>Productive Touch Time</span>
+                  <span>Next Checkpoint</span>
+                  <span>Parts Readiness</span>
+                  <span>Est. Finish</span>
+                  <span>Bay</span>
+                </div>
+                <p>Technician assignment and touch-time facts require the Shop capacity projection.</p>
+              </div>
             </section>
           </div>
 
-          <section className="ict-panel ict-aging">
-            <header><strong>Capital & Aging Portfolio</strong><span>Market fit versus lifecycle age</span></header>
-            <div className="ict-aging-layout">
-              <div className="ict-aging-bars">
-                {[{label:"0-15 days",count:22,risk:"$238K",value:76,tone:"green"},{label:"16-30 days",count:15,risk:"$162K",value:53,tone:"amber"},{label:"31-45 days",count:10,risk:"$118K",value:38,tone:"amber"},{label:"46-60 days",count:7,risk:"$90K",value:29,tone:"red"},{label:"60+ days",count:7,risk:"$134K",value:29,tone:"red"}].map((row) => <div key={row.label}><span>{row.label}</span><div><i className={`ict-bg-${row.tone}`} style={{width:`${row.value}%`}} /></div><strong>{row.count}</strong><small>{row.risk}</small></div>)}
+          <section className="ict-exact-panel ict-exact-portfolio">
+            <header>
+              <strong>Capital &amp; Aging Portfolio</strong>
+            </header>
+            <div className="aging">
+              <header>
+                <span>Aging Distribution</span>
+                <span>Vehicles</span>
+                <span>Capital Exposure</span>
+              </header>
+              {projection.agingBands.map((band) => (
+                <p key={band.key}>
+                  <span>{band.label}</span>
+                  <i>
+                    <b
+                      style={{
+                        width: `${
+                          projection.totals.units
+                            ? Math.max(3, (band.count / projection.totals.units) * 100)
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </i>
+                  <strong>{band.count}</strong>
+                  <em>{formatCurrency(band.exposureCents)}</em>
+                </p>
+              ))}
+            </div>
+            <div className="market">
+              <span>Market Fit × Age</span>
+              <div>
+                <p>Market-fit evidence is unavailable in the current authoritative projection.</p>
               </div>
-              <div className="ict-market-map" aria-label="Market fit versus age portfolio plot"><span className="axis-y">Market Fit</span><i className="plot high young">TMS18777<br />CX-5</i><i className="plot high mid">TMS18888<br />RAV4</i><i className="plot high old">TMS18422<br />Accord</i><i className="plot low mid">TMS19045<br />Camry</i><i className="plot low old">TMS17654<br />Malibu</i><span className="axis-x">Age</span></div>
-              <div className="ict-recommendations"><strong>Recommended Actions</strong><span><i className="green" /><b>Improve merchandising (2)</b><small>Strong market, needs attention</small></span><span><i className="amber" /><b>Manager price review (2)</b><small>Consider price adjustment</small></span><span><i className="blue" /><b>Transfer candidate (1)</b><small>Move to higher demand location</small></span><span><i className="red" /><b>Disposition review (2)</b><small>High age, low market fit</small></span></div>
+            </div>
+            <div className="actions">
+              <strong>Recommended Actions</strong>
+              {connected?.decisions.recommendations ? (
+                <p>
+                  <i className="red" />
+                  Disposition review
+                  <small>
+                    {connected.decisions.recommendations} governed recommendations require
+                    human review
+                  </small>
+                </p>
+              ) : (
+                <p>
+                  <i className="green" />
+                  No governed recommendations
+                  <small>No eligible recommendation evidence in this scope</small>
+                </p>
+              )}
             </div>
           </section>
-          <footer className="ict-footer"><div className="ict-legend"><span><i className="blue" />Retail Inventory</span><span><i className="cyan" />Customer Repair</span><span><i className="green" />Inventory Recon</span><span><i className="amber" />Waiting</span><span><i className="red" />Critical</span></div><span aria-live="polite">{notice}</span></footer>
+
+          <section className="ict-exact-panel ict-exact-portfolio">
+            <header>
+              <strong>Lifecycle Rollups</strong>
+            </header>
+            <div className="aging">
+              <header>
+                <span>Blocked units</span>
+                <span>Overdue</span>
+                <span>Handoff ready</span>
+              </header>
+              <p>
+                <span>Current governed lifecycle</span>
+                <strong>{readinessRollup.blocked}</strong>
+                <strong>{readinessRollup.overdue}</strong>
+                <em>{readinessRollup.ready}</em>
+              </p>
+            </div>
+            <div className="market">
+              <span>Aging by stage</span>
+              <div>
+                {agingByStage.map((stage) => (
+                  <p key={stage.stage}>
+                    <strong>{stage.label}</strong>
+                    <small>
+                      {stage.averageStageAgeDays?.toFixed(1) ?? "0.0"} days avg · {stage.count} units
+                    </small>
+                  </p>
+                ))}
+              </div>
+            </div>
+            <div className="actions">
+              <strong>Lifecycle command</strong>
+              <p>
+                <i className="green" />
+                Lifecycle shell ready
+                <small>
+                  Open the governed lifecycle shell for the selected unit to inspect stage
+                  history, trail, and handoff readiness.
+                </small>
+              </p>
+              <Link href={lifecycleHref}>Open Inventory Lifecycle Shell</Link>
+            </div>
+          </section>
         </main>
 
-        <aside aria-label="Selected asset command center" className="ict-command-rail">
-          <header><div><h2>{selectedAsset}</h2><strong>2019 Toyota Camry SE</strong><span>VIN 4T1B11HKXKU123456</span></div><span className="ict-risk-badge">At Risk</span></header>
-          <div className="ict-vehicle-summary"><div className="ict-car-visual"><Car size={54} strokeWidth={1.3} /></div><dl><div><dt>Stage</dt><dd>Shop / Recon</dd></div><div><dt>Lifecycle Age</dt><dd>18 days</dd></div><div><dt>Owner</dt><dd>Brock Inventory</dd></div><div><dt>Location</dt><dd>Bay 3</dd></div></dl></div>
-          <section><h3>Flow Clock</h3><div className="ict-clock-row"><span>Active</span><div><i className="ict-bg-green" style={{width:"68%"}} /></div><strong>5h 42m</strong></div><div className="ict-clock-row"><span>Waiting</span><div><i className="ict-bg-amber" style={{width:"85%"}} /></div><strong>2d 4h</strong></div><div className="ict-clock-row"><span>Idle</span><div><i className="ict-bg-slate" style={{width:"46%"}} /></div><strong>10h 2m</strong></div></section>
-          <section><h3>Financial Exposure</h3><div className="ict-financial-grid"><span>Acquisition<strong>$12,450</strong></span><span>Recon<strong>$1,842</strong></span><span>Carrying<strong>$268</strong></span><span>Forecast Margin<strong>$2,940</strong></span></div></section>
-          <section className="ict-constraint"><h3>Current Constraint</h3><div><Wrench size={22} /><span><strong>Brake parts ETA</strong><small>Expected arrival May 23-24<br />Alternate vendor available</small></span></div></section>
-          <section className="ict-next-action"><h3>Next Best Action</h3><div><CheckCircle2 size={22} /><span><strong>Approve alternate vendor and protect Friday frontline target.</strong><small>Reason codes: margin protect, frontline commitment, low risk.</small></span><b>High confidence</b></div></section>
-          {activeCommand ? (
-            <section aria-live="polite" className="ict-command-drawer">
+        {vehicleCard ? (
+          <div>
+            <ExpandedVehicleCommandCard card={vehicleCard} />
+            <section className="ict-exact-panel" style={{ marginTop: 12 }}>
               <header>
-                <div>
-                  <h3>{commandConfigs[activeCommand].label}</h3>
-                  <p>{commandConfigs[activeCommand].summary}</p>
-                </div>
-                <button onClick={() => setActiveCommand(null)} type="button">Close</button>
+                <strong>Lifecycle summary card</strong>
+                <Link href={lifecycleHref}>Open lifecycle shell</Link>
               </header>
-              <form onSubmit={handleCommandSubmit}>
-                <div className="ict-command-fields">
-                  {commandConfigs[activeCommand].fields.map((field) => <CommandFieldControl field={field} key={field.name} />)}
+              <div className="ict-exact-table">
+                <div className="head">
+                  <span>Inventory unit</span>
+                  <span>Current stage</span>
+                  <span>Operating state</span>
+                  <span>Owner</span>
+                  <span>Location</span>
+                  <span>Next action</span>
+                  <span>Lifecycle</span>
                 </div>
-                <div className="ict-audit-preview">
-                  <strong>Review Preview</strong>
-                  <span>Asset: {selectedAsset}</span>
-                  <span>Actor: current signed-in user</span>
-                  <span>{commandConfigs[activeCommand].auditImpact}</span>
+                <div>
+                  <span>
+                    <strong>{selected?.inventoryNumber}</strong>
+                    <small>{selected?.vehicle.vin ?? selected?.vehicle.vehicleNumber}</small>
+                  </span>
+                  <span>{selected?.lifecycleStage.replaceAll("_", " ")}</span>
+                  <span>{selected?.operatingState.replaceAll("_", " ")}</span>
+                  <span>{selected?.ownerUser.name}</span>
+                  <span>{selected?.location.name}</span>
+                  <span>{selected?.nextAction}</span>
+                  <span>
+                    <Link href={lifecycleHref}>Open</Link>
+                  </span>
                 </div>
-                {commandReview ? <p className="ict-command-confirmation">{commandReview}</p> : null}
-                <div className="ict-command-submit-row">
-                  <button type="submit">{commandConfigs[activeCommand].primaryAction}</button>
-                  <button onClick={() => setCommandReview(null)} type="reset">Reset</button>
-                </div>
-              </form>
+              </div>
             </section>
-          ) : (
-            <section className="ict-command-empty-state">
-              <h3>Simplified Command Forms</h3>
-              <p>Use the action buttons below to review focused assignment, stage, blocker, and escalation forms without changing live records.</p>
-            </section>
-          )}
-          <section><h3>Shop Work Execution</h3><div className="ict-execution-steps">{executionSteps.map((step, index) => <span className={index < 4 ? "complete" : index === 4 ? "blocked" : ""} key={step}><i />{step}</span>)}</div></section>
-          <section><h3>Coaching &amp; Operating Health <small>System delays excluded</small></h3><MiniBar label="Schedule adherence" value={82} /><MiniBar label="Productive touch-time" value={76} /><MiniBar label="First-time-fix & QC" value={91} /><MiniBar label="Checkpoint reliability" value={84} /><MiniBar label="Blocker documentation" value={88} /><MiniBar label="Handoff evidence" value={72} /></section>
-          <section><h3>Linked Work</h3><div className="ict-linked-work"><span><ClipboardCheck size={14} />3 Tasks</span><span><ShoppingCart size={14} />1 Purchase Order</span><span><ShieldCheck size={14} />1 Approval</span></div></section>
-          <section><h3>Audit Trail</h3><ol className="ict-audit"><li><time>May 16, 9:22 AM</time><span>Paused - waiting on brake parts ETA.</span></li><li><time>May 15, 10:11 AM</time><span>Started repair - brake replacement.</span></li><li><time>May 14, 8:37 AM</time><span>Assigned to shop - intake complete.</span></li></ol></section>
-          <div className="ict-command-actions"><Link href="/tasks">Open Vehicle Workbench</Link><button onClick={() => openCommand("assign")} type="button">Assign</button><button onClick={() => openCommand("stage")} type="button">Update Stage</button><button onClick={() => openCommand("blocker")} type="button">Resolve Blocker</button><button className="danger" onClick={() => openCommand("escalate")} type="button">Escalate</button></div>
-        </aside>
+          </div>
+        ) : (
+          <div className="vehicle-card-empty">
+            <CarFront size={28} />
+            <h2>Selected inventory unit</h2>
+            <p>
+              No unit is selected yet. Select an eligible Inventory unit to open its official
+              lifecycle card.
+            </p>
+          </div>
+        )}
       </div>
+
+      <footer className="ict-exact-footer">
+        <span>
+          <i className="retail" />
+          Retail Inventory
+          <i className="shop" />
+          Shop / Recon
+          <i className="parts" />
+          Parts
+          <i className="waiting" />
+          Waiting
+          <i className="critical" />
+          Critical
+        </span>
+        <span>
+          Last synchronized {new Date(projection.generatedAt).toLocaleTimeString()} · Data
+          confidence {confidence}%
+        </span>
+      </footer>
     </section>
+  );
+}
+
+function FlowLane({
+  label,
+  tone,
+  nodes,
+}: {
+  label: string;
+  tone: string;
+  nodes: Array<{
+    label: string;
+    count: number | string;
+    meta: string;
+    attention?: boolean;
+    href: string;
+  }>;
+}) {
+  return (
+    <div className={`ict-flow-lane ${tone}`}>
+      <h2>
+        {tone === "retail" ? <CarFront /> : tone === "shop" ? <Wrench /> : <Boxes />}
+        <span>{label}</span>
+      </h2>
+      <div>
+        {nodes.map((node, index) => (
+          <div className="ict-flow-node-wrap" key={`${node.label}-${index}`}>
+            <Link className={node.attention ? "attention" : ""} href={node.href}>
+              <span>{node.label}</span>
+              <strong>{node.count}</strong>
+              <small>{node.meta}</small>
+            </Link>
+            {index < nodes.length - 1 ? <b>›</b> : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

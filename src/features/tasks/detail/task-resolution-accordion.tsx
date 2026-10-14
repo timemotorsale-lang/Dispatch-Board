@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, ChevronDown, ChevronRight, Plus, UserRound } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronRight, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -53,7 +53,6 @@ export function TaskResolutionAccordion({
         <div className="etw-resolution-actions">
           <button onClick={() => setExpandedIds(new Set(tasks.map((item) => item.id)))} type="button">Expand All</button>
           <button onClick={() => setExpandedIds(new Set())} type="button">Collapse All</button>
-          <Link className="primary" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${selectedTaskId}`)}${concernId ? `&concern=${encodeURIComponent(concernId)}` : ""}`}><Plus size={13} /> Task Intake</Link>
         </div>
         <div className="etw-progress" aria-label={`${completionPercent}% complete`}><span style={{ width: `${completionPercent}%` }} /></div>
       </header>
@@ -74,7 +73,7 @@ export function TaskResolutionAccordion({
             {expanded ? <div className={selected ? "etw-selected-task" : "etw-selected-task etw-selected-task-summary"} id={selected ? "selected-checklist" : undefined}>
               {selected ? <div className="etw-selected-checklist"><TaskExecutionChecklistCard embedded initialItems={checklist} kind={TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE} taskId={item.id} title="Checklist" /></div> : null}
               <div className="etw-selected-description"><strong>Description</strong><p>{selected ? selectedTaskDescription ?? "No description has been added." : item.title}</p><span>Completion Criteria</span><p>{item.completionCriteria}</p>{item.dependsOnStepCodes.length ? <small>Depends on: {item.dependsOnStepCodes.join(", ")}</small> : null}</div>
-              {selected ? <div className="etw-selected-subtasks"><TaskExecutionChecklistCard allowCreate allowDelete createPlaceholder="Add a subtask..." embedded initialItems={subtasks} kind={TASK_CHECKLIST_ITEM_KIND.SUBTASK} taskId={item.id} title="Subtasks" /></div> : null}
+              {selected ? <div className="etw-selected-subtasks"><TaskExecutionChecklistCard allowCreate allowDelete allowExpandToTask createPlaceholder="Add a subtask..." embedded initialItems={subtasks} kind={TASK_CHECKLIST_ITEM_KIND.SUBTASK} taskId={item.id} title="Subtasks" /></div> : null}
             </div> : null}
           </article>;
         })}

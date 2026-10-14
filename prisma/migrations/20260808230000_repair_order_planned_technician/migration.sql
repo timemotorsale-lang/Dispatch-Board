@@ -1,0 +1,2 @@
+-- Intentionally empty. The planned-technician experiment was superseded before
+-- schema deployment; retaining this no-op preserves migration ordering.

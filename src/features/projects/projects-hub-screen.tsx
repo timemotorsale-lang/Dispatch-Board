@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 
 import { EmptyStateCard } from "@/components/ui/state-card";
+import { getTimeAwareGreeting } from "@/lib/time-aware-greeting";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 
 import type { ProjectCardSummary, ProjectTaskLike } from "./project-data";
@@ -102,21 +103,6 @@ function resolveProjectsHubFocus(rawValue: string | undefined): ProjectsHubFocus
     rawValue === "health"
     ? rawValue
     : "all";
-}
-
-function getGreeting(name: string) {
-  const firstName = name.split(" ")[0] ?? name;
-  const hour = new Date().getHours();
-
-  if (hour < 12) {
-    return `Good morning, ${firstName}.`;
-  }
-
-  if (hour < 18) {
-    return `Good afternoon, ${firstName}.`;
-  }
-
-  return `Good evening, ${firstName}.`;
 }
 
 function isTaskOpen(task: ProjectTaskLike) {
@@ -535,7 +521,7 @@ export function ProjectsHubScreen({
         <div className="dashboard-page-header">
           <div className="dashboard-page-copy projects-hub-copy">
             <span className="eyebrow">Projects hub</span>
-            <h1>{getGreeting(currentUserName)}</h1>
+            <h1>{getTimeAwareGreeting(currentUserName)}</h1>
             <p>Here&apos;s what&apos;s happening across the dealership today.</p>
           </div>
 

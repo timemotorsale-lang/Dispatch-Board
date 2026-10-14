@@ -18,6 +18,7 @@ export type TaskMetadataUpdateResult = {
   dueAt: string;
   vehicleReference: string | null;
   customerReference: string | null;
+  workflowArea: string;
   updatedAt: string;
 };
 
@@ -111,6 +112,13 @@ function buildMetadataChangeSummary(
     changes.push("changed the due date");
   }
 
+  if (
+    nextInput.workflowArea !== undefined &&
+    nextInput.workflowArea !== previousTask.workflowArea
+  ) {
+    changes.push("changed the execution path");
+  }
+
   return changes;
 }
 
@@ -122,6 +130,7 @@ function toTaskMetadataUpdateResult(task: TaskMetadataLookupRecord): TaskMetadat
     dueAt: task.dueAt.toISOString(),
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
+    workflowArea: task.workflowArea,
     updatedAt: task.updatedAt.toISOString()
   };
 }

@@ -11,6 +11,16 @@ import type {
   TaskTemplateCompletionCriteria,
   TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
+import {
+  getTaskMomentumState,
+  normalizeTaskExecutionAssurance,
+  type TaskExecutionAssurance,
+  type TaskMomentumState
+} from "@/lib/task-execution-assurance";
+import {
+  buildTaskNextActionRecommendation,
+  type TaskNextActionRecommendation
+} from "@/server/services/task-next-action";
 
 type TaskReadUserSummary = {
   id: string;
@@ -124,6 +134,14 @@ export type TaskReadModel = {
   dueAt: string;
   workflowArea: string;
   sourceType: string;
+  sourceContext: {
+    channel: string;
+    sourceId: string | null;
+    sourceKind: string;
+    text: string;
+    href: string | null;
+  } | null;
+  repairOrderHref?: string | null;
   requiresManagerApproval: boolean;
   requiredUpdateFields: TaskTemplateRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
@@ -134,6 +152,8 @@ export type TaskReadModel = {
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
+  executionAssurance: TaskExecutionAssurance & { state: TaskMomentumState };
+  nextActionRecommendation?: TaskNextActionRecommendation;
   readyForReviewAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -143,7 +163,13 @@ export type TaskReadModel = {
   recommendation: TaskReadRecommendation | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
-  collaborators: Array<TaskReadUserSummary & { isActive: boolean; addedAt: string; addedBy: TaskReadUserSummary | null }>;
+  collaborators: Array<TaskReadUserSummary & {
+    isActive: boolean;
+    addedAt: string;
+    addedBy: TaskReadUserSummary | null;
+    collaborationScope: string;
+    capacityRequested: string | null;
+  }>;
   checklistItems: TaskChecklistItemReadModel[];
   activityHistory: TaskActivityReadModel[];
   appointmentLinks: TaskAppointmentLinkReadModel[];
@@ -332,6 +358,15 @@ function toUserSummary(
 
 function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
   const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const conversionContract = snapshot && typeof snapshot === "object" && "conversionContract" in snapshot && snapshot.conversionContract && typeof snapshot.conversionContract === "object"
+    ? snapshot.conversionContract as Record<string, unknown>
+    : null;
+  const origin = conversionContract?.origin && typeof conversionContract.origin === "object"
+    ? conversionContract.origin as Record<string, unknown>
+    : null;
+  const sourceKind = typeof origin?.sourceKind === "string" ? origin.sourceKind : "";
+  const sourceId = typeof origin?.sourceId === "string" ? origin.sourceId : null;
+  const workbookSource = /workbook/i.test(sourceKind);
   const updateFieldValues = (task as { updateFieldValues?: unknown }).updateFieldValues;
   const checklistItems = (task as { checklistItems?: TaskReadRecord["checklistItems"] }).checklistItems ?? [];
   const activityEvents = (task as {
@@ -355,7 +390,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
         }
       : null;
 
-  return {
+  const readModel: TaskReadModel = {
     id: task.id,
     boardDayId: task.boardDay.id,
     boardDate: task.boardDay.date.toISOString().slice(0, 10),
@@ -366,6 +401,17 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     dueAt: task.dueAt.toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
+    sourceContext: origin ? {
+      channel: typeof origin.channel === "string" ? origin.channel : "Workbook",
+      sourceId,
+      sourceKind: sourceKind || "Workbook item",
+      text: typeof origin.text === "string" ? origin.text : task.description,
+      href: workbookSource ? `/vehicles/coo-workbook/${sourceKind.toLowerCase().includes("quick") ? "quick-update" : sourceKind.toLowerCase().includes("checklist") ? "checklist" : ""}${sourceId ? `#source-${encodeURIComponent(sourceId)}` : ""}` : null
+    } : null,
+    repairOrderHref: task.sourceType === "REPAIR_ORDER" && snapshot && typeof snapshot === "object" &&
+      "repairOrderId" in snapshot && typeof snapshot.repairOrderId === "string"
+      ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(snapshot.repairOrderId)}`
+      : null,
     requiresManagerApproval: task.requiresManagerApproval,
     requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
     updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),
@@ -376,6 +422,10 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),
+    executionAssurance: {
+      ...normalizeTaskExecutionAssurance(task.executionAssurance),
+      state: getTaskMomentumState(task.status, task.executionAssurance)
+    },
     readyForReviewAt: task.readyForReviewAt?.toISOString() ?? null,
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
@@ -395,7 +445,9 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       email: collaborator.user.email || undefined,
       isActive: collaborator.user.isActive,
       addedAt: collaborator.createdAt.toISOString(),
-      addedBy: toUserSummary(collaborator.addedByUser)
+      addedBy: toUserSummary(collaborator.addedByUser),
+      collaborationScope: collaborator.collaborationScope,
+      capacityRequested: collaborator.capacityRequested
     })),
     concernWorkspace: task.concernLink ? {
       id: task.concernLink.concernCase.id,
@@ -490,6 +542,11 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
         email: comment.authorUser.email || undefined
       }
     }))
+  };
+
+  return {
+    ...readModel,
+    nextActionRecommendation: buildTaskNextActionRecommendation(readModel)
   };
 }
 

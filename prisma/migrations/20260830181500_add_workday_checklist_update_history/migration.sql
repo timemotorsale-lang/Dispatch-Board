@@ -1,0 +1,2 @@
+-- Restored as a no-op migration so later migrations can deploy in order.
+-- The related checklist update history data is stored in workbook item metadata.

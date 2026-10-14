@@ -456,13 +456,19 @@ export function BoardHero({
   latestGeneration?: BoardReadModel["latestGeneration"];
   toolbar: ReactNode;
 }) {
+  const generationDetail = latestGeneration
+    ? `${latestGeneration.triggeredBy === "manual" ? "Manual" : "Automatic"} run ${latestGeneration.status === "success" ? "succeeded" : latestGeneration.status} at ${formatTime(latestGeneration.attemptedAt)}${latestGeneration.createdTaskCount !== null ? ` · ${latestGeneration.createdTaskCount} tasks created` : ""}${latestGeneration.skippedExistingTaskCount !== null ? ` · ${latestGeneration.skippedExistingTaskCount} duplicates skipped` : ""}`
+    : "No generation run has been recorded for this board date.";
+
   return (
     <section className="board-hero">
-      <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p>One board. Everyone in the loop.</p></div>
+      <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p className="board-generation-summary">{generationDetail}</p></div>
       <div className="board-hero-actions"><span className="operating-status"><span />{getBoardStatusLabel(generationStatus, latestGeneration)}</span>{toolbar}</div>
     </section>
   );
 }
+
+export type DispatchBoardView = "overview" | "live";
 
 export type Metric = {
   label: string;
@@ -529,10 +535,12 @@ export function StaffDutyStrip({ staff }: { staff: ActiveUserSummary[] }) {
 
 export function OperationsStrip({
   activeAssigneeId,
+  boardDate,
   onAssigneeSelect,
   tasks
 }: {
   activeAssigneeId: string;
+  boardDate: string;
   onAssigneeSelect(assigneeId: string): void;
   tasks: Task[];
 }) {
@@ -553,7 +561,10 @@ export function OperationsStrip({
   const blockedProjects = projects.filter(({ stats }) => stats.blocked > 0).length;
   const reviewProjects = projects.filter(({ stats }) => stats.readyForReview > 0).length;
   return <section className="operations-strip">
-    <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, owner]) => <button aria-pressed={activeAssigneeId === owner.id} className={activeAssigneeId === owner.id ? "team-load-chip team-load-chip-active" : "team-load-chip"} key={name} onClick={() => onAssigneeSelect(owner.id)} type="button"><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{owner.count}</strong></span></button>)}</div></article>
+    <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, owner]) => {
+      const href = `/tasks?date=${encodeURIComponent(boardDate)}&owner=${encodeURIComponent(owner.id)}&queue=ALL`;
+      return <Link aria-current={activeAssigneeId === owner.id ? "true" : undefined} className={activeAssigneeId === owner.id ? "team-load-chip team-load-chip-active" : "team-load-chip"} href={href} key={name} onClick={() => onAssigneeSelect(owner.id)}><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{owner.count}</strong></span></Link>;
+    })}</div></article>
     <article className="projects-entry-panel"><header><span><Layers3 size={16} /> Projects</span><small>Open the project hub</small></header><div className="projects-entry-copy"><strong>{activeProjects} active project areas today</strong><p>Keep the board clean here, then open the Projects hub to choose Inventory, Shop, Advertising, Sales, Administration, Documentation, or Collections.</p></div><dl className="projects-entry-metrics"><div><dt>Active areas</dt><dd>{activeProjects}</dd></div><div><dt>Blocked</dt><dd>{blockedProjects}</dd></div><div><dt>Review</dt><dd>{reviewProjects}</dd></div></dl><Link className="pill pill-secondary projects-entry-action" href="/projects">Open Projects Hub</Link></article>
     <article><header><span><CalendarDays size={16} /> Customer / vehicle context</span><small>Visibility</small></header><div className="context-count"><strong>{referenced}</strong><span>tasks include a customer or vehicle reference</span></div></article>
   </section>;
@@ -649,7 +660,7 @@ export function TaskBoard({
     );
   }
 
-  return <section className="task-board"><header className="task-board-header"><div><span>Board tasks</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
+  return <section className="task-board" id="live-board"><header className="task-board-header"><div><span>Live Board</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
     <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); const recommendationSummary = getRecommendationSummary(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span>{recommendationSummary ? <small>{recommendationSummary}</small> : null}</td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
     <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} />)}</section>)}</div>
     <footer className="task-board-footer"><span>Showing {presentation.filteredTasks.length} of {presentation.filteredTasks.length} items</span><div><button disabled type="button">‹</button><button className="active" type="button">1</button><button disabled type="button">›</button></div></footer>

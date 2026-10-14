@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getCustomer360ReadModel } from "@/server/services/customer-console-read-service";
-import { assertCrmFeatureEnabled } from "@/server/services/crm-rollout-service";
 
 export async function GET(request: Request) {
   try {
-    const user = await getCurrentUser(); await assertCrmFeatureEnabled(user, "CRM_CUSTOMER_360");
+    const user = await getCurrentUser();
     const parameters = new URL(request.url).searchParams;
     return NextResponse.json(await getCustomer360ReadModel(user, { tab: parameters.get("tab"), customerId: parameters.get("customerId") }));
   } catch (error) {

@@ -244,6 +244,68 @@ describe("task appointment service", () => {
     );
   });
 
+  it("creates a vehicle delivery draft from task delivery timing details", async () => {
+    const commandExecutor = vi.fn(async () => createCommandResult());
+    const task = createTask({
+      title: "Deliver All Sold Vehicles",
+      description: "We have 4 vehicles already sold that need to be delivered on Tuesday 9/8/2026.",
+      workflowArea: "SALES"
+    });
+
+    await createAppointmentDraftFromTask(
+      managerUser,
+      task.id,
+      {
+        customerReference: "Nimo Ibrahim",
+        deliveryNotes: "Confirm windshield and trunk lid alignment before handoff.",
+        durationMinutes: 60,
+        localDate: "2026-09-08",
+        purposeCode: "APT-VEHICLE-DELIVERY",
+        reasonNotes: "Schedule one delivery block from the parent sold-vehicle task.",
+        startTime: "14:30",
+        title: "Vehicle Delivery - 2023 Toyota Camry Gray",
+        vehicleReference: "2023 Toyota Camry Gray"
+      },
+      {
+        commandExecutor,
+        now,
+        recordActivity: vi.fn(async () => ({ id: "activity-1" })),
+        taskReader: async () => task
+      }
+    );
+
+    expect(commandExecutor).toHaveBeenCalledWith(
+      managerUser,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          customerSnapshot: {
+            displayName: "Nimo Ibrahim"
+          },
+          endsAt: new Date("2026-09-08T20:30:00.000Z"),
+          purposeSnapshot: expect.objectContaining({
+            category: "DELIVERY",
+            purposeCode: "APT-VEHICLE-DELIVERY"
+          }),
+          sourceSnapshot: expect.objectContaining({
+            deliveryNotes: "Confirm windshield and trunk lid alignment before handoff.",
+            requestedLocalDate: "2026-09-08",
+            requestedStartTime: "14:30",
+            vehicleReference: "2023 Toyota Camry Gray"
+          }),
+          startsAt: new Date("2026-09-08T19:30:00.000Z"),
+          title: "Vehicle Delivery - 2023 Toyota Camry Gray",
+          vehicleSnapshot: {
+            displayName: "2023 Toyota Camry Gray",
+            vehicleNumber: "2023 Toyota Camry Gray"
+          }
+        })
+      }),
+      {
+        now
+      }
+    );
+  });
+
   it("blocks staff who are not assigned to the task", async () => {
     await expect(
       createAppointmentDraftFromTask(

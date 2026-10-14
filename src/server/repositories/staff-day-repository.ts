@@ -29,6 +29,7 @@ export type StaffDayDutySnapshot = {
 export type StaffDayRepository = {
   findBoardDay(boardDate: string): Promise<{ id: string } | null>;
   findForUser(boardDate: string, userId: string): Promise<StaffDayRecord | null>;
+  listForBoardDate(boardDate: string): Promise<StaffDayRecord[]>;
   listActiveUsers(): Promise<StaffDayGenerationUser[]>;
   upsertPlan(input: { boardDayId: string; duties: StaffDayDutySnapshot[]; userId: string }): Promise<StaffDayRecord>;
   startDay(input: { blockerCode: string | null; blockerNote: string | null; staffDayId: string; startedAt: Date }): Promise<StaffDayRecord>;
@@ -49,6 +50,13 @@ export function createStaffDayRepository(database: PrismaClient = prisma): Staff
       return database.staffDay.findFirst({
         where: { boardDay: { date: dateValue(boardDate) }, userId },
         include: staffDayInclude
+      });
+    },
+    async listForBoardDate(boardDate) {
+      return database.staffDay.findMany({
+        where: { boardDay: { date: dateValue(boardDate) } },
+        include: staffDayInclude,
+        orderBy: [{ user: { name: "asc" } }, { id: "asc" }]
       });
     },
     async listActiveUsers() {

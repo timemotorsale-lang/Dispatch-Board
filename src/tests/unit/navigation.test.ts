@@ -1,64 +1,394 @@
 import { describe, expect, it } from "vitest";
 
-import { getNavigationGroups } from "@/components/layout/navigation";
-import { createTestAuthStore } from "@/tests/support/auth-test-store";
+import {
+  getDispatchNavigationItems,
+  getNavigationGroups,
+  isDispatchConsolePath
+} from "@/components/layout/navigation";
+import { getConsoleNavigation } from "@/components/layout/console-navigation";
+import type { AuthenticatedUser } from "@/server/auth/store";
 
-function listHrefs(groups: ReturnType<typeof getNavigationGroups>) {
-  return groups.flatMap((group) => group.items.map((item) => item.href));
+function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+  return {
+    id: "user-1",
+    name: "Alex Operator",
+    email: "alex@example.test",
+    isActive: true,
+    roles: ["Staff"],
+    duties: { direct: [], roleDefaults: [], all: [] },
+    ...overrides
+  };
 }
 
-describe("navigation visibility", () => {
-  it("hides manager-only routes from staff users", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const staffUser = usersByEmail.get("jordan.sales@local.test");
+function linksFor(testUser: AuthenticatedUser) {
+  return getNavigationGroups(testUser).flatMap((group) => group.items);
+}
 
-    expect(staffUser).toBeDefined();
+describe("enterprise shell navigation", () => {
+  it("presents implemented Command Control Center modules with usable destinations", () => {
+    const links = linksFor(user());
+    const dispatch = links.find((item) => item.title === "Dispatch Board");
+    const liveItems = links.filter((item) => !item.disabled);
 
-    const hrefs = listHrefs(getNavigationGroups(staffUser!));
-
-    expect(hrefs).not.toContain("/manager-review");
-    expect(hrefs).not.toContain("/settings");
-    expect(hrefs).not.toContain("/settings/team");
-    expect(hrefs).toContain("/staff");
-    expect(hrefs).toContain("/my-tasks");
-    expect(hrefs).toContain("/projects");
+    expect(dispatch?.href).toBe("/board");
+    expect(dispatch?.badge).toBe("Live");
+    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance", "Document Library", "Reports"]);
+    expect(links.find((item) => item.title === "Reports")).toMatchObject({ href: "/reports", badge: "Live" });
   });
 
-  it("shows manager routes for delegated and General Manager users", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const generalManager = usersByEmail.get("morgan.manager@local.test");
-    const delegatedManager = {
-      id: "user-delegate",
-      name: "Delegated Lead",
-      email: "delegate@local.test",
-      isActive: true,
-      roles: ["Salesperson"],
+  it("marks future Command Control Center modules as planned and unavailable", () => {
+    const planned = linksFor(user()).filter((item) => item.disabled);
+
+    expect(planned.map((item) => item.title)).toEqual([
+      "People & HR",
+      "Compliance",
+      "Legal & Accounting",
+      "Library & Training",
+      "Insights"
+    ]);
+    expect(planned.every((item) => item.badge === "Planned")).toBe(true);
+  });
+
+  it("exposes administration and settings navigation only to managers", () => {
+    const staffHrefs = linksFor(user()).map((item) => item.href);
+    expect(staffHrefs).not.toContain("/administration");
+    expect(staffHrefs).not.toContain("/settings");
+
+    const manager = user({
+      roles: ["General Manager"],
+      duties: { direct: [], roleDefaults: [], all: [] }
+    });
+    const managerHrefs = linksFor(manager).map((item) => item.href);
+    expect(managerHrefs).toContain("/administration");
+    expect(managerHrefs).toContain("/settings");
+  });
+
+  it("supports delegated manager duties without requiring a second identity", () => {
+    const delegatedManager = user({
       duties: {
         direct: ["Delegated manager capabilities"],
         roleDefaults: [],
         all: ["Delegated manager capabilities"]
       }
-    };
+    });
 
-    expect(generalManager).toBeDefined();
+    const hrefs = linksFor(delegatedManager).map((item) => item.href);
+    expect(hrefs).toContain("/administration");
+  });
 
-    expect(listHrefs(getNavigationGroups(generalManager!))).toEqual(
-      expect.arrayContaining([
-        "/manager-review",
-        "/settings",
-        "/settings/team",
-        "/staff",
-        "/projects"
-      ])
+  it("keeps Dispatch-local destinations inside the Dispatch hierarchy", () => {
+    const localItems = getDispatchNavigationItems(user({ roles: ["General Manager"] }));
+
+    expect(localItems.map((item) => item.title)).toEqual([
+      "Overview",
+      "Live Board",
+      "My Tasks",
+      "Tasks",
+      "Projects",
+      "Appointments",
+      "Vehicles",
+      "COO Workbook",
+      "Diagnostics",
+      "Labor Guide",
+      "Advisor Review",
+      "Autobody Estimate",
+      "Customers",
+      "CRM",
+      "Sales",
+      "Growth",
+      "Marketing",
+      "Advertising",
+      "Manager Review",
+      "Reports",
+      "Team",
+      "Activity"
+    ]);
+  });
+
+  it("adds Manager Review in the approved position for managers only", () => {
+    const manager = user({ roles: ["General Manager"] });
+    const managerItems = getDispatchNavigationItems(manager);
+
+    expect(managerItems.map((item) => item.title)).toEqual([
+      "Overview",
+      "Live Board",
+      "My Tasks",
+      "Tasks",
+      "Projects",
+      "Appointments",
+      "Vehicles",
+      "COO Workbook",
+      "Diagnostics",
+      "Labor Guide",
+      "Advisor Review",
+      "Autobody Estimate",
+      "Customers",
+      "CRM",
+      "Sales",
+      "Growth",
+      "Marketing",
+      "Advertising",
+      "Manager Review",
+      "Reports",
+      "Team",
+      "Activity"
+    ]);
+  });
+
+  it("reduces a mechanic-only account to the three technician destinations", () => {
+    const mechanic = user({ roles: ["Mechanic"] });
+    const items = getDispatchNavigationItems(mechanic);
+    const repairWorkbench = getConsoleNavigation(
+      "/vehicles/repair-jobs/job-1/workbench",
+      mechanic
     );
-    expect(listHrefs(getNavigationGroups(delegatedManager))).toEqual(
-      expect.arrayContaining([
-        "/manager-review",
-        "/settings",
-        "/settings/team",
-        "/staff",
-        "/projects"
-      ])
-    );
+
+    expect(items.map((item) => [item.title, item.href])).toEqual([
+      ["My Work", "/my-tasks"],
+      ["Available Work", "/my-tasks/available"],
+      ["Diagnostics & Tools", "/diagnostics"]
+    ]);
+    expect(repairWorkbench?.subtitle).toBe("Technician Workspace");
+    expect(repairWorkbench?.homeHref).toBe("/my-tasks");
+    expect(repairWorkbench?.items.map((item) => item.title)).toEqual([
+      "My Work",
+      "Available Work",
+      "Diagnostics & Tools"
+    ]);
+  });
+
+  it("nests working Marketing and Advertising views beneath Sales", () => {
+    const items = getDispatchNavigationItems(user({ roles: ["Marketing/Advertisement Manager"] }));
+    const salesItems = items.filter((item) => item.href.includes("department="));
+
+    expect(salesItems.map((item) => [item.title, item.href])).toEqual([
+      ["Marketing", "/tasks?department=MARKETING"],
+      ["Advertising", "/tasks?department=ADVERTISING"]
+    ]);
+  });
+
+  it("nests diagnostic workflow pages beneath Diagnostics", () => {
+    const diagnosticItems = getDispatchNavigationItems(user({ roles: ["General Manager"] })).filter((item) => item.title === "Diagnostics" || item.parentHref === "/diagnostics");
+
+    expect(diagnosticItems.map((item) => [item.title, item.href])).toEqual([
+      ["Diagnostics", "/diagnostics"],
+      ["Labor Guide", "/diagnostics/labor-guide"],
+      ["Advisor Review", "/diagnostics/advisor-review"],
+      ["Autobody Estimate", "/diagnostics/autobody-estimate"]
+    ]);
+    expect(diagnosticItems.slice(1).every((item) => item.isNested)).toBe(true);
+  });
+
+  it("separates Dispatch console routes from CCC Home", () => {
+    expect(isDispatchConsolePath("/board")).toBe(true);
+    expect(isDispatchConsolePath("/tasks/task-1")).toBe(true);
+    expect(isDispatchConsolePath("/vehicles/360/unit-1")).toBe(true);
+    expect(isDispatchConsolePath("/customers/customer-360")).toBe(true);
+    expect(isDispatchConsolePath("/crm")).toBe(false);
+    expect(isDispatchConsolePath("/crm-next")).toBe(false);
+    expect(isDispatchConsolePath("/crm-next/customers/customer-1")).toBe(false);
+    expect(isDispatchConsolePath("/command-center")).toBe(false);
+    expect(isDispatchConsolePath("/administration")).toBe(false);
+  });
+
+  it("assigns each implemented console its own sidebar navigation", () => {
+    const staffDispatch = getConsoleNavigation("/tasks/task-1", user());
+    const inventoryConsole = getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["General Manager"] }));
+    const manager = user({ roles: ["General Manager"] });
+    const managerAdministration = getConsoleNavigation("/settings/team", manager);
+
+    expect(staffDispatch?.subtitle).toBe("My Work");
+    expect(staffDispatch?.homeHref).toBe("/my-tasks");
+    expect(staffDispatch?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "My Work",
+      "Tasks",
+    ]);
+    expect(managerAdministration?.subtitle).toBe("Administration Console");
+    expect(managerAdministration?.items.map((item) => item.title)).toEqual([
+      "Administration",
+      "Integrations",
+      "Settings"
+    ]);
+    expect(inventoryConsole?.title).toBe("Inventory Console");
+    expect(inventoryConsole?.items.find((item) => item.title === "Reports")?.href).toBe("/vehicles/reports");
+    expect(inventoryConsole?.items.map((item) => item.title)).toEqual([
+      "Home",
+      "Inventory Lifecycle",
+      "Inventory Workbook",
+      "Outside Vendors",
+      "Recon / Repair Advisor",
+      "Repair Workbench",
+      "Claims Desk",
+      "Reviews",
+      "Approvals",
+      "Reports",
+      "Administration"
+    ]);
+    expect(inventoryConsole?.items.find((item) => item.title === "Recon / Repair Advisor")?.href).toBe("/vehicles/recon-repair-advisor");
+    expect(inventoryConsole?.items.find((item) => item.title === "Repair Workbench")?.href).toBe("/vehicles/repair-workbench");
+    expect(getConsoleNavigation("/vehicles/coo-workbook", manager)).toMatchObject({
+      badge: "Review",
+      homeHref: "/vehicles/coo-workbook",
+      subtitle: "COO Workbook",
+      title: "Time Motor Sales"
+    });
+    expect(getConsoleNavigation("/command-center", manager)).toBeNull();
+    expect(getConsoleNavigation("/crm", manager)).toMatchObject({
+      badge: "Controlled",
+      homeHref: "/crm",
+      subtitle: "Customer Operations",
+      title: "Customer Console"
+    });
+    expect(getConsoleNavigation("/crm", manager)?.items.map((item) => [item.title, item.href])).toEqual([
+      ["Home", "/crm"],
+      ["Work", "/crm?view=work"],
+      ["Customers", "/crm?view=customers"],
+      ["Pipeline", "/crm?view=pipeline"],
+      ["Conversations", "/crm?view=conversations"],
+      ["Insights", "/crm?view=insights"],
+      ["More", "/crm?view=more"]
+    ]);
+  });
+
+  it("gives each operating role a focused navigation shell", () => {
+    expect(getConsoleNavigation("/vehicles", user({ roles: ["Vehicle Operations Lead"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Operations Home",
+      "Vehicle Operations Lead Workbook",
+      "My Vehicle Work",
+      "Inventory Flow",
+      "Recon / Repair Advisor",
+      "Outside Vendors",
+      "Parts Runner",
+      "Receive Vehicle",
+      "Exceptions"
+    ]);
+    expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Service Operations Workbook",
+      "Recon / Repair Advisor",
+      "Outside Vendors",
+      "Claims Desk",
+      "Repair Orders",
+      "Shop Dispatch",
+      "Parts Operations",
+      "Quality Control",
+      "Reviews"
+    ]);
+    expect(getConsoleNavigation("/vehicles", user({ roles: ["Inventory Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Inventory Home",
+      "Inventory Workbook",
+      "Inventory Lifecycle",
+      "Recon / Repair Advisor",
+      "Outside Vendors",
+      "Parts Readiness",
+      "Reviews"
+    ]);
+    expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))).toMatchObject({
+      homeHref: "/vehicles/advisor",
+      subtitle: "Advisor Workspace",
+      title: "Time Motor Sales"
+    });
+    expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Advisor Home",
+      "Service Advisor Workbook",
+      "Recon/Repair Advisor",
+      "Check In Vehicle",
+      "Claims Desk",
+      "Appointment Board",
+      "Customers",
+      "Repair Orders",
+      "Diagnostic Review",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Advisor Home",
+      "Service Advisor Workbook",
+      "Recon/Repair Advisor",
+      "Check In Vehicle",
+      "Claims Desk",
+      "Appointment Board",
+      "Customers",
+      "Repair Orders",
+      "Diagnostic Review",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/appointments", user({ roles: ["Operations Coordinator"] }))?.items.map((item) => item.title)).toEqual([
+      "Today Flow",
+      "Calendar",
+      "Planning Hub",
+      "Operations",
+      "Follow-up",
+      "Intelligence",
+      "Exceptions",
+      "Reports",
+      "Automation",
+      "Templates & Rules"
+    ]);
+    expect(getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["Parts"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Parts Home",
+      "Demand Queue",
+      "Receive Parts",
+      "Parts Counter",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/vehicles/quality-control", user({ roles: ["Quality Control"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "QC Queue",
+      "My Work",
+      "Repair Orders"
+    ]);
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Coordinator Home",
+      "Service Advisor",
+      "Appointment Console",
+      "Check In Vehicle",
+      "Claims Desk",
+      "Receive Parts",
+      "Customers",
+      "Paperwork Center",
+      "Document Library",
+      "Sales Paperwork",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Service Advisor")?.href).toBe("/vehicles/advisor");
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Appointment Console")?.href).toBe("/appointments");
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Office Manager", "Marketing/Advertisement Manager"] }))?.subtitle).toBe("Operations Coordinator");
+    expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "CRM",
+      "My Work",
+      "Sales Tasks",
+      "Appointments",
+      "Customers",
+      "Vehicles"
+    ]);
+    expect(getConsoleNavigation("/tasks", user({ roles: ["Marketing/Advertisement Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "My Work",
+      "Marketing",
+      "Advertising",
+      "Vehicles"
+    ]);
+    expect(getConsoleNavigation("/my-tasks", user({ roles: ["Office Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "My Work",
+      "Document Library",
+      "Appointments",
+      "Customers",
+      "Team Tasks"
+    ]);
+    expect(getConsoleNavigation("/my-tasks", user({ roles: ["Collections"] }))?.items.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "My Collections",
+      "Collections Queue",
+      "Account Context"
+    ]);
   });
 });

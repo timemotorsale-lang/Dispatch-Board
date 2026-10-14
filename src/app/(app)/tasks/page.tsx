@@ -1,8 +1,8 @@
-import { TasksConsoleScreen } from "@/features/tasks/tasks-console-screen";
+import { TasksConsoleLoader } from "@/features/tasks/tasks-console-loader";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
-import { getBoardReadModelForDate } from "@/server/services/board-read";
+import { getTaskOperationsReadModelForDate } from "@/server/services/board-read";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { listTaskSavedViews, type TaskSavedViewModel } from "@/server/services/task-saved-views";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
@@ -15,6 +15,7 @@ type TasksPageProps = {
     date?: string | string[];
     department?: string | string[];
     group?: string | string[];
+    owner?: string | string[];
     page?: string | string[];
     queue?: string | string[];
     task?: string | string[];
@@ -47,9 +48,12 @@ function resolveSelectedBoardDate(
 }
 
 export default async function TasksPage({ searchParams }: TasksPageProps) {
-  const user = await requireCurrentUser();
+  const [user, resolvedSearchParams, settings] = await Promise.all([
+    requireCurrentUser(),
+    searchParams,
+    getGenerationSettings()
+  ]);
   const manager = isManager(user);
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams.date[0]
     : resolvedSearchParams?.date;
@@ -61,7 +65,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     : resolvedSearchParams?.concern;
   const readParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
   const requestedTaskId = readParam(resolvedSearchParams?.task);
-  const settings = await getGenerationSettings();
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage: dateErrorMessage } = resolveSelectedBoardDate(
     requestedBoardDate,
@@ -72,12 +75,17 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   let initialTask = null;
   let initialSavedViews: TaskSavedViewModel[] = [];
   let screenErrorMessage = dateErrorMessage;
-  const assignableUsers = manager ? await listActiveUserSummaries() : [];
+  let assignableUsers: Awaited<ReturnType<typeof listActiveUserSummaries>> = [];
 
   try {
-    initialSavedViews = await listTaskSavedViews(user);
-    const boardLookup = await getBoardReadModelForDate(user, boardDate);
+    const [resolvedAssignableUsers, resolvedSavedViews, boardLookup] = await Promise.all([
+      manager ? listActiveUserSummaries() : Promise.resolve([]),
+      listTaskSavedViews(user),
+      getTaskOperationsReadModelForDate(user, boardDate)
+    ]);
 
+    assignableUsers = resolvedAssignableUsers;
+    initialSavedViews = resolvedSavedViews;
     board = boardLookup.board;
 
     const selectedTask = board?.tasks.find((task) => task.id === requestedTaskId) ?? board?.tasks[0];
@@ -90,7 +98,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   }
 
   return (
-    <TasksConsoleScreen
+    <TasksConsoleLoader
       assignableUsers={assignableUsers}
       board={board}
       boardDate={boardDate}
@@ -102,6 +110,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       initialConcernIntakeOpen={manager && requestedConcern === "1"}
       initialDepartmentFilter={readParam(resolvedSearchParams?.department)}
       initialGroupBy={readParam(resolvedSearchParams?.group)}
+      initialOwnerFilter={readParam(resolvedSearchParams?.owner)}
       initialPage={Number.parseInt(readParam(resolvedSearchParams?.page) ?? "1", 10) || 1}
       initialQueueFilter={readParam(resolvedSearchParams?.queue)}
       initialView={readParam(resolvedSearchParams?.view)}

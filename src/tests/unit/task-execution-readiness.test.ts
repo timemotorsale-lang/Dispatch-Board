@@ -2,6 +2,7 @@ import { TaskStatus } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskExecutionRecord, TaskExecutionRepository } from "@/server/repositories/task-execution-repository";
 import { acceptTask, evaluateTaskCompletionReadiness, overrideTaskCompletion } from "@/server/services/task-execution-readiness";
 
@@ -69,6 +70,51 @@ describe("task execution readiness", () => {
     expect(result.requirements).toEqual([
       { code: "checklist:vehicle", label: "Verify vehicle", satisfied: true }
     ]);
+  });
+
+  it("treats generated draft plan items as staff guidance until the plan is adopted", () => {
+    const result = evaluateTaskCompletionReadiness(task({
+      checklistItems: [{
+        key: "sales_subtask_contact",
+        kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+        label: "Complete the required customer follow-up",
+        isRequired: true,
+        completed: false
+      }],
+      updateFieldValues: { delivery_result: "Customer accepted delivery." }
+    }));
+
+    expect(result.ready).toBe(true);
+    expect(result.requirements).toEqual([]);
+  });
+
+  it("enforces generated required items after staff adopts the suggested plan", () => {
+    const result = evaluateTaskCompletionReadiness(task({
+      checklistItems: [{
+        key: "sales_subtask_contact",
+        kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+        label: "Complete the required customer follow-up",
+        isRequired: true,
+        completed: false
+      }],
+      executionAssurance: {
+        planReview: {
+          status: "CONFIRMED",
+          reviewedAt: "2026-09-06T12:00:00.000Z",
+          reviewedByUserId: staff.id,
+          reviewedByName: staff.name,
+          note: "Staff confirmed the suggested execution plan."
+        }
+      },
+      updateFieldValues: { delivery_result: "Customer accepted delivery." }
+    }));
+
+    expect(result.ready).toBe(false);
+    expect(result.requirements).toEqual([{
+      code: "checklist:sales_subtask_contact",
+      label: "Complete the required customer follow-up",
+      satisfied: false
+    }]);
   });
 
   it("accepts once and returns the existing acceptance on retry", async () => {

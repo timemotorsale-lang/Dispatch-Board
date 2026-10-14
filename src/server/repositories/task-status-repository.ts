@@ -11,7 +11,10 @@ const taskStatusSelect = {
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
+  workflowArea: true,
+  dueAt: true,
   blockerReason: true,
+  executionAssurance: true,
   templateSnapshot: true,
   updateFieldValues: true,
   readyForReviewAt: true,
@@ -25,6 +28,7 @@ const taskStatusSelect = {
   checklistItems: {
     select: {
       key: true,
+      kind: true,
       label: true,
       isRequired: true,
       completed: true
@@ -57,7 +61,10 @@ export type TaskStatusLookupRecord = {
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
+  workflowArea: string;
+  dueAt?: Date;
   blockerReason: string | null;
+  executionAssurance?: Prisma.JsonValue | null;
   templateSnapshot?: Prisma.JsonValue | null;
   updateFieldValues?: Prisma.JsonValue | null;
   readyForReviewAt: Date | null;
@@ -69,7 +76,7 @@ export type TaskStatusLookupRecord = {
   completionOverrideByUserId?: string | null;
   completionOverrideReason?: string | null;
   updatedAt: Date;
-  checklistItems?: Array<{ key: string | null; label: string; isRequired: boolean; completed: boolean }>;
+  checklistItems?: Array<{ key: string | null; kind: string; label: string; isRequired: boolean; completed: boolean }>;
   concernLink?: {
     dependsOnStepCodes: Prisma.JsonValue;
     concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };
@@ -80,7 +87,8 @@ export type TaskStatusLookupRecord = {
 
 export type TaskStatusUpdateData = {
   status: TaskStatus;
-  blockerReason?: string;
+  blockerReason?: string | null;
+  executionAssurance?: Prisma.InputJsonValue;
   updateFieldValues?: Prisma.InputJsonValue;
   readyForReviewAt?: Date | null;
   completedAt?: Date | null;
@@ -113,6 +121,7 @@ export function createTaskStatusRepository(database: TaskStatusDatabase = prisma
         data: {
           status: data.status,
           ...(data.blockerReason !== undefined ? { blockerReason: data.blockerReason } : {}),
+          ...(data.executionAssurance !== undefined ? { executionAssurance: data.executionAssurance } : {}),
           ...(data.updateFieldValues !== undefined ? { updateFieldValues: data.updateFieldValues } : {}),
           ...(data.readyForReviewAt !== undefined ? { readyForReviewAt: data.readyForReviewAt } : {}),
           ...(data.completedAt !== undefined ? { completedAt: data.completedAt } : {}),

@@ -84,7 +84,8 @@ export async function GET(request: Request) {
       locationId,
       windowStart: readWindow.windowStart,
       windowEnd: readWindow.windowEnd,
-      includeCancelled: parseBoolean(url.searchParams.get("includeCancelled"))
+      includeCancelled: parseBoolean(url.searchParams.get("includeCancelled")),
+      searchText: url.searchParams.get("search") ?? url.searchParams.get("q")
     });
 
     return NextResponse.json({

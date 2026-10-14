@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claims Workspace v1 Mockup</title>
+    <style>
+      :root {
+        --ink: #07132d;
+        --muted: #51617b;
+        --quiet: #75829a;
+        --line: #d8e1f1;
+        --panel: #ffffff;
+        --surface: #f5f8fc;
+        --soft: #edf3fb;
+        --blue: #2649c7;
+        --blue-soft: #eaf0ff;
+        --green: #0f766e;
+        --green-soft: #e7f7f3;
+        --amber: #a15c00;
+        --amber-soft: #fff4da;
+        --red: #a82626;
+        --red-soft: #fff0f0;
+        --shadow: 0 18px 50px rgba(17, 39, 83, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #e9eef7;
+        color: var(--ink);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .frame {
+        width: 1600px;
+        min-height: 1000px;
+        margin: 0 auto;
+        background: var(--surface);
+        display: grid;
+        grid-template-columns: 244px 1fr;
+      }
+
+      .sidebar {
+        background: #0b1733;
+        color: #dbe6fb;
+        padding: 28px 20px;
+      }
+
+      .brand {
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 34px;
+      }
+
+      .nav-group {
+        margin-bottom: 26px;
+      }
+
+      .nav-label {
+        color: #8292b1;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        margin: 0 0 10px;
+      }
+
+      .nav-item {
+        height: 42px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        border-radius: 7px;
+        color: #c9d6f0;
+        font-size: 14px;
+        font-weight: 650;
+        margin-bottom: 4px;
+      }
+
+      .nav-item.active {
+        background: #eef3ff;
+        color: #0d1c40;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.75;
+      }
+
+      main {
+        padding: 28px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+
+      .crumb {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .top-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      button {
+        height: 42px;
+        border: 1px solid #b9c7df;
+        background: #fff;
+        color: #18315f;
+        border-radius: 7px;
+        font-size: 14px;
+        font-weight: 800;
+        padding: 0 16px;
+      }
+
+      button.primary {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .hero {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+
+      .hero-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+      }
+
+      h1 {
+        font-size: 34px;
+        line-height: 1.1;
+        margin: 0 0 8px;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      .claim-status {
+        min-width: 370px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        background: #fbfdff;
+      }
+
+      .status-title {
+        font-size: 12px;
+        font-weight: 850;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+
+      .status-main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .status-main strong {
+        font-size: 22px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+
+      .badge.blue {
+        color: #1c3fb6;
+        background: var(--blue-soft);
+        border: 1px solid #c8d6ff;
+      }
+
+      .badge.green {
+        color: var(--green);
+        background: var(--green-soft);
+        border: 1px solid #bfe7dc;
+      }
+
+      .badge.amber {
+        color: var(--amber);
+        background: var(--amber-soft);
+        border: 1px solid #ffd98b;
+      }
+
+      .badge.red {
+        color: var(--red);
+        background: var(--red-soft);
+        border: 1px solid #ffcaca;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 1.35fr 0.78fr;
+        gap: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      h2 {
+        font-size: 20px;
+        margin: 0;
+        letter-spacing: 0;
+      }
+
+      .caption {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .snapshot-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .field {
+        background: #fbfdff;
+        border: 1px solid #dce5f3;
+        border-radius: 7px;
+        padding: 12px;
+        min-height: 76px;
+      }
+
+      .label {
+        display: block;
+        color: var(--quiet);
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+
+      .value {
+        color: var(--ink);
+        font-size: 15px;
+        line-height: 1.25;
+        font-weight: 750;
+      }
+
+      .wide {
+        grid-column: span 2;
+      }
+
+      .need-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .need {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 54px;
+        border: 1px solid #dce5f3;
+        border-radius: 7px;
+        padding: 10px 12px;
+        background: #fbfdff;
+      }
+
+      .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        font-weight: 900;
+        flex: 0 0 auto;
+      }
+
+      .check.done {
+        background: var(--green-soft);
+        color: var(--green);
+        border: 1px solid #bfe7dc;
+      }
+
+      .check.warn {
+        background: var(--amber-soft);
+        color: var(--amber);
+        border: 1px solid #ffd98b;
+      }
+
+      .check.block {
+        background: var(--red-soft);
+        color: var(--red);
+        border: 1px solid #ffcaca;
+      }
+
+      .need strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .need span {
+        color: var(--muted);
+        display: block;
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      .evidence-row {
+        display: grid;
+        grid-template-columns: 124px 1fr 140px;
+        gap: 12px;
+        align-items: center;
+        min-height: 66px;
+        border-top: 1px solid #edf1f8;
+      }
+
+      .evidence-row:first-of-type {
+        border-top: 0;
+      }
+
+      .thumbs {
+        display: flex;
+        gap: 6px;
+      }
+
+      .thumb {
+        width: 34px;
+        height: 34px;
+        border-radius: 6px;
+        border: 1px solid #bfcae0;
+        background:
+          linear-gradient(135deg, rgba(38, 73, 199, 0.16), rgba(15, 118, 110, 0.12)),
+          #f8fbff;
+      }
+
+      .mini-title {
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .mini-copy {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      .action-box {
+        border: 1px solid #c9d7f2;
+        background: #f8fbff;
+        border-radius: 8px;
+        padding: 16px;
+      }
+
+      .action-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .action-title {
+        font-size: 24px;
+        line-height: 1.15;
+        font-weight: 900;
+        margin: 6px 0;
+      }
+
+      .action-copy {
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 14px;
+        margin: 0 0 14px;
+      }
+
+      .owner-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .readiness-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .gate {
+        border: 1px solid #dce5f3;
+        border-radius: 7px;
+        padding: 12px;
+        background: #fbfdff;
+      }
+
+      .gate-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 7px;
+      }
+
+      .bar {
+        height: 8px;
+        border-radius: 999px;
+        background: #e4ebf7;
+        overflow: hidden;
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--blue);
+      }
+
+      .advanced {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .advanced-card {
+        min-height: 72px;
+        border: 1px solid #dce5f3;
+        border-radius: 7px;
+        padding: 12px;
+        background: #fbfdff;
+      }
+
+      .advanced-card.muted {
+        opacity: 0.64;
+      }
+
+      .footer-note {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <aside class="sidebar">
+        <div class="brand">Time Motor</div>
+        <div class="nav-group">
+          <p class="nav-label">Command</p>
+          <div class="nav-item"><span class="dot"></span>Dispatch Board</div>
+          <div class="nav-item"><span class="dot"></span>Customers</div>
+          <div class="nav-item"><span class="dot"></span>Vehicles</div>
+        </div>
+        <div class="nav-group">
+          <p class="nav-label">Service</p>
+          <div class="nav-item"><span class="dot"></span>Service Intake</div>
+          <div class="nav-item active"><span class="dot"></span>Claims Workspace</div>
+          <div class="nav-item"><span class="dot"></span>Repair Orders</div>
+          <div class="nav-item"><span class="dot"></span>Documents</div>
+        </div>
+        <div class="nav-group">
+          <p class="nav-label">Operations</p>
+          <div class="nav-item"><span class="dot"></span>Tasks</div>
+          <div class="nav-item"><span class="dot"></span>Manager Review</div>
+          <div class="nav-item"><span class="dot"></span>Reports</div>
+        </div>
+      </aside>
+      <main>
+        <div class="topbar">
+          <div class="crumb">Service Console / Insurance Claim Assistant</div>
+          <div class="top-actions">
+            <button>Customer 360</button>
+            <button>Vehicle 360</button>
+            <button class="primary">Save claim</button>
+          </div>
+        </div>
+
+        <section class="hero">
+          <div class="hero-row">
+            <div>
+              <h1>Claims Workspace</h1>
+              <p class="subtitle">A simple execution desk for moving insurance claims from first contact to repair, payment, or follow-up handoff.</p>
+            </div>
+            <div class="claim-status">
+              <div class="status-title">Current claim</div>
+              <div class="status-main">
+                <strong>Waiting on adjuster</strong>
+                <span class="badge amber">2 days open</span>
+              </div>
+              <p class="caption">Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete.</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="workspace">
+          <div class="stack">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Claim Snapshot</h2>
+                  <p class="caption">Enough context to work the claim without making staff complete every advanced field up front.</p>
+                </div>
+                <span class="badge blue">Claim # MN-48291</span>
+              </div>
+              <div class="snapshot-grid">
+                <div class="field">
+                  <span class="label">Customer</span>
+                  <div class="value">Deqo Roble</div>
+                </div>
+                <div class="field">
+                  <span class="label">Vehicle</span>
+                  <div class="value">2018 Toyota Camry</div>
+                </div>
+                <div class="field">
+                  <span class="label">VIN</span>
+                  <div class="value">4T1B11HK9JU128441</div>
+                </div>
+                <div class="field">
+                  <span class="label">Owner</span>
+                  <div class="value">Eli Manager</div>
+                </div>
+                <div class="field">
+                  <span class="label">Carrier</span>
+                  <div class="value">State Farm</div>
+                </div>
+                <div class="field">
+                  <span class="label">Adjuster</span>
+                  <div class="value">Needed</div>
+                </div>
+                <div class="field">
+                  <span class="label">Loss date</span>
+                  <div class="value">Sep 15, 2026</div>
+                </div>
+                <div class="field">
+                  <span class="label">Deductible</span>
+                  <div class="value">$500 confirmed</div>
+                </div>
+                <div class="field wide">
+                  <span class="label">Incident summary</span>
+                  <div class="value">Front bumper and left fender damage. Customer reports vehicle was driveable after loss.</div>
+                </div>
+                <div class="field wide">
+                  <span class="label">Current blocker</span>
+                  <div class="value">Missing adjuster contact and signed repair authorization.</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>What We Need</h2>
+                  <p class="caption">A focused checklist replaces a long intake form. Staff can mark items complete, blocked, or not applicable.</p>
+                </div>
+                <span class="badge amber">5/9 ready</span>
+              </div>
+              <div class="need-grid">
+                <div class="need">
+                  <span class="check done">✓</span>
+                  <div><strong>Claim number</strong><span>Captured from customer</span></div>
+                </div>
+                <div class="need">
+                  <span class="check block">!</span>
+                  <div><strong>Customer authorization</strong><span>Signature required before repair handoff</span></div>
+                </div>
+                <div class="need">
+                  <span class="check done">✓</span>
+                  <div><strong>Carrier and policy</strong><span>Insurance card attached</span></div>
+                </div>
+                <div class="need">
+                  <span class="check warn">?</span>
+                  <div><strong>Adjuster contact</strong><span>Call carrier or customer</span></div>
+                </div>
+                <div class="need">
+                  <span class="check block">!</span>
+                  <div><strong>Damage photos</strong><span>Need left front and VIN photo</span></div>
+                </div>
+                <div class="need">
+                  <span class="check done">✓</span>
+                  <div><strong>Deductible</strong><span>$500 confirmed</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Evidence and Documents</h2>
+                  <p class="caption">Documents store once in the library, then link to claim, customer, vehicle, and repair order when available.</p>
+                </div>
+                <button>Add evidence</button>
+              </div>
+              <div class="evidence-row">
+                <div class="thumbs">
+                  <span class="thumb"></span>
+                  <span class="thumb"></span>
+                  <span class="thumb"></span>
+                </div>
+                <div>
+                  <div class="mini-title">Initial damage photos</div>
+                  <div class="mini-copy">3 attached. Missing left-front closeup and VIN photo.</div>
+                </div>
+                <span class="badge amber">Partial</span>
+              </div>
+              <div class="evidence-row">
+                <div class="thumbs">
+                  <span class="thumb"></span>
+                </div>
+                <div>
+                  <div class="mini-title">Insurance card</div>
+                  <div class="mini-copy">Stored in document library and linked to customer and claim.</div>
+                </div>
+                <span class="badge green">Complete</span>
+              </div>
+              <div class="evidence-row">
+                <div class="thumbs">
+                  <span class="thumb"></span>
+                </div>
+                <div>
+                  <div class="mini-title">Repair authorization</div>
+                  <div class="mini-copy">Prepared but not signed. E-sign can be added later.</div>
+                </div>
+                <span class="badge red">Needed</span>
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Next Action</h2>
+                  <p class="caption">Deterministic workflow logic keeps the desk simple.</p>
+                </div>
+              </div>
+              <div class="action-box">
+                <div class="action-label">Recommended now</div>
+                <div class="action-title">Contact adjuster</div>
+                <p class="action-copy">Carrier is captured, but adjuster contact and approval status are missing. Repair handoff remains blocked until authorization and required photos are complete.</p>
+                <button class="primary">Record carrier call</button>
+                <div class="owner-row">
+                  <div class="field">
+                    <span class="label">Owner</span>
+                    <div class="value">Service advisor</div>
+                  </div>
+                  <div class="field">
+                    <span class="label">Due</span>
+                    <div class="value">Today, 4:00 PM</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Handoff Readiness</h2>
+                  <p class="caption">Clear gates prevent premature handoff while allowing approved exceptions.</p>
+                </div>
+              </div>
+              <div class="readiness-list">
+                <div class="gate">
+                  <div class="gate-top">
+                    <strong>Estimate readiness</strong>
+                    <span class="badge green">Ready</span>
+                  </div>
+                  <div class="bar"><span style="width: 88%"></span></div>
+                </div>
+                <div class="gate">
+                  <div class="gate-top">
+                    <strong>Repair order handoff</strong>
+                    <span class="badge amber">Blocked</span>
+                  </div>
+                  <div class="bar"><span style="width: 56%"></span></div>
+                </div>
+                <div class="gate">
+                  <div class="gate-top">
+                    <strong>Payment follow-up</strong>
+                    <span class="badge blue">Later</span>
+                  </div>
+                  <div class="bar"><span style="width: 32%"></span></div>
+                </div>
+                <div class="gate">
+                  <div class="gate-top">
+                    <strong>Closeout</strong>
+                    <span class="badge blue">Not yet</span>
+                  </div>
+                  <div class="bar"><span style="width: 18%"></span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Progressive Tools</h2>
+                  <p class="caption">Advanced panels appear only when claim complexity requires them.</p>
+                </div>
+              </div>
+              <div class="advanced">
+                <div class="advanced-card">
+                  <div class="mini-title">Adjuster details</div>
+                  <div class="mini-copy">Visible because carrier claim is active.</div>
+                </div>
+                <div class="advanced-card">
+                  <div class="mini-title">Estimate</div>
+                  <div class="mini-copy">Ready to upload or link appraisal.</div>
+                </div>
+                <div class="advanced-card muted">
+                  <div class="mini-title">Supplement</div>
+                  <div class="mini-copy">Hidden until estimate exists.</div>
+                </div>
+                <div class="advanced-card muted">
+                  <div class="mini-title">Payment recovery</div>
+                  <div class="mini-copy">Hidden until repair or payment issue.</div>
+                </div>
+              </div>
+              <p class="footer-note">Mockup intent: a short execution workspace, not a long insurance form.</p>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

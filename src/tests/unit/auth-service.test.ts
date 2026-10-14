@@ -4,10 +4,13 @@ import { developmentUserDefinitions, SHARED_DEVELOPMENT_PASSWORD } from "@/serve
 import {
   getLoginRouteRedirect,
   getProtectedRouteRedirect,
+  isOperationsCoordinatorDefaultUser,
   getSafePostLoginRedirect
 } from "@/server/auth/navigation";
 import {
   AUTH_FAILURE_MESSAGE,
+  AUTH_LOCKED_MESSAGE,
+  changeOwnPassword,
   loginWithPassword,
   normalizeEmail,
   logoutWithSessionToken,
@@ -49,6 +52,80 @@ describe("auth service", () => {
       reason: "invalid_credentials",
       message: AUTH_FAILURE_MESSAGE
     });
+  });
+
+  it("temporarily locks an account after repeated wrong passwords", async () => {
+    const { store, usersByEmail } = await createTestAuthStore();
+    const now = new Date("2026-09-14T14:00:00.000Z");
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const result = await loginWithPassword(
+        store,
+        {
+          email: "morgan.manager@local.test",
+          password: "not-the-right-password"
+        },
+        now
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "invalid_credentials",
+        message: AUTH_FAILURE_MESSAGE
+      });
+    }
+
+    const lockedResult = await loginWithPassword(
+      store,
+      {
+        email: "morgan.manager@local.test",
+        password: "not-the-right-password"
+      },
+      now
+    );
+
+    expect(lockedResult).toEqual({
+      ok: false,
+      reason: "locked_user",
+      message: AUTH_LOCKED_MESSAGE
+    });
+    expect(usersByEmail.get("morgan.manager@local.test")?.lockedUntil).toEqual(
+      new Date("2026-09-14T14:15:00.000Z")
+    );
+  });
+
+  it("changes a temporary password and clears the required-change flag", async () => {
+    const { store, usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test");
+
+    expect(user).toBeDefined();
+
+    if (!user) {
+      return;
+    }
+
+    user.mustChangePassword = true;
+
+    const loginResult = await loginWithPassword(store, {
+      email: "morgan.manager@local.test",
+      password: SHARED_DEVELOPMENT_PASSWORD
+    });
+
+    expect(loginResult.ok).toBe(true);
+
+    if (!loginResult.ok) {
+      return;
+    }
+
+    expect(loginResult.requiresPasswordChange).toBe(true);
+
+    await expect(
+      changeOwnPassword(store, loginResult.user, {
+        currentPassword: SHARED_DEVELOPMENT_PASSWORD,
+        newPassword: "NewSecure123!"
+      })
+    ).resolves.toEqual(expect.objectContaining({ ok: true }));
+    expect(usersByEmail.get("morgan.manager@local.test")?.mustChangePassword).toBe(false);
   });
 
   it("rejects inactive users", async () => {
@@ -117,7 +194,7 @@ describe("auth service", () => {
     const authenticatedUser = await readAuthenticatedUser(store, loginResult.sessionToken);
 
     expect(getProtectedRouteRedirect(authenticatedUser)).toBeNull();
-    expect(getLoginRouteRedirect(authenticatedUser)).toBe("/board");
+    expect(getLoginRouteRedirect(authenticatedUser)).toBe("/time-attendance");
   });
 
   it("supports users with multiple roles", async () => {
@@ -142,6 +219,8 @@ describe("auth service", () => {
     expect(result.user.roles).toEqual(
       expect.arrayContaining(["Marketing/Advertisement Manager", "Office Manager"])
     );
+    expect(isOperationsCoordinatorDefaultUser(result.user)).toBe(true);
+    expect(getLoginRouteRedirect(result.user)).toBe("/time-attendance");
   });
 
   it("supports direct user duties in the authenticated summary", async () => {

@@ -43,7 +43,7 @@ function createTask(overrides: Partial<BoardReadTask> = {}): BoardReadTask {
 }
 
 describe("my tasks helpers", () => {
-  it("keeps only tasks assigned to the current user", () => {
+  it("keeps tasks assigned to or requesting collaboration from the current user", () => {
     const tasks = [
       createTask({
         id: "task-1",
@@ -60,10 +60,26 @@ describe("my tasks helpers", () => {
           name: "Walter Mechanic",
           email: "casey.mechanic@local.test"
         }
+      }),
+      createTask({
+        id: "task-3",
+        assignedUser: {
+          id: "user-2",
+          name: "Walter Mechanic",
+          email: "casey.mechanic@local.test"
+        },
+        collaborators: [{
+          id: "user-1",
+          name: "Baraka Sales",
+          email: "jordan.sales@local.test",
+          collaborationScope: "Confirm customer pickup timing",
+          capacityRequested: "Before noon",
+          addedAt: "2026-06-18T14:00:00.000Z"
+        }]
       })
     ];
 
-    expect(getTasksAssignedToUser(tasks, "user-1").map((task) => task.id)).toEqual(["task-1"]);
+    expect(getTasksAssignedToUser(tasks, "user-1").map((task) => task.id)).toEqual(["task-1", "task-3"]);
   });
 
   it("filters due-soon tasks without including completed work", () => {
@@ -151,7 +167,7 @@ describe("my tasks helpers", () => {
   });
 
   it("returns stable user-facing labels for task filters", () => {
-    expect(getMyTasksFilterLabel("all")).toBe("Assigned today");
+    expect(getMyTasksFilterLabel("all")).toBe("My work today");
     expect(getMyTasksFilterLabel("blockedWaiting")).toBe("Blocked / waiting");
     expect(getMyTasksFilterLabel("readyForReview")).toBe("Ready for review");
   });

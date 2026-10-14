@@ -1,5 +1,835 @@
 # Current Implementation Status
 
+## 2026-10-10 - Local Vehicle 360 Runtime Recovery
+
+Two verified development servers were using the same `.next-local` junction;
+the second review launch retargeted that shared alias while the original server
+was still running. Development logs showed EBUSY client-reference manifest errors.
+Both local Dispatch Board server trees were stopped and one fresh isolated-cache
+instance was started on port 3000. The exact reported Vehicle 360 record
+`9980b769-4d3a-4673-a8cc-eeeb262a0764` rendered its authenticated Tacoma workspace
+successfully after recovery. No vehicle data, feature flags or permissions were
+changed, and no application-code patch was required for this recovery. Port 3001
+is no longer the review server. Future local review launches must reuse the active
+server rather than retarget a cache alias used by another running instance.
+This runtime recovery does not represent a production deployment.
+
+## 2026-10-10 - Vehicle Sales Media Gallery
+
+The preparation workspace Media tab now has Photos and Videos views, batch upload,
+per-file progress/retry, camera capture entry, selectable thumbnail grids, small/
+large sizes, saved ordering, primary-photo selection, a photo/video viewer and
+selected ZIP downloads. The primary sales photo updates the persistent vehicle
+sidebar. Sales media is explicitly tagged in existing protected evidence links;
+inspection and acquisition files are not automatically copied into the gallery.
+The server enforces 40 active sales photos and a separate five-video limit under
+a scoped vehicle row lock. Each file retains the existing 10 MB maximum. Accepted
+formats are JPEG, PNG, WebP and MP4; the existing baseline signature scan quarantines
+mismatches. MP4 container validation is not full antivirus scanning, transcoding
+or a guarantee of browser codec support. Uploaded files retain a one-year date.
+
+Ordering and removal reuse versioned enterprise commands, audited snapshots and
+outbox events, with stable upload retry identities. Concurrent/stale gallery
+changes fail safely. Confirmed removal archives only selected sales links, not
+protected bytes or operational evidence; legal holds prevent removal. Existing
+evidence view/manage capabilities and Vehicle 360 rollout controls govern access.
+No new permission system, public publishing connector or schema migration is added.
+Photo overlays and full video processing are not implemented in this slice.
+
+Sixteen focused regression files (96 tests), typecheck and scoped lint pass.
+Desktop/mobile interactive fixtures at 1440px and 390px verify gallery image
+rendering, primary/sidebar updates, previews, reorder, removal confirmation,
+batch/retry identity, ZIP download, stale recovery, limit controls, retained UI
+state and no overflow. The authenticated local Media tab loaded with enabled
+upload controls on port 3001; port 3000 remains occupied and its process was not
+stopped. No real vehicle files were uploaded or removed. Production deployment
+and real upload/video playback acceptance remain unverified. These changes are
+not committed, pushed or deployed.
+
+## 2026-10-10 - Vehicle Workspace Tabs And Contextual Tools
+
+The preparation workspace now has Vehicle Info, Marketing, Media, Market Data,
+Purchase Info, Activities, Files, Accounting, Recon, Logs and Release Review tabs
+beside the persistent vehicle sidebar. Vehicle Info has Summary, General Info,
+Pricing and Description sections. Existing pricing, cost and acquisition forms
+are reused with their authorization, validation and save controls intact; edits
+remain mounted while switching tabs. Documents, decoded specifications, journey
+steps and history come from existing authorized vehicle services. Logs support
+date/source/text filtering and pagination, using recorded actors when available.
+
+The overflow menu links Start Deal and Start Desk with selected-vehicle reference
+and document facts, without selecting a buyer or replacing an existing saved deal.
+It also links as-is sale, governed sale/reservation review, appraisal and Vehicle
+360. Appraisal and retail-completion views retain the requested vehicle scope on
+refresh and do not silently substitute another vehicle. Deposit opens reservation
+review, not payment collection. Deletion and customer-facing preview are explicitly
+unavailable because no supported workflow exists. External publishing connectors
+and valuation subscriptions are not simulated or enabled. Release gates remain.
+
+Fourteen focused test files (80 tests), typecheck, scoped lint and diff checks pass.
+Interactive component checks at 1440px and 390px verify tabs, keyboard navigation,
+retained pricing/intake edits, overflow-menu links, log filters/pagination and no
+page overflow. The authenticated local page loaded the new tabs; the existing
+Start The Day reminder limits further live interaction. Live deal creation, saves,
+payment, sale completion and production deployment were not verified. No migration
+is required; this slice has not been committed, pushed or deployed.
+
+## 2026-10-10 - DealerCenter-Inspired Preparation Workspace Layout
+
+The frontline preparation page now keeps vehicle photo/identity in a left sidebar
+and places the section tabs at the top of the right-hand workspace. Only the
+selected panel is visible; pricing and costs use compact embedded layouts without
+duplicated standalone headers or centered page padding. Forms stay mounted across
+tab changes to preserve unsaved edits. Accessible tabs support arrow keys, Home
+and End. Existing section names, data sources, permissions, save APIs and release
+gates are unchanged; unsupported third-party sections are not simulated.
+Twelve focused unit tests, typecheck and scoped lint pass. Interactive component
+checks at 1440px and 390px verify one visible panel, retained pricing edits,
+keyboard navigation, stable sidebar dimensions and no page overflow. The live
+authenticated page loaded the new structure; further live tab interaction was
+blocked by the existing Start The Day reminder, which was not modified.
+Production deployment and live save operations were not verified for this slice.
+
+## 2026-10-10 - Vehicle Sale Preparation And As-Is Disposition Entry
+
+Registry rows, Vehicle Workbench and Vehicle 360 now link to Prepare for Sale and
+Start As-Is Sale for the exact canonical vehicle. The authenticated sale entry
+requires inventory access, current dealership-controlled ownership, an open unit
+and confirmed intake; customer-only ownership cannot enter inventory sale. Missing
+intake routes to acquisition intake. Ordinary preparation reuses the existing
+frontline workspace. As-is review records attributable recon rationale and defect
+disclosure in the existing disposition case snapshot, with no new vehicle record.
+A documented manual as-is review may start for newly acquired units without
+changing the automated aged-candidate policy. Repository transaction checks recheck
+ownership and current-cycle intake. Existing cases are reopened rather than cloned.
+As-is retail completion retains approvals/title/release/settlement gates and now
+requires buyer-acknowledgment evidence server-side; it records SOLD without falsely
+marking recon completed or frontline ready. Normal disposition behavior remains.
+Focused automated tests, typecheck/lint and desktop/mobile fixture checks pass.
+Live signed-in registry links and the selected-vehicle intake redirect were checked;
+no real sale/disposition record was created during verification. End-to-end sale
+completion and production deployment remain unverified. No migration is required.
+
+## 2026-10-10 - Horizontal Find Vehicle Registry
+
+Find Vehicle now presents canonical vehicles in a full-width horizontal table
+with vehicle/registry number, stock, VIN, plate, status and row actions. Existing
+Workbench, Vehicle 360 and preview routes/handlers are preserved. The selected
+preview appears beneath the list rather than reserving an empty right column.
+The table scrolls within its container on narrow screens. Fifteen focused registry
+tests, typecheck and lint pass; desktop/mobile component-fixture screenshots show
+no page overflow. Live authenticated acceptance and deployment remain unverified.
+
+## 2026-10-10 - Worklist Path Actions Without Row Selection
+
+Prepare for Sale and Recon Path now open a native vehicle-selection dialog when
+no inventory row is selected, instead of appearing disabled. A vehicle is required
+before navigation; the chosen canonical vehicle ID routes to the existing
+frontline-preparation or inventory-planning page and its authenticated services.
+Selected-row links remain direct, and an empty worklist keeps actions unavailable.
+Interactive component-fixture checks pass for both paths, required selection,
+Escape dismissal and mocked row-detail API selection at desktop/mobile widths.
+Focused tests, typecheck and lint pass. Live signed-in acceptance and production
+deployment have not been verified for this change.
+
+## 2026-10-10 - Inventory Intake Path Choice And Frontline Preparation
+
+Confirmed intake opens `/vehicles/[id]/workflow`, a dedicated vehicle workflow
+choice screen with identity, intake handoff, holds and pending items. Prepare for
+Sale opens the preparation workspace; Inventory Recon opens existing recon planning.
+Customer Repair is visible but unavailable for an active inventory cycle. Add
+Vehicle now presents all three choices before acquisition; selecting Customer Repair
+uses the existing customer relationship and direct service-intake handoff, without
+creating an inventory cycle. The worklist remains separate with full-width
+horizontal rows and vehicle-specific Prepare for Sale and Recon Path links;
+controls/history and cycle creation use
+progressive disclosure. Intake-originated cycle creation preserves the vehicle
+and returns to its intake form. Prepare for Sale opens `/vehicles/[id]/frontline`,
+a preparation workspace using authorized journey, price, cost and document data.
+Choosing a path does not mutate lifecycle state or bypass release evidence or
+independent approval. External valuation/history providers are not simulated.
+Focused unit/service tests and typecheck pass; component-fixture screenshots were
+reviewed at 1440px and 390px with no page overflow. Authenticated browser acceptance
+and production deployment remain unverified.
+
+## 2026-10-10 - Inventory Lifecycle Team Functions Implemented Locally
+
+Inventory lifecycle authorization now uses existing Team Management functions
+for acquisition, recon, readiness, pricing, publishing and release. Server-side
+action checks and workspace buttons use the corresponding authorities while
+retaining independent approvals, readiness evidence and technical qualification.
+The local migration adds assignable functions without assigning staff or changing
+rollout flags. The read-only `check:inventory-access` command distinguishes missing
+functions from rollout blockers, including MASTER_DISABLED. See
+[`INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md`](INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md)
+for assignment, verified local evidence, acceptance and rollback. This slice has
+not been deployed or verified in production.
+
+## 2026-09-14 — Vendor Registry v1 review slice implemented
+
+The CRM Vendor Registry review slice is now implemented behind the existing authenticated app shell. It adds vendor master records for lenders/banks, warranty companies, transport providers, parts suppliers, recon/repair vendors, auction/wholesale partners, and internal contacts; controlled vendor status/category rules; vendor profile notes; activity history; linked work records; and a simple create-task handoff into the universal Task ledger.
+
+The front end keeps the workflow simple: `/customers/vendors` lists and filters vendors with an add-vendor panel, while `/customers/vendors/[vendorId]` supports profile review, manager-controlled record edits, staff comments, and vendor follow-up task creation. Database migration source is included, but production adoption still requires migration deployment, seed/backfill decisions, browser review, and broader regression before staff rollout.
+
+Vendor Registry now also includes vendor document uploads on each vendor profile. Staff can attach vendor files such as utility bills, contracts, W-9/tax documents, account setup records, insurance documents, compliance files, and portal screenshots, then download them from the vendor profile later. The local database migration for vendor documents has been applied for review.
+
+## 2026-08-28 — Unified CRM final release-candidate proof bundle run
+
+The final local CRM release-candidate proof bundle was run. The isolated scripted production build passed with `NEXT_DIST_DIR=.next-release-candidate npm run build`; TypeScript typecheck passed; the CRM pilot browser proof harness passed with 2 browser tests; the impacted Dispatch/repair smoke suite passed with 10 files and 92 tests; the focused CRM release/readiness gate suite passed with 15 files and 30 tests; and full unit regression passed with 722 files and 3,315 tests.
+
+Two local environment locks remain honest release-readiness blockers: clean `npm run db:generate` still cannot replace the locked Windows Prisma query-engine DLL, and the default `.next` build folder is locked by Windows/OneDrive during cleanup. The isolated build proved the application package, but final release signoff still needs a clean Prisma generation and either a cleared default `.next` build or an approved isolated release build directory in the target environment. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM scripted build preflight hardened
+
+The scripted CRM release build path is now hardened for the known Windows Prisma engine file-lock case. `npm run build` now validates `prisma/schema.prisma`, retries Prisma generation, continues only when the failure is the known locked `query_engine-windows.dll.node` rename and an existing generated client is usable, then completes the Next.js production build. The scripted build passed locally after this change.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because a clean Prisma generation still needs to be rerun after the local dev server releases the Windows query-engine DLL or in the target release environment, and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM pilot keyboard proof harness implemented
+
+The CRM release-readiness package now includes a repeatable Playwright pilot proof harness for the supported CRM review routes. The new browser test verifies supported CRM route loading, desktop/mobile overflow, absence of browser console errors, and real keyboard Tab traversal through the CRM shell navigation and work controls. The proof passed locally with 2 browser tests, and TypeScript typecheck passed afterward.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because the scripted `npm run build` path is still blocked by a local locked Prisma Windows DLL and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM remaining pilot-release proof gates run
+
+The remaining local CRM pilot-release proof gates were run. Typecheck passed; the focused release/readiness/accessibility route suite passed with 9 files and 18 tests; the impacted Dispatch/repair workflow smoke suite passed with 10 files and 92 tests; direct production package proof passed with `npx next build`; and an authenticated local browser walkthrough loaded the supported CRM views and review routes without 404s, console errors, or responsive overflow at desktop and mobile breakpoints.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because the scripted `npm run build` path is still blocked by a local locked Prisma Windows DLL, keyboard traversal needs a real/manual or reliable harness proof, and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM release-candidate local verification checkpoint recorded
+
+The current CRM release-readiness package now has a stronger local verification checkpoint. Focused release/pilot gate tests passed, verification-gate route tests passed, TypeScript typecheck passed, and the full unit-test folder suite now passes after release-cleanup repair: 722 files and 3,315 tests. The cleanup also tightened delegated vehicle capability grants so scoped grant limits fail with `GRANT_CONSTRAINTS_NOT_MET` instead of falling through to broad role defaults.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, until authenticated browser/UX proof, impacted Dispatch Board smoke proof, accessibility/responsive proof, production build proof, owner approvals, and pilot go/no-go are complete. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside the approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM release program stages 1–4 implemented as held review package
+
+Stages 1 through 4 of the current CRM release-readiness program are now represented in source evidence. The current envelope UCRM-122 through UCRM-127 is implemented and checkpointed; focused tests and typecheck passed for the envelope; held business decisions and pilot release gates are explicitly listed without enabling release, pilot cohort access, providers, production promotion, or risky operational behavior.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_PROGRAM_STAGE_1_4_EVIDENCE.md`](unified-crm/UCRM_RELEASE_PROGRAM_STAGE_1_4_EVIDENCE.md). The release state remains held: implemented milestones are still `IMPLEMENTED_UNVERIFIED` until browser/UX proof, broader regression, production build proof, owner approvals, and pilot go/no-go are complete.
+
+## 2026-08-27 — Unified CRM UCRM-127 release-readiness cleanup implemented
+
+The current CRM implementation branch now contains a manager-only release-readiness cleanup model for the communication/admin envelope. It records focused-test/typecheck progress, preserved fallbacks, and exact release blockers for authenticated browser proof, accessibility proof, rollback rehearsal, business decisions, and pilot go/no-go.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_127_RELEASE_READINESS_CLEANUP_EVIDENCE.md`](unified-crm/UCRM_127_RELEASE_READINESS_CLEANUP_EVIDENCE.md). `UCRM-127` is `IMPLEMENTED_UNVERIFIED`; release remains held, merge review is not declared ready, and existing Dispatch/Customers/Sales fallbacks remain required.
+
+## 2026-08-27 — Unified CRM UCRM-126 sandbox promotion diff review implemented
+
+The current CRM implementation branch now extends the configuration-promotion readiness boundary with a manager-only diff review model covering fields, layouts, workflows, permissions, and rollback impact. Production apply remains disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_126_CONFIGURATION_PROMOTION_DIFF_EVIDENCE.md`](unified-crm/UCRM_126_CONFIGURATION_PROMOTION_DIFF_EVIDENCE.md). `UCRM-126` is `IMPLEMENTED_UNVERIFIED`; no sandbox publish or production promotion was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-125 workflow simulation preview implemented
+
+The current CRM implementation branch now extends the workflow/approval designer readiness boundary with deterministic simulation previews for quote discount review, overdue customer follow-up, and unassigned opportunity handling. It keeps publishing and live workflow execution disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_125_WORKFLOW_SIMULATION_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_125_WORKFLOW_SIMULATION_PREVIEW_EVIDENCE.md). `UCRM-125` is `IMPLEMENTED_UNVERIFIED`; no workflow, task, notification, quote, or source-domain mutation was executed.
+
+## 2026-08-27 — Unified CRM UCRM-124 custom field/layout admin preview implemented
+
+The current CRM implementation branch now extends the governed custom-fields readiness boundary with an admin layout preview for Customer 360, Opportunity Detail, and Quote Review surfaces. It shows future field labels, types, classifications, and target surfaces while keeping publishing and runtime mutation disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_124_CUSTOM_LAYOUT_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_124_CUSTOM_LAYOUT_PREVIEW_EVIDENCE.md). `UCRM-124` is `IMPLEMENTED_UNVERIFIED`; no custom field publishing or layout publishing was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-123 accounting/DMS mapping preview implemented
+
+The current CRM implementation branch now extends the accounting/DMS connector readiness boundary with a manager-only mapping preview. It shows customer, quote, dispatch, and accounting/DMS source-authority rows, conflict risk, and decisions needed while keeping sync, backfill, and writeback disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_123_ACCOUNTING_DMS_MAPPING_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_123_ACCOUNTING_DMS_MAPPING_PREVIEW_EVIDENCE.md). `UCRM-123` is `IMPLEMENTED_UNVERIFIED`; no external accounting/DMS connection, export, sync, or writeback was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-122 e-signature document readiness implemented
+
+The current CRM implementation branch now extends the e-signature readiness boundary with a manager-only document readiness surface for quote approval documents, customer authorization forms, and repair/dispatch handoff documents. It keeps envelope sending and provider status import disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_122_ESIGNATURE_DOCUMENT_READINESS_EVIDENCE.md`](unified-crm/UCRM_122_ESIGNATURE_DOCUMENT_READINESS_EVIDENCE.md). `UCRM-122` is `IMPLEMENTED_UNVERIFIED`; no signature envelope is created or sent.
+
+## 2026-08-27 — Unified CRM UCRM-121 AI receptionist simulator implemented
+
+The current CRM implementation branch now contains a manager-only deterministic AI receptionist simulator model. It provides phone and SMS scenarios with allowed context, blocked actions, expected dispositions, and safe sample responses while keeping live provider traffic and autonomous behavior disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_121_AI_RECEPTIONIST_SIMULATOR_EVIDENCE.md`](unified-crm/UCRM_121_AI_RECEPTIONIST_SIMULATOR_EVIDENCE.md). `UCRM-121` is `IMPLEMENTED_UNVERIFIED`; this is simulation-only and does not answer calls, send texts, schedule appointments, approve quotes, or mutate source workflows.
+
+## 2026-08-27 — Unified CRM UCRM-120 AI receptionist requirements implemented
+
+The current CRM implementation branch now contains a manager-only AI receptionist requirements and safety contract. It captures consent, human handoff, bounded retrieval, no-action defaults, audit, and cost controls while keeping live calls, live texts, and autonomous actions disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_120_AI_RECEPTIONIST_REQUIREMENTS_EVIDENCE.md`](unified-crm/UCRM_120_AI_RECEPTIONIST_REQUIREMENTS_EVIDENCE.md). `UCRM-120` is `IMPLEMENTED_UNVERIFIED`; simulation is allowed as the next safe step, but live AI receptionist behavior remains held.
+
+## 2026-08-27 — Unified CRM UCRM-119 communication guardrails implemented
+
+The current CRM implementation branch now contains a manager-only communication guardrails model for quiet hours, rate limits, cost controls, consent checks, and global kill-switch readiness. It is preview-only, fail-closed, and keeps automated sending/provider traffic disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_119_COMMUNICATION_GUARDRAILS_EVIDENCE.md`](unified-crm/UCRM_119_COMMUNICATION_GUARDRAILS_EVIDENCE.md). `UCRM-119` is `IMPLEMENTED_UNVERIFIED`; final business decisions are still required before enforcement or communication automation can be activated.
+
+## 2026-08-27 — Unified CRM UCRM-118 integration recovery review implemented
+
+The current CRM implementation branch now contains a manager-only integration recovery review model. It shows retry, reconciliation, and dead-letter items with external replay disabled, manual next steps, customer-impact labels, source links, and read-only rollback posture.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_118_INTEGRATION_RECOVERY_REVIEW_EVIDENCE.md`](unified-crm/UCRM_118_INTEGRATION_RECOVERY_REVIEW_EVIDENCE.md). `UCRM-118` is `IMPLEMENTED_UNVERIFIED`; no provider retry, replay, sync, send, webhook, or external side effect was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-117 provider health dashboard implemented
+
+The current CRM implementation branch now contains a manager-only provider health/disabled-state dashboard model. It shows email/calendar, SMS, telephony, e-signature, and accounting/DMS channels as held or disabled with live traffic off, explicit disabled reasons, feature controls, and rollback fallbacks.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_117_PROVIDER_HEALTH_DASHBOARD_EVIDENCE.md`](unified-crm/UCRM_117_PROVIDER_HEALTH_DASHBOARD_EVIDENCE.md). `UCRM-117` is `IMPLEMENTED_UNVERIFIED`; the dashboard does not contact external providers or expose credentials.
+
+## 2026-08-27 — Unified CRM UCRM-116 Customer 360 communication action readiness implemented
+
+The current CRM implementation branch now contains a Customer 360 communication action-readiness card. It shows call, email, and text readiness with honest manual-only/provider-held/no-contact states, links staff to the safe manual outcome flow where allowed, and avoids implying that live providers are connected.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_116_CUSTOMER_360_COMMUNICATION_ACTION_READINESS_EVIDENCE.md`](unified-crm/UCRM_116_CUSTOMER_360_COMMUNICATION_ACTION_READINESS_EVIDENCE.md). `UCRM-116` is `IMPLEMENTED_UNVERIFIED`; provider sending, click-to-call, SMS delivery, and mailbox sync remain disabled.
+
+## 2026-08-27 — Unified CRM UCRM-115 Customer 360 communication timeline lens implemented
+
+The current CRM implementation branch now contains a read-only Customer 360 communication timeline lens. It summarizes permitted manual phone/email/SMS-style outcomes already visible in the governed customer timeline, keeps source systems authoritative, masks raw contact values and provider payloads, and falls back to manual timeline review when no permitted outcomes are visible.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_115_CUSTOMER_360_COMMUNICATION_TIMELINE_LENS_EVIDENCE.md`](unified-crm/UCRM_115_CUSTOMER_360_COMMUNICATION_TIMELINE_LENS_EVIDENCE.md). `UCRM-115` is `IMPLEMENTED_UNVERIFIED`; no email, SMS, phone, VoIP, transcription, or provider sending behavior was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-114 manual call disposition implemented
+
+The current CRM implementation branch now contains a manual phone-call disposition readiness boundary. It prepares simple call outcomes without enabling VoIP, call recording, or transcription.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_114_MANUAL_CALL_DISPOSITION_EVIDENCE.md`](unified-crm/UCRM_114_MANUAL_CALL_DISPOSITION_EVIDENCE.md). `UCRM-114` is `IMPLEMENTED_UNVERIFIED`.
+
+## 2026-08-27 — Unified CRM UCRM-113 SMS template catalog implemented
+
+The current CRM implementation branch now contains a review-only SMS template catalog. It gives managers draft customer text patterns with purpose labels, opt-in reminders, segment awareness, and explicit no-send posture.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_113_SMS_TEMPLATE_CATALOG_EVIDENCE.md`](unified-crm/UCRM_113_SMS_TEMPLATE_CATALOG_EVIDENCE.md). `UCRM-113` is `IMPLEMENTED_UNVERIFIED`; template publishing and outbound SMS remain disabled.
+
+## 2026-08-27 — Unified CRM UCRM-112 email draft surface implemented
+
+The current CRM implementation branch now contains a review-only email draft readiness surface. It can represent safe draft copy and no-send language without mailbox sync or provider delivery.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_112_EMAIL_DRAFT_SURFACE_EVIDENCE.md`](unified-crm/UCRM_112_EMAIL_DRAFT_SURFACE_EVIDENCE.md). `UCRM-112` is `IMPLEMENTED_UNVERIFIED`; provider send and mailbox sync remain disabled.
+
+## 2026-08-27 — Unified CRM UCRM-111 conversation envelope boundary implemented
+
+The current CRM implementation branch now contains a conversation-envelope boundary around existing manual customer interaction storage. Manual outcomes can be treated as conversation envelope items without adding external provider side effects.
+
+This checkpoint does not import provider events, send messages, record calls, transcribe calls, or add a provider-message table. Existing `CustomerInteraction` remains the source for manual outcomes; provider events remain held.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_111_CONVERSATION_ENVELOPE_EVIDENCE.md`](unified-crm/UCRM_111_CONVERSATION_ENVELOPE_EVIDENCE.md). `UCRM-111` is `IMPLEMENTED_UNVERIFIED`.
+
+## 2026-08-27 — Unified CRM UCRM-110 communication consent foundation held
+
+The current CRM implementation branch now contains a communication consent foundation for email, SMS, and phone readiness. It exposes channel readiness, consent/purpose, suppression, opt-out, quiet-hours, contact-point authority, audit, and fallback gates before live communication buttons can be enabled.
+
+This checkpoint does not send messages, place calls, update consent, or activate provider behavior.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_110_COMMUNICATION_CONSENT_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_110_COMMUNICATION_CONSENT_FOUNDATION_EVIDENCE.md). `UCRM-110` is `HELD`.
+
+## 2026-08-27 — Unified CRM UCRM-109 provider decision intake held
+
+The current CRM implementation branch now contains a provider decision intake readiness boundary for email/calendar, SMS, and telephony providers. It lists the business, security/privacy, architecture, operations, and data decisions needed before customer communications can be activated.
+
+This checkpoint does not select providers, accept credentials, provision numbers, connect OAuth, or enable production communications.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_109_PROVIDER_DECISION_INTAKE_EVIDENCE.md`](unified-crm/UCRM_109_PROVIDER_DECISION_INTAKE_EVIDENCE.md). `UCRM-109` is `HELD`.
+
+## 2026-08-27 — Unified CRM UCRM-108 admin readiness hub implemented
+
+The current CRM implementation branch now contains a manager-only admin readiness hub that summarizes integration readiness, enterprise controls, and the next planned communication/AI build items in one read-only model.
+
+This checkpoint does not activate any held feature. It only makes the current readiness posture easier to inspect: available foundations, held gates, planned work, next decisions, feature controls, and read-only fallback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_108_ADMIN_READINESS_HUB_EVIDENCE.md`](unified-crm/UCRM_108_ADMIN_READINESS_HUB_EVIDENCE.md). `UCRM-108` is `IMPLEMENTED_UNVERIFIED`: backend readiness exists; browser-visible management UI proof remains pending.
+
+## 2026-08-27 — Unified CRM UCRM-107 broader lifecycle module readiness held
+
+The current CRM implementation branch now contains a safe broader lifecycle module readiness boundary. Renewal, account health, service/case expansion, marketing expansion, and broader commercial lifecycle work are all held until each receives its own domain, security, test, pilot, release, and rollback gates.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_107_LIFECYCLE_MODULES_EVIDENCE.md`](unified-crm/UCRM_107_LIFECYCLE_MODULES_EVIDENCE.md). `UCRM-107` is `HELD`; existing CRM core and source-domain consoles remain the fallback.
+
+## 2026-08-27 — Unified CRM UCRM-106 governed AI assistance readiness held
+
+The current CRM implementation branch now contains a safe governed AI assistance readiness boundary for future CRM help and AI receptionist support. AI drafts, autonomous actions, and receptionist behavior remain disabled while citations, evaluations, prompt-injection defense, human approval, cost/latency, logging, opt-out, browser proof, and rollback gates remain pending.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_106_GOVERNED_AI_ASSISTANCE_EVIDENCE.md`](unified-crm/UCRM_106_GOVERNED_AI_ASSISTANCE_EVIDENCE.md). `UCRM-106` is `HELD`; deterministic CRM workflows remain the fallback.
+
+## 2026-08-27 — Unified CRM UCRM-105 advanced forecasting readiness held
+
+The current CRM implementation branch now contains a safe advanced forecasting and attribution readiness boundary. Predictive forecasting and attribution remain disabled while explainability, freshness, historical evaluation, override separation, bias/error review, browser proof, approval, and rollback gates remain pending.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_105_ADVANCED_FORECASTING_EVIDENCE.md`](unified-crm/UCRM_105_ADVANCED_FORECASTING_EVIDENCE.md). `UCRM-105` is `HELD`; the deterministic forecast baseline remains the fallback.
+
+## 2026-08-27 — Unified CRM UCRM-104 retention, legal hold, and export readiness held
+
+The current CRM implementation branch now contains a safe retention, legal hold, and export readiness boundary. It records the approved-policy, field-classification, legal-hold, immutable-evidence, job-simulation, export-threshold, recovery, and legal/security gates without enabling disposition or exports.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_104_RETENTION_EXPORT_EVIDENCE.md`](unified-crm/UCRM_104_RETENTION_EXPORT_EVIDENCE.md). `UCRM-104` is `HELD` under deferred `UCRM-DEC-014`.
+
+## 2026-08-27 — Unified CRM UCRM-103 sandbox and configuration promotion readiness held
+
+The current CRM implementation branch now contains a safe sandbox and configuration promotion readiness boundary. It defines isolation, masked-data, diff/review, promotion, validation, audit, and rollback gates without enabling production promotion.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_103_CONFIGURATION_PROMOTION_EVIDENCE.md`](unified-crm/UCRM_103_CONFIGURATION_PROMOTION_EVIDENCE.md). `UCRM-103` is `HELD`: sandbox configuration and production promotion remain disabled until isolation, masking, validation, browser, approval, and rollback evidence exist.
+
+## 2026-08-27 — Unified CRM UCRM-102 workflow and approval designer readiness held
+
+The current CRM implementation branch now contains a safe workflow and approval designer readiness boundary. Simulation can be represented without enabling live workflow execution, source-domain mutation, customer communication, or approval automation.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_102_WORKFLOW_APPROVAL_DESIGNER_EVIDENCE.md`](unified-crm/UCRM_102_WORKFLOW_APPROVAL_DESIGNER_EVIDENCE.md). `UCRM-102` is `HELD`: publishing and live execution are blocked by missing authority, limits, loop-protection, observability, sandbox, browser, and rollback evidence.
+
+## 2026-08-27 — Unified CRM UCRM-101 governed custom fields readiness held
+
+The current CRM implementation branch now contains a safe governed custom fields and layouts readiness boundary. Management can inspect namespace, type, versioning, validation, indexing, permission, reporting-impact, limit, admin-preview, and rollback gates before any custom metadata is treated as live.
+
+This checkpoint does not publish custom fields, alter live layouts, or enable runtime metadata mutation. Standard CRM fields and layouts remain the fallback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_101_GOVERNED_CUSTOM_FIELDS_EVIDENCE.md`](unified-crm/UCRM_101_GOVERNED_CUSTOM_FIELDS_EVIDENCE.md). `UCRM-101` is `HELD`: the readiness boundary is in source, but activation is blocked by missing type, limit, indexing, validation, reporting, admin-preview, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-100 enterprise sharing readiness held
+
+The current CRM implementation branch now contains a safe enterprise field, record, and territory sharing readiness boundary. Management can inspect the formal access model, field classification, record-scope, territory-rule, policy-proof, admin-preview, audit, migration, scale-test, and rollback gates before any enterprise access override is treated as live.
+
+This checkpoint does not grant new access, expose restricted fields, or activate territory sharing. Existing role and organization scope remains the fallback until product/security decisions and policy proof are complete.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_100_ENTERPRISE_FIELD_SHARING_EVIDENCE.md`](unified-crm/UCRM_100_ENTERPRISE_FIELD_SHARING_EVIDENCE.md). `UCRM-100` is `HELD`: the readiness boundary is in source, but enterprise sharing activation is blocked by missing territory, record-sharing, admin-preview, policy-proof, scale, browser, and rollback evidence.
+
+## 2026-08-27 — Unified CRM UCRM-086 accounting/DMS connector readiness held
+
+The current CRM implementation branch now contains a safe accounting/DMS connector readiness boundary. Management can inspect the field ownership, mapping, conflict, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement gates before any accounting or DMS integration is treated as live.
+
+This checkpoint does not select an external system, run sync, perform backfill, or write accounting/DMS records. All connector behavior remains disabled until one named system, field ownership map, mapping rules, conflict behavior, dry-run proof, reconciliation proof, browser proof, and rollback evidence are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_086_ACCOUNTING_DMS_CONNECTOR_EVIDENCE.md`](unified-crm/UCRM_086_ACCOUNTING_DMS_CONNECTOR_EVIDENCE.md). `UCRM-086` is `HELD`: the readiness boundary is in source, but live accounting/DMS activation is blocked by missing system, ownership, mapping, reconciliation, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-085 e-signature readiness held
+
+The current CRM implementation branch now contains a safe e-signature readiness boundary. Management can inspect the document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permission, template, audit, and rollback gates before any signature capability is treated as live.
+
+This checkpoint does not create signature envelopes or import provider signature status. Envelope creation and signature-status import remain disabled until a provider, document authority model, signer identity policy, webhook proof, browser proof, and rollback rehearsal are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_085_E_SIGNATURE_EVIDENCE.md`](unified-crm/UCRM_085_E_SIGNATURE_EVIDENCE.md). `UCRM-085` is `HELD`: the readiness boundary is in source, but live e-signature activation is blocked by missing provider, authority, identity, webhook, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-084 telephony and transcription readiness held
+
+The current CRM implementation branch now contains a safe telephony/transcription readiness boundary for future click-to-call, inbound call routing, call recording, transcripts, and AI receptionist support.
+
+This checkpoint does not enable phone service. Calling, recording, transcription, inbound routing, and AI receptionist behavior remain disabled while provider selection, recording consent, retention, restricted access, legal approval, operations routing, browser proof, and rollback proof remain unresolved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_084_TELEPHONY_TRANSCRIPTION_EVIDENCE.md`](unified-crm/UCRM_084_TELEPHONY_TRANSCRIPTION_EVIDENCE.md). `UCRM-084` is `HELD`: the readiness boundary is in source, but live telephony/transcription activation is blocked by missing provider, legal, retention, security, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-083 SMS delivery readiness held
+
+The current CRM implementation branch now contains a safe SMS delivery readiness boundary. Management can inspect the SMS activation gates before any texting capability appears as live.
+
+This checkpoint is especially important for the future AI receptionist path because it defines consent, opt-out, templates, quiet hours, inbound correlation, delivery states, retry/failure handling, audit, cost/rate controls, and kill-switch expectations before automation can text a customer. Outbound SMS, inbound SMS, and provider configuration remain disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_083_SMS_DELIVERY_EVIDENCE.md`](unified-crm/UCRM_083_SMS_DELIVERY_EVIDENCE.md). `UCRM-083` is `HELD`: the readiness boundary is in source, but live SMS activation is blocked by missing vendor, consent, quiet-hours, cost, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-082 email/calendar provider B readiness held
+
+The current CRM implementation branch now contains a second-provider readiness boundary for future email/calendar integration. Provider B is explicitly independent from Provider A, so a first provider approval cannot silently authorize, configure, or prove a second provider.
+
+This checkpoint does not select a second provider, connect OAuth, sync messages, write calendar events, or send email. Provider B has separate held gates for credentials, least-privilege scopes, conflict handling, dedupe isolation, security/privacy, browser proof, and rollback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_082_EMAIL_CALENDAR_PROVIDER_B_EVIDENCE.md`](unified-crm/UCRM_082_EMAIL_CALENDAR_PROVIDER_B_EVIDENCE.md). `UCRM-082` is `HELD`: the readiness boundary is in source, but live Provider B activation is blocked by missing provider-specific decisions and evidence.
+
+## 2026-08-27 — Unified CRM UCRM-081 email/calendar provider A readiness held
+
+The current CRM implementation branch now contains a safe provider A readiness boundary for future email/calendar integration. Management can inspect which gates must be satisfied before email, calendar sync, or calendar writes are allowed.
+
+This checkpoint does not select a provider or connect OAuth. External sending, calendar writes, and inbound sync all remain disabled. The fallback remains manual CRM contact outcomes plus the source calendar workflow until a named provider, OAuth scopes, sync direction, backfill, conflict behavior, security handling, browser proof, and rollback rehearsal are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_081_EMAIL_CALENDAR_PROVIDER_A_EVIDENCE.md`](unified-crm/UCRM_081_EMAIL_CALENDAR_PROVIDER_A_EVIDENCE.md). `UCRM-081` is `HELD`: the readiness boundary is in source, but live provider activation is blocked by missing provider-specific decisions.
+
+## 2026-08-27 — Unified CRM UCRM-080 integration platform contract implemented
+
+The current CRM implementation branch now contains the provider-neutral integration platform readiness boundary for the next large external communications and integrations envelope. CRM can now expose a manager-only readiness model for future email/calendar, SMS, telephony/transcription, e-signature, and accounting/DMS connectors without connecting any vendor or allowing external side effects.
+
+This checkpoint keeps the product deliberately safe. The default integration feature control remains disabled, provider activation is held, credentials are not stored or exposed, provider-specific gates remain separate, and the route fails closed for unauthenticated, unauthorized, and unknown-error states.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_080_INTEGRATION_PLATFORM_EVIDENCE.md`](unified-crm/UCRM_080_INTEGRATION_PLATFORM_EVIDENCE.md). `UCRM-080` is `IMPLEMENTED_UNVERIFIED`: authenticated browser proof, environment rollback proof, and all provider-specific approvals remain pending. No email, SMS, phone, e-signature, calendar sync, or accounting/DMS behavior was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-041 implemented and UCRM-042 advanced to a held immutable-review boundary
+
+The current Unified CRM baseline now contains a real quote draft workspace inside `/crm/quotes`. Authorized CRM users can create or revise a visible quote draft through server-owned draft routes, the quote workspace now distinguishes live draft authority from held presentation authority, and quote saves remain typed, idempotent, audited, and version-aware.
+
+The same packet also advances `UCRM-042` safely without overstating activation. Quote version history now opens on a real authenticated `/crm/quotes/[quoteId]/versions` route, presented evidence is shown as immutable history, and the present route fails closed with a typed held response instead of pretending that commercial presentation is active.
+
+This checkpoint stays deliberately honest about the remaining gate. Exact pricing, discount, amount, and cumulative approval thresholds are still deferred in `UCRM-DEC-013`, so customer-facing quote presentation activation remains held even though the immutable review surface and fail-closed present boundary are now in source.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_041_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_041_IMPLEMENTATION_EVIDENCE.md) and [`docs/unified-crm/UCRM_042_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_042_IMPLEMENTATION_EVIDENCE.md). `UCRM-041` is `IMPLEMENTED_UNVERIFIED`; `UCRM-042` remains `HELD` until the deferred commercial authority decision and later live presentation gate are completed.
+
+## 2026-08-15 — Unified CRM UCRM-040 quote foundation implemented
+
+The current Unified CRM baseline now contains the first durable quote-foundation slice. Versioned quote storage is present in source through additive quote and quote-version models, and the CRM More area now opens a governed `/crm/quotes` review surface that exposes the new storage boundary without claiming draft, presentation, approval, or operational conversion authority.
+
+This checkpoint stays deliberately honest about what is and is not active. Quote review uses its own fail-closed CRM access path, organization scope must resolve exactly once before any quote review model loads, seller access remains owner-scoped, and every non-read quote action remains held. The quote review page can show same-scope persisted quote records when they exist, but it does not create drafts, present commercial terms, request approvals, or infer any deferred monetary thresholds.
+
+Focused service verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md). `UCRM-040` is `IMPLEMENTED_UNVERIFIED`: migrated runtime proof, authenticated browser proof, full page/component regression proof, and the downstream governed draft/presentation slices are still required before verification or merge. `UCRM-041` and `UCRM-042` remain pending.
+
+## 2026-08-15 — Unified CRM UCRM-024 task bridge implemented
+
+The current Unified CRM baseline now contains a governed CRM-to-Task bridge inside Customer 360. Staff can create a real protected follow-up task from the permitted customer record while keeping the existing Task workflow as the write authority and source of truth.
+
+This checkpoint moves the earlier handoff-only pattern into a real command boundary. Customer authorization, shell access, CRM customer read mode, and a dedicated CRM task-bridge mode must all be open before a task can be created; idempotent replay now returns the same committed task instead of duplicating follow-up work; and Customer 360 only shows the protected task surface when that bridge is actually available. When it is not available, the existing task-intake handoff remains the honest fallback.
+
+The newest command-authority pass tightens that bridge further. The task bridge now explicitly requires the CRM mutation capability, its route returns the typed task-bridge error envelope with a safe generic `500` fallback, and Customer 360 keeps the task handoff surface honest by advertising it only when the full command authority is truly available.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_024_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_024_IMPLEMENTATION_EVIDENCE.md). UCRM-024 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external delivery, broader operational mutation, or source-of-truth transfer away from Tasks was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-025 CRM Home “My Work” v1 authority hardening implemented
+
+The current Unified CRM baseline now contains a real, persisted, read-only CRM Home and My Work queue that ranks owned or permitted work from existing Appointments, Leads, Cases, and CRM next-action customer follow-up records. Task rows are intentionally withheld from the live CRM queue in this checkpoint because tenant-safe Task organization authority is not yet proven without inference. Users can drill from the queue into the governed source workflow or, when a separately safe customer route exists, continue into Customer 360 without creating a second source of truth.
+
+This checkpoint tightened day-to-day trust in the queue experience. Live work now fails closed unless shell mode, CRM customer read mode, and the dedicated CRM work mode are all in review; linked Customer 360 routes are omitted when a nested customer is absent, invalid, archived, merged, cross-organization, or outside owner scope; Today now shows same-day appointments instead of a simple first-few appointment list; and filter behavior stays honest by showing filtered counts and a no-match state instead of implying that no work exists. The overdue visual state also remains aligned with the live data contract so urgent work reads consistently on screen.
+
+The current hardening packet goes a bit further. Appointment rows now require active schedule-view access for the resolved organization, Today classification uses `America/Chicago` instead of raw UTC day boundaries, and CRM Work now explains when visible results are partial because a live source hit its per-source cap. That keeps the queue honest about what it is showing and what it may still not have loaded.
+
+The latest authority-hardening pass extends that honesty to source-owned records. Lead rows are now omitted when the Sales workspace is not permitted, Customer Resolution Case rows are omitted when the Customer Resolutions workspace is not permitted, and the live queue explanation now says when source-owned work is unavailable in the current workspace instead of implying that nothing exists there.
+
+The newest queue-trust packet now adds lane-level source coverage visibility inside CRM Home and Work. Operators can see whether Appointments, Leads, Cases, and CRM follow-ups are available, capped, empty, or unavailable in the current workspace, plus the newest visible update time for each lane, before trusting the visible queue.
+
+The latest work-queue authority packet sharpens that explanation one step further. Unavailable lanes now say whether the block came from missing workspace route authority, missing active organization schedule scope, or a live source-read failure, and customer follow-up rows now fail closed when the direct customer id is invalid instead of pointing to a misleading Customer 360 route.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md). UCRM-025 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL reconciliation proof are still required before verification or merge. No write, task mutation, appointment mutation, or opportunity-stage behavior was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-030 foundation access hardening implemented
+
+The current Unified CRM baseline now contains a tighter read-only opportunity foundation boundary. Opportunity create review and pipeline preview use the same shell-level fail-closed access path as opportunity detail, hub, and queue, so shell-off behavior is now consistent even when those services are invoked outside their page wrappers.
+
+This checkpoint did not enable live opportunity creation, stage entry, transitions, source-lead mutation, or operational linkage. It only hardened the held and read-only foundation surfaces so that shell-off access is rejected before organization scope lookup in the affected services.
+
+The newest read-only opportunity packet extends that honesty inside the review surfaces themselves. Opportunity detail now explicitly says whether a persisted source record is visible yet and, when one is visible, shows the latest visible source update time. Opportunity review hub now always shows the live-record lane, including the honest empty state when no same-scope persisted read-only opportunity is visible, instead of silently hiding that condition.
+
+The latest read-only continuity packet makes persisted opportunity detail more useful without crossing the held lifecycle boundary. When a permitted customer is attached, detail now links safely back into Customer 360; it also exposes additional same-customer persisted read-only opportunities, filtered to the same organization and owner scope, so a reviewer can move between related records without implying live stage movement or write access.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md). `UCRM-030` remains `HELD`: `UCRM-DEC-003` is still deferred, so the opportunity milestone is not complete and no live create path is authorized from this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-023 commitment and next action implemented
+
+The current Unified CRM baseline now contains a hardened CRM customer next-action slice inside Customer 360. Staff can set, renew, reschedule, or complete a dated customer follow-up through the protected next-action route without sending an external communication or changing any source-owned operational workflow.
+
+This checkpoint tightened both correctness and the day-to-day user experience. Exact customer authorization now precedes idempotency replay in the next-action repository, replay is bound to the same authorized customer subject, invalid stored replays fail closed, and stale or owner-missing updates remain typed conflicts instead of generic failures. Customer 360 now also carries a server-authored next-action state so the experience can explain whether the current follow-up is overdue, due today, scheduled, or absent, and the next-action form uses matching renewal language.
+
+The newest authority pass aligns that command boundary with the actual CRM capability model. The next-action route now requires the dedicated CRM mutation capability in addition to shell review, customer-read review, and next-action command review; Customer 360 only advertises the live next-action form when that exact combined command authority is available; and the route now returns the typed next-action error envelope with a safe generic `500` fallback instead of treating unknown failures like validation errors.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_023_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_023_IMPLEMENTATION_EVIDENCE.md). UCRM-023 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required. No external delivery, broader source mutation, or stage-dependent opportunity behavior was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-020 unified permitted activity timeline implemented
+
+The isolated `codex/unified-crm-console` branch now contains a stronger read-only Unified CRM customer timeline inside Customer 360. The timeline merges permitted customer interactions, task and resolution activity events, appointment history, lead and case creation context, promise events, and CRM next-action domain events without creating a second source of truth for those workflows.
+
+This checkpoint tightened the security boundary as well as the experience. Customer 360 now resolves canonical permitted customer access before requesting timeline data, customer interactions and task-linked activity are organization-qualified, merged timeline pagination reports `hasMore` honestly across multiple source streams, and timeline items now carry stable correlation and source-record identity. The UI uses an ordered activity feed, clearer event-kind labels, honest empty-state language, and explicit source-authority messaging.
+
+Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_020_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_020_IMPLEMENTATION_EVIDENCE.md). UCRM-020 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No write or operational side effect was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-021 manual contact outcome implemented
+
+The isolated `codex/unified-crm-console` branch now contains a hardened manual contact outcome command path in Customer 360. Staff can record a manual relationship touchpoint through the existing CRM interaction form and protected CRM interaction route without sending an external message or changing source-owned communication systems.
+
+This checkpoint tightened the command boundary substantially. Canonical customer authorization now precedes idempotency replay, outbound phone/text/email outcomes require positive canonical contact-point consent instead of trusting the submitted form state, replay is bound to the same authorized customer subject, invalid interaction commands return honest 400 responses, and unknown backend failures are masked by the route. The interaction form now also uses clearer non-sending language and stronger accessible submit-state behavior.
+
+The newest command-authority pass makes that write boundary explicit and visible. Manual outcomes now require the dedicated CRM mutation capability in addition to shell review, customer-read review, and interaction-command review; Customer 360 only advertises the live interaction form when that exact combined command authority is available; and the surface now falls back to an honest review-only state with safe continuity links when the command is unavailable.
+
+Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_021_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_021_IMPLEMENTATION_EVIDENCE.md). UCRM-021 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external communication delivery or broader operational write path was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-022 notes and visibility implemented
+
+The isolated `codex/unified-crm-console` branch now contains a hardened customer-note command path in Customer 360. Staff can record internal or, when authorized, restricted CRM notes through the protected note route and note form without sending a customer notification or changing source-owned workflows.
+
+This checkpoint tightened the note boundary in the same fail-closed pattern as the interaction slice. Exact customer authorization now precedes idempotency replay, restricted-note creation remains gated behind sensitive-view capability, zero and multiple organization scopes are handled explicitly, route validation errors return honest typed statuses, and unknown backend failures are masked. The note form also now uses clearer internal-only language and stronger accessible pending/disclosure behavior.
+
+The newest command-authority pass makes note entry follow the same explicit write model. Customer notes now require the dedicated CRM mutation capability in addition to shell review, customer-read review, and note-command review; Customer 360 only advertises live note entry when that exact combined command authority is available; and the note surface now fails closed with an honest review-only fallback when note entry is unavailable.
+
+Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_022_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_022_IMPLEMENTATION_EVIDENCE.md). UCRM-022 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external delivery or broader operational note-sharing path was enabled by this checkpoint.
+
+## 2026-08-14 — Unified CRM UCRM-012/013 customer truth checkpoint implemented
+
+The isolated `codex/unified-crm-customer-truth` branch now contains the first real-data Unified CRM slice: a read-only Customers list backed by the existing canonical Customer and CustomerContactPoint records. Organization scope is derived on the server from active location grants, Sales remains owner-only, list contacts are always masked, production customer reads default off independently of the CRM shell, and the existing `/customers` console remains the safe fallback.
+
+The experience provides explicit-submit search, status/owner filtering, stable pagination, honest read freshness, reachable loading, empty, filtered-empty, restricted, unavailable, error, and recovery states, semantic desktop and mobile layouts, and same-tab source-record links. Initial authenticated browser checks passed at 1440×900 and 390×844 without horizontal overflow or browser-console errors. The available Sales account exercised real empty and filtered-empty states.
+
+Focused and affected tests passed as recorded in [`docs/unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md). UCRM-012 and UCRM-013 remain `IMPLEMENTED_UNVERIFIED`: the opt-in two-organization test still needs an isolated migrated PostgreSQL database, and Product Owner UCRM-UXR-1 review still needs a data-bearing list plus final denied/read-off browser proof. This branch is not merged, piloted, production-enabled, or authorized for customer writes. The unrelated service-close typecheck defect remains unchanged.
+
+UCRM-014 is now `IMPLEMENTED_UNVERIFIED` on the stacked Customer 360 branch. The read-only detail route, masked contact and source boundaries, owner-scoped lead/case lenses, deep-route rollback controls, and denied-persona mobile evidence are recorded in [`docs/unified-crm/UCRM_014_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_014_IMPLEMENTATION_EVIDENCE.md). A permitted data-bearing Product Owner walkthrough and isolated PostgreSQL proof remain required before verification or merge.
+
+## 2026-08-14 — Unified CRM UCRM-010/011 UX review checkpoint implemented
+
+The isolated `codex/unified-crm-console` branch now contains an authenticated `/crm` route, Management/Sales route discovery, a deny-by-default CRM capability baseline, production-off review control, role-safe unavailable/fallback behavior, independent CRM navigation, and the first interactive UCRM-UXR-0 experience. The review shell prioritizes one next-action queue, one search, in-place context, and Today/Attention work; every displayed scenario is explicitly synthetic and non-writing.
+
+Focused tests, lint, desktop/tablet/mobile browser checks, light/dark appearance, search, navigation, Escape behavior, focus return, overflow, authorized Sales, denied Technician, explicit feature-off, and reversible restoration checks passed as recorded in [`docs/unified-crm/UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_010_011_IMPLEMENTATION_EVIDENCE.md). The Product Owner accepted the UCRM-UXR-0 experience direction on 2026-08-14. UCRM-010 is `VERIFIED` for its route-shell boundary; UCRM-011 remains `IMPLEMENTED_UNVERIFIED` until organization-scoped CRM data exists for cross-organization isolation proof. Integration disposition remains pending, and the branch is not approved for merge, pilot, production enablement, real customer data, or CRM writes. The known unrelated service-close typecheck failure remains unchanged.
+
+## 2026-08-14 — Unified CRM foundation gate accepted
+
+The Product Owner accepted the bounded business decisions for `UCRM-000` through `UCRM-009`: product identity and `/crm` boundary, internal-MVP scope and deferrals, initial access and sensitive-field defaults, canonical/commercial/data authority, service-quality targets, agent governance, and rollout/rollback authority. The accepted operating model makes UX visible early through interactive browser checkpoints while retaining complete vertical-slice, server-policy, accessibility, evidence, and rollback requirements.
+
+This acceptance authorizes implementation of `UCRM-010` and `UCRM-011` only: the authenticated CRM route shell and capability-policy baseline. It does not claim that the route, UI, authorization, feature controls, tests, pilot, or release already exist. Exact opportunity stages, commercial thresholds, retention periods, named pilot users, external providers, and the milestones that depend on them remain deferred or held for later approval.
+
+## 2026-08-14 — Unified CRM Console foundation package drafted
+
+The documentation-first foundation for the independent Unified CRM Console is established under [`docs/unified-crm/README.md`](unified-crm/README.md). The package defines the product charter, evidence baseline, modular-monolith architecture, source-authority boundaries, security/privacy model, 8–10 week internal-MVP roadmap, `UCRM-###` vertical milestones, multi-agent operating model, testing and release gates, decision register, risk register, and requirement traceability.
+
+The target console is `/crm`, sharing Dispatch Board authentication and platform infrastructure while preserving Customers, Inventory/Vehicles, Appointments, Tasks, Repair/Jobs, Documents, Activity, and other owning domains as authoritative. Existing `/customers` and `/sales` surfaces remain available until separately approved parity, pilot, rollback, and navigation-migration gates pass.
+
+This checkpoint added planning and governance only. It did not add the `/crm` route, schema, migration, API, workflow, UI, integration, permission, AI behavior, production rollout, or retirement of an existing console. The later acceptance entry above records the bounded foundation decision.
+
+## 2026-08-03 - Shop and Recon deterministic sixteen-stage workflow implemented
+
+The Shop and Recon controlled foundation package is established under [`docs/shop-repair-optimization/foundation-implementation/README.md`](shop-repair-optimization/foundation-implementation/README.md), with its read-only code contract in `src/server/shop-recon/foundation.ts`. It publishes the exact sixteen-stage vehicle-flow lifecycle from physical shop entry through accepted exit, twelve logical shop/custody zones, Monday-Friday 9:00 AM-6:00 PM Central hours, the confirmed two-bay shared-space constraint, Walter Hernandez as primary technician, Brock/Eli operating authority, stage and aggregate timing baselines, WIP limits, a stable twenty-five-code blocker taxonomy, and versioned Inventory-to-Shop inbound/outbound envelope validators.
+
+The existing Shop & Recon projection now exposes the foundation as contract `shop-recon/foundation/1.0.0` under projection `shop-recon/r9.0.0`. It derives every open order into exactly one of the sixteen stages from authoritative repair evidence, evaluates hard transition gates and controlled rework loops, counts only staffed Monday-Friday 9:00 AM-6:00 PM Central minutes, computes target bands and explainable priority, and flags WIP breaches for dispatch, bay and QC queues. The live `/vehicles/shop-recon` page displays one continuously moving card per vehicle with its stage, logical zone, timing and priority evidence. Inventory Recon cards use a labeled dark-navy header; Customer Vehicle cards use a labeled vivid-blue header. Lane-specific promise, authorization, escalation and completion signals remain separate from amber/red urgency indicators.
+
+The sixteen-stage layer deliberately does not add a duplicate persisted status. Existing governed Shop planning, authorization, dispatch, labor, QC and release commands remain the mutation authority and their evidence drives the projection. This checkpoint adds no automatic dispatch, integration writeback, physical vehicle movement, repair authority, customer communication, purchasing decision, QC pass or Inventory lifecycle transition. Physical parking capacities, break policy, Saturday custody/key handling, QC independence, road-test eligibility controls and other unnamed authorities remain unresolved and therefore are not inferred.
+
+The next visual-design checkpoint is available at `/vehicles/shop-recon/[repairOrderId]`. Clicking a Shop & Recon board card now opens a unified vehicle-card workspace modeled on the Inventory Lifecycle workbench. It includes the persistent vehicle identity, separate overall and Shop lifecycle context, a green-dot sixteen-stage preview selector, a top-right Viewing Stage display that follows the selected preview stage, and a read-only checklist, form, evidence and authority design for every stage. Preview selection does not change the vehicle's authoritative operational stage, and save/advance controls remain disabled pending explicit behavioral approval.
+
+## 2026-07-27 — Enterprise Sales Console planning baseline
+
+The documentation-only Enterprise Sales Console planning package is established under [`docs/sales-console/README.md`](sales-console/README.md). It defines Sales as the commercial decision and execution layer over authoritative Customers, Inventory, Appointments, Tasks, and Documents records. The package includes the target modular-monolith architecture, sales-owned domain boundaries, dealership selling operating model, 18 lead-to-delivery and exception workflows, 15 deterministic decision algorithms, a 12-phase roadmap, 27 gated vertical milestones, and an outcome-to-proof traceability matrix.
+
+The design requires one owner and dated next action for every active opportunity, evidence-backed stages, immutable presented scenario and quote versions, explicit pricing authority, explainable and overridable recommendations, distinguishable seller/manager/system forecasts, customer promise tracking, integration reconciliation, feature controls, and deterministic operation when optional AI is unavailable.
+
+This checkpoint adds no application route, schema, API, workflow behavior, integration, customer communication, automated ranking, pricing decision, finance decision, production configuration, or rollout approval. Algorithm weights, SLA thresholds, lifecycle policy, pricing authority, source ownership, consent/contact policy, acceptance scenarios, pilot cohort, and rollback criteria remain dealership decisions under SAL-000. The first possible implementation slice remains gated on that authority package.
+
+## 2026-07-26 — Shared role-aware landing and workspace resolver
+
+The shared role-aware landing foundation is implemented on `codex/role-aware-landing-completion`. Authenticated users now resolve deterministically into Management, Service, Inventory, Advisor, Technician, Parts, Quality, Sales, Marketing, Office, Collections, or safe General Staff workspaces using current roles and governed duties. Login honors only local return targets that belong to one of the user's permitted workspaces.
+
+Multi-role users receive an explicit workspace switcher. The selected workspace is retained in an HTTP-only same-site preference cookie, revalidated against the current identity on every server render, and carried through shared routes such as `/my-tasks`. Role-specific console navigation is implemented for every defined workspace family. Non-management users who open Command Control Center or the full Dispatch Board are returned to their role landing.
+
+This is shared routing and presentation authority, not a claim that every destination page has completed a role-specific vertical slice. Domain services and pages remain responsible for server-side record and mutation authorization. See [`docs/inventory/ROLE_EXPERIENCE_MATRIX.md`](inventory/ROLE_EXPERIENCE_MATRIX.md) and [`docs/inventory/ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md`](inventory/ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md).
+
+## 2026-07-24 — Time & Attendance TA-G5 hardening and pilot gate started
+
+TA-G5 now has its first vertical repository implementation slice on `codex/time-attendance-g5-hardening-pilot`. The CCC Time & Attendance console includes a manager-only hardening and pilot evidence panel. The server readiness contract is exposed through `/api/time-attendance/hardening-pilot` and evaluates TA-050 through TA-055 without claiming pilot or production eligibility.
+
+TA-050 security/privacy, TA-051 reliability/concurrency, TA-053 accessibility/responsive, and TA-055 training/support/rollback are represented as evidence-required gates. TA-052 backup/restore/retention and TA-054 parallel payroll pilot remain blocked because the migrated-runtime restore drill and representative parallel pay-period reconciliation have not occurred. The gate explicitly keeps production ineligible until legal/payroll approval, runtime migration evidence, capability rollout policy, payroll mapping, pilot evidence, training, and rollback proof are accepted.
+
+This checkpoint adds a source-controlled evidence gate, not an operational pilot approval. No production rollout, live migration application, payroll-provider activation, accessibility audit, restore drill, or parallel payroll pilot was performed.
+
+## 2026-07-24 — Time & Attendance TA-G4 payroll handoff started
+
+TA-G4 now has its first vertical repository implementation slice across TA-040 through TA-044 on `codex/time-attendance-g4-payroll-handoff`. The CCC Time & Attendance console includes a payroll handoff panel that checks pay-period readiness, exposes lock/export/status/reproduction controls, and keeps payroll close separate from live punch capture.
+
+TA-040 readiness projection checks approved card state, open sessions, blocking exceptions, pending corrections, missing manager approvals, pending time-off/ESST review, and existing locked/exported batches. TA-041 can lock a ready pay period into a `LOCKED` export batch and mark source cards locked with reasoned manager authority; reopen voids the batch with reasoned evidence instead of silently changing prior history. TA-042 creates versioned export-preview lines for regular, overtime, and ESST minutes with control totals and checksums. TA-043 records payroll acknowledgment, rejection, or reconciliation decisions. TA-044 reproduces historical batches from stored export snapshots, lines, and checksums.
+
+This checkpoint does not apply migrations, activate a payroll provider, send payroll files, approve payroll-code mappings, complete separation-of-duties policy, or claim production release. Production readiness remains gated by TA-004 legal/payroll configuration approval, TA-015 migrated-runtime/seed/restore evidence, TA-016 capability rollout policy, payroll mapping approval, and pilot acceptance.
+
+## 2026-07-24 — Time & Attendance TA-035 time-off request workflow started
+
+TA-035 now has its first vertical implementation slice. Staff can submit PTO, Minnesota ESST, and unpaid time-off requests from the CCC Time & Attendance console through `/api/time-attendance/time-off`. Requests are idempotent, source-attributed, balance-snapshotted when a balance record exists, and do not change payroll by themselves.
+
+Minnesota ESST requests use protected routing: the private reason is hashed/restricted, the ordinary manager queue receives a redacted operational card, and the request enters leave-admin review rather than exposing private reason details in the general manager review surface. The exception-first manager queue now includes submitted ordinary time-off requests and protected ESST leave-admin review items.
+
+Remaining TA-035 hardening before production release includes configured accrual/balance policy approval, leave-admin ownership, payroll code mapping, holiday/company-closure handling, production notification routing, and migrated-runtime acceptance evidence.
+
+## 2026-07-24 — Time & Attendance TA-034 manager correction decision workflow started
+
+TA-034 now has its first vertical implementation slice. Managers can record reasoned correction-request decisions through `/api/time-attendance/manager-corrections` and the CCC Time & Attendance manager review panel. Supported decisions are approve, return for more information, deny, and apply an already-approved correction. Decisions are manager-only, idempotency-aware, and captured into the correction request evidence history.
+
+Applying a correction in this MVP does not rewrite original punch events. The action marks the approved correction request as applied for review/payroll handling, preserves the original punch trail, and records that payroll recalculation/reprojection is required before payroll handoff.
+
+Remaining TA-034 hardening before production release includes persisted card drill-in, exact event-level correction application/reprojection, post-attestation reopen behavior, separation-of-duties policy, and payroll close approval gates.
+
+## 2026-07-24 — Time & Attendance TA-033 manager exception queue started
+
+TA-033 now has its first vertical implementation slice. Managers can read a protected exception-first review queue through `/api/time-attendance/manager-review`, while non-managers receive a locked queue with no manager-sensitive details. The queue surfaces correction requests, open card exceptions, and disputed attestations, then orders them by severity and age.
+
+The `/time-attendance` page now includes a manager review panel with queue metrics and read-only review items. This checkpoint intentionally does not approve, deny, correct, waive, or alter payable time; manager decision and correction authority remain TA-034.
+
+## 2026-07-24 — Time & Attendance TA-032 employee attestation started
+
+TA-032 now has its first vertical implementation slice. A protected `/api/time-attendance/attestations` endpoint records employee attestations or disputes against a specific `TimeCard` version and checksum. Attestation evidence stores the decision, idempotency context, dispute explanation when present, request hash, and an explicit `rightsWaiver: false` marker.
+
+The `/time-attendance` page now shows an employee attestation panel with confirm/dispute choices and no-rights-waiver language. Because the visible card is still preview/read-model-backed, the UI keeps attestation submission disabled until a persisted time-card version is available. Live persisted card projection, attestation history display, and post-attestation reopen behavior remain later work.
+
+## 2026-07-24 — Time & Attendance TA-031 correction request workflow started
+
+TA-031 now has its first vertical implementation slice. Employees can submit a time-card correction request from `/time-attendance` without changing the original punch trail. The request is durable, idempotent, status-tracked, and includes requested date/time context, change type, employee explanation, and evidence that the source punches remain append-only.
+
+The new protected `/api/time-attendance/corrections` endpoint creates correction requests for the authenticated staff member and rejects reused idempotency keys when the submitted content differs. Manager decision, manager correction application, full correction history display, attestation reopening, and payroll impact are intentionally deferred to later TA-G3 slices.
+
+## 2026-07-24 — Time & Attendance TA-030 staff capture surface started
+
+TA-030 now has its first vertical implementation slice. The `/time-attendance` CCC console reads the authenticated staff member's current attendance state and presents valid clock/meal actions: clock in, start meal, end meal, and clock out. Actions call the existing protected capture command boundary with expected version, idempotency key, exact occurrence timestamp, location, timezone, and reason. The API now also exposes current capture state for staff refresh after each action.
+
+This checkpoint does not claim production rollout, kiosk/device policy, offline/mobile capture, correction workflow, attestation, payroll close, or legal/payroll release approval. Team cards and payroll readiness remain preview/read-model work until later slices.
+
+## 2026-07-24 — Time & Attendance TA-G3 implementation branch opened
+
+The Time & Attendance workflow implementation branch is `codex/time-attendance-g3-workflows`. Its first scheduled phase is documented in [`docs/time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md`](time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md), covering TA-030 through TA-035 in order: employee capture, card review/correction, attestation, manager exception console, manager correction/approval, and time-off request workflow.
+
+This checkpoint schedules repository implementation only. It does not commit, push, merge, activate production rollout, apply live migrations, or claim legal/payroll release approval.
+
+## 2026-07-24 — Time & Attendance CCC console first UI
+
+The approved Time & Attendance mockup is now adopted as the official UI source of truth in [`docs/time-attendance/UI_SOURCE_OF_TRUTH.md`](time-attendance/UI_SOURCE_OF_TRUTH.md). The console is placed on the CCC board as an active `/time-attendance` module, not inside the Dispatch console.
+
+The first page implements the approved enterprise MVP shell: hero, workspace tabs, KPI strip, employee time-card preview, exact punch timeline, staff-specific meal policy cards, manager review queue, team status, and exception review rail. Preview totals are wired through the existing time-card calculation foundation where practical, while the page explicitly labels live punch actions, database-backed team cards, and payroll export approvals as pending follow-up work.
+
+## 2026-07-23 — Task progress assurance foundation
+
+Tasks now receive an automatic two-hour progress checkpoint when they first move to In Progress; no new pre-start requirements are enforced. Meaningful status, guided-field, or progress-note updates renew the checkpoint, and the task workspace distinguishes on-track, check-in-due, and stalled work. Blocked work in the full workspace captures a recovery action, responsible person, review time, and escalation deadline, while older quick-update surfaces remain compatible through a server-generated recovery plan. Existing checklist, required-update, dependency, acceptance, manager-review, and completion-override gates remain the authority for closure. The assurance state is durable in the Task record and has focused service/UI coverage; this slice does not yet claim scheduled notifications or a manager-wide stalled-work queue.
+
+## 2026-07-19 — Inventory Start Workflow approved launcher UI
+
+The `/vehicles/workflows` landing route now implements the approved Inventory Start Workflow launcher source of truth. It provides the compact enterprise header, universal Inventory workflow search, Cards/List presentation, Recommended, Recent, Favorites, All Workflows, My Drafts, and Needs Attention collections, role-and-availability context, six curated recommended workflows, progressive workflow details, and the secondary recommendation guide. The launcher continues to use the existing server-derived 13-workflow catalog, visibility policy, availability state, validation, confirmation, approval, recovery, and purpose-built intake destinations rather than duplicating those rules in the interface.
+
+Recent and Favorites are intentionally session-local convenience state, and My Drafts is an honest empty state because durable workflow-draft persistence is not yet implemented. The future `All CCC` scope is visible but disabled until the enterprise cross-console workflow registry is delivered; it does not imply that other-console workflows have been activated. Repository implementation does not alter provider, rollout, migration, pilot, deployment, or production-activation status.
+
+## 2026-07-19 — CCC Enterprise Workflow Launcher planning baseline
+
+The official documentation-only source of truth for the CCC Enterprise Workflow Launcher now lives in [`CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). It defines the active-console-first Cards/List experience, universal search, registry and runtime architecture, authority and recovery boundaries, a cross-console workflow-family catalog, and gated implementation milestones. The Inventory Start Workflow mockup embedded there was approved as the binding visual and interaction baseline on 2026-07-19. This planning record does not activate workflows or strengthen the implementation state of any listed capability; the evidence-based states below remain authoritative.
+
+## 2026-07-19 — Console navigation performance tune-up
+
+The shared authenticated shell now renders an immediate route-level loading state during console transitions and deduplicates repeated authenticated-user reads within a server render. Independent server reads are parallelized on the high-traffic Dispatch Overview, Tasks, My Tasks, Projects, Manager Review, Appointments, and Inventory Home routes, preserving existing permission, fallback, and unavailable-state behavior while removing avoidable request waterfalls.
+
+A deeper client-loading slice now places the two largest interactive workspaces, Appointments and Tasks, behind lightweight route loaders. Their authenticated server reads and permissions still complete before the workspace receives its props, but navigation can paint a stable console-shaped loading surface before parsing and hydrating the large client implementation. In the optimized build, each route's incremental initial loader is about 4.1 KB; approximately 357 KB of Appointments JavaScript and 249 KB of Tasks JavaScript are moved off the route's initial entry and loaded as deferred workspace chunks. This is a load-order improvement rather than a claim that the underlying feature bundles have been made smaller. The production build, TypeScript validation, lint, and 42 focused Appointments/Tasks tests pass.
+
+The Inventory Console top bar also provides a direct Dispatch switch beside CCC Home. Inventory-local operating destinations remain in the Inventory sidebar, while the two cross-console destinations stay in the shared top-bar area.
+
+The Start Workflow route now fails independently from its optional Inventory execution recommendation. A stale generated Prisma client or an unapplied Inventory Work Packet schema returns an explicit unavailable advisory while the purpose-built workflow launcher continues to render. Development and production builds regenerate the Prisma client before Next.js starts. The development Prisma singleton is always reused across hot reloads so compatibility checks cannot leak database connections; optional Inventory execution services perform their own delegate checks and degrade locally instead of replacing the shared client or failing the console.
+
+## 2026-07-19 — Inventory Execution Operating System MVP
+
+The Inventory Execution Operating System MVP is repository-implemented on `codex/inventory-eos-mvp-implementation`. It adds a versioned Inventory Work Packet over the existing Task backbone; the official lifecycle Vehicle Card; a vehicle-centered execution Workbench; governed time sessions; rapid structured technician closeout; blocker, completion, and accepted-handoff controls; manager next-plan publication; deterministic readiness and next-best-work guidance; and an integrated receipt-to-recon launcher. The implementation reuses Vehicle 360, Repair Orders, Parts, Shop, evidence, authority, audit, and outbox foundations instead of creating parallel systems of record.
+
+Repository verification passed the full stable unit/integration suite (236 files, 1,321 tests), 38 focused EOS tests, TypeScript validation, zero-warning lint, Prisma schema validation, the production build, the Inventory Console program validator, and the 121-slice conformance audit. The browser suite could not execute product assertions because the repository migration history cannot bootstrap its isolated E2E database: a fresh schema fails at pre-existing migration `20260713000000_add_customer_sla_control` when it references an Organization row that migrations have not created, while the older E2E schema also retains a failed `20260714170000_add_enterprise_discovery_knowledge_output` migration. The four new EOS migrations are source-controlled only and were not reached or applied. Deployment, provider activation, production automation, workplace accessibility evidence, and pilot acceptance remain explicitly unclaimed. See [`docs/inventory/INVENTORY_EOS_MVP_IMPLEMENTATION_PROGRAM.md`](inventory/INVENTORY_EOS_MVP_IMPLEMENTATION_PROGRAM.md).
+
+## 2026-07-19 — Inventory Console Add Vehicle workflow
+
+The approved Add Vehicle vertical slice is repository-implemented at `/vehicles/workflows/add-vehicle` and linked from Start Workflow. It provides duplicate-first VIN validation, a documented non-VIN exception, required relationship/reason/brief-description context, manual authoritative year/make/model confirmation, location selection, local draft convenience, an explainable deterministic next-workflow recommendation, explicit consequence preview, and a governed idempotent canonical Vehicle create command. The customer-service route prepares walk-in Service Intake context without silently creating a RepairOrder.
+
+The implementation deliberately does not claim camera OCR, external VIN decoding, automatic customer association, production activation, or automatic creation of an InventoryUnit, stock number, acquisition cost, purchase commitment, RepairOrder, or ownership relationship. Vehicle registry mutation remains capability and rollout gated. The official visual and operating contract is [`docs/inventory/INVENTORY_START_WORKFLOW_ADD_VEHICLE_UI_SOURCE_OF_TRUTH.md`](inventory/INVENTORY_START_WORKFLOW_ADD_VEHICLE_UI_SOURCE_OF_TRUTH.md).
+
+## 2026-07-18 — Inventory Console gap closure Wave 2 lifecycle projections
+
+IC-031, IC-032, and IC-034 through IC-037 are now repository-complete. The Lifecycle Control Tower composes authoritative event-history distributions, Inventory Recon and Parts readiness, versioned decisions and recommendations, capital components, selected-asset operational joins, and integration/projection health with manual and recovery paths. Customer repair remains excluded from inventory-recon totals, recommendations remain non-executing, and owning workspaces retain mutation authority. The automated ledger now reports 52 complete and 48 partial slices. See [`docs/inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md`](inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md).
+
+Wave 1 was included by fast-forward because this branch was initially created from the pre-Wave-1 `main` baseline. No provider, migration application, rollout, pilot, deployment, commit, push, or merge to `main` was performed by Wave 2.
+
+## 2026-07-18 — Inventory Console gap closure Wave 1 shared foundations
+
+IC-023 and IC-025 are now repository-complete. Inventory Console Home has Console-owned personal/team saved views with safe filter recovery and permission re-evaluation, plus authoritative Shop, Parts, 24-hour throughput, and provider-neutral integration-health facts. Universal discovery now includes owner-scoped governed work items, and Home exposes My Work, Team, and Exceptions views; IC-022 and IC-026 remain partial for return-context and cross-domain priority composition. The automated 121-slice ledger now reports 46 complete and 54 partial slices, with all external-evidence and decision gates unchanged. See [`docs/inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_1_SHARED_FOUNDATIONS.md`](inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_1_SHARED_FOUNDATIONS.md).
+
+The saved-view migration is source-controlled only. No migration was applied, no provider was contacted, and no rollout, pilot, commit, push, or merge was performed.
+
+## 2026-07-18 — Inventory Console R2 shell and Home
+
+Inventory Console R2/M2 (`IC-020` through `IC-028`) is implemented for the bounded repository exit. `/vehicles` is now the enterprise Home with exactly seven primary destinations, authoritative InventoryUnit scope/KPIs/stages/priority work, permission-scoped decision routing, versioned system URL views, search and Event Log access, and explicit live/stale/unavailable states. The older detailed Control Tower moved to `/vehicles/control-tower`; `/vehicles/workflows` provides the phase-one role/context-aware catalog; and `/vehicles/disposition-wholesale` is an honest rollout-disabled destination rather than a broken link or false activation.
+
+Typecheck, lint, 36 focused tests, and the Next.js production build pass. Shop, Parts, throughput, wholesale execution, and external adapter facts remain unavailable or disabled on Home and never fall back to representative mockup values. No schema, deployment, external call, pilot, or production activation occurred. See [`docs/inventory/R2_SHELL_HOME_IMPLEMENTATION.md`](inventory/R2_SHELL_HOME_IMPLEMENTATION.md).
+
+## 2026-07-18 — Inventory Console R1 foundation conformance
+
+Inventory Console R1/M1 (`IC-010` through `IC-017`) is implemented for the bounded repository-development exit authorized by `R0-AUTH-001`. A deterministic conformance harness and fixed synthetic fixture verify canonical Vehicle/InventoryUnit identity and cycles, customer-repair separation, Parts quantity/custody, location/role/field/amount/four-eyes authority, idempotency and optimistic versions, correlated audit/event/outbox evidence, work deduplication and approvals, evidence security/retention/legal hold, effective policy and OFF/SHADOW rollout, ordered replayable projections, and migration/restore/replay/reconciliation gates across InventoryUnit, RepairOrder, Parts, and approval subjects.
+
+Verification passed Prisma schema validation, repository lint, TypeScript typecheck, and 18 focused test files/71 tests. No schema was changed or deployed, no production-like recovery drill or real integration was run, and no rollout, pilot, or production activation occurred. See [`docs/inventory/R1_FOUNDATION_IMPLEMENTATION.md`](inventory/R1_FOUNDATION_IMPLEMENTATION.md).
+
+## 2026-07-16 — Shop and Recon Optimization approval-decisions workspace
+
+The documentation-only decision workspace is prepared under [`docs/shop-repair-optimization/approval-decisions/README.md`](shop-repair-optimization/approval-decisions/README.md). It provides the actual SRO AE-0 session record, exact authority-confirmation packet, and eight-workshop decision gate for `SRO-APR-001` through `079`, while reusing the single governing ledger, signature journal, missing-input register, tabletop suite and master authorization records from the approval-execution package.
+
+AE-0 is entered as `ENTER_APPROVAL_EXECUTION` for Time Motor Sales / Minneapolis / `SRO-1.0` / America/Chicago / `SRO-APR-001`–`079`, effective 2026-07-16 with exact time not captured. The user asserted authority through Codex; chat identity was not independently verified. Workshops 1–7 are passed for policy. Enterprise SRO totals are 69 closed—12 `APPROVED` and 57 `APPROVED_WITH_CHANGE`—and 10 open. Workshop 8 is in decision review. All independent/qualified-review, financial, privacy/security/provider, consent/prediction/outreach and unavailable-scope restrictions remain in force. Design, code, shadow, pilot and activation remain `NOT AUTHORIZED`.
+
+## 2026-07-16 — Shop and Recon Optimization approval-execution workspace
+
+The documentation-only approval-execution program for all eight Shop and Recon workshops is established under [`docs/shop-repair-optimization/approval-execution/README.md`](shop-repair-optimization/approval-execution/README.md). It contains an AE-0 authority/session gate, a consolidated ledger covering all 79 `SRO-APR-*` decisions exactly once, eight workshop execution gates, an immutable decision-journal contract, grouped missing-input controls, 27 enterprise tabletop cases, execution totals and separate policy, design, code, shadow, pilot and production-activation resolutions.
+
+This checkpoint adds no application behavior and records no dealership approval. AE-0 is not entered; all 79 decisions remain `OPEN`; exact Shop, Dispatch, Advisor, Parts, QC, Finance, Privacy, Algorithm, Integration, Customer and qualified-review authority/configuration is still required. The complete Shop/Recon program remains `NO-GO FOR DESIGN/CODE/SHADOW/PILOT/ACTIVATION`.
+
+## 2026-07-16 — Inventory-to-Frontline Slice 2 non-code workflow package
+
+The documentation implementation for Slice 2 — observed arrival through custody verification, receipt completion and accepted Inspection/Triage handoff — is established in the [`approval-decisions workspace`](inventory/frontline-workflow/approval-decisions/README.md). It includes a guided twelve-step staff workflow, single-workbench staff playbook, evidence and exception controls, versioned receipt-completion gate, Inspection handoff contract, ten-decision execution gate, exact open-input register, fourteen-case tabletop packet and separate implementation-authorization resolution.
+
+This checkpoint adds no application behavior. Slice 2 approval execution processed all ten direct policies separately: `ITF-APR-080` and `088` are `APPROVED`, `085` is `DEFERRED_SAFE`, and `081`–`084`, `086`, `087` and `089` remain `OPEN_REQUIRED_INPUT`. Exact receiving people, locations, hours, evidence, placement, discrepancy and Inspection-consumer configuration is still required. Applicable predecessor/global decisions also remain unresolved. Internal driving, unqualified movement/hazard actions and authoritative live-provider integration remain safely excluded. Slice 2 is `NOT AUTHORIZED` for technical design, code, tabletop acceptance, shadow use, pilot or activation. Across the enterprise register, 25 decisions are closed and 105 remain open.
+
+## 2026-07-16 — Inventory-to-Frontline approval-decisions execution workspace
+
+The documentation-only approval decision workspace is prepared under [`docs/inventory/frontline-workflow/approval-decisions/README.md`](inventory/frontline-workflow/approval-decisions/README.md). It provides the AE-0 authority/session record, an immutable-signature journal contract, a 50-decision Slice 1 execution gate, and a separate Slice 1 implementation-authorization resolution with explicit design, implementation, shadow, pilot and activation states.
+
+The user confirmed AE-0 entry as `ENTER_WITH_SAFE_DEFERRALS` for the `ITF-1.0` Minneapolis Slice 1 approval process, with Eli Aswan as the named ultimate General/Operations authority and Brock Harris as Inventory/transport/receiving owner. Internal driving, authoritative live provider integration, independent self-review and unqualified legal determinations remain excluded. Slice 1 approval execution processed all 50 prerequisites: 19 exact invariant policies are `APPROVED`, 3 capabilities are `DEFERRED_SAFE`, and 28 decisions remain `OPEN_REQUIRED_INPUT` because company-specific locations, limits, timing, evidence, source or pilot values were not supplied. At that Slice 1 checkpoint, 22 enterprise decisions were closed and 108 remained open. Slice 1 remains `NOT AUTHORIZED` for design, implementation, shadow, pilot and activation.
+
+## 2026-07-16 — Inventory-to-Frontline enterprise approval-execution baseline
+
+The complete documentation-only approval program is prepared under [`docs/inventory/frontline-workflow/approval-execution/README.md`](inventory/frontline-workflow/approval-execution/README.md). It provides separate AE-0 through AE-9 milestone packets, one consolidated ledger containing all 130 existing `ITF-APR-*` decisions exactly once, an execution approval register, gap/dependency and nine-slice readiness records, cross-slice consistency review, a 26-case enterprise tabletop suite, pilot-readiness assessment, master approval resolution, traceability matrix, and nine separate future implementation handoffs.
+
+This checkpoint did not add application behavior. After the later Slice 1 checkpoint, 108 decisions remained `OPEN`; subsequent Slice 2 partial execution is recorded above. Every lifecycle slice remains `NO-GO FOR DESIGN/CODE/PILOT/ACTIVATION`, and the master resolution remains `READY FOR SIGNATURE — NOT APPROVED`. The package explicitly separates policy approval, design authorization, implementation authorization, shadow authorization, pilot authorization and activation authorization. The first possible future implementation boundary remains authoritative acquisition through an accepted Receipt/Custody handoff, subject to the applicable signed decisions and separate implementation authority.
+
+## 2026-07-16 — Shop and Repair Optimization planning baseline
+
+The planning-complete Shop and Repair Optimization package is established under [`docs/shop-repair-optimization/README.md`](shop-repair-optimization/README.md). It governs customer-pay, inventory-recon, and internal/fleet shop lanes across six workstreams: shop flow/WIP, capacity/dispatch, parts/repair execution, pricing/margin, technician/advisor assistance, and customer intelligence/retention. The package contains 37 algorithm definitions, 17 recurring staff decisions, 50 acceptance scenarios, 79 approval decisions, eight consecutive approval workshops, source-authority and confidence rules, safety/financial/privacy/fairness guardrails, a simplified staff experience, balanced measurement, and a nine-stage implementation sequence from instrumentation through controlled expansion.
+
+This checkpoint is documentation only. All `SRO-APR-001` through `SRO-APR-079` decisions remain `OPEN`; no algorithm, pricing matrix, AI assistant, customer message, automatic assignment, purchase, QC decision, vehicle release, or predictive outreach is activated. Existing Vehicle Operations shop, dispatch, parts, QC, advisor, comeback, and production foundations remain implementation facts and are reused rather than reclassified as delivery of this new optimization program. The recommended first future code boundary is instrumentation plus job-start readiness/WIP decision support, followed by capacity-aware human-confirmed dispatch only after the applicable workshop approvals.
+
+## 2026-07-15 — Inventory-to-Frontline workflow planning baseline
+
+The catalog-complete planning package for a governed Inventory-to-Frontline workflow is established under [`docs/inventory/frontline-workflow/README.md`](inventory/frontline-workflow/README.md). It defines the workflow lifecycle, fully modeled Acquisition/Transportation, Receipt/Custody, Inspection/Triage, Recon Planning/Approval, Parts/Repair Execution, Quality/Safety Verification, Title/Document Readiness, Merchandising/Pricing, and Frontline Release Review decision/scenario catalogs, roles and operating controls, the adaptive staff experience, acceptance and pilot evidence, an explicit dealership approval register, and a completed cross-catalog consistency/approval review.
+
+The cross-catalog review outcome is `GO FOR APPROVAL WORKSHOPS` and `NO-GO FOR CODE`. All 410 catalog scenarios map to 220 acceptance cases, but 130 dealership decisions remain open. Machine-enforceable handoff contracts, approved policy/configuration, title-jurisdiction authority, source/provider mappings, and versioned frontline release/suspension persistence remain required design inputs after the applicable approvals.
+
+Approval Workshop 1 is prepared as a decision-ready program/scope/pilot charter with recommendations for the known Time Motor Sales - Minneapolis context, a narrow manual cohort, shadow/manual thresholds, and pause/rollback controls. Its 18 decisions remain `OPEN`; the packet is not dealership sign-off and does not authorize implementation or activation.
+
+This checkpoint is documentation only. It does not activate workflow triggers, create staff work, approve dealership roles or policy thresholds, add application/database/API/UI behavior, establish legal requirements, approve public content/customer pricing, publish listings, change frontline status, or authorize a production pilot. The first future code slice remains gated on the Approval Register and ends at an attributable Receipt and Custody handoff; a second completes Receipt and Custody; a third accepts Inspection/Triage evidence; a fourth builds and authorizes the recon plan and creates traceable jobs; a fifth coordinates parts and repair execution through an attributable QC handoff; a sixth independently verifies repair quality/safety, controls rework, and hands an operationally released unit to the correct downstream inventory owner; a seventh controls approved title/document requirements and external dependencies through a downstream handoff; an eighth governs media/content, human price approval, publication reconciliation, and Frontline Release Review handoff; and a ninth governs complete readiness review, authorization, frontline projection, placement/availability reconciliation, and suspension/reinstatement. Reservation, sale, delivery, and broader post-sale workflows remain outside this planning package.
+
+## 2026-07-14 — Time Motor Sales responsive CCC identity
+
+The approved Time Motor Sales logo system is implemented through the shared application shell and governed by [`docs/TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md`](TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md). The reversed horizontal logo appears in the global CCC command bar and CCC Home hero, the compact TMS mark appears at constrained widths and in CCC/console sidebars, authentication uses the standard horizontal logo, and browser/mobile metadata uses approved compact assets. Because operational consoles inherit `AppShell`, present and future console pages receive the corporate identity without duplicating page-level logo markup.
+
+The former red `T` placeholder is retired. The approved concept image is preserved under `docs/ui-mockups/`, and transparent production assets live under `public/brand/`. Current assets are high-resolution PNGs; mathematically clean SVG and vector-PDF masters remain a future production-format refinement that may not redesign the approved identity.
+
+## 2026-07-14 — Enterprise optimization Phase 1 vocabulary and registry
+
+Phase 1 establishes the non-behavioral semantic layer under `src/server/enterprise-optimization/`: canonical enterprise concepts, stable CCC console identities, deterministic cross-console record references, shared reason-code and event-type registries, and explicit source-authority mappings. Dispatch, Tasks, Appointments, Customers, Projects, Vehicles, Inventory, enterprise event/audit foundations, Insights, Administration, and every planned CCC console now have truthful semantic boundaries documented in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md).
+
+The registry does not change current application behavior and does not implement priority scoring, capacity calculation, assignment, escalation, automation, or AI. Projects remains explicitly classified as a derived Task projection; planned Time and Attendance, People and HR, Compliance, Legal and Accounting, and Library and Training consoles do not claim sources of truth that do not yet exist. Focused registry tests, typecheck, and lint pass for this checkpoint.
+
+## 2026-07-14 — Enterprise optimization architecture foundation
+
+The enterprise optimization documentation package is established under [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md), governed by the [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md). It defines the shared work model; priority and classes of service; capacity and resource allocation; dependency and flow optimization; risk, exception, and escalation handling; measurement and continuous improvement; automation and AI governance; simulation and validation; and a phased implementation roadmap.
+
+This checkpoint is documentation and governance only. It does not add or activate application code, database structures, APIs, user-interface behavior, scoring weights, automated assignments, or AI decision-making. Existing Inventory optimization specifications remain domain specializations and inherit the enterprise Constitution. Any production algorithm must pass the documented policy-approval, data-quality, simulation, shadow-mode, human-authority, explainability, and rollback gates before activation.
+
+## 2026-07-14 — Command Control Center shell foundation
+
+The approved Time Motor Sales Command Control Center shell is implemented as the shared application frame. Dispatch Board is the only live module in the primary shell; Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, and Insights are visibly locked as Planned. The shell now provides CCC branding, Dispatch-local Overview/Live Board/Team/Activity navigation, a persistent command bar, and an updated Dispatch Overview frame while preserving the existing board-generation, scheduler-health, task-intake, metrics, team-load, projects, customer/vehicle context, manager-attention, task-table, and activity behavior. Focused navigation/UI contract tests, typecheck, lint, and desktop/mobile browser inspection cover this checkpoint. The planned CCC modules are not implemented.
+
+Live Board is now a dedicated Dispatch sub-view at `/board?view=live` rather than an asynchronous page anchor. Its local tab and CCC breadcrumb stay synchronized. Each built console retains its complete console-owned navigation. Dispatch restores Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, Sales with nested Marketing and Advertising department views, permission-aware Manager Review, Team, and Activity. CCC Home and the scoped Dispatch return remain in the top navigation strip.
+
+The navigation shell separates enterprise, console, and workspace scope. Authenticated CCC Home at `/command-center` owns the global module sidebar and enterprise console launcher. Inside operational consoles, the global sidebar is replaced by the complete navigation owned by that built console. Dispatch workspaces remain mutually reachable from the Dispatch sidebar; Inventory and Administration retain their full local menus. The persistent top strip remains limited to CCC Home, Dispatch Board, and the active workspace. Dispatch Overview remains an internal Dispatch destination and is not treated as enterprise home.
+
+## 2026-07-14 — M10: reporting and enterprise scale
+
+VEH-130–VEH-139 are implemented as governed reporting, recommendation, and scale-evidence foundations. Daily metric facts, scorecards, bottleneck/cohort analysis, forecast evaluation, advisory recommendation pilots, responsible summaries, multi-location transfer checks, policy inheritance, and enterprise recovery gates are now available as deterministic services with tests. Production warehouse execution, model deployment, and load/failover drills remain operational activation work.
+
+## 2026-07-14 — M9: integration platform
+
+VEH-120–VEH-129 are implemented as provider-neutral integration foundations: external-system inventory, source authority matrix, adapter contract harness, conflict detection/reconciliation, explicit provider boundaries, and a governed partner API contract. Real provider credentials, durable partner stores, delivery workers, and production acknowledgements remain activation work.
+## 2026-07-14 — M8: administration and resilience
+
+M8 (VEH-111–VEH-118) is implemented as enterprise-hardening foundations. The console now provides separation-of-duties and dollar-limit evaluation, manager-scoped retention/legal-hold and background-operation projections, bounded audit exploration, disaster-recovery, security, accessibility/performance gates, and an explicit pilot enable/pause/rollback/resume state machine. These controls produce reviewable evidence; they do not claim that a provider backup, scanner, or production pilot has run.
+
+## 2026-07-14 — VEH-041/042: live inventory control tower
+
+The inventory control tower now has a tenant-scoped live projection and authenticated `GET /api/inventory-control-tower` API. It reconciles open inventory units, lifecycle stages, locations, overdue/blocked/waiting counts, cost exposure, and item-level exceptions. `/vehicles` consumes the projection, reports freshness, supports retry, and removes unsupported prototype shop/parts capacity values when the live response arrives.
+
+## 2026-07-14 — Wave 5: retail inventory acquisition, readiness, and sale lifecycle
+
+VEH-031–VEH-040 are implemented in the repository. Inventory units now have versioned acquisition appraisals, purchase-authority limits, transport/receipt evidence, recon handoffs, title/document readiness, merchandising packages, frontline gates, controlled reservation/sale/delivery/reversal transitions, cost exposure projections, and lifecycle velocity policy evaluation. The migration is source-controlled and the existing retail-inventory rollout gate remains the activation control. Validation passed with typecheck, lint, and the full test suite.
+
+## 2026-07-14 — Wave 4: customer lifecycle, warranty, commercial handoffs, and policy administration
+
+Milestones 7A–8A are implemented in the repository. The console now provides canonical customer/service history, versioned service promises and transportation state, purpose-specific consent with quiet-time enforcement, exact-version customer estimate decisions, an explicitly published customer-safe timeline, warranty coverage-to-recovery records, returned invoice-total reconciliation, governed sales/F&I/title/delivery handoffs, scoped expiring customer/partner portal access, and versioned policy simulation/four-eyes approval/pilot/rollback. The operator workspace is `/vehicles/customer-lifecycle`; the public portal is token scoped and excludes internal notes and restricted evidence. The source migration is not deployed and the `CUSTOMER_LIFECYCLE` rollout flag defaults to `OFF`. See [`docs/inventory/CUSTOMER_LIFECYCLE_COMMERCIAL_POLICY_IMPLEMENTATION.md`](inventory/CUSTOMER_LIFECYCLE_COMMERCIAL_POLICY_IMPLEMENTATION.md).
+
+## 2026-07-14 — Vehicle Operations Wave 3: discovery, knowledge, and controlled output
+
+Vehicle Operations Milestone 6E–6G (`VEH-094` through `VEH-096`) is implemented in the working tree. `/vehicles/discovery` provides organization-scoped, capability-filtered, bounded and ranked search across vehicle/VIN/stock, customer, repair order/job, appointment, part/barcode, purchase order/vendor, and governed document metadata. Work types now have reference-only external procedure, bulletin, safety-note, and reference revisions with HTTPS/checksum/source controls, effective windows, independent approval, supersession lineage, and immutable events. Authorized users can generate JSON or printable HTML Vehicle 360 packages with classification-specific redaction, field manifests, watermark, SHA-256 integrity, seven-day expiry, immutable generation evidence, and audited downloads.
+
+The database migration, `pg_trgm` extension qualification, `VEHICLE_DISCOVERY` rollout activation, production query-plan/load evidence, publisher checksum operating procedures, output DLP/retention validation, accessibility review, and production browser qualification remain pending. See [`docs/inventory/ENTERPRISE_DISCOVERY_KNOWLEDGE_OUTPUT_IMPLEMENTATION.md`](inventory/ENTERPRISE_DISCOVERY_KNOWLEDGE_OUTPUT_IMPLEMENTATION.md).
+
+## 2026-07-14 — Vehicle Operations Wave 2: evidence storage and Vehicle 360
+
+Vehicle Operations Milestone 6A–6D (`VEH-090` through `VEH-093`) is implemented in the working tree. The application now has database-backed governed vehicle evidence with server-owned SHA-256 integrity, content signature checks, quarantine, retention, legal hold, access classification, immutable evidence history, authorized audited downloads, enterprise commands, and database constraints/triggers. `/vehicles/360/[id]` projects canonical summary, correlated timeline, permission-aware operational tabs, cost/decision/audit views, and a navigable permission-filtered relationship graph from existing vehicle, customer, inventory, repair, parts, appointment, task, evidence, and audit records.
+
+The implementation uses a bounded PostgreSQL evidence-content store and a built-in signature safety baseline. Production object storage, an approved antivirus/content-disarm provider, migration deployment, feature activation, production retention/restore exercises, browser evidence, and live pilot qualification remain pending. Warranty is present as a governed empty-state pending `VEH-105`; no warranty claim aggregate is implied. See [`docs/inventory/VEHICLE_EVIDENCE_AND_360_IMPLEMENTATION.md`](inventory/VEHICLE_EVIDENCE_AND_360_IMPLEMENTATION.md).
+
 **Verified:** 2026-07-10
 **Purpose:** Evidence-based snapshot of the repository during Enterprise Appointment and Customers planning/implementation
 **Supersedes:** Stale “pre-implementation” statements in older planning documents
@@ -40,6 +870,52 @@ npm run typecheck
 ```
 
 Focused appointment scheduling recommendation validation passed for the new recommendation service, route parsing/error handling, unscheduled-draft board integration, and related type safety. Full lint, full test suite, build, and deployment validation were not rerun during this slice.
+
+## Vehicle Operations Governance Baseline — 2026-07-13
+
+Vehicle Operations Milestone 0 (`VEH-004` through `VEH-007`) is complete as a planning and governance baseline. The repository now contains a canonical glossary/RACI, KPI catalog v1, threat model/data classification, and SLO/backup/retention/incident policy under `docs/inventory/governance/`. These documents define implementation requirements and acceptance evidence; they do not claim that the planned vehicle persistence, APIs, security controls, monitoring, backup topology, or incident automation is implemented.
+
+## Vehicle Operations Enterprise Command Foundation — 2026-07-14
+
+Vehicle Operations Milestone 1 (`VEH-010` through `VEH-017`) is implemented in the repository. The additive Prisma schema and migration provide organization/location enforcement, capability grants, generic aggregate versions, an idempotent command ledger, domain and audit events, a transactional outbox, versioned rollout controls, rollout history, and health checkpoints. Server-side services and protected APIs enforce capabilities, canonical request hashes, stale-version conflicts, audit reasons, and atomic command/event/audit/outbox writes. A retryable worker atomically claims outbox messages and handles publication, backoff, and dead-letter state. Managers have a protected `/settings/vehicle-operations` health and rollout surface with stale-version recovery.
+
+This is a shared command foundation, not the M2 canonical vehicle registry or later inventory/shop implementation. The migration has not been deployed here, no production publisher or scheduled worker has been configured, and production pilot/alert/recovery evidence remains pending. Detailed evidence and the M2 adoption contract are in [`docs/inventory/VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md`](inventory/VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md).
+
+## Canonical Vehicle Registry — 2026-07-14
+
+Vehicle Operations Milestone 2 (`VEH-020` through `VEH-028`) is implemented in the repository. The existing appointment/customer-compatible `Vehicle` root is extended in place with canonical VIN/stock controls, documented non-VIN exceptions, versioning, task linkage, and merge lineage. Effective-dated relationships, external identity mappings/conflicts, append-only odometer observations/corrections, attributable custody events, and duplicate-review cases have additive schema and migration coverage. Protected registry APIs provide paginated tenant-safe search and atomic M1-backed mutation commands. `/vehicles/registry` provides search, identity/history inspection, governed create/correction, import preview, odometer/custody capture, and duplicate reconciliation.
+
+This implementation preserves existing appointment/resource/customer references and legacy task text. The database migration, production import, external VIN/DMS adapters, outbox runtime, rollout activation, and production reconciliation evidence were not executed here. See [`docs/inventory/VEHICLE_REGISTRY_IMPLEMENTATION.md`](inventory/VEHICLE_REGISTRY_IMPLEMENTATION.md) and [`docs/inventory/VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md`](inventory/VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md).
+
+## Inventory Unit Foundation — 2026-07-14
+
+Vehicle Operations Milestone 3A (`VEH-030`) is implemented in the repository. `InventoryUnit` now separates a dealership-controlled commercial inventory cycle from canonical physical vehicle identity and retains financial acquisition time, lifecycle stage/start, operating state, accountable owner/location, target, next action, version, and immutable state history. Database constraints enforce tenant-safe references, one open unit per vehicle, unique organization inventory numbers, valid timelines/state, and immutable event rows. Protected APIs and `/vehicles/inventory` provide eligible-vehicle creation, search/detail, active/waiting/blocked control updates, stale-version recovery, and history inspection through the M1 command/audit/event/outbox transaction.
+
+## Repair-order core — 2026-07-14
+
+Vehicle Operations Milestone 4A (`VEH-050` and `VEH-051`) is implemented in the repository. `ServiceVisit` preserves immutable appointment, walk-in, or inventory-recon intake evidence while `RepairOrder` owns the accountable shop coordination state. Appointment conversion is idempotent and derives its primary customer and vehicle from authoritative appointment links. Walk-in and inventory-recon intake validate canonical organization ownership. Concern, promise, consent, keys, transportation, owner, location, target, next action, version history, command, audit, domain event, and outbox evidence commit atomically. Protected APIs and `/vehicles/repair-orders` provide intake, search, detail, and active/waiting/blocked controls. Later DVI, diagnosis, estimate, approval, job, labor, parts, dispatch, QC, invoice, close, and reopen commands are deliberately not claimed.
+
+## Parts ledger and repair readiness — 2026-07-14
+
+Vehicle Operations Milestone 5A is implemented as the controlled parts foundation. Normalized part masters, warehouses/bins/staging/damaged locations, balance projections, immutable stock ledger entries, repair-order demand, scarce stock reservations, and immutable readiness evaluations now exist. Receipt, adjustment, explicit reversal, demand, and reservation commands commit through the M1 command/audit/event/outbox transaction. Negative stock, over-allocation, cross-location reservation, duplicate source posting, mutation of ledger history, and readiness without fully reserved active demand are prevented. Protected APIs and `/vehicles/parts` expose the live workflow behind independent `PARTS_OPERATIONS` rollout controls. Full interchange/vendor masters, RepairJob promotion, purchase orders, discrepancies, issue/install/return, transfers, cores, warranty/vendor returns, counts, and replenishment remain later slices and are not claimed.
+
+## Shop planning core — 2026-07-14
+
+Vehicle Operations Milestone 4B (`VEH-052` through `VEH-056`) is implemented. Versioned DVI evidence, concern-cause-correction diagnoses, immutable presented estimates/change orders, exact-version authorization decisions, and readiness-gated RepairJobs now share the RepairOrder command stream. Estimates calculate their server-owned totals from structured lines; accepted, partial, declined, deferred, expired, and revoked decisions retain actor/channel/time/reason lineage. Jobs require an accepted authorized line and retain labor guide, skills, certifications, bay/tool needs, priority, dependencies, and promoted 5A demand. Protected planning APIs and `/vehicles/shop-planning` guide the flow through diagnosis, estimate, authorization, and ready-for-repair while preserving optimistic concurrency, immutable evidence, audit events, domain events, and outbox messages. Work templates, labor clocks, dispatch, execution, QC, invoicing, closing, and reopening are not claimed.
+
+The migration is not deployed and `RETAIL_INVENTORY` remains rollout-disabled by default. VEH-031 through VEH-042, production backfill/import, lifecycle advancement, and live control-tower replacement remain planned. See [`docs/inventory/INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](inventory/INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md) and [`docs/inventory/INVENTORY_UNIT_FOUNDATION_ADR.md`](inventory/INVENTORY_UNIT_FOUNDATION_ADR.md).
+
+## Shop dispatch and technician execution — 2026-07-14
+
+Vehicle Operations Milestone 4C (`VEH-057` through `VEH-062`) is implemented. Effective-dated procedures and qualifications now gate location-aware technician, bay, tool, and equipment assignments. The live dispatch board enforces one current and one next job, detects shop and appointment resource conflicts, retains re-dispatch lineage, and requires attributable overrides. Technician execution provides current/next work, procedures, parts, blockers, labor start/pause/resume/finish/correction evidence, and a required evidence-backed QC handoff. All writes use the Milestone 1 command/audit/event/outbox boundary. QC release, advisor workflow, comeback handling, production analytics, invoicing, and close/reopen remain later slices. The migration is source-controlled but not deployed. See [`docs/inventory/SHOP_DISPATCH_EXECUTION_IMPLEMENTATION.md`](inventory/SHOP_DISPATCH_EXECUTION_IMPLEMENTATION.md).
+
+## Quality control and vehicle release — 2026-07-14
+
+Vehicle Operations Milestone 4D (`VEH-064`) is implemented. Immutable per-job QC versions enforce completion evidence, applicable safety checks, diagnostic/heavy peer verification, applicable road-test evidence, and explicit failed-check rework instructions. Failure returns the job to the governed repair/dispatch flow without deleting labor or QC history. Final release authorization is a separate RepairOrder command and remains blocked until every non-cancelled job has a latest passing QC inspection, labor is stopped, keys and final-condition evidence are verified, and open exceptions are empty. Customer versus inventory handoff is derived from RepairOrder origin. Advisor delivery, invoicing/payment, close/reopen, comeback handling, and production analytics are not claimed. The migration is source-controlled but not deployed. See [`docs/inventory/QUALITY_CONTROL_RELEASE_IMPLEMENTATION.md`](inventory/QUALITY_CONTROL_RELEASE_IMPLEMENTATION.md).
+
+## Advisor, comeback, and shop production — 2026-07-14
+
+Vehicle Operations Milestones 4E, 4F, and 4G (`VEH-063`, `VEH-065`, and `VEH-066`) are implemented. Advisors have immutable promise/contact/exception updates, existing estimate/authorization/QC context, and system-gated delivery-readiness evaluations. Comebacks link released original jobs and corrections to controlled review, responsibility, cost, follow-up, outcome, and immutable transition evidence with a non-punitive-use control. Production snapshots reconcile verified presence, labor events, labor-guide earned time, comeback exclusions, idle causes, the approved five formulas, confidence, and source fingerprints. Protected workspaces exist at `/vehicles/advisor`, `/vehicles/comebacks`, and `/vehicles/shop-production`; all writes use the M1 command/audit/event/outbox boundary. Provider messaging, invoicing/payment, warranty claims, close/reopen, payroll, and disciplinary automation are not claimed. The migration is source-controlled but not deployed. See [`docs/inventory/SHOP_COMPLETION_IMPLEMENTATION.md`](inventory/SHOP_COMPLETION_IMPLEMENTATION.md).
 
 ## Customers Console Baseline
 
@@ -253,6 +1129,66 @@ At this baseline:
 - EAPT-038 initial critical lifecycle and orchestration execution coverage is implemented across draft/planning, attendance/execution, terminal/ownership, mutation-family stale conflict handling, and board stale-recovery notice proof.
 - Database-backed versioned appointment-template administration, recurrence persistence/materialization, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, full staff directory/admin maintenance, participant reassignment controls, reason-code catalog/templates, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
+
+## Service Financial Close and Enterprise Parts Operations — 2026-07-14
+
+Vehicle Operations Milestones 4H–5D are implemented in the repository. Repair orders can generate source-linked invoice-ready packages, record financial handoff status, close only after delivery/release/invoice/handoff gates pass, and reopen through retained manager-reasoned history. Parts Operations now includes vendor and interchange masters, effective vendor offers, demand requisitions and comparison snapshots, controlled purchase orders, receipt-ledger posting, discrepancy resolution, job/technician custody, location transfers, and core/warranty/vendor-return credit recovery. All mutations use the existing capability, rollout, idempotency, optimistic-version, audit, domain-event, and outbox controls. The live workspace is `/vehicles/service-close-parts`.
+
+The additive migration is source-controlled but was not deployed here. Payment processing, tax/general-ledger posting, external DMS/accounting adapters, cycle-count planning, replenishment/obsolescence recommendations, and barcode hardware integration remain separate planned slices. Verification for this checkpoint passed schema validation, lint, typecheck, 184 test files/1,077 tests, production build, and protected-route smoke validation. See [`docs/inventory/SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md`](inventory/SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md).
+
+## Enterprise Parts Wave 1 — 2026-07-14
+
+Vehicle Operations Milestones 5E–5G (`VEH-081` through `VEH-083`) are implemented in the repository. Cycle counts now support immutable balance snapshots, blind counting, observe/freeze modes, movement-aware expected quantities, independent variance approval, and controlled `ADJUST` ledger posting. Effective-dated inventory policies drive immutable advisory runs for reorder, transfer review, obsolescence review, and no-action outcomes with demand variability, EOQ, source evidence, confidence, and attributable decisions. `/vehicles/parts-counter` provides barcode-ready canonical lookup, counter custody, purchase receipt, discrepancy, count, policy, and recommendation workflows.
+
+The migration is source-controlled but not deployed. Hardware-specific scanner/label integrations, automated purchasing/transfers/disposal, policy auto-tuning, backfill, and production pilot evidence remain outside this slice. See [`docs/inventory/ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](inventory/ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md).
+
+## Enterprise Vehicle Intake and Repair-Order Workbench — 2026-07-20
+
+The approved vehicle-intake and repair-order mockups are now official product documentation and the corresponding replacement experience is implemented. Intake is search-first across canonical customers, vehicles, eligible appointments, and open repair orders; supports governed inline customer and vehicle creation; preserves a 2,000-character customer concern; evaluates live appointment and service-capacity readiness; records custody and consent; and creates the canonical repair order. The repair-order route now opens a compact concern-centered enterprise workbench with vehicle, customer, custody, readiness, ownership, traceability, diagnostic-plan guidance, existing diagnosis/estimate/job facts, downstream gates, and direct access to the governed planning workflow.
+
+The approved references and behavioral contract are maintained in [`docs/inventory/VEHICLE_SERVICE_INTAKE_AND_REPAIR_ORDER_UI_SOURCE_OF_TRUTH.md`](inventory/VEHICLE_SERVICE_INTAKE_AND_REPAIR_ORDER_UI_SOURCE_OF_TRUTH.md). Suggested diagnostic steps remain advisory and do not assert a cause or authorize repair work.
+
+## Enterprise Diagnostics Console Planning Baseline — 2026-07-20
+
+An independent Enterprise Diagnostics Console has been approved as a first-class bounded domain inside Dispatch Board. The official planning package now includes the architecture, current-market capability benchmark, diagnostic algorithm catalog, consistency and causal reasoning specification, automotive ontology and knowledge graph, integrated diagnostic lab suite, scan/live-data/network intelligence, electrical and waveform diagnostics, intermittent-fault investigation, procedure authoring/release, simulation/benchmark/training, diagnostic quality/mastery/verification, phased roadmap, 50 implementation milestones, and a consolidated implementation master plan. The package is maintained in [`docs/diagnostics/README.md`](diagnostics/README.md). The planned console will reuse canonical vehicle, repair-order, evidence, task, appointment, parts, estimate, authorization, repair-job, QC, audit, and activity foundations while owning diagnostic cases, hypotheses, tests, reasoning, conclusions, recommendations, and verification.
+
+The DGN-001–006 foundation contracts are complete and `DG-G0` is approved with holds. DGN-007–009 are implemented in source: additive tenant-scoped diagnostic case, immutable concern version, immutable state-event persistence, governed create/read, assignment, lifecycle/waiting/escalation/abandon/reopen commands, explicit capabilities, disabled-by-default rollout controls, API boundaries, command-ledger idempotency, optimistic concurrency, audit, domain events, and outbox integration. The migration is source-controlled but was not deployed by this implementation branch.
+
+The DGN-010–012 independent `/diagnostics` queue, technician case workspace, exact-version ownership/lifecycle controls, and governed Repair Order create/open/summary bridge are implemented in source. The console exposes honest loading, empty, restricted, rollout-held, stale-capable, conflict, and unavailable states; it does not invent evidence, hypotheses, test plans, conclusions, or confidence. `DG-G1` remains open pending deployment of the DGN-007–009 migration to a test runtime plus populated responsive-browser, accessibility, and technician-usability evidence. See [`docs/diagnostics/implementation/DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](diagnostics/implementation/DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md).
+
+DGN-013–014 are implemented in source: immutable observations, dimensional measurement normalization, entered/normalized reference preservation, engineering plausibility marking, time-window and raw-source provenance, independence groups, quality/reliability classification, append-only correction lineage, and governed links to existing Vehicle Evidence. The technician workspace can record facts and select permitted vehicle evidence while retaining malware, restricted-access, checksum, retention, legal-hold, and deletion authority in Vehicle Evidence. Hypothesis, conclusion, and verification evidence targets remain reserved and rejected until their governed aggregates exist. See [`docs/diagnostics/implementation/DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md`](diagnostics/implementation/DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md).
+
+DGN-015–016 are implemented in source: immutable versioned test definitions, validated and superseding case-plan graphs, effective-date/source/applicability/risk checks, server-derived technician qualification gates, and append-only start/pause/resume/complete/invalidate/repeat/cancel execution revisions. Vehicle Evidence may now target an existing test execution. See [`docs/diagnostics/implementation/DGN_015_016_TEST_EXECUTION_IMPLEMENTATION.md`](diagnostics/implementation/DGN_015_016_TEST_EXECUTION_IMPLEMENTATION.md).
+
+DGN-017–018 are implemented in source: ten shared-context technician lab shells, an active-plan Test Navigator wired to the governed execution lifecycle, persisted interruption/recovery state, and a permission-filtered evidence review with combined timeline, measurement matrix, expected/actual comparison, review conflicts, source freshness, and immutable provenance. See [`docs/diagnostics/implementation/DGN_017_018_TECHNICIAN_WORKSPACE_IMPLEMENTATION.md`](diagnostics/implementation/DGN_017_018_TECHNICIAN_WORKSPACE_IMPLEMENTATION.md).
+
+DGN-019 is implemented in source: policy-versioned server-side applicability, source-rights/freshness, unit, plausibility, instrument, evidence-completeness/independence, qualification, hazard, tool, vehicle-state, dependency, and test-readiness gates now return explicit ready, blocked, abstain, or not-applicable dispositions. Successful evaluations are retained in immutable test-execution snapshots, and the case workspace shows a permission-filtered evidence-quality/abstention summary. See [`docs/diagnostics/implementation/DGN_019_QUALITY_SAFETY_GATES_IMPLEMENTATION.md`](diagnostics/implementation/DGN_019_QUALITY_SAFETY_GATES_IMPLEMENTATION.md).
+
+DGN-020–021 are implemented in source: append-only tenant-scoped knowledge-source, rule-set, and citation versions; independent review, rights, applicability, checksum, supersession, withdrawal, and rollback lineage; a controlled generic starting/charging/no-start topology; four governed test-definition payloads; and a unit-safe Ohm/power/energy, Kirchhoff, series/parallel, loaded voltage-drop, timing, tolerance, speed/ratio, and torque library. Held OEM and commercial sources remain blocked, and the generic seed contains no invented vehicle-specific limits. See [`docs/diagnostics/implementation/DGN_020_021_KNOWLEDGE_CALCULATIONS_IMPLEMENTATION.md`](diagnostics/implementation/DGN_020_021_KNOWLEDGE_CALCULATIONS_IMPLEMENTATION.md).
+
+DGN-022–023 are implemented in source: immutable hypotheses and typed support/contradiction links, subset-minimal conflicts, bounded deterministic minimal hitting-set diagnoses, modeled multiple/common/intermittent candidates, truth revision, applicability and rule evaluation, causal-versus-associative support, missing expected effects, stable explanation codes/checksums, and immutable reasoning evaluations. A rollout-gated API accepts only command metadata; the applicable model and evidence mapping must come from an approved server-side provider. No provider is activated while vehicle-specific source holds remain unresolved. See [`docs/diagnostics/implementation/DGN_022_023_REASONING_CORE_IMPLEMENTATION.md`](diagnostics/implementation/DGN_022_023_REASONING_CORE_IMPLEMENTATION.md).
+
+DGN-024–025 are implemented in source: approved-definition next-test generation, independent fail-closed applicability/prerequisite/safety/authority/qualification/tool/state/authorization/source/definition gates, complete exclusion reasons, normalized information gain, explicit policy weights and factor contributions, bounded look-ahead, stable alternatives, and immutable authorized technician override lineage. Evaluation binds to the latest reasoning result and checksum, accepts no client-authored knowledge or weights, and fails closed without an approved server provider. See [`docs/diagnostics/implementation/DGN_024_025_ADAPTIVE_TESTING_IMPLEMENTATION.md`](diagnostics/implementation/DGN_024_025_ADAPTIVE_TESTING_IMPLEMENTATION.md).
+
+DGN-026–027 are implemented in source: immutable cause proposal, confirmation, rejection, supersession, abstention, no-fault-found, and escalation decisions; exact reasoning/evidence/source/safety lineage; explicit technical confirmation grants; R3 independent-review controls; connected hypothesis/adaptive-test/conclusion technician views; and a blinded simulation-only generic no-start corpus covering normal, misleading-code, measurement-error, common-ground, intermittent, multiple-fault, unsafe, degraded, and no-fault-found cases. See [`docs/diagnostics/implementation/DGN_026_027_CONCLUSION_NO_START_PROOF_IMPLEMENTATION.md`](diagnostics/implementation/DGN_026_027_CONCLUSION_NO_START_PROOF_IMPLEMENTATION.md).
+
+Diagnosis publishing, knowledge administration, hardware adapters, authoritative verification execution, production reasoning/adaptive/conclusion providers, licensed vehicle-specific content, and the complete production starting/charging/no-start engine remain unimplemented. Existing migrations are not deployed by this branch and Diagnostics rollout flags remain disabled by default. Formal `DG-G3` acceptance still requires migrated-runtime, qualified technical/safety, populated responsive-browser, accessibility, representative technician-usability, and production-scale evidence.
+
+The initial Diagnostics Technician Workspace mockup is provisionally approved as the official starting UI direction. [`docs/diagnostics/DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](diagnostics/DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md) defines its technician-only role, five-stage workflow, single-primary-action hierarchy, qualitative-confidence correction, advisor boundary, and required technician usability validation. This approval does not represent implemented UI or production usability evidence.
+
+## Time & Attendance Foundation — 2026-07-23
+
+The Time & Attendance CCC program foundation is implemented in source and documentation. [`docs/time-attendance/README.md`](time-attendance/README.md) indexes the product boundary, modular-monolith architecture, official Minnesota/federal policy-source register, exact-time/no-rounding decision, overtime/break/ESST algorithms, time-card and time-off workflows, permission matrix, implementation milestones, golden cases, release gates, and operational contract. The executable `src/server/time-attendance` foundation provides a source-linked policy registry, fail-closed overtime coverage resolution, exact tardiness calculation, Minnesota break evaluation, Minnesota standard ESST accrual, attendance/allocation reconciliation, and staff-specific paid/unpaid meal policy planning with focused unit coverage.
+
+TA-G1 persistence and command-boundary foundations are now implemented in source. Prisma schema and additive migration `20260723220000_time_attendance_foundation` add policy profiles and assignments, append-only attendance events and sessions, break intervals, time cards, exceptions, attestations, approvals, time-off requests, balances, export batches, and export lines. The server command contract maps clock/meal capture commands into the shared enterprise command boundary and validates allowed session transitions.
+
+TA-020 idempotent capture is implemented in source. `/api/time-attendance/capture` accepts `CLOCK_IN`, `START_MEAL`, `END_MEAL`, and `CLOCK_OUT`; the service enforces self-or-manager capture authority; the repository commits the enterprise command ledger, aggregate version, attendance session, attendance event, meal interval evidence, audit, domain event, and outbox message in one transaction.
+
+TA-021 event normalization is implemented in source. The pure interval builder orders and deduplicates source events, pairs clock and meal events without inventing missing evidence, emits blocking normalization exceptions, splits derived intervals by location-local day and workweek attribution, and calculates attendance, meal, unpaid-meal, and paid-work minutes. Paid-work intervals deduct only actual unpaid completely-relieved meals, so planned lunch expectations do not silently remove worked time.
+
+TA-022 through TA-025 are implemented in source. The effective policy resolver returns exactly one active assignment and policy bundle or a blocking conflict. The time-card calculator projects exact paid-work, regular, overtime, meal, unpaid-meal, Minnesota break, and ESST results from normalized events. The exception engine merges normalization, policy, break, overtime, and planned-meal exceptions with blocking semantics. The replay service returns stable input, projection, and combined checksums for reproducible historical calculations.
+
+This foundation does not include applied runtime migration evidence, seed data, a live `/time-attendance` console, persisted time-card projection APIs, payroll-file generation, protected-leave case management, legal/payroll configuration approval, pilot evidence, or production release authority.
 
 ## Current Execution Order
 

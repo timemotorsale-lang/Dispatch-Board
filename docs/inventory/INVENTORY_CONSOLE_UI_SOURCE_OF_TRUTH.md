@@ -3,9 +3,11 @@
 **Product:** Time Motor Sales Dispatch Board  
 **Module:** Inventory Operations Console  
 **Approved concept:** Inventory Lifecycle Control Tower  
-**Version:** 1.0 planning baseline  
-**Date adopted:** 2026-07-13  
-**Status:** Approved visual source of truth; initial control-tower UI implemented at `/vehicles`  
+**Version:** 1.1 detailed-workspace baseline
+**Date adopted:** 2026-07-13; landing-page scope updated 2026-07-16
+**Status:** Approved detailed-workspace source of truth; initial control-tower UI implemented at `/vehicles`
+**Approved landing pages:** [`INVENTORY_CONSOLE_LANDING_PAGES_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_LANDING_PAGES_UI_SOURCE_OF_TRUTH.md)
+**Approved Start Workflow launcher:** [`../CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](../CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md)
 **Algorithm specification:** [`INVENTORY_OPTIMIZATION_ALGORITHMS.md`](INVENTORY_OPTIMIZATION_ALGORITHMS.md)
 **Enterprise program:** [`INVENTORY_ENTERPRISE_ROADMAP.md`](INVENTORY_ENTERPRISE_ROADMAP.md) · [`INVENTORY_ENTERPRISE_ARCHITECTURE.md`](INVENTORY_ENTERPRISE_ARCHITECTURE.md) · [`INVENTORY_ENTERPRISE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_ENTERPRISE_IMPLEMENTATION_MILESTONES.md)
 
@@ -15,7 +17,7 @@
 
 ![Approved Inventory Lifecycle Control Tower](assets/inventory-lifecycle-control-tower-source.png)
 
-The image above is the default visual and interaction source of truth for the Inventory Console. Future implementation should preserve its operating model, information hierarchy, density, and panel relationships unless a later explicitly approved mockup supersedes it.
+The image above remains the visual and interaction source of truth for the detailed Inventory Lifecycle control-tower workspace. The explicitly approved Inventory Lifecycle and Shop & Recon default landing pages are now governed by [`INVENTORY_CONSOLE_LANDING_PAGES_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_LANDING_PAGES_UI_SOURCE_OF_TRUTH.md). Future implementation should preserve this document's deeper operating model, information hierarchy, density, and panel relationships where they do not conflict with the approved landing-page composition.
 
 The first implementation is mounted on the application Inventory route at `/vehicles`. It includes the approved module navigation, KPI and health strips, three lifecycle swimlanes, operational work panels, and independently scrolling selected-asset command rail. The current operational records are representative UI data until the corresponding authoritative inventory read models and command APIs are connected.
 
@@ -135,6 +137,8 @@ The area beneath the lifecycle map contains:
 The Shop Capacity Board must distinguish optimization recommendations from manager-approved assignments.
 
 ### 3.7 Right command rail
+
+The Vehicle Lifecycle Card family and the refined selected-vehicle command composition are governed by [`INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md`](INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md). That source supersedes this subsection only for the refined card fields, terminology, compact-card relationship, removal of generic `Update Stage`, and approved action hierarchy. The rail placement and overall Control Tower composition remain governed here.
 
 The selected-asset rail extends from beneath the module navigation to the bottom of the viewport and scrolls independently.
 

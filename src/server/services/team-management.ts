@@ -1,5 +1,10 @@
+import type { Prisma } from "@prisma/client";
+
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { sendAuthEmail } from "@/server/auth/email-delivery";
 import { hashPassword } from "@/server/auth/password";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { prisma } from "@/server/db/client";
 import {
   canGrantManagerPowers,
   canManageUsers,
@@ -17,8 +22,7 @@ import {
   normalizeManagedDutyUpdateInput,
   normalizeManagedRoleCreateInput,
   normalizeManagedRoleUpdateInput,
-  normalizeTeamMemberCreateInput
-  ,
+  normalizeTeamMemberCreateInput,
   normalizeTeamMemberUpdateInput
 } from "@/server/validation/team-management";
 
@@ -28,8 +32,12 @@ export type ManagedTeamUser = {
   id: string;
   name: string;
   email: string;
+  failedLoginCount: number;
   isActive: boolean;
+  lockedUntil: Date | null;
+  mustChangePassword: boolean;
   createdAt: Date;
+  updatedAt: Date;
   roles: Array<{ id: string; name: string }>;
   duties: Array<{ id: string; name: string }>;
 };
@@ -62,8 +70,12 @@ function toManagedTeamUser(user: ManagedUserRecord): ManagedTeamUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    failedLoginCount: user.failedLoginCount,
     isActive: user.isActive,
+    lockedUntil: user.lockedUntil,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
     roles: user.userRoles.map((assignment) => assignment.role),
     duties: user.userDuties.map((assignment) => assignment.duty)
   };
@@ -156,6 +168,28 @@ async function assertCanCreateOrRenameDelegatedManagerDuty(
   }
 }
 
+async function recordTeamSecurityAudit(input: {
+  actorUserId: string;
+  eventType: string;
+  reason: string;
+  subjectId: string;
+  metadata?: Record<string, unknown>;
+}) {
+  await prisma.enterpriseAuditEvent.create({
+    data: {
+      organizationId: INITIAL_ORGANIZATION.id,
+      actorUserId: input.actorUserId,
+      domain: "TEAM_SECURITY",
+      subjectType: "USER",
+      subjectId: input.subjectId,
+      eventType: input.eventType,
+      reason: input.reason,
+      metadata: (input.metadata ?? {}) as Prisma.InputJsonObject,
+      correlationId: `team-security:${input.eventType.toLowerCase()}:${input.subjectId}:${Date.now()}`
+    }
+  });
+}
+
 export async function getTeamManagementSnapshotForManager(
   user: AuthenticatedUser | null,
   repository: TeamManagementRepository = createTeamManagementRepository()
@@ -185,7 +219,7 @@ export async function createManagedTeamUser(
   input: unknown,
   repository: TeamManagementRepository = createTeamManagementRepository()
 ) {
-  assertCanManageTeam(user);
+  const manager = assertCanManageTeam(user);
 
   const normalizedInput = normalizeTeamMemberCreateInput(input);
   await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
@@ -212,6 +246,14 @@ export async function createManagedTeamUser(
     dutyIds: normalizedInput.dutyIds
   });
 
+  await recordTeamSecurityAudit({
+    actorUserId: manager.id,
+    eventType: "STAFF_USER_CREATED",
+    reason: "Manager created a staff login with a temporary password that must be changed.",
+    subjectId: createdUser.id,
+    metadata: { isActive: createdUser.isActive, roleIds: normalizedInput.roleIds, dutyIds: normalizedInput.dutyIds }
+  });
+
   return toManagedTeamUser(createdUser);
 }
 
@@ -221,7 +263,7 @@ export async function updateManagedTeamUser(
   input: unknown,
   repository: TeamManagementRepository = createTeamManagementRepository()
 ) {
-  assertCanManageTeam(user);
+  const manager = assertCanManageTeam(user);
 
   const normalizedTeamUserId = teamUserId.trim();
 
@@ -231,6 +273,12 @@ export async function updateManagedTeamUser(
 
   const normalizedInput = normalizeTeamMemberUpdateInput(input);
   await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
+  const passwordResetRequested = Boolean(normalizedInput.temporaryPassword);
+  const lockoutClearRequested = Boolean(normalizedInput.clearLockout);
+
+  if (normalizedInput.temporaryPassword) {
+    normalizedInput.temporaryPassword = await hashPassword(normalizedInput.temporaryPassword);
+  }
 
   if (normalizedInput.roleIds) {
     const roles = await repository.findRolesByIds(normalizedInput.roleIds);
@@ -252,6 +300,52 @@ export async function updateManagedTeamUser(
 
   if (!updatedUser) {
     throw new Error("Team member not found.");
+  }
+
+  await recordTeamSecurityAudit({
+    actorUserId: manager.id,
+    eventType: passwordResetRequested
+      ? "STAFF_PASSWORD_RESET"
+      : lockoutClearRequested
+        ? "STAFF_LOCKOUT_CLEARED"
+        : "STAFF_USER_UPDATED",
+    reason: passwordResetRequested
+      ? "Manager reset a staff password and required the staff member to change it."
+      : lockoutClearRequested
+        ? "Manager cleared staff account lockout state."
+      : "Manager updated staff account settings.",
+    subjectId: updatedUser.id,
+    metadata: {
+      changedFields: Object.keys(normalizedInput).filter((key) => key !== "temporaryPassword"),
+      passwordResetRequested,
+      lockoutClearRequested
+    }
+  });
+
+  if (passwordResetRequested) {
+    await sendAuthEmail({
+      actorUserId: manager.id,
+      body: "A manager set a temporary password for your staff account. Sign in with the temporary password provided by your manager, then create a new password when prompted.",
+      eventType: "STAFF_PASSWORD_RESET_EMAIL_DELIVERY",
+      metadata: { temporaryPasswordIssued: true },
+      preview: "A temporary staff password was issued.",
+      subject: "Temporary staff password issued",
+      subjectId: updatedUser.id,
+      to: updatedUser.email,
+      toName: updatedUser.name
+    });
+  } else if (lockoutClearRequested) {
+    await sendAuthEmail({
+      actorUserId: manager.id,
+      body: "A manager cleared the temporary lock on your staff account. You can try signing in again.",
+      eventType: "STAFF_LOCKOUT_CLEARED_EMAIL_DELIVERY",
+      metadata: {},
+      preview: "Your staff account lockout was cleared.",
+      subject: "Your staff account lockout was cleared",
+      subjectId: updatedUser.id,
+      to: updatedUser.email,
+      toName: updatedUser.name
+    });
   }
 
   return toManagedTeamUser(updatedUser);

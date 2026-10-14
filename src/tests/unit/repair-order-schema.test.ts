@@ -1,0 +1,4 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe,expect,it } from "vitest";
+describe("repair-order core persistence",()=>{it("defines the aggregate, immutable evidence, constraints, and rollout",async()=>{const schema=await readFile(path.join(process.cwd(),"prisma/schema.prisma"),"utf8");const sql=await readFile(path.join(process.cwd(),"prisma/migrations/20260714040000_add_repair_order_core/migration.sql"),"utf8");expect(schema).toMatch(/model ServiceVisit/);expect(schema).toMatch(/model RepairOrder\s/);expect(schema).toMatch(/model RepairOrderStateEvent/);expect(sql).toMatch(/ServiceVisit_appointmentId_key/);expect(sql).toMatch(/ServiceVisit_origin_source_check/);expect(sql).toMatch(/RepairOrder_foundation_stage_check/);expect(sql).toMatch(/prevent_repair_order_intake_mutation/);expect(sql).toMatch(/prevent_repair_order_state_event_mutation/);expect(sql).toMatch(/'SHOP_OPERATIONS'/);});});

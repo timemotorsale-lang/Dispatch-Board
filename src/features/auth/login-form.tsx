@@ -3,8 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { getSafePostLoginRedirect } from "@/server/auth/navigation";
-
 type LoginFormState = {
   email: string;
   password: string;
@@ -16,14 +14,17 @@ const defaultFormState: LoginFormState = {
 };
 
 type LoginFormProps = {
+  initialEmail?: string;
   returnTo?: string;
+  setupAccepted?: boolean;
+  passwordReset?: boolean;
   sessionExpired?: boolean;
 };
 
-export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) {
+export function LoginForm({ initialEmail = "", returnTo, passwordReset = false, setupAccepted = false, sessionExpired = false }: LoginFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [formState, setFormState] = useState(defaultFormState);
+  const [formState, setFormState] = useState({ ...defaultFormState, email: initialEmail });
   const [errorMessage, setErrorMessage] = useState("");
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -36,7 +37,7 @@ export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) 
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formState)
+        body: JSON.stringify({ ...formState, returnTo })
       });
 
       if (!response.ok) {
@@ -45,7 +46,8 @@ export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) 
         return;
       }
 
-      router.replace(getSafePostLoginRedirect(returnTo));
+      const payload = (await response.json()) as { redirectTo?: string };
+      router.replace(payload.redirectTo ?? "/my-tasks");
       router.refresh();
     });
   }
@@ -55,6 +57,16 @@ export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) 
       {sessionExpired ? (
         <div className="notice notice-warning" role="status">
           <p>Your session ended. Sign in again to return to the console you were using.</p>
+        </div>
+      ) : null}
+      {setupAccepted ? (
+        <div className="notice notice-success" role="status">
+          <p>Password created. Sign in to enter your assigned workspace.</p>
+        </div>
+      ) : null}
+      {passwordReset ? (
+        <div className="notice notice-success" role="status">
+          <p>Password reset. Sign in with your new password.</p>
         </div>
       ) : null}
       <label className="field">

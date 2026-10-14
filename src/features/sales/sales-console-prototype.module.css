@@ -1,0 +1,2418 @@
+.console {
+  color: var(--ink);
+  display: grid;
+  gap: 12px;
+  margin: 0 auto;
+  max-width: 1520px;
+}
+
+.topbar,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.topbar {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(260px, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.staffDeploymentPolish {
+  align-items: center;
+  background: linear-gradient(135deg, #0f172a, #1d4ed8);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: #fff;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.2fr);
+  padding: 16px;
+}
+
+.staffDeploymentPolish h2 {
+  font-size: 1.05rem;
+  margin: 2px 0 4px;
+}
+
+.staffDeploymentPolish p,
+.staffDeploymentPolish ul {
+  margin: 0;
+}
+
+.staffDeploymentPolish p,
+.staffDeploymentPolish li {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.staffDeploymentPolish ul {
+  display: grid;
+  gap: 5px;
+  padding-left: 18px;
+}
+
+.staffDeploymentPolish .eyebrow {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.releaseEvidenceArchive {
+  display: none;
+}
+
+.console :global(section[aria-label="Staff role model for read-only dogfooding"]),
+.console :global(section[aria-label="Dogfood auth role seeding evidence"]),
+.console :global(section[aria-label="Read-only dogfood feature flags"]),
+.console :global(section[aria-label="M12 role empty and planned states"]),
+.console :global(section[aria-label="M12 admin dogfood landing readiness summary"]),
+.console :global(section[aria-label="M13 dogfood readiness panel"]),
+.console :global(section[aria-label="M13 feedback categories"]),
+.console :global(section[aria-label="M13 dogfood go no-go gates"]),
+.console :global(section[aria-label="M14 operational tab audit"]),
+.console :global(section[aria-label="M14 placeholder demotion"]),
+.console :global(section[aria-label="M16 activation decision gate"]),
+.console :global(section[aria-label="M16 audit and guardrails"]),
+.console :global(section[aria-label="M16 manager review contract"]),
+.console :global(section[aria-label="M16 workflow selection"]) {
+  display: none;
+}
+
+.executionFoundation {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.92));
+  border: 1px solid rgba(191, 219, 254, 0.24);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  color: white;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+  padding: 14px;
+}
+
+.executionFoundation h2 {
+  font-size: 1.02rem;
+  margin: 2px 0 0;
+}
+
+.executionFoundation p,
+.executionFoundation .eyebrow {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.executionFoundation p {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 7px 0 0;
+}
+
+.shellCheckGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shellCheckGrid article {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+}
+
+.shellCheckGrid strong,
+.shellCheckGrid small {
+  display: block;
+}
+
+.shellCheckGrid strong {
+  font-size: 0.74rem;
+}
+
+.shellCheckGrid small {
+  color: rgba(226, 232, 240, 0.72);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.roleRail {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.roleLandingHero {
+  align-items: center;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.98));
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.roleLandingHero h2 {
+  color: var(--ink);
+  font-size: 1rem;
+  margin: 2px 0 0;
+}
+
+.roleLandingHero p,
+.roleLandingHero small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.roleLandingHero a {
+  align-items: center;
+  background: var(--brand);
+  border-radius: 8px;
+  color: white;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 6px;
+  padding: 9px 11px;
+  text-decoration: none;
+}
+
+.roleFirstNavigation {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.roleFirstNavigation article {
+  background: linear-gradient(180deg, var(--surface), var(--surface-soft));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.roleFirstNavigation strong,
+.roleFirstNavigation span,
+.roleFirstNavigation small,
+.roleFirstNavigation em {
+  display: block;
+}
+
+.roleFirstNavigation strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.roleFirstNavigation span {
+  color: var(--brand-strong);
+  font-size:.72rem;
+  font-weight: 900;
+}
+
+.roleFirstNavigation small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.roleFirstNavigation em {
+  color: var(--success);
+  font-size:.72rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.roleStartCardStrip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.roleStartCardStrip article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.roleStartCardStrip strong {
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+
+.roleStartCardStrip span,
+.roleStartCardStrip small,
+.roleStartCardStrip em {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.roleStartCardStrip em {
+  color: var(--brand-strong);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.roleStartCardStrip a {
+  color: var(--brand-strong);
+  display: inline-flex;
+  font-size:.72rem;
+  font-weight: 900;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.operatingTabDock {
+  background: linear-gradient(135deg, #ffffff, #f3f7ff);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 14px;
+}
+
+.operatingTabDock h2 {
+  color: var(--ink);
+  font-size: 1rem;
+  margin: 2px 0 4px;
+}
+
+.operatingTabDock p {
+  color: var(--muted);
+  font-size: 0.74rem;
+  margin: 0;
+}
+
+.operatingTabDock nav {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.operatingTabDock button {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 5px;
+  text-align: left;
+  min-width: 0;
+  padding: 10px;
+  text-decoration: none;
+}
+
+.operatingTabDock button:hover {
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.activeOperatingTab {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.98), rgba(79, 70, 229, 0.94)) !important;
+  border-color: rgba(37, 99, 235, 0.72) !important;
+  color: white !important;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.24) !important;
+}
+
+.activeOperatingTab strong,
+.activeOperatingTab span,
+.activeOperatingTab small {
+  color: white !important;
+}
+
+.operatingTabDock strong {
+  color: var(--ink);
+  font-size: 0.72rem;
+}
+
+.operatingTabDock span {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.3;
+}
+
+.operatingTabDock small {
+  color: var(--success);
+  font-size:.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.operationalDrawer,
+.activeOperatingView {
+  background: linear-gradient(135deg, #ffffff, #eef4ff);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.operationalDrawer {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.operationalDrawer h2,
+.activeOperatingView h2 {
+  color: var(--ink);
+  margin: 2px 0 4px;
+}
+
+.operationalDrawer p,
+.activeOperatingView p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.operationalDrawer button {
+  background: var(--brand);
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 9px 11px;
+}
+
+.activeOperatingHeader {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.activeOperatingGrid,
+.activeOperatingResults {
+  display: grid;
+  gap: 8px;
+}
+
+.activeOperatingGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.activeOperatingResults {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activeOperatingGrid article,
+.activeOperatingResults article {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.activeOperatingGrid strong,
+.activeOperatingResults strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.activeOperatingGrid span,
+.activeOperatingResults span,
+.activeOperatingResults small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.operatingPolishMap {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.operatingPolishMap article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.operatingPolishMap strong,
+.operatingPolishMap span,
+.operatingPolishMap small,
+.operatingPolishMap em {
+  display: block;
+}
+
+.operatingPolishMap strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.operatingPolishMap span {
+  color: var(--brand-strong);
+  font-size:.72rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.operatingPolishMap small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.operatingPolishMap em {
+  color: var(--success);
+  font-size:.72rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.emptyStateClarityStrip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.emptyStateClarityStrip article {
+  background: var(--surface-soft);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.emptyStateClarityStrip strong,
+.emptyStateClarityStrip span,
+.emptyStateClarityStrip small,
+.emptyStateClarityStrip em {
+  display: block;
+}
+
+.emptyStateClarityStrip strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.emptyStateClarityStrip span {
+  font-size:.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.emptyStateClarityStrip small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.emptyStateClarityStrip em {
+  color: var(--brand-strong);
+  font-size:.72rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.roleRail button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+}
+
+.roleRail strong,
+.roleRail span,
+.roleRail small,
+.roleRail em {
+  display: block;
+}
+
+.roleRail strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.roleRail span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.roleRail small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.roleRail em {
+  color: var(--success);
+  font-size:.72rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.activeRoleCard {
+  background: linear-gradient(180deg, #ffffff, #eef4ff) !important;
+  border-color: rgba(37, 99, 235, 0.42) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1), var(--shadow-md) !important;
+}
+
+.titleBlock span,
+.eyebrow,
+.metric span,
+.metric small,
+.workTable th,
+.workTable small,
+.compactTable th,
+.vehicleCopy span,
+.glanceGrid span,
+.glanceGrid small,
+.forecastList small,
+.guardrailCopy {
+  color: var(--muted);
+}
+
+.titleBlock h1 {
+  font-size: 1.25rem;
+  margin: 2px 0 0;
+}
+
+.titleBlock span,
+.eyebrow {
+  display: block;
+  font-size:.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.search input {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+}
+
+.search input:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.search kbd {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.topbarActions,
+.panelHeader,
+.headerActions,
+.railHeader,
+.customerCell,
+.leadHealth,
+.panelFooter {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.topbarActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbarActions button,
+.headerActions button {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  gap: 6px;
+  padding: 8px 9px;
+}
+
+.topbarActions button:disabled,
+.headerActions button:disabled {
+  background: var(--surface-soft);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.84;
+}
+
+.topbarActions button:disabled b,
+.headerActions button:disabled b {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.topbarActions b {
+  background: var(--danger);
+  border-radius: 999px;
+  color: white;
+  font-size:.72rem;
+  padding: 1px 5px;
+}
+
+.headerActions b {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size:.72rem;
+  padding: 1px 5px;
+}
+
+.readOnlyUxNotice {
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 8px;
+  color: var(--brand-strong);
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  gap: 7px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+}
+
+.bodyGrid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 374px;
+}
+
+.mainColumn,
+.commandRail {
+  display: grid;
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 12px;
+}
+
+.panelHeader,
+.railHeader,
+.panelFooter {
+  justify-content: space-between;
+}
+
+.panelHeader h2,
+.railHeader h2 {
+  font-size: 1rem;
+  margin: 2px 0 0;
+}
+
+.headerActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.metricStrip {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 12px -12px 0;
+}
+
+.metric {
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 13px 14px;
+  text-align: center;
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+
+.metric strong {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.salespersonTodayDepth {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 10px 0;
+}
+
+.salespersonTodayDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.salespersonTodayDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.salespersonTodayDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.salespersonTodayDepth small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.leadOperationsDepth {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.leadOperationsDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.leadOperationsDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.leadOperationsDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.leadOperationsDepth small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.dealInventoryDepth {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dealInventoryDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.dealInventoryDepth strong,
+.dealInventoryDepth span,
+.dealInventoryDepth small,
+.dealInventoryDepth em {
+  display: block;
+}
+
+.dealInventoryDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.dealInventoryDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.dealInventoryDepth small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.dealInventoryDepth em {
+  color: var(--warning);
+  font-size:.72rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.managerReviewDisabledPreview {
+  align-items: center;
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px dashed rgba(217, 119, 6, 0.34);
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.managerReviewDisabledPreview strong,
+.managerReviewDisabledPreview span,
+.managerReviewDisabledPreview small {
+  display: block;
+}
+
+.managerReviewDisabledPreview strong {
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+
+.managerReviewDisabledPreview span,
+.managerReviewDisabledPreview small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.managerReviewDisabledPreview button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: not-allowed;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 8px 10px;
+}
+
+.managerReviewFormShell {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.managerReviewFormShell > strong,
+.managerReviewFormShell > small {
+  display: block;
+}
+
+.managerReviewFormShell > strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.managerReviewFormShell > small {
+  color: var(--muted);
+  font-size:.72rem;
+  line-height: 1.35;
+}
+
+.managerReviewFormShell > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.managerReviewFormShell label {
+  display: grid;
+  gap: 4px;
+}
+
+.managerReviewFormShell label span {
+  color: var(--muted);
+  font-size:.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.managerReviewFormShell input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size:.72rem;
+  padding: 8px;
+}
+
+.managerReviewFormShell button {
+  background: var(--brand);
+  border: 1px solid var(--brand);
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 900;
+  justify-self: start;
+  padding: 8px 10px;
+}
+
+.managerReviewWorkbench {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.managerReviewWorkbench > strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.managerReviewWorkbench article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+}
+
+.managerReviewWorkbench span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.managerReviewWorkbench small {
+  color: var(--muted);
+  font-size:.72rem;
+}
+
+.toneDanger {
+  color: var(--danger);
+}
+
+.toneGood {
+  color: var(--success);
+}
+
+.toneWarning {
+  color: var(--warning);
+}
+
+.toneNeutral,
+.mutedText {
+  color: var(--muted);
+}
+
+.tableShell {
+  overflow-x: auto;
+}
+
+.workTable,
+.compactTable {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  width: 100%;
+}
+
+.workTable th,
+.workTable td,
+.compactTable th,
+.compactTable td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.workTable th,
+.compactTable th {
+  font-size:.72rem;
+  font-weight: 900;
+}
+
+.workTable td strong,
+.workTable td small,
+.compactTable td strong,
+.compactTable td small,
+.vehicleCopy strong,
+.vehicleCopy span {
+  display: block;
+}
+
+.customerCell strong,
+.compactTable a {
+  color: var(--brand-strong);
+}
+
+.stagePill,
+.statusDanger,
+.statusGood,
+.statusWarning,
+.statusNeutral {
+  border-radius: 6px;
+  display: inline-flex;
+  font-size:.72rem;
+  font-weight: 900;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.stagePill,
+.statusNeutral {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.statusDanger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.statusGood {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.statusWarning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.dueText {
+  color: var(--danger) !important;
+}
+
+.panelFooter {
+  color: var(--muted);
+  font-size: 0.78rem;
+  padding-top: 10px;
+}
+
+.panelFooter a,
+.railHeader a {
+  align-items: center;
+  color: var(--brand-strong);
+  display: inline-flex;
+  font-weight: 900;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.lowerGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 0.98fr) minmax(0, 1.02fr);
+}
+
+.compactTable {
+  margin-top: 10px;
+}
+
+.vehicleList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.vehicleRow {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 54px minmax(0, 1fr) auto minmax(98px, auto) auto;
+  padding: 8px;
+}
+
+.vehicleThumb {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--brand-strong);
+  display: flex;
+  height: 42px;
+  justify-content: center;
+}
+
+.scoreRing {
+  align-items: center;
+  border: 2px solid var(--success);
+  border-radius: 999px;
+  color: var(--success);
+  display: grid;
+  font-weight: 900;
+  height: 44px;
+  justify-items: center;
+  line-height: 1;
+  width: 44px;
+}
+
+.scoreRing small {
+  color: var(--muted);
+  font-size:.72rem;
+}
+
+.commandRail .panel {
+  padding: 12px;
+}
+
+.glanceGrid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
+.glanceGrid div {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+}
+
+.glanceGrid div:nth-child(even) {
+  border-right: 0;
+}
+
+.glanceGrid strong {
+  color: var(--brand-strong);
+  font-size: 1.2rem;
+}
+
+.managerCommandBriefList {
+  display: grid;
+  gap: 8px;
+}
+
+.managerCommandBriefList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 9px;
+}
+
+.managerCommandBriefList strong,
+.managerCommandBriefList span,
+.managerCommandBriefList small,
+.managerCommandBriefList em {
+  display: block;
+}
+
+.managerCommandBriefList strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.managerCommandBriefList span {
+  color: var(--brand-strong);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.managerCommandBriefList small,
+.managerCommandBriefList em {
+  grid-column: 1 / -1;
+  line-height: 1.35;
+}
+
+.managerCommandBriefList small {
+  color: var(--muted);
+  font-size:.72rem;
+}
+
+.managerCommandBriefList em {
+  color: var(--warning);
+  font-size:.72rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.railList,
+.forecastList,
+.opportunityList {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.railList div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 7px 0;
+}
+
+.railList strong {
+  color: var(--danger);
+}
+
+.forecastList div {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto 70px;
+}
+
+.forecastList i {
+  background: linear-gradient(90deg, var(--brand-strong) var(--bar-size), var(--line) var(--bar-size));
+  border-radius: 999px;
+  height: 5px;
+}
+
+.leadHealth {
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.leadHealth span {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.74rem;
+  font-weight: 800;
+  gap: 5px;
+  padding: 7px;
+}
+
+.opportunityList article {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 8px 0;
+}
+
+.opportunityList span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.74rem;
+}
+
+.opportunityList small {
+  background: var(--success-soft);
+  border-radius: 6px;
+  color: var(--success);
+  font-weight: 900;
+  padding: 5px 7px;
+}
+
+.guardrailCopy,
+.mvpDefinition li {
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.guardrailCopy {
+  margin: 8px 0 0;
+}
+
+.mvpDefinition {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.mvpDefinition strong {
+  font-size: 0.75rem;
+}
+
+.mvpDefinition ul {
+  color: var(--muted);
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.boundaryCard {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.09), rgba(15, 23, 42, 0.04));
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 10px;
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 11px;
+}
+
+.boundaryCard strong,
+.boundaryCard span,
+.boundaryCard small,
+.boundaryCard em {
+  display: block;
+  line-height: 1.45;
+}
+
+.boundaryCard strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.boundaryCard span,
+.boundaryCard small {
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+
+.boundaryCard em {
+  border-top: 1px solid rgba(37, 99, 235, 0.16);
+  color: var(--brand-strong);
+  font-size: 0.73rem;
+  font-style: normal;
+  font-weight: 900;
+  padding-top: 7px;
+}
+
+.boundaryList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.boundaryList span {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size:.72rem;
+  font-weight: 800;
+  gap: 4px;
+  padding: 5px 7px;
+}
+
+.rolePermissionList,
+.roleViewList,
+.staffRoleModelList,
+.roleFeatureAccessList,
+.authRoleSeedingList,
+.readOnlyFeatureFlagList,
+.roleVerificationSummary,
+.roleLandingModelList,
+.roleEmptyPlannedList,
+.adminDogfoodLandingSummary,
+.dogfoodReadinessList,
+.staffPilotGuideList,
+.feedbackCategoryList,
+.releaseObservabilityList,
+.dogfoodGateList,
+.operationalTabAuditList,
+.placeholderDemotionList,
+.staffReviewReadinessList,
+.workflowSelectionList,
+.managerReviewContractList,
+.auditGuardrailList,
+.activationGateList,
+.m17StateModelList,
+.m17PermissionList,
+.m17SubmitPlaceholderList,
+.m17ReleaseGateList,
+.m18BackendContractList,
+.m18ServerValidationList,
+.m18ApiRouteList,
+.m18AuditIdempotencyList,
+.m18ReleaseGateList,
+.m19PersistenceContractList,
+.m19RepositoryTransactionList,
+.m19ServiceActivationList,
+.m19ApiActivationList,
+.m19ReleaseGateList,
+.m20WorkbenchUiList,
+.m21ResolutionPlanningList,
+.m22PilotHardeningList,
+.m23StaffReadinessList,
+.m24OfficialReleaseGateList,
+.m25ResponsiveOperatingList,
+.m26DeploymentPolishList,
+.productionRoleViewList,
+.authAccessList,
+.m10SourceWiringList,
+.adminOperationalList,
+.managerReviewRequestList,
+.auditCoverageList,
+.auditEventList,
+.enterprisePermissionList,
+.enterpriseScopeList,
+.enterpriseIntegrationList,
+.enterpriseMessagingList,
+.enterpriseDealWorkflowList,
+.enterpriseApprovalList,
+.enterpriseScenarioList,
+.enterpriseFinanceList,
+.enterpriseHoldList,
+.enterpriseForecastList,
+.enterpriseAiList,
+.enterpriseCoachingList,
+.enterpriseReportingList,
+.priorityBriefList,
+.productionReadinessList,
+.surfaceBoundaryList,
+.stateVerificationList,
+.emptyStateList,
+.dataSourceList,
+.acceptanceList,
+.actionGuardrailList,
+.executionDataList,
+.pilotReadinessList,
+.liveSourceList,
+.readModelList,
+.sourceLinkList,
+.adapterRuleList,
+.adapterPreviewGrid {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rolePermissionList article,
+.roleViewList article,
+.staffRoleModelList article,
+.roleFeatureAccessList article,
+.authRoleSeedingList article,
+.readOnlyFeatureFlagList article,
+.roleVerificationSummary article,
+.roleLandingModelList article,
+.roleEmptyPlannedList article,
+.adminDogfoodLandingSummary article,
+.dogfoodReadinessList article,
+.staffPilotGuideList article,
+.feedbackCategoryList article,
+.releaseObservabilityList article,
+.dogfoodGateList article,
+.operationalTabAuditList article,
+.placeholderDemotionList article,
+.staffReviewReadinessList article,
+.workflowSelectionList article,
+.managerReviewContractList article,
+.auditGuardrailList article,
+.activationGateList article,
+.m17StateModelList article,
+.m17PermissionList article,
+.m17SubmitPlaceholderList article,
+.m17ReleaseGateList article,
+.m18BackendContractList article,
+.m18ServerValidationList article,
+.m18ApiRouteList article,
+.m18AuditIdempotencyList article,
+.m18ReleaseGateList article,
+.m19PersistenceContractList article,
+.m19RepositoryTransactionList article,
+.m19ServiceActivationList article,
+.m19ApiActivationList article,
+.m19ReleaseGateList article,
+.m20WorkbenchUiList article,
+.m21ResolutionPlanningList article,
+.m22PilotHardeningList article,
+.m23StaffReadinessList article,
+.m24OfficialReleaseGateList article,
+.m25ResponsiveOperatingList article,
+.m26DeploymentPolishList article,
+.productionRoleViewList article,
+.authAccessList article,
+.m10SourceWiringList article,
+.adminOperationalList article,
+.managerReviewRequestList article,
+.auditCoverageList article,
+.auditEventList article,
+.enterprisePermissionList article,
+.enterpriseScopeList article,
+.enterpriseIntegrationList article,
+.enterpriseMessagingList article,
+.enterpriseDealWorkflowList article,
+.enterpriseApprovalList article,
+.enterpriseScenarioList article,
+.enterpriseFinanceList article,
+.enterpriseHoldList article,
+.enterpriseForecastList article,
+.enterpriseAiList article,
+.enterpriseCoachingList article,
+.enterpriseReportingList article,
+.priorityBriefList article,
+.productionReadinessList article,
+.surfaceBoundaryList article,
+.stateVerificationList article,
+.emptyStateList article,
+.dataSourceList article,
+.actionGuardrailList article,
+.pilotReadinessList article,
+.readModelList article,
+.adapterRuleList article,
+.adapterPreviewGrid article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.rolePermissionList strong,
+.roleViewList strong,
+.staffRoleModelList strong,
+.roleFeatureAccessList strong,
+.authRoleSeedingList strong,
+.readOnlyFeatureFlagList strong,
+.roleVerificationSummary strong,
+.roleLandingModelList strong,
+.roleEmptyPlannedList strong,
+.adminDogfoodLandingSummary strong,
+.dogfoodReadinessList strong,
+.staffPilotGuideList strong,
+.feedbackCategoryList strong,
+.releaseObservabilityList strong,
+.dogfoodGateList strong,
+.operationalTabAuditList strong,
+.placeholderDemotionList strong,
+.staffReviewReadinessList strong,
+.workflowSelectionList strong,
+.managerReviewContractList strong,
+.auditGuardrailList strong,
+.activationGateList strong,
+.m17StateModelList strong,
+.m17PermissionList strong,
+.m17SubmitPlaceholderList strong,
+.m17ReleaseGateList strong,
+.m18BackendContractList strong,
+.m18ServerValidationList strong,
+.m18ApiRouteList strong,
+.m18AuditIdempotencyList strong,
+.m18ReleaseGateList strong,
+.m19PersistenceContractList strong,
+.m19RepositoryTransactionList strong,
+.m19ServiceActivationList strong,
+.m19ApiActivationList strong,
+.m19ReleaseGateList strong,
+.m20WorkbenchUiList strong,
+.m21ResolutionPlanningList strong,
+.m22PilotHardeningList strong,
+.m23StaffReadinessList strong,
+.m24OfficialReleaseGateList strong,
+.m25ResponsiveOperatingList strong,
+.m26DeploymentPolishList strong,
+.productionRoleViewList strong,
+.authAccessList strong,
+.m10SourceWiringList strong,
+.adminOperationalList strong,
+.managerReviewRequestList strong,
+.auditCoverageList strong,
+.auditEventList strong,
+.enterprisePermissionList strong,
+.enterpriseScopeList strong,
+.enterpriseIntegrationList strong,
+.enterpriseMessagingList strong,
+.enterpriseDealWorkflowList strong,
+.enterpriseApprovalList strong,
+.enterpriseScenarioList strong,
+.enterpriseFinanceList strong,
+.enterpriseHoldList strong,
+.enterpriseForecastList strong,
+.enterpriseAiList strong,
+.enterpriseCoachingList strong,
+.enterpriseReportingList strong,
+.productionReadinessList strong,
+.surfaceBoundaryList strong,
+.stateVerificationList strong,
+.emptyStateList strong,
+.dataSourceList strong,
+.acceptanceList strong,
+.actionGuardrailList strong,
+.executionDataList strong,
+.pilotReadinessList strong,
+.liveSourceList strong,
+.readModelList strong,
+.sourceLinkList strong,
+.adapterRuleList strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.adapterPreviewGrid strong,
+.adapterPreviewGrid span,
+.adapterPreviewGrid small {
+  display: block;
+}
+
+.adapterPreviewGrid strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.adapterPreviewGrid span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.adapterPreviewGrid small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.rolePermissionList span,
+.rolePermissionList small,
+.roleViewList span,
+.roleViewList small,
+.roleViewList em,
+.staffRoleModelList span,
+.staffRoleModelList small,
+.staffRoleModelList em,
+.roleFeatureAccessList span,
+.roleFeatureAccessList small,
+.roleFeatureAccessList em,
+.authRoleSeedingList span,
+.authRoleSeedingList small,
+.readOnlyFeatureFlagList span,
+.readOnlyFeatureFlagList small,
+.roleVerificationSummary span,
+.roleVerificationSummary small,
+.roleLandingModelList span,
+.roleLandingModelList small,
+.roleLandingModelList em,
+.roleEmptyPlannedList span,
+.roleEmptyPlannedList small,
+.roleEmptyPlannedList em,
+.adminDogfoodLandingSummary span,
+.adminDogfoodLandingSummary small,
+.dogfoodReadinessList span,
+.dogfoodReadinessList small,
+.staffPilotGuideList span,
+.staffPilotGuideList small,
+.feedbackCategoryList span,
+.feedbackCategoryList small,
+.releaseObservabilityList span,
+.releaseObservabilityList small,
+.dogfoodGateList span,
+.dogfoodGateList small,
+.operationalTabAuditList span,
+.operationalTabAuditList small,
+.operationalTabAuditList em,
+.placeholderDemotionList span,
+.placeholderDemotionList small,
+.placeholderDemotionList em,
+.staffReviewReadinessList span,
+.staffReviewReadinessList small,
+.workflowSelectionList span,
+.workflowSelectionList small,
+.workflowSelectionList em,
+.managerReviewContractList span,
+.managerReviewContractList small,
+.auditGuardrailList span,
+.auditGuardrailList small,
+.activationGateList span,
+.activationGateList small,
+.m17StateModelList span,
+.m17PermissionList span,
+.m17PermissionList small,
+.m17SubmitPlaceholderList span,
+.m17ReleaseGateList span,
+.m17ReleaseGateList small,
+.m18BackendContractList span,
+.m18BackendContractList small,
+.m18ServerValidationList span,
+.m18ServerValidationList small,
+.m18ApiRouteList span,
+.m18ApiRouteList small,
+.m18AuditIdempotencyList span,
+.m18AuditIdempotencyList small,
+.m18ReleaseGateList span,
+.m18ReleaseGateList small,
+.m19PersistenceContractList span,
+.m19PersistenceContractList small,
+.m19RepositoryTransactionList span,
+.m19RepositoryTransactionList small,
+.m19ServiceActivationList span,
+.m19ServiceActivationList small,
+.m19ApiActivationList span,
+.m19ApiActivationList small,
+.m19ReleaseGateList span,
+.m19ReleaseGateList small,
+.m20WorkbenchUiList span,
+.m20WorkbenchUiList small,
+.m21ResolutionPlanningList span,
+.m21ResolutionPlanningList small,
+.m22PilotHardeningList span,
+.m22PilotHardeningList small,
+.m23StaffReadinessList span,
+.m23StaffReadinessList small,
+.m24OfficialReleaseGateList span,
+.m24OfficialReleaseGateList small,
+.m25ResponsiveOperatingList span,
+.m25ResponsiveOperatingList small,
+.m26DeploymentPolishList span,
+.m26DeploymentPolishList small,
+.productionRoleViewList span,
+.productionRoleViewList small,
+.productionRoleViewList em,
+.authAccessList span,
+.authAccessList small,
+.authAccessList em,
+.m10SourceWiringList span,
+.m10SourceWiringList small,
+.m10SourceWiringList em,
+.adminOperationalList span,
+.adminOperationalList small,
+.managerReviewRequestList span,
+.managerReviewRequestList small,
+.managerReviewRequestList em,
+.auditCoverageList span,
+.auditCoverageList small,
+.auditEventList span,
+.auditEventList small,
+.auditEventList em,
+.enterprisePermissionList span,
+.enterprisePermissionList small,
+.enterpriseScopeList span,
+.enterpriseScopeList small,
+.enterpriseScopeList em,
+.enterpriseIntegrationList span,
+.enterpriseIntegrationList small,
+.enterpriseIntegrationList em,
+.enterpriseMessagingList span,
+.enterpriseMessagingList small,
+.enterpriseDealWorkflowList span,
+.enterpriseDealWorkflowList small,
+.enterpriseApprovalList span,
+.enterpriseApprovalList small,
+.enterpriseScenarioList span,
+.enterpriseScenarioList small,
+.enterpriseFinanceList span,
+.enterpriseFinanceList small,
+.enterpriseHoldList span,
+.enterpriseHoldList small,
+.enterpriseForecastList span,
+.enterpriseForecastList small,
+.enterpriseAiList span,
+.enterpriseAiList small,
+.enterpriseCoachingList span,
+.enterpriseCoachingList small,
+.enterpriseReportingList span,
+.enterpriseReportingList small,
+.priorityBriefList span,
+.productionReadinessList span,
+.productionReadinessList small,
+.surfaceBoundaryList span,
+.surfaceBoundaryList small,
+.stateVerificationList span,
+.stateVerificationList small,
+.productionReadinessList small,
+.surfaceBoundaryList small,
+.emptyStateList span,
+.emptyStateList small,
+.dataSourceList span,
+.dataSourceList small,
+.dataSourceList em,
+.acceptanceList span,
+.acceptanceList small,
+.actionGuardrailList small,
+.executionDataList span,
+.executionDataList small,
+.executionDataList em,
+.pilotReadinessList small,
+.liveSourceList span,
+.liveSourceList small,
+.liveSourceList em,
+.readModelList span,
+.readModelList small,
+.readModelList em,
+.sourceLinkList code,
+.sourceLinkList small,
+.adapterRuleList span {
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.rolePermissionList span,
+.roleViewList small,
+.stateVerificationList small,
+.emptyStateList span,
+.emptyStateList small,
+.dataSourceList span,
+.dataSourceList small,
+.acceptanceList span,
+.actionGuardrailList small,
+.executionDataList span,
+.executionDataList small,
+.pilotReadinessList small,
+.liveSourceList span,
+.liveSourceList small,
+.readModelList span,
+.readModelList small,
+.sourceLinkList small,
+.adapterRuleList span {
+  color: var(--muted);
+}
+
+.rolePermissionList small,
+.roleViewList em,
+.dataSourceList em,
+.acceptanceList small,
+.executionDataList em,
+.liveSourceList em,
+.readModelList em {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.dataSourceList em,
+.productionRoleViewList em,
+.auditEventList em,
+.enterpriseScopeList em,
+.enterpriseIntegrationList em,
+.executionDataList em,
+.roleViewList em,
+.liveSourceList em,
+.readModelList em {
+  display: block;
+  font-style: normal;
+}
+
+.productionRoleViewList article,
+.roleViewList article {
+  align-items: start;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+}
+
+.productionRoleViewList small,
+.productionRoleViewList em {
+  grid-column: 1 / -1;
+}
+
+.productionRoleViewList em {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  display: block;
+  font-style: normal;
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.auditCoverageList article,
+.enterprisePermissionList article,
+.enterpriseScopeList article,
+.enterpriseIntegrationList article,
+.enterpriseMessagingList article,
+.enterpriseDealWorkflowList article,
+.enterpriseApprovalList article,
+.enterpriseScenarioList article,
+.enterpriseFinanceList article,
+.enterpriseHoldList article,
+.enterpriseForecastList article,
+.enterpriseAiList article,
+.enterpriseCoachingList article,
+.enterpriseReportingList article {
+  align-items: start;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+}
+
+.auditCoverageList small,
+.enterprisePermissionList small,
+.enterpriseScopeList small,
+.enterpriseScopeList em,
+.enterpriseIntegrationList small,
+.enterpriseIntegrationList em,
+.enterpriseMessagingList small,
+.enterpriseDealWorkflowList small,
+.enterpriseApprovalList small,
+.enterpriseScenarioList small,
+.enterpriseFinanceList small,
+.enterpriseHoldList small,
+.enterpriseForecastList small,
+.enterpriseAiList small,
+.enterpriseCoachingList small,
+.enterpriseReportingList small {
+  grid-column: 1 / -1;
+}
+
+.enterpriseScopeList em,
+.enterpriseIntegrationList em {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  display: block;
+  font-style: normal;
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.auditEventList article {
+  border-left: 3px solid rgba(37, 99, 235, 0.34);
+}
+
+.auditEventList span,
+.auditEventList small,
+.auditEventList em {
+  display: block;
+}
+
+.auditEventList em {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-style: normal;
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.roleViewList small,
+.roleViewList em,
+.roleViewMetrics {
+  grid-column: 1 / -1;
+}
+
+.roleViewMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roleViewMetrics span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size:.72rem;
+  font-weight: 900;
+  padding: 4px 7px;
+}
+
+.priorityBriefList article {
+  align-items: center;
+  background: var(--warning-soft);
+  border-color: rgba(180, 83, 9, 0.24);
+  display: flex;
+  gap: 8px;
+}
+
+.priorityBriefList svg {
+  color: var(--warning);
+  flex: 0 0 auto;
+}
+
+.priorityBriefList span {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.stateVerificationList article,
+.productionReadinessList article,
+.surfaceBoundaryList article,
+.emptyStateList article {
+  align-items: start;
+  grid-template-columns: 1fr auto;
+}
+
+.stateVerificationList small,
+.productionReadinessList small,
+.surfaceBoundaryList small,
+.emptyStateList small {
+  grid-column: 1 / -1;
+}
+
+.emptyStateList span {
+  color: var(--brand-strong);
+  font-weight: 900;
+}
+
+.actionGuardrailList article,
+.pilotReadinessList article {
+  grid-template-columns: 1fr auto;
+}
+
+.actionGuardrailList small,
+.pilotReadinessList small {
+  grid-column: 1 / -1;
+}
+
+.executionDataList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+  padding: 10px;
+}
+
+.executionDataList small,
+.executionDataList em {
+  grid-column: 1 / -1;
+}
+
+.liveSourceList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+  padding: 10px;
+}
+
+.liveSourceList small,
+.liveSourceList em {
+  grid-column: 1 / -1;
+}
+
+.liveSourceList strong,
+.liveSourceList span,
+.readModelList strong,
+.readModelList span,
+.readModelList small,
+.readModelList em,
+.sourceLinkList strong,
+.sourceLinkList code,
+.sourceLinkList small,
+.adapterRuleList strong,
+.adapterRuleList span {
+  display: block;
+}
+
+.sourceLinkList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr auto;
+  padding: 10px;
+}
+
+.sourceLinkList code,
+.sourceLinkList small {
+  grid-column: 1 / -1;
+}
+
+.sourceLinkList code {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--brand-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  padding: 5px 6px;
+  word-break: break-word;
+}
+
+.acceptanceList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr;
+  padding: 10px;
+}
+
+.acceptanceList article > svg {
+  color: var(--success);
+  margin-top: 1px;
+}
+
+.acceptanceList strong,
+.acceptanceList span,
+.acceptanceList small {
+  display: block;
+}
+
+.principleList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.includedMvpList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.scopeReviewList,
+.buildOrderList,
+.decisionGateList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.includedMvpList article,
+.scopeReviewList article,
+.decisionGateList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.includedMvpList strong,
+.scopeReviewList strong,
+.buildOrderList strong,
+.decisionGateList strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.includedMvpList ul {
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 17px;
+}
+
+.includedMvpList li,
+.includedMvpList small,
+.scopeReviewList span,
+.scopeReviewList small,
+.buildOrderList small,
+.buildOrderList em,
+.decisionGateList span,
+.decisionGateList small,
+.decisionGateList em {
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.includedMvpList small,
+.scopeReviewList small,
+.decisionGateList small {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.scopeReviewList span,
+.buildOrderList small,
+.decisionGateList span {
+  color: var(--muted);
+}
+
+.buildOrderList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr;
+  padding: 10px;
+}
+
+.buildOrderList article > span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--brand-strong);
+  font-size:.72rem;
+  font-weight: 900;
+  padding: 5px 7px;
+}
+
+.buildOrderList strong,
+.buildOrderList small,
+.buildOrderList em,
+.decisionGateList strong,
+.decisionGateList span,
+.decisionGateList small,
+.decisionGateList em {
+  display: block;
+}
+
+.buildOrderList em,
+.decisionGateList em {
+  color: var(--warning);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.principleList article,
+.milestoneList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  gap: 3px;
+  padding: 9px;
+}
+
+.principleList article {
+  display: grid;
+}
+
+.principleList strong {
+  font-size: 0.78rem;
+}
+
+.principleList span,
+.milestoneList small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.milestoneList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.milestoneList article {
+  align-items: start;
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+
+.milestoneList article > span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--brand-strong);
+  font-size:.72rem;
+  font-weight: 900;
+  padding: 5px 6px;
+}
+
+.milestoneList strong,
+.milestoneList small {
+  display: block;
+}
+
+.milestoneList strong {
+  font-size: 0.76rem;
+}
+
+.hiddenSmokeText {
+  display: none;
+}
+
+@media (max-width: 1220px) {
+  .topbar,
+  .executionFoundation,
+  .bodyGrid,
+  .lowerGrid,
+  .activeOperatingGrid,
+  .activeOperatingResults {
+    grid-template-columns: 1fr;
+  }
+
+  .shellCheckGrid,
+  .roleRail,
+  .operatingTabDock nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topbarActions {
+    justify-content: flex-start;
+  }
+
+  .commandRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .metricStrip,
+  .commandRail,
+  .glanceGrid,
+  .shellCheckGrid,
+  .roleRail,
+  .operatingTabDock nav,
+  .operationalDrawer {
+    grid-template-columns: 1fr;
+  }
+
+  .metric,
+  .glanceGrid div {
+    border-right: 0;
+  }
+
+  .vehicleRow,
+  .forecastList div,
+  .opportunityList article {
+    grid-template-columns: 1fr;
+  }
+}

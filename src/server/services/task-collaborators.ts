@@ -11,7 +11,16 @@ function normalizeTaskId(taskId: string) {
 }
 
 function toModel(record: TaskCollaboratorRecord) {
-  return { id: record.user.id, name: record.user.name, email: record.user.email || undefined, isActive: record.user.isActive, addedAt: record.createdAt.toISOString(), addedBy: record.addedByUser };
+  return {
+    id: record.user.id,
+    name: record.user.name,
+    email: record.user.email || undefined,
+    isActive: record.user.isActive,
+    addedAt: record.createdAt.toISOString(),
+    addedBy: record.addedByUser,
+    collaborationScope: record.collaborationScope,
+    capacityRequested: record.capacityRequested
+  };
 }
 
 export async function listTaskCollaborators(user: AuthenticatedUser | null, taskId: string, repository: TaskCollaboratorRepository = createTaskCollaboratorRepository()) {
@@ -28,7 +37,7 @@ export async function replaceTaskCollaborators(user: AuthenticatedUser | null, t
   if (!task) throw new Error("Task not found.");
   if (!isManager(user) && task.assignedUserId !== user.id) throw new Error("Only the task owner or a manager can manage collaborators.");
 
-  const { collaboratorIds } = normalizeTaskCollaboratorInput(input);
+  const { collaboratorIds, collaboratorRequests } = normalizeTaskCollaboratorInput(input);
   if (collaboratorIds.includes(task.assignedUserId)) throw new Error("The task owner cannot also be a collaborator.");
   const activeUsers = await repository.findActiveUsersByIds(collaboratorIds);
   if (activeUsers.length !== collaboratorIds.length) throw new Error("Every collaborator must be an active staff member.");
@@ -36,7 +45,7 @@ export async function replaceTaskCollaborators(user: AuthenticatedUser | null, t
   const previous = await repository.listForTask(id);
   const previousIds = new Set(previous.map((item) => item.userId));
   const nextIds = new Set(collaboratorIds);
-  const collaborators = await repository.replace(id, collaboratorIds, user.id);
+  const collaborators = await repository.replace(id, collaboratorRequests, user.id);
   const added = collaborators.filter((item) => !previousIds.has(item.userId));
   const removed = previous.filter((item) => !nextIds.has(item.userId));
 
@@ -45,7 +54,16 @@ export async function replaceTaskCollaborators(user: AuthenticatedUser | null, t
       boardDayId: task.boardDayId, actorUserId: user.id, taskId: id,
       eventType: "task.collaborators_updated",
       message: `${user.name} updated collaborators on ${task.title}.`,
-      metadata: { addedUserIds: added.map((item) => item.userId), removedUserIds: removed.map((item) => item.userId), collaboratorCount: collaborators.length }
+      metadata: {
+        addedUserIds: added.map((item) => item.userId),
+        removedUserIds: removed.map((item) => item.userId),
+        collaboratorCount: collaborators.length,
+        collaboratorRequests: collaboratorRequests.map((request) => ({
+          userId: request.userId,
+          collaborationScope: request.collaborationScope,
+          ...(request.capacityRequested ? { capacityRequested: request.capacityRequested } : {})
+        }))
+      }
     });
   }
   return collaborators.map(toModel);

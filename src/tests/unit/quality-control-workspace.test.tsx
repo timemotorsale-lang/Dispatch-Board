@@ -1,0 +1,194 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import { QualityControlWorkspace } from "@/features/inventory/quality-control-workspace";
+
+const model = {
+  users: [{ id: "user-qc", name: "Quincy QC" }],
+  repairOrders: [{
+    id: "ro_1",
+    repairOrderNumber: "RO-1001",
+    origin: "CUSTOMER_SERVICE",
+    stage: "QUALITY_CONTROL",
+    locationId: "loc_1",
+    targetAt: "2026-07-20T20:00:00.000Z",
+    vehicle: { vehicleNumber: "VEH-1001", year: 2024, make: "Ford", model: "F-150" },
+    customer: { displayName: "Jordan Customer" },
+    inventoryUnit: null,
+    location: { name: "Time Motor Sales - Minneapolis" },
+    serviceVisit: { concernSummary: "Grinding noise from front passenger brakes.", promisedAt: "2026-07-20T21:00:00.000Z" },
+    releaseAuthorization: null,
+    vendorWorks: [],
+    repairJobs: [{
+      id: "job_1",
+      jobNumber: "J-1",
+      description: "Front brake repair",
+      plannedCorrection: "Replace pads and verify braking noise is gone.",
+      status: "READY_FOR_QC",
+      lane: "MECHANICAL_LIGHT",
+      executionEvidence: ["photo:front-brakes"],
+      qcHandoffNotes: "Verify no grinding on low-speed braking.",
+      readinessReasonCodes: [],
+      procedureVersion: { title: "Brake repair final QC", version: 2, qcRules: ["Road test if noise related", "Verify wheel torque"] },
+      qualityInspections: [],
+      dispatches: [{ technicianUser: { name: "Walter Mechanic" } }],
+      laborClocks: [],
+      comebackCases: [{ id: "cb_1", status: "OPEN", reasonCategory: "WORKMANSHIP_REVIEW", reportedConcern: "Brake noise returned after delivery." }],
+      partDemands: [{
+        id: "demand_1",
+        quantityRequired: 2,
+        quantityReserved: 2,
+        status: "RESERVED",
+        part: { partNumber: "PAD-100", description: "Front brake pads" }
+      }]
+    }]
+  }]
+};
+
+describe("QualityControlWorkspace", () => {
+  it("renders a compact direct-to-work QC inspector workspace", () => {
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={model} />);
+
+    expect(html).toContain("Quality Control Workspace");
+    expect(html).toContain("Verify completed repairs before they leave the shop.");
+    expect(html).toContain("Quick Repair QC");
+    expect(html).toContain("Repair completed");
+    expect(html).toContain("Fit and finish acceptable");
+    expect(html).toContain("Safety/function check passed");
+    expect(html).toContain("QC failed — return for correction");
+    expect(html).toContain("Save &amp; open Final QC");
+    expect(html).toContain("Show queue and detailed QC tools");
+    expect(html).toContain("Ready for QC");
+    expect(html).toContain("Inspector queue");
+    expect(html).toContain("Selected repair");
+    expect(html).toContain("Repair handoff evidence");
+    expect(html).toContain("Enterprise release gates");
+    expect(html).toContain("Generated QC checklist");
+    expect(html).toContain("Brake road test and wheel torque verified");
+    expect(html).toContain("Unused parts/core returns accounted for");
+    expect(html).toContain("Advisor-safe status");
+    expect(html).toContain("Safety escalation applies");
+    expect(html).toContain("Parts Blocks");
+    expect(html).toContain("Record QC decision");
+    expect(html).toContain("Failed-QC route");
+    expect(html).toContain("Customer-ready completion summary");
+    expect(html).toContain("QC photo / evidence staging");
+    expect(html).toContain("Comeback feedback loop");
+    expect(html).toContain("Brake noise returned after delivery.");
+    expect(html).toContain("QC operating scorecard");
+    expect(html).toContain("Pattern visibility for coaching and process improvement");
+    expect(html).toContain("PASS");
+    expect(html).toContain("NOT_APPLICABLE");
+    expect(html).toContain("Final release authorization");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
+    expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro_1");
+    expect(html).toContain("Manage repair");
+  });
+
+  it("opens the approved whole-vehicle checklist after repair QC passes", () => {
+    const passedModel = JSON.parse(JSON.stringify(model));
+    passedModel.repairOrders[0].repairJobs[0].status = "QC_PASSED";
+    passedModel.repairOrders[0].repairJobs[0].qualityInspections = [{
+      id: "inspection-1",
+      version: 1,
+      disposition: "PASSED",
+      inspectedAt: "2026-07-20T19:00:00.000Z",
+      safetyChecksPassed: true,
+      peerVerificationRequired: false,
+      peerVerificationPassed: false,
+      roadTestRequired: false,
+      roadTestOutcome: "NOT_REQUIRED",
+      failureReasonCodes: [],
+      reworkInstructions: null,
+      inspectorUser: { name: "Quincy QC" },
+      peerVerifierUser: null
+    }];
+
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={passedModel} />);
+
+    expect(html).toContain("Repair QC passed");
+    expect(html).toContain("Final Frontline QC");
+    expect(html).toContain("Inspect the whole vehicle before marking it Frontline Ready.");
+    expect(html).toContain("Exterior &amp; Body");
+    expect(html).toContain("Tires, Wheels &amp; Brakes");
+    expect(html).toContain("Lights &amp; Safety");
+    expect(html).toContain("Interior &amp; Controls");
+    expect(html).toContain("Mechanical &amp; Road Check");
+    expect(html).toContain("Frontline Presentation");
+    expect(html).toContain("Paint and finish");
+    expect(html).toContain("Dash warning lights");
+    expect(html).toContain("Save &amp; finish later");
+    expect(html).toContain("Draft not saved yet");
+    expect(html).toContain("Mark Frontline Ready");
+  });
+
+  it("shows a green cleared vehicle state after final frontline QC is complete", () => {
+    const clearedModel = JSON.parse(JSON.stringify(model));
+    clearedModel.repairOrders[0].releaseAuthorization = {
+      id: "release-1",
+      destination: "FRONTLINE_READY",
+      authorizedAt: "2026-07-20T20:30:00.000Z"
+    };
+    clearedModel.repairOrders[0].repairJobs[0].status = "QC_PASSED";
+    clearedModel.repairOrders[0].repairJobs[0].qualityInspections = [{
+      id: "inspection-1",
+      version: 1,
+      disposition: "PASSED",
+      inspectedAt: "2026-07-20T19:00:00.000Z",
+      safetyChecksPassed: true,
+      peerVerificationRequired: false,
+      peerVerificationPassed: false,
+      roadTestRequired: false,
+      roadTestOutcome: "NOT_REQUIRED",
+      failureReasonCodes: [],
+      reworkInstructions: null,
+      inspectorUser: { name: "Quincy QC" },
+      peerVerifierUser: null
+    }];
+
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={clearedModel} />);
+
+    expect(html).toContain("Final Frontline QC complete");
+    expect(html).toContain("cleared for photos, merchandising, and its next frontline-readiness handoff");
+    expect(html).toContain("QC CLEARED");
+    expect(html).toContain("Green vehicle · ready for photos and frontline merchandising");
+    expect(html).toContain("Green in QC list / ready for photos");
+  });
+
+  it("opens a vendor-return QC decision when outside vendor work comes back for inspection", () => {
+    const vendorModel = {
+      ...model,
+      repairOrders: [{
+        ...model.repairOrders[0],
+        id: "ro-vendor",
+        repairOrderNumber: "RO-VENDOR",
+        stage: "QUALITY_CONTROL",
+        repairJobs: [],
+        vendorWorks: [{
+          id: "vendor-work-1",
+          approvalStatus: "APPROVED",
+          currentLocation: "Time Motor Sales - Minneapolis",
+          expectedReturnAt: "2026-08-25T12:00:00.000Z",
+          lastUpdateSummary: "Vehicle returned from Simba Collision; vendor work needs dealership QC.",
+          nextAction: "Inspect vendor return and create follow-up scope if incomplete.",
+          scope: "Replace outer door handle and upper/lower steering column covers.",
+          sentFrom: "Dealership",
+          status: "QC_REQUIRED",
+          transportMethod: "Tow",
+          vendorName: "Simba Collision"
+        }]
+      }]
+    };
+
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={vendorModel} initialRepairOrderId="ro-vendor" />);
+
+    expect(html).toContain("Vendor Return QC");
+    expect(html).toContain("Pass if Simba Collision completed the approved scope");
+    expect(html).toContain("Fail vendor repair");
+    expect(html).toContain("Pass vendor repair");
+    expect(html).toContain("Create follow-up repair scope");
+    expect(html).toContain("vendorFollowUp=1");
+    expect(html).toContain("outer door handle and upper/lower steering column covers");
+    expect(html).toContain("Vendor-return decision");
+  });
+});

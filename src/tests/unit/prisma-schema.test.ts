@@ -18,6 +18,36 @@ function getModelBlock(schema: string, modelName: string) {
 }
 
 describe("prisma schema constraints", () => {
+  it("declares the VEH-030 inventory unit aggregate and immutable state history", async () => {
+    const schema = await readFile(schemaPath, "utf8"); const unit = getModelBlock(schema, "InventoryUnit"); const event = getModelBlock(schema, "InventoryUnitStateEvent");
+    expect(unit).toMatch(/financialAcquiredAt\s+DateTime/); expect(unit).toMatch(/lifecycleStage\s+InventoryUnitLifecycleStage/); expect(unit).toMatch(/ownerUserId\s+String/); expect(unit).toMatch(/locationId\s+String/); expect(unit).toMatch(/targetAt\s+DateTime/); expect(unit).toMatch(/version\s+Int\s+@default\(1\)/); expect(event).toMatch(/@@unique\(\[inventoryUnitId,\s*version\]\)/);
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true }); const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");
+    expect(sql).toMatch(/InventoryUnit_one_open_unit_per_vehicle_key/); expect(sql).toMatch(/InventoryUnit_vehicle_tenant_fkey/); expect(sql).toMatch(/InventoryUnit_operating_state_check/); expect(sql).toMatch(/prevent_inventory_unit_state_event_mutation/); expect(sql).toMatch(/'RETAIL_INVENTORY'/);
+  });
+  it("declares the VEH-M2 canonical vehicle registry and no-loss migration safeguards", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    for (const model of ["VehicleRelationship", "VehicleExternalIdentity", "VehicleOdometerObservation", "VehicleCustodyEvent", "VehicleDuplicateCase"]) expect(schema).toContain(`model ${model} {`);
+    const vehicle = getModelBlock(schema, "Vehicle"); expect(vehicle).toMatch(/vinRaw\s+String\?/); expect(vehicle).toMatch(/vinState\s+VehicleVinState/); expect(vehicle).toMatch(/vinValidationSource\s+String\?/); expect(vehicle).toMatch(/licensePlateState\s+String\?/); expect(vehicle).toMatch(/canonicalOrigins\s+Json/); expect(vehicle).toMatch(/specificationSnapshot\s+Json\?/); expect(vehicle).toMatch(/version\s+Int\s+@default\(0\)/); expect(vehicle).toMatch(/mergedIntoVehicleId\s+String\?/);
+    expect(getModelBlock(schema, "Task")).toMatch(/vehicleId\s+String\?/);
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");
+    expect(sql).toMatch(/Vehicle_vin_state_check/); expect(sql).toMatch(/VehicleRelationship_vehicle_tenant_fkey/); expect(sql).toMatch(/VehicleOdometerObservation_reading_check/); expect(sql).toMatch(/VehicleDuplicateCase_resolution_check/); expect(sql).toMatch(/LEGACY_CUSTOMER_VEHICLE/); expect(sql).toMatch(/migration-dup-/); expect(sql).toMatch(/UPDATE "Task" task SET "vehicleId"/);
+  });
+  it("declares the VEH-M1 enterprise command, tenancy, rollout, and health foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    for (const model of ["EnterpriseAggregateVersion", "EnterpriseCommandLedger", "EnterpriseDomainEvent", "EnterpriseAuditEvent", "EnterpriseOutboxMessage", "VehicleCapabilityGrant", "VehicleOperationsFeatureFlag", "EnterpriseProjectionCheckpoint"]) expect(schema).toContain(`model ${model} {`);
+    expect(getModelBlock(schema, "EnterpriseCommandLedger")).toMatch(/@@unique\(\[organizationId,\s*domain,\s*commandType,\s*idempotencyKey\]\)/);
+    expect(getModelBlock(schema, "EnterpriseAggregateVersion")).toMatch(/version\s+Int\s+@default\(0\)/);
+    expect(getModelBlock(schema, "EnterpriseOutboxMessage")).toMatch(/status\s+EnterpriseOutboxStatus\s+@default\(PENDING\)/);
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");
+    expect(sql).toMatch(/EnterpriseCommandLedger_required_text_check/);
+    expect(sql).toMatch(/EnterpriseAggregateVersion_location_tenant_fkey/);
+    expect(sql).toMatch(/EnterpriseOutboxMessage_attempt_check/);
+    expect(sql).toMatch(/VehicleCapabilityGrant_org_global_user_capability_key/);
+    expect(sql).toMatch(/VehicleOperationsFeatureFlag_org_global_code_key/);
+    expect(sql).toMatch(/EnterpriseProjectionCheckpoint_org_global_projectionCode_key/);
+  });
   it("declares the DB-021 unique constraints and indexes in Prisma-native schema", async () => {
     const schema = await readFile(schemaPath, "utf8");
     const taskTemplateModel = getModelBlock(schema, "TaskTemplate");

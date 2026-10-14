@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, type WorkflowArea } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
@@ -14,6 +14,7 @@ const taskMetadataSelect = {
   dueAt: true,
   vehicleReference: true,
   customerReference: true,
+  workflowArea: true,
   updatedAt: true
 } satisfies Prisma.TaskSelect;
 
@@ -31,6 +32,7 @@ export type TaskMetadataLookupRecord = {
   dueAt: Date;
   vehicleReference: string | null;
   customerReference: string | null;
+  workflowArea: string;
   updatedAt: Date;
 };
 
@@ -40,6 +42,7 @@ export type TaskMetadataUpdateData = {
   title?: string;
   vehicleReference?: string | null;
   customerReference?: string | null;
+  workflowArea?: WorkflowArea;
 };
 
 export type TaskMetadataRepository = {
@@ -76,7 +79,8 @@ export function createTaskMetadataRepository(
             : {}),
           ...(data.customerReference !== undefined
             ? { customerReference: data.customerReference }
-            : {})
+            : {}),
+          ...(data.workflowArea !== undefined ? { workflowArea: data.workflowArea } : {})
         },
         select: taskMetadataSelect
       });

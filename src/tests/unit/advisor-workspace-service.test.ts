@@ -1,0 +1,140 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
+import { prisma } from "@/server/db/client";
+
+const actor: AuthenticatedUser = {
+  id: "advisor-1",
+  name: "Alex Carter",
+  email: "alex@test.local",
+  isActive: true,
+  roles: ["Service Advisor"],
+  duties: { direct: [], roleDefaults: [], all: [] }
+};
+
+vi.mock("@/server/repair-order/service", () => ({
+  getRepairOrderCreateOptions: vi.fn(async () => ({
+    appointments: [],
+    customers: []
+  })),
+  listRepairOrders: vi.fn(async () => ({
+    total: 1,
+    items: [
+      {
+        id: "ro-1",
+        repairOrderNumber: "RO-1",
+        stage: null,
+        operatingState: null,
+        nextAction: null,
+        targetAt: null,
+        age: { overdue: false, openAgeHours: 1, stageAgeHours: 1, targetVarianceHours: 0 },
+        advisorUpdates: [
+          {
+            id: "update-1",
+            contactChannel: "PHONE",
+            contactDirection: "OUTBOUND",
+            contactOutcome: null,
+            customerVisibleSummary: null,
+            internalNotes: null,
+            exceptionCodes: null,
+            nextContactAt: null,
+            occurredAt: new Date("2026-08-10T12:00:00.000Z"),
+            statusCode: "RECORDED",
+            version: 1,
+            authorUser: null
+          }
+        ],
+        customer: null,
+        inventoryUnit: { inventoryNumber: "333586" },
+        location: null,
+        ownerUser: null,
+        partDemands: [],
+        vehicle: null,
+        vendorWorks: []
+      }
+    ]
+  }))
+}));
+
+vi.mock("@/server/services/workday-workbook", () => ({
+  currentWorkdayBoardDate: vi.fn(() => "2026-08-10"),
+  getCooWorkbook: vi.fn(async () => ({ id: "coo-workbook-1" })),
+  getStaffWorkbook: vi.fn(async () => ({ id: "staff-workbook-1" })),
+  getStaffWorkbookSummaries: vi.fn(async () => [])
+}));
+
+vi.mock("@/server/db/client", () => ({
+  prisma: {
+    appointment: {
+      count: vi.fn(async () => 0),
+      findMany: vi.fn(async () => [])
+    },
+    customer: { count: vi.fn(async () => 0) },
+    staffDay: { findFirst: vi.fn(async () => null) },
+    task: { findMany: vi.fn(async () => []) },
+    workdayChecklistItem: { findMany: vi.fn(async () => []) },
+    workdayDailyFocusItem: { findMany: vi.fn(async () => []) },
+    workdayQuickUpdate: { findMany: vi.fn(async () => []) },
+    workdayReportSeed: { findMany: vi.fn(async () => []) }
+  }
+}));
+
+describe("getServiceAdvisorWorkspace", () => {
+  it("does not crash when legacy repair-order fields are incomplete", async () => {
+    const result = await getServiceAdvisorWorkspace(actor);
+
+    expect(result.counts.activeRepairOrders).toBe(1);
+    expect(result.actionQueue[0]).toMatchObject({
+      customerName: "333586",
+      nextAction: "Next action not recorded",
+      operatingState: "UNKNOWN",
+      stage: "UNKNOWN",
+      vehicleLabel: "333586"
+    });
+    expect(result.inbox[0]).toMatchObject({
+      authorName: "Unknown staff",
+      preview: "Customer communication recorded.",
+      subject: "Repair order update"
+    });
+  });
+
+  it("returns tasks where the staff member is a collaborator", async () => {
+    vi.mocked(prisma.task.findMany).mockImplementation(async (args) => {
+      const where = args?.where as { collaborators?: unknown } | undefined;
+      if (!where?.collaborators) return [];
+      return [
+        {
+          assignedUser: { id: "ancilla-1", name: "Ancilla" },
+          boardDay: { date: new Date("2026-09-08T00:00:00.000Z") },
+          capacityRequested: null,
+          checklistItems: [{ label: "Confirm delivery window" }],
+          collaborators: [{ capacityRequested: "Support", collaborationScope: "Help coordinate the sold vehicle delivery." }],
+          comments: [{ body: "Customer asked for a same-day update." }],
+          customerReference: "Customer: Hassan",
+          description: "Coordinate handoff and make sure delivery is complete.",
+          dueAt: new Date("2026-09-08T21:00:00.000Z"),
+          id: "task-deliver-sold-vehicles",
+          priority: "HIGH",
+          status: "IN_PROGRESS",
+          title: "Deliver sold vehicles",
+          vehicleReference: "2019 Hyundai Tucson White",
+          workflowArea: "SALES"
+        }
+      ] as never;
+    });
+
+    const result = await getServiceAdvisorWorkspace(actor);
+
+    expect(result.collaboratingTasks).toHaveLength(1);
+    expect(result.collaboratingTasks[0]).toMatchObject({
+      action: "Work task",
+      assignedUserName: "Ancilla",
+      href: "/tasks/task-deliver-sold-vehicles",
+      id: "task-deliver-sold-vehicles",
+      title: "Deliver sold vehicles"
+    });
+    expect(result.collaboratingTasks[0].searchText).toContain("deliver sold vehicles");
+    expect(result.collaboratingTasks[0].searchText).toContain("hassan");
+  });
+});

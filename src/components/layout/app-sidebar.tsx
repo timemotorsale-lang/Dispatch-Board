@@ -1,12 +1,12 @@
 "use client";
 
-import { ChevronDown, ChevronsLeft, ChevronsRight, LogOut, X } from "lucide-react";
+import { ChevronDown, ChevronsLeft, ChevronsRight, LockKeyhole, LogOut, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
-import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { getNavigationGroups } from "./navigation";
 
@@ -14,7 +14,7 @@ type AppSidebarProps = {
   compact: boolean;
   isOpen: boolean;
   onClose(): void;
-  onToggleCompact(): void;
+  onToggleCompact?(): void;
   user: AuthenticatedUser;
 };
 
@@ -24,23 +24,19 @@ function initials(name: string) {
 
 export function AppSidebar({ compact, isOpen, onClose, onToggleCompact, user }: AppSidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
+  const selectedBoardDate = searchParams.get("date");
   const navigationGroups = getNavigationGroups(user);
 
   return (
     <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
-        <Link aria-label="Time Motor Sales" className="sidebar-brand" href="/board" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
-          <TimeMotorSalesLogo className={compact ? "sidebar-brand-logo sidebar-brand-logo-mark" : "sidebar-brand-logo"} decorative={compact} variant={compact ? "mark" : "horizontal-reversed"} />
+        <Link aria-label="Time Motor Sales Command Control Center" className="sidebar-brand" href="/command-center" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
+          <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
+          <span><strong>TIME MOTOR SALES</strong><small>COMMAND CONTROL CENTER</small></span>
         </Link>
-        <button
-          aria-label={compact ? "Expand navigation" : "Collapse navigation"}
-          className="sidebar-collapse-button"
-          onClick={onToggleCompact}
-          title={compact ? "Expand navigation" : "Collapse navigation"}
-          type="button"
-        >
-          {compact ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
-        </button>
+        {onToggleCompact ? <button className="sidebar-collapse-button" aria-label={compact ? "Expand navigation" : "Collapse navigation"} title={compact ? "Expand navigation" : "Collapse navigation"} onClick={onToggleCompact} type="button">{compact ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}</button> : null}
         <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
 
@@ -51,26 +47,50 @@ export function AppSidebar({ compact, isOpen, onClose, onToggleCompact, user }: 
             <nav aria-label={group.label || "Primary navigation"}>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = pathname === item.href || (!item.matchExact && pathname.startsWith(`${item.href}/`));
-                const parentCurrent = item.matchExact && pathname.startsWith(`${item.href}/`);
+                const baseHref = item.href.split(/[?#]/, 1)[0];
+                const resolvedHref = item.title === "Overview" && selectedBoardDate
+                  ? `/board?date=${encodeURIComponent(selectedBoardDate)}`
+                  : item.title === "Live Board" && selectedBoardDate
+                    ? `/board?view=live&date=${encodeURIComponent(selectedBoardDate)}`
+                    : item.href;
+                const active = item.title === "Dispatch Board"
+                  ? pathname === "/board"
+                  : item.title === "Overview"
+                    ? pathname === "/board" && dispatchView === "overview"
+                    : item.title === "Live Board"
+                      ? pathname === "/board" && dispatchView === "live"
+                      : pathname === baseHref || (!item.matchExact && pathname.startsWith(`${baseHref}/`));
+                const parentCurrent = item.matchExact && pathname.startsWith(`${baseHref}/`);
                 const className = [
                   "sidebar-link",
+                  item.title === "Dispatch Board" ? "sidebar-link-module" : "",
                   item.parentHref ? "sidebar-link-child" : "",
                   active ? "sidebar-link-active" : "",
                   parentCurrent ? "sidebar-link-parent-current" : ""
                 ].filter(Boolean).join(" ");
-                return (
+                const content = (
+                  <>
+                    <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
+                    <span>{item.title}</span>
+                    {item.badge ? <small className={item.disabled ? "sidebar-badge sidebar-badge-planned" : "sidebar-badge sidebar-badge-live"}>{item.badge}</small> : null}
+                    {item.disabled ? <LockKeyhole className="sidebar-planned-lock" aria-hidden="true" size={12} /> : null}
+                  </>
+                );
+
+                return item.disabled ? (
+                  <div aria-disabled="true" className={`${className} sidebar-link-disabled`} key={item.href} title={`${item.title} is planned`}>
+                    {content}
+                  </div>
+                ) : (
                   <Link
                     aria-current={active ? "page" : undefined}
                     className={className}
-                    href={item.href}
-                    key={item.href}
+                    href={resolvedHref}
+                    key={`${item.href}-${item.title}`}
                     onClick={onClose}
                     title={compact ? item.title : undefined}
                   >
-                    <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
-                    <span>{item.title}</span>
-                    {item.badge ? <small className="sidebar-badge">{item.badge}</small> : null}
+                    {content}
                   </Link>
                 );
               })}
@@ -86,6 +106,12 @@ export function AppSidebar({ compact, isOpen, onClose, onToggleCompact, user }: 
         <div className="sidebar-logout"><LogOut size={15} aria-hidden="true" /><LogoutButton /></div>
         <small className="sidebar-store">Store ID: TMS-001</small>
       </div>
+      {compact ? (
+        <div className="sidebar-compact-hint" title="Use Workspace View in Tasks to expand navigation">
+          <ChevronsRight size={17} />
+          <span>Expand navigation</span>
+        </div>
+      ) : null}
     </aside>
   );
 }

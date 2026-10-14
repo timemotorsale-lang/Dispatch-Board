@@ -35,9 +35,20 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-local/types/**/*.ts",
+    ".next-local/dev/types/**/*.ts",
+    ".next-runtime/types/**/*.ts",
+    ".next-runtime/dev/types/**/*.ts",
+    ".next-lease-calculator-review/types/**/*.ts",
+    ".next-lease-calculator-review/dev/types/**/*.ts"
   ],
   "exclude": [
+    ".next",
+    ".next-*",
+    ".next-local*",
+    ".next-runtime",
+    ".worktrees",
     "node_modules",
     "src/tests/**/*",
     "src/features/activity/**/*",

@@ -31,10 +31,10 @@ export function TimeMotorSalesLogo({
     <Image
       alt={decorative ? "" : "Time Motor Sales"}
       className={className}
-      height={asset.height}
       priority={priority}
       src={asset.src}
       unoptimized
+      height={asset.height}
       width={asset.width}
     />
   );

@@ -18,7 +18,8 @@ import type { BoardReadRepository } from "@/server/repositories/board-read-repos
 import type { SchedulerAttemptsRepository } from "@/server/repositories/scheduler-attempts-repository";
 import {
   getBoardReadModelForDate,
-  getBoardReadModelForToday
+  getBoardReadModelForToday,
+  getTaskOperationsReadModelForDate
 } from "@/server/services/board-read";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
@@ -485,6 +486,34 @@ describe("board read service", () => {
         }
       }
     });
+  });
+
+  it("keeps the daily board date-specific while the Tasks operations ledger includes older active work", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createBoardReadRepositoryHarness({
+      boardDays: [
+        { id: "today", date: "2026-06-18" },
+        { id: "older", date: "2026-06-17" }
+      ],
+      tasksByBoardDayId: {
+        today: [{ id: "today-task", title: "Today's task", dueAt: "2026-06-18T15:00:00Z", assignedUser: { id: "manager", name: "Manager", email: "manager@example.com" } }],
+        older: [{ id: "older-task", title: "Older open RO task", dueAt: "2026-06-17T15:00:00Z", assignedUser: { id: "manager", name: "Manager", email: "manager@example.com" } }]
+      }
+    });
+    const todayTasks = await harness.repository.listTasksForBoardDay("today");
+    const olderTasks = await harness.repository.listTasksForBoardDay("older");
+    harness.repository.listTasksForOperationsConsole = async () => [...olderTasks, ...todayTasks];
+
+    const daily = await getBoardReadModelForDate(manager, "2026-06-18", { repository: harness.repository });
+    const operations = await getTaskOperationsReadModelForDate(manager, "2026-06-18", { repository: harness.repository });
+
+    expect(daily.board?.tasks.map((task) => task.id)).toEqual(["today-task"]);
+    expect(operations.board?.tasks.map((task) => task.id)).toEqual(["older-task", "today-task"]);
+
+    const nextDay = await getTaskOperationsReadModelForDate(manager, "2026-06-19", { repository: harness.repository });
+    expect(nextDay.board?.tasks.map((task) => task.id)).toEqual(["older-task", "today-task"]);
+    expect(nextDay.board?.date).toBe("2026-06-19");
   });
 
   it("rejects invalid board dates before querying the repository", async () => {

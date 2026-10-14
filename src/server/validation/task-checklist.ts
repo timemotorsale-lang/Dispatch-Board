@@ -1,4 +1,5 @@
 import {
+  TASK_CHECKLIST_ITEM_KIND,
   TASK_CHECKLIST_ITEM_KIND_VALUES,
   type TaskChecklistItemKindValue
 } from "@/lib/task-checklist-kind";
@@ -44,7 +45,7 @@ function normalizeKind(value: unknown) {
   return value as TaskChecklistItemKindValue;
 }
 
-function normalizeLabel(value: unknown) {
+function normalizeLabel(value: unknown, kind: TaskChecklistItemKindValue) {
   if (typeof value !== "string") {
     throw new Error("Task checklist items require label to be a string.");
   }
@@ -55,8 +56,14 @@ function normalizeLabel(value: unknown) {
     throw new Error("Task checklist items require a label.");
   }
 
-  if (normalized.length > 120) {
-    throw new Error("Task checklist items must be 120 characters or fewer.");
+  const maxLength = kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK ? 500 : 120;
+
+  if (normalized.length > maxLength) {
+    throw new Error(
+      kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK
+        ? "Subtasks must be 500 characters or fewer."
+        : "Task checklist items must be 120 characters or fewer."
+    );
   }
 
   return normalized;
@@ -77,9 +84,11 @@ export function normalizeTaskChecklistCreateInput(
 
   rejectUnknownKeys(input, taskChecklistCreateAllowedKeys, "Task checklist items");
 
+  const kind = normalizeKind(input.kind);
+
   return {
-    kind: normalizeKind(input.kind),
-    label: normalizeLabel(input.label)
+    kind,
+    label: normalizeLabel(input.label, kind)
   };
 }
 

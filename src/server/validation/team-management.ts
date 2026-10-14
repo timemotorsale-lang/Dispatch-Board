@@ -1,4 +1,8 @@
 import { normalizeEmail } from "@/server/auth/service";
+import {
+  PASSWORD_POLICY_DESCRIPTION,
+  validateStaffPassword
+} from "@/server/auth/password-policy";
 
 export type TeamMemberCreateInput = {
   name: string;
@@ -42,7 +46,13 @@ export type NormalizedManagedDutyCreateInput = {
   description: string | null;
 };
 
-export type TeamMemberUpdateInput = Partial<Omit<TeamMemberCreateInput, "password">>;
+export type TeamMemberPasswordResetInput = {
+  temporaryPassword: string;
+};
+export type TeamMemberUpdateInput = Partial<Omit<TeamMemberCreateInput, "password">> &
+  Partial<TeamMemberPasswordResetInput> & {
+    clearLockout?: boolean;
+  };
 export type ManagedRoleUpdateInput = Partial<ManagedRoleCreateInput>;
 export type ManagedDutyUpdateInput = Partial<ManagedDutyCreateInput>;
 
@@ -52,6 +62,12 @@ export type NormalizedTeamMemberUpdateInput = {
   roleIds?: string[];
   dutyIds?: string[];
   isActive?: boolean;
+  temporaryPassword?: string;
+  clearLockout?: boolean;
+};
+
+export type NormalizedTeamMemberPasswordResetInput = {
+  temporaryPassword: string;
 };
 
 export type NormalizedManagedRoleUpdateInput = {
@@ -69,6 +85,8 @@ export type NormalizedManagedDutyUpdateInput = {
 function uniqueTrimmedIds(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
+
+export { PASSWORD_POLICY_DESCRIPTION, validateStaffPassword };
 
 export function isTeamMemberCreateInput(value: unknown): value is TeamMemberCreateInput {
   if (!value || typeof value !== "object") {
@@ -113,9 +131,7 @@ export function normalizeTeamMemberCreateInput(input: unknown): NormalizedTeamMe
     throw new Error("Temporary password is required.");
   }
 
-  if (password.length < 8) {
-    throw new Error("Temporary password must be at least 8 characters.");
-  }
+  validateStaffPassword(password, "Temporary password");
 
   if (roleIds.length === 0) {
     throw new Error("At least one role must be assigned.");
@@ -257,11 +273,45 @@ export function normalizeTeamMemberUpdateInput(input: unknown): NormalizedTeamMe
     normalized.isActive = candidate.isActive;
   }
 
+  if ("temporaryPassword" in candidate) {
+    if (typeof candidate.temporaryPassword !== "string" || !candidate.temporaryPassword.trim()) {
+      throw new Error("Temporary password is required.");
+    }
+
+    normalized.temporaryPassword = candidate.temporaryPassword.trim();
+    validateStaffPassword(normalized.temporaryPassword, "Temporary password");
+  }
+
+  if ("clearLockout" in candidate) {
+    if (typeof candidate.clearLockout !== "boolean") {
+      throw new Error("Team member clearLockout must be boolean.");
+    }
+
+    normalized.clearLockout = candidate.clearLockout;
+  }
+
   if (Object.keys(normalized).length === 0) {
     throw new Error("Team member updates require at least one field.");
   }
 
   return normalized;
+}
+
+export function normalizeTeamMemberPasswordResetInput(input: unknown): NormalizedTeamMemberPasswordResetInput {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Temporary password is required.");
+  }
+
+  const candidate = input as Partial<TeamMemberPasswordResetInput>;
+
+  if (typeof candidate.temporaryPassword !== "string" || !candidate.temporaryPassword.trim()) {
+    throw new Error("Temporary password is required.");
+  }
+
+  const temporaryPassword = candidate.temporaryPassword.trim();
+  validateStaffPassword(temporaryPassword, "Temporary password");
+
+  return { temporaryPassword };
 }
 
 export function normalizeManagedRoleUpdateInput(input: unknown): NormalizedManagedRoleUpdateInput {

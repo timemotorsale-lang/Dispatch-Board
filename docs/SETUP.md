@@ -2,6 +2,11 @@
 
 This guide is for setting up the Time Motor Sales Dispatch Board locally for development, testing, and MVP verification.
 
+For a production-oriented Ubuntu Server deployment, use
+[DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md). The Docker stack keeps production
+configuration, migrations, TLS, scheduling, persistence, and backups separate
+from this local development flow.
+
 ## Prerequisites
 
 - Node.js 24 or newer
@@ -26,6 +31,8 @@ Example:
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dispatch_board?schema=public"
 CRON_SECRET="replace-with-a-long-random-secret"
+NEXT_DIST_DIR=".next-local"
+CRM_NEXT="OFF"
 ```
 
 ### Required variables
@@ -34,6 +41,10 @@ CRON_SECRET="replace-with-a-long-random-secret"
   Points Prisma and the app at your PostgreSQL database.
 - `CRON_SECRET`
   Protects the scheduled generation endpoint at `/api/cron/generate-board`.
+- `NEXT_DIST_DIR`
+  Optional override for the Next.js build cache directory. The local default in this repo is `.next-local` to reduce Windows and OneDrive file-lock issues.
+- `CRM_NEXT`
+  Controls the Customer Console at `/crm-next`. It fails closed when unset or `OFF`, which shows the protected Customer Console fallback. Set it in the server deployment environment to `REVIEW` to open the current safe Customer Console preview, or `DOGFOOD`/`PILOT`/`LIVE`/`ACTIVE` for dogfood mode.
 
 ### Optional local test variables
 
@@ -119,9 +130,10 @@ Current local workflow highlights:
 
 ## Scheduled generation
 
-The app exposes a protected scheduled-generation route at:
+The app exposes protected scheduler routes at:
 
 - `/api/cron/generate-board`
+- `/api/cron/evaluate-concerns`
 
 Expected scheduled attempt states, skip reasons, and manager-safe operational meanings are defined in [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md).
 
@@ -139,12 +151,13 @@ The route uses the configured app timezone, waits until the configured `dailyGen
 
 ### Vercel cron setup
 
-This repo now includes [vercel.json](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/vercel.json), which schedules `/api/cron/generate-board` every 15 minutes in production.
+This repo now includes [vercel.json](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/vercel.json), which schedules `/api/cron/generate-board` and `/api/cron/evaluate-concerns` every 15 minutes in production.
 
 Why every 15 minutes instead of once per day:
 
 - The manager-controlled generation time lives in app settings, not in `vercel.json`.
-- The scheduled route now checks the configured timezone and `dailyGenerationTime` before generating.
+- The board-generation route checks the configured timezone and `dailyGenerationTime` before generating.
+- The concern-evaluation route keeps operational concern signals fresh on the same protected scheduler cadence.
 - Once a board has already been generated for the day, later cron pings skip cleanly instead of creating duplicate scheduled runs.
 
 Production checklist for auto-generation:
@@ -152,8 +165,21 @@ Production checklist for auto-generation:
 1. Deploy the app with `vercel.json` included.
 2. Set `CRON_SECRET` in the deployment environment.
 3. Set the desired generation time, timezone, and business days in `/settings`.
-4. Follow the scheduler deployment runbook before relying on autonomous generation.
+4. Follow the scheduler deployment runbook before relying on autonomous generation or concern evaluation.
 5. Record the first live validation using the first-live validation workflow after the configured local generation time.
+
+### Customer Console server setup
+
+Customer Console / CRM Next is controlled by the app's `CRM_NEXT` environment variable. Docker deployments set that runtime variable from `CRM_NEXT_DOCKER_MODE` and default to the safe `REVIEW` mode when the deployment variable is omitted. If `/crm-next` opens locally but the server says "Customer Console is protected right now," the running server container still has `CRM_NEXT=OFF` or has not been redeployed with the current Compose file.
+
+To open Customer Console on the server:
+
+1. Set `CRM_NEXT_DOCKER_MODE=REVIEW` in the deployment environment.
+2. Redeploy or restart the app so the server process reads the new variable.
+3. Sign in as a Management or Sales workspace user.
+4. Open `/crm-next` again.
+
+Rollback is simple: set `CRM_NEXT_DOCKER_MODE=OFF`, then redeploy/restart. Customer Archive and older customer tools remain available.
 
 Use the scheduler verification contract as the meaning baseline for what you should expect to see:
 
@@ -166,7 +192,7 @@ For release gating, do not stop at a casual spot-check. Use the release checklis
 
 ### Non-Vercel hosting
 
-If you deploy somewhere other than Vercel, configure any scheduler to call `/api/cron/generate-board` at least every 15 minutes with one of the supported secret headers. The route itself handles timezone checks, business-day checks, and duplicate-safe generation.
+If you deploy somewhere other than Vercel, configure a scheduler to call `/api/cron/generate-board` and `/api/cron/evaluate-concerns` at least every 15 minutes with one of the supported secret headers. The board-generation route handles timezone checks, business-day checks, and duplicate-safe generation.
 
 ## Quality and verification commands
 
@@ -273,7 +299,7 @@ Run:
 npm run db:generate
 ```
 
-If the app still shows an older Prisma runtime error after regeneration, fully stop the dev server, remove `.next`, and start the app again.
+If the app still shows an older Prisma runtime error after regeneration, fully stop the dev server, remove the active Next cache directory (`.next-local` by default in local development), and start the app again.
 
 ### Port 3000 is already in use
 
@@ -321,7 +347,7 @@ taskkill /F /IM node.exe
 ```
 
 ```bash
-Remove-Item -Recurse -Force .next
+Remove-Item -Recurse -Force .next-local
 ```
 
 ```bash

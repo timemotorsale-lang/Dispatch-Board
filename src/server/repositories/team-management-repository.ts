@@ -11,14 +11,18 @@ import type {
   NormalizedTeamMemberCreateInput
 } from "@/server/validation/team-management";
 
-type TeamManagementDatabase = Pick<PrismaClient, "$transaction" | "user" | "role" | "duty" | "roleDuty">;
+type TeamManagementDatabase = Pick<PrismaClient, "$executeRaw" | "$transaction" | "user" | "role" | "duty" | "roleDuty">;
 
 const managedUserSelect = {
   id: true,
   name: true,
   email: true,
+  failedLoginCount: true,
   isActive: true,
+  lockedUntil: true,
+  mustChangePassword: true,
   createdAt: true,
+  updatedAt: true,
   userRoles: {
     select: {
       role: {
@@ -133,7 +137,7 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
       }
     ): Promise<ManagedUserRecord> {
       try {
-        return await database.user.create({
+        const createdUser = await database.user.create({
           data: {
             name: input.name,
             email: input.email,
@@ -152,6 +156,18 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
           },
           select: managedUserSelect
         });
+
+        await database.$executeRaw`
+          UPDATE "User"
+          SET "mustChangePassword" = true,
+              "passwordResetAt" = now(),
+              "passwordChangedAt" = null,
+              "failedLoginCount" = 0,
+              "lockedUntil" = null
+          WHERE "id" = ${createdUser.id}
+        `;
+
+        return createdUser;
       } catch (error) {
         if (
           error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
@@ -166,7 +182,7 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
 
     async updateUser(id: string, input: NormalizedTeamMemberUpdateInput): Promise<ManagedUserRecord | null> {
       try {
-        return await database.user.update({
+        const updatedUser = await database.user.update({
           where: { id },
           data: {
             ...(input.name !== undefined ? { name: input.name } : {}),
@@ -191,6 +207,34 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
           },
           select: managedUserSelect
         });
+
+        if (input.temporaryPassword) {
+          await database.$executeRaw`
+            UPDATE "User"
+            SET "passwordHash" = ${input.temporaryPassword},
+                "mustChangePassword" = true,
+                "passwordResetAt" = now(),
+                "passwordChangedAt" = null,
+                "failedLoginCount" = 0,
+                "lockedUntil" = null
+            WHERE "id" = ${id}
+          `;
+        }
+
+        if (input.clearLockout) {
+          await database.$executeRaw`
+            UPDATE "User"
+            SET "failedLoginCount" = 0,
+                "lockedUntil" = null
+            WHERE "id" = ${id}
+          `;
+        }
+
+        const refreshedUser = input.temporaryPassword || input.clearLockout
+          ? await database.user.findUnique({ where: { id }, select: managedUserSelect })
+          : updatedUser;
+
+        return refreshedUser;
       } catch (error) {
         if (
           error instanceof PrismaNamespace.PrismaClientKnownRequestError &&

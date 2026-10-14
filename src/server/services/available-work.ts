@@ -8,6 +8,7 @@ import {
 import { normalizeBoardDate } from "@/server/validation/board-date";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import { decideWorkAcquisition } from "@/server/services/work-acquisition-decision";
+import { resolveWorkRecordRoute } from "@/server/auth/navigation";
 
 type Dependencies = {
   flags?: StaffExecutionFlags;
@@ -74,7 +75,18 @@ export async function claimAvailableWork(actor: AuthenticatedUser | null, recomm
     metadata: { recommendationId: result.recommendationId },
     taskId: result.taskId
   });
-  return result;
+  return {
+    ...result,
+    destination: resolveWorkRecordRoute({
+      taskId: result.taskId,
+      repairJobId: result.repairJobId,
+      repairOrderId: result.repairOrderId,
+      inventoryWorkPacket: result.vehicleId && !result.repairJobId ? {
+        vehicleId: result.vehicleId,
+        inventoryUnitId: result.inventoryUnitId
+      } : null
+    })
+  };
 }
 
 const dismissalReasons = new Set(["NEED_MANAGER_DIRECTION", "LACK_CONTEXT", "NOT_AVAILABLE", "OTHER"]);

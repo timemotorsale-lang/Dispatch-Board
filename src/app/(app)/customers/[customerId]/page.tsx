@@ -1,6 +1,8 @@
-import { CustomerCommandCenter } from "@/features/customers/customer-command-center";
+import { redirect } from "next/navigation";
+
+import { crmNextCustomer360Href } from "@/features/crm/crm-route-authority";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ customerId: string }> }) {
   const { customerId } = await params;
-  return <CustomerCommandCenter customerId={customerId} />;
+  redirect(crmNextCustomer360Href(customerId));
 }

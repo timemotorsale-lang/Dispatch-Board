@@ -1,0 +1,947 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
+
+import { prisma } from "@/server/db/client";
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
+import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
+import { DiagnosticCaseDuplicateError, isTerminalDiagnosticStatus, nextDiagnosticCaseState, type DiagnosticCaseStatus, type DiagnosticRiskTier } from "./domain";
+import type { normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
+import type { normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan } from "./test-execution-domain";
+import { nextTestExecutionState, type DiagnosticTestLifecycleAction, type DiagnosticTestExecutionState } from "./test-execution-domain";
+import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from "./quality-safety-gates";
+import { diagnosticReasoningId, type evaluateDiagnosticReasoning, type ReasoningEvidence } from "./reasoning-core";
+import type { createDiagnosticTestOverride, evaluateAdaptiveDiagnosticTests } from "./adaptive-testing";
+import type { evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand } from "./conclusion-domain";
+import type { evaluateDiagnosticEstimateAdvisorControls, normalizeDiagnosticEstimateAdvisorCommand } from "./estimate-advisor-domain";
+import type { evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
+import type { normalizeDiagnosticTroubleshootingSessionCommand } from "./technician-troubleshooting-console";
+import type { evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
+
+type Tx = Prisma.TransactionClient;
+
+export type DiagnosticCaseIdentityRecord = {
+  assignedUserId: string | null;
+  id: string;
+  locationId: string;
+  resumeStatus: DiagnosticCaseStatus | null;
+  status: DiagnosticCaseStatus;
+  version: number;
+};
+
+export type DiagnosticRepairOrderContext = {
+  closedAt: Date | null;
+  id: string;
+  locationId: string;
+  organizationId: string;
+  repairOrderNumber: string;
+  serviceVisit: { concernSummary: string };
+  vehicleId: string;
+  version: number;
+};
+
+const detailInclude = {
+  assignedUser: { select: { id: true, name: true } },
+  concernVersions: { orderBy: { version: "desc" as const } },
+  createdByUser: { select: { id: true, name: true } },
+  location: { select: { id: true, code: true, name: true } },
+  repairOrder: { select: { id: true, repairOrderNumber: true, serviceVisit: { select: { concernSummary: true } } } },
+  observations: { orderBy: { observedAt: "desc" as const }, include: { authorUser: { select: { id: true, name: true } }, correctedBy: { select: { id: true } } } },
+  measurements: { orderBy: { measuredAt: "desc" as const }, include: { authorUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
+  evidenceLinks: { orderBy: { createdAt: "desc" as const }, include: { createdByUser: { select: { id: true, name: true } }, evidenceObject: { select: { id: true, fileName: true, contentType: true, byteSize: true, checksumSha256: true, malwareStatus: true, accessLevel: true, retentionUntil: true, legalHold: true, status: true, version: true, createdAt: true } } } },
+  testPlanVersions: { orderBy: { version: "desc" as const }, include: { nodes: { orderBy: { sequence: "asc" as const }, include: { definitionVersion: true } }, authoredByUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
+  testExecutions: { orderBy: { occurredAt: "desc" as const }, include: { actorUser: { select: { id: true, name: true } }, planNode: { select: { id: true, nodeKey: true, title: true } } } },
+  reasoningEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { hypotheses: { orderBy: { rank: "asc" as const }, include: { evidenceLinks: true } }, supersededBy: { select: { id: true } } } },
+  adaptiveTestEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { overrides: { orderBy: { occurredAt: "desc" as const } } } },
+  conclusionVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, reviewerUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
+  repairHandoffVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, repairDiagnosisVersion: { select: { id: true, version: true } }, supersededBy: { select: { id: true } } } },
+  estimateDraftVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, repairHandoffVersion: { select: { id: true, version: true } }, repairDiagnosisVersion: { select: { id: true, version: true } }, supersededBy: { select: { id: true } } } },
+  verificationVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, reviewerUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
+  stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
+  vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
+};
+
+export type DiagnosticCaseDetailRecord = Prisma.DiagnosticCaseGetPayload<{ include: typeof detailInclude }>;
+export type DiagnosticAssignableUserRecord = { id: string; name: string };
+export type DiagnosticTestDefinitionRecord = Prisma.DiagnosticTestDefinitionVersionGetPayload<{ include: { supersededBy: { select: { id: true } } } }>;
+export type DiagnosticTroubleshootingSessionRecord = {
+  advisorDraftPacket: unknown;
+  authorUserId: string;
+  consoleVersion: string;
+  createdAt: Date;
+  diagnosticCaseId: string;
+  id: string;
+  intakeRefinement: unknown;
+  knownIssueSnapshot: unknown;
+  learningProposal: unknown;
+  occurredAt: Date;
+  organizationId: string;
+  overrideReason: string | null;
+  rulePackSnapshot: unknown;
+  selectedTestKey: string | null;
+  sessionChecksum: string;
+  status: string;
+  supersedesId: string | null;
+  vehicleIntelligenceAcknowledgements: unknown;
+  version: number;
+};
+
+export type DiagnosticCaseRepository = {
+  assign(command: EnterpriseCommandCommitInput, data: { assignedUserId: string; occurredAt: Date; reasonCode: string }): Promise<DiagnosticMutationResult>;
+  create(command: EnterpriseCommandCommitInput, data: { assignedUserId: string | null; canonicalConcernStatement: string; concernFingerprint: string; concernKey: string; concernSource: string; concernStatement: string; openedAt: Date; operatingConditions: Record<string, unknown>; repairOrderVersion: number; riskTier: DiagnosticRiskTier; reasonCode: string }): Promise<DiagnosticMutationResult>;
+  get(organizationId: string, caseId: string): Promise<DiagnosticCaseDetailRecord | null>;
+  getIdentity(organizationId: string, caseId: string): Promise<DiagnosticCaseIdentityRecord | null>;
+  getRepairOrderContext(organizationId: string, repairOrderId: string): Promise<DiagnosticRepairOrderContext | null>;
+  list(organizationId: string): Promise<DiagnosticCaseDetailRecord[]>;
+  listAssignableUsers?(): Promise<DiagnosticAssignableUserRecord[]>;
+  listEvidenceCandidates?(organizationId: string, vehicleId: string): Promise<Array<{ accessLevel: "INTERNAL" | "RESTRICTED"; byteSize: number; checksumSha256: string; contentType: string; fileName: string; id: string; legalHold: boolean; malwareStatus: "CLEAN" | "DETECTED" | "ERROR"; retentionUntil: Date; status: "AVAILABLE" | "QUARANTINED" | "DELETED"; version: number }>>;
+  listTestDefinitions?(organizationId: string): Promise<DiagnosticTestDefinitionRecord[]>;
+  getEvidenceContext?(organizationId: string, evidenceObjectId: string): Promise<{ accessLevel: "INTERNAL" | "RESTRICTED"; id: string; malwareStatus: "CLEAN" | "DETECTED" | "ERROR"; status: "AVAILABLE" | "QUARANTINED" | "DELETED"; vehicleIds: string[] } | null>;
+  recordObservation?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticObservation> & { id: string }): Promise<DiagnosticMutationResult>;
+  recordMeasurement?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticMeasurement> & { id: string }): Promise<DiagnosticMutationResult>;
+  linkEvidence?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticEvidenceLink> & { id: string }): Promise<DiagnosticMutationResult>;
+  listTroubleshootingSessions?(organizationId: string, caseId: string): Promise<DiagnosticTroubleshootingSessionRecord[]>;
+  recordTroubleshootingSession?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTroubleshootingSessionCommand> & { consoleVersion: string; id: string; occurredAt: Date; sessionChecksum: string; status: string }): Promise<DiagnosticMutationResult>;
+  registerTestDefinition?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestDefinition> & { id: string }): Promise<DiagnosticMutationResult>;
+  createTestPlan?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestPlan> & { id: string; nodeIds: string[] }): Promise<DiagnosticMutationResult>;
+  executeTestLifecycle?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestLifecycle> & { eventId: string; executionKey: string }): Promise<DiagnosticMutationResult>;
+  recordReasoningEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; evidence: ReasoningEvidence[]; occurredAt: Date; result: ReturnType<typeof evaluateDiagnosticReasoning>; supersedesId: string | null }): Promise<DiagnosticMutationResult>;
+  recordAdaptiveTestEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; occurredAt: Date; result: ReturnType<typeof evaluateAdaptiveDiagnosticTests> }): Promise<DiagnosticMutationResult>;
+  recordAdaptiveTestOverride?(command: EnterpriseCommandCommitInput, data: { overrideId: string; occurredAt: Date; override: ReturnType<typeof createDiagnosticTestOverride> }): Promise<DiagnosticMutationResult>;
+  recordConclusion?(command: EnterpriseCommandCommitInput, data: { conclusionId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticConclusionCommand>; control: ReturnType<typeof evaluateDiagnosticConclusionControls>; sourceVersions: unknown[]; safetySnapshot: Record<string, unknown>; conclusionChecksum: string }): Promise<DiagnosticMutationResult>;
+  recordEstimateDraft?(command: EnterpriseCommandCommitInput, data: { draftId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticEstimateAdvisorCommand>; control: ReturnType<typeof evaluateDiagnosticEstimateAdvisorControls>; draftChecksum: string; estimateAuthorityBoundary: Record<string, unknown> }): Promise<DiagnosticMutationResult>;
+  recordRepairHandoff?(command: EnterpriseCommandCommitInput, data: { handoffId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticRepairHandoffCommand>; control: ReturnType<typeof evaluateDiagnosticRepairHandoffControls>; handoffChecksum: string }): Promise<DiagnosticMutationResult>;
+  recordVerification?(command: EnterpriseCommandCommitInput, data: { verificationId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticVerificationCommand>; control: ReturnType<typeof evaluateDiagnosticVerificationControls>; repairEvidenceSnapshot: Record<string, unknown>; verificationChecksum: string }): Promise<DiagnosticMutationResult>;
+  transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
+};
+
+type DiagnosticMutationResult = { duplicate: boolean; result: unknown; version: number };
+
+function json(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+async function execute(
+  database: PrismaClient,
+  input: EnterpriseCommandCommitInput,
+  eventType: string,
+  reasonCode: string,
+  mutate: (tx: Tx, version: number) => Promise<{ previous?: unknown; result: unknown }>
+): Promise<DiagnosticMutationResult> {
+  return database.$transaction(async (tx) => {
+    const existing = await tx.enterpriseCommandLedger.findUnique({
+      where: {
+        organizationId_domain_commandType_idempotencyKey: {
+          organizationId: input.organizationId,
+          domain: input.domain,
+          commandType: input.commandType,
+          idempotencyKey: input.idempotencyKey
+        }
+      }
+    });
+    if (existing) {
+      if (existing.requestHash !== input.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
+      return { duplicate: true, result: existing.resultSnapshot, version: existing.resultingVersion ?? input.expectedVersion };
+    }
+
+    const key = {
+      organizationId_domain_subjectType_subjectId: {
+        organizationId: input.organizationId,
+        domain: input.domain,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId
+      }
+    };
+    const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: key });
+    const currentVersion = aggregate?.version ?? 0;
+    if (currentVersion !== input.expectedVersion) throw new EnterpriseCommandConflictError(`Expected version ${input.expectedVersion}, but current version is ${currentVersion}.`, "VERSION_CONFLICT");
+
+    const version = currentVersion + 1;
+    const mutation = await mutate(tx, version);
+    if (aggregate) await tx.enterpriseAggregateVersion.update({ where: { id: aggregate.id }, data: { version, locationId: input.locationId } });
+    else await tx.enterpriseAggregateVersion.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, version } });
+
+    const snapshot = json(mutation.result);
+    const completedAt = new Date();
+    const command = await tx.enterpriseCommandLedger.create({
+      data: {
+        organizationId: input.organizationId,
+        locationId: input.locationId,
+        actorUserId: input.actorUserId,
+        domain: input.domain,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        commandType: input.commandType,
+        status: "SUCCEEDED",
+        idempotencyKey: input.idempotencyKey,
+        requestHash: input.requestHash,
+        correlationId: input.correlationId,
+        expectedVersion: input.expectedVersion,
+        resultingVersion: version,
+        resultSnapshot: snapshot,
+        completedAt
+      }
+    });
+    const event = await tx.enterpriseDomainEvent.create({
+      data: {
+        organizationId: input.organizationId,
+        locationId: input.locationId,
+        commandId: command.id,
+        domain: input.domain,
+        aggregateType: input.subjectType,
+        aggregateId: input.subjectId,
+        aggregateVersion: version,
+        eventType,
+        payload: json({ aggregateId: input.subjectId, aggregateVersion: version, reasonCode })
+      }
+    });
+    await tx.enterpriseAuditEvent.create({
+      data: {
+        organizationId: input.organizationId,
+        locationId: input.locationId,
+        actorUserId: input.actorUserId,
+        commandId: command.id,
+        domain: input.domain,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        eventType,
+        reason: input.reason,
+        priorValue: mutation.previous == null ? undefined : json(mutation.previous),
+        newValue: snapshot,
+        metadata: json({ reasonCode, requestHash: input.requestHash }),
+        correlationId: input.correlationId
+      }
+    });
+    await tx.enterpriseOutboxMessage.create({
+      data: {
+        organizationId: input.organizationId,
+        locationId: input.locationId,
+        domainEventId: event.id,
+        topic: "diagnostics.case",
+        messageKey: input.subjectId,
+        payload: json({ aggregateId: input.subjectId, aggregateVersion: version, correlationId: input.correlationId, eventId: event.id, eventType, reasonCode })
+      }
+    });
+    return { duplicate: false, result: mutation.result, version };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export function createDiagnosticCaseRepository(database: PrismaClient = prisma): DiagnosticCaseRepository {
+  return {
+    getRepairOrderContext(organizationId, repairOrderId) {
+      return database.repairOrder.findFirst({
+        where: { id: repairOrderId, organizationId },
+        select: { closedAt: true, id: true, locationId: true, organizationId: true, repairOrderNumber: true, serviceVisit: { select: { concernSummary: true } }, vehicleId: true, version: true }
+      });
+    },
+
+    getIdentity(organizationId, caseId) {
+      return database.diagnosticCase.findFirst({
+        where: { id: caseId, organizationId },
+        select: { assignedUserId: true, id: true, locationId: true, resumeStatus: true, status: true, version: true }
+      }) as Promise<DiagnosticCaseIdentityRecord | null>;
+    },
+
+    get(organizationId, caseId) {
+      return database.diagnosticCase.findFirst({ where: { id: caseId, organizationId }, include: detailInclude });
+    },
+
+    list(organizationId) {
+      return database.diagnosticCase.findMany({
+        where: { organizationId },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        take: 200,
+        include: detailInclude
+      });
+    },
+
+    listAssignableUsers() {
+      return database.user.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true }
+      });
+    },
+
+    async getEvidenceContext(organizationId, evidenceObjectId) {
+      const evidence = await database.vehicleEvidenceObject.findFirst({
+        where: { id: evidenceObjectId, organizationId },
+        select: { accessLevel: true, id: true, malwareStatus: true, status: true, links: { select: { vehicleId: true } } }
+      });
+      return evidence ? { accessLevel: evidence.accessLevel, id: evidence.id, malwareStatus: evidence.malwareStatus, status: evidence.status, vehicleIds: [...new Set(evidence.links.map((item) => item.vehicleId))] } : null;
+    },
+
+    listEvidenceCandidates(organizationId, vehicleId) {
+      return database.vehicleEvidenceObject.findMany({
+        where: { organizationId, links: { some: { organizationId, vehicleId } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: { accessLevel: true, byteSize: true, checksumSha256: true, contentType: true, fileName: true, id: true, legalHold: true, malwareStatus: true, retentionUntil: true, status: true, version: true }
+      });
+    },
+
+    listTroubleshootingSessions(organizationId, caseId) {
+      return database.$queryRaw<DiagnosticTroubleshootingSessionRecord[]>`
+        SELECT
+          "id", "organizationId", "diagnosticCaseId", "version", "consoleVersion", "status",
+          "intakeRefinement", "vehicleIntelligenceAcknowledgements", "selectedTestKey",
+          "overrideReason", "advisorDraftPacket", "learningProposal", "knownIssueSnapshot",
+          "rulePackSnapshot", "sessionChecksum", "authorUserId", "supersedesId",
+          "occurredAt", "createdAt"
+        FROM "DiagnosticTroubleshootingSession"
+        WHERE "organizationId" = ${organizationId} AND "diagnosticCaseId" = ${caseId}
+        ORDER BY "version" DESC
+        LIMIT 20
+      `;
+    },
+
+    listTestDefinitions(organizationId) {
+      return database.diagnosticTestDefinitionVersion.findMany({ where: { organizationId }, orderBy: [{ definitionKey: "asc" }, { version: "desc" }], include: { supersededBy: { select: { id: true } } } });
+    },
+
+    registerTestDefinition(command, data) {
+      return execute(database, command, "DiagnosticTestDefinitionVersionRegistered", "TEST_DEFINITION_REGISTERED", async (tx, aggregateVersion) => {
+        const duplicateVersion = await tx.diagnosticTestDefinitionVersion.findFirst({ where: { organizationId: command.organizationId, definitionKey: data.definitionKey, version: data.definitionVersion }, select: { id: true } });
+        if (duplicateVersion) throw new Error("That diagnostic test-definition version already exists.");
+        if (data.supersedesId) {
+          const prior = await tx.diagnosticTestDefinitionVersion.findFirst({ where: { id: data.supersedesId, organizationId: command.organizationId }, include: { supersededBy: { select: { id: true } } } });
+          if (!prior || prior.definitionKey !== data.definitionKey) throw new Error("Superseded test definition must belong to the same tenant and definition key.");
+          if (prior.supersededBy) throw new Error("Diagnostic test definition already has a successor.");
+          if (data.definitionVersion !== prior.version + 1) throw new Error("Diagnostic test-definition versions must be sequential.");
+        } else if (data.definitionVersion !== 1) throw new Error("The first diagnostic test-definition version must be version 1.");
+        const definition = await tx.diagnosticTestDefinitionVersion.create({ data: {
+          id: data.id, organizationId: command.organizationId, definitionKey: data.definitionKey, version: data.definitionVersion, name: data.name, purpose: data.purpose,
+          ontologyLinks: json(data.ontologyLinks), applicability: json(data.applicability), qualifications: json(data.qualifications), hazards: json(data.hazards), prerequisites: json(data.prerequisites), tools: json(data.tools), vehicleState: json(data.vehicleState), procedure: json(data.procedure), branches: json(data.branches), interpretations: json(data.interpretations), requiredEvidence: json(data.requiredEvidence), sourceVersions: json(data.sourceVersions),
+          estimatedMinutes: data.estimatedMinutes, estimatedCostDecimal: data.estimatedCostDecimal, riskTier: data.riskTier, checksum: data.checksum, effectiveAt: data.effectiveAt, expiresAt: data.expiresAt, authoredByUserId: command.actorUserId, supersedesId: data.supersedesId
+        }, select: { id: true, definitionKey: true, version: true, checksum: true, effectiveAt: true, expiresAt: true } });
+        return { result: { ...definition, aggregateVersion } };
+      });
+    },
+
+    recordTroubleshootingSession(command, data) {
+      return execute(database, command, "DiagnosticTroubleshootingSessionRecorded", `TROUBLESHOOTING_${data.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus) && diagnosticCase.status !== "VERIFIED_CLOSED") throw new Error("Terminal diagnostic cases must be reopened before troubleshooting session updates.");
+        const prior = await tx.$queryRaw<Array<{ id: string; sessionChecksum: string; version: number }>>`
+          SELECT "id", "sessionChecksum", "version"
+          FROM "DiagnosticTroubleshootingSession"
+          WHERE "organizationId" = ${command.organizationId} AND "diagnosticCaseId" = ${diagnosticCase.id}
+          ORDER BY "version" DESC
+          LIMIT 1
+        `;
+        const latest = prior[0] ?? null;
+        if ((latest?.id ?? null) !== data.supersedesId) throw new Error("Troubleshooting session command must extend the latest session lineage.");
+        const sessionVersion = (latest?.version ?? 0) + 1;
+        await tx.$executeRaw`
+          INSERT INTO "DiagnosticTroubleshootingSession" (
+            "id", "organizationId", "diagnosticCaseId", "version", "consoleVersion", "status",
+            "intakeRefinement", "vehicleIntelligenceAcknowledgements", "selectedTestKey",
+            "overrideReason", "advisorDraftPacket", "learningProposal", "knownIssueSnapshot",
+            "rulePackSnapshot", "sessionChecksum", "authorUserId", "supersedesId", "occurredAt"
+          ) VALUES (
+            ${data.id}, ${command.organizationId}, ${diagnosticCase.id}, ${sessionVersion}, ${data.consoleVersion}, ${data.status},
+            CAST(${JSON.stringify(data.intakeRefinement)} AS JSONB), CAST(${JSON.stringify(data.vehicleIntelligenceAcknowledgements)} AS JSONB), ${data.selectedTestKey},
+            ${data.overrideReason}, CAST(${JSON.stringify(data.advisorDraftPacket)} AS JSONB), CAST(${JSON.stringify(data.learningProposal)} AS JSONB), CAST(${JSON.stringify(data.knownIssueSnapshot)} AS JSONB),
+            CAST(${JSON.stringify(data.rulePackSnapshot)} AS JSONB), ${data.sessionChecksum}, ${command.actorUserId}, ${data.supersedesId}, ${data.occurredAt}
+          )
+        `;
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: diagnosticCase.status, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `TROUBLESHOOTING_${data.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: latest ? { id: latest.id, sessionChecksum: latest.sessionChecksum } : undefined, result: { id: data.id, sessionVersion, status: data.status, sessionChecksum: data.sessionChecksum, version } };
+      });
+    },
+
+    recordReasoningEvaluation(command, data) {
+      return execute(database, command, "DiagnosticReasoningEvaluated", data.result.abstentionRequired ? "REASONING_ABSTENTION_REQUIRED" : "REASONING_EVALUATED", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { concernVersions: { orderBy: { version: "desc" }, take: 1 }, reasoningEvaluations: { orderBy: { sequence: "desc" }, take: 1, include: { hypotheses: true } } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic reasoning requires a current concern version.");
+        const prior = diagnosticCase.reasoningEvaluations[0] ?? null;
+        if (prior && data.supersedesId !== prior.id) throw new Error("A new reasoning evaluation must supersede the latest case evaluation.");
+        if (!prior && data.supersedesId) throw new Error("The first reasoning evaluation cannot supersede another evaluation.");
+        const sequence = (prior?.sequence ?? 0) + 1;
+        const evaluation = await tx.diagnosticReasoningEvaluation.create({ data: {
+          id: data.evaluationId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id, sequence,
+          engineVersion: data.result.engineVersion, policyVersion: data.result.policyVersion, modelVersion: data.result.modelVersion, ruleSetVersion: data.result.ruleSetVersion,
+          knowledgeChecksum: data.result.knowledgeChecksum, calculationVersions: json(data.result.calculationVersions), sourceVersions: json(data.result.sourceVersions),
+          vehicleContext: json(data.result.vehicleContext), includedEvidence: json(data.result.includedEvidence), excludedEvidence: json(data.result.excludedEvidence),
+          assumptions: json(data.result.assumptions), abnormalModes: json(data.result.abnormalModes), conflicts: json(data.result.conflicts), candidateDiagnoses: json(data.result.candidates),
+          causalPredictions: json(data.result.causalPredictions), missingExpectedEffects: json(data.result.missingExpectedEffects), recommendedTests: json(data.result.recommendedTests),
+          hardBlockers: json(data.result.hardBlockers), reasonCodes: json(data.result.reasonCodes), bounds: json(data.result.bounds), generationComplete: data.result.generationComplete,
+          abstentionRequired: data.result.abstentionRequired, timedOut: data.result.timedOut, degraded: data.result.degraded, computationDurationMs: data.result.computationDurationMs,
+          inputChecksum: data.result.inputChecksum, resultChecksum: data.result.resultChecksum, evaluatedByUserId: command.actorUserId, supersedesId: data.supersedesId, occurredAt: data.occurredAt
+        } });
+        const priorHypotheses = new Map((prior?.hypotheses ?? []).map((hypothesis) => [hypothesis.hypothesisKey, hypothesis]));
+        for (const candidate of data.result.candidates) {
+          const hypothesisId = diagnosticReasoningId("dhp", command.organizationId, evaluation.id, candidate.key);
+          await tx.diagnosticHypothesis.create({ data: {
+            id: hypothesisId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, reasoningEvaluationId: evaluation.id, hypothesisKey: candidate.key,
+            status: candidate.status, candidateAssumptions: json(candidate.assumptions), abnormalModes: json(candidate.abnormalModes), commonCause: candidate.commonCause,
+            intermittent: candidate.intermittent, rank: candidate.rank, causalState: candidate.causalState, explanationCodes: json(candidate.explanationCodes),
+            supportingEvidenceKeys: json(candidate.supportingEvidenceKeys), contradictingEvidenceKeys: json(candidate.contradictingEvidenceKeys), missingExpectedEvidenceKeys: json(candidate.missingExpectedEvidenceKeys),
+            supersedesId: priorHypotheses.get(candidate.key)?.id ?? null
+          } });
+          const relationships = [
+            ...candidate.supportingEvidenceKeys.map((evidenceKey) => ({ evidenceKey, relationship: "SUPPORTS" as const, rationaleCode: "REASONING_AFFIRMATIVE_SUPPORT" })),
+            ...candidate.contradictingEvidenceKeys.map((evidenceKey) => ({ evidenceKey, relationship: "CONTRADICTS" as const, rationaleCode: "REASONING_CANDIDATE_CONTRADICTED" }))
+          ];
+          for (const link of relationships) {
+            const source = data.evidence.find((item) => item.key.trim().toUpperCase() === link.evidenceKey);
+            if (!source) continue;
+            await tx.diagnosticHypothesisEvidence.create({ data: {
+              id: diagnosticReasoningId("dhe", command.organizationId, hypothesisId, `${link.relationship}:${link.evidenceKey}`), organizationId: command.organizationId,
+              diagnosticCaseId: diagnosticCase.id, hypothesisId, evidenceKey: link.evidenceKey, evidenceType: source.evidenceType, relationship: link.relationship,
+              observationId: source.evidenceType === "OBSERVATION" ? source.evidenceId : null, measurementId: source.evidenceType === "MEASUREMENT" ? source.evidenceId : null,
+              testExecutionId: source.evidenceType === "TEST_EXECUTION" ? source.evidenceId : null, independenceGroup: source.independenceGroup, rationaleCode: link.rationaleCode
+            } });
+          }
+        }
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: prior ? { evaluationId: prior.id, resultChecksum: prior.resultChecksum, sequence: prior.sequence } : undefined, result: { id: evaluation.id, sequence, version, resultChecksum: evaluation.resultChecksum, abstentionRequired: evaluation.abstentionRequired, generationComplete: evaluation.generationComplete, candidateCount: data.result.candidates.length, reasonCodes: data.result.reasonCodes } };
+      });
+    },
+
+    recordAdaptiveTestEvaluation(command, data) {
+      return execute(database, command, "DiagnosticAdaptiveTestsEvaluated", data.result.abstentionRequired ? "TEST_ABSTENTION_REQUIRED" : "TEST_RECOMMENDATION_AVAILABLE", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { adaptiveTestEvaluations: { orderBy: { sequence: "desc" }, take: 1 } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before adaptive testing.");
+        const reasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { id: data.result.reasoningEvaluationId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId, resultChecksum: data.result.reasoningResultChecksum } });
+        if (!reasoning) throw new Error("Adaptive testing requires the exact current-case reasoning evaluation and checksum.");
+        const latestReasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, orderBy: { sequence: "desc" }, select: { id: true } });
+        if (latestReasoning?.id !== reasoning.id) throw new Error("Adaptive testing must use the latest reasoning evaluation.");
+        const sequence = (diagnosticCase.adaptiveTestEvaluations[0]?.sequence ?? 0) + 1;
+        const evaluation = await tx.diagnosticAdaptiveTestEvaluation.create({ data: {
+          id: data.evaluationId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, reasoningEvaluationId: reasoning.id, sequence,
+          engineVersion: data.result.engineVersion, eligibilityPolicyVersion: data.result.eligibilityPolicyVersion, optimizationPolicyVersion: data.result.optimizationPolicyVersion,
+          reasoningResultChecksum: data.result.reasoningResultChecksum, weights: json(data.result.weights), weightsChecksum: data.result.weightsChecksum, lookAhead: json(data.result.lookAhead),
+          eligibleTests: json(data.result.eligibleTests), excludedTests: json(data.result.excludedTests), recommendedTestKey: data.result.recommendedTestKey, alternatives: json(data.result.alternatives),
+          abstentionRequired: data.result.abstentionRequired, reasonCodes: json(data.result.reasonCodes), inputChecksum: data.result.inputChecksum, resultChecksum: data.result.resultChecksum,
+          evaluatedByUserId: command.actorUserId, occurredAt: data.occurredAt
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { result: { id: evaluation.id, sequence, version, recommendedTestKey: evaluation.recommendedTestKey, abstentionRequired: evaluation.abstentionRequired, resultChecksum: evaluation.resultChecksum, eligibleTestCount: data.result.eligibleTests.length, excludedTestCount: data.result.excludedTests.length } };
+      });
+    },
+
+    recordAdaptiveTestOverride(command, data) {
+      return execute(database, command, "DiagnosticAdaptiveTestOverridden", data.override.reasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before overriding adaptive tests.");
+        const evaluation = await tx.diagnosticAdaptiveTestEvaluation.findFirst({ where: { id: data.override.evaluationId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, include: { overrides: { orderBy: { occurredAt: "desc" }, take: 1 } } });
+        if (!evaluation) throw new Error("Adaptive-test evaluation was not found in this case.");
+        const latest = await tx.diagnosticAdaptiveTestEvaluation.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, orderBy: { sequence: "desc" }, select: { id: true } });
+        if (latest?.id !== evaluation.id) throw new Error("Only the latest adaptive-test evaluation may be overridden.");
+        if ((evaluation.overrides[0]?.id ?? null) !== data.override.priorOverrideId) throw new Error("Adaptive-test override must extend the latest override lineage.");
+        const record = await tx.diagnosticAdaptiveTestOverride.create({ data: { id: data.overrideId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, adaptiveTestEvaluationId: evaluation.id, recommendedTestKey: data.override.recommendedTestKey, selectedTestKey: data.override.selectedTestKey, reasonCode: data.override.reasonCode, reason: data.override.reason, policyVersion: data.override.policyVersion, lineageChecksum: data.override.lineageChecksum, actorUserId: command.actorUserId, priorOverrideId: data.override.priorOverrideId, occurredAt: data.occurredAt } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: { recommendedTestKey: evaluation.recommendedTestKey, priorOverrideId: data.override.priorOverrideId }, result: { id: record.id, evaluationId: evaluation.id, selectedTestKey: record.selectedTestKey, lineageChecksum: record.lineageChecksum, version } };
+      });
+    },
+
+    recordConclusion(command, data) {
+      return execute(database, command, "DiagnosticConclusionRecorded", `CONCLUSION_${data.control.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { concernVersions: { orderBy: { version: "desc" }, take: 1 }, conclusionVersions: { orderBy: { version: "desc" }, take: 1 } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic conclusion is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic conclusion requires a current concern version.");
+        const exactReasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { id: command.payload.reasoningEvaluationId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, include: { hypotheses: true } });
+        if (!exactReasoning || exactReasoning.resultChecksum !== command.payload.reasoningResultChecksum) throw new Error("Conclusion must bind to the exact current-case reasoning checksum.");
+        const latestReasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, orderBy: { sequence: "desc" }, select: { id: true } });
+        if (latestReasoning?.id !== exactReasoning.id) throw new Error("Conclusion must use the latest reasoning evaluation.");
+        if (data.control.hypothesisId && !exactReasoning.hypotheses.some((item) => item.id === data.control.hypothesisId)) throw new Error("Conclusion hypothesis does not belong to the bound reasoning evaluation.");
+        const prior = diagnosticCase.conclusionVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Conclusion command must extend the latest conclusion lineage.");
+        const conclusionVersion = (prior?.version ?? 0) + 1;
+        const record = await tx.diagnosticConclusionVersion.create({ data: { id: data.conclusionId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id, reasoningEvaluationId: exactReasoning.id, hypothesisId: data.control.hypothesisId, version: conclusionVersion, action: data.control.action, status: data.control.status, causeStatement: data.commandData.causeStatement, uncertainty: data.commandData.uncertainty, evidenceBasisKeys: json(data.control.evidenceBasisKeys), contradictionKeys: json(data.control.hypothesisId ? exactReasoning.hypotheses.find((item) => item.id === data.control.hypothesisId)?.contradictingEvidenceKeys ?? [] : []), addressedAlternativeKeys: json(data.control.alternativesAddressed), limitations: json(data.commandData.limitations), sourceVersions: json(data.sourceVersions), safetySnapshot: json(data.safetySnapshot), policyVersion: data.control.policyVersion, reasoningResultChecksum: exactReasoning.resultChecksum, controlDecisionChecksum: data.control.decisionChecksum, conclusionChecksum: data.conclusionChecksum, authorUserId: command.actorUserId, reviewerUserId: data.control.reviewerUserId, supersedesId: data.commandData.supersedesId, occurredAt: data.occurredAt } });
+        const targetStatus = data.control.status === "PROPOSED" ? "CAUSE_PROPOSED" : data.control.status === "CONFIRMED" ? "CONFIRMED" : data.control.status === "ESCALATED" ? "ESCALATED" : data.control.status === "ABSTAINED" ? data.commandData.abstentionDisposition : "TESTING";
+        const resumeStatus = targetStatus === "ESCALATED" ? diagnosticCase.status : diagnosticCase.resumeStatus;
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: targetStatus, resumeStatus, version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: targetStatus === "ESCALATED" ? "ESCALATED" : "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: targetStatus, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `CONCLUSION_${data.control.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, status: prior.status, conclusionChecksum: prior.conclusionChecksum } : undefined, result: { id: record.id, conclusionVersion, status: record.status, caseStatus: targetStatus, conclusionChecksum: record.conclusionChecksum, version } };
+      });
+    },
+
+    recordRepairHandoff(command, data) {
+      return execute(database, command, "DiagnosticRepairHandoffRecorded", `REPAIR_HANDOFF_${data.commandData.handoffType}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({
+          where: { id: command.subjectId, organizationId: command.organizationId },
+          include: {
+            concernVersions: { orderBy: { version: "desc" }, take: 1 },
+            conclusionVersions: { orderBy: { version: "desc" }, take: 1 },
+            observations: { where: { correctsId: null }, orderBy: { observedAt: "desc" }, take: 12 },
+            testExecutions: { where: { state: "COMPLETED" }, orderBy: { occurredAt: "desc" }, take: 12, include: { planNode: { select: { title: true } } } },
+            repairHandoffVersions: { orderBy: { version: "desc" }, take: 1 }
+          }
+        });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic repair handoff is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic repair handoff requires a current concern version.");
+        const conclusion = await tx.diagnosticConclusionVersion.findFirst({ where: { id: command.payload.conclusionVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!conclusion || conclusion.status !== "CONFIRMED" || conclusion.conclusionChecksum !== command.payload.conclusionChecksum) throw new Error("Repair handoff must bind to the exact confirmed diagnostic conclusion.");
+        if (diagnosticCase.conclusionVersions[0]?.id !== conclusion.id) throw new Error("Repair handoff must use the latest diagnostic conclusion.");
+        const prior = diagnosticCase.repairHandoffVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Repair handoff command must extend the latest handoff lineage.");
+        let diagnosisVersionId: string | null = null;
+        let diagnosisVersion: number | null = null;
+        if (data.commandData.handoffType === "PUBLISH_DIAGNOSIS") {
+          const latestDiagnosis = await tx.repairDiagnosisVersion.findFirst({ where: { repairOrderId: diagnosticCase.repairOrderId, organizationId: command.organizationId }, orderBy: { version: "desc" } });
+          if (latestDiagnosis && latestDiagnosis.createdAt > conclusion.occurredAt) throw new Error("Repair diagnosis changed after the bound diagnostic conclusion; return scope for review.");
+          const repairDiagnosis = await tx.repairDiagnosisVersion.create({ data: {
+            organizationId: command.organizationId,
+            repairOrderId: diagnosticCase.repairOrderId,
+            version: (latestDiagnosis?.version ?? 0) + 1,
+            concern: concern.statement,
+            symptoms: json(diagnosticCase.observations.map((item) => item.statement)),
+            tests: json(diagnosticCase.testExecutions.map((item) => ({ name: item.planNode?.title ?? item.executionKey, result: item.reason }))),
+            evidence: json(data.commandData.operations.flatMap((operation) => [operation.key, ...operation.qcChecks])),
+            cause: conclusion.causeStatement ?? data.commandData.recommendation,
+            uncertainty: conclusion.uncertainty === "LOW" || conclusion.uncertainty === "MEDIUM" ? conclusion.uncertainty : "HIGH",
+            recommendation: data.commandData.recommendation,
+            proposedCorrection: data.commandData.proposedCorrection,
+            technicianUserId: conclusion.authorUserId,
+            diagnosedAt: data.occurredAt,
+            supersedesId: latestDiagnosis?.id
+          } });
+          diagnosisVersionId = repairDiagnosis.id;
+          diagnosisVersion = repairDiagnosis.version;
+        } else {
+          const latestDiagnosis = await tx.repairDiagnosisVersion.findFirst({ where: { repairOrderId: diagnosticCase.repairOrderId, organizationId: command.organizationId }, orderBy: { version: "desc" }, select: { id: true, version: true } });
+          if (!latestDiagnosis) throw new Error("Repair handoff requires a published repair diagnosis first.");
+          diagnosisVersionId = latestDiagnosis.id;
+          diagnosisVersion = latestDiagnosis.version;
+        }
+        const handoffVersion = (prior?.version ?? 0) + 1;
+        const record = await tx.diagnosticRepairHandoffVersion.create({ data: {
+          id: data.handoffId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, repairOrderId: diagnosticCase.repairOrderId,
+          concernVersionId: concern.id, conclusionVersionId: conclusion.id, repairDiagnosisVersionId: diagnosisVersionId, version: handoffVersion,
+          handoffType: data.commandData.handoffType, status: data.control.status, recommendation: data.commandData.recommendation, proposedCorrection: data.commandData.proposedCorrection,
+          operations: json(data.commandData.operations), estimateBoundary: json(data.commandData.estimateBoundary), dispatchBoundary: json(data.commandData.dispatchBoundary),
+          partsBoundary: json(data.commandData.partsBoundary), sourceVersions: json(data.commandData.sourceVersions), policyVersion: data.control.policyVersion,
+          conclusionChecksum: conclusion.conclusionChecksum, handoffChecksum: data.handoffChecksum, controlDecisionChecksum: data.control.decisionChecksum,
+          authorUserId: command.actorUserId, supersedesId: data.commandData.supersedesId, occurredAt: data.occurredAt
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: "HANDED_OFF", version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: "HANDED_OFF", fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `REPAIR_HANDOFF_${data.commandData.handoffType}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, handoffType: prior.handoffType, handoffChecksum: prior.handoffChecksum } : undefined, result: { id: record.id, handoffVersion, handoffType: record.handoffType, status: record.status, repairDiagnosisVersionId: diagnosisVersionId, repairDiagnosisVersion: diagnosisVersion, handoffChecksum: record.handoffChecksum, version } };
+      });
+    },
+
+    recordEstimateDraft(command, data) {
+      return execute(database, command, "DiagnosticEstimateDraftRecorded", `ESTIMATE_DRAFT_${data.control.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({
+          where: { id: command.subjectId, organizationId: command.organizationId },
+          include: {
+            concernVersions: { orderBy: { version: "desc" }, take: 1 },
+            conclusionVersions: { orderBy: { version: "desc" }, take: 1 },
+            repairHandoffVersions: { orderBy: { version: "desc" }, take: 20 },
+            estimateDraftVersions: { orderBy: { version: "desc" }, take: 1 }
+          }
+        });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic advisor estimate is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic advisor estimate requires a current concern version.");
+        const conclusion = await tx.diagnosticConclusionVersion.findFirst({ where: { id: command.payload.conclusionVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!conclusion || conclusion.status !== "CONFIRMED" || conclusion.conclusionChecksum !== command.payload.conclusionChecksum) throw new Error("Advisor estimate must bind to the exact confirmed diagnostic conclusion.");
+        const handoff = await tx.diagnosticRepairHandoffVersion.findFirst({ where: { id: command.payload.repairHandoffVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!handoff || handoff.status !== "PUBLISHED" || handoff.handoffType !== "PUBLISH_DIAGNOSIS" || handoff.handoffChecksum !== command.payload.repairHandoffChecksum || !handoff.repairDiagnosisVersionId) throw new Error("Advisor estimate must bind to the exact published repair diagnosis handoff.");
+        const prior = diagnosticCase.estimateDraftVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Advisor estimate command must extend the latest draft lineage.");
+        const draftVersion = (prior?.version ?? 0) + 1;
+        const record = await tx.diagnosticEstimateDraftVersion.create({ data: {
+          id: data.draftId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, repairOrderId: diagnosticCase.repairOrderId,
+          concernVersionId: concern.id, conclusionVersionId: conclusion.id, repairHandoffVersionId: handoff.id, repairDiagnosisVersionId: handoff.repairDiagnosisVersionId,
+          version: draftVersion, status: data.control.status, selectedStrategy: data.commandData.selectedStrategy, advisorSummary: data.commandData.advisorSummary,
+          customerConcernSummary: data.commandData.customerConcernSummary, customerCauseSummary: data.commandData.customerCauseSummary, customerCorrectionSummary: data.commandData.customerCorrectionSummary,
+          assumptions: json(data.commandData.assumptions), notIncluded: json(data.commandData.notIncluded), draftLines: json(data.commandData.draftLines),
+          totals: json({ laborSubtotalCents: data.control.laborSubtotalCents, partsSubtotalCents: data.control.partsSubtotalCents, feeSubtotalCents: data.control.feeSubtotalCents, totalBeforeTaxCents: data.control.totalBeforeTaxCents, warningCodes: data.control.warningCodes }),
+          taxBoundary: data.commandData.taxBoundary, estimateAuthorityBoundary: json(data.estimateAuthorityBoundary), policyVersion: data.control.policyVersion,
+          conclusionChecksum: conclusion.conclusionChecksum, repairHandoffChecksum: handoff.handoffChecksum, draftChecksum: data.draftChecksum, controlDecisionChecksum: data.control.decisionChecksum,
+          authorUserId: command.actorUserId, supersedesId: data.commandData.supersedesId, expiresAt: data.commandData.expiresAt, occurredAt: data.occurredAt
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: diagnosticCase.status, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `ESTIMATE_DRAFT_${data.control.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, status: prior.status, draftChecksum: prior.draftChecksum } : undefined, result: { id: record.id, draftVersion, status: record.status, selectedStrategy: record.selectedStrategy, totalBeforeTaxCents: data.control.totalBeforeTaxCents, draftChecksum: record.draftChecksum, version } };
+      });
+    },
+
+    recordVerification(command, data) {
+      return execute(database, command, "DiagnosticVerificationRecorded", `VERIFICATION_${data.control.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({
+          where: { id: command.subjectId, organizationId: command.organizationId },
+          include: {
+            concernVersions: { orderBy: { version: "desc" }, take: 1 },
+            conclusionVersions: { orderBy: { version: "desc" }, take: 1 },
+            repairHandoffVersions: { orderBy: { version: "desc" }, take: 20 },
+            verificationVersions: { orderBy: { version: "desc" }, take: 1 }
+          }
+        });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic verification is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic verification requires a current concern version.");
+        const conclusion = await tx.diagnosticConclusionVersion.findFirst({ where: { id: command.payload.conclusionVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!conclusion || conclusion.status !== "CONFIRMED" || conclusion.conclusionChecksum !== command.payload.conclusionChecksum) throw new Error("Verification must bind to the exact confirmed diagnostic conclusion.");
+        const handoff = await tx.diagnosticRepairHandoffVersion.findFirst({ where: { id: command.payload.repairHandoffVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!handoff || handoff.status !== "PUBLISHED" || handoff.handoffChecksum !== command.payload.repairHandoffChecksum || !handoff.repairDiagnosisVersionId) throw new Error("Verification must bind to the exact published repair handoff.");
+        const prior = diagnosticCase.verificationVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Verification command must extend the latest verification lineage.");
+        if (data.commandData.action !== "PLAN" && prior?.status !== "PLANNED") throw new Error("Verification results require the latest active verification plan.");
+        const verificationVersion = (prior?.version ?? 0) + 1;
+        const outcomeSummary = data.commandData.action === "PLAN" ? null : data.commandData.action === "PASS" ? "Original concern verified resolved." : data.commandData.action === "FAIL" ? "Original concern or regression check failed; diagnostic case reopened for testing." : data.commandData.action === "UNSAFE" ? "Verification stopped for unsafe condition; escalation required." : "Verification is inconclusive; additional verification evidence is required.";
+        const record = await tx.diagnosticVerificationVersion.create({ data: {
+          id: data.verificationId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, repairOrderId: diagnosticCase.repairOrderId,
+          concernVersionId: concern.id, conclusionVersionId: conclusion.id, repairHandoffVersionId: handoff.id, version: verificationVersion,
+          action: data.commandData.action, status: data.control.status, originalConcern: data.commandData.originalConcern, repairSummary: data.commandData.repairSummary,
+          planChecks: json(data.commandData.checks), performedChecks: json(data.commandData.performedChecks), regressionChecks: json(data.commandData.regressionChecks),
+          limitations: json(data.commandData.limitations), roadTestSafety: data.commandData.roadTestSafety, repairEvidenceSnapshot: json(data.repairEvidenceSnapshot),
+          outcomeSummary, policyVersion: data.control.policyVersion, conclusionChecksum: conclusion.conclusionChecksum, repairHandoffChecksum: handoff.handoffChecksum,
+          verificationChecksum: data.verificationChecksum, controlDecisionChecksum: data.control.decisionChecksum, authorUserId: command.actorUserId,
+          reviewerUserId: data.commandData.reviewerUserId, supersedesId: data.commandData.supersedesId, occurredAt: data.occurredAt
+        } });
+        const targetStatus: DiagnosticCaseStatus = data.control.status === "PLANNED" || data.control.status === "INCONCLUSIVE" ? "POST_REPAIR_VERIFICATION" : data.control.status === "PASSED" ? "VERIFIED_CLOSED" : data.control.status === "UNSAFE" ? "ESCALATED" : "TESTING";
+        const resumeStatus: DiagnosticCaseStatus | null = targetStatus === "ESCALATED" ? "POST_REPAIR_VERIFICATION" : null;
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: targetStatus, resumeStatus, closedAt: targetStatus === "VERIFIED_CLOSED" ? data.occurredAt : null, version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: targetStatus === "ESCALATED" ? "ESCALATED" : "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: targetStatus, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `VERIFICATION_${data.control.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, status: prior.status, verificationChecksum: prior.verificationChecksum } : undefined, result: { id: record.id, verificationVersion, status: record.status, caseStatus: targetStatus, verificationChecksum: record.verificationChecksum, version } };
+      });
+    },
+
+    createTestPlan(command, data) {
+      return execute(database, command, data.supersedesId ? "DiagnosticTestPlanRevised" : "DiagnosticTestPlanCreated", data.supersedesId ? "TEST_PLAN_REVISED" : "TEST_PLAN_CREATED", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { vehicle: { select: { make: true, model: true, year: true } } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before planning tests.");
+        if (!["TRIAGE", "TEST_PLAN_READY"].includes(diagnosticCase.status)) throw new Error("Diagnostic test plans can be created or revised only during triage or plan-ready review.");
+        const definitionIds = [...new Set(data.nodes.map((node) => node.definitionVersionId))];
+        const definitions = await tx.diagnosticTestDefinitionVersion.findMany({ where: { id: { in: definitionIds }, organizationId: command.organizationId }, include: { supersededBy: { select: { id: true } } } });
+        if (definitions.length !== definitionIds.length) throw new Error("Every test-plan node must reference a test definition in this tenant.");
+        const now = new Date();
+        for (const definition of definitions) {
+          if (definition.supersededBy) throw new Error(`Test definition ${definition.definitionKey} has been superseded and cannot enter a new plan.`);
+          if (definition.effectiveAt > now || (definition.expiresAt && definition.expiresAt <= now)) throw new Error(`Test definition ${definition.definitionKey} is not currently effective.`);
+          if (definition.riskTier === "R4") throw new Error(`Test definition ${definition.definitionKey} is prohibited from executable case plans at risk tier R4.`);
+          const applicability = definition.applicability as Record<string, unknown>;
+          const allowedRiskTiers = Array.isArray(applicability.allowedRiskTiers) ? applicability.allowedRiskTiers.map(String) : [];
+          if (allowedRiskTiers.length && !allowedRiskTiers.includes(diagnosticCase.riskTier)) throw new Error(`Test definition ${definition.definitionKey} is not applicable to case risk tier ${diagnosticCase.riskTier}.`);
+          const allowedMakes = Array.isArray(applicability.allowedMakes) ? applicability.allowedMakes.map((value) => String(value).toUpperCase()) : [];
+          const allowedModels = Array.isArray(applicability.allowedModels) ? applicability.allowedModels.map((value) => String(value).toUpperCase()) : [];
+          const vehicleMake = diagnosticCase.vehicle.make?.toUpperCase() ?? null;
+          const vehicleModel = diagnosticCase.vehicle.model?.toUpperCase() ?? null;
+          const vehicleYear = diagnosticCase.vehicle.year;
+          if (allowedMakes.length && (!vehicleMake || !allowedMakes.includes(vehicleMake))) throw new Error(`Test definition ${definition.definitionKey} is not applicable to vehicle make ${diagnosticCase.vehicle.make ?? "UNKNOWN"}.`);
+          if (allowedModels.length && (!vehicleModel || !allowedModels.includes(vehicleModel))) throw new Error(`Test definition ${definition.definitionKey} is not applicable to vehicle model ${diagnosticCase.vehicle.model ?? "UNKNOWN"}.`);
+          if (typeof applicability.minimumYear === "number" && (vehicleYear == null || vehicleYear < applicability.minimumYear)) throw new Error(`Test definition ${definition.definitionKey} is not applicable to vehicle year ${vehicleYear ?? "UNKNOWN"}.`);
+          if (typeof applicability.maximumYear === "number" && (vehicleYear == null || vehicleYear > applicability.maximumYear)) throw new Error(`Test definition ${definition.definitionKey} is not applicable to vehicle year ${vehicleYear ?? "UNKNOWN"}.`);
+        }
+        let planVersion = 1;
+        if (data.supersedesId) {
+          const prior = await tx.diagnosticTestPlanVersion.findFirst({ where: { id: data.supersedesId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, include: { supersededBy: { select: { id: true } } } });
+          if (!prior) throw new Error("Superseded diagnostic test plan was not found in this case.");
+          if (prior.supersededBy) throw new Error("Diagnostic test plan already has a successor.");
+          const activeExecution = await tx.diagnosticTestExecution.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, state: { in: ["RUNNING", "PAUSED"] }, nextEvent: null }, select: { id: true } });
+          if (activeExecution) throw new Error("An active test execution must be completed, invalidated, or cancelled before revising the plan.");
+          planVersion = prior.version + 1;
+        }
+        const plan = await tx.diagnosticTestPlanVersion.create({ data: { id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version: planVersion, status: "ACTIVE", rationale: data.rationale, applicability: json(data.applicability), graphChecksum: data.graphChecksum, authoredByUserId: command.actorUserId, supersedesId: data.supersedesId } });
+        await tx.diagnosticTestPlanNode.createMany({ data: data.nodes.map((node, index) => ({ id: data.nodeIds[index], organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, testPlanVersionId: plan.id, definitionVersionId: node.definitionVersionId, nodeKey: node.nodeKey, sequence: node.sequence, title: node.title, dependencyNodeKeys: json(node.dependencyNodeKeys), branchRules: json(node.branchRules), requiredEvidenceOverride: node.requiredEvidenceOverride == null ? undefined : json(node.requiredEvidenceOverride) })) });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version, status: "TEST_PLAN_READY" } });
+        if (diagnosticCase.status !== "TEST_PLAN_READY") await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: "TEST_PLAN_READY", fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: "CASE_PLAN_READY", reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: new Date() } });
+        return { previous: data.supersedesId ? { supersededPlanId: data.supersedesId } : undefined, result: { caseId: diagnosticCase.id, planId: plan.id, planVersion, graphChecksum: plan.graphChecksum, nodeCount: data.nodes.length, version } };
+      });
+    },
+
+    executeTestLifecycle(command, data) {
+      const eventNames: Record<DiagnosticTestLifecycleAction, string> = { START: "DiagnosticTestStarted", PAUSE: "DiagnosticTestPaused", RESUME: "DiagnosticTestResumed", COMPLETE: "DiagnosticTestCompleted", INVALIDATE: "DiagnosticTestInvalidated", CANCEL: "DiagnosticTestCancelled" };
+      return execute(database, command, eventNames[data.action], data.reasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { vehicle: { select: { id: true, vin: true, year: true, make: true, model: true } } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before executing tests.");
+        const prior = await tx.diagnosticTestExecution.findFirst({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, executionKey: data.executionKey, nextEvent: null }, orderBy: { revision: "desc" } });
+        if (data.action === "START") {
+          if (!data.planNodeId) throw new Error("Starting a diagnostic test requires a plan-node ID.");
+          if (!["TEST_PLAN_READY", "TESTING"].includes(diagnosticCase.status)) throw new Error("Diagnostic tests can start only from a plan-ready or testing case.");
+          if (prior) throw new Error("That diagnostic execution key has already been used; repeat tests require a new execution key and repeat lineage.");
+          if (data.repeatOfExecutionKey) {
+            const repeated = await tx.diagnosticTestExecution.findFirst({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, executionKey: data.repeatOfExecutionKey, state: { in: ["COMPLETED", "INVALIDATED", "CANCELLED"] }, nextEvent: null }, select: { id: true } });
+            if (!repeated) throw new Error("Repeated diagnostic test lineage must reference a terminal execution in this case.");
+          }
+        } else if (!prior) throw new Error("Diagnostic test execution was not found.");
+        const node = await tx.diagnosticTestPlanNode.findFirst({ where: { id: data.planNodeId ?? prior!.planNodeId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, include: { definitionVersion: true, testPlanVersion: { include: { supersededBy: { select: { id: true } } } } } });
+        if (!node || node.testPlanVersion.status !== "ACTIVE" || node.testPlanVersion.supersededBy) throw new Error("Diagnostic test execution requires a node from the active case plan.");
+        const now = data.occurredAt;
+        if (node.definitionVersion.effectiveAt > now || (node.definitionVersion.expiresAt && node.definitionVersion.expiresAt <= now)) throw new Error("The selected diagnostic test definition is not effective at execution time.");
+        if (data.action === "START" && data.prerequisiteSnapshot.prerequisitesSatisfied !== true) throw new Error("Every test prerequisite must be explicitly satisfied before start.");
+        const hazardEntries = Array.isArray(node.definitionVersion.hazards) ? node.definitionVersion.hazards : [];
+        if (data.action === "START" && hazardEntries.length && data.prerequisiteSnapshot.hazardsControlled !== true) throw new Error("Every diagnostic test hazard must be explicitly controlled before start.");
+        if (data.action === "COMPLETE" && !Object.keys(data.results).length) throw new Error("Completing a diagnostic test requires structured results.");
+        const requiredEvidenceEntries = Array.isArray(node.definitionVersion.requiredEvidence) ? node.definitionVersion.requiredEvidence : [];
+        if (data.action === "COMPLETE" && requiredEvidenceEntries.length && data.evidenceSummary.requirementsSatisfied !== true) throw new Error("Completing this diagnostic test requires an explicit required-evidence summary.");
+        const qualificationEntries = [...new Set((Array.isArray(node.definitionVersion.qualifications) ? node.definitionVersion.qualifications : []).map((qualification) => (typeof qualification === "string" ? qualification : String((qualification as Record<string, unknown>).code ?? "")).trim().toUpperCase()).filter(Boolean))];
+        const verifiedQualifications = ["START", "COMPLETE"].includes(data.action) && qualificationEntries.length ? await tx.technicianQualification.findMany({ where: { organizationId: command.organizationId, technicianUserId: command.actorUserId, code: { in: qualificationEntries }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }, select: { code: true, type: true, verifiedAt: true, verifiedByUserId: true } }) : [];
+        const verifiedCodes = new Set(verifiedQualifications.map((qualification) => qualification.code));
+        const missingQualifications = qualificationEntries.filter((qualification) => !verifiedCodes.has(qualification));
+        if (data.action === "START" && missingQualifications.length) throw new Error(`The acting technician is missing required qualifications: ${missingQualifications.join(", ")}.`);
+        const prerequisiteBase = data.action === "START" ? data.prerequisiteSnapshot : prior?.prerequisiteSnapshot && typeof prior.prerequisiteSnapshot === "object" && !Array.isArray(prior.prerequisiteSnapshot) ? prior.prerequisiteSnapshot as Record<string, unknown> : data.prerequisiteSnapshot;
+        let qualitySafetyEvaluation: ReturnType<typeof evaluateDiagnosticQualitySafetyGates> | null = null;
+        if (data.action === "START" || data.action === "COMPLETE") {
+          const dependencyNodeKeys = Array.isArray(node.dependencyNodeKeys) ? node.dependencyNodeKeys.map(String) : [];
+          const [completedDependencies, observations, measurements, evidenceLinks] = await Promise.all([
+            dependencyNodeKeys.length ? tx.diagnosticTestExecution.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, state: "COMPLETED", nextEvent: null, planNode: { testPlanVersionId: node.testPlanVersionId, nodeKey: { in: dependencyNodeKeys } } }, select: { planNode: { select: { nodeKey: true } } } }) : Promise.resolve([]),
+            data.action === "COMPLETE" ? tx.diagnosticObservation.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, correctedBy: null }, select: { correctedBy: { select: { id: true } }, independenceGroup: true, observedAt: true, qualityReasonCode: true, qualityStatus: true, reliability: true } }) : Promise.resolve([]),
+            data.action === "COMPLETE" ? tx.diagnosticMeasurement.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, supersededBy: null }, select: { instrument: true, independenceGroup: true, measuredAt: true, normalizedUnit: true, normalizedValue: true, plausibilityStatus: true, qualityReasonCode: true, qualityStatus: true, quantity: true, supersededBy: { select: { id: true } } } }) : Promise.resolve([]),
+            data.action === "COMPLETE" ? tx.diagnosticEvidenceLink.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id }, include: { evidenceObject: { select: { malwareStatus: true, status: true } } } }) : Promise.resolve([])
+          ]);
+          qualitySafetyEvaluation = evaluateDiagnosticQualitySafetyGates({
+            actualConditions: Object.keys(data.actualConditions).length ? data.actualConditions : prior?.actualConditions && typeof prior.actualConditions === "object" && !Array.isArray(prior.actualConditions) ? prior.actualConditions as Record<string, unknown> : {},
+            caseRiskTier: diagnosticCase.riskTier,
+            completedDependencyNodeKeys: completedDependencies.map((item) => item.planNode.nodeKey),
+            definition: { applicability: node.definitionVersion.applicability, effectiveAt: node.definitionVersion.effectiveAt, expiresAt: node.definitionVersion.expiresAt, hazards: node.definitionVersion.hazards, prerequisites: node.definitionVersion.prerequisites, qualifications: node.definitionVersion.qualifications, requiredEvidence: node.definitionVersion.requiredEvidence, riskTier: node.definitionVersion.riskTier, sourceVersions: node.definitionVersion.sourceVersions, tools: node.definitionVersion.tools, vehicleState: node.definitionVersion.vehicleState },
+            dependencyNodeKeys,
+            evidenceLinks: evidenceLinks.map((item) => ({ subjectId: item.subjectId, subjectType: item.subjectType, evidence: { malwareStatus: item.evidenceObject.malwareStatus, status: item.evidenceObject.status } })),
+            evidenceSummary: data.evidenceSummary,
+            measurements: measurements.map((item) => ({ instrument: item.instrument, independenceGroup: item.independenceGroup, measuredAt: item.measuredAt.toISOString(), normalizedUnit: item.normalizedUnit, normalizedValue: item.normalizedValue.toString(), plausibilityStatus: item.plausibilityStatus, qualityReasonCode: item.qualityReasonCode, qualityStatus: item.qualityStatus, quantity: item.quantity, supersededById: item.supersededBy?.id ?? null })),
+            now,
+            observations: observations.map((item) => ({ correctedById: item.correctedBy?.id ?? null, independenceGroup: item.independenceGroup, observedAt: item.observedAt.toISOString(), qualityReasonCode: item.qualityReasonCode, qualityStatus: item.qualityStatus, reliability: item.reliability })),
+            planApplicability: node.testPlanVersion.applicability,
+            phase: data.action,
+            prerequisiteSnapshot: prerequisiteBase,
+            requiredEvidenceOverride: node.requiredEvidenceOverride,
+            verifiedQualificationCodes: verifiedQualifications.map((item) => item.code),
+            vehicle: diagnosticCase.vehicle
+          });
+          assertDiagnosticGateReady(qualitySafetyEvaluation);
+        }
+        const prerequisiteSnapshot = { ...prerequisiteBase, serverVerifiedQualifications: verifiedQualifications, ...(qualitySafetyEvaluation ? { qualitySafetyEvaluation } : {}) };
+        const evidenceSummary = { ...data.evidenceSummary, ...(qualitySafetyEvaluation && data.action === "COMPLETE" ? { qualitySafetyEvaluation } : {}) };
+        const currentState = prior ? prior.state as DiagnosticTestExecutionState : null;
+        const nextState = nextTestExecutionState(currentState, data.action);
+        const event = await tx.diagnosticTestExecution.create({ data: {
+          id: data.eventId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, planNodeId: node.id, definitionVersionId: node.definitionVersionId, executionKey: data.executionKey,
+          revision: (prior?.revision ?? 0) + 1, state: nextState, reasonCode: data.reasonCode, reason: data.reason, actualConditions: json(data.actualConditions), deviations: json(data.deviations), inputs: json(data.inputs), results: json(data.results), evidenceSummary: json(evidenceSummary), prerequisiteSnapshot: json(prerequisiteSnapshot), actorUserId: command.actorUserId, previousEventId: prior?.id, repeatOfExecutionKey: data.repeatOfExecutionKey,
+          startedAt: prior?.startedAt ?? (data.action === "START" ? now : null), pausedAt: data.action === "PAUSE" ? now : prior?.pausedAt, completedAt: data.action === "COMPLETE" ? now : prior?.completedAt, invalidatedAt: data.action === "INVALIDATE" ? now : prior?.invalidatedAt, cancelledAt: data.action === "CANCEL" ? now : prior?.cancelledAt, occurredAt: now
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version, status: nextState === "RUNNING" ? "TESTING" : diagnosticCase.status } });
+        if (data.action === "START" && diagnosticCase.status === "TEST_PLAN_READY") await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: "TESTING", fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: "CASE_TESTING_STARTED", reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: now } });
+        return { previous: prior ? { executionEventId: prior.id, revision: prior.revision, state: prior.state } : undefined, result: { caseId: diagnosticCase.id, executionEventId: event.id, executionKey: event.executionKey, revision: event.revision, state: event.state, occurredAt: event.occurredAt.toISOString(), version } };
+      });
+    },
+
+    recordObservation(command, data) {
+      return execute(database, command, data.correctsId ? "DiagnosticFactCorrected" : "DiagnosticObservationRecorded", data.qualityReasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be recorded.");
+        const concern = await tx.diagnosticConcernVersion.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId, version: diagnosticCase.currentConcernVersion }, select: { id: true } });
+        if (!concern) throw new Error("Current diagnostic concern version was not found.");
+        if (data.correctsId) {
+          const prior = await tx.diagnosticObservation.findFirst({ where: { id: data.correctsId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true, correctedBy: { select: { id: true } } } });
+          if (!prior) throw new Error("Corrected diagnostic observation was not found in this case.");
+          if (prior.correctedBy) throw new Error("Diagnostic observation already has a correction.");
+        }
+        const observation = await tx.diagnosticObservation.create({ data: {
+          id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id,
+          factClass: data.factClass, statement: data.statement, structuredValue: data.structuredValue == null ? undefined : json(data.structuredValue), operatingConditions: json(data.operatingConditions), source: data.source,
+          reliability: data.reliability, qualityStatus: data.qualityStatus, qualityReasonCode: data.qualityReasonCode, independenceGroup: data.independenceGroup,
+          timeWindowStart: data.timeWindowStart, timeWindowEnd: data.timeWindowEnd, observedAt: data.observedAt, rawSource: json(data.rawSource), authorUserId: command.actorUserId, correctsId: data.correctsId
+        }, select: { id: true, factClass: true, qualityStatus: true, correctsId: true, observedAt: true } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: data.correctsId ? { correctedObservationId: data.correctsId } : undefined, result: { caseId: diagnosticCase.id, concernVersionId: concern.id, observationId: observation.id, factClass: observation.factClass, qualityStatus: observation.qualityStatus, correctsId: observation.correctsId, observedAt: observation.observedAt.toISOString(), version } };
+      });
+    },
+
+    recordMeasurement(command, data) {
+      return execute(database, command, data.supersedesId ? "DiagnosticFactCorrected" : "DiagnosticMeasurementRecorded", data.qualityReasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be recorded.");
+        const concern = await tx.diagnosticConcernVersion.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId, version: diagnosticCase.currentConcernVersion }, select: { id: true } });
+        if (!concern) throw new Error("Current diagnostic concern version was not found.");
+        if (data.supersedesId) {
+          const prior = await tx.diagnosticMeasurement.findFirst({ where: { id: data.supersedesId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true, supersededBy: { select: { id: true } } } });
+          if (!prior) throw new Error("Superseded diagnostic measurement was not found in this case.");
+          if (prior.supersededBy) throw new Error("Diagnostic measurement already has a correction.");
+        }
+        const measurement = await tx.diagnosticMeasurement.create({ data: {
+          id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id,
+          quantity: data.quantity, valueDecimal: data.valueDecimal, unit: data.unit, normalizedValue: data.normalizedValue, normalizedUnit: data.normalizedUnit,
+          referenceMinimum: data.referenceMinimum, referenceMaximum: data.referenceMaximum, normalizedReferenceMin: data.normalizedReferenceMin, normalizedReferenceMax: data.normalizedReferenceMax,
+          tolerance: json(data.tolerance), instrument: json(data.instrument), setup: json(data.setup), operatingConditions: json(data.operatingConditions), source: data.source,
+          reliability: data.reliability, qualityStatus: data.qualityStatus, qualityReasonCode: data.qualityReasonCode, plausibilityStatus: data.plausibilityStatus, plausibilityReasonCode: data.plausibilityReasonCode,
+          independenceGroup: data.independenceGroup, timeWindowStart: data.timeWindowStart, timeWindowEnd: data.timeWindowEnd, measuredAt: data.measuredAt, rawSource: json(data.rawSource), authorUserId: command.actorUserId, supersedesId: data.supersedesId
+        }, select: { id: true, normalizedValue: true, normalizedUnit: true, plausibilityStatus: true, qualityStatus: true, supersedesId: true, measuredAt: true } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: data.supersedesId ? { supersededMeasurementId: data.supersedesId } : undefined, result: { caseId: diagnosticCase.id, concernVersionId: concern.id, measurementId: measurement.id, normalizedValue: measurement.normalizedValue.toString(), normalizedUnit: measurement.normalizedUnit, plausibilityStatus: measurement.plausibilityStatus, qualityStatus: measurement.qualityStatus, supersedesId: measurement.supersedesId, measuredAt: measurement.measuredAt.toISOString(), version } };
+      });
+    },
+
+    linkEvidence(command, data) {
+      return execute(database, command, "DiagnosticEvidenceLinked", "DATA_EVIDENCE_LINKED", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be linked.");
+        const evidence = await tx.vehicleEvidenceObject.findFirst({ where: { id: data.evidenceObjectId, organizationId: command.organizationId }, include: { links: { where: { vehicleId: diagnosticCase.vehicleId }, select: { id: true } } } });
+        if (!evidence) throw new Error("Vehicle Evidence object was not found.");
+        if (evidence.status !== "AVAILABLE" || evidence.malwareStatus !== "CLEAN") throw new Error("Vehicle Evidence object must be available and malware-clean before linking.");
+        if (!evidence.links.length) throw new Error("Vehicle Evidence object does not belong to the diagnostic-case vehicle.");
+        const observationId = data.subjectType === "OBSERVATION" ? data.subjectId : null;
+        const measurementId = data.subjectType === "MEASUREMENT" ? data.subjectId : null;
+        const testExecutionId = data.subjectType === "TEST_EXECUTION" ? data.subjectId : null;
+        if (data.subjectType === "CASE" && data.subjectId !== diagnosticCase.id) throw new Error("Diagnostic case evidence target is invalid.");
+        if (data.subjectType === "CONCERN" && !await tx.diagnosticConcernVersion.findFirst({ where: { id: data.subjectId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic concern evidence target is invalid.");
+        if (observationId && !await tx.diagnosticObservation.findFirst({ where: { id: observationId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic observation evidence target is invalid.");
+        if (measurementId && !await tx.diagnosticMeasurement.findFirst({ where: { id: measurementId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic measurement evidence target is invalid.");
+        if (testExecutionId && !await tx.diagnosticTestExecution.findFirst({ where: { id: testExecutionId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic test-execution evidence target is invalid.");
+        if (["HYPOTHESIS", "CONCLUSION", "VERIFICATION"].includes(data.subjectType)) throw new Error(`${data.subjectType.replaceAll("_", " ")} evidence targets are not active yet.`);
+        const link = await tx.diagnosticEvidenceLink.create({ data: { id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, evidenceObjectId: evidence.id, subjectType: data.subjectType, subjectId: data.subjectId, observationId, measurementId, testExecutionId, purpose: data.purpose, relationship: data.relationship, createdByUserId: command.actorUserId }, select: { id: true, evidenceObjectId: true, subjectType: true, subjectId: true, createdAt: true } });
+        await tx.vehicleEvidenceEvent.create({ data: { organizationId: command.organizationId, evidenceObjectId: evidence.id, actorUserId: command.actorUserId, eventType: "LINKED", reason: command.reason, metadata: json({ diagnosticCaseId: diagnosticCase.id, diagnosticEvidenceLinkId: link.id, relationship: data.relationship, subjectId: data.subjectId, subjectType: data.subjectType }) } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { result: { caseId: diagnosticCase.id, diagnosticEvidenceLinkId: link.id, evidenceObjectId: link.evidenceObjectId, subjectType: link.subjectType, subjectId: link.subjectId, createdAt: link.createdAt.toISOString(), version } };
+      });
+    },
+
+    create(command, data) {
+      return execute(database, command, "DiagnosticCaseCreated", data.reasonCode, async (tx, version) => {
+        const repairOrder = await tx.repairOrder.findFirst({
+          where: { id: command.payload.repairOrderId as string, organizationId: command.organizationId, closedAt: null },
+          select: { id: true, locationId: true, vehicleId: true, version: true, serviceVisit: { select: { concernSummary: true } } }
+        });
+        if (!repairOrder) throw new Error("An open repair order was not found for this diagnostic case.");
+        if (repairOrder.locationId !== command.locationId) throw new Error("Diagnostic case location does not match the repair order.");
+        if (repairOrder.version !== data.repairOrderVersion) throw new EnterpriseCommandConflictError(`Expected repair-order version ${data.repairOrderVersion}, but current version is ${repairOrder.version}.`, "VERSION_CONFLICT");
+        if (repairOrder.serviceVisit.concernSummary.trim() !== data.canonicalConcernStatement) throw new EnterpriseCommandConflictError("The canonical repair-order concern changed before case creation.", "VERSION_CONFLICT");
+        const duplicate = await tx.diagnosticCase.findFirst({ where: { repairOrderId: repairOrder.id, OR: [{ concernKey: data.concernKey }, { concernFingerprint: data.concernFingerprint }] }, select: { id: true } });
+        if (duplicate) throw new DiagnosticCaseDuplicateError(duplicate.id);
+        if (data.assignedUserId) {
+          const assignee = await tx.user.findFirst({ where: { id: data.assignedUserId, isActive: true }, select: { id: true } });
+          if (!assignee) throw new Error("Diagnostic assignee must be an active user.");
+        }
+        const diagnosticCase = await tx.diagnosticCase.create({
+          data: {
+            id: command.subjectId,
+            organizationId: command.organizationId,
+            locationId: repairOrder.locationId,
+            vehicleId: repairOrder.vehicleId,
+            repairOrderId: repairOrder.id,
+            concernKey: data.concernKey,
+            concernFingerprint: data.concernFingerprint,
+            status: "DRAFT",
+            riskTier: data.riskTier,
+            assignedUserId: data.assignedUserId,
+            createdByUserId: command.actorUserId,
+            currentConcernVersion: 1,
+            version,
+            openedAt: data.openedAt
+          }
+        });
+        const concern = await tx.diagnosticConcernVersion.create({
+          data: {
+            organizationId: command.organizationId,
+            diagnosticCaseId: diagnosticCase.id,
+            version: 1,
+            statement: data.concernStatement,
+            operatingConditions: json(data.operatingConditions),
+            source: data.concernSource,
+            sourceSnapshot: json({ repairOrderId: repairOrder.id, repairOrderVersion: repairOrder.version, canonicalConcernStatement: data.canonicalConcernStatement }),
+            authorUserId: command.actorUserId
+          }
+        });
+        await tx.diagnosticCaseStateEvent.create({
+          data: {
+            organizationId: command.organizationId,
+            diagnosticCaseId: diagnosticCase.id,
+            version,
+            eventType: "CREATED",
+            fromStatus: null,
+            toStatus: "DRAFT",
+            fromAssignedUserId: null,
+            toAssignedUserId: diagnosticCase.assignedUserId,
+            reasonCode: data.reasonCode,
+            reason: command.reason,
+            actorUserId: command.actorUserId,
+            correlationId: command.correlationId,
+            occurredAt: data.openedAt
+          }
+        });
+        return { result: { id: diagnosticCase.id, concernVersionId: concern.id, repairOrderId: repairOrder.id, status: diagnosticCase.status, assignedUserId: diagnosticCase.assignedUserId, riskTier: diagnosticCase.riskTier, version } };
+      });
+    },
+
+    assign(command, data) {
+      return execute(database, command, "DiagnosticCaseAssigned", data.reasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before assignment.");
+        if (diagnosticCase.assignedUserId === data.assignedUserId) throw new Error("Diagnostic case is already assigned to that user.");
+        const assignee = await tx.user.findFirst({ where: { id: data.assignedUserId, isActive: true }, select: { id: true } });
+        if (!assignee) throw new Error("Diagnostic assignee must be an active user.");
+        const previous = { assignedUserId: diagnosticCase.assignedUserId, status: diagnosticCase.status, version: diagnosticCase.version };
+        const updated = await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { assignedUserId: data.assignedUserId, version } });
+        await tx.diagnosticCaseStateEvent.create({
+          data: {
+            organizationId: command.organizationId,
+            diagnosticCaseId: diagnosticCase.id,
+            version,
+            eventType: "ASSIGNED",
+            fromStatus: diagnosticCase.status,
+            toStatus: diagnosticCase.status,
+            fromAssignedUserId: diagnosticCase.assignedUserId,
+            toAssignedUserId: data.assignedUserId,
+            reasonCode: data.reasonCode,
+            reason: command.reason,
+            actorUserId: command.actorUserId,
+            correlationId: command.correlationId,
+            occurredAt: data.occurredAt
+          }
+        });
+        return { previous, result: { id: updated.id, assignedUserId: updated.assignedUserId, status: updated.status, version } };
+      });
+    },
+
+    transition(command, data) {
+      const eventType = data.targetStatus === "ESCALATED" ? "DiagnosticCaseEscalated" : data.targetStatus === "REOPENED" ? "DiagnosticCaseReopened" : data.targetStatus === "ABANDONED" ? "DiagnosticCaseAbandoned" : "DiagnosticCaseStatusChanged";
+      return execute(database, command, eventType, data.reasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        const next = nextDiagnosticCaseState({ status: diagnosticCase.status as DiagnosticCaseStatus, resumeStatus: diagnosticCase.resumeStatus as DiagnosticCaseStatus | null }, data.targetStatus, data.occurredAt);
+        const previous = { closedAt: diagnosticCase.closedAt, resumeStatus: diagnosticCase.resumeStatus, status: diagnosticCase.status, version: diagnosticCase.version };
+        const updated = await tx.diagnosticCase.update({
+          where: { id: diagnosticCase.id },
+          data: { closedAt: next.closedAt, resumeStatus: next.resumeStatus, status: data.targetStatus, version }
+        });
+        await tx.diagnosticCaseStateEvent.create({
+          data: {
+            organizationId: command.organizationId,
+            diagnosticCaseId: diagnosticCase.id,
+            version,
+            eventType: next.eventType,
+            fromStatus: diagnosticCase.status,
+            toStatus: data.targetStatus,
+            fromAssignedUserId: diagnosticCase.assignedUserId,
+            toAssignedUserId: diagnosticCase.assignedUserId,
+            reasonCode: data.reasonCode,
+            reason: command.reason,
+            actorUserId: command.actorUserId,
+            correlationId: command.correlationId,
+            occurredAt: data.occurredAt
+          }
+        });
+        return { previous, result: { id: updated.id, assignedUserId: updated.assignedUserId, closedAt: updated.closedAt, resumeStatus: updated.resumeStatus, status: updated.status, version } };
+      });
+    }
+  };
+}

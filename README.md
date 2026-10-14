@@ -58,6 +58,8 @@ npm install
 copy .env.example .env
 ```
 
+The example environment defaults `NEXT_DIST_DIR` to `.next-local` so local development avoids common Windows and OneDrive file-lock issues in the standard `.next` folder.
+
 3. Create your local PostgreSQL database and apply migrations:
 
 ```bash
@@ -77,13 +79,19 @@ npm run db:seed
 npm run dev
 ```
 
-If Prisma has just been regenerated after a schema change and the dev app still shows an older Prisma runtime error, stop the dev server, delete `.next`, and restart. See [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md) for the Windows-specific recovery note.
+If Prisma has just been regenerated after a schema change and the dev app still shows an older Prisma runtime error, stop the dev server, delete the active Next cache directory (`.next-local` by default in local development), and restart. See [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md) for the Windows-specific recovery note.
 
 If Prisma regeneration fails on Windows with an `EPERM` rename error around `query_engine-windows.dll.node`, stop the local dev server before retrying generation.
 
 6. Open [http://127.0.0.1:3000](http://127.0.0.1:3000)
 
 For the full setup flow, environment details, troubleshooting, and testing notes, see [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md).
+
+For a production-oriented single-server Ubuntu deployment using Docker Compose,
+PostgreSQL, Caddy HTTPS, scheduled jobs, and automated database dumps, see
+[docs/DOCKER_DEPLOYMENT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/DOCKER_DEPLOYMENT.md).
+For private VPN access with Tailscale Serve and no public web listener, see
+[docs/TAILSCALE_DEPLOYMENT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TAILSCALE_DEPLOYMENT.md).
 
 ## Quality commands
 
@@ -102,15 +110,24 @@ npm run build
 ## Project docs
 
 - Current implementation status: [docs/CURRENT_IMPLEMENTATION_STATUS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/CURRENT_IMPLEMENTATION_STATUS.md)
+- Enterprise data movement program: [docs/data-movement/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/data-movement/README.md)
 - Setup: [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md)
+- Docker Compose and Tailscale deployment: [docs/DOCKER_COMPOSE_TAILSCALE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/DOCKER_COMPOSE_TAILSCALE.md)
 - Architecture: [docs/ARCHITECTURE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ROADMAP.md)
 - Projects module guide: [docs/projects/PROJECTS_MODULE_GUIDE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/projects/PROJECTS_MODULE_GUIDE.md)
 - Scheduler verification contract: [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md)
 - Production scheduler task prompts: [docs/PRODUCTION_SCHEDULER_TASK_PROMPTS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/PRODUCTION_SCHEDULER_TASK_PROMPTS.md)
 - Enterprise Appointment program: [docs/appointments/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/appointments/README.md)
+- Enterprise Sales Console planning package: [docs/sales-console/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/sales-console/README.md)
+- Unified CRM Console foundation: [docs/unified-crm/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/unified-crm/README.md)
+- Growth Console foundation: [docs/growth-console/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/growth-console/README.md)
+- COO Workbook and Staff Reporting Intelligence: [docs/coo-workbook/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/coo-workbook/README.md)
 - MVP scope: [docs/MVP_SCOPE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/MVP_SCOPE.md)
 - Release checklist: [docs/RELEASE_CHECKLIST.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/RELEASE_CHECKLIST.md)
+- Enterprise workspace UI source of truth: [docs/ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md)
+- Time & Attendance program: [docs/time-attendance/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/time-attendance/README.md)
+- Inventory-to-Frontline workflow planning package: [docs/inventory/frontline-workflow/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/inventory/frontline-workflow/README.md)
 
 ## MVP release boundary
 

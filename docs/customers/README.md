@@ -7,6 +7,10 @@ The Customers Console is the customer intelligence and customer operations modul
 1. [`CUSTOMERS_ARCHITECTURE.md`](CUSTOMERS_ARCHITECTURE.md) - domain ownership, services, policies, commands, read models, events, integrations, UI boundaries, and architecture decisions.
 2. [`CUSTOMERS_MVP_ROLLOUT_ROADMAP.md`](CUSTOMERS_MVP_ROLLOUT_ROADMAP.md) - phased path from the current presentation shell to a day-one MVP rollout.
 3. [`CUSTOMERS_IMPLEMENTATION_MILESTONES.md`](CUSTOMERS_IMPLEMENTATION_MILESTONES.md) - Codex-sized vertical slices, branches, dependencies, evidence, and exit gates.
+4. [`VENDOR_REGISTRY_SOURCE_OF_TRUTH.md`](VENDOR_REGISTRY_SOURCE_OF_TRUTH.md) - CRM Vendor Registry purpose, scope, categories, workflows, permissions, and version 1 build boundary.
+5. [`VENDOR_REGISTRY_ARCHITECTURE.md`](VENDOR_REGISTRY_ARCHITECTURE.md) - Vendor Registry domain ownership, data concepts, command/read model boundaries, permissions, and integration architecture.
+6. [`VENDOR_REGISTRY_IMPLEMENTATION_ROADMAP.md`](VENDOR_REGISTRY_IMPLEMENTATION_ROADMAP.md) - Vendor Registry milestone sequence, vertical slices, acceptance evidence, testing strategy, and rollout path.
+7. [`VENDOR_REGISTRY_ONE_SHOT_IMPLEMENTATION_PROMPT.md`](VENDOR_REGISTRY_ONE_SHOT_IMPLEMENTATION_PROMPT.md) - Single coordinated implementation prompt for building Vendor Registry version 1 after approval.
 
 ## Product Position
 

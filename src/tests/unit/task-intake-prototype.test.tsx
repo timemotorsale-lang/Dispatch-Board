@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { EnterpriseTaskIntakePrototype } from "@/features/prototype/enterprise-task-intake-prototype";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 describe("EnterpriseTaskIntakePrototype", () => {
   it("renders the simplified intake contract and enterprise tool selector", () => {

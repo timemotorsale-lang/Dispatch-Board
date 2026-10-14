@@ -1,9 +1,8 @@
-import { Prisma, TaskStatus } from "@prisma/client";
+import { Prisma, TaskStatus, WorkflowArea } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  updateTaskStatus,
-  type TaskStatusUpdateResult
+  updateTaskStatus
 } from "@/server/services/task-status-service";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
@@ -13,7 +12,10 @@ type StoredTask = {
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
+  workflowArea: WorkflowArea;
+  dueAt: Date;
   blockerReason: string | null;
+  executionAssurance: Prisma.JsonValue | null;
   templateSnapshot: Prisma.JsonValue | null;
   updateFieldValues: Prisma.JsonValue | null;
   readyForReviewAt: Date | null;
@@ -48,7 +50,10 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
     assignedUserId: "user-jordan.sales@local.test",
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
+    workflowArea: WorkflowArea.GENERAL_MANAGER,
+    dueAt: new Date("2026-06-18T18:00:00.000Z"),
     blockerReason: null,
+    executionAssurance: null,
     templateSnapshot: null,
     updateFieldValues: null,
     readyForReviewAt: null,
@@ -81,7 +86,8 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
         taskId: string,
         data: {
           status: TaskStatus;
-          blockerReason?: string;
+          blockerReason?: string | null;
+          executionAssurance?: Prisma.InputJsonValue;
           updateFieldValues?: Prisma.InputJsonValue;
           readyForReviewAt?: Date | null;
           completedAt?: Date | null;
@@ -99,6 +105,10 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
           status: data.status,
           blockerReason:
             data.blockerReason !== undefined ? data.blockerReason : tasks[taskIndex].blockerReason,
+          executionAssurance:
+            data.executionAssurance !== undefined
+              ? (data.executionAssurance as Prisma.JsonValue)
+              : tasks[taskIndex].executionAssurance,
           updateFieldValues:
             data.updateFieldValues !== undefined
               ? (data.updateFieldValues as Prisma.JsonValue)
@@ -165,12 +175,16 @@ describe("task status service", () => {
       }
     );
 
-    expect(result).toEqual<TaskStatusUpdateResult>({
+    expect(result).toMatchObject({
       id: "task-1",
       status: TaskStatus.BLOCKED,
       blockerReason: "Waiting on lender paperwork.",
       updateFieldValues: {},
       updatedAt: "2026-06-18T15:30:00.000Z"
+    });
+    expect(result.executionAssurance.blockerPlan).toMatchObject({
+      owner: "Baraka Sales",
+      reviewAt: "2026-06-18T17:30:00.000Z"
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.BLOCKED,
@@ -226,7 +240,7 @@ describe("task status service", () => {
     expect(readActivityEvents()).toHaveLength(0);
   });
 
-  it("does not require a blocker reason for non-blocked updates and preserves any existing reason", async () => {
+  it("clears the active blocker when blocked work returns to progress", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
@@ -247,11 +261,12 @@ describe("task status service", () => {
 
     expect(result).toMatchObject({
       status: TaskStatus.IN_PROGRESS,
-      blockerReason: "Waiting on photos"
+      blockerReason: null
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.IN_PROGRESS,
-      blockerReason: "Waiting on photos",
+      blockerReason: null,
+      executionAssurance: expect.objectContaining({ blockerPlan: null }),
       completedAt: null,
       reviewedByUserId: null
     });
@@ -851,6 +866,127 @@ describe("task status service", () => {
     );
   });
 
+  it("allows converted workflow completion when the status note supplies clear completion evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        checklistItems: [
+          { label: "Record customer-facing update and internal advisor note", isRequired: true, completed: false }
+        ],
+        templateSnapshot: {
+          conversionContract: {
+            classificationReason: "Customer-facing repair work should start with Service Advisor ownership.",
+            confidence: "HIGH",
+            executionIntent: "CUSTOMER_ADVISOR_FOLLOW_UP",
+            linkedWorkflowAreas: ["SHOP"],
+            origin: { channel: "COO Workbook", sourceKind: "Workbook item", text: "Customer wants brakes checked." },
+            selectedWorkflowArea: "SERVICE_ADVISOR",
+            suggestedWorkflowArea: "SERVICE_ADVISOR",
+            version: 1
+          },
+          requiredUpdateFields: [
+            {
+              key: "advisor_outcome",
+              label: "Advisor outcome",
+              type: "long_text",
+              required: true,
+              helpText: null
+            }
+          ],
+          completionCriteria: {
+            mode: "checklist_and_update_fields",
+            requiredChecklistKeys: [],
+            requiredFieldKeys: ["advisor_outcome"]
+          }
+        }
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED",
+        progressNote: "Both rear hub assemblies were successfully replaced."
+      },
+      repository
+    );
+
+    expect(result.status).toBe(TaskStatus.COMPLETED);
+    expect(result.executionAssurance.lastProgressNote).toBe("Both rear hub assemblies were successfully replaced.");
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date("2026-06-18T15:30:00.000Z")
+    });
+  });
+
+  it("allows path-selected service tasks to complete from a clear completion note even without conversion metadata", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        checklistItems: [
+          { label: "Record customer-facing update and internal advisor note", isRequired: true, completed: false }
+        ],
+        templateSnapshot: null,
+        workflowArea: WorkflowArea.SERVICE_ADVISOR
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED",
+        progressNote: "Both rear hub assemblies were successfully replaced."
+      },
+      repository
+    );
+
+    expect(result.status).toBe(TaskStatus.COMPLETED);
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date("2026-06-18T15:30:00.000Z")
+    });
+  });
+
+  it("keeps converted workflow completion gated when the status note is not completion evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        checklistItems: [
+          { label: "Record customer-facing update and internal advisor note", isRequired: true, completed: false }
+        ],
+        templateSnapshot: {
+          conversionContract: {
+            classificationReason: "Customer-facing repair work should start with Service Advisor ownership.",
+            confidence: "HIGH",
+            executionIntent: "CUSTOMER_ADVISOR_FOLLOW_UP",
+            linkedWorkflowAreas: ["SHOP"],
+            origin: { channel: "COO Workbook", sourceKind: "Workbook item", text: "Customer wants brakes checked." },
+            selectedWorkflowArea: "SERVICE_ADVISOR",
+            suggestedWorkflowArea: "SERVICE_ADVISOR",
+            version: 1
+          }
+        }
+      })
+    ]);
+
+    await expect(
+      updateTaskStatus(
+        staffUser,
+        "task-1",
+        {
+          status: "COMPLETED",
+          progressNote: "Need to look at this."
+        },
+        repository
+      )
+    ).rejects.toThrow("Task checklist is incomplete");
+  });
+
   it("rejects concern work when its dependency steps are incomplete", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
@@ -935,5 +1071,49 @@ describe("task status service", () => {
     });
 
     expect(result.status).toBe(TaskStatus.COMPLETED);
+  });
+
+  it("starts progress assurance without adding pre-start requirements", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({ status: TaskStatus.NOT_STARTED })
+    ]);
+
+    const result = await updateTaskStatus(staffUser, "task-1", { status: "IN_PROGRESS" }, repository);
+
+    expect(result.executionAssurance).toMatchObject({
+      startedAt: "2026-06-18T15:30:00.000Z",
+      lastProgressAt: "2026-06-18T15:30:00.000Z",
+      nextCheckpointAt: "2026-06-18T17:30:00.000Z"
+    });
+  });
+
+  it("renews the progress checkpoint after a meaningful update", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        executionAssurance: {
+          startedAt: "2026-06-18T13:00:00.000Z",
+          lastProgressAt: "2026-06-18T14:00:00.000Z",
+          nextCheckpointAt: "2026-06-18T15:00:00.000Z",
+          lastProgressNote: "Started outreach.",
+          blockerPlan: null
+        }
+      })
+    ]);
+
+    const result = await updateTaskStatus(staffUser, "task-1", {
+      status: "IN_PROGRESS",
+      progressNote: "Customer documents received; reviewing them now."
+    }, repository);
+
+    expect(result.executionAssurance).toMatchObject({
+      startedAt: "2026-06-18T13:00:00.000Z",
+      lastProgressAt: "2026-06-18T15:30:00.000Z",
+      nextCheckpointAt: "2026-06-18T17:30:00.000Z",
+      lastProgressNote: "Customer documents received; reviewing them now."
+    });
   });
 });

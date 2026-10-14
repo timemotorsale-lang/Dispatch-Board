@@ -18,6 +18,7 @@ import {
   SchedulerHealthPanel,
   TaskBoard,
   formatBoardDate,
+  type DispatchBoardView,
   type Metric
 } from "./board-dashboard";
 import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
@@ -35,6 +36,7 @@ type BoardScreenProps = {
   todayBoardDate: string;
   isManager: boolean;
   initialDateError: string | null;
+  initialView: DispatchBoardView;
 };
 
 type BoardApiPayload = BoardReadLookupResult & { error?: string };
@@ -98,12 +100,14 @@ function buildGenerationFeedback(
 
 function createMetrics(board: BoardReadModel): Metric[] {
   const active = board.taskCount - statusCount(board, "COMPLETED");
+  const generated = board.sourceCounts.template;
+  const manual = board.sourceCounts.manager + board.sourceCounts.staff;
 
   return [
     {
-      label: "Active Today",
+      label: "Board Tasks",
       value: active,
-      detail: `${board.taskCount} total tasks`,
+      detail: `${generated} generated / ${manual} manual`,
       tone: "blue",
       icon: "active",
       metricKey: "active"
@@ -152,7 +156,8 @@ export function BoardScreen({
   initialBoardDate,
   todayBoardDate,
   isManager,
-  initialDateError
+  initialDateError,
+  initialView
 }: BoardScreenProps) {
   const [selectedBoardDate, setSelectedBoardDate] = useState(initialBoardDate);
   const [loadState, setLoadState] = useState<BoardLoadState>({
@@ -182,6 +187,7 @@ export function BoardScreen({
     async function load() {
       try {
         const response = await fetch(endpoint(selectedBoardDate, todayBoardDate), {
+          cache: "no-store",
           signal: controller.signal
         });
         const payload = (await response.json().catch(() => null)) as BoardApiPayload | null;
@@ -298,7 +304,7 @@ export function BoardScreen({
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
-  function handleGenerateBoard() {
+  function handleGenerateBoard(selectedCandidateKeys: string[]) {
     setGenerationFeedback(null);
 
     startGenerateTransition(async () => {
@@ -308,7 +314,8 @@ export function BoardScreen({
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          boardDate: selectedBoardDate
+          boardDate: selectedBoardDate,
+          selectedCandidateKeys
         })
       });
 
@@ -343,7 +350,7 @@ export function BoardScreen({
       }
 
       setGenerationFeedback(buildGenerationFeedback(payload));
-      requestBoardReload();
+      requestBoardReload("blocking");
     });
   }
 
@@ -410,6 +417,7 @@ export function BoardScreen({
             <BoardToolbar
               assignableUsers={assignableUsers}
               boardDate={selectedBoardDate}
+              boardView={initialView}
               generationFeedback={generationFeedback}
               generationStatus={board?.generationStatus}
               isGeneratePending={isGeneratePending}
@@ -472,11 +480,14 @@ export function BoardScreen({
             metrics={createMetrics(board)}
             onMetricSelect={handleMetricSelect}
           />
-          <OperationsStrip
-            activeAssigneeId={filters.assigneeId}
-            onAssigneeSelect={handleAssigneeSelect}
-            tasks={board.tasks}
-          />
+          {initialView === "overview" ? (
+            <OperationsStrip
+              activeAssigneeId={filters.assigneeId}
+              boardDate={loadState.date}
+              onAssigneeSelect={handleAssigneeSelect}
+              tasks={board.tasks}
+            />
+          ) : null}
           <div className="board-and-rail">
             <div className="board-primary-column" ref={boardPrimaryRef}>
               <BoardControls

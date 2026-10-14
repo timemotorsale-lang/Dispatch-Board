@@ -34,9 +34,19 @@ ALTER TABLE "ConcernCase" ADD CONSTRAINT "ConcernCase_slaPolicyId_fkey" FOREIGN 
 ALTER TABLE "CustomerSlaPause" ADD CONSTRAINT "CustomerSlaPause_concernCaseId_fkey" FOREIGN KEY ("concernCaseId") REFERENCES "ConcernCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "CustomerSlaAlert" ADD CONSTRAINT "CustomerSlaAlert_concernCaseId_fkey" FOREIGN KEY ("concernCaseId") REFERENCES "ConcernCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-INSERT INTO "CustomerSlaPolicy" ("id", "organizationId", "code", "version", "timezone", "businessWindows", "severityTargets", "pauseReasonCodes", "effectiveFrom", "updatedAt") VALUES (
+INSERT INTO "Organization" ("id","code","name","updatedAt")
+VALUES (
+  'org-time-motor-sales',
+  'TIME_MOTOR_SALES',
+  'Time Motor Sales',
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT ("id") DO NOTHING;
+
+INSERT INTO "CustomerSlaPolicy" ("id", "organizationId", "code", "version", "timezone", "businessWindows", "severityTargets", "pauseReasonCodes", "effectiveFrom", "updatedAt")
+SELECT
   'sla-time-motor-sales-v1', 'org-time-motor-sales', 'CUSTOMER_CASE_DEFAULT', 1, 'America/Chicago',
   '[{"day":"MONDAY","openMinute":540,"closeMinute":1080},{"day":"TUESDAY","openMinute":540,"closeMinute":1080},{"day":"WEDNESDAY","openMinute":540,"closeMinute":1080},{"day":"THURSDAY","openMinute":540,"closeMinute":1080},{"day":"FRIDAY","openMinute":540,"closeMinute":1080}]'::jsonb,
   '{"P0":{"responseMinutes":15,"resolutionMinutes":480,"updateMinutes":120},"P1":{"responseMinutes":120,"resolutionMinutes":1440,"updateMinutes":480},"P2":{"responseMinutes":480,"resolutionMinutes":2400,"updateMinutes":960},"P3":{"responseMinutes":960,"resolutionMinutes":4800,"updateMinutes":1920}}'::jsonb,
   '["WAITING_CUSTOMER","WAITING_EXTERNAL"]'::jsonb, '2026-07-12T00:00:00.000Z', CURRENT_TIMESTAMP
-);
+WHERE EXISTS (SELECT 1 FROM "Organization" WHERE "id" = 'org-time-motor-sales');

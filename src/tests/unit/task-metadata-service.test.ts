@@ -85,7 +85,7 @@ describe("task metadata service", () => {
       boardDayId: "board-day-1",
       eventType: "task.metadata_updated",
       message:
-        "Walter Mechanic updated the description, updated the customer reference on Vehicle Recon & Inspection.",
+        "Walter Hernandez updated the description, updated the customer reference on Vehicle Recon & Inspection.",
       metadata: {
         changedFields: ["updated the description", "updated the customer reference"]
       },
@@ -112,7 +112,7 @@ describe("task metadata service", () => {
       actorUserId: staffUser?.id ?? null,
       boardDayId: "board-day-1",
       eventType: "task.metadata_updated",
-      message: "Walter Mechanic updated the title on Vehicle Recon & Inspection.",
+      message: `${staffUser?.name} updated the title on Vehicle Recon & Inspection.`,
       metadata: {
         changedFields: ["updated the title"]
       },

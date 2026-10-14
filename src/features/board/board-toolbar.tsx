@@ -2,15 +2,22 @@
 
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 import { useState, useTransition } from "react";
+import { AlertTriangle, Check, ChevronRight, ShieldCheck, X } from "lucide-react";
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import type { BoardReadLatestGeneration } from "@/server/services/board-read";
+import type {
+  BoardGenerationPreview,
+  BoardGenerationPreviewItem,
+  BoardGenerationPreviewTier
+} from "@/server/services/generation-tasks";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
 import { formatBoardEnumLabel } from "./board-grouping";
+import type { DispatchBoardView } from "./board-dashboard";
 
 type ManualTaskCreateResponse = {
   task: {
@@ -22,13 +29,14 @@ type ManualTaskCreateResponse = {
 type BoardToolbarProps = {
   assignableUsers: ActiveUserSummary[];
   boardDate: string;
+  boardView: DispatchBoardView;
   generationFeedback: BoardGenerationActionFeedback;
   generationStatus: string | undefined;
   isGeneratePending: boolean;
   isManager: boolean;
   latestGeneration: BoardReadLatestGeneration | null | undefined;
   onBoardDateChange(boardDate: string): void;
-  onGenerateBoard(): void;
+  onGenerateBoard(selectedCandidateKeys: string[]): void;
   onBoardRefreshRequested(): void;
 };
 
@@ -66,6 +74,41 @@ const workflowAreaOptions: WorkflowArea[] = [
   WorkflowArea.GENERAL_MANAGER
 ];
 
+const previewTierDetails: Array<{
+  tier: BoardGenerationPreviewTier;
+  label: string;
+  description: string;
+}> = [
+  {
+    tier: "MUST_TODAY",
+    label: "Must do today",
+    description: "Critical work stays selected even when normal capacity is full."
+  },
+  {
+    tier: "SHOULD_TODAY",
+    label: "Should do today",
+    description: "Important work selected while the team has capacity."
+  },
+  {
+    tier: "UPCOMING",
+    label: "Upcoming",
+    description: "Visible for planning and selected only when focus capacity remains."
+  },
+  {
+    tier: "MONITOR",
+    label: "Monitor only",
+    description: "Tracked without adding noise to today's active board."
+  }
+];
+
+function formatPreviewDueTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC"
+  }).format(new Date(value));
+}
+
 function createInitialTaskFormState(assignableUsers: ActiveUserSummary[]): TaskFormState {
   return {
     assignedUserId: assignableUsers[0]?.id ?? "",
@@ -85,8 +128,8 @@ function toDueAtIso(boardDate: string, dueTime: string) {
   return new Date(`${boardDate}T${dueTime}:00`).toISOString();
 }
 
-function buildBoardUrl(boardDate: string) {
-  return `/board?date=${encodeURIComponent(boardDate)}`;
+function buildBoardUrl(boardDate: string, boardView: DispatchBoardView) {
+  return `/board?${boardView === "live" ? "view=live&" : ""}date=${encodeURIComponent(boardDate)}`;
 }
 
 function formatGenerationTimestamp(value: string) {
@@ -166,6 +209,7 @@ function getGenerationHealthMessage(
 export function BoardToolbar({
   assignableUsers,
   boardDate,
+  boardView,
   generationFeedback,
   generationStatus,
   isGeneratePending,
@@ -177,8 +221,13 @@ export function BoardToolbar({
 }: BoardToolbarProps) {
   const router = useRouter();
   const [isTaskPending, startTaskTransition] = useTransition();
+  const [isPreviewPending, startPreviewTransition] = useTransition();
   const [taskFeedback, setTaskFeedback] = useState<BoardGenerationActionFeedback>(null);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [isGenerationPreviewOpen, setIsGenerationPreviewOpen] = useState(false);
+  const [generationPreview, setGenerationPreview] = useState<BoardGenerationPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [selectedCandidateKeys, setSelectedCandidateKeys] = useState<Set<string>>(new Set());
   const [taskFormState, setTaskFormState] = useState<TaskFormState>(() =>
     createInitialTaskFormState(assignableUsers)
   );
@@ -190,8 +239,69 @@ export function BoardToolbar({
     }
 
     setTaskFeedback(null);
+    setGenerationPreview(null);
+    setIsGenerationPreviewOpen(false);
     onBoardDateChange(nextBoardDate);
-    router.replace(buildBoardUrl(nextBoardDate));
+    router.replace(buildBoardUrl(nextBoardDate, boardView));
+  }
+
+  function openGenerationPreview() {
+    setPreviewError(null);
+    setIsGenerationPreviewOpen(true);
+
+    startPreviewTransition(async () => {
+      const response = await fetch(
+        `/api/board/generate?boardDate=${encodeURIComponent(boardDate)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | (BoardGenerationPreview & { error?: string })
+        | { error?: string }
+        | null;
+
+      if (!response.ok || !payload || !("items" in payload)) {
+        setGenerationPreview(null);
+        setPreviewError(payload?.error ?? "Unable to prepare today's work review.");
+        return;
+      }
+
+      setGenerationPreview(payload);
+      setSelectedCandidateKeys(
+        new Set(payload.items.filter((item) => item.recommended).map((item) => item.candidateKey))
+      );
+    });
+  }
+
+  function closeGenerationPreview() {
+    if (isGeneratePending) return;
+    setIsGenerationPreviewOpen(false);
+    setPreviewError(null);
+  }
+
+  function togglePreviewItem(item: BoardGenerationPreviewItem) {
+    setSelectedCandidateKeys((current) => {
+      const next = new Set(current);
+      if (next.has(item.candidateKey)) next.delete(item.candidateKey);
+      else next.add(item.candidateKey);
+      return next;
+    });
+  }
+
+  function restoreRecommendedSelection() {
+    if (!generationPreview) return;
+    setSelectedCandidateKeys(
+      new Set(
+        generationPreview.items
+          .filter((item) => item.recommended)
+          .map((item) => item.candidateKey)
+      )
+    );
+  }
+
+  function publishSelectedWork() {
+    if (selectedCandidateKeys.size === 0) return;
+    onGenerateBoard([...selectedCandidateKeys]);
+    setIsGenerationPreviewOpen(false);
   }
 
   function resetTaskForm() {
@@ -258,7 +368,7 @@ export function BoardToolbar({
     });
   }
 
-  const isPending = isGeneratePending || isTaskPending;
+  const isPending = isGeneratePending || isTaskPending || isPreviewPending;
   const needsBlockerReason = taskFormState.status === TaskStatus.BLOCKED;
   const canCreateTask = Boolean(
     taskFormState.title.trim() &&
@@ -266,6 +376,21 @@ export function BoardToolbar({
       taskFormState.dueTime &&
       (!needsBlockerReason || taskFormState.blockerReason.trim())
   );
+  const selectedItems = generationPreview?.items.filter((item) =>
+    selectedCandidateKeys.has(item.candidateKey)
+  ) ?? [];
+  const selectedCountsByPerson = selectedItems.reduce<Map<string, number>>((counts, item) => {
+    counts.set(item.assignedUserId, (counts.get(item.assignedUserId) ?? 0) + 1);
+    return counts;
+  }, new Map());
+  const overloadedPeople = generationPreview
+    ? [...selectedCountsByPerson.entries()].filter(
+        ([, count]) => count > generationPreview.perPersonFocusLimit
+      ).length
+    : 0;
+  const isAboveTeamFocus = generationPreview
+    ? selectedCandidateKeys.size > generationPreview.teamFocusLimit
+    : false;
 
   return (
     <div className="board-toolbar">
@@ -294,21 +419,23 @@ export function BoardToolbar({
             <>
               <Link
                 className="pill pill-secondary"
-                href="/tasks/intake?returnTo=%2Fboard"
+                href={`/tasks/intake?returnTo=${encodeURIComponent(buildBoardUrl(boardDate, boardView))}`}
               >
                 Task Intake
               </Link>
               <button
                 className="pill pill-action board-generate-button"
-                disabled={isGeneratePending}
-                onClick={onGenerateBoard}
+                disabled={isGeneratePending || isPreviewPending}
+                onClick={openGenerationPreview}
                 type="button"
               >
                 {isGeneratePending
-                  ? "Generating..."
-                  : latestGeneration?.status === "failed"
-                    ? "Retry Board Generation"
-                    : "Generate Board"}
+                  ? "Publishing..."
+                  : isPreviewPending
+                    ? "Preparing review..."
+                    : latestGeneration?.status === "failed"
+                      ? "Review & Retry"
+                      : "Review Today's Work"}
               </button>
             </>
           ) : null}
@@ -376,6 +503,148 @@ export function BoardToolbar({
           <p>
             <strong>Creating task...</strong> Your task is being saved to the selected board date.
           </p>
+        </div>
+      ) : null}
+
+      {isManager && isGenerationPreviewOpen ? (
+        <div className="board-intake-backdrop" role="presentation">
+          <section
+            aria-labelledby="board-intake-title"
+            aria-modal="true"
+            className="board-intake-drawer"
+            role="dialog"
+          >
+            <header className="board-intake-header">
+              <div className="board-intake-heading">
+                <span className="board-intake-heading-icon"><ShieldCheck aria-hidden="true" /></span>
+                <div>
+                  <span>Daily work intake</span>
+                  <h2 id="board-intake-title">Review today&apos;s work</h2>
+                  <p>Choose what becomes active work for {boardDate}. Everything else stays visible for planning.</p>
+                </div>
+              </div>
+              <button
+                aria-label="Close daily work review"
+                className="board-intake-close"
+                disabled={isGeneratePending}
+                onClick={closeGenerationPreview}
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </header>
+
+            <main className="board-intake-content">
+              {isPreviewPending ? (
+                <div className="board-intake-loading" role="status">
+                  <span className="board-intake-spinner" />
+                  <strong>Reviewing duties, duplicates, and team capacity...</strong>
+                  <p>No tasks are being created during this review.</p>
+                </div>
+              ) : previewError ? (
+                <div className="notice notice-danger board-intake-error" role="alert">
+                  <strong>Could not prepare the review.</strong>
+                  <p>{previewError}</p>
+                  <button className="pill pill-secondary" onClick={openGenerationPreview} type="button">
+                    Try again
+                  </button>
+                </div>
+              ) : generationPreview ? (
+                <>
+                  <section className="board-intake-summary" aria-label="Work intake summary">
+                    <div><span>Detected</span><strong>{generationPreview.totalCandidates}</strong><small>all conditions</small></div>
+                    <div className="focus"><span>Selected</span><strong>{selectedCandidateKeys.size}</strong><small>active today</small></div>
+                    <div><span>Deferred</span><strong>{generationPreview.publishableCandidateCount - selectedCandidateKeys.size}</strong><small>still tracked</small></div>
+                    <div><span>Already covered</span><strong>{generationPreview.existingTaskCount}</strong><small>duplicates avoided</small></div>
+                  </section>
+
+                  <section className={isAboveTeamFocus || overloadedPeople ? "board-intake-capacity warning" : "board-intake-capacity"}>
+                    {isAboveTeamFocus || overloadedPeople ? <AlertTriangle aria-hidden="true" /> : <Check aria-hidden="true" />}
+                    <div>
+                      <strong>
+                        {isAboveTeamFocus || overloadedPeople
+                          ? "Selection exceeds the recommended focus load"
+                          : "Selection fits the recommended focus load"}
+                      </strong>
+                      <p>
+                        Team target: {generationPreview.teamFocusLimit} active items; staff target: {generationPreview.perPersonFocusLimit} each.
+                        {overloadedPeople ? ` ${overloadedPeople} staff member${overloadedPeople === 1 ? " is" : "s are"} above target.` : ""}
+                      </p>
+                    </div>
+                    <button onClick={restoreRecommendedSelection} type="button">Restore recommendation</button>
+                  </section>
+
+                  <div className="board-intake-tiers">
+                    {previewTierDetails.map((tierDetail) => {
+                      const tierItems = generationPreview.items.filter(
+                        (item) => item.tier === tierDetail.tier
+                      );
+                      if (!tierItems.length) return null;
+
+                      const selectedInTier = tierItems.filter((item) =>
+                        selectedCandidateKeys.has(item.candidateKey)
+                      ).length;
+
+                      return (
+                        <section className={`board-intake-tier tier-${tierDetail.tier.toLowerCase().replaceAll("_", "-")}`} key={tierDetail.tier}>
+                          <header>
+                            <div>
+                              <span>{tierDetail.label}</span>
+                              <p>{tierDetail.description}</p>
+                            </div>
+                            <strong>{selectedInTier}/{tierItems.length} selected</strong>
+                          </header>
+                          <div className="board-intake-list">
+                            {tierItems.map((item) => {
+                              const isSelected = selectedCandidateKeys.has(item.candidateKey);
+                              const personLoad = selectedCountsByPerson.get(item.assignedUserId) ?? 0;
+                              return (
+                                <label className={isSelected ? "board-intake-item selected" : "board-intake-item"} key={item.candidateKey}>
+                                  <input
+                                    checked={isSelected}
+                                    onChange={() => togglePreviewItem(item)}
+                                    type="checkbox"
+                                  />
+                                  <span className="board-intake-check"><Check aria-hidden="true" /></span>
+                                  <span className="board-intake-item-copy">
+                                    <strong>{item.title}</strong>
+                                    <small>{formatBoardEnumLabel(item.workflowArea)} · {formatBoardEnumLabel(item.priority)} · due {formatPreviewDueTime(item.dueAt)}</small>
+                                  </span>
+                                  <span className={personLoad > generationPreview.perPersonFocusLimit ? "board-intake-owner over" : "board-intake-owner"}>
+                                    <b>{item.assignedUserName}</b>
+                                    <small>{personLoad}/{generationPreview.perPersonFocusLimit} selected</small>
+                                  </span>
+                                  <ChevronRight aria-hidden="true" className="board-intake-row-chevron" />
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </main>
+
+            <footer className="board-intake-footer">
+              <div>
+                <strong>{selectedCandidateKeys.size} tasks ready to publish</strong>
+                <small>Publishing creates only the selected work items.</small>
+              </div>
+              <span>
+                <button className="pill pill-secondary" onClick={closeGenerationPreview} type="button">Cancel</button>
+                <button
+                  className="pill pill-action"
+                  disabled={!generationPreview || selectedCandidateKeys.size === 0 || isGeneratePending}
+                  onClick={publishSelectedWork}
+                  type="button"
+                >
+                  {isGeneratePending ? "Publishing..." : `Publish ${selectedCandidateKeys.size} to board`}
+                </button>
+              </span>
+            </footer>
+          </section>
         </div>
       ) : null}
 

@@ -1,0 +1,2 @@
+ALTER TYPE "WorkdayQuickUpdateCategory" ADD VALUE IF NOT EXISTS 'INSURANCE';
+ALTER TYPE "WorkdayQuickUpdateCategory" ADD VALUE IF NOT EXISTS 'PERMIT';

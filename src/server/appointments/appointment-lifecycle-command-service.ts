@@ -157,6 +157,7 @@ export type AppointmentLifecycleCommandPayload = {
   hardConflicts?: AppointmentHardConflict[];
   warnings?: AppointmentWarning[];
   unresolvedWarnings?: AppointmentWarning[];
+  duplicateCustomerTimeConfirmed?: boolean;
 };
 
 export type AppointmentLifecycleCommandInput = {
@@ -978,6 +979,12 @@ function buildCreateDraftPlan(
       rejectionCode: "UNAUTHORIZED",
       rejectionReasons: ["Actor is not authorized to create this appointment."]
     });
+  }
+
+  const blockedPlan = assertNoSchedulingBlocks(input);
+
+  if (blockedPlan) {
+    return blockedPlan;
   }
 
   const now = input.now ?? new Date();

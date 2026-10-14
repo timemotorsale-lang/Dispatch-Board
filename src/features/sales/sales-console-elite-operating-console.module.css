@@ -1,0 +1,3329 @@
+.console {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr);
+  background: #f4f7fb;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.sidebar {
+  background: linear-gradient(160deg, #071225, #111b37);
+  color: #f8fafc;
+  padding: 10px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 7px 13px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.brandMark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #1d4ed8;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+}
+
+.brand strong,
+.brand span {
+  display: block;
+}
+
+.brand strong {
+  font-size: 15px;
+}
+
+.brand span {
+  color: #b6c3d7;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+
+.salesMode,
+.actionKey {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(21, 38, 65, 0.82);
+  border-radius: 10px;
+  padding: 9px;
+}
+
+.salesMode {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.salesMode span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #22c55e;
+}
+
+.salesMode strong {
+  text-transform: uppercase;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+}
+
+.salesMode em {
+  font-size: 12.5px;
+  font-style: normal;
+  color: #bbf7d0;
+}
+
+.nav {
+  display: grid;
+  gap: 2px;
+}
+
+.nav button,
+.topbar button,
+.filters button,
+.tableRow,
+.laneCard,
+.vehicleCard,
+.signal {
+  font: inherit;
+}
+
+.nav button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #dbeafe;
+  text-align: left;
+  min-height: 42px;
+  padding: 10px 12px;
+  font-weight: 850;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.nav button:hover,
+.nav button:focus-visible,
+.activeNav {
+  background: #3157d5 !important;
+  color: #fff !important;
+  outline: none;
+}
+
+.actionKey {
+  margin-top: auto;
+}
+
+.actionKey h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+.actionKey p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 6px 0;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+
+.actionKey p span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f4f7fb;
+}
+
+.topbar {
+  min-height: 58px;
+  background: #0b1428;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  color: #fff;
+}
+
+.topbar button,
+.roleSelect,
+.filters button,
+.filters select {
+  border: 1px solid #344667;
+  border-radius: 10px;
+  background: #111d34;
+  color: #f8fafc;
+  padding: 8px 11px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.topbarReturnLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  border: 1px solid #3b4e73;
+  border-radius: 10px;
+  background: #111d34;
+  color: #f8fafc;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.topbarReturnLink:hover,
+.topbarReturnLink:focus-visible {
+  border-color: #8fb3ff;
+  background: #182847;
+  outline: none;
+}
+
+.roleSelect {
+  min-height: 36px;
+}
+
+.themeSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 36px;
+  border: 1px solid #344667;
+  border-radius: 10px;
+  padding: 3px;
+  background: #111d34;
+}
+
+.themeSwitch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 9px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.themeSwitch button:hover,
+.themeSwitch button:focus-visible,
+.activeTheme {
+  background: #3157d5 !important;
+  color: #fff !important;
+  outline: none;
+}
+
+.integrationStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin: 8px 10px 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+}
+
+.sourceCheckCue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #3157d5;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 0 3px 0 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sourceCheckCue::after {
+  content: "";
+  width: 28px;
+  height: 10px;
+  background:
+    linear-gradient(#3157d5, #3157d5) left 50% / 20px 2px no-repeat,
+    linear-gradient(135deg, transparent 48%, #3157d5 50%) right 50% / 10px 10px no-repeat;
+}
+
+.integrationStrip a,
+.tableRow a,
+.pipelinePanel a,
+.supportPanel a,
+.sourceGrid a,
+.revenueLaneDetail a,
+.vehicleCard a,
+.customerCards a,
+.signal a,
+.leadDetail a {
+  color: #1d4ed8;
+  font-size:11.5px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.integrationStrip a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  gap: 6px;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.integrationStrip strong {
+  color: #0f172a;
+  font-size:11.5px;
+}
+
+.integrationStrip a span {
+  color: #64748b;
+  font-size:11.5px;
+}
+
+.search {
+  flex: 1;
+  max-width: 560px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #344667;
+  border-radius: 10px;
+  background: #111d34;
+  padding: 0 11px;
+}
+
+.search span {
+  color: #94a3b8;
+  font-weight: 800;
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  color: #f8fafc;
+  background: transparent;
+  font-size: 13px;
+}
+
+.searchTray {
+  display: grid;
+  gap: 6px;
+  margin: 8px 10px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+}
+
+.searchTray header,
+.searchTray button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.searchTray header button,
+.searchTray > button {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  padding: 7px 9px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.searchTray > button {
+  width: 100%;
+  text-align: left;
+}
+
+.searchTray > button:hover,
+.searchTray > button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.searchTray span,
+.searchTray strong,
+.searchTray em {
+  display: block;
+}
+
+.searchTray em,
+.searchTray small,
+.searchTray p {
+  color: #64748b;
+  font-size:11.5px;
+  font-style: normal;
+}
+
+.intentHome {
+  display: grid;
+  gap: 12px;
+  padding: 10px;
+}
+
+.intentHero,
+.intentDetail {
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.intentHero {
+  padding: 22px;
+  border-left: 6px solid #3157d5;
+}
+
+.intentHero span,
+.intentSummary span {
+  display: inline-flex;
+  width: fit-content;
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.intentHero h1 {
+  max-width: 760px;
+  margin: 8px 0;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.02;
+}
+
+.intentHero p {
+  max-width: 920px;
+  margin: 0;
+  color: #475569;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.intentHero > strong {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 16px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  padding: 9px 13px;
+  font-size: 13px;
+}
+
+.intentGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.intentGrid button,
+.intentGrid a {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 148px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  padding: 16px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  text-decoration: none;
+}
+
+.intentGrid button:hover,
+.intentGrid button:focus-visible,
+.intentGrid a:hover,
+.intentGrid a:focus-visible,
+.activeIntent {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.intentGrid strong {
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.intentGrid span,
+.intentGrid em {
+  color: #475569;
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.intentGrid em {
+  margin-top: auto;
+  color: #1d4ed8;
+  font-weight: 900;
+}
+
+.intentDetail {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) repeat(3, minmax(180px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: #dbe3ef;
+}
+
+.intentSummary,
+.intentFacts,
+.intentSteps,
+.intentGuardrail {
+  background: #fff;
+  padding: 18px;
+}
+
+.intentSummary h2,
+.intentFacts h3,
+.intentSteps h3,
+.intentGuardrail h3 {
+  margin: 0 0 8px;
+}
+
+.intentSummary p,
+.intentGuardrail p {
+  margin: 0 0 14px;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.intentSummary button {
+  border: 0;
+  border-radius: 999px;
+  background: #3157d5;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 10px 14px;
+}
+
+.intentSummary button:hover,
+.intentSummary button:focus-visible {
+  background: #2444b9;
+  outline: none;
+}
+
+.intentFacts ul,
+.intentSteps ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.intentGuardrail strong {
+  display: block;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 10px 12px;
+  line-height: 1.35;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(108px, 1fr));
+  gap: 1px;
+  margin: 10px 10px 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #dbe3ef;
+}
+
+.kpi {
+  background: #fff;
+  padding: 10px 13px;
+}
+
+.kpi span,
+.kpi em,
+.sectionHeader p,
+.tableRow em,
+.vehicleCard span,
+.vehicleCard p,
+.customer360 p,
+.customerCards em,
+.signal p,
+.forecast p {
+  color: #64748b;
+}
+
+.kpi span,
+.kpi em {
+  display: block;
+  font-size:11.5px;
+  font-style: normal;
+}
+
+.kpi strong {
+  display: block;
+  margin: 2px 0;
+  font-size: 19px;
+}
+
+.queueStats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 10px 10px 0;
+}
+
+.queueStats button {
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  padding: 12px 13px;
+  text-align: left;
+  font: inherit;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.queueStats button:hover,
+.queueStats button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.queueStats span,
+.queueStats em {
+  display: block;
+  color: #475569;
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.queueStats strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 20px;
+}
+
+.executionCommand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.42fr);
+  gap: 10px;
+  margin: 10px 10px 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 6%);
+}
+
+.executionPrimary {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.executionPrimary > span {
+  color: #3157d5;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.executionPrimary h1 {
+  margin: 0;
+  color: #071a3a;
+  font-size: 24px;
+  line-height: 1.12;
+}
+
+.executionPrimary p {
+  margin: 0;
+  color: #55657d;
+}
+
+.executionPrimary button {
+  width: fit-content;
+  border: 1px solid #3157d5;
+  border-radius: 10px;
+  background: #3157d5;
+  color: #fff;
+  cursor: pointer;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.executionFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.executionFacts span {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  color: #55657d;
+  font-size: 11.5px;
+}
+
+.executionFacts strong {
+  color: #071a3a;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.progressivePanel {
+  grid-column: 1 / -1;
+  border-top: 1px solid #edf2f7;
+  padding-top: 9px;
+}
+
+.progressivePanel summary,
+.trustedMetrics summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  border: 1px solid #cfe0ff;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #1d4ed8;
+  cursor: pointer;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.progressivePanel summary:hover,
+.progressivePanel summary:focus-visible,
+.trustedMetrics summary:hover,
+.trustedMetrics summary:focus-visible {
+  border-color: #3157d5;
+  outline: none;
+}
+
+.progressiveContent {
+  margin-top: 10px;
+}
+
+.executionCommand .queueStats {
+  margin: 0;
+}
+
+.trustedMetrics {
+  display: grid;
+  gap: 10px;
+  margin: 10px 10px 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 12px;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 6%);
+}
+
+.trustedMetrics summary span,
+.trustedMetrics summary em {
+  color: #55657d;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.trustedMetrics summary strong {
+  color: #071a3a;
+}
+
+.trustedMetrics > section {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.trustedMetrics header span {
+  color: #3157d5;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.trustedMetrics h2 {
+  margin: 3px 0;
+  color: #071a3a;
+  font-size: 20px;
+}
+
+.trustedMetrics p {
+  margin: 0;
+  color: #55657d;
+}
+
+.trustedMetrics header small {
+  display: block;
+  margin-top: 6px;
+  color: #3157d5;
+  font-weight: 850;
+}
+
+.trustedMetrics > section > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  gap: 8px;
+}
+
+.trustedMetrics button {
+  display: grid;
+  gap: 5px;
+  min-height: 116px;
+  border: 1px solid #cfe0ff;
+  border-radius: 12px;
+  background: #fff;
+  color: #071a3a;
+  padding: 10px;
+  text-align: left;
+  font: inherit;
+  box-shadow: 0 10px 24px rgb(49 87 213 / 6%);
+}
+
+.trustedMetrics button:hover,
+.trustedMetrics button:focus-visible {
+  border-color: #3157d5;
+  outline: none;
+}
+
+.trustedMetrics button[data-status="Not wired"] {
+  border-style: dashed;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.trustedMetrics button > span {
+  color: #3157d5;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trustedMetrics button[data-status="Not wired"] > span {
+  color: #64748b;
+}
+
+.trustedMetrics strong {
+  font-size: 21px;
+  line-height: 1.1;
+}
+
+.trustedMetrics em,
+.trustedMetrics small {
+  color: #55657d;
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.3;
+}
+
+.workspace {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 12px;
+  padding: 10px;
+  align-items: start;
+  overflow: hidden;
+}
+
+.focusWorkspace {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px;
+  align-items: start;
+  overflow: hidden;
+}
+
+.operatingArea {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.workQueue,
+.revenueDesk,
+.inventory,
+.customer360,
+.managerRail {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+}
+
+.workQueue,
+.revenueDesk,
+.inventory,
+.customer360 {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+.queueTruth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px 9px;
+}
+
+.queueTruth strong {
+  color: #166534;
+}
+
+.queueTruth span {
+  color: #475569;
+  font-size: 11.5px;
+}
+
+.sectionHeader h1,
+.sectionHeader h2,
+.managerRail h2,
+.customer360 h2 {
+  margin: 0;
+}
+
+.sectionHeader h1 {
+  font-size: 18px;
+}
+
+.sectionHeader h2,
+.managerRail h2,
+.customer360 h2 {
+  font-size: 16px;
+}
+
+.sectionHeader p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.sectionHeader button {
+  border: 1px solid #c8d4ea;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 11px;
+  white-space: nowrap;
+}
+
+.sectionHeader button:hover,
+.sectionHeader button:focus-visible {
+  border-color: #3157d5;
+  background: #dbeafe;
+  outline: none;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+}
+
+.workspaceContract {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.sourceBackedState {
+  display: grid;
+  grid-template-columns: auto auto minmax(160px, 1fr) repeat(3, auto);
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  background: #f8fafc;
+}
+
+.sourceBackedState strong {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 3px 7px;
+  text-transform: uppercase;
+}
+
+.sourceBackedState span,
+.sourceBackedState a {
+  color: #475569;
+  font-size:11.5px;
+}
+
+.sourceBackedState a {
+  color: #1d4ed8;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.sourceLinkRow,
+.railActionRow {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sourceLinkRow a,
+.railActionRow a {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: #fff;
+  color: #1d4ed8;
+  line-height: 1;
+}
+
+.workspaceContract span {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #f8fafc;
+  color: #475569;
+  font-size:11.5px;
+}
+
+.workspaceContract strong {
+  color: #0f172a;
+}
+
+.leadOperations {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.leadGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.leadGrid button,
+.leadDetail {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 9px;
+  color: #0f172a;
+}
+
+.leadGrid button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.leadGrid button:hover,
+.leadGrid button:focus-visible,
+.selectedLead {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.leadGrid span,
+.leadDetail span {
+  color: #64748b;
+  font-size:11.5px;
+}
+
+.leadDetail {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.pipelinePanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.pipelinePanel article {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  font: inherit;
+}
+
+.pipelinePanel article:hover,
+.pipelinePanel article:focus-within {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.pipelinePanel article button,
+.vehicleCard button,
+.signal button,
+.railActionRow button {
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size:11.5px;
+  font-weight: 900;
+  padding: 5px 8px;
+  width: fit-content;
+  line-height: 1;
+}
+
+.pipelinePanel article button:hover,
+.pipelinePanel article button:focus-visible,
+.vehicleCard button:hover,
+.vehicleCard button:focus-visible,
+.signal button:hover,
+.signal button:focus-visible,
+.railActionRow button:hover,
+.railActionRow button:focus-visible {
+  border-color: #3157d5;
+  background: #dbeafe;
+  outline: none;
+}
+
+.pipelinePanel span {
+  color: #64748b;
+  font-size:11.5px;
+}
+
+.supportPanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.supportPanel article {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+}
+
+.supportPanel strong,
+.supportPanel span,
+.supportPanel em {
+  display: block;
+}
+
+.supportPanel span,
+.supportPanel em {
+  margin-top: 4px;
+  color: #64748b;
+  font-size:11.5px;
+  font-style: normal;
+}
+
+.releasePanel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.releasePanel h2,
+.releasePanel p {
+  margin: 0;
+}
+
+.releasePanel p {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.releaseGrid,
+.sourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 7px;
+}
+
+.releaseGrid span,
+.sourceGrid article {
+  min-width: 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fff;
+  font-size:11.5px;
+}
+
+.sourceGrid strong,
+.sourceGrid span,
+.sourceGrid em {
+  display: block;
+}
+
+.sourceGrid span,
+.sourceGrid em {
+  margin-top: 3px;
+  color: #64748b;
+  font-style: normal;
+}
+
+.filters select,
+.filters button {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #cbd5e1;
+  padding: 6px 8px;
+}
+
+.table {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: 38px minmax(220px, 1.45fr) minmax(88px, 0.58fr) minmax(84px, 0.52fr) minmax(72px, 0.42fr) minmax(118px, 0.72fr) minmax(190px, 1.08fr) minmax(118px, 0.62fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tableHead {
+  background: #f8fafc;
+  color: #475569;
+  padding: 7px 9px;
+  font-size:11.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workGroupHeader {
+  border-top: 1px solid #dbe3ef;
+  background: #eef4ff;
+  color: #1d4ed8;
+  padding: 6px 9px;
+  font-size:11.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.emptyGroup {
+  margin: 0;
+  border-top: 1px solid #e2e8f0;
+  padding: 8px 9px;
+  color: #64748b;
+  background: #fff;
+  font-size: 12px;
+}
+
+.tableRow {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  text-align: left;
+  padding: 8px 9px;
+  min-height: 47px;
+}
+
+.tableRow button.live,
+.tableRow button.controlled,
+.tableRow button.source,
+.tableRow button.future,
+.laneCard button.live,
+.laneCard button.controlled,
+.laneCard button.source,
+.laneCard button.future {
+  border: 0;
+  cursor: pointer;
+}
+
+.tableRow:hover,
+.selectedRow {
+  background: #eef4ff;
+}
+
+.tableRow strong,
+.tableRow em {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.tableRow em {
+  font-size:11.5px;
+  font-style: normal;
+}
+
+.tableRow em:not(.sourceLinkRow) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.laneChip,
+.freshness,
+.live,
+.controlled,
+.source,
+.future {
+  display: inline-flex;
+  max-width: 100%;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size:11.5px;
+  font-weight: 900;
+  white-space: normal;
+}
+
+.laneChip {
+  background: #e0ecff;
+  color: #1d4ed8;
+}
+
+.freshness {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.live {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.controlled {
+  background: #e0ecff;
+  color: #1d4ed8;
+}
+
+.source {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.future {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.laneGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.revenueDeskHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 10px;
+  align-items: stretch;
+  border: 1px solid #c8d4ea;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(238, 244, 255, 0.95), rgba(255, 255, 255, 0.98));
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.revenueDeskHero span,
+.revenueDeskHero p {
+  color: #475569;
+}
+
+.revenueDeskHero span {
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.revenueDeskHero h3 {
+  margin: 5px 0;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.revenueDeskHero p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.revenueDeskHero > strong {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  justify-items: center;
+  min-width: 0;
+  min-height: 120px;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.revenueDeskHero > strong[data-status="Needs proof"],
+.revenueDeskHero > strong[data-status="Manager review required"] {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.revenueDeskHero > strong[data-status="Blocked"] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.revenueDeskHero > strong span {
+  margin-top: 7px;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-align: center;
+}
+
+.revenueDeskCommand {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.revenueDeskCommand article,
+.proofChecklist span,
+.sourceCheckList span,
+.sourceCheckList a {
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.revenueDeskCommand article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px;
+}
+
+.revenueDeskCommand span,
+.proofChecklist h3,
+.approvedToolGrid h3,
+.sourceCheckList h3 {
+  color: #475569;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.revenueDeskCommand strong {
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.revenueDeskCommand small {
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.revenueDeskBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.85fr) minmax(220px, 0.8fr);
+  gap: 10px;
+}
+
+.proofChecklist,
+.approvedToolGrid,
+.sourceCheckList {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.proofChecklist h3,
+.approvedToolGrid h3,
+.sourceCheckList h3 {
+  margin: 0 0 2px;
+  color: #0f172a;
+}
+
+.proofChecklist {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.proofChecklist h3 {
+  grid-column: 1 / -1;
+}
+
+.proofChecklist span {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+}
+
+.proofChecklist span[data-status="Ready"] {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.proofChecklist span[data-status="Review"] {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.proofChecklist span[data-status="Missing"] {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.proofChecklist strong {
+  color: #0f172a;
+}
+
+.proofChecklist em {
+  color: #64748b;
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+.approvedToolGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.approvedToolGrid h3 {
+  grid-column: 1 / -1;
+}
+
+.approvedToolGrid button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.sourceCheckList a,
+.sourceCheckList span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+
+.sourceCheckList span {
+  color: #475569;
+  font-weight: 800;
+}
+
+.laneCard {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  padding: 9px;
+  display: grid;
+  gap: 5px;
+}
+
+.laneCard strong {
+  color: #1d4ed8;
+}
+
+.laneCard span {
+  color: #334155;
+  font-size:11.5px;
+}
+
+.selectedLane {
+  border-color: #3157d5;
+  box-shadow: inset 0 0 0 1px #3157d5;
+}
+
+.revenueLaneDetail {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.revenueLaneDetail h3,
+.revenueLaneDetail p {
+  margin: 0;
+}
+
+.revenueLaneDetail p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.revenueLaneDetail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.revenueLaneDetail div {
+  min-width: 0;
+}
+
+.revenueLaneDetail dt {
+  color: #64748b;
+  font-size:11.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.revenueLaneDetail dd {
+  margin: 2px 0 0;
+  color: #0f172a;
+  font-size:11.5px;
+}
+
+.revenueLaneDetail dd a {
+  display: inline-flex;
+  margin: 0 7px 5px 0;
+}
+
+.inventoryGrid,
+.customerCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.vehicleCard,
+.customerCards article {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fff;
+}
+
+.vehicleCard {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.vehicleCard:hover,
+.vehicleCard:focus-within,
+.selectedInventory {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.vehicleImage {
+  height: 38px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 7px;
+  background: linear-gradient(135deg, #dbeafe, #f8fafc);
+  color: #475569;
+  font-weight: 900;
+}
+
+.vehicleCard strong,
+.vehicleCard span,
+.vehicleCard p,
+.customerCards strong,
+.customerCards span,
+.customerCards em {
+  display: block;
+}
+
+.vehicleCard p {
+  margin: 4px 0 0;
+  font-size:11.5px;
+}
+
+.vehicleCard a,
+.customerCards a,
+.signal a,
+.leadDetail a,
+.supportPanel a {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.alternatives {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #f8fafc;
+}
+
+.alternatives span {
+  color: #64748b;
+  font-size:11.5px;
+}
+
+.customerCards {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 9px;
+}
+
+.guidedPath {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid #b8c7ff;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fbff;
+}
+
+.truthHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.truthHeader > span {
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.truthHeader h2,
+.truthHeader p {
+  margin: 0;
+}
+
+.truthHeader p {
+  color: #475569;
+}
+
+.guidedPath header {
+  display: grid;
+  gap: 4px;
+}
+
+.guidedPath header span {
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.guidedPath h3,
+.guidedPath h4,
+.guidedPath p {
+  margin: 0;
+}
+
+.guidedPath header p,
+.workbenchNow p,
+.workbenchNow small,
+.workbenchFinish p,
+.nextGuidedAction p,
+.nextGuidedAction small {
+  color: #475569;
+}
+
+.workspaceRelationship {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workspaceRelationship article {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fff;
+}
+
+.workspaceRelationship strong,
+.workspaceRelationship span {
+  display: block;
+}
+
+.workspaceRelationship strong {
+  margin-bottom: 5px;
+}
+
+.workspaceRelationship span {
+  color: #475569;
+  font-size: 11.5px;
+}
+
+.workbenchReturnLinks,
+.workbenchTruthStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.workbenchReturnLinks a,
+.workbenchTruthStatus span {
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #102548;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 6px 9px;
+  text-decoration: none;
+}
+
+.workbenchReturnLinks a:hover,
+.workbenchReturnLinks a:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.workbenchTruthStatus span {
+  background: #f8fafc;
+}
+
+.workbenchTruthStatus strong {
+  color: #3157d5;
+}
+
+.workbenchActionPanel {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(330px, 1.2fr) minmax(320px, 1.05fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.workbenchNow,
+.workbenchToolBelt,
+.workbenchFinish {
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 18px 40px rgb(15 42 84 / 7%);
+}
+
+.workbenchNow {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  border-color: #3157d5;
+  box-shadow: inset 4px 0 0 #3157d5, 0 18px 40px rgb(49 87 213 / 10%);
+}
+
+.workbenchNow > span {
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.workbenchNow button,
+.workbenchFinish button,
+.workbenchToolBelt button {
+  font: inherit;
+}
+
+.workbenchNow h4 {
+  color: #071a3a;
+  font-size: clamp(18px, 2vw, 25px);
+  line-height: 1.1;
+  max-width: 15ch;
+}
+
+.workbenchNow p {
+  max-width: 36ch;
+}
+
+.workbenchNow button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border: 0;
+  border-radius: 9px;
+  min-height: 40px;
+  padding: 10px 14px;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgb(22 101 52 / 12%);
+}
+
+.workbenchNow small {
+  border-top: 1px solid #dbe3ef;
+  padding-top: 10px;
+  line-height: 1.45;
+}
+
+.workbenchToolBelt {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.workbenchToolBelt h4:not(:first-child) {
+  margin-top: 4px;
+}
+
+.workbenchToolBelt div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workbenchToolBelt button {
+  width: 100%;
+  min-height: 50px;
+  display: grid;
+  align-content: center;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 9px;
+  text-align: center;
+  background: #f8fbff;
+  box-shadow: inset 0 -1px 0 rgb(15 42 84 / 4%);
+}
+
+.workbenchToolBelt button strong {
+  display: block;
+  font-size: 13px;
+}
+
+.workbenchToolBelt button:disabled,
+.workbenchFinish button:disabled {
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #64748b;
+  opacity: 0.72;
+}
+
+.workbenchFinish {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.workbenchFinish div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.workbenchFinish button {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 58px;
+  padding: 9px 11px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.workbenchFinish button small {
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.workbenchFinish button em {
+  width: fit-content;
+  border-radius: 999px;
+  background: #3157d5;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  text-transform: uppercase;
+}
+
+.workbenchFinish button:hover,
+.workbenchFinish button:focus-visible,
+.workbenchToolBelt button:hover,
+.workbenchToolBelt button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.workbenchFinish button[aria-pressed="true"] {
+  border-color: #3157d5;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  box-shadow: inset 4px 0 0 #3157d5, 0 12px 24px rgb(49 87 213 / 10%);
+}
+
+.outcomeRequirementStrip {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 7px;
+}
+
+.outcomeRequirementStrip strong,
+.outcomeRequirementStrip span {
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 900;
+  padding: 4px 7px;
+}
+
+.outcomeRequirementStrip strong {
+  color: #102548;
+}
+
+.outcomeRequirementStrip span {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  color: #475569;
+}
+
+.outcomeField {
+  display: grid;
+  gap: 5px;
+}
+
+.outcomeField span {
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.outcomeField input,
+.outcomeField textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #071a3a;
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 11px;
+  line-height: 1.4;
+}
+
+.outcomeField input:focus,
+.outcomeField textarea:focus {
+  border-color: #3157d5;
+  box-shadow: 0 0 0 3px rgb(49 87 213 / 14%);
+  outline: none;
+}
+
+.outcomeSaveButton {
+  width: fit-content;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: #3157d5 !important;
+  color: #fff !important;
+  font-weight: 950 !important;
+  min-height: auto !important;
+  padding: 8px 12px !important;
+}
+
+.workbenchFinish small[role="status"] {
+  display: block;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 800;
+}
+
+.workbenchFinish small[role="status"][data-tone="warning"] {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.managerEscalationGate {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1fr) minmax(190px, 0.7fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #f8c7a8;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffaf5 0%, #fff7ed 100%);
+  padding: 12px;
+  box-shadow: 0 16px 34px rgb(154 52 18 / 8%);
+}
+
+.managerEscalationGate[data-state="clear"] {
+  border-color: #bbf7d0;
+  background: linear-gradient(180deg, #fbfffd 0%, #f0fdf4 100%);
+  box-shadow: 0 16px 34px rgb(22 101 52 / 7%);
+}
+
+.managerEscalationGate span,
+.managerEscalationGate h4,
+.managerEscalationGate p,
+.managerEscalationGate strong,
+.managerEscalationGate em {
+  display: block;
+}
+
+.managerEscalationGate > div:first-child > span {
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.managerEscalationGate[data-state="clear"] > div:first-child > span {
+  color: #166534;
+}
+
+.managerEscalationGate h4 {
+  margin: 4px 0;
+  color: #071a3a;
+  font-size: 18px;
+}
+
+.managerEscalationGate p {
+  margin: 0;
+  color: #475569;
+}
+
+.managerEscalationGate small {
+  display: block;
+  margin-top: 7px;
+  color: #334155;
+  font-weight: 900;
+}
+
+.managerEscalationRules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 7px;
+}
+
+.managerEscalationRules article {
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+}
+
+.managerEscalationGate[data-state="clear"] .managerEscalationRules article {
+  border-color: #bbf7d0;
+}
+
+.managerEscalationRules span {
+  margin: 4px 0;
+  color: #334155;
+  font-size: 12px;
+}
+
+.managerEscalationRules em {
+  color: #64748b;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.managerEscalationEvidence {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+}
+
+.managerEscalationGate[data-state="clear"] .managerEscalationEvidence {
+  border-color: #bbf7d0;
+}
+
+.managerEscalationEvidence strong {
+  color: #071a3a;
+  font-size: 11.5px;
+}
+
+.managerEscalationEvidence span {
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 10.5px;
+  font-weight: 850;
+  padding: 4px 7px;
+}
+
+.managerEscalationEvidence em {
+  color: #64748b;
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.managerEscalationGate button {
+  border: 0;
+  border-radius: 9px;
+  min-height: 40px;
+  padding: 9px 12px;
+  font: inherit;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.managerEscalationGate button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.lifecycleWorkbench {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.lifecycleWorkbench > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+}
+
+.lifecycleWorkbench > div span {
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lifecycleWorkbench > div p {
+  color: #475569;
+}
+
+.lifecyclePath {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lifecyclePath li {
+  min-width: 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
+.lifecyclePath strong,
+.lifecyclePath span,
+.lifecyclePath em,
+.lifecyclePath small {
+  display: block;
+}
+
+.lifecyclePath strong {
+  font-size: 12px;
+}
+
+.lifecyclePath span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.lifecyclePath em {
+  margin-top: 7px;
+  color: #334155;
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+.lifecyclePath small {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 10.5px;
+}
+
+.lifecycleComplete {
+  border-color: #bbf7d0 !important;
+  background: #f0fdf4 !important;
+}
+
+.lifecycleCurrent {
+  border-color: #3157d5 !important;
+  box-shadow: inset 4px 0 0 #3157d5;
+}
+
+.lifecycleLocked {
+  background: #f8fafc !important;
+  color: #64748b;
+}
+
+.guidedPathBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 10px;
+}
+
+.requiredFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 7px;
+}
+
+.requiredFacts h4 {
+  grid-column: 1 / -1;
+}
+
+.requiredFacts article,
+.nextGuidedAction {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fff;
+}
+
+.requiredFacts strong,
+.requiredFacts span,
+.requiredFacts em {
+  display: block;
+}
+
+.requiredFacts span {
+  margin: 4px 0;
+}
+
+.requiredFacts em {
+  color: #64748b;
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+.nextGuidedAction {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.nextGuidedAction > span {
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nextGuidedAction dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.nextGuidedAction dt {
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.nextGuidedAction dd {
+  margin: 2px 0 0;
+}
+
+.nextGuidedAction button {
+  width: fit-content;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-weight: 900;
+}
+
+.deeperTools {
+  border-top: 1px solid #dbe3ef;
+  padding-top: 9px;
+}
+
+.deeperTools summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.deeperTools div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.deeperTools span {
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.customerCards span {
+  margin: 5px 0;
+  font-size: 12px;
+}
+
+.customerCards em {
+  font-size:11.5px;
+  font-style: normal;
+}
+
+.managerRail {
+  position: sticky;
+  top: 10px;
+  z-index: 2;
+  min-width: 0;
+  max-width: 270px;
+  padding: 10px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.signal,
+.forecast {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fff;
+}
+
+.signal {
+  width: 100%;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.signal:hover,
+.signal:focus-within,
+.selectedSignal {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.signal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.signal header span {
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 900;
+  font-size:11.5px;
+}
+
+.signal p {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+
+.signal em {
+  color: #475569;
+  font-size:11.5px;
+  font-style: normal;
+}
+
+.forecast strong {
+  display: block;
+  margin: 5px 0;
+  font-size: 28px;
+  color: #16a34a;
+}
+
+@media (max-width: 1180px) {
+  .console {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  .nav,
+  .workspaceContract,
+  .kpis,
+  .queueStats,
+  .intentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .leadOperations {
+    grid-template-columns: 1fr;
+  }
+
+  .pipelinePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .supportPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .releaseGrid,
+  .sourceGrid,
+  .sourceBackedState {
+    grid-template-columns: 1fr;
+  }
+
+  .revenueLaneDetail,
+  .revenueLaneDetail dl,
+  .revenueDeskBody,
+  .revenueDeskCommand,
+  .executionCommand,
+  .intentDetail,
+  .workspaceRelationship,
+  .workbenchActionPanel,
+  .managerEscalationGate,
+  .guidedPathBody {
+    grid-template-columns: 1fr;
+  }
+
+  .revenueDeskHero {
+    grid-template-columns: 1fr;
+  }
+
+  .lifecyclePath {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tableHead,
+  .tableRow {
+    grid-template-columns: 40px 1.4fr 0.8fr 0.8fr;
+  }
+
+  .tableHead span:nth-child(n+5),
+  .tableRow span:nth-child(n+5) {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .sectionHeader {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    padding: 14px;
+  }
+
+  .kpis,
+  .queueStats,
+  .executionFacts,
+  .trustedMetrics > section > div,
+  .workspaceContract,
+  .proofChecklist,
+  .approvedToolGrid,
+  .laneGrid,
+  .inventoryGrid,
+  .customerCards,
+  .lifecyclePath,
+  .intentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .intentHero {
+    padding: 18px;
+  }
+
+  .intentHero p {
+    font-size: 15px;
+  }
+}
+
+/* Dark-mode escape surface pass. Keep the console navy; convert only pale cards/pills to readable dark or warm status surfaces. */
+.console {
+  background: #071321;
+  color: #eef4fb;
+}
+
+.integrationStrip,
+.intentHero,
+.intentDetail,
+.intentSummary,
+.intentFacts,
+.intentSteps,
+.intentGuardrail,
+.executionCommand,
+.trustedMetrics,
+.workQueue,
+.revenueDesk,
+.inventory,
+.customer360,
+.managerRail,
+.leadDetail,
+.pipelinePanel article,
+.supportPanel article,
+.releasePanel,
+.guidedPath,
+.workspaceRelationship article,
+.queueTruth,
+.sourceBackedState,
+.sourceGrid article,
+.releaseGrid span,
+.revenueDeskHero,
+.revenueDeskCommand article,
+.proofChecklist,
+.approvedToolGrid,
+.sourceCheckList,
+.workbenchNow,
+.workbenchToolBelt,
+.workbenchFinish {
+  background: #101f31;
+  border-color: #26384e;
+  color: #eef4fb;
+  box-shadow: none;
+}
+
+.intentGrid button,
+.intentGrid a,
+.queueStats button,
+.executionFacts span,
+.trustedMetrics > section > div,
+.trustedMetrics button,
+.workspaceContract span,
+.proofChecklist span,
+.sourceCheckList span,
+.sourceCheckList a,
+.laneCard,
+.workbenchReturnLinks a,
+.workbenchTruthStatus span,
+.workbenchToolBelt button,
+.workbenchFinish button,
+.sectionHeader button,
+.sourceLinkRow a,
+.railActionRow a,
+.filters select,
+.filters button {
+  background: #14253a;
+  border-color: #344a64;
+  color: #eef4fb;
+  box-shadow: none;
+}
+
+.intentGrid button:hover,
+.intentGrid button:focus-visible,
+.intentGrid a:hover,
+.intentGrid a:focus-visible,
+.activeIntent,
+.queueStats button:hover,
+.queueStats button:focus-visible,
+.sectionHeader button:hover,
+.sectionHeader button:focus-visible,
+.workbenchFinish button:hover,
+.workbenchFinish button:focus-visible,
+.workbenchToolBelt button:hover,
+.workbenchToolBelt button:focus-visible {
+  background: #1d3350 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+.sourceCheckCue,
+.intentHero span,
+.intentSummary span,
+.guidedPath header span,
+.truthHeader > span,
+.workbenchNow > span {
+  color: #bfdbfe;
+}
+
+.intentHero h1,
+.intentGrid strong,
+.intentSummary h2,
+.intentFacts h3,
+.intentSteps h3,
+.intentGuardrail h3,
+.executionPrimary h1,
+.executionFacts strong,
+.trustedMetrics summary strong,
+.trustedMetrics h2,
+.trustedMetrics strong,
+.workspaceContract strong,
+.leadDetail strong,
+.pipelinePanel strong,
+.supportPanel strong,
+.revenueDeskHero h1,
+.revenueDeskCommand strong,
+.proofChecklist h3,
+.proofChecklist strong,
+.approvedToolGrid h3,
+.sourceCheckList h3,
+.sectionHeader h1,
+.sectionHeader h2,
+.managerRail h2,
+.customer360 h2,
+.truthHeader h2,
+.guidedPath h3,
+.guidedPath h4,
+.workspaceRelationship strong,
+.queueStats strong,
+.sourceGrid strong,
+.workbenchNow h4,
+.workbenchToolBelt button strong {
+  color: #eef4fb;
+}
+
+.intentHero p,
+.intentGrid span,
+.intentGrid em,
+.intentSummary p,
+.intentGuardrail p,
+.intentFacts ul,
+.intentSteps ol,
+.intentFacts li,
+.intentSteps li,
+.executionPrimary p,
+.executionFacts span,
+.trustedMetrics summary span,
+.trustedMetrics summary em,
+.trustedMetrics p,
+.trustedMetrics em,
+.trustedMetrics small,
+.workspaceContract span,
+.leadGrid span,
+.leadDetail span,
+.pipelinePanel span,
+.supportPanel span,
+.revenueDeskCommand span,
+.revenueDeskCommand small,
+.proofChecklist em,
+.sourceCheckList span,
+.queueStats span,
+.queueStats em,
+.queueTruth span,
+.sourceBackedState span,
+.sourceBackedState a,
+.sourceGrid span,
+.sourceGrid em,
+.workspaceRelationship span,
+.truthHeader p,
+.guidedPath header p,
+.workbenchNow p,
+.workbenchNow small,
+.workbenchFinish p,
+.workbenchFinish button small,
+.nextGuidedAction p,
+.nextGuidedAction small,
+.releasePanel p,
+.revenueDeskHero span,
+.revenueDeskHero p {
+  color: #bfcee0;
+}
+
+.intentHero > strong,
+.integrationStrip a,
+.sourceBackedState strong,
+.laneChip,
+.freshness,
+.live,
+.controlled,
+.source,
+.future,
+.workbenchTruthStatus span,
+.intentGuardrail strong,
+.trustedMetrics summary,
+.executionFacts span,
+.workspaceContract span,
+.proofChecklist span[data-status="Ready"],
+.proofChecklist span[data-status="Review"],
+.proofChecklist span[data-status="Missing"],
+.workbenchFinish button em {
+  background: #3f2c28;
+  border-color: rgba(249, 115, 22, .38);
+  color: #fed7aa;
+}
+
+.executionCommand .queueStats button,
+.trustedMetrics button[data-status="Not wired"],
+.sourceBackedState,
+.trustedMetrics,
+.table,
+.tableHead,
+.workGroupHeader,
+.emptyGroup,
+.tableRow {
+  background: #14253a;
+  border-color: #344a64;
+  color: #eef4fb;
+}
+
+.table {
+  background: #101b2c;
+  box-shadow: inset 0 0 0 1px #26384e;
+}
+
+.tableHead {
+  box-shadow: inset 0 -1px 0 #344a64;
+}
+
+.tableHead span,
+.workGroupHeader,
+.emptyGroup,
+.tableRow strong,
+.tableRow em,
+.tableRow span {
+  color: #eef4fb;
+}
+
+.tableRow:hover,
+.selectedRow {
+  background: #1e3350;
+}
+
+.trustedMetrics button > span,
+.trustedMetrics button[data-status="Not wired"] > span {
+  color: #bfdbfe;
+}
+
+.revenueDeskHero > strong,
+.revenueDeskHero > strong[data-status="Needs proof"],
+.revenueDeskHero > strong[data-status="Manager review required"],
+.revenueDeskHero > strong[data-status="Blocked"] {
+  background: #3f2c28;
+  border-color: rgba(249, 115, 22, .45);
+  color: #fed7aa;
+}
+
+.workbenchNow button,
+.workbenchFinish button[aria-pressed="true"] {
+  background: #4f6df5;
+  border-color: #72a7ff;
+  color: #fff;
+}
+
+.workbenchToolBelt button:disabled,
+.workbenchFinish button:disabled {
+  background: #253549;
+  border-color: #344a64;
+  color: #94a3b8;
+  opacity: .78;
+}
+
+.consoleLight {
+  background: #f4f7fb;
+  color: #0f172a;
+}
+
+.consoleDark {
+  color-scheme: dark;
+}
+
+.consoleLight .sidebar {
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  color: #10213d;
+  border-right: 1px solid #d9e3f2;
+}
+
+.consoleLight .brand {
+  border-bottom-color: #d9e3f2;
+}
+
+.consoleLight .brandMark {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.consoleLight .brand span {
+  color: #34445b;
+  font-weight: 750;
+}
+
+.consoleLight .salesMode,
+.consoleLight .actionKey {
+  background: #f8fbff;
+  border-color: #cbd8ea;
+  color: #10213d;
+}
+
+.consoleLight .salesMode em,
+.consoleLight .actionKey h2 {
+  color: #3c7253;
+}
+
+.consoleLight .nav button {
+  color: #1f3657;
+}
+
+.consoleLight .main {
+  background: #f4f7fb;
+}
+
+.consoleLight .topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #d9e3f2;
+  color: #10213d;
+}
+
+.consoleLight .topbar button,
+.consoleLight .roleSelect,
+.consoleLight .filters button,
+.consoleLight .filters select,
+.consoleLight .topbarReturnLink,
+.consoleLight .themeSwitch {
+  background: #f8fbff;
+  border-color: #c7d5ea;
+  color: #10213d;
+}
+
+.consoleLight .topbarReturnLink:hover,
+.consoleLight .topbarReturnLink:focus-visible,
+.consoleLight .themeSwitch button:hover,
+.consoleLight .themeSwitch button:focus-visible {
+  background: #edf4ff;
+  border-color: #7ea7ed;
+  color: #0f48a7;
+}
+
+.consoleLight .themeSwitch button {
+  color: #263a55;
+  font-weight: 900;
+}
+
+.consoleLight .activeTheme {
+  background: #3157d5 !important;
+  color: #fff !important;
+}
+
+.consoleLight .search {
+  background: #f8fbff;
+  border-color: #c7d5ea;
+  color: #10213d;
+}
+
+.consoleLight .search span {
+  color: #3157d5;
+}
+
+.consoleLight .search input {
+  color: #10213d;
+}
+
+.consoleLight .search input::placeholder {
+  color: #3e5068;
+}
+
+.consoleLight .sourceCheckCue {
+  color: #3157d5;
+  font-weight: 950;
+}
+
+.consoleLight .integrationStrip,
+.consoleLight .intentHero,
+.consoleLight .intentDetail,
+.consoleLight .intentSummary,
+.consoleLight .intentFacts,
+.consoleLight .intentSteps,
+.consoleLight .intentGuardrail,
+.consoleLight .executionCommand,
+.consoleLight .trustedMetrics,
+.consoleLight .workQueue,
+.consoleLight .revenueDesk,
+.consoleLight .inventory,
+.consoleLight .customer360,
+.consoleLight .managerRail,
+.consoleLight .leadDetail,
+.consoleLight .pipelinePanel article,
+.consoleLight .supportPanel article,
+.consoleLight .releasePanel,
+.consoleLight .guidedPath,
+.consoleLight .workspaceRelationship article,
+.consoleLight .queueTruth,
+.consoleLight .sourceBackedState,
+.consoleLight .sourceGrid article,
+.consoleLight .releaseGrid span,
+.consoleLight .revenueDeskHero,
+.consoleLight .revenueDeskCommand article,
+.consoleLight .proofChecklist,
+.consoleLight .approvedToolGrid,
+.consoleLight .sourceCheckList,
+.consoleLight .workbenchNow,
+.consoleLight .workbenchToolBelt,
+.consoleLight .workbenchFinish,
+.consoleLight .table,
+.consoleLight .tableRow,
+.consoleLight .emptyGroup {
+  background: #ffffff;
+  border-color: #d8e2ef;
+  color: #10213d;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .045);
+}
+
+.consoleLight .intentGrid button,
+.consoleLight .intentGrid a,
+.consoleLight .queueStats button,
+.consoleLight .executionFacts span,
+.consoleLight .trustedMetrics > section > div,
+.consoleLight .trustedMetrics button,
+.consoleLight .workspaceContract span,
+.consoleLight .proofChecklist span,
+.consoleLight .sourceCheckList span,
+.consoleLight .sourceCheckList a,
+.consoleLight .laneCard,
+.consoleLight .workbenchReturnLinks a,
+.consoleLight .workbenchTruthStatus span,
+.consoleLight .workbenchToolBelt button,
+.consoleLight .workbenchFinish button,
+.consoleLight .sectionHeader button,
+.consoleLight .sourceLinkRow a,
+.consoleLight .railActionRow a,
+.consoleLight .filters select,
+.consoleLight .filters button {
+  background: #f8fbff;
+  border-color: #d5e0ef;
+  color: #10213d;
+  box-shadow: none;
+}
+
+.consoleLight .intentGrid button:hover,
+.consoleLight .intentGrid button:focus-visible,
+.consoleLight .intentGrid a:hover,
+.consoleLight .intentGrid a:focus-visible,
+.consoleLight .activeIntent,
+.consoleLight .queueStats button:hover,
+.consoleLight .queueStats button:focus-visible,
+.consoleLight .sectionHeader button:hover,
+.consoleLight .sectionHeader button:focus-visible,
+.consoleLight .workbenchFinish button:hover,
+.consoleLight .workbenchFinish button:focus-visible,
+.consoleLight .workbenchToolBelt button:hover,
+.consoleLight .workbenchToolBelt button:focus-visible {
+  background: #edf4ff !important;
+  border-color: #3157d5 !important;
+  color: #10213d !important;
+}
+
+.consoleLight .intentHero h1,
+.consoleLight .intentGrid strong,
+.consoleLight .intentSummary h2,
+.consoleLight .intentFacts h3,
+.consoleLight .intentSteps h3,
+.consoleLight .intentGuardrail h3,
+.consoleLight .executionPrimary h1,
+.consoleLight .executionFacts strong,
+.consoleLight .trustedMetrics summary strong,
+.consoleLight .trustedMetrics h2,
+.consoleLight .trustedMetrics strong,
+.consoleLight .workspaceContract strong,
+.consoleLight .leadDetail strong,
+.consoleLight .pipelinePanel strong,
+.consoleLight .supportPanel strong,
+.consoleLight .revenueDeskHero h1,
+.consoleLight .revenueDeskCommand strong,
+.consoleLight .proofChecklist h3,
+.consoleLight .proofChecklist strong,
+.consoleLight .approvedToolGrid h3,
+.consoleLight .sourceCheckList h3,
+.consoleLight .sectionHeader h1,
+.consoleLight .sectionHeader h2,
+.consoleLight .managerRail h2,
+.consoleLight .customer360 h2,
+.consoleLight .truthHeader h2,
+.consoleLight .guidedPath h3,
+.consoleLight .guidedPath h4,
+.consoleLight .workspaceRelationship strong,
+.consoleLight .queueStats strong,
+.consoleLight .sourceGrid strong,
+.consoleLight .workbenchNow h4,
+.consoleLight .workbenchToolBelt button strong,
+.consoleLight .tableRow strong {
+  color: #10213d;
+}
+
+.consoleLight .intentHero p,
+.consoleLight .intentGrid span,
+.consoleLight .intentGrid em,
+.consoleLight .intentSummary p,
+.consoleLight .intentGuardrail p,
+.consoleLight .intentFacts ul,
+.consoleLight .intentSteps ol,
+.consoleLight .intentFacts li,
+.consoleLight .intentSteps li,
+.consoleLight .executionPrimary p,
+.consoleLight .executionFacts span,
+.consoleLight .trustedMetrics summary span,
+.consoleLight .trustedMetrics summary em,
+.consoleLight .trustedMetrics p,
+.consoleLight .trustedMetrics em,
+.consoleLight .trustedMetrics small,
+.consoleLight .workspaceContract span,
+.consoleLight .leadGrid span,
+.consoleLight .leadDetail span,
+.consoleLight .pipelinePanel span,
+.consoleLight .supportPanel span,
+.consoleLight .revenueDeskCommand span,
+.consoleLight .revenueDeskCommand small,
+.consoleLight .proofChecklist em,
+.consoleLight .sourceCheckList span,
+.consoleLight .queueStats span,
+.consoleLight .queueStats em,
+.consoleLight .queueTruth span,
+.consoleLight .sourceBackedState span,
+.consoleLight .sourceBackedState a,
+.consoleLight .sourceGrid span,
+.consoleLight .sourceGrid em,
+.consoleLight .workspaceRelationship span,
+.consoleLight .truthHeader p,
+.consoleLight .guidedPath header p,
+.consoleLight .workbenchNow p,
+.consoleLight .workbenchNow small,
+.consoleLight .workbenchFinish p,
+.consoleLight .workbenchFinish button small,
+.consoleLight .nextGuidedAction p,
+.consoleLight .nextGuidedAction small,
+.consoleLight .releasePanel p,
+.consoleLight .revenueDeskHero span,
+.consoleLight .revenueDeskHero p,
+.consoleLight .tableRow span,
+.consoleLight .tableRow em {
+  color: #34445b;
+  font-weight: 700;
+}
+
+.consoleLight .revenueDeskHero > strong {
+  flex: none;
+  overflow: hidden;
+  padding: 12px;
+  font-size: 34px !important;
+}
+
+.consoleLight .revenueDeskHero > strong span {
+  display: block;
+  font-size: 11px !important;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  line-height: 1.2 !important;
+}
+
+.consoleLight .intentHero > strong,
+.consoleLight .integrationStrip a,
+.consoleLight .sourceBackedState strong,
+.consoleLight .laneChip,
+.consoleLight .freshness,
+.consoleLight .live,
+.consoleLight .controlled,
+.consoleLight .source,
+.consoleLight .future,
+.consoleLight .workbenchTruthStatus span,
+.consoleLight .intentGuardrail strong,
+.consoleLight .trustedMetrics summary,
+.consoleLight .executionFacts span,
+.consoleLight .workspaceContract span,
+.consoleLight .proofChecklist span[data-status="Ready"],
+.consoleLight .proofChecklist span[data-status="Review"],
+.consoleLight .proofChecklist span[data-status="Missing"],
+.consoleLight .workbenchFinish button em,
+.consoleLight .revenueDeskHero > strong,
+.consoleLight .revenueDeskHero > strong[data-status="Needs proof"],
+.consoleLight .revenueDeskHero > strong[data-status="Manager review required"],
+.consoleLight .revenueDeskHero > strong[data-status="Blocked"] {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.consoleLight .tableHead,
+.consoleLight .workGroupHeader {
+  background: #edf4ff;
+  border-color: #d5e0ef;
+  color: #334963;
+}
+
+.consoleLight .tableRow:hover,
+.consoleLight .selectedRow {
+  background: #eef4ff !important;
+}
+
+.consoleLight .trustedMetrics button > span,
+.consoleLight .trustedMetrics button[data-status="Not wired"] > span {
+  color: #3157d5;
+}
+
+.consoleLight .workbenchNow button,
+.consoleLight .workbenchFinish button[aria-pressed="true"] {
+  background: #3157d5;
+  border-color: #3157d5;
+  color: #fff;
+}
+
+.consoleLight .workbenchToolBelt button:disabled,
+.consoleLight .workbenchFinish button:disabled {
+  background: #eef2f7;
+  border-color: #d6e0ec;
+  color: #7a8aa0;
+}

@@ -8,8 +8,30 @@ const manager = { id: "manager", name: "Manager", email: "manager@test.local", i
 
 describe("task collaborators", () => {
   it("normalizes a unique collaborator list", () => {
-    expect(normalizeTaskCollaboratorInput({ collaboratorIds: [" user-1 ", "user-2"] })).toEqual({ collaboratorIds: ["user-1", "user-2"] });
+    expect(normalizeTaskCollaboratorInput({ collaboratorIds: [" user-1 ", "user-2"] })).toEqual({
+      collaboratorIds: ["user-1", "user-2"],
+      collaboratorRequests: [
+        { userId: "user-1", collaborationScope: "" },
+        { userId: "user-2", collaborationScope: "" }
+      ]
+    });
     expect(() => normalizeTaskCollaboratorInput({ collaboratorIds: ["user-1", "user-1"] })).toThrow("cannot contain duplicates");
+  });
+
+  it("normalizes collaborator scope and capacity requests", () => {
+    expect(normalizeTaskCollaboratorInput({
+      collaboratorRequests: [
+        { userId: " ancilla ", collaborationScope: " Review paperwork handoff ", capacityRequested: "30 minutes today" }
+      ]
+    })).toEqual({
+      collaboratorIds: ["ancilla"],
+      collaboratorRequests: [
+        { userId: "ancilla", collaborationScope: "Review paperwork handoff", capacityRequested: "30 minutes today" }
+      ]
+    });
+    expect(() => normalizeTaskCollaboratorInput({
+      collaboratorRequests: [{ userId: "ancilla", collaborationScope: "" }]
+    })).toThrow("needs a collaboration scope");
   });
 
   it("rejects the owner and inactive staff", async () => {

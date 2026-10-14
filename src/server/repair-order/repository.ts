@@ -1,0 +1,157 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { prisma } from "@/server/db/client";
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
+import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
+type Tx = Prisma.TransactionClient;
+function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue; }
+async function execute(database: PrismaClient, input: EnterpriseCommandCommitInput, mutate: (tx: Tx, version: number) => Promise<{ result: unknown; previous?: unknown }>) { return database.$transaction(async (tx) => { const existing = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: input.organizationId, domain: input.domain, commandType: input.commandType, idempotencyKey: input.idempotencyKey } } }); if (existing) { if (existing.requestHash !== input.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED"); return { duplicate: true, result: existing.resultSnapshot, version: existing.resultingVersion ?? input.expectedVersion }; } const key = { organizationId_domain_subjectType_subjectId: { organizationId: input.organizationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId } }; const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: key }); const currentVersion = aggregate?.version ?? 0; let baselineVersion = currentVersion; if (currentVersion !== input.expectedVersion) { const repairOrder = await tx.repairOrder.findFirst({ where: { id: input.subjectId, organizationId: input.organizationId, closedAt: null }, select: { version: true } }); const ledgerBehindRepairOrder = repairOrder && currentVersion < input.expectedVersion && repairOrder.version === input.expectedVersion; if (!ledgerBehindRepairOrder) throw new EnterpriseCommandConflictError(`Expected version ${input.expectedVersion}, but current version is ${currentVersion}.`, "VERSION_CONFLICT"); baselineVersion = input.expectedVersion; } const version = baselineVersion + 1; const mutation = await mutate(tx, version); if (aggregate) await tx.enterpriseAggregateVersion.update({ where: { id: aggregate.id }, data: { version, locationId: input.locationId } }); else await tx.enterpriseAggregateVersion.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, version } }); const resultSnapshot = json(mutation.result); const command = await tx.enterpriseCommandLedger.create({ data: { organizationId: input.organizationId, locationId: input.locationId, actorUserId: input.actorUserId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, commandType: input.commandType, status: "SUCCEEDED", idempotencyKey: input.idempotencyKey, requestHash: input.requestHash, correlationId: input.correlationId, expectedVersion: input.expectedVersion, resultingVersion: version, resultSnapshot, completedAt: new Date() } }); const eventType = `${input.commandType}_COMPLETED`; const event = await tx.enterpriseDomainEvent.create({ data: { organizationId: input.organizationId, locationId: input.locationId, commandId: command.id, domain: input.domain, aggregateType: input.subjectType, aggregateId: input.subjectId, aggregateVersion: version, eventType, payload: json({ ...input.payload, reason: input.reason, result: mutation.result }) } }); await tx.enterpriseAuditEvent.create({ data: { organizationId: input.organizationId, locationId: input.locationId, actorUserId: input.actorUserId, commandId: command.id, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, eventType, reason: input.reason, priorValue: mutation.previous == null ? undefined : json(mutation.previous), newValue: resultSnapshot, metadata: json({ requestHash: input.requestHash }), correlationId: input.correlationId } }); await tx.enterpriseOutboxMessage.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domainEventId: event.id, topic: "vehicle-operations.shop", messageKey: input.subjectId, payload: json({ aggregateId: input.subjectId, aggregateVersion: version, correlationId: input.correlationId, eventId: event.id, eventType }) } }); return { duplicate: false, result: mutation.result, version }; }); }
+
+export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
+export type RepairOrderConcernCandidate = { id:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
+export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
+export type RepairOrderDuplicateCloseRecord = { actorUserId: string; duplicateOfRepairOrderId: string | null; occurredAt: Date; reason: string };
+export type RepairOrderNoWorkCloseRecord = { actorUserId: string; occurredAt: Date; reason: string };
+const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, specificationSnapshot: true, version: true, registryRelationships: { where: { effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, select: { relationshipType: true } } };
+const vendorWorkSelect = {
+  approvalStatus: true,
+  approvedAmountCents: true,
+  currentLocation: true,
+  directFromSource: true,
+  estimateAmountCents: true,
+  events: { orderBy: { occurredAt: "desc" as const }, take: 20, include: { actorUser: { select: { name: true } } } },
+  expectedReturnAt: true,
+  id: true,
+  keysCustodian: true,
+  lastUpdateSummary: true,
+  nextAction: true,
+  nextFollowUpAt: true,
+  scope: true,
+  sentAt: true,
+  sentFrom: true,
+  status: true,
+  supplementalAmountCents: true,
+  transportMethod: true,
+  vendorId: true,
+  vendorName: true,
+  workType: true,
+};
+const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }, inventoryUnit: { select: { id: true, inventoryNumber: true } }, shopReconLifecycle: { select: { id: true, nextAction: true, operatingState: true, stage: true, targetAt: true, version: true, zoneCode: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, serviceVisit: { include: { appointment: { select: { id: true, appointmentNumber: true, title: true, startsAt: true } }, createdByUser: { select: { id: true, name: true } } } }, vendorWorks: { orderBy: { updatedAt: "desc" as const }, select: vendorWorkSelect }, advisorUpdates: { orderBy: { version: "desc" as const }, take: 30, select: { id: true, contactOutcome: true, customerVisibleSummary: true, internalNotes: true, occurredAt: true, statusCode: true, version: true, authorUser: { select: { id: true, name: true } } } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
+
+export function createRepairOrderRepository(database: PrismaClient = prisma) { return {
+  findByAppointment(organizationId: string, appointmentId: string) { return database.repairOrder.findFirst({ where: { organizationId, serviceVisit: { appointmentId } }, select: { id: true, repairOrderNumber: true, stage: true, operatingState: true, version: true } }); },
+  async findOpenConcernCandidates(organizationId:string,input:{appointmentId:string|null;inventoryUnitId:string|null;vehicleId:string|null}):Promise<RepairOrderConcernCandidate[]>{
+    let vehicleId=input.vehicleId;
+    if(!vehicleId&&input.inventoryUnitId)vehicleId=(await database.inventoryUnit.findFirst({where:{id:input.inventoryUnitId,organizationId,closedAt:null},select:{vehicleId:true}}))?.vehicleId??null;
+    if(!vehicleId&&input.appointmentId)vehicleId=(await database.appointmentVehicle.findFirst({where:{appointmentId:input.appointmentId,isPrimary:true},select:{vehicleId:true}}))?.vehicleId??null;
+    if(!vehicleId)return[];
+    const rows=await database.repairOrder.findMany({where:{organizationId,vehicleId,closedAt:null},orderBy:{openedAt:"asc"},select:{id:true,repairOrderNumber:true,stage:true,operatingState:true,version:true,serviceVisit:{select:{concernSummary:true}}}});
+    return rows.map(({serviceVisit,...row})=>({...row,concernSummary:serviceVisit.concernSummary}));
+  },
+  async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string }) {
+    const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null, ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}) };
+    if (input.state) where.operatingState = input.state as Prisma.EnumRepairOrderOperatingStateFilter;
+    const tokens = input.query.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length) {
+      where.AND = tokens.map((token) => {
+        const tokenMatches: Prisma.RepairOrderWhereInput[] = [
+          { repairOrderNumber: { contains: token, mode: "insensitive" } },
+          { nextAction: { contains: token, mode: "insensitive" } },
+          { vehicle: { vehicleNumber: { contains: token, mode: "insensitive" } } },
+          { vehicle: { vin: { contains: token.toUpperCase() } } },
+          { vehicle: { stockNumber: { contains: token, mode: "insensitive" } } },
+          { vehicle: { licensePlate: { contains: token, mode: "insensitive" } } },
+          { vehicle: { make: { contains: token, mode: "insensitive" } } },
+          { vehicle: { model: { contains: token, mode: "insensitive" } } },
+          { customer: { displayName: { contains: token, mode: "insensitive" } } },
+          { inventoryUnit: { inventoryNumber: { contains: token, mode: "insensitive" } } },
+          { ownerUser: { name: { contains: token, mode: "insensitive" } } },
+          { serviceVisit: { concernSummary: { contains: token, mode: "insensitive" } } },
+          { vendorWorks: { some: { OR: [{ vendorName: { contains: token, mode: "insensitive" } }, { currentLocation: { contains: token, mode: "insensitive" } }, { nextAction: { contains: token, mode: "insensitive" } }] } } },
+        ];
+        const year = Number(token);
+        if (/^\d{4}$/.test(token) && Number.isInteger(year)) tokenMatches.push({ vehicle: { year } });
+        return { OR: tokenMatches };
+      });
+    }
+    const [total, items] = await Promise.all([
+      database.repairOrder.count({ where }),
+      database.repairOrder.findMany({
+        where,
+        orderBy: [{ targetAt: "asc" }, { repairOrderNumber: "asc" }],
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+        include: {
+          vehicle: { select: vehicleSelect },
+          customer: { select: { id: true, displayName: true } },
+          inventoryUnit: { select: { id: true, inventoryNumber: true } },
+          ownerUser: { select: { id: true, name: true } },
+          location: { select: { id: true, code: true, name: true } },
+          serviceVisit: { select: { concernSummary: true, transportMode: true } },
+          vendorWorks: { orderBy: { updatedAt: "desc" }, select: vendorWorkSelect },
+          advisorUpdates: { orderBy: { version: "desc" }, take: 8, select: { id: true, contactChannel: true, contactDirection: true, contactOutcome: true, customerVisibleSummary: true, internalNotes: true, exceptionCodes: true, nextContactAt: true, occurredAt: true, statusCode: true, version: true, authorUser: { select: { id: true, name: true } } } },
+          _count: { select: { stateEvents: true } },
+        },
+      }),
+    ]);
+    return { items, page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
+  },
+  getDetail(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, include: detailInclude }); },
+  getCloseContext(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, select: { closedAt: true, id: true, locationId: true, stage: true, vehicleId: true, version: true } }); },
+  async getCreateOptions(organizationId: string) {
+    const [appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders, repairVendors] = await Promise.all([
+      database.appointment.findMany({
+        where: { organizationId, cancelledAt: null, noShowAt: null, serviceVisit: null, vehicles: { some: { isPrimary: true } }, participants: { some: { participantType: "CUSTOMER", isPrimary: true, customerId: { not: null } } } },
+        orderBy: { startsAt: "asc" }, take: 100,
+        select: { id: true, appointmentNumber: true, title: true, startsAt: true, locationId: true, vehicles: { where: { isPrimary: true }, take: 1, select: { vehicle: { select: vehicleSelect } } }, participants: { where: { participantType: "CUSTOMER", isPrimary: true }, take: 1, select: { customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } } } } }
+      }),
+      database.vehicle.findMany({ where: { organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, orderBy: { vehicleNumber: "asc" }, select: vehicleSelect }),
+      database.customer.findMany({ where: { organizationId, status: "ACTIVE", mergedIntoCustomerId: null }, orderBy: { displayName: "asc" }, select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }),
+      database.inventoryUnit.findMany({ where: { organizationId, closedAt: null }, orderBy: { inventoryNumber: "asc" }, select: { id: true, inventoryNumber: true, locationId: true, vehicle: { select: vehicleSelect } } }),
+      database.location.findMany({ where: { organizationId }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
+      database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, userRoles: { select: { role: { select: { name: true } } } } } }),
+      database.repairOrder.findMany({
+        where: { organizationId },
+        orderBy: { updatedAt: "desc" },
+        take: 200,
+        select: { closedAt: true, id: true, openedAt: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, serviceVisit: { select: { concernSummary: true } }, vehicle: { select: vehicleSelect } },
+      }),
+      database.repairVendor.findMany({ where: { organizationId, status: "ACTIVE" }, orderBy: { name: "asc" }, select: { defaultLeadDays: true, id: true, name: true, vendorType: true } })
+    ]);
+    return { appointments, vehicles, customers, inventoryUnits, locations, users: users.map(({ userRoles, ...user }) => ({ ...user, roles: userRoles.map(({ role }) => role.name) })), repairOrders, repairVendors };
+  },
+  async validateReadinessSnapshot(organizationId: string, data: Pick<RepairOrderCreateRecord, "appointmentId" | "customerId" | "locationId" | "readinessSnapshotId" | "vehicleId">, now: Date) {
+    if (!data.readinessSnapshotId) return;
+    const snapshot = await database.serviceIntakeReadinessSnapshot.findFirst({
+      where: {
+        id: data.readinessSnapshotId,
+        organizationId,
+        locationId: data.locationId,
+        expiresAt: { gt: now },
+        ...(data.appointmentId
+          ? { appointmentId: data.appointmentId }
+          : { appointmentId: null, customerId: data.customerId!, vehicleId: data.vehicleId! }),
+      },
+      select: { id: true },
+    });
+    if (!snapshot) throw new Error("Service-readiness facts are stale or do not match this intake. Refresh readiness before check-in.");
+  },
+  async attachReadinessSnapshot(organizationId: string, repairOrderId: string, readinessSnapshotId: string | null) {
+    if (!readinessSnapshotId) return;
+    const repairOrder = await database.repairOrder.findFirst({
+      where: { id: repairOrderId, organizationId },
+      select: { serviceVisitId: true },
+    });
+    if (!repairOrder) throw new Error("The created repair order could not be linked to its readiness evidence.");
+    await database.serviceVisit.update({
+      where: { id: repairOrder.serviceVisitId },
+      data: { readinessSnapshotId },
+    });
+  },
+  // Intake identifiers begin as nullable inputs and are resolved from their authoritative source.
+  // eslint-disable-next-line prefer-const
+  create(command: EnterpriseCommandCommitInput, data: RepairOrderCreateRecord) { return execute(database,command,async(tx,version)=>{ let vehicleId=data.vehicleId; let customerId=data.customerId; let inventoryUnitId=data.inventoryUnitId; let sourceSnapshot: Prisma.InputJsonValue|undefined; if(data.intakeSource==="APPOINTMENT"){ const appointment=await tx.appointment.findFirst({where:{id:data.appointmentId!,organizationId:command.organizationId,locationId:data.locationId,cancelledAt:null,noShowAt:null},include:{vehicles:{where:{isPrimary:true},take:2,include:{vehicle:{select:vehicleSelect}}},participants:{where:{participantType:"CUSTOMER",isPrimary:true},take:2,include:{customer:{select:{id:true,displayName:true}}}},serviceVisit:{select:{repairOrder:{select:{id:true,repairOrderNumber:true,version:true}}}}}}); if(!appointment) throw new Error("Appointment is not eligible for repair-order intake at this location."); if(appointment.serviceVisit?.repairOrder) return {result:appointment.serviceVisit.repairOrder}; if(appointment.vehicles.length!==1||!appointment.vehicles[0].vehicle) throw new Error("Appointment must have exactly one primary vehicle."); if(appointment.participants.length!==1||!appointment.participants[0].customer) throw new Error("Appointment must have exactly one primary customer."); vehicleId=appointment.vehicles[0].vehicle.id; customerId=appointment.participants[0].customer.id; sourceSnapshot=json({appointmentNumber:appointment.appointmentNumber,appointmentVersion:appointment.version,customer:appointment.participants[0].customer,scheduledAt:appointment.startsAt,title:appointment.title,vehicle:appointment.vehicles[0].vehicle}); } else if(data.intakeSource==="INVENTORY_RECON" && inventoryUnitId){ const unit=await tx.inventoryUnit.findFirst({where:{id:inventoryUnitId!,organizationId:command.organizationId,locationId:data.locationId,closedAt:null},select:{id:true,vehicleId:true,inventoryNumber:true,version:true}}); if(!unit) throw new Error("Inventory unit is not active at the selected location."); if(vehicleId && vehicleId!==unit.vehicleId) throw new Error("Inventory unit does not belong to the selected repair vehicle."); vehicleId=unit.vehicleId; sourceSnapshot=json({inventoryNumber:unit.inventoryNumber,inventoryUnitVersion:unit.version}); } if(data.intakeSource==="INVENTORY_RECON" && !inventoryUnitId){ const ownership=await tx.vehicleRelationship.findFirst({where:{organizationId:command.organizationId,vehicleId:vehicleId!,relationshipType:{in:["DEALERSHIP_OWNED","TRADE_IN","CONSIGNMENT"]},effectiveFrom:{lte:data.arrivedAt},OR:[{effectiveTo:null},{effectiveTo:{gt:data.arrivedAt}}]},select:{id:true,relationshipType:true}}); if(!ownership) throw new Error("Confirm dealership ownership before creating an internal repair order."); sourceSnapshot=json({ownershipRelationshipId:ownership.id,relationshipType:ownership.relationshipType,acquisitionPending:true}); } const [vehicle,customer,location,owner]=await Promise.all([tx.vehicle.findFirst({where:{id:vehicleId!,organizationId:command.organizationId,status:"ACTIVE",mergedIntoVehicleId:null},select:{id:true}}),customerId?tx.customer.findFirst({where:{id:customerId,organizationId:command.organizationId,status:"ACTIVE",mergedIntoCustomerId:null},select:{id:true}}):null,tx.location.findFirst({where:{id:data.locationId,organizationId:command.organizationId},select:{id:true}}),tx.user.findFirst({where:{id:data.ownerUserId,isActive:true},select:{id:true}})]); if(!vehicle) throw new Error("Repair-order vehicle must be active in the canonical registry."); if(customerId&&!customer) throw new Error("Repair-order customer must be active."); if(!location) throw new Error("Repair-order location does not belong to the organization."); if(!owner) throw new Error("Repair-order owner must be an active user."); const visit=await tx.serviceVisit.create({data:{organizationId:command.organizationId,locationId:data.locationId,vehicleId:vehicleId!,customerId,appointmentId:data.appointmentId,inventoryUnitId,origin:data.intakeSource==="INVENTORY_RECON"?"INVENTORY_RECON":"CUSTOMER_REPAIR",intakeSource:data.intakeSource,arrivedAt:data.arrivedAt,concernSummary:data.concernSummary,promisedAt:data.promisedAt,promiseNotes:data.promiseNotes,consentStatus:data.consentStatus,consentReference:data.consentReference,consentedAt:data.consentedAt,keysReceivedCount:data.keysReceivedCount,keyTag:data.keyTag,transportMode:data.transportMode,intakeNotes:data.intakeNotes,readinessSnapshotId:data.readinessSnapshotId,sourceSnapshot,createdByUserId:data.actorUserId}}); const ro=await tx.repairOrder.create({data:{id:command.subjectId,organizationId:command.organizationId,locationId:data.locationId,serviceVisitId:visit.id,repairOrderNumber:data.repairOrderNumber,vehicleId:vehicleId!,customerId,inventoryUnitId,origin:data.intakeSource==="INVENTORY_RECON"?"INVENTORY_RECON":"CUSTOMER_REPAIR",intakeSource:data.intakeSource,stage:"INTAKE",operatingState:data.operatingState,openedAt:data.arrivedAt,stageStartedAt:data.arrivedAt,ownerUserId:data.ownerUserId,targetAt:data.targetAt,nextAction:data.nextAction,stateReason:data.stateReason,version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:null,toStage:"INTAKE",fromOperatingState:null,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:command.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.arrivedAt}}); return {result:{id:ro.id,repairOrderNumber:ro.repairOrderNumber,stage:ro.stage,operatingState:ro.operatingState,version}}; }); },
+  updateControl(command: EnterpriseCommandCommitInput,data:RepairOrderControlRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null,stage:"INTAKE"}}); if(data.targetAt<previous.openedAt) throw new Error("Intake target cannot be before repair-order opening."); const [location,owner]=await Promise.all([tx.location.findFirst({where:{id:data.locationId,organizationId:command.organizationId},select:{id:true}}),tx.user.findFirst({where:{id:data.ownerUserId,isActive:true},select:{id:true}})]); if(!location) throw new Error("Repair-order location does not belong to the organization."); if(!owner) throw new Error("Repair-order owner must be an active user."); const ro=await tx.repairOrder.update({where:{id:previous.id},data:{locationId:data.locationId,nextAction:data.nextAction,operatingState:data.operatingState,ownerUserId:data.ownerUserId,stateReason:data.stateReason,targetAt:data.targetAt,version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:command.reason,actorUserId:data.actorUserId,correlationId:command.correlationId}}); return {previous,result:{id:ro.id,stage:ro.stage,operatingState:ro.operatingState,version}};});},
+  closeDuplicate(command: EnterpriseCommandCommitInput,data:RepairOrderDuplicateCloseRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},include:{shopReconLifecycle:true}}); if(data.duplicateOfRepairOrderId){const keeper=await tx.repairOrder.findFirst({where:{id:data.duplicateOfRepairOrderId,organizationId:command.organizationId,vehicleId:previous.vehicleId,closedAt:null},select:{id:true,repairOrderNumber:true}}); if(!keeper) throw new Error("The RO to keep must be open and belong to the same vehicle.");} const ro=await tx.repairOrder.update({where:{id:previous.id},data:{closedAt:data.occurredAt,stage:"CANCELLED",operatingState:"CLOSED",stateReason:"Closed as duplicate repair order.",nextAction:data.duplicateOfRepairOrderId?`Use existing repair order ${data.duplicateOfRepairOrderId}.`:"Duplicate repair order closed; use the remaining open RO for this vehicle.",version}}); if(previous.shopReconLifecycle) await tx.shopReconLifecycle.update({where:{id:previous.shopReconLifecycle.id},data:{operatingState:"CANCELLED",nextAction:"Duplicate repair order closed. Use the remaining open RO for this vehicle.",version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:data.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.occurredAt}}); return {previous,result:{closedAt:ro.closedAt,id:ro.id,operatingState:ro.operatingState,stage:ro.stage,version}};});},
+  closeNoWork(command: EnterpriseCommandCommitInput,data:RepairOrderNoWorkCloseRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},include:{repairJobs:{where:{status:{not:"CANCELLED"}},select:{jobNumber:true,status:true}},shopReconLifecycle:true,vendorWorks:{where:{status:{notIn:["COMPLETED","CANCELLED"]}},select:{vendorName:true,status:true}}}}); if(previous.repairJobs.length)throw new Error(`Close or cancel active repair jobs first: ${previous.repairJobs.map(job=>job.jobNumber).join(", ")}.`); if(previous.vendorWorks.length)throw new Error(`Close active outside-vendor work first: ${previous.vendorWorks.map(work=>work.vendorName || work.status).join(", ")}.`); const ro=await tx.repairOrder.update({where:{id:previous.id},data:{closedAt:data.occurredAt,stage:"CANCELLED",operatingState:"CLOSED",stageStartedAt:data.occurredAt,stateReason:data.reason,nextAction:"Repair order closed; no further work planned.",version}}); if(previous.shopReconLifecycle) await tx.shopReconLifecycle.update({where:{id:previous.shopReconLifecycle.id},data:{operatingState:"CANCELLED",nextAction:"Repair order closed; no further work planned.",version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:data.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.occurredAt}}); return {previous,result:{closedAt:ro.closedAt,id:ro.id,operatingState:ro.operatingState,stage:ro.stage,version}};});}
+}; }
+export type RepairOrderRepository = ReturnType<typeof createRepairOrderRepository>;

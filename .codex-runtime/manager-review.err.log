@@ -1,0 +1,136 @@
+[browser] ./src/server/time-attendance/console-read-model.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/app/(app)/time-attendance/page.tsx 
+⨯ ./src/server/time-attendance/console-read-model.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/app/(app)/time-attendance/page.tsx
+[browser] ./src/server/time-attendance/console-read-model.ts
+Error:   x Expected ',', got ')'
+     ,-[C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts:278:1]
+ 275 |         },
+ 276 |         orderBy: [{ updatedAt: "desc" }, { version: "desc" }],
+ 277 |         take: 100
+ 278 |       }) : Promise.resolve([]),
+     :        ^
+ 279 |       manager ? Promise.all([
+ 280 |         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+ 281 |         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/app/(app)/time-attendance/page.tsx 
+⨯ ./src/server/time-attendance/console-read-model.ts
+Error:   x Expected ',', got ')'
+     ,-[C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts:278:1]
+ 275 |         },
+ 276 |         orderBy: [{ updatedAt: "desc" }, { version: "desc" }],
+ 277 |         take: 100
+ 278 |       }) : Promise.resolve([]),
+     :        ^
+ 279 |       manager ? Promise.all([
+ 280 |         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+ 281 |         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/app/(app)/time-attendance/page.tsx
+[browser] ./src/server/time-attendance/console-read-model.ts
+Error:   x Expected ',', got ')'
+     ,-[C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts:278:1]
+ 275 |         },
+ 276 |         orderBy: [{ updatedAt: "desc" }, { version: "desc" }],
+ 277 |         take: 100
+ 278 |       }) : Promise.resolve([]),
+     :        ^
+ 279 |       manager ? Promise.all([
+ 280 |         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+ 281 |         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/server/time-attendance/index.ts
+./src/app/(app)/time-attendance/page.tsx 
+⨯ ./src/server/time-attendance/console-read-model.ts
+Error:   x Expected ',', got ')'
+     ,-[C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts:278:1]
+ 275 |         },
+ 276 |         orderBy: [{ updatedAt: "desc" }, { version: "desc" }],
+ 277 |         take: 100
+ 278 |       }) : Promise.resolve([]),
+     :        ^
+ 279 |       manager ? Promise.all([
+ 280 |         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+ 281 |         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/server/time-attendance/index.ts
+./src/app/(app)/time-attendance/page.tsx
+[browser] ./src/server/time-attendance/console-read-model.ts
+Error:   x Expected ',', got ')'
+     ,-[C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts:278:1]
+ 275 |         },
+ 276 |         orderBy: [{ updatedAt: "desc" }, { version: "desc" }],
+ 277 |         take: 100
+ 278 |       }) : Promise.resolve([]),
+     :        ^
+ 279 |       manager ? Promise.all([
+ 280 |         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+ 281 |         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/app/(app)/time-attendance/page.tsx 
+[browser] ./src/server/time-attendance/console-read-model.ts
+Error:   x Expected ',', got ')'
+     ,-[C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\server\time-attendance\console-read-model.ts:278:1]
+ 275 |         },
+ 276 |         orderBy: [{ updatedAt: "desc" }, { version: "desc" }],
+ 277 |         take: 100
+ 278 |       }) : Promise.resolve([]),
+     :        ^
+ 279 |       manager ? Promise.all([
+ 280 |         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+ 281 |         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./src/server/time-attendance/console-read-model.ts
+./src/app/(app)/time-attendance/page.tsx 

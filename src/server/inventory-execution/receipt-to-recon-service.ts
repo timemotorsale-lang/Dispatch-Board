@@ -1,0 +1,9 @@
+import { randomUUID } from "node:crypto";
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
+import { authorizeInventoryRecon } from "./access";
+import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
+import { normalizeReceiptToReconLaunch, RECEIPT_TO_RECON_STEPS } from "./receipt-to-recon-domain";
+import { createReceiptToReconRepository, type ReceiptToReconRepository } from "./receipt-to-recon-repository";
+export async function launchReceiptToRecon(actor: AuthenticatedUser | null, inventoryUnitId: string, value: unknown, input: { now?: () => Date; organizationId?: string; repository?: ReceiptToReconRepository; foundationRepository?: EnterpriseCommandRepository } = {}) { const user = await authorizeInventoryRecon(actor, input); const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id, data = normalizeReceiptToReconLaunch(value), now = (input.now ?? (() => new Date()))(), repository = input.repository ?? createReceiptToReconRepository(), ids = RECEIPT_TO_RECON_STEPS.map(() => ({ taskId: randomUUID(), packetId: randomUUID() })), command = normalizeEnterpriseCommand({ actorUserId: user.id, commandType: "LAUNCH_RECEIPT_TO_RECON_SLICE", domain: "INVENTORY_EXECUTION", expectedVersion: 0, idempotencyKey: data.idempotencyKey, locationId: null, organizationId, payload: { expectedInventoryVersion: data.expectedInventoryVersion, inventoryUnitId, owners: data.owners, readiness: data.readiness, targets: Object.fromEntries(Object.entries(data.targets).map(([key, target]) => [key, target.toISOString()])) }, reason: data.reason, subjectId: inventoryUnitId.trim(), subjectType: "INVENTORY_RECEIPT_TO_RECON_SLICE" }); return repository.launch(command, { ...data, actorUserId: user.id, ids, inventoryUnitId: inventoryUnitId.trim(), now }); }

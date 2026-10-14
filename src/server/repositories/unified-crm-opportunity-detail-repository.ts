@@ -1,0 +1,426 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
+
+import { prisma } from "@/server/db/client";
+import type { UnifiedCrmOpportunityRecordScope } from "@/server/unified-crm/opportunity-contract";
+import type { UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
+
+export type UnifiedCrmOpportunityDetailRecord = {
+  id: string;
+  organizationId: string;
+  opportunityNumber: string;
+  title: string;
+  summary: string | null;
+  customer: {
+    id: string;
+    displayName: string;
+    customerNumber: string;
+  } | null;
+  ownerUser: {
+    id: string;
+    name: string;
+  } | null;
+  stage: UnifiedCrmOpportunityStage;
+  nextActionLabel: string | null;
+  nextActionDueAt: Date | null;
+  version: number;
+  sourceLead: {
+    id: string;
+    leadNumber: string;
+    stage: string;
+  } | null;
+  stageHistory: readonly {
+    actorLabel: string;
+    fromStage: UnifiedCrmOpportunityStage | null;
+    occurredAt: Date;
+    reason: string;
+    toStage: UnifiedCrmOpportunityStage;
+  }[];
+  taskLinks: readonly {
+    actorLabel: string;
+    archivedAt: Date | null;
+    brief: string;
+    createdAt: Date;
+    dueAt: Date;
+    relationship: string;
+    taskId: string;
+    title: string;
+  }[];
+  appointmentLinks: readonly {
+    actorLabel: string;
+    appointmentNumber: string;
+    archivedAt: Date | null;
+    createdAt: Date;
+    endsAt: Date | null;
+    relationship: string;
+    startsAt: Date | null;
+    title: string;
+    version: number;
+  }[];
+  dispatchLinks: readonly {
+    actorLabel: string;
+    archivedAt: Date | null;
+    createdAt: Date;
+    repairJobId: string | null;
+    repairJobNumber: string | null;
+    repairOrderId: string;
+    repairOrderNumber: string;
+    targetKind: "REPAIR_ORDER" | "REPAIR_JOB";
+    title: string;
+    version: number;
+  }[];
+  quoteLinks: readonly {
+    approvalAmountCents: number | null;
+    approvalDiscountCents: number | null;
+    approvalRequestId: string | null;
+    approvalStatus: "PENDING" | "APPROVED" | "RETURNED" | "DENIED" | null;
+    approvalVersion: number | null;
+    latestVersionNumber: number;
+    quoteId: string;
+    quoteNumber: string;
+    state: "DRAFT" | "PRESENTED";
+    updatedAt: Date;
+  }[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type UnifiedCrmOpportunityDetailRepository = {
+  findOpportunityDetail(input: {
+    opportunityId: string;
+    organizationId: string;
+    recordScope: UnifiedCrmOpportunityRecordScope;
+  }): Promise<UnifiedCrmOpportunityDetailRecord | null>;
+};
+
+type UnifiedCrmOpportunityDetailDatabase = Pick<PrismaClient, "$queryRaw">;
+
+type OpportunityRow = {
+  id: string;
+  organizationId: string;
+  opportunityNumber: string;
+  title: string;
+  summary: string | null;
+  customerId: string | null;
+  customerDisplayName: string | null;
+  customerNumber: string | null;
+  ownerUserId: string | null;
+  ownerUserName: string | null;
+  sourceLeadId: string | null;
+  sourceLeadNumber: string | null;
+  sourceLeadStage: string | null;
+  stage: UnifiedCrmOpportunityStage;
+  nextActionLabel: string | null;
+  nextActionDueAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type StageHistoryRow = {
+  actorLabel: string | null;
+  fromStage: UnifiedCrmOpportunityStage | null;
+  occurredAt: Date;
+  reason: string;
+  toStage: UnifiedCrmOpportunityStage;
+};
+
+type TaskLinkRow = {
+  actorLabel: string | null;
+  archivedAt: Date | null;
+  brief: string;
+  createdAt: Date;
+  dueAt: Date;
+  relationship: string;
+  taskId: string;
+  title: string;
+};
+
+type AppointmentLinkRow = {
+  actorLabel: string | null;
+  appointmentNumber: string;
+  archivedAt: Date | null;
+  createdAt: Date;
+  endsAt: Date | null;
+  relationship: string;
+  startsAt: Date | null;
+  title: string;
+  version: number;
+};
+
+type DispatchLinkRow = {
+  actorLabel: string | null;
+  archivedAt: Date | null;
+  createdAt: Date;
+  repairJobId: string | null;
+  repairJobNumber: string | null;
+  repairOrderId: string;
+  repairOrderNumber: string;
+  targetKind: "REPAIR_ORDER" | "REPAIR_JOB";
+  title: string;
+  version: number;
+};
+
+type QuoteLinkRow = {
+  approvalAmountCents: number | null;
+  approvalDiscountCents: number | null;
+  approvalRequestId: string | null;
+  approvalStatus: "PENDING" | "APPROVED" | "RETURNED" | "DENIED" | null;
+  approvalVersion: number | null;
+  latestVersionNumber: number;
+  quoteId: string;
+  quoteNumber: string;
+  state: "DRAFT" | "PRESENTED";
+  updatedAt: Date;
+};
+
+function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    opportunityNumber: row.opportunityNumber,
+    title: row.title,
+    summary: row.summary,
+    customer: row.customerId && row.customerDisplayName && row.customerNumber
+      ? {
+          id: row.customerId,
+          displayName: row.customerDisplayName,
+          customerNumber: row.customerNumber
+        }
+      : null,
+    ownerUser: row.ownerUserId && row.ownerUserName
+      ? {
+          id: row.ownerUserId,
+          name: row.ownerUserName
+        }
+      : null,
+    stage: row.stage,
+    nextActionLabel: row.nextActionLabel,
+    nextActionDueAt: row.nextActionDueAt,
+    version: row.version,
+    sourceLead: row.sourceLeadId && row.sourceLeadNumber && row.sourceLeadStage
+      ? {
+          id: row.sourceLeadId,
+          leadNumber: row.sourceLeadNumber,
+          stage: row.sourceLeadStage
+        }
+      : null,
+    stageHistory: [],
+    taskLinks: [],
+    appointmentLinks: [],
+    dispatchLinks: [],
+    quoteLinks: [],
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+export function createUnifiedCrmOpportunityDetailRepository(
+  database: UnifiedCrmOpportunityDetailDatabase = prisma
+): UnifiedCrmOpportunityDetailRepository {
+  return {
+    async findOpportunityDetail(input) {
+      const scopeFilter = input.recordScope.kind === "OWNER"
+        ? Prisma.sql`AND record."ownerUserId" = ${input.recordScope.ownerUserId}`
+        : Prisma.empty;
+
+      const rows = await database.$queryRaw<OpportunityRow[]>(Prisma.sql`
+        SELECT
+          record."id",
+          record."organizationId",
+          record."opportunityNumber",
+          record."title",
+          record."summary",
+          record."stage"::text AS "stage",
+          record."nextActionLabel",
+          record."nextActionDueAt",
+          record."version",
+          customer."id" AS "customerId",
+          customer."displayName" AS "customerDisplayName",
+          customer."customerNumber" AS "customerNumber",
+          owner_user."id" AS "ownerUserId",
+          owner_user."name" AS "ownerUserName",
+          source_lead."id" AS "sourceLeadId",
+          source_lead."leadNumber" AS "sourceLeadNumber",
+          source_lead."stage"::text AS "sourceLeadStage",
+          record."createdAt",
+          record."updatedAt"
+        FROM "UnifiedCrmOpportunityRecord" AS record
+        LEFT JOIN "Customer" AS customer
+          ON customer."id" = record."customerId"
+         AND customer."organizationId" = record."organizationId"
+        LEFT JOIN "User" AS owner_user
+          ON owner_user."id" = record."ownerUserId"
+        LEFT JOIN "CustomerLead" AS source_lead
+          ON source_lead."id" = record."sourceLeadId"
+         AND source_lead."organizationId" = record."organizationId"
+        WHERE record."organizationId" = ${input.organizationId}
+          AND record."opportunityNumber" = ${input.opportunityId}
+          AND record."archivedAt" IS NULL
+          ${scopeFilter}
+        LIMIT 1
+      `);
+
+      const row = rows[0];
+      if (!row) return null;
+
+      const history = await database.$queryRaw<StageHistoryRow[]>(Prisma.sql`
+        SELECT
+          event."fromStage"::text AS "fromStage",
+          event."toStage"::text AS "toStage",
+          event."reason",
+          event."occurredAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityStageEvent" AS event
+        LEFT JOIN "User" AS actor
+          ON actor."id" = event."actorUserId"
+        WHERE event."organizationId" = ${input.organizationId}
+          AND event."opportunityId" = ${row.id}
+        ORDER BY event."occurredAt" DESC
+        LIMIT 12
+      `);
+      const taskLinks = await database.$queryRaw<TaskLinkRow[]>(Prisma.sql`
+        SELECT
+          link."taskId",
+          link."relationship",
+          link."titleSnapshot" AS "title",
+          link."briefSnapshot" AS "brief",
+          link."dueAtSnapshot" AS "dueAt",
+          link."archivedAt",
+          link."createdAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityTaskLink" AS link
+        LEFT JOIN "User" AS actor
+          ON actor."id" = link."createdByUserId"
+        WHERE link."organizationId" = ${input.organizationId}
+          AND link."opportunityId" = ${row.id}
+        ORDER BY link."createdAt" DESC
+        LIMIT 12
+      `);
+      const appointmentLinks = await database.$queryRaw<AppointmentLinkRow[]>(Prisma.sql`
+        SELECT
+          appointment."appointmentNumber",
+          appointment."version",
+          link."relationship",
+          link."titleSnapshot" AS "title",
+          link."startsAtSnapshot" AS "startsAt",
+          link."endsAtSnapshot" AS "endsAt",
+          link."archivedAt",
+          link."createdAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityAppointmentLink" AS link
+        INNER JOIN "Appointment" AS appointment
+          ON appointment."id" = link."appointmentId"
+         AND appointment."organizationId" = link."organizationId"
+        LEFT JOIN "User" AS actor
+          ON actor."id" = link."createdByUserId"
+        WHERE link."organizationId" = ${input.organizationId}
+          AND link."opportunityId" = ${row.id}
+        ORDER BY link."createdAt" DESC
+        LIMIT 12
+      `);
+      const dispatchLinks = await database.$queryRaw<DispatchLinkRow[]>(Prisma.sql`
+        SELECT
+          link."targetKind" AS "targetKind",
+          link."repairOrderId",
+          link."repairJobId",
+          link."repairOrderNumberSnapshot" AS "repairOrderNumber",
+          link."repairJobNumberSnapshot" AS "repairJobNumber",
+          link."titleSnapshot" AS "title",
+          link."targetVersionSnapshot" AS "version",
+          link."archivedAt",
+          link."createdAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityDispatchLink" AS link
+        LEFT JOIN "User" AS actor
+          ON actor."id" = link."createdByUserId"
+        WHERE link."organizationId" = ${input.organizationId}
+          AND link."opportunityId" = ${row.id}
+        ORDER BY link."createdAt" DESC
+        LIMIT 12
+      `);
+      const quoteLinks = (await database.$queryRaw<QuoteLinkRow[]>(Prisma.sql`
+        SELECT
+          quote."id" AS "quoteId",
+          quote."quoteNumber",
+          quote."state"::text AS "state",
+          quote."latestVersionNumber",
+          quote."updatedAt",
+          approval."id" AS "approvalRequestId",
+          approval."status"::text AS "approvalStatus",
+          approval."amountCents" AS "approvalAmountCents",
+          approval."discountCents" AS "approvalDiscountCents",
+          approval."version" AS "approvalVersion"
+        FROM "UnifiedCrmQuoteRecord" AS quote
+        LEFT JOIN LATERAL (
+          SELECT request."id", request."status", request."amountCents", request."discountCents", request."version"
+          FROM "UnifiedCrmCommercialApprovalRequest" AS request
+          WHERE request."organizationId" = quote."organizationId"
+            AND request."quoteId" = quote."id"
+          ORDER BY request."updatedAt" DESC, request."id" DESC
+          LIMIT 1
+        ) AS approval ON TRUE
+        WHERE quote."organizationId" = ${input.organizationId}
+          AND quote."opportunityId" = ${row.id}
+          AND quote."archivedAt" IS NULL
+        ORDER BY quote."updatedAt" DESC, quote."quoteNumber" ASC
+        LIMIT 12
+      `)) ?? [];
+
+      return {
+        ...mapRow(row),
+        stageHistory: history.map((event) => ({
+          actorLabel: event.actorLabel ?? "Unknown user",
+          fromStage: event.fromStage,
+          occurredAt: event.occurredAt,
+          reason: event.reason,
+          toStage: event.toStage
+        })),
+        taskLinks: taskLinks.map((link) => ({
+          actorLabel: link.actorLabel ?? "Unknown user",
+          archivedAt: link.archivedAt,
+          brief: link.brief,
+          createdAt: link.createdAt,
+          dueAt: link.dueAt,
+          relationship: link.relationship,
+          taskId: link.taskId,
+          title: link.title
+        })),
+        appointmentLinks: appointmentLinks.map((link) => ({
+          actorLabel: link.actorLabel ?? "Unknown user",
+          appointmentNumber: link.appointmentNumber,
+          archivedAt: link.archivedAt,
+          createdAt: link.createdAt,
+          endsAt: link.endsAt,
+          relationship: link.relationship,
+          startsAt: link.startsAt,
+          title: link.title,
+          version: link.version
+        })),
+        dispatchLinks: dispatchLinks.map((link) => ({
+          actorLabel: link.actorLabel ?? "Unknown user",
+          archivedAt: link.archivedAt,
+          createdAt: link.createdAt,
+          repairJobId: link.repairJobId,
+          repairJobNumber: link.repairJobNumber,
+          repairOrderId: link.repairOrderId,
+          repairOrderNumber: link.repairOrderNumber,
+          targetKind: link.targetKind,
+          title: link.title,
+          version: link.version
+        })),
+        quoteLinks: quoteLinks.map((link) => ({
+          approvalAmountCents: link.approvalAmountCents,
+          approvalDiscountCents: link.approvalDiscountCents,
+          approvalRequestId: link.approvalRequestId,
+          approvalStatus: link.approvalStatus,
+          approvalVersion: link.approvalVersion,
+          latestVersionNumber: link.latestVersionNumber,
+          quoteId: link.quoteId,
+          quoteNumber: link.quoteNumber,
+          state: link.state,
+          updatedAt: link.updatedAt
+        }))
+      };
+    }
+  };
+}

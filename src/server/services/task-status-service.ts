@@ -1,5 +1,16 @@
-﻿import { TaskStatus } from "@prisma/client";
+import { TaskStatus } from "@prisma/client";
 
+import {
+  isKnownAdaptiveChecklistLabel,
+  isKnownAdaptiveSubtaskLabel
+} from "@/lib/adaptive-task-checklist";
+import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
+import {
+  createDefaultCheckpoint,
+  isTaskPlanConfirmed,
+  normalizeTaskExecutionAssurance
+} from "@/lib/task-execution-assurance";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
@@ -16,12 +27,12 @@ import type {
   TaskTemplateCompletionCriteria,
   TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
-import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
 
 export type TaskStatusUpdateResult = {
   id: string;
   status: TaskStatus;
   blockerReason: string | null;
+  executionAssurance: ReturnType<typeof normalizeTaskExecutionAssurance>;
   updateFieldValues?: Record<string, string | boolean>;
   updatedAt: string;
 };
@@ -176,12 +187,78 @@ function shouldEnforceRequiredUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
 
+function snapshotHasConversionContract(snapshot: unknown) {
+  return isPlainObject(snapshot) && isPlainObject(snapshot.conversionContract);
+}
+
+function workflowAreaCanUseProgressNoteCompletionEvidence(workflowArea?: string | null) {
+  return workflowArea === "SERVICE_ADVISOR" || workflowArea === "SHOP";
+}
+
+function progressNoteLooksLikeCompletionEvidence(progressNote: string | null | undefined) {
+  const normalizedNote = progressNote?.trim().toLowerCase() ?? "";
+
+  if (normalizedNote.length < 10) {
+    return false;
+  }
+
+  return [
+    "complete",
+    "completed",
+    "close",
+    "closed",
+    "done",
+    "fixed",
+    "installed",
+    "no further work",
+    "repaired",
+    "replaced",
+    "resolved",
+    "successfully"
+  ].some((term) => normalizedNote.includes(term));
+}
+
+function shouldUseConvertedProgressNoteAsCompletionEvidence(
+  task: { templateSnapshot?: unknown; workflowArea?: string | null },
+  input: NormalizedTaskStatusUpdateInput
+) {
+  return input.status === TaskStatus.COMPLETED &&
+    (snapshotHasConversionContract(task.templateSnapshot) ||
+      workflowAreaCanUseProgressNoteCompletionEvidence(task.workflowArea)) &&
+    progressNoteLooksLikeCompletionEvidence(input.progressNote);
+}
+
+const genericGeneratedSubtaskLabels = new Set([
+  "Review task objective",
+  "Post progress update",
+  "Resolve blocker or assign next step",
+  "Confirm next execution step",
+  "Move to Ready for Review"
+]);
+
+function isGeneratedPlanItem(item: { kind?: string; label: string }) {
+  if (item.kind === TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE) {
+    return isKnownAdaptiveChecklistLabel(item.label);
+  }
+
+  if (item.kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK) {
+    return genericGeneratedSubtaskLabels.has(item.label) || isKnownAdaptiveSubtaskLabel(item.label);
+  }
+
+  return false;
+}
+
 function assertRequiredChecklistSatisfied(
-  task: { checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }> },
+  task: { checklistItems?: Array<{ kind?: string; label: string; isRequired: boolean; completed: boolean }>; executionAssurance?: unknown },
   status: TaskStatus
 ) {
   if (!shouldEnforceRequiredUpdateFields(status)) return;
-  const incomplete = (task.checklistItems ?? []).filter((item) => item.isRequired && !item.completed);
+  const planConfirmed = isTaskPlanConfirmed(task.executionAssurance);
+  const incomplete = (task.checklistItems ?? []).filter((item) =>
+    item.isRequired &&
+    !item.completed &&
+    (planConfirmed || !isGeneratedPlanItem(item))
+  );
   if (incomplete.length) {
     throw new Error(`Task checklist is incomplete: ${incomplete.map((item) => item.label).join(", ")}.`);
   }
@@ -340,10 +417,13 @@ function buildTaskStatusUpdateData(
   user: AuthenticatedUser,
   task: {
     status: TaskStatus;
+    dueAt?: Date;
+    blockerReason?: string | null;
+    executionAssurance?: unknown;
     requiresManagerApproval: boolean;
     templateSnapshot?: unknown;
     updateFieldValues?: unknown;
-    checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }>;
+    checklistItems?: Array<{ kind?: string; label: string; isRequired: boolean; completed: boolean }>;
     concernLink?: {
       dependsOnStepCodes: unknown;
       concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };
@@ -361,6 +441,46 @@ function buildTaskStatusUpdateData(
   const { mergedUpdateFieldValues } = skipEvidenceRequirements
     ? { mergedUpdateFieldValues: mergeUpdateFieldValues(task.updateFieldValues, input.updateFields) }
     : assertRequiredUpdateFieldsSatisfied(task, input);
+  const existingAssurance = normalizeTaskExecutionAssurance(task.executionAssurance);
+  const isProgressUpdate =
+    task.status !== input.status ||
+    Boolean(input.progressNote) ||
+    Boolean(input.updateFields && Object.keys(input.updateFields).length);
+  const startedAt =
+    existingAssurance.startedAt ??
+    (input.status === TaskStatus.IN_PROGRESS ? now.toISOString() : null);
+  const dueAt = task.dueAt ?? new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const shouldRenewCheckpoint =
+    input.status === TaskStatus.IN_PROGRESS &&
+    (task.status !== TaskStatus.IN_PROGRESS || isProgressUpdate || !existingAssurance.nextCheckpointAt);
+  const nextCheckpointAt =
+    input.status === TaskStatus.COMPLETED || input.status === TaskStatus.READY_FOR_REVIEW
+      ? null
+      : input.nextCheckpointAt ??
+        (shouldRenewCheckpoint ? createDefaultCheckpoint(now, dueAt) : existingAssurance.nextCheckpointAt);
+  let blockerPlan = existingAssurance.blockerPlan;
+  if (input.status === TaskStatus.BLOCKED) {
+    const reviewAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const escalationAt =
+      dueAt.getTime() >= reviewAt.getTime()
+        ? dueAt
+        : new Date(reviewAt.getTime() + 2 * 60 * 60 * 1000);
+    blockerPlan = input.blockerPlan ?? blockerPlan ?? {
+      unblockAction: `Follow up and remove this blocker: ${input.blockerReason ?? "Blocked work"}`,
+      owner: user.name,
+      reviewAt: reviewAt.toISOString(),
+      escalationAt: escalationAt.toISOString()
+    };
+  } else if (task.status === TaskStatus.BLOCKED) {
+    blockerPlan = null;
+  }
+  const executionAssurance = {
+    startedAt,
+    lastProgressAt: isProgressUpdate ? now.toISOString() : existingAssurance.lastProgressAt,
+    nextCheckpointAt,
+    lastProgressNote: input.progressNote ?? existingAssurance.lastProgressNote,
+    blockerPlan
+  };
 
   if (input.status === TaskStatus.BLOCKED) {
     if (!input.blockerReason) {
@@ -370,6 +490,7 @@ function buildTaskStatusUpdateData(
     return {
       status: input.status,
       blockerReason: input.blockerReason,
+      executionAssurance,
       updateFieldValues: mergedUpdateFieldValues,
       ...(task.status === TaskStatus.READY_FOR_REVIEW
         ? {
@@ -384,6 +505,8 @@ function buildTaskStatusUpdateData(
   if (input.status === TaskStatus.READY_FOR_REVIEW) {
     return {
       status: input.status,
+      blockerReason: task.status === TaskStatus.BLOCKED ? null : task.blockerReason ?? null,
+      executionAssurance,
       updateFieldValues: mergedUpdateFieldValues,
       readyForReviewAt: now,
       completedAt: null,
@@ -394,6 +517,8 @@ function buildTaskStatusUpdateData(
   if (input.status === TaskStatus.COMPLETED) {
     return {
       status: input.status,
+      blockerReason: task.status === TaskStatus.BLOCKED ? null : task.blockerReason ?? null,
+      executionAssurance,
       updateFieldValues: mergedUpdateFieldValues,
       completedAt: now,
       reviewedByUserId: managerReviewerId
@@ -402,6 +527,8 @@ function buildTaskStatusUpdateData(
 
   return {
     status: input.status,
+    blockerReason: task.status === TaskStatus.BLOCKED ? null : task.blockerReason ?? null,
+    executionAssurance,
     updateFieldValues: mergedUpdateFieldValues,
     ...(task.status === TaskStatus.READY_FOR_REVIEW
       ? {
@@ -487,6 +614,7 @@ function toTaskStatusUpdateResult(task: {
   id: string;
   status: TaskStatus;
   blockerReason: string | null;
+  executionAssurance?: unknown;
   updateFieldValues?: unknown;
   updatedAt: Date;
 }): TaskStatusUpdateResult {
@@ -494,6 +622,7 @@ function toTaskStatusUpdateResult(task: {
     id: task.id,
     status: task.status,
     blockerReason: task.blockerReason?.trim() ? task.blockerReason.trim() : null,
+    executionAssurance: normalizeTaskExecutionAssurance(task.executionAssurance),
     updateFieldValues: normalizeStoredUpdateFieldValues(task.updateFieldValues),
     updatedAt: task.updatedAt.toISOString()
   };
@@ -527,6 +656,10 @@ export async function updateTaskStatus(
     staffExecutionFlags
   );
   const previousStatus = task.status;
+  const completionNoteSuppliesConvertedEvidence = shouldUseConvertedProgressNoteAsCompletionEvidence(
+    task,
+    normalizedInput
+  );
 
   const updatedTask = await repository.updateTaskStatus(
     normalizedTaskId,
@@ -534,7 +667,8 @@ export async function updateTaskStatus(
       authenticatedUser,
       task,
       normalizedInput,
-      Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
+      completionNoteSuppliesConvertedEvidence ||
+        Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
     )
   );
 

@@ -22,9 +22,11 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
+import type { UnifiedCrmTaskIntakeDefaults } from "@/lib/unified-crm-task-intake-handoff";
 
 type EnterpriseTool = "intake-type" | "ownership" | "context" | "workflow" | "controls" | "uploads" | "checklist" | "subtasks" | "requirements" | "review";
 type IntakeType =
@@ -170,20 +172,26 @@ type TaskIntakeProps = {
   canAssignOthers?: boolean;
   currentUserId?: string;
   defaultDueDate?: string;
+  initialDraft?: UnifiedCrmTaskIntakeDefaults;
   returnTo?: string;
   staff?: ActiveUserSummary[];
 };
 
 const draftStorageKey = "dispatch-board.task-intake-draft.v1";
 
-export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, currentUserId = "", defaultDueDate, returnTo = "/tasks", staff = [] }: TaskIntakeProps) {
+export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, currentUserId = "", defaultDueDate, initialDraft, returnTo = "/tasks", staff = [] }: TaskIntakeProps) {
+  const router = useRouter();
   const collaboratorOptions = staff.length ? staff.map((user) => ({
     id: user.id,
     initials: user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
     name: user.name,
     role: user.roles[0] ?? user.dutyPreview[0] ?? "Staff"
   })) : fallbackCollaboratorOptions;
-  const [draft, setDraft] = useState<IntakeDraft>(() => createEmptyDraft(currentUserId, defaultDueDate));
+  const [draft, setDraft] = useState<IntakeDraft>(() => {
+    const empty = createEmptyDraft(currentUserId, defaultDueDate);
+    const intakeType = typeOptions.find((option) => option.label === initialDraft?.intakeType)?.label ?? empty.intakeType;
+    return { ...empty, ...initialDraft, intakeType };
+  });
   const [selectedTool, setSelectedTool] = useState<EnterpriseTool>("intake-type");
   const [customChecklistItem, setCustomChecklistItem] = useState("");
   const [customSubtaskTemplate, setCustomSubtaskTemplate] = useState("");
@@ -196,6 +204,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   const policy = acquisitionPolicy(draft);
 
   useEffect(() => {
+    if (initialDraft && Object.keys(initialDraft).length) return;
     const savedDraft = window.localStorage.getItem(draftStorageKey);
     if (!savedDraft) return;
     try {
@@ -215,7 +224,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
     } catch {
       window.localStorage.removeItem(draftStorageKey);
     }
-  }, [canAssignOthers, currentUserId]);
+  }, [canAssignOthers, currentUserId, initialDraft]);
 
   function saveDraft() {
     window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
@@ -276,7 +285,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       const payload = await response.json().catch(() => null) as { error?: string; task?: { id: string } } | null;
       if (!response.ok || !payload?.task?.id) throw new Error(payload?.error ?? "Unable to create the task right now.");
       window.localStorage.removeItem(draftStorageKey);
-      window.location.assign(`/tasks/${encodeURIComponent(payload.task.id)}?returnTo=${encodeURIComponent(returnTo)}`);
+      router.push(`/tasks/${encodeURIComponent(payload.task.id)}?returnTo=${encodeURIComponent(returnTo)}`);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to create the task right now.");
       submitLock.current = false;

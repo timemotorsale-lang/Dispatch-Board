@@ -1,0 +1,32 @@
+import { describe, expect, it, vi } from "vitest";
+import { emptyManualLaborReview, estimateReviewScope, manualReviewComplete } from "@/lib/estimate-review";
+import { presentRepairEstimate } from "@/server/shop-planning/service";
+import type { AuthenticatedUser } from "@/server/auth/store";
+import type { ShopPlanningRepository } from "@/server/shop-planning/repository";
+import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
+const lines = [{ key: "labor", description: "Brake inspection", type: "LABOR", quantity: 1, unitPriceCents: 12900, laborGuideMinutes: 60 }];
+describe("manual labor review", () => {
+  it("invalidates a review when vehicle, hours or price changes", () => {
+    const scope = estimateReviewScope("vehicle-1", lines);
+    const review = { ...emptyManualLaborReview, engine: "2.4L", configuration: "FWD", source: "Shop assessment", scope };
+    expect(manualReviewComplete(review, scope)).toBe(true);
+    expect(manualReviewComplete(review, estimateReviewScope("vehicle-2", lines))).toBe(false);
+    expect(manualReviewComplete(review, estimateReviewScope("vehicle-1", [{ ...lines[0], laborGuideMinutes: 90 }]))).toBe(false);
+    expect(manualReviewComplete(review, estimateReviewScope("vehicle-1", [{ ...lines[0], unitPriceCents: 15000 }]))).toBe(false);
+    expect(manualReviewComplete({ ...review, source: "" }, scope)).toBe(false);
+  });
+  it("rejects stale review server-side and records the real presenter for a matching review", async () => {
+    const user = { id: "manager-1", name: "Manager", email: "m@example.com", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } } as AuthenticatedUser;
+    const estimate = vi.fn().mockResolvedValue({ result: { id: "estimate-1" } });
+    const repository = { get: vi.fn().mockResolvedValue({ id: "ro-1", version: 1, locationId: "loc-1", vehicle: { id: "vehicle-1" } }), estimate } as unknown as ShopPlanningRepository;
+    const foundationRepository = { listCapabilityGrants: vi.fn().mockResolvedValue([]) } as unknown as EnterpriseCommandRepository;
+    const deps = { repository, foundationRepository, enforceRollout: false, now: () => new Date("2026-09-03T15:00:00Z") };
+    const review = { ...emptyManualLaborReview, engine: "2.4L", configuration: "FWD", source: "Shop assessment", scope: "stale" };
+    const body = { lineItems: lines, idempotencyKey: "review-test", expectedVersion: 1, presentedAt: "2026-09-03T15:00:00Z", expiresAt: "2026-09-10T15:00:00Z", presentationChannel: "INTERNAL", taxBoundary: "Configured policy", reason: "Present manually reviewed work.", manualLaborReview: review };
+    await expect(presentRepairEstimate(user, "ro-1", body, deps)).rejects.toThrow("vehicle/work changed");
+    expect(estimate).not.toHaveBeenCalled();
+    await presentRepairEstimate(user, "ro-1", { ...body, manualLaborReview: { ...review, scope: estimateReviewScope("vehicle-1", lines) } }, deps);
+    expect(estimate.mock.calls[0][1].assumptions).toContain("Presenter: Manager (manager-1)");
+    expect(estimate.mock.calls[0][1].assumptions).toContain("not OEM verified");
+  });
+});

@@ -2,21 +2,43 @@
 
 **Document:** Architecture  
 **Version:** v0.2.0 living baseline
-**Last updated:** 2026-07-10
-**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
-**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/customers/`, `docs/The Guide To Vibe Coding.md`
+**Last updated:** 2026-08-14
+**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks, Customers, Sales, Diagnostics, and Unified CRM Console directions refined
+**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/customers/`, `docs/sales-console/`, `docs/The Guide To Vibe Coding.md`
 
 **Tasks Console UI source of truth:** [`docs/TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md`](TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md)
 
+**CCC brand source of truth:** [`docs/TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md`](TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md)
+
+**CCC Enterprise Workflow Launcher source of truth:** [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md)
+
 ---
+
+> **Time & Attendance Program:** The product boundary, modular-monolith architecture, official Minnesota/federal source register, exact-time rule baseline, deterministic calculations, workflows, permissions, testing, and gated implementation roadmap live in [`docs/time-attendance/README.md`](time-attendance/README.md). The executable foundation is source-linked and fail-closed; persistence, APIs, UI, payroll handoff, legal/payroll signoff, and production rollout remain later milestones.
+
+> **Enterprise optimization architecture:** The governing Constitution, common work model, algorithm specifications, validation rules, automation controls, and phased adoption path live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md). The [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md) applies to optimization, recommendation, escalation, and automation across the Command Control Center and every operational console. Domain specifications may strengthen these rules but may not weaken their safety, compliance, authorization, evidence, explainability, or audit requirements. This package is an architecture baseline; it does not by itself activate application behavior.
+
+> **Enterprise Data Movement planning package:** The governed import, export, migration, recurring-exchange, artifact, mapping, approval, and reconciliation plan lives in [`docs/data-movement/README.md`](data-movement/README.md). It builds on the existing command, audit, outbox, integration-exchange, credential-reference, webhook, and conflict foundations; it does not activate data movement or authorize direct production-table loading.
 
 > **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.
 
 > **Enterprise Tasks Module planning package:** The task-module boundary, tier strategy, workflow rules, and milestone IDs live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). That guide defines Tasks as an integrated Dispatch Board module, not a separate product or deployment.
 
+> **CCC Enterprise Workflow Launcher planning package:** The cross-console launcher experience, registry contract, workflow-family catalog, authority and recovery boundaries, and staged rollout gates live in [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). It is a planning baseline and does not make catalog entries implemented or launchable.
+
 > **Customers Console planning package:** The customer-domain boundary, architecture decisions, rollout roadmap, and milestone IDs live in [`docs/customers/README.md`](customers/README.md). That package defines Customers as the customer intelligence and customer operations layer inside the Dispatch Board, not a separate CRM deployment or a copy of another product.
 
+> **Enterprise Sales Console planning package:** The sales-domain boundary, dealership selling operating model, lead-to-delivery workflows, deterministic decision algorithms, phased roadmap, implementation milestones, and traceability matrix live in [`docs/sales-console/README.md`](sales-console/README.md). Sales is the commercial decision and execution layer over authoritative Customers, Inventory, Appointments, Tasks, and Documents records. This package is documentation only and does not authorize production code, customer communication, pricing, finance decisions, or rollout.
+
+> **Unified CRM Console foundation:** The governing product charter, current evidence baseline, architecture, security/privacy model, roadmap, vertical milestones, multi-agent operating model, testing strategy, decision register, and traceability matrix live in [`docs/unified-crm/README.md`](unified-crm/README.md). Unified CRM is an independent `/crm` console inside the shared Dispatch Board modular monolith. It must reuse authoritative Customers, Inventory, Appointments, Tasks, Repair/Jobs, Documents, Activity, and identity foundations rather than creating competing records. This package is planning authority only; implementation and rollout require their named evidence gates.
+
+> **Growth Console foundation:** The combined marketing and advertising command-center architecture, workflows, algorithms, automations, roadmap, milestones, and traceability matrix live in [`docs/growth-console/README.md`](growth-console/README.md). Growth is the campaign planning, audience review, message/ad approval, automation, and results layer over CRM, Inventory, Sales, Service, Appointments, and Tasks. It is not a second CRM, ad platform, invoice system, or autonomous send/spend engine. The first `/growth` implementation is frontend-review only until product approval and backend controls are added.
+
 > **Manager Review Command Center planning package:** The approved UI/UX source of truth, review-domain boundary, deterministic Manager Attention Engine, rollout roadmap, and implementation milestone IDs live in [`docs/manager-review/README.md`](manager-review/README.md). That package defines Manager Review as the decision, quality-control, and intervention layer inside the Dispatch Board, not a separate task system or employee performance-review product.
+
+> **Enterprise Diagnostics Console planning package:** The independent diagnostic-domain boundary, evidence/reasoning architecture, algorithm and consistency specifications, ontology/knowledge graph, integrated diagnostic lab suite, mastery/verification controls, phased roadmap, and implementation milestone IDs live in [`docs/diagnostics/README.md`](diagnostics/README.md). Diagnostics is a first-class console inside Dispatch Board, not part of Inventory, not a separate deployment, and not a parallel vehicle or repair-order system. This package is planned architecture and does not by itself activate diagnostic behavior.
+
+> **Claims Workspace planning package:** The insurance-claim execution workspace boundary, architecture, progressive UX model, workflow catalog, and staged implementation milestones live in [`docs/claims-workspace/README.md`](claims-workspace/README.md). Claims Workspace is anchored under Service / Repair Operations with visibility from Customer 360, Vehicle 360, Repair Order, and the central Document Library. It is a planning baseline only and does not by itself activate claim intake, carrier communication, repair-order creation, payments, or document mutation.
 
 ---
 

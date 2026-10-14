@@ -1,0 +1,1038 @@
+"use client";
+
+import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, History, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { useState, type FormEvent, type ReactNode } from "react";
+
+import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
+import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
+import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
+import { buildUnifiedCrmCustomerReturn, withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
+
+import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
+import { UnifiedCrmCustomerDetailsForm } from "./unified-crm-customer-details-form";
+import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
+import { UnifiedCrmCustomerNoteForm } from "./unified-crm-customer-note-form";
+import { UnifiedCrmCustomerTaskBridgeForm } from "./unified-crm-customer-task-bridge-form";
+import styles from "./unified-crm-customer-360.module.css";
+
+type FailureKind = "error" | "not-available" | "restricted" | "unavailable";
+
+type Customer360Props = {
+  errorMessage?: string;
+  failureKind?: FailureKind;
+  model?: UnifiedCrmCustomer360ReadModel;
+  opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
+  returnHref: string;
+};
+
+type ManualVehicleInterest = {
+  budget: string;
+  createdAt: string;
+  id: string;
+  note: string;
+  stockOrVin: string;
+  trade: string;
+  vehicle: string;
+};
+
+function customerReturnContext(returnHref: string) {
+  if (returnHref === "/crm?view=work") {
+    return {
+      backLabel: "Back to CRM Work",
+      returnLabel: "Return to CRM Work",
+      continuityLabel: "CRM Work return preserved"
+    };
+  }
+
+  return {
+    backLabel: "Back to CRM Customers",
+    returnLabel: "Return to customer list",
+    continuityLabel: "Customer list return preserved"
+  };
+}
+
+function withCustomerSourceReturn(href: string, customerId: string, returnHref: string) {
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/crm")) return href;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", buildUnifiedCrmCustomerReturn(customerId, returnHref));
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
+function withCustomerListReturn(href: string, returnHref: string) {
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/crm")) return href;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", returnHref);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
+function formatDate(value: string | null, fallback: string) {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value));
+}
+
+function formatMoneyCents(value: number | null) {
+  if (value === null) return "not requested";
+  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value / 100);
+}
+
+function formatDateOnly(value: string) {
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/Chicago" }).format(new Date(value));
+}
+
+function label(value: string) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
+function nextActionEyebrow(state: UnifiedCrmCustomer360ReadModel["relationship"]["nextActionState"]) {
+  if (state === "OVERDUE") return "Next relationship action · overdue";
+  if (state === "DUE_TODAY") return "Next relationship action · due today";
+  if (state === "SCHEDULED") return "Next relationship action · scheduled";
+  return "Next relationship action";
+}
+
+function nextActionGuidance(model: UnifiedCrmCustomer360ReadModel) {
+  if (model.relationship.nextActionState === "OVERDUE") {
+    return "This follow-up is overdue. Renew it with a new due time or complete it if the work is already done.";
+  }
+  if (model.relationship.nextActionState === "DUE_TODAY") {
+    return "This follow-up is due today. Keep the due time current if the customer plan changes.";
+  }
+  if (model.relationship.nextActionState === "SCHEDULED") {
+    return "This dated follow-up is on track. Reschedule it only when the customer plan truly changes.";
+  }
+  return "No next action is scheduled. Set a dated follow-up to renew customer continuity without leaving Customer 360.";
+}
+
+function timelineKindLabel(value: UnifiedCrmCustomer360ReadModel["timeline"]["items"][number]["kind"]) {
+  switch (value) {
+    case "interaction":
+      return "Relationship touchpoint";
+    case "task-event":
+      return "Task event";
+    case "appointment-event":
+      return "Appointment event";
+    case "lead-event":
+      return "Lead event";
+    case "case-event":
+      return "Case event";
+    case "promise-event":
+      return "Promise event";
+    case "commitment-event":
+      return "Commitment event";
+    default:
+      return "Timeline event";
+  }
+}
+
+function Status({ value }: { value: string }) {
+  return <span className={`${styles.status} ${value.toLowerCase() === "active" ? styles.statusActive : ""}`}>{label(value)}</span>;
+}
+
+function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
+  const returnContext = customerReturnContext(returnHref);
+  const title = kind === "not-available" ? "Customer isn’t available" : kind === "restricted" ? "Customer details aren’t available to you" : kind === "unavailable" ? "Customer details are temporarily unavailable" : "Customer details couldn’t be loaded";
+  const detail = message ?? (kind === "not-available" ? "This record may not exist, may have changed, or may be outside your permitted customer scope." : kind === "restricted" ? "Your current CRM access does not include this customer record." : "No customer details were displayed. Retry or return to the customer list.");
+  const retryable = kind === "error" || kind === "unavailable";
+  return (
+    <main className={styles.page}>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
+      <section className={styles.statePanel} role={retryable ? "alert" : "status"}>
+        {retryable ? <AlertTriangle aria-hidden="true" size={28} /> : <ShieldCheck aria-hidden="true" size={28} />}
+        <h1>{title}</h1><p>{detail}</p>
+        <div className={styles.stateActions}>
+          {retryable ? <button onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
+          <Link href={returnHref}>{returnContext.returnLabel}</Link>
+          <Link href={withCustomerListReturn("/customers", returnHref)}>Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function RelationshipSummary({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  const summary = [
+    { icon: CarFront, label: "Vehicles", value: model.vehicles.length },
+    { icon: CalendarDays, label: "Appointments", value: model.appointments.length },
+    { icon: UsersRound, label: "Source leads & cases", value: model.sourceLenses.leads.length + model.sourceLenses.cases.length },
+    { icon: ArrowRight, label: "Read-only opportunities", value: model.opportunityLenses.length }
+  ];
+  return <section aria-labelledby="relationship-summary-heading" className={styles.summaryCard}><header><h2 id="relationship-summary-heading">Relationship summary</h2><span>Read only</span></header><div>{summary.map(({ icon: Icon, label: itemLabel, value }) => <article key={itemLabel}><Icon aria-hidden="true" size={16} /><span><strong>{value}</strong><small>{itemLabel}</small></span></article>)}</div></section>;
+}
+
+function OpportunityDiscoverySection({ model }: { model: UnifiedCrmCustomerOpportunityDiscoveryModel }) {
+  function withCustomerReturn(href: string) {
+    try {
+      const url = new URL(href, "http://crm.local");
+      url.searchParams.set("crmReturnTo", model.customer.href);
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return href;
+    }
+  }
+
+  return (
+    <section aria-labelledby="customer-opportunity-discovery-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Opportunity workspace</span><h2 id="customer-opportunity-discovery-heading">Review opportunity flow from this customer</h2></div>
+        <small>{model.opportunityDiscovery.visibility === "owned" ? "Owned review" : "Organization review"} · workspace review</small>
+      </header>
+      <p className={styles.discoveryDetail}>
+        {model.opportunityDiscovery.headline.detail} This keeps the customer record read only while you review how opportunity work should feel for {model.customer.displayName}.
+      </p>
+      <div className={styles.discoveryGrid}>
+        {model.opportunityDiscovery.panels.map((panel, index) => (
+          <Link className={`${styles.discoveryCard} ${index === 0 ? styles.discoveryCardPrimary : ""}`} href={withCustomerReturn(panel.link.href)} key={panel.id}>
+            <span className={styles.discoveryEyebrow}>{panel.label}</span>
+            <strong>{panel.link.label}</strong>
+            <p>{panel.detail}</p>
+            <small>{panel.link.description}</small>
+          </Link>
+        ))}
+      </div>
+      <div className={styles.discoveryContinuity}>
+        <strong>Start with the pipeline review if you want the quickest path.</strong>
+        <small>Every opportunity review link keeps this customer as the safe return point, so you can review and come back here without losing context.</small>
+      </div>
+    </section>
+  );
+}
+
+function OpportunityLensSection({
+  model,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+}) {
+  if (!model.opportunityLenses.length) {
+    return (
+      <section aria-labelledby="customer-opportunity-lenses-heading" className={styles.sectionCard}>
+        <header>
+          <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
+          <small>No persisted opportunity is linked yet</small>
+        </header>
+        <p className={styles.discoveryDetail}>{model.opportunityLensObservation.detail}</p>
+        <small className={styles.timelineEmpty}>{model.opportunityLensObservation.freshnessLabel}</small>
+        <p className={styles.timelineEmpty}>No permitted persisted opportunities are linked to this customer yet.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby="customer-opportunity-lenses-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
+        <small>
+          {model.opportunityLenses.length} visible record{model.opportunityLenses.length === 1 ? "" : "s"}
+          {" "}· {model.opportunityLensObservation.dispatchLinkCount} dispatch link{model.opportunityLensObservation.dispatchLinkCount === 1 ? "" : "s"}
+        </small>
+      </header>
+      <p className={styles.discoveryDetail}>{model.opportunityLensObservation.detail}</p>
+      <small className={styles.timelineEmpty}>{model.opportunityLensObservation.freshnessLabel}</small>
+      <div className={styles.discoveryGrid}>
+        {model.opportunityLenses.map((item) => (
+          <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(item.href, returnHref)} key={item.id}>
+            <span className={styles.discoveryEyebrow}>{item.opportunityNumber} · {label(item.stage)}</span>
+            <strong>{item.title}</strong>
+            <p>{item.summary}</p>
+            <small>{item.ownerName} · {item.customerLabel} · {item.dispatchLinkCount} dispatch link{item.dispatchLinkCount === 1 ? "" : "s"} · updated {formatDate(item.updatedAt, "Time unavailable")}</small>
+            {item.quoteLinks?.length ? (
+              <span className={styles.timelineEmpty}>
+                Quotes: {item.quoteLinks.map((quote) => `${quote.quoteNumber} ${quote.approvalStatus} ${formatMoneyCents(quote.approvalAmountCents)}`).join(", ")}
+              </span>
+            ) : null}
+            {item.dispatchLinks.length ? (
+              <span className={styles.timelineEmpty}>
+                {item.dispatchLinks.map((link) => `${link.repairOrderNumber}${link.repairJobNumber ? ` / ${link.repairJobNumber}` : ""}`).join(", ")}
+              </span>
+            ) : null}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OpportunityDiscoveryPrompt({
+  detail,
+  href,
+  label,
+  title
+}: {
+  detail: string;
+  href: string;
+  label: string;
+  title: string;
+}) {
+  return (
+    <Link aria-label={title} className={styles.discoveryPrompt} href={href}>
+      <span className={styles.discoveryPromptEyebrow}>{label}</span>
+      <strong>{title}</strong>
+      <small>{detail}</small>
+    </Link>
+  );
+}
+
+function activeRelationshipWork(model: UnifiedCrmCustomer360ReadModel, returnHref: string) {
+  const opportunity = model.opportunityLenses[0];
+  if (opportunity) {
+    return {
+      detail: `${label(opportunity.stage)} · ${opportunity.dispatchLinkCount} dispatch link${opportunity.dispatchLinkCount === 1 ? "" : "s"}`,
+      href: withUnifiedCrmOpportunityReturn(opportunity.href, returnHref),
+      title: opportunity.title
+    };
+  }
+
+  const activeCase = model.sourceLenses.cases[0];
+  if (activeCase) {
+    return {
+      detail: `${label(activeCase.priority)} priority · ${label(activeCase.status)} · ${activeCase.ownerName}`,
+      href: withCustomerSourceReturn(activeCase.sourceHref, model.identity.id, returnHref),
+      title: activeCase.title
+    };
+  }
+
+  const activeLead = model.sourceLenses.leads[0];
+  if (activeLead) {
+    return {
+      detail: `${label(activeLead.stage)} · ${activeLead.ownerName} · ${activeLead.vehicleInterest ?? "General interest"}`,
+      href: withCustomerSourceReturn(activeLead.sourceHref, model.identity.id, returnHref),
+      title: activeLead.leadNumber
+    };
+  }
+
+  return {
+    detail: "No active opportunity, case, or lead is visible in this customer scope.",
+    href: "#relationship-work-heading",
+    title: "Review relationship context"
+  };
+}
+
+function CustomerExecutionBrief({
+  model,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+}) {
+  const activeWork = activeRelationshipWork(model, returnHref);
+  return (
+    <section className={styles.executionBrief} aria-labelledby="customer-execution-brief-heading">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Start here</span>
+          <h2 id="customer-execution-brief-heading">Choose the useful tab for this customer</h2>
+        </div>
+        <small>Jump straight to the work area instead of landing on a read-only summary.</small>
+      </header>
+      <div className={styles.executionBriefGrid}>
+        <Link href="#customer-details-form-heading">
+          <span>Customer</span>
+          <strong>{model.identity.displayName}</strong>
+          <small>{model.identity.customerNumber} · {label(model.identity.status)}</small>
+        </Link>
+        <Link href={activeWork.href}>
+          <span>Work context</span>
+          <strong>{activeWork.title}</strong>
+          <small>{activeWork.detail}</small>
+        </Link>
+        <Link href={model.permissions.canManageNextAction ? "#next-action-form-heading" : "#task-bridge-heading"}>
+          <span>Recommended</span>
+          <strong>{model.permissions.canManageNextAction ? "Update next action" : "Create governed task"}</strong>
+          <small>{nextActionGuidance(model)}</small>
+        </Link>
+        <Link href="#customer-opportunity-lenses-heading">
+          <span>Deals</span>
+          <strong>{model.opportunityLenses.length ? "Review linked opportunities" : "No linked deal yet"}</strong>
+          <small>{model.opportunityLenses.length ? `${model.opportunityLenses.length} opportunity view available` : "Open the deal tab before leaving Customer 360."}</small>
+        </Link>
+        <Link href="#timeline-heading">
+          <span>Timeline</span>
+          <strong>Review recent activity</strong>
+          <small>{model.timeline.items.length ? `${model.timeline.items.length} visible events` : "No permitted timeline events yet"}</small>
+        </Link>
+        <article>
+          <span>Owner</span>
+          <strong>{model.owner?.name ?? "Unassigned"}</strong>
+          <small>{model.visibility === "owned" ? "Owned customer scope" : "Authorized customer scope"}</small>
+        </article>
+        <article>
+          <span>Due</span>
+          <strong>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No date set"}</strong>
+          <small>{nextActionEyebrow(model.relationship.nextActionState)}</small>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function StaffExecutionWorkspace({
+  customerSourceHref,
+  model,
+  returnHref,
+  taskBridgeHref
+}: {
+  customerSourceHref: string;
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+  taskBridgeHref: string;
+}) {
+  const activeWork = activeRelationshipWork(model, returnHref);
+  const primaryOpportunity = model.opportunityLenses[0];
+  const primaryAppointment = model.appointments[0];
+  const primaryVehicle = model.vehicles[0];
+  const followUpHref = model.permissions.canManageNextAction ? "#next-action-form-heading" : taskBridgeHref;
+  const followUpLabel = model.permissions.canManageNextAction ? "Update next action" : "Create governed task";
+  const followUpStatus = model.relationship.nextActionAt
+    ? formatDate(model.relationship.nextActionAt, "No date set")
+    : "No date set";
+  const contextHref = primaryOpportunity
+    ? withUnifiedCrmOpportunityReturn(primaryOpportunity.href, buildUnifiedCrmCustomerReturn(model.identity.id, returnHref))
+    : activeWork.href;
+  const executionLanes = [
+    {
+      href: followUpHref,
+      label: "1",
+      title: followUpLabel,
+      detail: nextActionGuidance(model),
+      meta: followUpStatus,
+      primary: true
+    },
+    {
+      href: model.permissions.canLogInteraction ? "#interaction-form-heading" : customerSourceHref,
+      label: "2",
+      title: model.permissions.canLogInteraction ? "Record activity outcome" : "Review source activity",
+      detail: model.permissions.canLogInteraction ? "Log the customer touchpoint after staff calls, texts, emails, or meets." : "Manual outcome entry is unavailable here; use the source record.",
+      meta: model.communicationActionReadiness.posture === "NO_CONTACT" ? "No contact ready" : label(model.communicationActionReadiness.posture)
+    },
+    {
+      href: contextHref,
+      label: "3",
+      title: primaryOpportunity ? "Review sales/deal context" : "Review active work context",
+      detail: primaryOpportunity?.summary ?? activeWork.detail,
+      meta: primaryOpportunity ? label(primaryOpportunity.stage) : "Customer context"
+    },
+    {
+      href: "#deal-support-heading",
+      label: "4",
+      title: "Add vehicle interest",
+      detail: primaryVehicle ? `Linked vehicle: ${primaryVehicle.label}` : "Manually attach the vehicle the customer wants before deal creation.",
+      meta: primaryAppointment?.startsAt ? `Appointment ${formatDate(primaryAppointment.startsAt, "Not scheduled")}` : "Manual linkage"
+    },
+    {
+      href: model.permissions.canCreateNote ? "#note-form-heading" : customerSourceHref,
+      label: "5",
+      title: model.permissions.canCreateNote ? "Capture staff note" : "Review team notes",
+      detail: model.permissions.canCreateNote ? "Record the decision, promise, blocker, or customer preference before leaving." : "Note entry is unavailable here; review source context instead.",
+      meta: `${model.notes.length} visible note${model.notes.length === 1 ? "" : "s"}`
+    }
+  ];
+
+  return (
+    <section className={styles.staffWorkspace} aria-labelledby="staff-execution-workspace-heading">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Staff execution tool</span>
+          <h2 id="staff-execution-workspace-heading">Work this customer from here</h2>
+          <p>Pick the lane, complete the staff action, then record the outcome before moving on.</p>
+        </div>
+        <Link href={customerSourceHref}>Open source record<ExternalLink aria-hidden="true" size={13} /></Link>
+      </header>
+      <div className={styles.staffWorkspaceBody}>
+        <div className={styles.executionLaneGrid}>
+          {executionLanes.map((lane) => (
+            <Link className={`${styles.executionLane} ${lane.primary ? styles.executionLanePrimary : ""}`} href={lane.href} key={lane.label}>
+              <span>{lane.label}</span>
+              <strong>{lane.title}</strong>
+              <small>{lane.detail}</small>
+              <em>{lane.meta}</em>
+            </Link>
+          ))}
+        </div>
+        <aside className={styles.executionChecklist} aria-label="Staff execution checklist">
+          <strong>Execution checklist</strong>
+          <Link href="#customer-details-form-heading">Confirm customer identity and contact preferences</Link>
+          <Link href={followUpHref}>Set or renew the next dated follow-up</Link>
+          <Link href="#interaction-form-heading">Record the customer outcome after the action</Link>
+          <Link href="#deal-support-heading">Attach interested vehicle before preparing the deal</Link>
+          <Link href="#note-form-heading">Leave the internal note the next staff member needs</Link>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function manualVehicleStorageKey(customerId: string) {
+  return `ucrm:customer:${customerId}:manual-vehicle-interests`;
+}
+
+function encodeDealSupportHref(model: UnifiedCrmCustomer360ReadModel, returnHref: string, interest?: ManualVehicleInterest) {
+  const params = new URLSearchParams({
+    crmReturnTo: buildUnifiedCrmCustomerReturn(model.identity.id, returnHref),
+    customerId: model.identity.id,
+    customerName: model.identity.displayName
+  });
+  if (interest?.vehicle) params.set("vehicleInterest", interest.vehicle);
+  if (interest?.stockOrVin) params.set("stockOrVin", interest.stockOrVin);
+  if (interest?.budget) params.set("budget", interest.budget);
+  if (interest?.trade) params.set("trade", interest.trade);
+  if (interest?.note) params.set("dealNote", interest.note);
+  return `/crm/opportunities/new?${params.toString()}`;
+}
+
+function ManualDealSupportWorkspace({
+  model,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+}) {
+  const storageKey = manualVehicleStorageKey(model.identity.id);
+  const [interests, setInterests] = useState<ManualVehicleInterest[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = window.localStorage.getItem(manualVehicleStorageKey(model.identity.id));
+      return stored ? JSON.parse(stored) as ManualVehicleInterest[] : [];
+    } catch {
+      return [];
+    }
+  });
+  const [message, setMessage] = useState<string | null>(null);
+
+  function save(nextInterests: ManualVehicleInterest[]) {
+    setInterests(nextInterests);
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(nextInterests));
+    } catch {
+      // Local persistence is a convenience only; the visible workpad remains usable.
+    }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const vehicle = String(form.get("vehicle") ?? "").trim();
+    if (!vehicle) {
+      setMessage("Enter the interested vehicle before adding it to deal support.");
+      return;
+    }
+    const nextInterest: ManualVehicleInterest = {
+      budget: String(form.get("budget") ?? "").trim(),
+      createdAt: new Date().toISOString(),
+      id: `vehicle-interest-${Date.now()}`,
+      note: String(form.get("note") ?? "").trim(),
+      stockOrVin: String(form.get("stockOrVin") ?? "").trim(),
+      trade: String(form.get("trade") ?? "").trim(),
+      vehicle
+    };
+    save([nextInterest, ...interests].slice(0, 5));
+    setMessage(`${vehicle} added to deal support for ${model.identity.displayName}.`);
+    event.currentTarget.reset();
+  }
+
+  const primaryInterest = interests[0];
+  const prepareDealHref = encodeDealSupportHref(model, returnHref, primaryInterest);
+
+  return (
+    <section className={styles.dealSupportWorkspace} aria-labelledby="deal-support-heading">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Deal support</span>
+          <h2 id="deal-support-heading">Manually link interested vehicles</h2>
+          <p>Use this when inventory is not connected. Capture the vehicle the customer wants, then carry it into opportunity creation.</p>
+        </div>
+        <Link href={prepareDealHref}>Prepare deal<ExternalLink aria-hidden="true" size={13} /></Link>
+      </header>
+      <div className={styles.dealSupportBody}>
+        <form className={styles.manualVehicleForm} onSubmit={submit}>
+          <label>
+            <span>Interested vehicle</span>
+            <input name="vehicle" placeholder="Example: 2019 Jeep Cherokee Maroon" required maxLength={160} />
+          </label>
+          <label>
+            <span>Stock # or VIN if known</span>
+            <input name="stockOrVin" placeholder="Optional manual reference" maxLength={80} />
+          </label>
+          <label>
+            <span>Budget / payment target</span>
+            <input name="budget" placeholder="Optional" maxLength={80} />
+          </label>
+          <label>
+            <span>Trade or payoff</span>
+            <input name="trade" placeholder="Optional trade context" maxLength={120} />
+          </label>
+          <label className={styles.manualVehicleWide}>
+            <span>Deal note</span>
+            <textarea name="note" placeholder="What should the salesperson remember when working this deal?" maxLength={500} />
+          </label>
+          <div className={styles.manualVehicleActions}>
+            <button type="submit">Add vehicle interest</button>
+            <small>Manual support only. This does not reserve inventory, create a quote, or write to an inventory source.</small>
+          </div>
+          {message ? <p className={styles.formSuccess} role="status">{message}</p> : null}
+        </form>
+        <aside className={styles.vehicleInterestList} aria-label="Manual interested vehicles">
+          <strong>Interested vehicles</strong>
+          {interests.length ? interests.map((interest) => (
+            <article key={interest.id}>
+              <span>{interest.vehicle}</span>
+              <small>{[interest.stockOrVin, interest.budget, interest.trade].filter(Boolean).join(" · ") || "Manual vehicle interest"}</small>
+              {interest.note ? <p>{interest.note}</p> : null}
+              <Link href={encodeDealSupportHref(model, returnHref, interest)}>Prepare deal with this vehicle</Link>
+            </article>
+          )) : (
+            <p>No manual vehicle interest has been added for this customer yet.</p>
+          )}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function CustomerDetailJumpRail({ canEditCustomerDetails }: { canEditCustomerDetails: boolean }) {
+  const links = [
+    { href: canEditCustomerDetails ? "#customer-details-form-heading" : "#customer-name-heading", label: "Contact" },
+    { href: "#deal-support-heading", label: "Vehicle interest" },
+    { href: "#customer-opportunity-lenses-heading", label: "Deals" },
+    { href: "#task-bridge-heading", label: "Tasks" },
+    { href: "#customer-notes-heading", label: "Notes" },
+    { href: "#communication-timeline-lens-heading", label: "Communication" },
+    { href: "#timeline-heading", label: "Timeline" },
+    { href: "#source-lenses-heading", label: "External/source context" }
+  ];
+  return (
+    <nav className={styles.detailJumpRail} aria-label="Customer 360 detail sections">
+      {links.map((item) => <Link href={item.href} key={item.label}>{item.label}</Link>)}
+    </nav>
+  );
+}
+
+function QuickActions({
+  customerSourceHref,
+  editAvailable,
+  nextActionAvailable,
+  opportunityDiscovery,
+  taskBridgeAvailable,
+  taskBridgeHref
+}: {
+  customerSourceHref: string;
+  editAvailable: boolean;
+  nextActionAvailable: boolean;
+  opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
+  taskBridgeAvailable: boolean;
+  taskBridgeHref: string;
+}) {
+  const primaryOpportunityAction = opportunityDiscovery?.opportunityDiscovery.panels[0];
+
+  return (
+    <section aria-labelledby="customer-quick-actions-heading" className={styles.quickActionsCard}>
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Useful tabs</span>
+          <h2 id="customer-quick-actions-heading">Go straight to the customer work area</h2>
+        </div>
+        <small>Each tile jumps to a real section or governed workflow.</small>
+      </header>
+      <div className={styles.quickActionsGrid}>
+        <Link className={`${styles.quickActionLink} ${styles.quickActionPrimary}`} href={nextActionAvailable ? "#next-action-form-heading" : taskBridgeHref}>
+          <strong>{nextActionAvailable ? "Update next action" : "Create governed task"}</strong>
+          <small>{nextActionAvailable ? "Set the next dated follow-up for this customer." : "Continue into the governed task workflow with this customer attached."}</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#interaction-form-heading">
+          <strong>Activity outcome</strong>
+          <small>Record a call, visit, text, email, or manual touchpoint.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#note-form-heading">
+          <strong>Notes</strong>
+          <small>Add internal customer context for the team.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={taskBridgeAvailable ? "#task-bridge-heading" : taskBridgeHref}>
+          <strong>Tasks</strong>
+          <small>{taskBridgeAvailable ? "Create a protected CRM task from this customer." : "Open the task intake workflow with this customer attached."}</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#customer-opportunity-lenses-heading">
+          <strong>Deals</strong>
+          <small>Review linked opportunities before choosing the next sales move.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#deal-support-heading">
+          <strong>Vehicle interest</strong>
+          <small>Manually attach interested vehicles before creating or working the deal.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={editAvailable ? "#customer-details-form-heading" : customerSourceHref}>
+          <strong>Customer details</strong>
+          <small>{editAvailable ? "Edit contact, address, preference, or identity details." : "Open the source record for customer details."}</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#communication-timeline-lens-heading">
+          <strong>Communication</strong>
+          <small>Review safe touchpoint history and available communication actions.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#timeline-heading">
+          <strong>Timeline</strong>
+          <small>See the customer relationship timeline in order.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={customerSourceHref}>
+          <strong>Source record</strong>
+          <small>Open the governed source-of-truth customer record.</small>
+        </Link>
+        {primaryOpportunityAction ? (
+          <Link className={styles.quickActionLink} href={withUnifiedCrmOpportunityReturn(primaryOpportunityAction.link.href, opportunityDiscovery.customer.href)}>
+            <strong>{primaryOpportunityAction.link.label}</strong>
+            <small>{primaryOpportunityAction.link.description} Opens a guided opportunity path.</small>
+          </Link>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function OpportunityDiscoveryNudges({ model }: { model: UnifiedCrmCustomerOpportunityDiscoveryModel }) {
+  function withCustomerReturn(href: string) {
+    try {
+      const url = new URL(href, "http://crm.local");
+      url.searchParams.set("crmReturnTo", model.customer.href);
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return href;
+    }
+  }
+
+  const pipeline = model.opportunityDiscovery.panels.find((panel) => panel.link.id === "pipeline");
+  const hub = model.opportunityDiscovery.panels.find((panel) => panel.link.id === "hub");
+  const guided = model.opportunityDiscovery.panels.find((panel) => panel.link.id === "guided");
+
+  return {
+    connectedWork: pipeline
+      ? (
+        <OpportunityDiscoveryPrompt
+          detail="Use the guided pipeline workspace when connected appointments or vehicles make you want to check the next commercial follow-up."
+          href={withCustomerReturn(pipeline.link.href)}
+          label="Commercial next step"
+          title={pipeline.link.label}
+        />
+      )
+      : null,
+    sourceLenses: hub
+      ? (
+        <OpportunityDiscoveryPrompt
+          detail="Use the review hub when lead or case context makes you want to compare the guided, read-only opportunity surfaces from one place."
+          href={withCustomerReturn(hub.link.href)}
+          label="From source context"
+          title={hub.link.label}
+        />
+      )
+      : null,
+    timeline: guided
+      ? (
+        <OpportunityDiscoveryPrompt
+          detail="Use the guided journey when recent history makes you want to walk the full opportunity review path in order."
+          href={withCustomerReturn(guided.link.href)}
+          label="Follow-up journey"
+          title={guided.link.label}
+        />
+      )
+      : null
+  };
+}
+
+function WorkContext({
+  model,
+  opportunityPrompt,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  opportunityPrompt?: ReactNode;
+  returnHref: string;
+}) {
+  const upcoming = model.appointments.slice(0, 3);
+  const vehicles = model.vehicles.slice(0, 3);
+  return (
+    <section aria-labelledby="relationship-work-heading" className={styles.sectionCard}>
+      <header><div><span className={styles.eyebrow}>Connected work</span><h2 id="relationship-work-heading">Relationship context</h2></div><small>Source-owned summaries</small></header>
+      <div className={styles.contextColumns}>
+        <div><h3><CalendarDays aria-hidden="true" size={15} />Appointments</h3>{upcoming.length ? upcoming.map((item) => <Link href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)} key={item.id}><span><strong>{item.title}</strong><small>{label(item.bookingStatus)} · {label(item.confirmationStatus)}</small></span><time>{formatDate(item.startsAt, "Not scheduled")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted appointments are linked.</p>}</div>
+        <div><h3><CarFront aria-hidden="true" size={15} />Vehicles</h3>{vehicles.length ? vehicles.map((item) => <Link href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)} key={item.id}><span><strong>{item.label}</strong><small>{label(item.relationshipType)} · {label(item.status)}</small></span><time>{formatDate(item.effectiveFrom, "Date unavailable")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted vehicles are linked.</p>}</div>
+      </div>
+      {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
+    </section>
+  );
+}
+
+function SourceLenses({
+  model,
+  opportunityPrompt,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  opportunityPrompt?: ReactNode;
+  returnHref: string;
+}) {
+  return (
+    <section aria-labelledby="source-lenses-heading" className={styles.sectionCard}>
+      <header><div><span className={styles.eyebrow}>Existing source workflows</span><h2 id="source-lenses-heading">Lead and case context</h2></div><small>Read only · changes stay in their source</small></header>
+      <div className={styles.lensGrid}>
+        <section aria-labelledby="lead-lens-heading"><h3 id="lead-lens-heading">Leads</h3>{model.sourceLenses.leads.length ? model.sourceLenses.leads.map((item) => <article key={item.id}><div><strong>{item.leadNumber} · {item.vehicleInterest ?? "General interest"}</strong><span>{label(item.stage)} · {item.ownerName}</span><small>Next: {label(item.nextActionCode)} · {formatDate(item.nextActionAt, "Not scheduled")}</small></div><Link aria-label={`Open lead ${item.leadNumber} in Customers`} href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source leads are linked.</p>}</section>
+        <section aria-labelledby="case-lens-heading"><h3 id="case-lens-heading">Cases</h3>{model.sourceLenses.cases.length ? model.sourceLenses.cases.map((item) => <article key={item.id}><div><strong>{item.caseNumber} · {item.title}</strong><span>{label(item.status)} · {item.ownerName}</span><small>{label(item.priority)} priority · SLA {label(item.slaStage)} · due {formatDate(item.resolutionDueAt ?? item.dueAt, "Not scheduled")}</small></div><Link aria-label={`Open case ${item.caseNumber} in Customers`} href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source cases are linked.</p>}</section>
+      </div>
+      {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
+    </section>
+  );
+}
+
+function TimelineSection({
+  model,
+  opportunityPrompt,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  opportunityPrompt?: ReactNode;
+  returnHref: string;
+}) {
+  const hasTimelineItems = model.timeline.items.length > 0;
+
+  return (
+    <section aria-labelledby="timeline-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Unified activity</span><h2 id="timeline-heading">Relationship timeline</h2></div>
+        <small>{model.timeline.itemCount} latest permitted events</small>
+      </header>
+      <p className={styles.timelineDetail}>
+        This read-only timeline combines the latest permitted customer activity across connected source workflows. Source systems remain authoritative, and this view was observed {formatDate(model.freshness.observedAt, "time unavailable")}.
+      </p>
+      {hasTimelineItems ? (
+        <ol className={styles.timelineList} aria-label="Permitted customer relationship activity">
+          {model.timeline.items.map((item) => (
+            <li key={item.id} className={styles.timelineItem}>
+              <span className={styles.timelineDot} aria-hidden="true" />
+              <div className={styles.timelineBody}>
+                <div className={styles.timelineHeader}>
+                  <strong>{item.title}</strong>
+                  <span className={styles.timelineKind}>{timelineKindLabel(item.kind)}</span>
+                </div>
+                <p>{item.detail}</p>
+                <small>{item.actorName ? `${item.actorName} · ` : ""}{item.sourceLabel}</small>
+              </div>
+              <time dateTime={item.occurredAt}>{formatDate(item.occurredAt, "Time unavailable")}</time>
+              <Link
+                aria-label={`Open ${item.sourceLabel} source for ${item.title}`}
+                href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)}
+              >
+                Open source<ExternalLink aria-hidden="true" size={13} />
+              </Link>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className={styles.timelineEmpty}>
+          <History aria-hidden="true" size={16} />
+          No permitted relationship history has been recorded yet. New source-owned events will appear here when they enter your allowed customer scope.
+        </p>
+      )}
+      {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
+    </section>
+  );
+}
+
+function CommunicationTimelineLens({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  const lens = model.communicationTimelineLens ?? {
+    state: "EMPTY" as const,
+    posture: "READ_ONLY" as const,
+    detail: "No permitted manual communication outcome is visible for this customer yet. Use the governed manual outcome form or source workflow when a staff touchpoint occurs.",
+    visibleOutcomeCount: 0,
+    latestOutcomeAt: null,
+    channels: [],
+    fallback: {
+      label: "Manual timeline review" as const,
+      href: "#timeline-heading",
+      reason: "Review the relationship timeline when communication outcomes need context; no external communication is sent from this lens."
+    }
+  };
+  return (
+    <section aria-labelledby="communication-timeline-lens-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Communications</span><h2 id="communication-timeline-lens-heading">Safe touchpoint history</h2></div>
+        <small>{lens.visibleOutcomeCount} permitted outcome{lens.visibleOutcomeCount === 1 ? "" : "s"} · read only</small>
+      </header>
+      <p className={styles.timelineDetail}>{lens.detail}</p>
+      {lens.channels.length ? (
+        <div className={styles.lensGrid} aria-label="Permitted communication outcome channels">
+          {lens.channels.map((channel) => (
+            <article key={channel.label}>
+              <div>
+                <strong>{channel.label}</strong>
+                <span>{channel.count} visible outcome{channel.count === 1 ? "" : "s"}</span>
+                <small>Latest: {formatDate(channel.latestOutcomeAt, "No visible outcome time")}</small>
+              </div>
+              <Link aria-label={`Review ${channel.label} outcomes in timeline`} href={lens.fallback.href}>Review timeline<ExternalLink aria-hidden="true" size={13} /></Link>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className={styles.timelineEmpty}>
+          <History aria-hidden="true" size={16} />
+          No permitted phone, email, or text outcome is visible yet.
+        </p>
+      )}
+      <p className={styles.timelineDetail}>{lens.fallback.reason}</p>
+    </section>
+  );
+}
+
+function CommunicationActionReadiness({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  const readiness = model.communicationActionReadiness ?? {
+    state: "UNAVAILABLE" as const,
+    posture: "NO_CONTACT" as const,
+    channels: [],
+    fallback: {
+      label: "Log manual outcome" as const,
+      href: "#interaction-form-heading",
+      reason: "When provider actions are held, keep continuity by recording the human touchpoint after it happens."
+    }
+  };
+  return (
+    <section aria-labelledby="communication-action-readiness-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Communication actions</span><h2 id="communication-action-readiness-heading">What can I safely do now?</h2></div>
+        <small>{label(readiness.state)} · {label(readiness.posture)}</small>
+      </header>
+      <div className={styles.lensGrid} aria-label="Customer communication action readiness">
+        {readiness.channels.map((channel) => (
+          <article key={channel.id}>
+            <div>
+              <strong>{channel.label}</strong>
+              <span>{label(channel.state)}</span>
+              <small>{channel.detail}</small>
+            </div>
+            <Link aria-label={`${channel.primaryActionLabel} for ${channel.label}`} href={channel.href}>{channel.primaryActionLabel}<ExternalLink aria-hidden="true" size={13} /></Link>
+          </article>
+        ))}
+      </div>
+      <p className={styles.timelineDetail}>{readiness.fallback.reason}</p>
+    </section>
+  );
+}
+
+function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  return (
+    <section aria-labelledby="customer-notes-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Relationship notes</span><h2 id="customer-notes-heading">Team context</h2></div>
+        <small>{model.notes.length ? `${model.notes.length} visible notes` : "Read only list"}</small>
+      </header>
+      <div className={styles.notesList}>
+        {model.notes.length ? model.notes.map((note) => (
+          <article className={styles.noteItem} key={note.id}>
+            <div className={styles.noteMeta}>
+              <strong>{note.authorName}</strong>
+              <span>{note.visibility === "RESTRICTED" ? "Restricted" : "Internal"}</span>
+              <time>{formatDate(note.createdAt, "Time unavailable")}</time>
+            </div>
+            <p>{note.body}</p>
+          </article>
+        )) : <p className={styles.timelineEmpty}><History aria-hidden="true" size={16} />No permitted customer notes have been recorded yet.</p>}
+      </div>
+    </section>
+  );
+}
+
+export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", model, opportunityDiscovery, returnHref }: Customer360Props) {
+  if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
+  const returnContext = customerReturnContext(returnHref);
+  const taskBridgeHref = buildUnifiedCrmTaskIntakeHref({
+    customerDisplayName: model.identity.displayName,
+    customerId: model.identity.id,
+    customerNumber: model.identity.customerNumber,
+    customerContextReturn: returnHref,
+    dueAt: model.relationship.nextActionAt
+  });
+  const customerSourceHref = withCustomerSourceReturn(model.source.href, model.identity.id, returnHref);
+  const primaryContact = model.contacts.find((item) => item.isPrimary) ?? model.contacts[0];
+  const otherContacts = model.contacts.filter((item) => item !== primaryContact).slice(0, 2);
+  const opportunityNudges = opportunityDiscovery ? OpportunityDiscoveryNudges({ model: opportunityDiscovery }) : null;
+  return (
+    <main className={styles.page}>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
+      <section className={styles.identityCard} aria-labelledby="customer-name-heading">
+        <div className={styles.identityMain}><span className={styles.avatar}><UserRound aria-hidden="true" size={22} /></span><div><span className={styles.eyebrow}>Customer relationship · read-only overview</span><h1 id="customer-name-heading">{model.identity.displayName}</h1><p>{model.identity.customerNumber} · Customer since {formatDateOnly(model.identity.customerSince)}</p></div></div>
+        <div className={styles.identityMeta}><Status value={model.identity.status} /><span><small>Owner</small><strong>{model.owner?.name ?? "Unassigned"}</strong></span></div>
+      </section>
+      <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={customerSourceHref}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
+      <CustomerExecutionBrief model={model} returnHref={returnHref} />
+      <StaffExecutionWorkspace customerSourceHref={customerSourceHref} model={model} returnHref={returnHref} taskBridgeHref={taskBridgeHref} />
+      <ManualDealSupportWorkspace model={model} returnHref={returnHref} />
+      <QuickActions
+        customerSourceHref={customerSourceHref}
+        editAvailable={model.permissions.canEditCustomerDetails}
+        nextActionAvailable={model.permissions.canManageNextAction}
+        opportunityDiscovery={opportunityDiscovery}
+        taskBridgeAvailable={model.permissions.canCreateGovernedTask}
+        taskBridgeHref={taskBridgeHref}
+      />
+      <CustomerDetailJumpRail canEditCustomerDetails={model.permissions.canEditCustomerDetails} />
+      <UnifiedCrmCustomerDetailsForm
+        available={model.permissions.canEditCustomerDetails}
+        customerDisplayName={model.identity.displayName}
+        customerId={model.identity.id}
+        expectedVersion={model.lifecycle.version}
+        fallbackHref={customerSourceHref}
+      />
+      <section className={styles.priorityGrid}>
+        <article className={styles.nextAction}><span className={styles.eyebrow}>{nextActionEyebrow(model.relationship.nextActionState)}</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><p>{nextActionGuidance(model)}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={model.permissions.canCreateGovernedTask ? "#task-bridge-heading" : taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
+        <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
+      </section>
+      {model.permissions.canManageNextAction ? (
+        <UnifiedCrmCustomerNextActionForm currentNextActionAt={model.relationship.nextActionAt} currentNextActionState={model.relationship.nextActionState} customerId={model.identity.id} />
+      ) : (
+        <section className={styles.interactionCard} aria-labelledby="next-action-form-heading">
+          <header className={styles.interactionHeader}>
+            <div>
+              <span className={styles.eyebrow}>Next action</span>
+              <h2 id="next-action-form-heading">Keep the customer follow-up current</h2>
+              <p>CRM next-action updates are unavailable in this environment or for this customer record right now.</p>
+            </div>
+          </header>
+        </section>
+      )}
+      <UnifiedCrmCustomerTaskBridgeForm
+        available={model.permissions.canCreateGovernedTask}
+        customerDisplayName={model.identity.displayName}
+        customerId={model.identity.id}
+        defaultDueAt={model.relationship.nextActionAt}
+        fallbackHref={taskBridgeHref}
+      />
+      <UnifiedCrmCustomerInteractionForm
+        available={model.permissions.canLogInteraction}
+        customerId={model.identity.id}
+        fallbackHref={customerSourceHref}
+      />
+      <UnifiedCrmCustomerNoteForm
+        allowRestricted={model.permissions.canCreateRestrictedNote}
+        available={model.permissions.canCreateNote}
+        customerId={model.identity.id}
+        fallbackHref={customerSourceHref}
+      />
+      <RelationshipSummary model={model} />
+      {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
+      <OpportunityLensSection model={model} returnHref={`/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`} />
+      <CommunicationActionReadiness model={model} />
+      <CommunicationTimelineLens model={model} />
+      <NotesSection model={model} />
+      <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} returnHref={returnHref} />
+      <WorkContext model={model} opportunityPrompt={opportunityNudges?.connectedWork} returnHref={returnHref} />
+      <SourceLenses model={model} opportunityPrompt={opportunityNudges?.sourceLenses} returnHref={returnHref} />
+      <footer className={styles.footer}>Source record observed {formatDate(model.freshness.observedAt, "time unavailable")} · source record updated {formatDate(model.freshness.sourceRecordUpdatedAt, "time unavailable")} · manual contact outcomes are recorded here; source-owned workflows remain authoritative.</footer>
+    </main>
+  );
+}
+
+export function UnifiedCrmCustomer360Loading() {
+  return <main className={styles.page}><section aria-busy="true" aria-labelledby="customer-360-loading-heading" className={styles.loading}><span className={styles.eyebrow}>Unified CRM</span><h1 id="customer-360-loading-heading">Loading permitted customer context</h1><p>Checking access and reading the current source record. No action has been completed.</p><div aria-hidden="true">{Array.from({ length: 5 }, (_, index) => <span key={index} />)}</div></section></main>;
+}

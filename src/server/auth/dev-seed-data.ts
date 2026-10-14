@@ -12,6 +12,8 @@ import type {
 export const SHARED_DEVELOPMENT_PASSWORD = "dispatch123!";
 
 export const dayOneDutyDefinitions = [
+  { name: "Import inventory records", workflowArea: "INVENTORY", description: "Import new vehicle identity records without approving acquisition, pricing or release." },
+  { name: "Export inventory data", workflowArea: "INVENTORY", description: "Download inventory data for authorized locations." },
   {
     name: "Review today's dispatch board",
     workflowArea: "Management",
@@ -96,6 +98,46 @@ export const dayOneDutyDefinitions = [
     name: "Submit inventory and service production update",
     workflowArea: "Service",
     description: "Submit the combined end-of-day inventory and service production update."
+  },
+  {
+    name: "Coordinate service advisor arrivals",
+    workflowArea: "Service",
+    description: "Coordinate appointment arrivals, walk-ins, customer check-in, and repair-order intake handoffs."
+  },
+  {
+    name: "Document customer concern and authorization",
+    workflowArea: "Service",
+    description: "Record the customer's concern in their own words and preserve consent, custody, and promise context."
+  },
+  {
+    name: "Manage customer repair-order updates",
+    workflowArea: "Service",
+    description: "Keep customers updated on repair-order status, approval needs, promise changes, and handoff readiness."
+  },
+  {
+    name: "Coordinate vehicle operations lead priorities",
+    workflowArea: "Inventory",
+    description: "Coordinate the vehicle operations priorities across inventory, shop, parts, and lot support."
+  },
+  {
+    name: "Support parts pickup and returns",
+    workflowArea: "Service",
+    description: "Support parts pickup, receiving, return, and constrained repair movement when assigned."
+  },
+  {
+    name: "Support authorized repair execution",
+    workflowArea: "Service",
+    description: "Support approved repair work, repair-bay handoffs, and execution blockers when assigned."
+  },
+  {
+    name: "Support lot readiness and vehicle movement",
+    workflowArea: "Inventory",
+    description: "Support vehicle movement, keys, lot placement, cleanup, and readiness handoffs when assigned."
+  },
+  {
+    name: "Support vehicle detail and merchandising readiness",
+    workflowArea: "Inventory",
+    description: "Support detail, photos, listing readiness, and merchandising handoffs when assigned."
   },
   {
     name: "Review assigned repair and diagnostic tasks",
@@ -208,6 +250,24 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Vehicle Operations Lead",
+    description: "Coordinates the current multi-hat workload across service advising, inventory, repair support, parts runner, lot, and detail work.",
+    defaultDutyNames: [
+      "Coordinate vehicle operations lead priorities",
+      "Coordinate service advisor arrivals",
+      "Manage customer repair-order updates",
+      "Review inventory status and priority vehicles",
+      "Review service production priorities",
+      "Check vehicles awaiting parts",
+      "Check vehicles awaiting QC",
+      "Support parts pickup and returns",
+      "Support authorized repair execution",
+      "Support lot readiness and vehicle movement",
+      "Support vehicle detail and merchandising readiness",
+      "Submit inventory and service production update"
+    ]
+  },
+  {
     name: "Inventory Manager",
     description: "Coordinates inventory movement from intake through sale readiness.",
     defaultDutyNames: [
@@ -233,6 +293,16 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Service Advisor",
+    description: "Owns customer arrivals, check-in, concern capture, repair-order intake, approvals, and customer handoffs.",
+    defaultDutyNames: [
+      "Coordinate service advisor arrivals",
+      "Confirm appointments",
+      "Document customer concern and authorization",
+      "Manage customer repair-order updates"
+    ]
+  },
+  {
     name: "Mechanic",
     description: "Handles repair, diagnosis, and shop workflow updates.",
     defaultDutyNames: [
@@ -240,6 +310,23 @@ export const dayOneRoleDefinitions = [
       "Update active repair statuses",
       "Mark waiting on parts or approval when applicable",
       "Move finished repair work to Ready for Review"
+    ]
+  },
+  {
+    name: "Parts",
+    description: "Owns parts demand, sourcing, receiving, reservation, issue, returns, and repair readiness support.",
+    defaultDutyNames: [
+      "Check vehicles awaiting parts",
+      "Support parts pickup and returns"
+    ]
+  },
+  {
+    name: "Quality Control",
+    description: "Owns final repair inspection, failed-QC rechecks, completion evidence, and release readiness.",
+    defaultDutyNames: [
+      "Check vehicles awaiting QC",
+      "Review ready-for-review tasks",
+      "Flag stalled inventory or recon bottlenecks"
     ]
   },
   {
@@ -261,6 +348,18 @@ export const dayOneRoleDefinitions = [
       "Confirm appointments",
       "Flag missing documentation when noticed",
       "Support sales or inventory tasks when assigned"
+    ]
+  },
+  {
+    name: "Operations Coordinator",
+    description: "Runs the front-door operating loop with broad visibility, lightweight action, paperwork support, and safe routing to final authority.",
+    defaultDutyNames: [
+      "Review office/admin support tasks",
+      "Confirm appointments",
+      "Coordinate service advisor arrivals",
+      "Flag missing documentation when noticed",
+      "Support sales or inventory tasks when assigned",
+      "Support parts pickup and returns"
     ]
   },
   {
@@ -295,11 +394,19 @@ export const developmentUserDefinitions = [
     email: "riley.inventory@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
-    roleNames: ["Inventory Manager", "Service Department Manager"],
+    roleNames: ["Vehicle Operations Lead", "Inventory Manager", "Service Department Manager"],
     directDutyNames: []
   },
   {
-    name: "Walter Mechanic",
+    name: "Alex Carter",
+    email: "alex.advisor@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Service Advisor"],
+    directDutyNames: []
+  },
+  {
+    name: "Walter Hernandez",
     email: "casey.mechanic@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
@@ -310,6 +417,22 @@ export const developmentUserDefinitions = [
       "Mark waiting on parts or approval when applicable",
       "Move finished repair work to Ready for Review"
     ]
+  },
+  {
+    name: "Pat Parts",
+    email: "pat.parts@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Parts"],
+    directDutyNames: []
+  },
+  {
+    name: "Quincy QC",
+    email: "quincy.qc@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Quality Control"],
+    directDutyNames: []
   },
   {
     name: "Baraka Sales",
@@ -324,7 +447,7 @@ export const developmentUserDefinitions = [
     email: "avery.ops@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
-    roleNames: ["Office Manager", "Marketing/Advertisement Manager"],
+    roleNames: ["Operations Coordinator", "Office Manager", "Marketing/Advertisement Manager"],
     directDutyNames: []
   },
   {
@@ -772,8 +895,12 @@ export const dayOneTaskTemplateDefinitions: readonly DayOneTaskTemplateDefinitio
     defaultDueTime: "09:00",
     requiresManagerApproval: false,
     requiredUpdateFields: [
-      createRequiredField("focus_summary", "Focus summary", "long_text"),
-      createRequiredField("top_priority", "Top priority", "short_text"),
+      createRequiredField("focus_summary", "Review summary", "long_text", {
+        helpText: "What did you review, and what did you find?"
+      }),
+      createRequiredField("top_priority", "Highest-priority next action", "short_text", {
+        helpText: "What must happen next, who owns it, and when is it due?"
+      }),
       createRequiredField("staffing_risk", "Staffing risk", "boolean", { required: false })
     ],
     checklistItems: [

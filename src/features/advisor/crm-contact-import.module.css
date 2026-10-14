@@ -1,0 +1,6 @@
+.importer { grid-column: 1 / -1; min-width: 0; }
+.importer button { display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid #c9d5e9;border-radius:7px;background:#fff;color:#3557c7;font:inherit;font-weight:700;cursor:pointer }
+.form { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px;border:1px solid #cdd8eb;border-radius:9px;background:#f8faff }
+.form>strong,.form>p,.form>small,.form>span { grid-column:1/-1 }.form p{margin:0;color:#64728a}.form label{display:grid;gap:5px;font-weight:600}.form input{box-sizing:border-box;width:100%;min-width:0;padding:9px;border:1px solid #c5d1e5;border-radius:7px;font:inherit}.form span{display:flex;gap:8px;flex-wrap:wrap}.form span button:first-child{background:#4056c7;color:#fff}.importer button:disabled{opacity:.55;cursor:not-allowed}.importer :is(button,input,a):focus-visible{outline:3px solid #4c6ee3;outline-offset:2px}
+@media(max-width:650px){.form{grid-template-columns:1fr}}
+.duplicates{grid-column:1/-1;display:grid;gap:8px;padding:11px;border:1px solid #d8a941;border-radius:8px;background:#fff9e9}.duplicates>strong{color:#795600}.duplicates article{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px;background:#fff;border-radius:7px}.duplicates article span{display:grid;flex:1 1 240px}.duplicates small{color:#68768c}.duplicates a{padding:7px}

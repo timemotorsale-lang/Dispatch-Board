@@ -1,7 +1,11 @@
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
-import { buildAdaptiveTaskChecklist } from "@/lib/adaptive-task-checklist";
+import {
+  buildAdaptiveTaskChecklist,
+  buildAdaptiveTaskSubtasks,
+  isLegacyGenericAdaptiveChecklist
+} from "@/lib/adaptive-task-checklist";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { TaskReadModel } from "@/server/services/task-read";
 
@@ -76,6 +80,17 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
     }));
 
   if (persistedItems.length > 0) {
+    if (
+      persistedItems.every((item) => !item.completed) &&
+      isLegacyGenericAdaptiveChecklist(persistedItems.map((item) => item.label))
+    ) {
+      return buildAdaptiveTaskChecklist(task).map((item) => ({
+        id: `${task.id}-adaptive-${item.key}`,
+        label: item.label,
+        completed: false
+      }));
+    }
+
     return persistedItems;
   }
 
@@ -94,6 +109,21 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
   }));
 }
 
+function buildPathSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {
+  return buildAdaptiveTaskSubtasks(task).map((item) => ({
+    id: `${task.id}-subtask-path-${item.key}`,
+    label: item.label,
+    completed:
+      item.completedWhen === "started"
+        ? task.status !== TaskStatus.NOT_STARTED
+        : item.completedWhen === "commented"
+          ? task.comments.length > 0
+          : item.completedWhen === "closed"
+            ? Boolean(task.readyForReviewAt || task.completedAt)
+            : false
+  }));
+}
+
 export function buildSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {
   const persistedItems = task.checklistItems
     .filter((item) => item.kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK)
@@ -106,6 +136,9 @@ export function buildSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {
   if (persistedItems.length > 0) {
     return persistedItems;
   }
+
+  const pathSubtasks = buildPathSubtasks(task);
+  if (pathSubtasks.length > 0) return pathSubtasks;
 
   const baseItems: TaskDetailSubtaskItem[] = [
     {

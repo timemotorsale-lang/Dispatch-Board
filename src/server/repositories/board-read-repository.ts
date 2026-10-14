@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
@@ -37,6 +37,21 @@ const boardTaskSelect = {
       email: true
     }
   },
+  collaborators: {
+    select: {
+      userId: true,
+      collaborationScope: true,
+      capacityRequested: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  },
   recommendedUser: {
     select: {
       id: true,
@@ -58,7 +73,9 @@ export type BoardReadTaskRecord = Prisma.TaskGetPayload<{
 
 export type BoardReadRepository = {
   findBoardDayByDate(boardDate: string): Promise<BoardReadBoardDayRecord | null>;
+  listOpenPriorityTasks(): Promise<BoardReadTaskRecord[]>;
   listTasksForBoardDay(boardDayId: string): Promise<BoardReadTaskRecord[]>;
+  listTasksForOperationsConsole?(boardDayId: string | null): Promise<BoardReadTaskRecord[]>;
 };
 
 function toBoardDateValue(boardDate: string) {
@@ -83,6 +100,30 @@ export function createBoardReadRepository(database: BoardReadDatabase = prisma):
         },
         select: boardTaskSelect,
         orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
+      });
+    },
+
+    async listTasksForOperationsConsole(boardDayId) {
+      return database.task.findMany({
+        where: {
+          OR: [
+            { status: { not: TaskStatus.COMPLETED } },
+            ...(boardDayId ? [{ boardDayId, status: TaskStatus.COMPLETED }] : [])
+          ]
+        },
+        select: boardTaskSelect,
+        orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
+      });
+    },
+
+    async listOpenPriorityTasks() {
+      return database.task.findMany({
+        where: {
+          status: { not: TaskStatus.COMPLETED }
+        },
+        select: boardTaskSelect,
+        orderBy: [{ dueAt: "asc" }, { priority: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+        take: 80
       });
     }
   };

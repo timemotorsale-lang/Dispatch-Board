@@ -1,0 +1,223 @@
+name: dispatch-board
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: ${APP_TIMEZONE:-America/Chicago}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: dispatch-board-tooling:${APP_VERSION:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: tooling
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
+      ENABLE_DEMO_DATA: ${ENABLE_DEMO_DATA:-false}
+      ENABLE_SHOP_RECON_PILOT_SEED: ${ENABLE_SHOP_RECON_PILOT_SEED:-false}
+      IMPORT_MALWARE_SCANNER_PATH: /usr/bin/clamscan
+      IMPORT_OPERATIONS_ACTOR_EMAIL: ${IMPORT_OPERATIONS_ACTOR_EMAIL:-}
+      IMPORT_ALERT_WEBHOOK_URL: ${IMPORT_ALERT_WEBHOOK_URL:-}
+      PURCHASE_IMPORT_RELEASE_ENABLED: ${PURCHASE_IMPORT_RELEASE_ENABLED:-false}
+      APP_RELEASE_SHA: ${RELEASE_SHA:-unversioned}
+      IMPORT_RELEASE_APPROVAL_PATH: /run/import-release-approval.json
+      DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm
+      DOCUMENT_TEXT_OCR_CACHE_PATH: /tmp/tesseract-cache
+    volumes:
+      - clamav_signatures:/var/lib/clamav:ro
+    command: ["npm", "run", "db:migrate:deploy"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
+  app:
+    image: dispatch-board-app:${APP_VERSION:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: runner
+      args:
+        RELEASE_SHA: ${RELEASE_SHA:-unversioned}
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
+      CRM_NEXT: ${CRM_NEXT_DOCKER_MODE:-REVIEW}
+      DOCUMENT_LIBRARY_DURABLE_REPOSITORY_ENABLED: "true"
+      DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT: /app/data/document-library
+      DOCUMENT_LIBRARY_ORGANIZATION_ID: ${DOCUMENT_LIBRARY_ORGANIZATION_ID:-org-time-motor-sales}
+      DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm
+      DOCUMENT_TEXT_OCR_CACHE_PATH: /app/data/tesseract-cache
+      TZ: ${APP_TIMEZONE:-America/Chicago}
+      IMPORT_MALWARE_SCANNER_PATH: /usr/bin/clamscan
+      IMPORT_OPERATIONS_ACTOR_EMAIL: ${IMPORT_OPERATIONS_ACTOR_EMAIL:-}
+      IMPORT_ALERT_WEBHOOK_URL: ${IMPORT_ALERT_WEBHOOK_URL:-}
+      PURCHASE_IMPORT_RELEASE_ENABLED: ${PURCHASE_IMPORT_RELEASE_ENABLED:-false}
+      IMPORT_RETENTION_CLEANUP_ENABLED: ${IMPORT_RETENTION_CLEANUP_ENABLED:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - document_library_data:/app/data/document-library
+      - clamav_signatures:/var/lib/clamav:ro
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  signatures:
+    image: dispatch-board-tooling:${APP_VERSION:-local}
+    restart: unless-stopped
+    command: ["freshclam", "--daemon", "--foreground", "--checks=12"]
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+
+  scheduler:
+    image: dispatch-board-app:${APP_VERSION:-local}
+    restart: unless-stopped
+    init: true
+    command: ["node", "scripts/run-production-scheduler.mjs"]
+    environment:
+      APP_BASE_URL: http://app:3000
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
+      CRON_INTERVAL_MS: ${CRON_INTERVAL_MS:-900000}
+      TZ: ${APP_TIMEZONE:-America/Chicago}
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - backend
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  backup:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      TZ: ${APP_TIMEZONE:-America/Chicago}
+    command: ["/bin/sh", "/opt/dispatch/backup-postgres.sh"]
+    volumes:
+      - ./scripts/backup-postgres.sh:/opt/dispatch/backup-postgres.sh:ro
+      - ./scripts/verify-postgres-restore.sh:/opt/dispatch/verify-postgres-restore.sh:ro
+      - postgres_backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+
+  seed:
+    profiles: ["tools"]
+    image: dispatch-board-tooling:${APP_VERSION:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: tooling
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
+    command: ["npm", "run", "db:seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  clamav_signatures:
+  document_library_data:
+  postgres_data:
+  postgres_backups:
+  caddy_data:
+  caddy_config:
+
+networks:
+  frontend:
+  backend:
+    internal: true

@@ -1,8 +1,10 @@
 # Time Motor Sales Dispatch Board Roadmap
 
-**Last updated:** 2026-07-10
-**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
+**Last updated:** 2026-08-14
+**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks, Customers, and Unified CRM directions refined
 **Primary goal:** Preserve and harden the working Dispatch Board while delivering approved Appointment, Tasks, and Customers module paths through reviewable vertical slices.
+
+> **Enterprise optimization program:** The cross-console governing rules and adoption sequence live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md) and its [`implementation roadmap`](enterprise-optimization/IMPLEMENTATION_ROADMAP.md). This program begins with shared vocabulary, evidence, deterministic recommendations, simulation, and shadow-mode validation. It does not authorize universal scoring weights or autonomous decisions; those require separate policy approval and measured validation.
 
 > **Enterprise Appointment Program:** The Appointment Command Center has an approved Enterprise Release 1.0 planning package in [`docs/appointments/README.md`](appointments/README.md). That package supersedes MVP-level appointment assumptions in this roadmap for the Appointment feature only. It remains planned work until its implementation milestones are completed.
 
@@ -12,7 +14,13 @@
 
 > **Customers Console planning package:** The Customers architecture, MVP rollout roadmap, and Codex-sized milestones now live in [`docs/customers/README.md`](customers/README.md). Use that package for `/customers`, Customer 360, customer memory, lead follow-up, case/SLA, relationship bridges, manager intelligence, governance, and rollout work.
 
+> **Unified CRM Console foundation:** The documentation-first program for the independent `/crm` console lives in [`docs/unified-crm/README.md`](unified-crm/README.md). Its foundation gate, `UCRM-###` vertical milestones, multi-agent coordination rules, security/privacy controls, testing evidence, and rollback requirements govern new Unified CRM work. Existing Customers and Sales surfaces remain available until the CRM parity, pilot, and rollback gates approve migration.
+
 > **Staff Execution and Handoff planning package:** DB-ACCOUNTABILITY-059 architecture and its six feature-flagged implementation milestones live in [`docs/STAFF_EXECUTION_HANDOFF_ENGINE.md`](STAFF_EXECUTION_HANDOFF_ENGINE.md) and [`docs/STAFF_EXECUTION_HANDOFF_ROADMAP.md`](STAFF_EXECUTION_HANDOFF_ROADMAP.md). Use these documents for daily role checklists, Start Day, completion evidence, available-work matching, end-of-day handoff, carryover, and Team Execution Health.
+
+> **CCC Enterprise Workflow Launcher planning package:** The official launcher architecture, enterprise workflow-family catalog, and gated milestone sequence live in [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). Use it for Start Workflow, Cards/List presentation, search, context, registry, permissions, drafts, receipts, and cross-console workflow onboarding. Catalog presence is not proof of implementation.
+
+> **Time & Attendance Program:** The dedicated Minnesota-first MVP and enterprise-foundation roadmap lives in [`docs/time-attendance/IMPLEMENTATION_ROADMAP.md`](time-attendance/IMPLEMENTATION_ROADMAP.md). Its source registry, deterministic calculation library, persistence schema/migration, and capture command contracts are implemented; live capture APIs, console UI, transactional payroll export generation, pilot, and production authority remain gated.
 
 ---
 
@@ -295,7 +303,7 @@ Status markers in this section describe Enterprise Tasks Module evolution specif
 | DB-ETM-021 | [~] | Add queue and saved-view foundation | Build durable models for queue definitions, saved views, ownership, and system defaults. | Manager Attention, Team Tasks, Unassigned, and future custom views become data-driven. |
 | DB-ETM-022 | [x] | Keep checklist and subtask foundation durable | Preserve and extend the existing checklist/task-detail execution foundation. | Task detail continues to support checklist-driven execution with durable persistence. |
 | DB-ETM-023 | [~] | Add task assignment and status history | Add durable history models where activity feed alone is not enough for enterprise detail. | Users can inspect who changed assignment or status and when. |
-| DB-ETM-024 | [ ] | Add SLA and escalation foundation | Add models for due-soon, overdue, blocked-too-long, and waiting-too-long rules. | Manager Attention can be powered by durable rule data instead of UI-only logic. |
+| DB-ETM-024 | [~] | Add SLA and escalation foundation | Progress checkpoints, stalled-state calculation, and blocker review/escalation times are durable; manager-wide evaluation and notification rules remain. | Manager Attention can be powered by durable rule data instead of UI-only logic. |
 
 ### Phase 3 - Generation, routing, and attention engines
 
@@ -322,7 +330,7 @@ Status markers in this section describe Enterprise Tasks Module evolution specif
 | ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
 | --- | --- | --- | --- | --- |
 | DB-ETM-040 | [x] | Preserve centralized status transition rules | Keep status changes validated server-side as the task module grows. | Invalid transitions continue to be rejected centrally. |
-| DB-ETM-041 | [~] | Expand blocker and waiting validation | Preserve blocker validation and strengthen waiting-state, next-step, and ETA rules. | Waiting states collect enough context for reliable manager follow-up. |
+| DB-ETM-041 | [~] | Expand blocker and waiting validation | The full workspace captures blocker reason, unblock action, owner, review time, and escalation deadline; dedicated waiting-state contracts remain. | Waiting states collect enough context for reliable manager follow-up. |
 | DB-ETM-042 | [x] | Preserve manager review and approval engine | Keep review-required tasks moving through `Ready for Review` and manager approval rules. | Approval-required work cannot bypass the review path. |
 | DB-ETM-043 | [x] | Preserve event-backed task activity | Keep important task actions writing durable activity records. | Activity remains tied to real service operations instead of UI inference. |
 | DB-ETM-044 | [ ] | Add reporting snapshot foundation | Add daily summary, blocked, overdue, workload, and department snapshot foundations. | Reporting reads can use durable task-domain summary data. |

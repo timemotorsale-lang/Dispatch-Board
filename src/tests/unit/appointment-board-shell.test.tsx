@@ -59,7 +59,7 @@ describe("appointment board shell", () => {
       expect.arrayContaining([
         ".appointment-board-toolbar",
         ".appointment-date-row",
-        ".appointment-metric-grid",
+        ".appointment-status-strip",
         ".appointment-board-card",
         ".appointment-detail-panel",
         ".appointment-upcoming-card"
@@ -73,19 +73,24 @@ describe("appointment board shell", () => {
     const markup = renderToStaticMarkup(<AppointmentBoardShell />);
 
     expect(markup).toContain("Appointment Board");
-    expect(markup).toContain('aria-label="Appointment module navigation"');
-    expect(markup).toContain("appointment-module-rail-expanded");
-    expect(markup).toContain('aria-label="Collapse appointment navigation"');
-    expect(markup).toContain('aria-label="Day"');
-    expect(markup).toContain('aria-label="Planning Hub"');
-    expect(markup).toContain('aria-label="Operations"');
-    expect(markup).toContain('aria-label="Intelligence"');
-    expect(markup).toContain('aria-controls="appointment-workspace-drawer"');
+    expect(markup).toContain("appointment-board-simplified");
+    expect(markup).toContain('aria-label="Appointment status summary"');
+    expect(markup).toContain('aria-label="Exceptions"');
+    expect(markup).toContain("Group by");
     expect(markup).toContain("Planning Hub");
     expect(markup).toContain("1101 E. Lake Street");
     expect(markup).toContain("New Appointment");
     expect(markup).toContain("Total Appointments");
     expect(markup).toContain("Service / Repair");
+    expect(markup).toContain("Business Appointment");
+    expect(markup).toContain("Banker / Lender");
+    expect(markup).toContain("Insurance");
+    expect(markup).toContain("Licensing / Permit");
+    expect(markup).toContain("Phone / Utility Company");
+    expect(markup).toContain("Administrative / Managerial");
+    expect(markup).toContain("Edit appointment");
+    expect(markup).toContain("Cancel appointment");
+    expect(markup).toContain("Show Cancelled");
     expect(markup).toContain("Linked Tasks");
     expect(markup).toContain("Enterprise Controls");
     expect(markup).toContain("Upcoming Appointments");
@@ -116,7 +121,8 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Export preview");
     expect(markup).toContain("Review snapshot");
     expect(markup).toContain("Review freshness");
-    expect(markup).toContain("Cross-Appointment Search");
+    expect(markup).toContain("Appointment Activity Log");
+    expect(markup).toContain("Activity Log");
     expect(markup).toContain("Search scope");
     expect(markup).toContain("Saved Views &amp; Subscriptions");
     expect(markup).toContain("Save current view");
@@ -140,7 +146,7 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Delivery ledger");
     expect(markup).toContain("Notification Center &amp; Failure Queues");
     expect(markup).toContain("Event Fanout &amp; Source Coverage");
-    expect(markup).toContain("Suppress fanout");
+    expect(markup).toContain("No persisted appointment records match the current date, filters, or board lens.");
     expect(markup).toContain("Notification Policy &amp; Deep Links");
     expect(markup).toContain("Durability &amp; Retention");
     expect(markup).toContain("Delivery Preferences");
@@ -164,22 +170,18 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Waitlist &amp; Recovery");
     expect(markup).toContain("Automation Review");
     expect(markup).toContain("Automation Failures");
-    expect(markup).toContain("Start watching");
+    expect(markup).toContain("No upcoming live appointments are loaded for this board window.");
     expect(markup).toContain("Resource, Location &amp; Vehicle Views");
     expect(markup).toContain("Resource Views");
     expect(markup).toContain("Location Views");
     expect(markup).toContain("Vehicle Views");
-    expect(markup).toContain("Open resource view");
-    expect(markup).toContain("Open location view");
-    expect(markup).toContain("Open vehicle view");
+    expect(markup).toContain("0 visible lanes");
     expect(markup).toContain("Schedule Analytics &amp; Reconciliation");
     expect(markup).toContain("Resource balance");
     expect(markup).toContain("Location flow");
     expect(markup).toContain("Reconciliation watch");
     expect(markup).toContain("Lane Pressure");
     expect(markup).toContain("Reconciliation Queue");
-    expect(markup).toContain("Open analytics lane");
-    expect(markup).toContain("Review conflict");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");

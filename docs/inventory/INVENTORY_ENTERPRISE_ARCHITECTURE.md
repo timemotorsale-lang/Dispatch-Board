@@ -5,6 +5,7 @@
 **Version:** 1.0 target architecture  
 **Date:** 2026-07-13  
 **Status:** Approved planning target; the current inventory algorithm foundation and visual prototype do not yet provide this complete architecture
+**Governance baseline:** [`governance/README.md`](governance/README.md)
 
 ## 1. Mission
 

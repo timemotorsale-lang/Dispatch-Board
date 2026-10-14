@@ -1,0 +1,14 @@
+{
+  "revision": "REPLACE_WITH_EXACT_40_CHARACTER_RELEASE_SHA",
+  "approvedBy": "",
+  "proofs": {
+    "staffAcceptance": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Auction, DealerCenter, scanned PDF, XLSX, duplicate/conflict and intake/media/repair regression results" },
+    "permissions": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Authorized/unauthorized/reassigned/revoked/cross-location staff results" },
+    "restoreDrill": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Isolated database restore and original source checksum verification results" },
+    "rollbackDrill": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Prior image restoration and health revision verification in staging; no destructive down migration" },
+    "loadTest": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "20 files, 500 rows/file, concurrent staff, stable memory and acceptable latency on target infrastructure" },
+    "extractionAccuracy": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Representative source sample with field-by-field accuracy and zero silently accepted financial mismatches" },
+    "accessibility": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Keyboard-only review/save/retry, screen reader labels, focus, desktop/mobile checks" },
+    "alertDelivery": { "passed": false, "checkedBy": "", "checkedAt": "", "evidence": "Named operations owner received a test alert and verified failure/stall and partial-save recovery procedures" }
+  }
+}

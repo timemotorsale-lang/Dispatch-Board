@@ -1,0 +1,3556 @@
+"use client";
+
+import {
+  AlertTriangle,
+  BadgeDollarSign,
+  Bell,
+  CalendarDays,
+  CarFront,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ClipboardCheck,
+  Clock3,
+  FileCheck2,
+  Gauge,
+  HandCoins,
+  HelpCircle,
+  LineChart,
+  MessageSquareText,
+  MoreVertical,
+  RefreshCw,
+  Search,
+  Settings,
+  ShieldCheck,
+  Star,
+  UserRoundCheck,
+  UsersRound
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+
+import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
+import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
+import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
+import {
+  adminPanelsAreRestrictedForOperatingRoles,
+  eachRoleHasProductionEmptyState,
+  ordinaryRolesDoNotSeeAdminReviewSurface,
+  salesConsoleRoleProductionViews
+} from "./sales-console-m10-production-views";
+import {
+  adminReviewRequiresAdminOwnerAccess,
+  mappedRolesResolveProductionViews,
+  salesConsoleAuthAccessExamples,
+  unauthenticatedUsersAreBlocked,
+  unknownRolesAreDeniedByDefault
+} from "./sales-console-m10-auth-access";
+import {
+  m10ReadOnlySourcesHaveHonestFallbackLabels,
+  m10ReadOnlySourcesPreserveSystemOfRecord,
+  m10SourceWiringExtendsMvpRealDataSources,
+  m10UnavailableSourcesRemainBlocked,
+  m10WiredSourcesUseNamedReadServices,
+  salesConsoleM10ReadOnlySourceWiring
+} from "./sales-console-m10-read-only-source-wiring";
+import {
+  m10AdminReviewPanelsRequireAdminOwner,
+  m10FinanceIsOperationalVisibilityOnly,
+  m10OperatingRolesDoNotSeeAdminReview,
+  m10OperationalSurfacesHaveRoleOwners,
+  salesConsoleM10AdminOperationalSeparation
+} from "./sales-console-m10-admin-operational-separation";
+import {
+  m10FallbackReviewPlaceholdersBlockSubmission,
+  m10ManagerReviewExtendsM9ApprovalFoundation,
+  m10ManagerReviewRequestsRemainDisabled,
+  m10ManagerReviewRequiresSourceRecordsAuditAndReason,
+  m10ManagerReviewRolesAreScopedToManagersAndAdmins,
+  salesConsoleM10ManagerReviewRequestFoundation
+} from "./sales-console-m10-manager-review-request";
+import {
+  salesConsoleM11ActiveDogfoodRolesAreLimited,
+  salesConsoleM11PlannedRolesDoNotCreateAdminAccess,
+  salesConsoleM11RoleModelIncludesRequiredStaffRoles,
+  salesConsoleM11RoleModelRemainsReadOnly,
+  salesConsoleM11StaffRoleModel
+} from "./sales-console-m11-staff-role-model";
+import {
+  salesConsoleM11EveryRoleHasFeatureAccess,
+  salesConsoleM11FeatureAccessRemainsReadOnly,
+  salesConsoleM11FinanceVisibilityCannotDecideFinance,
+  salesConsoleM11OnlyAdminOwnerSeesAdminReviewPanels,
+  salesConsoleM11RoleFeatureAccess
+} from "./sales-console-m11-role-feature-access";
+import {
+  salesConsoleM11AuthRoleSeedingPlan,
+  salesConsoleM11CoreDogfoodRolesResolve,
+  salesConsoleM11DogfoodFixturesAreNonDestructive,
+  salesConsoleM11OptionalVisibilityRolesAreFixtureOnly,
+  salesConsoleM11UnknownRolesRemainRestricted
+} from "./sales-console-m11-auth-role-seeding";
+import {
+  salesConsoleM11CoreDogfoodFlagsEnabledReadOnly,
+  salesConsoleM11FeatureFlagsAreVisibilityOnly,
+  salesConsoleM11FeatureFlagsNeverEnableExcludedActions,
+  salesConsoleM11OptionalFlagsRemainPlannedDisabled,
+  salesConsoleM11ReadOnlyFeatureFlags
+} from "./sales-console-m11-read-only-feature-flags";
+import {
+  salesConsoleM11ExcludedActionsRemainDisabled,
+  salesConsoleM11PreDogfoodRoleVerificationPasses,
+  salesConsoleM11ProductionViewsStillRestrictAdminReview,
+  salesConsoleM11RoleVerificationSummary,
+  salesConsoleM11SourceSystemsRemainReadOnly,
+  salesConsoleM11UnknownAuthFixtureIsRestricted
+} from "./sales-console-m11-role-verification";
+import {
+  salesConsoleM12EveryRoleHasLandingExperience,
+  salesConsoleM12RoleLandingsHaveStartGuidance,
+  salesConsoleM12RoleLandingsStayInsideSales,
+  salesConsoleM12RoleLandingExperiences
+} from "./sales-console-m12-role-landing-model";
+import {
+  salesConsoleM12DefaultRoleLandingHeader,
+  salesConsoleM12EveryLandingHeaderTargetsInternalSection,
+  salesConsoleM12LandingHeaderStaysReadOnly
+} from "./sales-console-m12-role-landing-header";
+import {
+  salesConsoleM12RoleStartCards,
+  salesConsoleM12StartCardsCoverEveryLanding,
+  salesConsoleM12StartCardsRemainReadOnly
+} from "./sales-console-m12-role-start-cards";
+import {
+  salesConsoleM12EveryRoleHasEmptyAndPlannedState,
+  salesConsoleM12PlannedStatesKeepRiskyActionsDisabled,
+  salesConsoleM12RoleEmptyPlannedStates
+} from "./sales-console-m12-role-empty-planned-states";
+import {
+  salesConsoleM12AdminDogfoodLandingSummary,
+  salesConsoleM12AdminLandingSummaryPasses,
+  salesConsoleM12SeparateRoutesRemainDeferred
+} from "./sales-console-m12-admin-dogfood-landing-summary";
+import {
+  salesConsoleM13DogfoodAudienceIsControlled,
+  salesConsoleM13DogfoodReadiness,
+  salesConsoleM13DogfoodReadinessKeepsWritesDisabled,
+  salesConsoleM13DogfoodRequiresOwnerReview
+} from "./sales-console-m13-dogfood-readiness";
+import {
+  salesConsoleM13PilotGuideCoversStaffAndManagers,
+  salesConsoleM13PilotGuideExplainsWhatItIsAndIsNot,
+  salesConsoleM13StaffPilotGuide
+} from "./sales-console-m13-staff-pilot-guide";
+import {
+  salesConsoleM13FeedbackCaptureRemainsReadOnly,
+  salesConsoleM13FeedbackCategories,
+  salesConsoleM13FeedbackCategoriesCoverDogfoodRisks
+} from "./sales-console-m13-feedback-categories";
+import {
+  salesConsoleM13ObservabilityConfirmsDisabledActionCoverage,
+  salesConsoleM13ObservabilityCountsFallbacksAndUnavailableSources,
+  salesConsoleM13ObservabilityHasCoreHealthSignals,
+  salesConsoleM13ReleaseObservability
+} from "./sales-console-m13-release-observability";
+import {
+  salesConsoleM13DogfoodGates,
+  salesConsoleM13DogfoodGatesCoverReleasePath,
+  salesConsoleM13DogfoodGatesRequireEvidence,
+  salesConsoleM13ProductionPilotStillWaits
+} from "./sales-console-m13-dogfood-gates";
+import {
+  salesConsoleM14AuditDemotesPlanningPanels,
+  salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces,
+  salesConsoleM14AuditKeepsWritesPlanned,
+  salesConsoleM14OperationalTabAudit
+} from "./sales-console-m14-operational-tab-audit";
+import {
+  salesConsoleM14SalespersonTodayDepth,
+  salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness,
+  salesConsoleM14SalespersonTodayHasOperatingGroups,
+  salesConsoleM14SalespersonTodayRemainsReadOnly
+} from "./sales-console-m14-salesperson-today-depth";
+import {
+  salesConsoleM14LeadOperationsDepth,
+  salesConsoleM14LeadOperationsExplainsSlaAndAssignment,
+  salesConsoleM14LeadOperationsHasOperatingGroups,
+  salesConsoleM14LeadOperationsRemainsReadOnly
+} from "./sales-console-m14-lead-operations-depth";
+import {
+  salesConsoleM14DealDeskHasOperatingRows,
+  salesConsoleM14DealInventoryDepth,
+  salesConsoleM14DealInventoryRemainReadOnly,
+  salesConsoleM14InventoryHasReadinessRows
+} from "./sales-console-m14-deal-inventory-depth";
+import {
+  salesConsoleM14PlaceholderDemotion,
+  salesConsoleM14PlaceholderDemotionKeepsAdminReview,
+  salesConsoleM14PlaceholderDemotionKeepsWritesDisabled,
+  salesConsoleM14PlaceholderDemotionReducesStaffNoise
+} from "./sales-console-m14-placeholder-demotion";
+import {
+  salesConsoleM15RoleFirstNavigation,
+  salesConsoleM15RoleNavigationCoversCoreRoles,
+  salesConsoleM15RoleNavigationRemainsReadOnly,
+  salesConsoleM15RoleNavigationUsesInternalSections
+} from "./sales-console-m15-role-first-navigation";
+import {
+  salesConsoleM15OperatingPolishCoversDailySections,
+  salesConsoleM15OperatingPolishExplainsStaffUse,
+  salesConsoleM15OperatingPolishRemainsReadOnly,
+  salesConsoleM15OperatingSectionPolish
+} from "./sales-console-m15-operating-section-polish";
+import {
+  salesConsoleM15EmptyStateClarity,
+  salesConsoleM15EmptyStatesCoverOperatingSections,
+  salesConsoleM15EmptyStatesExplainFallbacks,
+  salesConsoleM15EmptyStatesRemainReadOnly
+} from "./sales-console-m15-empty-state-clarity";
+import {
+  salesConsoleM15ManagerCommandExplainsManagerAction,
+  salesConsoleM15ManagerCommandHasDailyPriorities,
+  salesConsoleM15ManagerCommandPolish,
+  salesConsoleM15ManagerCommandRemainsReadOnly
+} from "./sales-console-m15-manager-command-polish";
+import {
+  salesConsoleM15StaffReviewCoversReleaseConcerns,
+  salesConsoleM15StaffReviewGatesAreReady,
+  salesConsoleM15StaffReviewKeepsReadOnlyBoundary,
+  salesConsoleM15StaffReviewReadiness
+} from "./sales-console-m15-staff-review-readiness";
+import {
+  salesConsoleM16RiskyWorkflowsRemainNotSelected,
+  salesConsoleM16SelectsManagerReviewFirst,
+  salesConsoleM16WorkflowSelection,
+  salesConsoleM16WorkflowSelectionRemainsPlanningOnly
+} from "./sales-console-m16-workflow-selection";
+import {
+  salesConsoleM16ManagerReviewContract,
+  salesConsoleM16ManagerReviewContractHasAuditShape,
+  salesConsoleM16ManagerReviewContractHasPermissions,
+  salesConsoleM16ManagerReviewContractHasRequiredFields,
+  salesConsoleM16ManagerReviewContractRemainsDisabled
+} from "./sales-console-m16-manager-review-contract";
+import {
+  salesConsoleM16ManagerReviewDisabledPreview,
+  salesConsoleM16ManagerReviewPreviewIsDisabled,
+  salesConsoleM16ManagerReviewPreviewLivesInDealDesk,
+  salesConsoleM16ManagerReviewPreviewShowsUnavailableStates
+} from "./sales-console-m16-manager-review-disabled-preview";
+import {
+  salesConsoleM16AuditGuardrails,
+  salesConsoleM16AuditGuardrailsRemainPlanningOnly,
+  salesConsoleM16AuditReadinessCoversRequestShape,
+  salesConsoleM16ExcludedActionsRemainBlocked
+} from "./sales-console-m16-audit-guardrails";
+import {
+  salesConsoleM16ActivationDecisionGate,
+  salesConsoleM16ActivationGateCoversCoreConcerns,
+  salesConsoleM16ActivationGateKeepsWorkflowDisabled,
+  salesConsoleM16ActivationGateReadyForM17Planning
+} from "./sales-console-m16-activation-decision-gate";
+import {
+  salesConsoleM17RequestStateModel,
+  salesConsoleM17StateModelBlocksSubmitWithoutBackend,
+  salesConsoleM17StateModelDefinesStatuses,
+  salesConsoleM17StateModelKeepsWorkflowInternal
+} from "./sales-console-m17-request-state-model";
+import {
+  salesConsoleM17RequestFormControlsDisabled,
+  salesConsoleM17RequestFormExplainsWhyDisabled,
+  salesConsoleM17RequestFormHasRequiredFields
+} from "./sales-console-m17-request-form-shell";
+import {
+  salesConsoleM17PermissionsAllowManagerReviewOnly,
+  salesConsoleM17PermissionsAllowSalespersonRequestOnly,
+  salesConsoleM17ValidationBlocksSubmitUntilBackendReady,
+  salesConsoleM17ValidationPermissions
+} from "./sales-console-m17-validation-permissions";
+import {
+  salesConsoleM17AuditSafeSubmitPlaceholder,
+  salesConsoleM17SubmitPlaceholderBlocksWrites,
+  salesConsoleM17SubmitPlaceholderIncludesAuditFields,
+  salesConsoleM17SubmitPlaceholderNamesMissingBackend
+} from "./sales-console-m17-audit-safe-submit-placeholder";
+import {
+  salesConsoleM17ReleaseGate,
+  salesConsoleM17ReleaseGateBlocksLiveSubmit,
+  salesConsoleM17ReleaseGateNamesNextBackendStep,
+  salesConsoleM17ReleaseGateShellReady
+} from "./sales-console-m17-release-gate";
+import {
+  salesConsoleM18BackendContract,
+  salesConsoleM18BackendContractBlocksWrites,
+  salesConsoleM18BackendContractDefinesEndpoint,
+  salesConsoleM18BackendContractRequiresAuditFields
+} from "./sales-console-m18-backend-contract";
+import {
+  salesConsoleM18ServerValidation,
+  salesConsoleM18ServerValidationCoversRequiredPayload,
+  salesConsoleM18ServerValidationKeepsSubmitBlocked,
+  salesConsoleM18ServerValidationRequiresSourceSnapshot
+} from "./sales-console-m18-server-validation";
+import {
+  salesConsoleM18ApiRouteBlocksLiveWorkflow,
+  salesConsoleM18ApiRouteGuarded,
+  salesConsoleM18ApiRouteKeepsExcludedWorkflowsBlocked,
+  salesConsoleM18ApiRouteRequiresAuthentication
+} from "./sales-console-m18-api-route-guarded";
+import {
+  salesConsoleM18AuditIdempotencyReadiness,
+  salesConsoleM18AuditReadinessBlocksPersistence,
+  salesConsoleM18AuditReadinessRequiresAuditEvent,
+  salesConsoleM18AuditReadinessRequiresIdempotency
+} from "./sales-console-m18-audit-idempotency-readiness";
+import {
+  salesConsoleM18ReleaseGate,
+  salesConsoleM18ReleaseGateBlocksRiskyActions,
+  salesConsoleM18ReleaseGateHasBackendFoundation,
+  salesConsoleM18ReleaseGateRecommendsM19
+} from "./sales-console-m18-release-gate";
+import {
+  salesConsoleM19PersistenceContract,
+  salesConsoleM19PersistenceContractDefinesTargets,
+  salesConsoleM19PersistenceContractKeepsOtherWorkflowsBlocked,
+  salesConsoleM19PersistenceContractRequiresIdempotency
+} from "./sales-console-m19-persistence-contract";
+import {
+  salesConsoleM19RepositoryChecksIdempotencyFirst,
+  salesConsoleM19RepositoryCreatesAuditTrail,
+  salesConsoleM19RepositoryLimitsWriteBoundary,
+  salesConsoleM19RepositoryTransaction
+} from "./sales-console-m19-repository-transaction";
+import {
+  salesConsoleM19ServiceActivation,
+  salesConsoleM19ServiceKeepsOtherWorkflowsBlocked,
+  salesConsoleM19ServiceRequiresAuthentication,
+  salesConsoleM19ServiceReturnsCreatedOrDuplicate
+} from "./sales-console-m19-service-activation";
+import {
+  salesConsoleM19ApiActivation,
+  salesConsoleM19ApiBlocksIdempotencyConflict,
+  salesConsoleM19ApiReturnsCreatedForNewRequest,
+  salesConsoleM19ApiReturnsDuplicateForRetry
+} from "./sales-console-m19-api-activation";
+import {
+  salesConsoleM19ReleaseGate,
+  salesConsoleM19ReleaseGateActivatesOnlyManagerReview,
+  salesConsoleM19ReleaseGateKeepsRiskyActionsBlocked,
+  salesConsoleM19ReleaseGateRecommendsM20
+} from "./sales-console-m19-release-gate";
+import {
+  salesConsoleM20KeepsNonManagerActionsPlanned,
+  salesConsoleM20ManagerReviewWorkbenchUi,
+  salesConsoleM20SubmitIsActiveOnlyForManagerReview,
+  salesConsoleM20WorkbenchShowsAuditIdentifiers
+} from "./sales-console-m20-manager-review-workbench-ui";
+import {
+  salesConsoleM21DefinesResolutionStates,
+  salesConsoleM21KeepsRiskyApprovalsBlocked,
+  salesConsoleM21ManagerReviewResolutionPlanning,
+  salesConsoleM21ResolutionControlsRemainDisabled
+} from "./sales-console-m21-manager-review-resolution-planning";
+import {
+  salesConsoleM22CoversPilotStates,
+  salesConsoleM22HealthIndicatorsReady,
+  salesConsoleM22PilotProductionHardening,
+  salesConsoleM22UsesInternalPilotLanguage
+} from "./sales-console-m22-pilot-production-hardening";
+import {
+  salesConsoleM23ChecklistReady,
+  salesConsoleM23CommunicatesExcludedActions,
+  salesConsoleM23CoversCoreStaffRoles,
+  salesConsoleM23StaffDeploymentReadiness
+} from "./sales-console-m23-staff-deployment-readiness";
+import {
+  salesConsoleM24HasRollbackSupportAndMonitoring,
+  salesConsoleM24KeepsOnlyManagerReviewLive,
+  salesConsoleM24OfficialReleaseGate,
+  salesConsoleM24ReleaseIsConditional
+} from "./sales-console-m24-official-release-gate";
+import {
+  salesConsoleM25EveryPrimaryTabIsOperating,
+  salesConsoleM25EveryTabHasSafeAction,
+  salesConsoleM25NoPlaceholderOnlyPrimaryTabs,
+  salesConsoleM25OnlyManagerReviewSubmitIsLive,
+  salesConsoleM25ResponsiveOperatingViews
+} from "./sales-console-m25-responsive-operating-views";
+import {
+  salesConsoleM26ArchivesPlanningEvidence,
+  salesConsoleM26DeploymentLanguagePolish,
+  salesConsoleM26NamesOnlyLiveSubmitWorkflow,
+  salesConsoleM26StaffPostureIsDeployableMvp
+} from "./sales-console-m26-deployment-language-polish";
+import {
+  salesConsoleM27CoversCoreRoleUx,
+  salesConsoleM27EveryRoleHasFirstThirtySecondGuidance,
+  salesConsoleM27KeepsRiskyWorkflowsBlocked,
+  salesConsoleM27SourceStatesAreStaffReadable,
+  salesConsoleM27StaffDeploymentUxFinalization
+} from "./sales-console-m27-staff-deployment-ux-finalization";
+import {
+  salesConsoleM28CoversCriticalRegressionAreas,
+  salesConsoleM28DefinesReleaseGoNoGo,
+  salesConsoleM28FlagsProtectedRouteAsEnvironmentSmoke,
+  salesConsoleM28KeepsOnlyManagerReviewSubmitLive,
+  salesConsoleM28ReleaseValidationRegression
+} from "./sales-console-m28-release-validation-regression";
+import {
+  salesConsoleM29CommunicatesWhatIsAndIsNotActive,
+  salesConsoleM29DefinesGoNoGoCriteria,
+  salesConsoleM29DeploymentPackageRolloutReadiness,
+  salesConsoleM29ReadinessChecklistCoversDeploymentBasics,
+  salesConsoleM29RequiresEnvironmentVerificationBeforeBroadRollout
+} from "./sales-console-m29-deployment-package-rollout-readiness";
+import {
+  salesConsoleM30CoversDeploymentSmokeBasics,
+  salesConsoleM30DeploymentEnvironmentSmoke,
+  salesConsoleM30HasRollbackBehaviorForFailedSmoke,
+  salesConsoleM30KeepsRiskyWorkflowsBlocked
+} from "./sales-console-m30-deployment-environment-smoke";
+import {
+  salesConsoleM31BlocksRoleLeakageRisks,
+  salesConsoleM31CoversEveryDeploymentRole,
+  salesConsoleM31DefinesUnauthorizedBehavior,
+  salesConsoleM31RealRoleAccessVerification,
+  salesConsoleM31RequiresOneUserPerRole
+} from "./sales-console-m31-real-role-access-verification";
+import {
+  salesConsoleM32CoversManagerReviewE2EPath,
+  salesConsoleM32KeepsExcludedActionsBlocked,
+  salesConsoleM32ManagerReviewE2ETest,
+  salesConsoleM32RequiresAuditReferenceEvidence,
+  salesConsoleM32VerifiesDuplicateAndValidationBehavior
+} from "./sales-console-m32-manager-review-e2e-test";
+import {
+  salesConsoleM33CoversAllRolloutAudiences,
+  salesConsoleM33DefinesIssueReportingFields,
+  salesConsoleM33ExplainsReturnToSourceSystems,
+  salesConsoleM33RolloutCadenceStartsSmall,
+  salesConsoleM33StaffRolloutPackage
+} from "./sales-console-m33-staff-rollout-package";
+import {
+  salesConsoleM34BlocksReleaseOnKnownNoGoRisks,
+  salesConsoleM34DefinesFinalGoDecision,
+  salesConsoleM34MvpGoNoGoRelease,
+  salesConsoleM34ProvidesImmediateLaunchSequence,
+  salesConsoleM34RequiresAllCriticalVerification
+} from "./sales-console-m34-mvp-go-no-go-release";
+import {
+  salesConsoleM35DefaultTabForRole,
+  salesConsoleM35EveryPrimaryTabIsSelectable,
+  salesConsoleM35EveryRoleChangesContext,
+  salesConsoleM35HelpPanel,
+  salesConsoleM35OnlyManagerReviewIsLiveSubmit,
+  salesConsoleM35OperationalTabs,
+  salesConsoleM35PanelsRespond,
+  salesConsoleM35RoleById,
+  salesConsoleM35ScopePanel,
+  salesConsoleM35TabById
+} from "./sales-console-m35-operational-tab-interactions";
+import type { SalesConsoleM35PanelId, SalesConsoleM35RoleId, SalesConsoleM35TabId } from "./sales-console-m35-operational-tab-interactions";
+import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
+import {
+  aiActionsRequireFutureAuditAndPermissionCoverage,
+  aiCannotExecuteRiskyActions,
+  aiRecommendationsAreAdvisoryOnly,
+  aiRecommendationsHaveEvidenceReasonAndConfidence,
+  salesConsoleAiNextBestActionReadModel
+} from "./sales-console-m9-ai-next-best-action";
+import {
+  enterpriseSourceContractsBlockWritesWhenMissing,
+  enterpriseSourceContractsCoverRequiredRecords,
+  enterpriseSourceContractsHaveHonestLabels,
+  enterpriseSourcesRemainSystemsOfRecord,
+  salesConsoleEnterpriseIntegrationReadModel
+} from "./sales-console-m9-crm-dms-integration-contracts";
+import {
+  messagingFoundationIsDisabled,
+  messagingHasAuditAndPermissionCoverage,
+  messagingRequiresConsentPreviewAndOptOut,
+  salesConsoleCustomerMessagingReadModel
+} from "./sales-console-m9-customer-messaging";
+import {
+  dealWorkflowIsReadOnly,
+  dealWorkflowRequiresAuditAndPermission,
+  salesConsoleDealWorkflowReadModel,
+  salespersonCannotApproveOrFinance
+} from "./sales-console-m9-deal-workflow";
+import {
+  financeHandoffHasAuditAndPermissionCoverage,
+  financeHandoffRemainsReadOnly,
+  salesConsoleFinanceHandoffReadModel,
+  salespersonCannotSeeRestrictedFinanceFields
+} from "./sales-console-m9-finance-handoff";
+import {
+  forecastRowsHaveConfidenceAndFreshness,
+  restrictedForecastMetricsAreRoleLimited,
+  salesConsoleForecastReadModel,
+  staleForecastInputsLowerConfidence
+} from "./sales-console-m9-forecasting";
+import {
+  managerApprovalFoundationIsDisabled,
+  managerApprovalsRequireAuditThresholdAndReason,
+  onlyManagersAndAdminsCanDecideApprovals,
+  salesConsoleManagerApprovalReadModel
+} from "./sales-console-m9-manager-approvals";
+import {
+  multiStoreReportingIsReadOnly,
+  reportingExportsRemainDisabled,
+  reportingRowsHaveAggregationAndFreshness,
+  salesConsoleMultiStoreReportingReadModel,
+  unauthorizedStoreVisibilityIsBlocked
+} from "./sales-console-m9-multi-store-reporting";
+import {
+  quoteScenarioBuilderIsEstimateOnly,
+  quoteScenarioHasAuditAndPermissionCoverage,
+  quoteScenarioRequiresReviewAndFinanceVerification,
+  salesConsoleQuoteScenarioReadModel
+} from "./sales-console-m9-quote-scenario-builder";
+import {
+  coachingHasNoHiddenScoringOrPunitiveAutomation,
+  coachingInsightsAreExplainable,
+  coachingVisibilityIsRoleLimited,
+  salesConsoleSalesCoachingReadModel,
+  staleCoachingDataIsVerifyFirst
+} from "./sales-console-m9-sales-coaching";
+import {
+  salesConsoleVehicleHoldReadModel,
+  staleOrVerifyFirstInventoryBlocksHold,
+  vehicleHoldFoundationIsDisabled,
+  vehicleHoldsHaveAuditAndPermissionCoverage,
+  vehicleHoldsRequireManagerApprovalExpiryAndVerification
+} from "./sales-console-m9-vehicle-holds";
+import {
+  enterprisePermissionGatesDenyByDefault,
+  salesConsoleEnterprisePermissionReadModel,
+  sensitiveWorkflowsHavePermissionAndAuditCoverage
+} from "./sales-console-m9-enterprise-permissions";
+import { salesConsolePilotReadiness } from "./sales-console-mvp-pilot-readiness";
+import { salesConsoleProductionReadiness } from "./sales-console-mvp-production-readiness";
+import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
+import { salesConsoleMvpRealDataWiring } from "./sales-console-mvp-real-data-wiring";
+import { salesConsoleRoleViews } from "./sales-console-mvp-role-views";
+import styles from "./sales-console-prototype.module.css";
+
+const salesConsoleReadModel = salesConsoleReadAdapterPreview;
+
+const activeRoleView = salesConsoleRoleViews.find((role) => role.role === salesConsoleMvpExecution.defaultRole) ?? salesConsoleRoleViews[0];
+
+const headlineMetrics = [
+  { label: "Must Do Now", value: String(salesConsoleReadModel.sellerQueue.filter((item) => item.tone === "danger").length), delta: "Adapter ranked", tone: "danger" },
+  { label: "Approval Pending", value: String(salesConsoleReadModel.deals.filter((deal) => deal.approval.includes("Pending")).length), delta: "Read-only", tone: "warning" },
+  { label: "SLA Risk", value: String(salesConsoleReadModel.leadOperations.filter((lead) => lead.tone === "danger").length), delta: "Lead adapter", tone: "danger" },
+  { label: "Vehicle Match", value: String(salesConsoleReadModel.inventoryMatches.length), delta: "Verify labels", tone: "good" },
+  { label: "Placeholders", value: String(salesConsoleReadModel.deals.filter((deal) => deal.freshnessState === "placeholder").length), delta: "Clearly labeled", tone: "neutral" },
+  { label: "Read Model", value: salesConsoleReadModel.readOnly ? "RO" : "RW", delta: "Read-only", tone: "neutral" }
+] as const;
+
+const workQueue = salesConsoleReadModel.sellerQueue;
+
+const dealRows = salesConsoleReadModel.deals;
+
+const vehicleMatches = salesConsoleReadModel.inventoryMatches;
+
+const riskQueues = salesConsoleReadModel.managerRisks.map((risk) => ({
+  label: risk.label,
+  tone: risk.tone,
+  value: String(risk.count)
+}));
+
+const approvalQueues = [
+  { label: "Deals Awaiting Manager Approval", value: String(dealRows.filter((deal) => deal.approval.includes("Pending")).length) },
+  { label: "Visibility-Only Deals", value: String(dealRows.filter((deal) => deal.freshnessState === "placeholder").length) },
+  { label: "Read-Only Guardrails", value: String(salesConsoleMvpExecution.readOnlyGuardrails.length) }
+] as const;
+
+const glanceMetrics = [
+  { label: "Adapter Deals", value: String(dealRows.length), delta: "Read-only" },
+  { label: "Seller Items", value: String(workQueue.length), delta: "Adapter ranked" },
+  { label: "Lead Risks", value: String(salesConsoleReadModel.leadOperations.filter((lead) => lead.tone === "danger").length), delta: "Needs attention" },
+  { label: "Verify Vehicles", value: String(vehicleMatches.filter((vehicle) => vehicle.freshnessState === "verify-first").length), delta: "Verify-first" }
+] as const;
+
+const forecastRows = [
+  { label: "Units", value: "148", target: "160", attainment: "93%" },
+  { label: "Gross Profit", value: "$165,420", target: "$180,000", attainment: "92%" },
+  { label: "Finance Reserve", value: "$32,810", target: "$35,000", attainment: "94%" }
+] as const;
+
+const topOpportunities = dealRows.map((deal) => ({
+  confidence: deal.freshnessState,
+  customer: deal.customer,
+  value: deal.payment,
+  vehicle: deal.vehicle
+}));
+
+const adapterSourceLinks = workQueue.flatMap((item) =>
+  item.sourceLinks.map((link) => ({
+    ...link,
+    owner: item.customer
+  }))
+);
+
+const leadHealthSignals = [
+  { icon: CheckCircle2, label: `${salesConsoleReadModel.leadOperations.filter((lead) => lead.tone === "good").length} healthy` },
+  { icon: Clock3, label: `${salesConsoleReadModel.leadOperations.filter((lead) => lead.freshnessState === "stale").length} stale` },
+  { icon: AlertTriangle, label: `${salesConsoleReadModel.leadOperations.filter((lead) => lead.label === "Duplicate review").length} dedupe reviews` },
+  { icon: CalendarDays, label: `${salesConsoleReadModel.leadOperations.reduce((total, lead) => total + lead.appointmentCount, 0)} appointments` }
+] as const;
+
+function toneClass(tone: "danger" | "good" | "neutral" | "warning") {
+  if (tone === "danger") return styles.toneDanger;
+  if (tone === "good") return styles.toneGood;
+  if (tone === "warning") return styles.toneWarning;
+  return styles.toneNeutral;
+}
+
+function statusClass(tone: "danger" | "good" | "neutral" | "warning") {
+  if (tone === "danger") return styles.statusDanger;
+  if (tone === "good") return styles.statusGood;
+  if (tone === "warning") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function executionStatusClass(status: "disabled" | "planned" | "ready" | "review") {
+  if (status === "ready") return styles.statusGood;
+  if (status === "review") return styles.statusWarning;
+  if (status === "disabled") return styles.statusDanger;
+  return styles.statusNeutral;
+}
+
+function freshnessClass(freshness: "current" | "placeholder" | "stale" | "verify-first") {
+  if (freshness === "current") return styles.statusGood;
+  if (freshness === "stale") return styles.statusDanger;
+  if (freshness === "verify-first") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function fallbackClarityClass(label: "empty" | "stale" | "unavailable" | "verify-first") {
+  if (label === "stale" || label === "unavailable") return styles.statusDanger;
+  if (label === "verify-first") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function liveSourceStatusClass(status: "contract-ready" | "needs-mapping" | "placeholder-only") {
+  if (status === "contract-ready") return styles.statusGood;
+  if (status === "needs-mapping") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function realDataStatusClass(status: "fallback" | "hybrid-fallback" | "wired") {
+  if (status === "wired") return styles.statusGood;
+  if (status === "hybrid-fallback") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function m10SourceStatusClass(status: "fallback" | "unavailable" | "verify-first" | "wired") {
+  if (status === "wired") return styles.statusGood;
+  if (status === "verify-first") return styles.statusWarning;
+  if (status === "unavailable") return styles.statusDanger;
+  return styles.statusNeutral;
+}
+
+function pilotStatusClass(status: "blocked" | "ready" | "review") {
+  if (status === "ready") return styles.statusGood;
+  if (status === "blocked") return styles.statusDanger;
+  return styles.statusWarning;
+}
+
+function barStyle(width: string) {
+  return { "--bar-size": width } as CSSProperties;
+}
+
+export function SalesConsolePrototype() {
+  const [activeTabId, setActiveTabId] = useState<SalesConsoleM35TabId>("salesperson-today");
+  const [activeRoleId, setActiveRoleId] = useState<SalesConsoleM35RoleId>("salesperson");
+  const [activePanel, setActivePanel] = useState<SalesConsoleM35PanelId>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const activeTab = salesConsoleM35TabById(activeTabId);
+  const activeRole = salesConsoleM35RoleById(activeRoleId);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredWorkQueue = useMemo(() => {
+    if (!normalizedSearch) return workQueue;
+    return workQueue.filter((item) =>
+      [item.customer, item.vehicle, item.stock, item.stage, item.nextAction, item.blocker]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredDealRows = useMemo(() => {
+    if (!normalizedSearch) return dealRows;
+    return dealRows.filter((deal) =>
+      [deal.dealId, deal.customer, deal.vehicle, deal.scenario, deal.approval]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredVehicleMatches = useMemo(() => {
+    if (!normalizedSearch) return vehicleMatches;
+    return vehicleMatches.filter((vehicle) =>
+      [vehicle.stock, vehicle.vehicle, vehicle.matchCustomer, vehicle.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredLeadOperations = useMemo(() => {
+    if (!normalizedSearch) return salesConsoleReadModel.leadOperations;
+    return salesConsoleReadModel.leadOperations.filter((lead) =>
+      [lead.label, lead.slaLabel, lead.assignmentState, lead.freshnessState]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredRiskQueues = useMemo(() => {
+    if (!normalizedSearch) return riskQueues;
+    return riskQueues.filter((risk) =>
+      [risk.label, risk.value, risk.tone]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const handleRoleSelect = (roleId: SalesConsoleM35RoleId) => {
+    setActiveRoleId(roleId);
+    setActiveTabId(salesConsoleM35DefaultTabForRole(roleId));
+  };
+
+  return (
+    <section className={styles.console} aria-label="Enterprise Sales Console">
+      <header className={styles.topbar}>
+        <div className={styles.titleBlock}>
+          <span>Time Motor Sales</span>
+          <h1>Sales Console</h1>
+        </div>
+        <label className={styles.search}>
+          <Search size={16} aria-hidden="true" />
+          <input
+            aria-label="Search sales console"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search customer, stock #, vehicle, deal..."
+            type="search"
+            value={searchQuery}
+          />
+          <kbd>MVP</kbd>
+        </label>
+        <div className={styles.topbarActions}>
+          <button aria-disabled="true" disabled title="Alerts show source-system status in this MVP; live alert configuration is handled by Admin / Owner." type="button">
+            <Bell size={16} /> Alerts <b>MVP view</b>
+          </button>
+          <button aria-disabled="true" disabled title="Customer messaging stays in the approved source system for this MVP." type="button">
+            <MessageSquareText size={16} /> Messages <b>source system</b>
+          </button>
+          <button aria-disabled="true" disabled title="Calendar work stays in the appointment/source system for this MVP." type="button">
+            <CalendarDays size={16} /> Calendar <b>source system</b>
+          </button>
+          <button
+            aria-expanded={activePanel === "help"}
+            aria-controls="sales-console-help-panel"
+            onClick={() => setActivePanel(activePanel === "help" ? null : "help")}
+            title="Open Sales Console MVP help."
+            type="button"
+          >
+            <HelpCircle size={16} /> Help <b>{activePanel === "help" ? "open" : "rollout"}</b>
+          </button>
+          <button
+            aria-expanded={activePanel === "scope"}
+            aria-controls="sales-console-scope-panel"
+            onClick={() => setActivePanel(activePanel === "scope" ? null : "scope")}
+            title="Open MVP scope and store context."
+            type="button"
+          >
+            All Stores <ChevronDown size={14} /> <b>{activePanel === "scope" ? "open" : "MVP scope"}</b>
+          </button>
+        </div>
+      </header>
+
+      {activePanel ? (
+        <section
+          className={styles.operationalDrawer}
+          id={activePanel === "help" ? "sales-console-help-panel" : "sales-console-scope-panel"}
+          aria-label={activePanel === "help" ? "Sales Console help panel" : "Sales Console MVP scope panel"}
+        >
+          <div>
+            <span className={styles.eyebrow}>{activePanel === "help" ? "Help" : "MVP scope"}</span>
+            <h2>{activePanel === "help" ? salesConsoleM35HelpPanel.title : salesConsoleM35ScopePanel.title}</h2>
+            <p>{activePanel === "help" ? salesConsoleM35HelpPanel.body : salesConsoleM35ScopePanel.body}</p>
+          </div>
+          <button onClick={() => setActivePanel(null)} type="button">Close panel</button>
+        </section>
+      ) : null}
+
+      <section className={styles.staffDeploymentPolish} aria-label="M26 staff-facing deployment polish">
+        <div>
+          <span className={styles.eyebrow}>Deployment polish</span>
+          <h2>Staff-facing MVP language is launch-ready</h2>
+          <p>{salesConsoleM26DeploymentLanguagePolish.staffFacingCopy[0]}</p>
+        </div>
+        <ul>
+          {salesConsoleM26DeploymentLanguagePolish.staffFacingCopy.slice(1).map((copy) => (
+            <li key={copy}>{copy}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className={styles.executionFoundation} aria-label="Sales Console production MVP foundation">
+        <div>
+          <span className={styles.eyebrow}>Production foundation</span>
+          <h2>Read-only production MVP shell</h2>
+          <p>{salesConsoleMvpDefinition.recommendedMvpBoundary.releaseLine}</p>
+        </div>
+        <div className={styles.shellCheckGrid}>
+          {salesConsoleMvpExecution.shellChecks.map((check) => (
+            <article key={check.check}>
+              <strong>{check.check}</strong>
+              <span className={executionStatusClass(check.status)}>{check.status}</span>
+              <small>{check.proof}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.roleRail} aria-label="Sales Console MVP role views">
+        {salesConsoleRoleViews.map((role) => (
+          <button
+            aria-pressed={role.role === activeRoleId}
+            className={role.role === activeRoleId ? styles.activeRoleCard : undefined}
+            key={role.role}
+            onClick={() => handleRoleSelect(role.role as SalesConsoleM35RoleId)}
+            type="button"
+          >
+            <strong>{role.label}</strong>
+            <span>{role.defaultSurface}</span>
+            <small>{role.sensitiveDataBoundary}</small>
+            <em>{role.readOnly ? "Operational MVP role view" : "Write-enabled"}</em>
+          </button>
+        ))}
+      </section>
+
+      <section className={styles.roleLandingHero} aria-label="Role-aware sales console landing">
+        <div>
+          <span className={styles.eyebrow}>{salesConsoleM12DefaultRoleLandingHeader.eyebrow}</span>
+          <h2>{salesConsoleM12DefaultRoleLandingHeader.headline}</h2>
+          <p>{salesConsoleM12DefaultRoleLandingHeader.activeLanding.landingCopy}</p>
+          <small>{salesConsoleM12DefaultRoleLandingHeader.readOnlyReminder}</small>
+          <small>{salesConsoleM14PlaceholderDemotion.staffStartMessage}</small>
+        </div>
+        <a href={salesConsoleM12DefaultRoleLandingHeader.sectionHref}>
+          Go to default section <ChevronRight size={14} />
+        </a>
+      </section>
+
+      <section className={styles.roleFirstNavigation} aria-label="M15 role-first daily navigation">
+        {salesConsoleM15RoleFirstNavigation.items.map((item) => (
+          <article key={item.role}>
+            <strong>{item.staffCue}</strong>
+            <span>{item.role}</span>
+            <small>Start: {item.primarySection} · Next: {item.nextSection}</small>
+            <em>{item.guardrail}</em>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.roleStartCardStrip} aria-label="Role start cards">
+        {salesConsoleM12RoleStartCards.map((card) => (
+          <article key={card.role}>
+            <strong>{card.title}</strong>
+            <span>{card.role}</span>
+            <small>{card.primaryCheck}</small>
+            <em>{card.caution}</em>
+            <a href={card.href}>Open start section <ChevronRight size={13} /></a>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.operatingTabDock} aria-label="M25 responsive operating tab dock">
+        <div>
+          <span className={styles.eyebrow}>Operating tabs</span>
+          <h2>Every primary tab is now clickable</h2>
+          <p>Selected role: {activeRole.label}. {activeRole.contextSummary}</p>
+        </div>
+        <nav aria-label="Sales Console operating views">
+          {salesConsoleM35OperationalTabs.map((tab) => (
+            <button
+              aria-controls="sales-console-active-operating-view"
+              aria-pressed={tab.id === activeTabId}
+              className={tab.id === activeTabId ? styles.activeOperatingTab : undefined}
+              key={tab.id}
+              onClick={() => setActiveTabId(tab.id)}
+              type="button"
+            >
+              <strong>{tab.label}</strong>
+              <span>{tab.safeAction}</span>
+              <small>{tab.id === activeTabId ? "active view" : "open view"}</small>
+            </button>
+          ))}
+        </nav>
+      </section>
+
+      <section className={styles.activeOperatingView} id="sales-console-active-operating-view" aria-live="polite" aria-label="Active Sales Console operating view">
+        <div className={styles.activeOperatingHeader}>
+          <div>
+            <span className={styles.eyebrow}>Active operating view</span>
+            <h2>{activeTab.label}: {activeTab.headline}</h2>
+            <p>{activeTab.operatingContent}</p>
+          </div>
+          <span className={styles.statusGood}>responding</span>
+        </div>
+        <div className={styles.activeOperatingGrid}>
+          <article>
+            <strong>Safe action</strong>
+            <span>{activeTab.safeAction}</span>
+          </article>
+          <article>
+            <strong>Still blocked</strong>
+            <span>{activeTab.blockedAction}</span>
+          </article>
+          <article>
+            <strong>Source behavior</strong>
+            <span>{activeTab.sourceBehavior}</span>
+          </article>
+          <article>
+            <strong>Search scope</strong>
+            <span>{normalizedSearch ? `Filtering visible records by "${searchQuery}"` : "Showing all source-shaped MVP records"}</span>
+          </article>
+        </div>
+        <div className={styles.activeOperatingResults}>
+          {activeTabId === "lead-operations" ? (
+            filteredLeadOperations.map((lead) => (
+              <article key={`${lead.label}-${lead.slaLabel}`}>
+                <strong>{lead.label}</strong>
+                <span>{lead.slaLabel} · {lead.assignmentState}</span>
+                <small>{lead.freshnessState}. CRM/source verification remains required.</small>
+              </article>
+            ))
+          ) : activeTabId === "manager-command-center" ? (
+            filteredRiskQueues.map((risk) => (
+              <article key={risk.label}>
+                <strong>{risk.label}</strong>
+                <span>{risk.value} items · {risk.tone}</span>
+                <small>Manager command view is read-only; coaching and source verification happen outside risky write workflows.</small>
+              </article>
+            ))
+          ) : activeTabId === "deal-desk" || activeTabId === "manager-review" ? (
+            filteredDealRows.map((deal) => (
+              <article key={deal.dealId}>
+                <strong>{deal.dealId} · {deal.customer}</strong>
+                <span>{deal.vehicle} · {deal.scenario}</span>
+                <small>{deal.approval}. {activeTabId === "manager-review" ? "Manager Review Request is the only live submit path." : "Deal review is visibility-first."}</small>
+              </article>
+            ))
+          ) : activeTabId === "inventory-intelligence" ? (
+            filteredVehicleMatches.map((vehicle) => (
+              <article key={vehicle.stock}>
+                <strong>{vehicle.stock} · {vehicle.vehicle}</strong>
+                <span>{vehicle.status} · matched to {vehicle.matchCustomer}</span>
+                <small>{vehicle.blockerDetail}</small>
+              </article>
+            ))
+          ) : activeTabId === "pilot-rollout-readiness" || activeTabId === "admin-owner" ? (
+            salesConsoleM34MvpGoNoGoRelease.goGates.map((gate) => (
+              <article key={gate.gate}>
+                <strong>{gate.gate}</strong>
+                <span>{gate.decision}</span>
+                <small>{gate.proofRequired}</small>
+              </article>
+            ))
+          ) : (
+            filteredWorkQueue.map((item) => (
+              <article key={`${item.customer}-${item.stock}`}>
+                <strong>{item.customer} · {item.vehicle}</strong>
+                <span>{item.stage} · {item.nextAction}</span>
+                <small>{item.freshness}. Blocker: {item.blocker}.</small>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className={styles.roleFirstNavigation} aria-label="M27 staff deployment UX finalization">
+        {salesConsoleM27StaffDeploymentUxFinalization.roleUx.map((role) => (
+          <article key={role.role}>
+            <strong>{role.role}</strong>
+            <span>{role.landingFocus}</span>
+            <small>{role.firstThirtySeconds}</small>
+            <em>{role.blockedActionCopy}</em>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.operatingPolishMap} aria-label="M15 operating section polish">
+        {salesConsoleM15OperatingSectionPolish.items.map((item) => (
+          <article key={item.section}>
+            <strong>{item.section}</strong>
+            <span>{item.dailyUse}</span>
+            <small>Scan: {item.scanTarget}</small>
+            <em>{item.verificationRule}</em>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.emptyStateClarityStrip} aria-label="M15 empty and fallback clarity">
+        {salesConsoleM15EmptyStateClarity.items.map((item) => (
+          <article key={item.section}>
+            <strong>{item.section}</strong>
+            <span className={fallbackClarityClass(item.fallbackLabel)}>{item.fallbackLabel}</span>
+            <small>{item.staffMessage}</small>
+            <em>{item.verificationStep}</em>
+          </article>
+        ))}
+      </section>
+
+      <div className={styles.bodyGrid}>
+        <main className={styles.mainColumn}>
+          <section className={styles.panel} id="today" aria-labelledby="sales-today-title">
+            <div className={styles.panelHeader}>
+              <div>
+                <span className={styles.eyebrow}>Live seller queue</span>
+                <h2 id="sales-today-title">Salesperson Today</h2>
+              </div>
+              <div className={styles.headerActions}>
+                <button aria-disabled="true" disabled title="Pipeline filters use the MVP ranked queue; saved filters can follow after rollout review." type="button">
+                  My Pipeline <ChevronDown size={13} /> <b>MVP queue</b>
+                </button>
+                <button aria-disabled="true" aria-label="Refresh sales queue source controlled" disabled title="Data refresh follows the source-system cadence in this MVP." type="button">
+                  <RefreshCw size={15} /> <b>source cadence</b>
+                </button>
+                <button aria-disabled="true" disabled title="Personal customization is outside this MVP release." type="button">
+                  <Settings size={15} /> Customize <b>post-MVP</b>
+                </button>
+                <button aria-disabled="true" aria-label="More sales actions unavailable in MVP" disabled title="Additional sales actions require separate release approval." type="button">
+                  <MoreVertical size={15} /> <b>release gated</b>
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.readOnlyUxNotice} role="note">
+              <ShieldCheck size={15} />
+              <span>MVP control guide: unavailable controls are intentionally source-system handled or release-gated; Manager Review Request is live.</span>
+            </div>
+
+            <div className={styles.metricStrip}>
+              {headlineMetrics.map((metric) => (
+                <article className={styles.metric} key={metric.label}>
+                  <span>{metric.label}</span>
+                  <strong className={toneClass(metric.tone)}>{metric.value}</strong>
+                  <small>{metric.delta}</small>
+                </article>
+              ))}
+            </div>
+
+            <div className={styles.salespersonTodayDepth} aria-label="Salesperson Today operating depth">
+              {salesConsoleM14SalespersonTodayDepth.groups.map((group) => (
+                <article key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} items</span>
+                  <small>{group.manualAction}</small>
+                </article>
+              ))}
+            </div>
+
+            <div className={styles.tableShell}>
+              <table className={styles.workTable}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th>Primary Vehicle</th>
+                    <th>Stage</th>
+                    <th>Next Action</th>
+                    <th>Freshness</th>
+                    <th>Blocker</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workQueue.map((item) => (
+                    <tr key={`${item.customer}-${item.stock}`}>
+                      <td>{item.priorityRank}</td>
+                      <td>
+                        <div className={styles.customerCell}><Star size={13} /><span><strong>{item.customer}</strong><small>{item.phone} · {item.sourceLinks[0]?.label}</small></span></div>
+                      </td>
+                      <td><strong>{item.vehicle}</strong><small>Stock # {item.stock}</small></td>
+                      <td><span className={styles.stagePill}>{item.stage}</span></td>
+                      <td><strong>{item.nextAction}</strong><small className={styles.dueText}>{item.due}</small></td>
+                      <td><span className={freshnessClass(item.freshnessState)}>{item.freshness}</span></td>
+                      <td><span className={item.blocker === "-" ? styles.mutedText : statusClass(item.tone)}>{item.blocker}</span></td>
+                      <td>{item.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <footer className={styles.panelFooter}>
+              <span>Showing {workQueue.length} adapter-ranked work items</span>
+              <a href="#today">View All Work Queue <ChevronRight size={14} /></a>
+            </footer>
+          </section>
+
+          <div className={styles.lowerGrid}>
+            <section className={styles.panel} id="deal-desk">
+              <div className={styles.panelHeader}>
+                <div>
+                  <span className={styles.eyebrow}>Deal Desk</span>
+                  <h2>My deals</h2>
+                </div>
+                <span className={styles.statusDanger}>7 approvals</span>
+              </div>
+              <div className={styles.dealInventoryDepth}>
+                {salesConsoleM14DealInventoryDepth.dealOperatingRows.map((deal) => (
+                  <article key={deal.dealId}>
+                    <strong>{deal.dealId} · {deal.customer}</strong>
+                    <span>{deal.managerReviewNeed}</span>
+                    <small>{deal.sourcePrompt}</small>
+                    <em>{deal.readOnlyAction}</em>
+                  </article>
+                ))}
+              </div>
+              <div className={`${styles.managerReviewDisabledPreview} ${styles.releaseEvidenceArchive}`} aria-hidden="true" aria-label="M16 disabled manager review request preview">
+                <div>
+                  <strong>{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel}</strong>
+                  <span>{salesConsoleM16ManagerReviewDisabledPreview.disabledReason}</span>
+                  <small>{salesConsoleM16ManagerReviewDisabledPreview.sourcePrompt}</small>
+                </div>
+                <button aria-disabled="true" disabled type="button">{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel} <b>disabled</b></button>
+              </div>
+              <div className={styles.managerReviewFormShell} aria-label="M20 live manager review request submit shell">
+                <strong>Manager Review Request Form</strong>
+                <small>Live for {salesConsoleM20ManagerReviewWorkbenchUi.activeWorkflow}. Endpoint: {salesConsoleM20ManagerReviewWorkbenchUi.submitEndpoint}.</small>
+                <div>
+                  {salesConsoleM20ManagerReviewWorkbenchUi.submitFields.map((field) => (
+                    <label key={field.field}>
+                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      <input value={field.value} readOnly />
+                    </label>
+                  ))}
+                </div>
+                <button data-endpoint={salesConsoleM20ManagerReviewWorkbenchUi.submitEndpoint} type="button">
+                  Submit Manager Review Request <b>live</b>
+                </button>
+              </div>
+              <div className={styles.managerReviewWorkbench} aria-label="M20 manager review workbench">
+                <strong>Manager Review Workbench</strong>
+                {salesConsoleM20ManagerReviewWorkbenchUi.workbenchRows.map((row) => (
+                  <article key={row.taskId}>
+                    <span>{row.taskId} · {row.status}</span>
+                    <small>Audit {row.auditEventId} · Command {row.commandId}</small>
+                    <small>Correlation {row.correlationId} · Idempotency {row.idempotencyKey}</small>
+                  </article>
+                ))}
+              </div>
+              <table className={styles.compactTable}>
+                <thead>
+                  <tr>
+                    <th>Deal</th>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Scenario</th>
+                    <th>Est. Pay</th>
+                    <th>Approval</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dealRows.map((deal) => (
+                    <tr key={deal.dealId}>
+                      <td><a href="#deal-desk">{deal.dealId}</a></td>
+                      <td>{deal.customer}</td>
+                      <td>{deal.vehicle}</td>
+                      <td>{deal.scenario}</td>
+                      <td>{deal.payment}</td>
+                      <td><span className={statusClass(deal.tone)}>{deal.approval}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <footer className={styles.panelFooter}><span>Quote scenarios are visibility-only from the adapter.</span><a href="#deal-desk">View All Deals <ChevronRight size={14} /></a></footer>
+            </section>
+
+            <section className={styles.panel} id="inventory-intelligence">
+              <div className={styles.panelHeader}>
+                <div>
+                  <span className={styles.eyebrow}>Inventory Intelligence</span>
+                  <h2>Vehicle Match</h2>
+                </div>
+                <span className={styles.statusDanger}>6 alerts</span>
+              </div>
+              <div className={styles.dealInventoryDepth}>
+                {salesConsoleM14DealInventoryDepth.inventoryOperatingRows.map((vehicle) => (
+                  <article key={vehicle.stock}>
+                    <strong>{vehicle.stock} · {vehicle.vehicle}</strong>
+                    <span>{vehicle.readiness} for {vehicle.matchedCustomer}</span>
+                    <small>{vehicle.sourcePrompt}</small>
+                    <em>{vehicle.readOnlyAction}</em>
+                  </article>
+                ))}
+              </div>
+              <div className={styles.vehicleList}>
+                {vehicleMatches.map((vehicle) => (
+                  <article className={styles.vehicleRow} key={vehicle.stock}>
+                    <div className={styles.vehicleThumb}><CarFront size={24} /></div>
+                    <div className={styles.vehicleCopy}>
+                      <strong>{vehicle.vehicle}</strong>
+                      <span>Stock # {vehicle.stock} · Matched to {vehicle.matchCustomer}</span>
+                    </div>
+                    <div className={styles.scoreRing}>{vehicle.score}<small>Fit</small></div>
+                    <div><span className={statusClass(vehicle.tone)}>{vehicle.status}</span><small>{vehicle.blockerDetail}</small></div>
+                    <strong>{vehicle.price}</strong>
+                  </article>
+                ))}
+              </div>
+              <footer className={styles.panelFooter}><span>Blocked units are visible before presentation.</span><a href="#inventory-intelligence">View All Vehicle Matches <ChevronRight size={14} /></a></footer>
+            </section>
+          </div>
+        </main>
+
+        <aside className={styles.commandRail} id="command-center" aria-label="Manager Command Center">
+          <section className={styles.panel} aria-label="Staff role model for read-only dogfooding">
+            <div className={styles.railHeader}><h2>M11 Staff Role Model</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Official read-only dogfood roles define who can safely try the console before staff deployment.
+            </p>
+            <div className={styles.staffRoleModelList}>
+              {salesConsoleM11StaffRoleModel.map((role) => (
+                <article key={role.role}>
+                  <div>
+                    <strong>{role.label}</strong>
+                    <span>{role.dogfoodStatus} · default: {role.defaultSurface}</span>
+                  </div>
+                  <span className={role.dogfoodStatus === "active-dogfood" ? styles.statusGood : styles.statusWarning}>{role.role}</span>
+                  <small>App roles: {role.appRoleNames.join(", ")}</small>
+                  <small>{role.staffIntent}</small>
+                  <em>{role.readOnlyBoundary}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11RoleModelIncludesRequiredStaffRoles() ? "Required staff roles covered" : "Staff role coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11RoleModelRemainsReadOnly() ? "Role model remains read-only" : "Role model write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11ActiveDogfoodRolesAreLimited() ? "Active dogfood roles are limited" : "Dogfood scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11PlannedRolesDoNotCreateAdminAccess() ? "Planned roles do not create admin access" : "Planned role admin risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Staff role to feature access">
+            <div className={styles.railHeader}><h2>M11 Role-to-Feature Access</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Each dogfood role gets only the read-only surfaces needed to try the console safely.
+            </p>
+            <div className={styles.roleFeatureAccessList}>
+              {salesConsoleM11RoleFeatureAccess.map((access) => (
+                <article key={access.role}>
+                  <div>
+                    <strong>{access.role}</strong>
+                    <span>{access.readOnly ? "read-only" : "write-enabled"} · {access.visibleFeatures.length} visible</span>
+                  </div>
+                  <span className={access.role === "admin-owner" ? styles.statusGood : styles.statusNeutral}>feature access</span>
+                  <small>Visible: {access.visibleFeatures.join(", ")}</small>
+                  <small>Hidden: {access.hiddenFeatures.length > 0 ? access.hiddenFeatures.join(", ") : "None"}</small>
+                  <em>{access.emptyStateGuidance}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11EveryRoleHasFeatureAccess() ? "Every role has feature access" : "Feature access gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FeatureAccessRemainsReadOnly() ? "Feature access remains read-only" : "Feature access write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11OnlyAdminOwnerSeesAdminReviewPanels() ? "Only Admin / Owner sees Admin Review Panels" : "Admin panel exposure risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FinanceVisibilityCannotDecideFinance() ? "Finance visibility cannot decide finance" : "Finance decision risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Dogfood auth role seeding evidence">
+            <div className={styles.railHeader}><h2>M11 Auth Role Seeding Evidence</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM11AuthRoleSeedingPlan.boundary}</p>
+            <div className={styles.authRoleSeedingList}>
+              {salesConsoleM11AuthRoleSeedingPlan.fixtures.map((fixture) => (
+                <article key={fixture.userId}>
+                  <div>
+                    <strong>{fixture.label}</strong>
+                    <span>{fixture.seedAction} · {fixture.expectedAccess}</span>
+                  </div>
+                  <span className={fixture.expectedAccess === "allowed" ? styles.statusGood : styles.statusWarning}>
+                    {fixture.expectedStaffRole ?? "unmapped"}
+                  </span>
+                  <small>App roles: {fixture.appRoleNames.join(", ")}</small>
+                  <small>Fixture only: {String(fixture.fixtureOnly)}. User fixture: {fixture.userId}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11DogfoodFixturesAreNonDestructive() ? "Dogfood fixtures are non-destructive" : "Fixture mutation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11CoreDogfoodRolesResolve() ? "Core dogfood roles resolve" : "Core role mapping gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11UnknownRolesRemainRestricted() ? "Unknown roles remain restricted" : "Unknown role access risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11OptionalVisibilityRolesAreFixtureOnly() ? "Optional visibility roles are fixture-only" : "Optional role seed risk"}</span>
+              {salesConsoleM11AuthRoleSeedingPlan.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Read-only dogfood feature flags">
+            <div className={styles.railHeader}><h2>M11 Read-Only Feature Flags</h2><Settings size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfood activation controls enable visibility only. Write workflows remain blocked and require future owner approval.
+            </p>
+            <div className={styles.readOnlyFeatureFlagList}>
+              {salesConsoleM11ReadOnlyFeatureFlags.map((flag) => (
+                <article key={flag.flag}>
+                  <div>
+                    <strong>{flag.role}</strong>
+                    <span>{flag.flag}</span>
+                  </div>
+                  <span className={flag.status === "enabled-read-only" ? styles.statusGood : styles.statusWarning}>{flag.status}</span>
+                  <small>Visibility only: {String(flag.visibilityOnly)}. Safe state: {flag.defaultSafeState}.</small>
+                  <small>Blocked: {flag.blockedWriteWorkflows.join(", ")}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FeatureFlagsAreVisibilityOnly() ? "Feature flags are visibility-only" : "Feature flag write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FeatureFlagsNeverEnableExcludedActions() ? "Excluded actions remain blocked" : "Excluded action activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11CoreDogfoodFlagsEnabledReadOnly() ? "Core dogfood flags enabled read-only" : "Core flag gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11OptionalFlagsRemainPlannedDisabled() ? "Optional flags remain planned/disabled" : "Optional flag risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M11 role verification summary">
+            <div className={styles.railHeader}><h2>M11 Role Verification Summary</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM11RoleVerificationSummary.recommendation}
+            </p>
+            <div className={styles.roleVerificationSummary}>
+              <article>
+                <strong>{salesConsoleM11RoleVerificationSummary.gate}</strong>
+                <span>{salesConsoleM11RoleVerificationSummary.dogfoodReadinessEstimate}% dogfood readiness estimate</span>
+                <small>Verification pass: {String(salesConsoleM11PreDogfoodRoleVerificationPasses())}</small>
+              </article>
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11PreDogfoodRoleVerificationPasses() ? "Pre-dogfood role verification passes" : "Role verification gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11SourceSystemsRemainReadOnly() ? "Source systems remain read-only" : "Source write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11ExcludedActionsRemainDisabled() ? "Excluded actions remain disabled" : "Excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11UnknownAuthFixtureIsRestricted() ? "Unknown auth fixture is restricted" : "Unknown fixture risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11ProductionViewsStillRestrictAdminReview() ? "Production views restrict Admin Review" : "Production admin exposure risk"}</span>
+              {salesConsoleM11RoleVerificationSummary.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M12 role landing model">
+            <div className={styles.railHeader}><h2>M12 Role Landing Model</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Role landing experiences stay inside /sales for now, so we do not overbuild separate pages before CRM, advertising, and marketing consoles mature.
+            </p>
+            <div className={styles.roleLandingModelList}>
+              {salesConsoleM12RoleLandingExperiences.map((landing) => (
+                <article key={landing.role}>
+                  <div>
+                    <strong>{landing.role}</strong>
+                    <span>{landing.defaultFeature} · #{landing.defaultSectionId}</span>
+                  </div>
+                  <span className={styles.statusGood}>{landing.mode}</span>
+                  <small>{landing.startHereLabel}</small>
+                  <em>{landing.landingCopy}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM12EveryRoleHasLandingExperience() ? "Every role has a landing experience" : "Role landing gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsStayInsideSales() ? "Landings stay inside /sales" : "Route sprawl risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsHaveStartGuidance() ? "Start guidance is present" : "Start guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12LandingHeaderStaysReadOnly() ? "Landing header remains read-only" : "Landing header write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12EveryLandingHeaderTargetsInternalSection() ? "Headers target internal sections" : "Header target risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12StartCardsCoverEveryLanding() ? "Start cards cover every landing" : "Start card coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12StartCardsRemainReadOnly() ? "Start cards remain read-only" : "Start card write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M12 role empty and planned states">
+            <div className={styles.railHeader}><h2>M12 Role Empty / Planned States</h2><AlertTriangle size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Each role gets explicit empty-state, verify-first, and planned/disabled guidance so inactive controls do not feel broken.
+            </p>
+            <div className={styles.roleEmptyPlannedList}>
+              {salesConsoleM12RoleEmptyPlannedStates.map((state) => (
+                <article key={state.role}>
+                  <div>
+                    <strong>{state.role}</strong>
+                    <span>empty · verify-first · planned</span>
+                  </div>
+                  <span className={styles.statusWarning}>read-only guidance</span>
+                  <small>{state.emptyState}</small>
+                  <small>{state.disabledExplanation}</small>
+                  <em>{state.plannedNext}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM12EveryRoleHasEmptyAndPlannedState() ? "Every role has empty/planned guidance" : "Empty/planned guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12PlannedStatesKeepRiskyActionsDisabled() ? "Planned states keep risky actions disabled" : "Planned-state action risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M12 admin dogfood landing readiness summary">
+            <div className={styles.railHeader}><h2>M12 Admin Dogfood Landing Summary</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM12AdminDogfoodLandingSummary.recommendation}</p>
+            <div className={styles.adminDogfoodLandingSummary}>
+              <article>
+                <strong>{salesConsoleM12AdminDogfoodLandingSummary.gate}</strong>
+                <span>{salesConsoleM12AdminDogfoodLandingSummary.dogfoodReadinessEstimate}% role landing readiness</span>
+                <small>Summary pass: {String(salesConsoleM12AdminLandingSummaryPasses())}</small>
+              </article>
+              {salesConsoleM12AdminDogfoodLandingSummary.remainingBeforeDogfood.map((item) => (
+                <article key={item}>
+                  <strong>Before dogfood</strong>
+                  <small>{item}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM12AdminLandingSummaryPasses() ? "Role landing summary passes" : "Role landing summary gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12SeparateRoutesRemainDeferred() ? "Separate role routes remain deferred" : "Route deferral risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 dogfood readiness panel">
+            <div className={styles.railHeader}><h2>M13 Dogfood Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Controlled staff dogfooding is ready for owner review, but the console remains read-only and can be paused if staff hit confusion.
+            </p>
+            <div className={styles.dogfoodReadinessList}>
+              <article>
+                <strong>{salesConsoleM13DogfoodReadiness.dogfoodStatus}</strong>
+                <span>{salesConsoleM13DogfoodReadiness.approvalStatus}</span>
+                <small>{salesConsoleM13DogfoodReadiness.rollbackNote}</small>
+              </article>
+              {salesConsoleM13DogfoodReadiness.audience.map((item) => (
+                <article key={item.label}>
+                  <strong>{item.label}</strong>
+                  <span className={item.participation === "include" ? styles.statusGood : styles.statusWarning}>{item.participation}</span>
+                  <small>{item.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodRequiresOwnerReview() ? "Owner review required before dogfood" : "Owner review gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodAudienceIsControlled() ? "Dogfood audience is controlled" : "Audience scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodReadinessKeepsWritesDisabled() ? "Write workflows remain disabled" : "Write workflow risk"}</span>
+              {salesConsoleM13DogfoodReadiness.stillDisabled.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 staff pilot guide">
+            <div className={styles.railHeader}><h2>M13 Staff Pilot Guide</h2><HelpCircle size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM13StaffPilotGuide.whatItIs}</p>
+            <div className={styles.staffPilotGuideList}>
+              <article>
+                <strong>What it is not</strong>
+                <small>{salesConsoleM13StaffPilotGuide.whatItIsNot}</small>
+              </article>
+              {salesConsoleM13StaffPilotGuide.guideItems.map((item) => (
+                <article key={item.title}>
+                  <strong>{item.title}</strong>
+                  <span>{item.role}</span>
+                  <small>{item.instruction}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13PilotGuideExplainsWhatItIsAndIsNot() ? "Guide explains what it is/is not" : "Guide clarity gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13PilotGuideCoversStaffAndManagers() ? "Guide covers staff and managers" : "Guide role coverage gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 feedback categories">
+            <div className={styles.railHeader}><h2>M13 Feedback Categories</h2><MessageSquareText size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Feedback is structured for dogfood review only. No external sending or database capture is enabled in this slice.
+            </p>
+            <div className={styles.feedbackCategoryList}>
+              {salesConsoleM13FeedbackCategories.map((item) => (
+                <article key={item.category}>
+                  <strong>{item.category}</strong>
+                  <span>{item.routingOwner}</span>
+                  <small>{item.example}</small>
+                  <small>Write enabled: {String(item.writeEnabled)}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13FeedbackCategoriesCoverDogfoodRisks() ? "Feedback categories cover dogfood risks" : "Feedback category gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13FeedbackCaptureRemainsReadOnly() ? "Feedback capture remains read-only" : "Feedback write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 release observability">
+            <div className={styles.railHeader}><h2>M13 Release Observability</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfood health indicators keep release review honest before staff depend on the console.
+            </p>
+            <div className={styles.releaseObservabilityList}>
+              {salesConsoleM13ReleaseObservability.healthSignals.map((signal) => (
+                <article key={signal.label}>
+                  <strong>{signal.label}</strong>
+                  <span className={signal.status === "ready" ? styles.statusGood : styles.statusWarning}>{signal.status}</span>
+                </article>
+              ))}
+              <article>
+                <strong>Source fallback count</strong>
+                <span>{salesConsoleM13ReleaseObservability.sourceFallbackCount}</span>
+                <small>Unavailable: {salesConsoleM13ReleaseObservability.unavailableSourceCount}</small>
+              </article>
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ObservabilityHasCoreHealthSignals() ? "Core health signals present" : "Observability signal gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ObservabilityCountsFallbacksAndUnavailableSources() ? "Fallback/unavailable counts visible" : "Source count gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ObservabilityConfirmsDisabledActionCoverage() ? "Disabled action coverage visible" : "Disabled action coverage gap"}</span>
+              {salesConsoleM13ReleaseObservability.knownBlockers.map((blocker) => (
+                <span key={blocker}><ShieldCheck size={13} /> {blocker}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 dogfood go no-go gates">
+            <div className={styles.railHeader}><h2>M13 Dogfood Go/No-Go Gates</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfooding advances only when each gate has clear evidence. Production pilot remains a later decision.
+            </p>
+            <div className={styles.dogfoodGateList}>
+              {salesConsoleM13DogfoodGates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusWarning}>{gate.status}</span>
+                  <small>{gate.mergeGate}</small>
+                  <small>Evidence: {gate.requiredEvidence.join(", ")}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesCoverReleasePath() ? "Dogfood gates cover release path" : "Dogfood gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesRequireEvidence() ? "Each gate requires evidence" : "Gate evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ProductionPilotStillWaits() ? "Production pilot still waits" : "Production pilot risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M14 operational tab audit">
+            <div className={styles.railHeader}><h2>M14 Operational Tab Audit</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfooding showed placeholder fatigue. This audit classifies each major surface before we deepen the read-only operating views.
+            </p>
+            <div className={styles.operationalTabAuditList}>
+              {salesConsoleM14OperationalTabAudit.map((item) => (
+                <article key={item.surface}>
+                  <strong>{item.surface}</strong>
+                  <span className={item.status === "live-read-only" ? styles.statusGood : item.status === "planned" ? styles.statusNeutral : styles.statusWarning}>{item.status}</span>
+                  <small>{item.reason}</small>
+                  <em>{item.action}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces() ? "Placeholder-heavy surfaces identified" : "Placeholder audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditDemotesPlanningPanels() ? "Planning panels marked for demotion" : "Planning panel noise risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditKeepsWritesPlanned() ? "Future write actions remain planned" : "Write action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayHasOperatingGroups() ? "Salesperson Today has operating groups" : "Salesperson Today depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayRemainsReadOnly() ? "Salesperson Today remains read-only" : "Salesperson Today write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness() ? "Blockers/freshness explained" : "Blocker explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsHasOperatingGroups() ? "Lead Operations has operating groups" : "Lead Operations depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsRemainsReadOnly() ? "Lead Operations remains read-only" : "Lead Operations write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsExplainsSlaAndAssignment() ? "SLA and assignment explained" : "Lead explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14DealDeskHasOperatingRows() ? "Deal Desk has operating rows" : "Deal Desk depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14InventoryHasReadinessRows() ? "Inventory has readiness rows" : "Inventory depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14DealInventoryRemainReadOnly() ? "Deal and inventory remain read-only" : "Deal/inventory write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationCoversCoreRoles() ? "M15 role-first navigation covers core roles" : "M15 role navigation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationUsesInternalSections() ? "M15 navigation uses internal sections" : "M15 navigation link risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationRemainsReadOnly() ? "M15 role navigation remains read-only" : "M15 navigation write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishCoversDailySections() ? "M15 operating polish covers daily sections" : "M15 operating section gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishExplainsStaffUse() ? "M15 operating polish explains staff use" : "M15 staff-use explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishRemainsReadOnly() ? "M15 operating polish remains read-only" : "M15 operating polish write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesCoverOperatingSections() ? "M15 empty states cover operating sections" : "M15 empty state coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesExplainFallbacks() ? "M15 fallback labels explain next verification" : "M15 fallback explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesRemainReadOnly() ? "M15 empty states remain read-only" : "M15 empty state write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandHasDailyPriorities() ? "M15 manager command has daily priorities" : "M15 manager command gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandExplainsManagerAction() ? "M15 manager command explains action" : "M15 manager action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandRemainsReadOnly() ? "M15 manager command remains read-only" : "M15 manager command write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewCoversReleaseConcerns() ? "M15 staff review covers release concerns" : "M15 review coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewGatesAreReady() ? "M15 staff review gates ready" : "M15 review gate risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewKeepsReadOnlyBoundary() ? "M15 staff review remains read-only" : "M15 review write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16SelectsManagerReviewFirst() ? "M16 selects Manager Review first" : "M16 workflow selection gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16RiskyWorkflowsRemainNotSelected() ? "M16 risky workflows remain not selected" : "M16 risky workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16WorkflowSelectionRemainsPlanningOnly() ? "M16 workflow selection remains planning-only" : "M16 activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasRequiredFields() ? "M16 manager review contract has required fields" : "M16 manager review field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasPermissions() ? "M16 manager review permissions defined" : "M16 manager review permission gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasAuditShape() ? "M16 manager review audit shape defined" : "M16 manager review audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractRemainsDisabled() ? "M16 manager review remains disabled" : "M16 manager review activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewIsDisabled() ? "M16 manager review preview is disabled" : "M16 preview activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewShowsUnavailableStates() ? "M16 manager review shows unavailable states" : "M16 unavailable-state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewLivesInDealDesk() ? "M16 manager review preview lives in Deal Desk" : "M16 preview placement gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16AuditReadinessCoversRequestShape() ? "M16 audit readiness covers request shape" : "M16 audit readiness gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ExcludedActionsRemainBlocked() ? "M16 excluded actions remain blocked" : "M16 excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16AuditGuardrailsRemainPlanningOnly() ? "M16 audit guardrails remain planning-only" : "M16 audit guardrail activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateCoversCoreConcerns() ? "M16 activation gate covers core concerns" : "M16 activation gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateReadyForM17Planning() ? "M16 ready for M17 planning" : "M16 M17 planning risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateKeepsWorkflowDisabled() ? "M16 keeps workflow disabled" : "M16 live workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelDefinesStatuses() ? "M17 request state model defines statuses" : "M17 state model gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelBlocksSubmitWithoutBackend() ? "M17 submit blocks without backend" : "M17 submit safety gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelKeepsWorkflowInternal() ? "M17 state model stays internal" : "M17 workflow boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormHasRequiredFields() ? "M17 request form has required fields" : "M17 request form field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormControlsDisabled() ? "M17 request form controls disabled" : "M17 request form activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormExplainsWhyDisabled() ? "M17 request form explains disabled state" : "M17 request form explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowSalespersonRequestOnly() ? "M17 salesperson request permission scoped" : "M17 request permission risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowManagerReviewOnly() ? "M17 manager review permission scoped" : "M17 review permission risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ValidationBlocksSubmitUntilBackendReady() ? "M17 validation blocks submit until backend" : "M17 validation submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderBlocksWrites() ? "M17 submit placeholder blocks writes" : "M17 submit placeholder write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderNamesMissingBackend() ? "M17 submit placeholder names missing backend" : "M17 submit backend gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderIncludesAuditFields() ? "M17 submit placeholder includes audit fields" : "M17 submit audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateShellReady() ? "M17 activation shell ready" : "M17 shell readiness gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateBlocksLiveSubmit() ? "M17 release gate blocks live submit" : "M17 live submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateNamesNextBackendStep() ? "M17 names backend endpoint next" : "M17 backend next-step gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractDefinesEndpoint() ? "M18 backend contract defines endpoint" : "M18 endpoint contract gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractRequiresAuditFields() ? "M18 backend contract requires audit fields" : "M18 audit field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractBlocksWrites() ? "M18 backend contract blocks writes" : "M18 backend write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationCoversRequiredPayload() ? "M18 server validation covers payload" : "M18 validation payload gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationRequiresSourceSnapshot() ? "M18 server validation requires source snapshot" : "M18 source snapshot validation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationKeepsSubmitBlocked() ? "M18 server validation keeps submit blocked" : "M18 validation submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteRequiresAuthentication() ? "M18 guarded route requires auth" : "M18 route auth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteBlocksLiveWorkflow() ? "M18 guarded route blocks live workflow" : "M18 route live-workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteKeepsExcludedWorkflowsBlocked() ? "M18 guarded route blocks excluded workflows" : "M18 route excluded-workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessRequiresAuditEvent() ? "M18 audit readiness requires event" : "M18 audit event gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessRequiresIdempotency() ? "M18 idempotency readiness required" : "M18 idempotency gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessBlocksPersistence() ? "M18 audit readiness blocks persistence" : "M18 persistence risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateHasBackendFoundation() ? "M18 release gate has backend foundation" : "M18 release foundation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateBlocksRiskyActions() ? "M18 release gate blocks risky actions" : "M18 release risky-action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateRecommendsM19() ? "M18 release gate names M19 next" : "M18 next milestone gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractDefinesTargets() ? "M19 persistence contract defines targets" : "M19 target contract gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractRequiresIdempotency() ? "M19 persistence requires idempotency" : "M19 idempotency contract gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractKeepsOtherWorkflowsBlocked() ? "M19 keeps other workflows blocked" : "M19 workflow boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryChecksIdempotencyFirst() ? "M19 repository checks idempotency first" : "M19 idempotency order risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryCreatesAuditTrail() ? "M19 repository creates audit trail" : "M19 audit transaction gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryLimitsWriteBoundary() ? "M19 repository limits write boundary" : "M19 repository write-boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ServiceRequiresAuthentication() ? "M19 service requires authentication" : "M19 service auth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ServiceReturnsCreatedOrDuplicate() ? "M19 service returns created or duplicate" : "M19 service status gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ServiceKeepsOtherWorkflowsBlocked() ? "M19 service keeps other workflows blocked" : "M19 service boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ApiReturnsCreatedForNewRequest() ? "M19 API returns created" : "M19 API created response gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ApiReturnsDuplicateForRetry() ? "M19 API returns duplicate" : "M19 API duplicate response gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ApiBlocksIdempotencyConflict() ? "M19 API blocks idempotency conflict" : "M19 API conflict gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateActivatesOnlyManagerReview() ? "M19 release activates only manager review" : "M19 release scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateKeepsRiskyActionsBlocked() ? "M19 release keeps risky actions blocked" : "M19 risky-action release gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateRecommendsM20() ? "M19 release gate names M20 next" : "M19 next milestone gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM20SubmitIsActiveOnlyForManagerReview() ? "M20 submit active only for manager review" : "M20 submit scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM20WorkbenchShowsAuditIdentifiers() ? "M20 workbench shows audit identifiers" : "M20 audit identifier gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM20KeepsNonManagerActionsPlanned() ? "M20 non-manager actions remain planned" : "M20 non-manager action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM21DefinesResolutionStates() ? "M21 resolution states defined" : "M21 resolution state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM21ResolutionControlsRemainDisabled() ? "M21 resolution controls disabled" : "M21 resolution control risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM21KeepsRiskyApprovalsBlocked() ? "M21 risky approvals remain blocked" : "M21 approval risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM22CoversPilotStates() ? "M22 pilot states covered" : "M22 pilot state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM22HealthIndicatorsReady() ? "M22 health indicators ready" : "M22 health indicator risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM22UsesInternalPilotLanguage() ? "M22 uses internal pilot language" : "M22 deployment language risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM23ChecklistReady() ? "M23 staff checklist ready" : "M23 staff checklist gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM23CoversCoreStaffRoles() ? "M23 core staff roles covered" : "M23 role coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM23CommunicatesExcludedActions() ? "M23 excluded actions communicated" : "M23 excluded-action communication gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM24ReleaseIsConditional() ? "M24 release decision conditional" : "M24 release decision gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM24KeepsOnlyManagerReviewLive() ? "M24 only manager review live" : "M24 live workflow scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM24HasRollbackSupportAndMonitoring() ? "M24 rollback support monitoring ready" : "M24 release operations gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25EveryPrimaryTabIsOperating() ? "M25 every primary tab operating" : "M25 primary tab gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25EveryTabHasSafeAction() ? "M25 every tab has safe action" : "M25 tab action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25OnlyManagerReviewSubmitIsLive() ? "M25 only manager review submit live" : "M25 live submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25NoPlaceholderOnlyPrimaryTabs() ? "M25 no placeholder-only primary tabs" : "M25 placeholder-only tab risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM26StaffPostureIsDeployableMvp() ? "M26 staff posture deployable MVP" : "M26 deployment posture gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM26ArchivesPlanningEvidence() ? "M26 planning evidence archived" : "M26 planning archive gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM26NamesOnlyLiveSubmitWorkflow() ? "M26 names only live submit workflow" : "M26 live workflow language gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27CoversCoreRoleUx() ? "M27 core role UX covered" : "M27 role UX gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27EveryRoleHasFirstThirtySecondGuidance() ? "M27 first 30 seconds clear" : "M27 daily guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27KeepsRiskyWorkflowsBlocked() ? "M27 risky workflows blocked" : "M27 workflow scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27SourceStatesAreStaffReadable() ? "M27 source states readable" : "M27 source-state label gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28CoversCriticalRegressionAreas() ? "M28 regression areas covered" : "M28 regression coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28KeepsOnlyManagerReviewSubmitLive() ? "M28 only Manager Review submits" : "M28 submit scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28DefinesReleaseGoNoGo() ? "M28 go/no-go defined" : "M28 release gate gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28FlagsProtectedRouteAsEnvironmentSmoke() ? "M28 protected route smoke flagged" : "M28 auth smoke gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29ReadinessChecklistCoversDeploymentBasics() ? "M29 deployment checklist complete" : "M29 checklist gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29DefinesGoNoGoCriteria() ? "M29 go/no-go criteria ready" : "M29 rollout gate gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29CommunicatesWhatIsAndIsNotActive() ? "M29 active scope clear" : "M29 scope language gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29RequiresEnvironmentVerificationBeforeBroadRollout() ? "M29 environment verification required" : "M29 rollout verification gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM30CoversDeploymentSmokeBasics() ? "M30 deployment smoke ready" : "M30 smoke coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM30KeepsRiskyWorkflowsBlocked() ? "M30 risky workflows blocked" : "M30 blocked workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM30HasRollbackBehaviorForFailedSmoke() ? "M30 failed-smoke fallback ready" : "M30 rollback gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31CoversEveryDeploymentRole() ? "M31 deployment roles covered" : "M31 role coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31RequiresOneUserPerRole() ? "M31 one-user-per-role smoke ready" : "M31 user smoke gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31DefinesUnauthorizedBehavior() ? "M31 unauthorized behavior defined" : "M31 auth behavior gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31BlocksRoleLeakageRisks() ? "M31 role leakage blocked" : "M31 role leakage risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32CoversManagerReviewE2EPath() ? "M32 manager review E2E covered" : "M32 manager review path gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32RequiresAuditReferenceEvidence() ? "M32 audit references required" : "M32 audit evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32VerifiesDuplicateAndValidationBehavior() ? "M32 duplicate and validation covered" : "M32 duplicate/validation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32KeepsExcludedActionsBlocked() ? "M32 excluded actions blocked" : "M32 excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33CoversAllRolloutAudiences() ? "M33 rollout audiences covered" : "M33 audience gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33DefinesIssueReportingFields() ? "M33 issue reporting defined" : "M33 issue reporting gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33ExplainsReturnToSourceSystems() ? "M33 source-system fallback clear" : "M33 fallback guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33RolloutCadenceStartsSmall() ? "M33 rollout starts small" : "M33 rollout cadence risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34DefinesFinalGoDecision() ? "M34 final go decision defined" : "M34 decision gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34RequiresAllCriticalVerification() ? "M34 critical gates required" : "M34 gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34BlocksReleaseOnKnownNoGoRisks() ? "M34 no-go blockers defined" : "M34 blocker gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34ProvidesImmediateLaunchSequence() ? "M34 immediate launch sequence ready" : "M34 launch sequence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35EveryPrimaryTabIsSelectable() ? "M35 every primary tab selectable" : "M35 tab wiring gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35EveryRoleChangesContext() ? "M35 role cards change context" : "M35 role context gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35PanelsRespond() ? "M35 help and scope panels respond" : "M35 panel response gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35OnlyManagerReviewIsLiveSubmit() ? "M35 only manager review submit live" : "M35 submit scope risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 backend contract">
+            <div className={styles.railHeader}><h2>M18 Backend Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dedicated endpoint contract: {salesConsoleM18BackendContract.method} {salesConsoleM18BackendContract.endpoint}. {salesConsoleM18BackendContract.writePolicy}
+            </p>
+            <div className={styles.m18BackendContractList}>
+              {salesConsoleM18BackendContract.requestFields.map((field) => (
+                <article key={field.field}>
+                  <strong>{field.field}</strong>
+                  <span className={field.required ? styles.statusWarning : styles.statusNeutral}>{field.required ? "required" : "optional"}</span>
+                  <small>{field.source}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 server validation">
+            <div className={styles.railHeader}><h2>M18 Server Validation</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM18ServerValidation.headline}. Submit enabled: {salesConsoleM18ServerValidation.submitEnabled ? "yes" : "no"}.
+            </p>
+            <div className={styles.m18ServerValidationList}>
+              {salesConsoleM18ServerValidation.validationRules.map((rule) => (
+                <article key={rule.rule}>
+                  <strong>{rule.rule}</strong>
+                  <span className={styles.statusWarning}>server guard</span>
+                  <small>{rule.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 guarded API route">
+            <div className={styles.railHeader}><h2>M18 Guarded API Route</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM18ApiRouteGuarded.method} {salesConsoleM18ApiRouteGuarded.endpoint} returns {salesConsoleM18ApiRouteGuarded.responseStatus} while workflow live is {salesConsoleM18ApiRouteGuarded.workflowLive ? "yes" : "no"}.
+            </p>
+            <div className={styles.m18ApiRouteList}>
+              {salesConsoleM18ApiRouteGuarded.proof.map((proof) => (
+                <article key={proof}>
+                  <strong>{proof}</strong>
+                  <span className={styles.statusDanger}>{salesConsoleM18ApiRouteGuarded.routeStatus}</span>
+                  <small>Safe backend doorway is present, but persistence remains intentionally inactive.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 audit and idempotency readiness">
+            <div className={styles.railHeader}><h2>M18 Audit &amp; Idempotency Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM18AuditIdempotencyReadiness.mergeGate}
+            </p>
+            <div className={styles.m18AuditIdempotencyList}>
+              {salesConsoleM18AuditIdempotencyReadiness.requirements.map((item) => (
+                <article key={item.requirement}>
+                  <strong>{item.requirement}</strong>
+                  <span className={styles.statusWarning}>{salesConsoleM18AuditIdempotencyReadiness.activationState}</span>
+                  <small>{item.reason}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 release gate">
+            <div className={styles.railHeader}><h2>M18 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM18ReleaseGate.recommendation}</p>
+            <div className={styles.m18ReleaseGateList}>
+              {salesConsoleM18ReleaseGate.readyChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={styles.statusGood}>ready</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM18ReleaseGate.blockedBeforeActivation.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>blocked before activation</span>
+                  <small>{salesConsoleM18ReleaseGate.nextRecommendedMilestone}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 persistence contract">
+            <div className={styles.railHeader}><h2>M19 Persistence Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM19PersistenceContract.activationBoundary}</p>
+            <div className={styles.m19PersistenceContractList}>
+              {salesConsoleM19PersistenceContract.persistenceTargets.map((target) => (
+                <article key={target.target}>
+                  <strong>{target.target}</strong>
+                  <span className={styles.statusWarning}>{salesConsoleM19PersistenceContract.workflow}</span>
+                  <small>{target.purpose}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 repository transaction">
+            <div className={styles.railHeader}><h2>M19 Repository Transaction</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM19RepositoryTransaction.writeBoundary}</p>
+            <div className={styles.m19RepositoryTransactionList}>
+              {salesConsoleM19RepositoryTransaction.steps.map((step) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span className={styles.statusGood}>{salesConsoleM19RepositoryTransaction.transactionState}</span>
+                  <small>Duplicate behavior: {salesConsoleM19RepositoryTransaction.duplicateBehavior}.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 service activation">
+            <div className={styles.railHeader}><h2>M19 Service Activation</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Service state: {salesConsoleM19ServiceActivation.serviceState}. Live workflow: {salesConsoleM19ServiceActivation.liveWorkflow}.
+            </p>
+            <div className={styles.m19ServiceActivationList}>
+              {salesConsoleM19ServiceActivation.guardrails.map((guardrail) => (
+                <article key={guardrail}>
+                  <strong>{guardrail}</strong>
+                  <span className={styles.statusGood}>{salesConsoleM19ServiceActivation.serviceState}</span>
+                  <small>Allowed statuses: {salesConsoleM19ServiceActivation.activeStatuses.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 API activation">
+            <div className={styles.railHeader}><h2>M19 API Activation</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM19ApiActivation.method} {salesConsoleM19ApiActivation.endpoint}: {salesConsoleM19ApiActivation.guardrail}
+            </p>
+            <div className={styles.m19ApiActivationList}>
+              {[...salesConsoleM19ApiActivation.successResponses, ...salesConsoleM19ApiActivation.blockedResponses].map((response) => (
+                <article key={`${response.status}-${response.meaning}`}>
+                  <strong>{response.status}</strong>
+                  <span className={response.status < 300 ? styles.statusGood : styles.statusWarning}>{salesConsoleM19ApiActivation.routeState}</span>
+                  <small>{response.meaning}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 release gate">
+            <div className={styles.railHeader}><h2>M19 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM19ReleaseGate.recommendation} {salesConsoleM19ReleaseGate.activatedWorkflow}
+            </p>
+            <div className={styles.m19ReleaseGateList}>
+              {salesConsoleM19ReleaseGate.readyChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={styles.statusGood}>ready</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM19ReleaseGate.stillBlocked.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>still blocked</span>
+                  <small>{salesConsoleM19ReleaseGate.nextRecommendedMilestone}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M20 manager review workbench UI">
+            <div className={styles.railHeader}><h2>M20 Manager Review Workbench UI</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Submit roles: {salesConsoleM20ManagerReviewWorkbenchUi.submitEnabledForRoles.join(", ")}. Workbench roles: {salesConsoleM20ManagerReviewWorkbenchUi.workbenchVisibleForRoles.join(", ")}.
+            </p>
+            <div className={styles.m20WorkbenchUiList}>
+              {salesConsoleM20ManagerReviewWorkbenchUi.responseStates.map((state) => (
+                <article key={state.state}>
+                  <strong>{state.label}</strong>
+                  <span className={state.state === "success" || state.state === "duplicate" ? styles.statusGood : styles.statusWarning}>{state.state}</span>
+                  <small>{state.meaning}</small>
+                </article>
+              ))}
+              {salesConsoleM20ManagerReviewWorkbenchUi.nonManagerReviewActions.map((action) => (
+                <article key={action}>
+                  <strong>{action}</strong>
+                  <span className={styles.statusDanger}>disabled</span>
+                  <small>Outside the approved Manager Review Request workflow.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M21 manager review resolution planning">
+            <div className={styles.railHeader}><h2>M21 Manager Review Resolution Planning</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM21ManagerReviewResolutionPlanning.guardrailCopy}</p>
+            <div className={styles.m21ResolutionPlanningList}>
+              {salesConsoleM21ManagerReviewResolutionPlanning.resolutionStates.map((state) => (
+                <article key={state}>
+                  <strong>{state}</strong>
+                  <span className={styles.statusWarning}>{salesConsoleM21ManagerReviewResolutionPlanning.activationState}</span>
+                  <small>Resolution state is modeled for planning; no resolution command is active yet.</small>
+                </article>
+              ))}
+              {salesConsoleM21ManagerReviewResolutionPlanning.plannedControls.map((control) => (
+                <article key={control.control}>
+                  <strong>{control.control}</strong>
+                  <span className={styles.statusDanger}>disabled/planned</span>
+                  <small>{control.risk}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M22 pilot production hardening">
+            <div className={styles.railHeader}><h2>M22 Pilot Production Hardening</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Deployment language: {salesConsoleM22PilotProductionHardening.deploymentLanguage}. This is not official public release language.
+            </p>
+            <div className={styles.m22PilotHardeningList}>
+              {salesConsoleM22PilotProductionHardening.firstThirtySecondsGuidance.map((guidance) => (
+                <article key={guidance}>
+                  <strong>{guidance}</strong>
+                  <span className={styles.statusGood}>30-second guidance</span>
+                  <small>Designed for limited staff pilot use.</small>
+                </article>
+              ))}
+              {salesConsoleM22PilotProductionHardening.healthIndicators.map((indicator) => (
+                <article key={indicator.indicator}>
+                  <strong>{indicator.indicator}</strong>
+                  <span className={styles.statusGood}>{indicator.status}</span>
+                  <small>State coverage: {salesConsoleM22PilotProductionHardening.stateCoverage.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M23 staff deployment readiness">
+            <div className={styles.railHeader}><h2>M23 Staff Deployment Readiness</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Rollout state: {salesConsoleM23StaffDeploymentReadiness.rolloutState}. Pilot support owner: {salesConsoleM23StaffDeploymentReadiness.pilotSupportOwner}.
+            </p>
+            <div className={styles.m23StaffReadinessList}>
+              {salesConsoleM23StaffDeploymentReadiness.checklist.map((item) => (
+                <article key={item.item}>
+                  <strong>{item.item}</strong>
+                  <span className={styles.statusGood}>{item.status}</span>
+                  <small>Required before controlled staff rollout.</small>
+                </article>
+              ))}
+              {salesConsoleM23StaffDeploymentReadiness.roleReadiness.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span className={styles.statusGood}>{role.startHere}</span>
+                  <small>{role.canDo} {role.cannotDo}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M24 official production release gate">
+            <div className={styles.railHeader}><h2>M24 Official Production Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM24OfficialReleaseGate.recommendation}</p>
+            <div className={styles.m24OfficialReleaseGateList}>
+              {salesConsoleM24OfficialReleaseGate.goNoGoCriteria.map((item) => (
+                <article key={item.criterion}>
+                  <strong>{item.criterion}</strong>
+                  <span className={item.status === "go" ? styles.statusGood : styles.statusWarning}>{item.status}</span>
+                  <small>Release decision: {salesConsoleM24OfficialReleaseGate.releaseDecision}.</small>
+                </article>
+              ))}
+              {salesConsoleM24OfficialReleaseGate.knownLimitations.map((limitation) => (
+                <article key={limitation}>
+                  <strong>{limitation}</strong>
+                  <span className={styles.statusWarning}>known limitation</span>
+                  <small>Review before official release approval.</small>
+                </article>
+              ))}
+              {salesConsoleM24OfficialReleaseGate.rollbackPlan.map((step) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span className={styles.statusDanger}>rollback plan</span>
+                  <small>Support/monitoring/training are defined for controlled deployment.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M25 responsive operating views">
+            <div className={styles.railHeader}><h2>M25 Responsive Operating Views</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM25ResponsiveOperatingViews.operatingPosture}</p>
+            <div className={styles.m25ResponsiveOperatingList}>
+              {salesConsoleM25ResponsiveOperatingViews.tabs.map((tab) => (
+                <article key={tab.tab}>
+                  <strong>{tab.tab}</strong>
+                  <span className={styles.statusGood}>{tab.state}</span>
+                  <small>{tab.safeAction} {tab.blockedAction}</small>
+                  <a href={tab.href}>{tab.primaryAction} <ChevronRight size={13} /></a>
+                </article>
+              ))}
+              {salesConsoleM25ResponsiveOperatingViews.universalStates.map((state) => (
+                <article key={state}>
+                  <strong>{state}</strong>
+                  <span className={styles.statusWarning}>handled</span>
+                  <small>Primary operating tabs expose this state through labels, fallback copy, route checks, or Manager Review responses.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M26 deployment language polish">
+            <div className={styles.railHeader}><h2>M26 Deployment Language Polish</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>Staff posture: {salesConsoleM26DeploymentLanguagePolish.staffPosture}. Historical planning evidence is archived from the daily staff flow.</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM26DeploymentLanguagePolish.replacements.map((replacement) => (
+                <article key={replacement.before}>
+                  <strong>{replacement.before}</strong>
+                  <span className={styles.statusGood}>{replacement.after}</span>
+                  <small>Deployment wording replacement for staff-facing surfaces.</small>
+                </article>
+              ))}
+              {salesConsoleM26DeploymentLanguagePolish.staffFacingCopy.map((copy) => (
+                <article key={copy}>
+                  <strong>{copy}</strong>
+                  <span className={styles.statusGood}>staff-ready</span>
+                  <small>Shown as MVP rollout guidance, not planning-era language.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M27 staff deployment UX finalization review">
+            <div className={styles.railHeader}><h2>M27 Staff Deployment UX Finalization</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM27StaffDeploymentUxFinalization.operatingSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM27StaffDeploymentUxFinalization.roleUx.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span className={styles.statusGood}>{role.managerReviewEntry}</span>
+                  <small>{role.emptyState} {role.unavailableState}</small>
+                </article>
+              ))}
+              {salesConsoleM27StaffDeploymentUxFinalization.stillBlockedWorkflows.map((workflow) => (
+                <article key={workflow}>
+                  <strong>{workflow}</strong>
+                  <span className={styles.statusDanger}>source-system only</span>
+                  <small>Not activated in the Sales Console MVP.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M28 release validation regression pass">
+            <div className={styles.railHeader}><h2>M28 Release Validation & Regression Pass</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM28ReleaseValidationRegression.adminSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM28ReleaseValidationRegression.checks.map((check) => (
+                <article key={check.area}>
+                  <strong>{check.area}</strong>
+                  <span className={check.releaseRisk === "low" ? styles.statusGood : styles.statusWarning}>{check.status}</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM28ReleaseValidationRegression.goNoGo.noGo.map((item) => (
+                <article key={item}>
+                  <strong>{item}</strong>
+                  <span className={styles.statusDanger}>no-go</span>
+                  <small>Blocks official internal MVP deployment until corrected.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M29 deployment package rollout readiness">
+            <div className={styles.railHeader}><h2>M29 Deployment Package & Rollout Readiness</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM29DeploymentPackageRolloutReadiness.staffSummary}</p>
+            <p className={styles.guardrailCopy}>{salesConsoleM29DeploymentPackageRolloutReadiness.notActiveSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM29DeploymentPackageRolloutReadiness.readinessChecklist.map((entry) => (
+                <article key={entry.item}>
+                  <strong>{entry.item}</strong>
+                  <span className={entry.status === "ready" ? styles.statusGood : styles.statusWarning}>{entry.status}</span>
+                  <small>{entry.owner}: {entry.proof}</small>
+                </article>
+              ))}
+              {salesConsoleM29DeploymentPackageRolloutReadiness.nextPhaseRecommendations.map((recommendation) => (
+                <article key={recommendation}>
+                  <strong>{recommendation}</strong>
+                  <span className={styles.statusNeutral}>next phase</span>
+                  <small>{salesConsoleM29DeploymentPackageRolloutReadiness.issueReportingPath}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M30 deployment environment smoke test">
+            <div className={styles.railHeader}><h2>M30 Deployment Environment Smoke Test</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM30DeploymentEnvironmentSmoke.smokeSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM30DeploymentEnvironmentSmoke.checks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={check.status === "ready-to-smoke" ? styles.statusGood : styles.statusWarning}>{check.status}</span>
+                  <small>{check.owner}: {check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM30DeploymentEnvironmentSmoke.failActions.map((action) => (
+                <article key={action}>
+                  <strong>{action}</strong>
+                  <span className={styles.statusDanger}>if smoke fails</span>
+                  <small>Pause broader rollout until the deployed environment passes.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M31 real role access verification">
+            <div className={styles.railHeader}><h2>M31 Real Role Access Verification</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM31RealRoleAccessVerification.accessSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM31RealRoleAccessVerification.roleChecks.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span className={styles.statusWarning}>{role.verificationStatus}</span>
+                  <small>{role.expectedLanding} {role.allowedManagerReviewAccess}</small>
+                </article>
+              ))}
+              {salesConsoleM31RealRoleAccessVerification.roleLeakageNoGo.map((risk) => (
+                <article key={risk}>
+                  <strong>{risk}</strong>
+                  <span className={styles.statusDanger}>no-go</span>
+                  <small>{salesConsoleM31RealRoleAccessVerification.unauthorizedBehavior}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M32 manager review request end-to-end test">
+            <div className={styles.railHeader}><h2>M32 Manager Review Request End-to-End Test</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM32ManagerReviewE2ETest.e2eSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM32ManagerReviewE2ETest.steps.map((step) => (
+                <article key={step.step}>
+                  <strong>{step.step}</strong>
+                  <span className={styles.statusWarning}>{step.actor}</span>
+                  <small>{step.expectedResult} Evidence: {step.requiredEvidence.join(", ")}.</small>
+                </article>
+              ))}
+              {salesConsoleM32ManagerReviewE2ETest.excludedActionsStillBlocked.map((action) => (
+                <article key={action}>
+                  <strong>{action}</strong>
+                  <span className={styles.statusDanger}>blocked</span>
+                  <small>Not part of the approved Manager Review Request MVP workflow.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M33 staff rollout package">
+            <div className={styles.railHeader}><h2>M33 Staff Rollout Package</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM33StaffRolloutPackage.openingMessage}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM33StaffRolloutPackage.rolloutAudiences.map((audience) => (
+                <article key={audience.audience}>
+                  <strong>{audience.audience}</strong>
+                  <span className={styles.statusGood}>brief-ready</span>
+                  <small>{audience.todayUse} {audience.notYet} {audience.supportInstruction}</small>
+                </article>
+              ))}
+              {salesConsoleM33StaffRolloutPackage.returnToSourceSystemRules.map((rule) => (
+                <article key={rule}>
+                  <strong>{rule}</strong>
+                  <span className={styles.statusWarning}>use source system</span>
+                  <small>Prevents staff from treating the MVP console as the final system of record.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M34 MVP go no-go release decision">
+            <div className={styles.railHeader}><h2>M34 MVP Go/No-Go Release Decision</h2><CheckCircle2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM34MvpGoNoGoRelease.decisionSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM34MvpGoNoGoRelease.goGates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={styles.statusWarning}>{gate.decision}</span>
+                  <small>{gate.proofRequired}</small>
+                </article>
+              ))}
+              {salesConsoleM34MvpGoNoGoRelease.immediateLaunchSteps.map((step) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span className={styles.statusGood}>launch step</span>
+                  <small>Complete in order for controlled internal MVP deployment.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 release gate">
+            <div className={styles.railHeader}><h2>M17 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM17ReleaseGate.releaseRecommendation}</p>
+            <div className={styles.m17ReleaseGateList}>
+              {salesConsoleM17ReleaseGate.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusDanger}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 audit safe submit placeholder">
+            <div className={styles.railHeader}><h2>M17 Audit-Safe Submit Placeholder</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult} Backend: {salesConsoleM17AuditSafeSubmitPlaceholder.backendDestination}.
+            </p>
+            <div className={styles.m17SubmitPlaceholderList}>
+              {salesConsoleM17AuditSafeSubmitPlaceholder.submitBlockers.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>submit blocked</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 validation and permissions">
+            <div className={styles.railHeader}><h2>M17 Validation &amp; Permissions</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Submit enabled: {salesConsoleM17ValidationPermissions.submitEnabled ? "yes" : "no"}. Dedicated backend endpoint remains required before activation.
+            </p>
+            <div className={styles.m17PermissionList}>
+              {salesConsoleM17ValidationPermissions.decisions.map((decision) => (
+                <article key={decision.role}>
+                  <strong>{decision.role}</strong>
+                  <span>{decision.canRequest ? "can request later" : decision.canReview ? "can review later" : "visibility/block only"}</span>
+                  <small>{decision.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM17ValidationPermissions.validationGates.map((gate) => (
+                <span key={gate}><ShieldCheck size={13} /> {gate}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 request state model">
+            <div className={styles.railHeader}><h2>M17 Request State Model</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Current Manager Review Request state: {salesConsoleM17RequestStateModel.currentStatus}. Workflow live: {salesConsoleM17RequestStateModel.workflowLive ? "yes" : "no"}.
+            </p>
+            <div className={styles.m17StateModelList}>
+              {salesConsoleM17RequestStateModel.allowedTransitions.map((transition) => (
+                <article key={`${transition.from}-${transition.to}`}>
+                  <strong>{transition.from} → {transition.to}</strong>
+                  <span>{transition.reason}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 activation decision gate">
+            <div className={styles.railHeader}><h2>M16 Activation Decision Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM16ActivationDecisionGate.m17Recommendation}
+            </p>
+            <div className={styles.activationGateList}>
+              {salesConsoleM16ActivationDecisionGate.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready-for-m17-planning" ? styles.statusGood : styles.statusDanger}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 audit and guardrails">
+            <div className={styles.railHeader}><h2>M16 Audit &amp; Guardrails</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Manager Review Request planning requires audit readiness and explicitly blocks risky workflows until separate approval milestones.
+            </p>
+            <div className={styles.auditGuardrailList}>
+              {salesConsoleM16AuditGuardrails.excludedActionGuardrails.map((guardrail) => (
+                <article key={guardrail.guardrail}>
+                  <strong>{guardrail.guardrail}</strong>
+                  <span className={styles.statusDanger}>{guardrail.status}</span>
+                  <small>{guardrail.evidence}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM16AuditGuardrails.auditReadiness.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 manager review contract">
+            <div className={styles.railHeader}><h2>M16 Manager Review Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Contract for a future Manager Review Request. The write workflow remains {salesConsoleM16ManagerReviewContract.writeActivation}.
+            </p>
+            <div className={styles.managerReviewContractList}>
+              {salesConsoleM16ManagerReviewContract.fields.map((field) => (
+                <article key={field.field}>
+                  <strong>{field.field}</strong>
+                  <span className={field.requirement === "required" ? styles.statusWarning : styles.statusNeutral}>{field.requirement}</span>
+                  <small>{field.source}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM16ManagerReviewContract.permissions.map((permission) => (
+                <span key={`${permission.role}-${permission.access}`}><ShieldCheck size={13} /> {permission.role}: {permission.access}</span>
+              ))}
+              <span><ShieldCheck size={13} /> Audit fields: {salesConsoleM16ManagerReviewContract.auditShape.length}</span>
+              <span><ShieldCheck size={13} /> Unavailable states: {salesConsoleM16ManagerReviewContract.unavailableStates.length}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 workflow selection">
+            <div className={styles.railHeader}><h2>M16 Workflow Selection</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              First controlled activation candidate: {salesConsoleM16WorkflowSelection.selectedWorkflow}. It remains disabled/planning-only until later activation gates pass.
+            </p>
+            <div className={styles.workflowSelectionList}>
+              {salesConsoleM16WorkflowSelection.candidates.map((candidate) => (
+                <article key={candidate.candidate}>
+                  <strong>{candidate.candidate}</strong>
+                  <span className={candidate.activationPosture === "disabled-planning" ? styles.statusWarning : styles.statusNeutral}>{candidate.activationPosture}</span>
+                  <small>{candidate.rationale}</small>
+                  <em>Risk: {candidate.risk}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M15 staff review readiness">
+            <div className={styles.railHeader}><h2>M15 Staff Review Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM15StaffReviewReadiness.reviewRecommendation}
+            </p>
+            <div className={styles.staffReviewReadinessList}>
+              {salesConsoleM15StaffReviewReadiness.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusWarning}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M14 placeholder demotion">
+            <div className={styles.railHeader}><h2>M14 Placeholder Demotion</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Placeholder-heavy planning remains available for Admin / Owner review, while daily staff use starts with the real read-only operating views.
+            </p>
+            <div className={styles.placeholderDemotionList}>
+              {salesConsoleM14PlaceholderDemotion.items.map((item) => (
+                <article key={item.surface}>
+                  <strong>{item.surface}</strong>
+                  <span className={item.handling === "operational-first" ? styles.statusGood : item.handling === "admin-review-only" ? styles.statusWarning : styles.statusNeutral}>{item.handling}</span>
+                  <small>{item.reason}</small>
+                  <em>{item.audience}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionReducesStaffNoise() ? "Staff starts with operating views" : "Staff placeholder noise risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionKeepsAdminReview() ? "Admin review panels preserved" : "Admin review evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionKeepsWritesDisabled() ? "Placeholder writes remain disabled" : "Placeholder write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Role-specific production views">
+            <div className={styles.railHeader}><h2>Role-Specific Production Views</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Production roles now separate everyday operating views from Admin / Owner enterprise review panels.
+            </p>
+            <div className={styles.productionRoleViewList}>
+              {salesConsoleRoleProductionViews.map((view) => (
+                <article key={view.role}>
+                  <div>
+                    <strong>{view.label}</strong>
+                    <span>Primary: {view.primarySurface}</span>
+                  </div>
+                  <span className={view.role === "admin-owner" ? styles.statusGood : styles.statusNeutral}>{view.role}</span>
+                  <small>Visible: {view.visibleSurfaces.join(", ")}</small>
+                  <small>Restricted: {view.restrictedSurfaces.length > 0 ? view.restrictedSurfaces.join(", ") : "None"}</small>
+                  <em>{view.emptyState}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {adminPanelsAreRestrictedForOperatingRoles() ? "Admin panels restricted from operating roles" : "Admin panel exposure risk"}</span>
+              <span><ShieldCheck size={13} /> {ordinaryRolesDoNotSeeAdminReviewSurface() ? "Ordinary roles do not see Admin Review" : "Admin Review visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {eachRoleHasProductionEmptyState() ? "Role-specific empty states present" : "Empty state gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Real auth access mapping foundation">
+            <div className={styles.railHeader}><h2>Auth Access Mapping</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Real app session roles are mapped into read-only Sales Console views. Missing sessions and unmapped roles fail safe.
+            </p>
+            <div className={styles.authAccessList}>
+              {salesConsoleAuthAccessExamples.map((decision) => (
+                <article key={`${decision.status}-${decision.resolvedRole ?? decision.sourceAuth}`}>
+                  <div>
+                    <strong>{decision.resolvedRole ?? "Blocked user"}</strong>
+                    <span>{decision.sourceAuth} · {decision.protectedRouteState}</span>
+                  </div>
+                  <span className={decision.canAccessSalesConsole ? styles.statusGood : styles.statusDanger}>
+                    {decision.canAccessSalesConsole ? "read-only access" : "blocked"}
+                  </span>
+                  <small>Visible: {decision.visibleSurfaces.length > 0 ? decision.visibleSurfaces.join(", ") : "None"}</small>
+                  <small>Scope: {decision.scope.store} / {decision.scope.team}</small>
+                  <em>{decision.reason}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {unauthenticatedUsersAreBlocked() ? "Unauthenticated users are blocked" : "Protected-route risk"}</span>
+              <span><ShieldCheck size={13} /> {unknownRolesAreDeniedByDefault() ? "Unknown roles deny by default" : "Unknown role access risk"}</span>
+              <span><ShieldCheck size={13} /> {mappedRolesResolveProductionViews() ? "Mapped roles resolve production views" : "Role mapping gap"}</span>
+              <span><ShieldCheck size={13} /> {adminReviewRequiresAdminOwnerAccess() ? "Admin Review requires Admin / Owner" : "Admin Review exposure risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Real read-only source wiring foundation">
+            <div className={styles.railHeader}><h2>Real Read-Only Source Wiring</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Production wiring keeps source systems authoritative: real safe readers are labeled, fallbacks are honest, and unavailable sources stay blocked.
+            </p>
+            <div className={styles.m10SourceWiringList}>
+              {salesConsoleM10ReadOnlySourceWiring.map((wire) => (
+                <article key={wire.sourceSystem}>
+                  <div>
+                    <strong>{wire.sourceSystem}</strong>
+                    <span>{wire.sourceOwner} · {wire.reader}</span>
+                  </div>
+                  <span className={m10SourceStatusClass(wire.status)}>{wire.status}</span>
+                  <small>Surfaces: {wire.adapterSurfaces.join(", ")}</small>
+                  <small>Freshness: {wire.freshnessLabel}. Write enabled: {String(wire.writeEnabled)}.</small>
+                  <em>{wire.guardrail}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {m10SourceWiringExtendsMvpRealDataSources() ? "MVP real data sources covered" : "MVP source coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {m10ReadOnlySourcesPreserveSystemOfRecord() ? "Sources remain systems of record" : "Source ownership risk"}</span>
+              <span><ShieldCheck size={13} /> {m10ReadOnlySourcesHaveHonestFallbackLabels() ? "Fallback labels are honest" : "Fallback label gap"}</span>
+              <span><ShieldCheck size={13} /> {m10WiredSourcesUseNamedReadServices() ? "Wired sources use named read services" : "Reader mapping gap"}</span>
+              <span><ShieldCheck size={13} /> {m10UnavailableSourcesRemainBlocked() ? "Unavailable sources remain blocked" : "Unavailable source risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin operational separation foundation">
+            <div className={styles.railHeader}><h2>Admin / Operational Separation</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM10AdminOperationalSeparation.boundary}</p>
+            <div className={styles.adminOperationalList}>
+              {salesConsoleM10AdminOperationalSeparation.operationalSurfaces.map((surface) => (
+                <article key={`${surface.mode}-${surface.surface}`}>
+                  <div>
+                    <strong>{surface.surface}</strong>
+                    <span>{surface.mode} · {surface.allowedRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusGood}>production view</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+              {salesConsoleM10AdminOperationalSeparation.adminReviewSurfaces.map((surface) => (
+                <article key={`${surface.mode}-${surface.panel}`}>
+                  <div>
+                    <strong>{surface.panel}</strong>
+                    <span>{surface.mode} · {surface.allowedRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusWarning}>admin review</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {m10OperatingRolesDoNotSeeAdminReview() ? "Operating roles do not see Admin Review" : "Admin Review exposure risk"}</span>
+              <span><ShieldCheck size={13} /> {m10AdminReviewPanelsRequireAdminOwner() ? "Admin panels require Admin / Owner" : "Admin panel role gap"}</span>
+              <span><ShieldCheck size={13} /> {m10OperationalSurfacesHaveRoleOwners() ? "Operational surfaces have role owners" : "Operational ownership gap"}</span>
+              <span><ShieldCheck size={13} /> {m10FinanceIsOperationalVisibilityOnly() ? "Finance remains visibility-only" : "Finance decision risk"}</span>
+              {salesConsoleM10AdminOperationalSeparation.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Manager review request foundation">
+            <div className={styles.railHeader}><h2>Manager Review Request Foundation</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM10ManagerReviewRequestFoundation.boundary}</p>
+            <div className={styles.managerReviewRequestList}>
+              {salesConsoleM10ManagerReviewRequestFoundation.contracts.map((contract) => (
+                <article key={contract.requestType}>
+                  <div>
+                    <strong>{contract.requestType}</strong>
+                    <span>Review: {contract.allowedReviewRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusDanger}>{contract.statusLabel}</span>
+                  <small>Evidence: {contract.evidenceRequired.join(", ")}</small>
+                  <small>Request enabled: {String(contract.requestEnabled)}. Decision enabled: {String(contract.decisionEnabled)}. Source write: {String(contract.sourceWriteEnabled)}.</small>
+                </article>
+              ))}
+              {salesConsoleM10ManagerReviewRequestFoundation.queuePlaceholders.map((placeholder) => (
+                <article key={`${placeholder.requestContract}-${placeholder.blockerLabel}`}>
+                  <div>
+                    <strong>{placeholder.requestContract}</strong>
+                    <span>{placeholder.customerLabel} · {placeholder.dealLabel}</span>
+                  </div>
+                  <span className={freshnessClass(placeholder.blockerLabel === "blocked" ? "stale" : placeholder.blockerLabel)}>{placeholder.blockerLabel}</span>
+                  <small>{placeholder.managerReviewReason}</small>
+                  <em>{placeholder.sourceLinkLabel}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewRequestsRemainDisabled() ? "Review requests remain disabled" : "Request activation risk"}</span>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewRequiresSourceRecordsAuditAndReason() ? "Source records, audit, and reason required" : "Review gate gap"}</span>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewRolesAreScopedToManagersAndAdmins() ? "Manager/Admin review roles scoped" : "Review role gap"}</span>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewExtendsM9ApprovalFoundation() ? "Extends M9 approval foundation" : "M9 approval linkage gap"}</span>
+              <span><ShieldCheck size={13} /> {m10FallbackReviewPlaceholdersBlockSubmission() ? "Fallback placeholders block submission" : "Fallback submission risk"}</span>
+              {salesConsoleM10ManagerReviewRequestFoundation.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review audit trail foundation">
+            <div className={styles.railHeader}><h2>Audit Trail Foundation</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Enterprise actions stay disabled until actor, role, source record, timestamp, reason, and before/after summaries are audit-ready.
+            </p>
+            <div className={styles.auditCoverageList}>
+              {salesConsoleAuditReadModel.futureActionCoverage.map((coverage) => (
+                <article key={coverage.action}>
+                  <div>
+                    <strong>{coverage.action}</strong>
+                    <span>{coverage.auditEventType} · {coverage.sourceRecordType}</span>
+                  </div>
+                  <span className={styles.statusWarning}>{coverage.coverage}</span>
+                  <small>{coverage.requiredFields.join(", ")}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.auditEventList}>
+              {salesConsoleAuditReadModel.events.map((event) => (
+                <article key={event.auditId}>
+                  <strong>{event.eventType}</strong>
+                  <span>{event.auditId} · {event.actor.displayName} · {event.actor.role} · {event.sourceRecord.sourceSystem}</span>
+                  <small>Source: {event.sourceRecord.type} {event.sourceRecord.recordId}</small>
+                  <small>{event.reason}</small>
+                  <em>{event.beforeSummary} → {event.afterSummary}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {sensitiveActionsHaveAuditCoverage() ? "Sensitive actions require audit coverage" : "Audit coverage incomplete"}</span>
+              {salesConsoleAuditReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review enterprise permissions">
+            <div className={styles.railHeader}><h2>Enterprise Permissions</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Deny-by-default action gates are defined for enterprise expansion. No gated workflow is enabled yet.
+            </p>
+            <div className={styles.enterprisePermissionList}>
+              {salesConsoleEnterprisePermissionReadModel.gates.map((gate) => (
+                <article key={gate.capability}>
+                  <div>
+                    <strong>{gate.capability}</strong>
+                    <span>Roles: {gate.allowedRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusDanger}>{gate.defaultDecision}</span>
+                  <small>Scope: {gate.requiredScope}. Audit required: {String(gate.auditRequired)}. Source record required: {String(gate.sourceRecordRequired)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.enterpriseScopeList}>
+              {salesConsoleEnterprisePermissionReadModel.roleScopes.map((scope) => (
+                <article key={scope.role}>
+                  <strong>{scope.label}</strong>
+                  <span>{scope.defaultScope}</span>
+                  <small>{scope.storePlaceholder}</small>
+                  <small>{scope.teamPlaceholder}</small>
+                  <em>{scope.ownershipPlaceholder}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {enterprisePermissionGatesDenyByDefault() ? "Permission gates deny by default" : "Permission gate risk"}</span>
+              <span><ShieldCheck size={13} /> {sensitiveWorkflowsHavePermissionAndAuditCoverage() ? "Sensitive workflows have audit and permission coverage" : "Coverage incomplete"}</span>
+              {salesConsoleEnterprisePermissionReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review CRM DMS integration contracts">
+            <div className={styles.railHeader}><h2>CRM/DMS Integration Contracts</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Enterprise source contracts define ownership, freshness, fallback labels, and source links without replacing CRM, DMS, finance, inventory, lead, task, or appointment systems.
+            </p>
+            <div className={styles.enterpriseIntegrationList}>
+              {salesConsoleEnterpriseIntegrationReadModel.contracts.map((contract) => (
+                <article key={contract.recordType}>
+                  <div>
+                    <strong>{contract.recordType}</strong>
+                    <span>{contract.owner} · {contract.mode}</span>
+                  </div>
+                  <span className={liveSourceStatusClass(contract.status)}>{contract.status}</span>
+                  <small>IDs: {contract.requiredIds.join(", ")}. Link: {contract.sourceLinkPattern}</small>
+                  <em>{contract.fallbackLabel} {contract.freshnessRule}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {enterpriseSourcesRemainSystemsOfRecord() ? "Sources remain systems of record" : "Source ownership risk"}</span>
+              <span><ShieldCheck size={13} /> {enterpriseSourceContractsCoverRequiredRecords() ? "Required record types covered" : "Record coverage incomplete"}</span>
+              <span><ShieldCheck size={13} /> {enterpriseSourceContractsHaveHonestLabels() ? "Freshness and fallback labels present" : "Labels incomplete"}</span>
+              <span><ShieldCheck size={13} /> {enterpriseSourceContractsBlockWritesWhenMissing() ? "Missing sources block writes" : "Write-blocking incomplete"}</span>
+              {salesConsoleEnterpriseIntegrationReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review deal workflow foundation">
+            <div className={styles.railHeader}><h2>Deal Workflow Foundation</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Deal workflow is planned as audited stage movement only. Source-system writes, discount approvals, and finance decisions remain disabled.
+            </p>
+            <div className={styles.enterpriseDealWorkflowList}>
+              {salesConsoleDealWorkflowReadModel.transitions.map((transition) => (
+                <article key={`${transition.from}-${transition.to}`}>
+                  <div>
+                    <strong>{transition.label}</strong>
+                    <span>{transition.from} → {transition.to}</span>
+                  </div>
+                  <span className={styles.statusWarning}>{transition.requiredRole}</span>
+                  <small>Audit required: {String(transition.auditRequired)}. Source write: {String(transition.sourceWrite)}. Enabled: {String(transition.enabled)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.enterpriseDealWorkflowList}>
+              {salesConsoleDealWorkflowReadModel.managerReviewPlaceholders.map((review) => (
+                <article key={review.dealId}>
+                  <div>
+                    <strong>{review.dealId}</strong>
+                    <span>{review.auditEventType} · {review.managerAction}</span>
+                  </div>
+                  <span className={styles.statusNeutral}>{review.status}</span>
+                  <small>Reason required: {String(review.reasonRequired)}. Source record required: {String(review.sourceRecordRequired)}. Enabled: {String(review.enabled)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {dealWorkflowIsReadOnly() ? "Deal workflow remains read-only" : "Deal workflow write risk"}</span>
+              <span><ShieldCheck size={13} /> {dealWorkflowRequiresAuditAndPermission() ? "Audit and permission gates required" : "Gate coverage incomplete"}</span>
+              <span><ShieldCheck size={13} /> {salespersonCannotApproveOrFinance() ? "Salesperson cannot approve or finance" : "Salesperson authority risk"}</span>
+              {salesConsoleDealWorkflowReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review manager approvals foundation">
+            <div className={styles.railHeader}><h2>Manager Approval Foundation</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Approval queues are contract-only. Thresholds, reasons, manager/admin role gates, and audit events are required before any decision can execute.
+            </p>
+            <div className={styles.enterpriseApprovalList}>
+              {salesConsoleManagerApprovalReadModel.requestContracts.map((approval) => (
+                <article key={approval.approvalType}>
+                  <div>
+                    <strong>{approval.approvalType}</strong>
+                    <span>Request role: {approval.requestRole}</span>
+                  </div>
+                  <span className={styles.statusDanger}>disabled</span>
+                  <small>Fields: {approval.requiredFields.join(", ")}. Reason: {String(approval.reasonRequired)}. Threshold: {String(approval.thresholdRequired)}.</small>
+                </article>
+              ))}
+              {salesConsoleManagerApprovalReadModel.decisionGates.map((gate) => (
+                <article key={`${gate.approvalType}-decision`}>
+                  <div>
+                    <strong>{gate.approvalType} decision</strong>
+                    <span>Roles: {gate.allowedDecisionRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusWarning}>{gate.auditEventType}</span>
+                  <small>Decision enabled: {String(gate.decisionEnabled)}. Deny by default: {String(gate.denyByDefault)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {managerApprovalFoundationIsDisabled() ? "Approval execution disabled" : "Approval execution risk"}</span>
+              <span><ShieldCheck size={13} /> {managerApprovalsRequireAuditThresholdAndReason() ? "Audit, threshold, and reason required" : "Approval gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {onlyManagersAndAdminsCanDecideApprovals() ? "Only managers/admins can decide later" : "Decision role risk"}</span>
+              {salesConsoleManagerApprovalReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review quote scenario builder foundation">
+            <div className={styles.railHeader}><h2>Quote Scenario Builder Foundation</h2><BadgeDollarSign size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Scenario builder is estimate-only. Final quote submission stays disabled until disclaimers, manager review, finance verification, audit, and source-system gates are approved.
+            </p>
+            <div className={styles.enterpriseScenarioList}>
+              {salesConsoleQuoteScenarioReadModel.scenarios.map((scenario) => (
+                <article key={scenario.scenarioId}>
+                  <div>
+                    <strong>{scenario.scenarioId}</strong>
+                    <span>{scenario.version} · estimate-only</span>
+                  </div>
+                  <span className={styles.statusDanger}>submission disabled</span>
+                  <small>Inputs: {scenario.requiredInputs.join(", ")}</small>
+                  <small>Disclaimer: {String(scenario.disclaimerRequired)}. Manager review: {String(scenario.managerReviewRequired)}. Finance verification: {String(scenario.financeVerificationRequired)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {quoteScenarioBuilderIsEstimateOnly() ? "Estimate-only scenarios" : "Quote submission risk"}</span>
+              <span><ShieldCheck size={13} /> {quoteScenarioRequiresReviewAndFinanceVerification() ? "Review and finance verification required" : "Review gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {quoteScenarioHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Quote coverage incomplete"}</span>
+              {salesConsoleQuoteScenarioReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review finance handoff foundation">
+            <div className={styles.railHeader}><h2>Finance Handoff Foundation</h2><HandCoins size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Finance handoff is package/status visibility only. Restricted finance fields stay role-limited, and finance decisions remain outside the Sales Console.
+            </p>
+            <div className={styles.enterpriseFinanceList}>
+              {salesConsoleFinanceHandoffReadModel.packages.map((handoff) => (
+                <article key={handoff.handoffId}>
+                  <div>
+                    <strong>{handoff.handoffId}</strong>
+                    <span>{handoff.status} · review-only</span>
+                  </div>
+                  <span className={styles.statusDanger}>decision disabled</span>
+                  <small>Fields: {handoff.requiredFields.join(", ")}</small>
+                </article>
+              ))}
+              {salesConsoleFinanceHandoffReadModel.visibilityRules.map((rule) => (
+                <article key={rule.field}>
+                  <div>
+                    <strong>{rule.field}</strong>
+                    <span>Visible to: {rule.visibleTo.join(", ")}</span>
+                  </div>
+                  <span className={rule.restricted ? styles.statusWarning : styles.statusGood}>{rule.restricted ? "restricted" : "limited"}</span>
+                  <small>Restricted finance field: {String(rule.restricted)}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {financeHandoffRemainsReadOnly() ? "Finance handoff remains read-only" : "Finance handoff write risk"}</span>
+              <span><ShieldCheck size={13} /> {salespersonCannotSeeRestrictedFinanceFields() ? "Salespeople cannot see restricted finance fields" : "Finance privacy risk"}</span>
+              <span><ShieldCheck size={13} /> {financeHandoffHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Finance coverage incomplete"}</span>
+              {salesConsoleFinanceHandoffReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review customer messaging foundation">
+            <div className={styles.railHeader}><h2>Customer Messaging Foundation</h2><MessageSquareText size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Messaging is consent-gated and disabled. No automation or send workflow is active in the Sales Console.
+            </p>
+            <div className={styles.enterpriseMessagingList}>
+              {salesConsoleCustomerMessagingReadModel.drafts.map((draft) => (
+                <article key={draft.draftId}>
+                  <div>
+                    <strong>{draft.draftId}</strong>
+                    <span>{draft.customerId} · {draft.templateId}</span>
+                  </div>
+                  <span className={styles.statusDanger}>send disabled</span>
+                  <small>Enabled: {String(draft.enabled)}. Send: {String(draft.sendEnabled)}. Automation: {String(draft.automationEnabled)}.</small>
+                </article>
+              ))}
+              {salesConsoleCustomerMessagingReadModel.templates.map((template) => (
+                <article key={template.templateId}>
+                  <div>
+                    <strong>{template.templateId}</strong>
+                    <span>{template.channel} · {template.useCase}</span>
+                  </div>
+                  <span className={template.approved ? styles.statusGood : styles.statusWarning}>{template.approved ? "approved template" : "template review"}</span>
+                  <small>Consent required: {String(salesConsoleCustomerMessagingReadModel.consentRule.consentRequired)}. Opt-out check: {String(salesConsoleCustomerMessagingReadModel.consentRule.optOutCheckRequired)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {messagingFoundationIsDisabled() ? "Messaging send and automation disabled" : "Messaging activation risk"}</span>
+              <span><ShieldCheck size={13} /> {messagingRequiresConsentPreviewAndOptOut() ? "Consent, preview, opt-out, and rate limit required" : "Messaging consent gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {messagingHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Messaging coverage incomplete"}</span>
+              {salesConsoleCustomerMessagingReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review vehicle holds foundation">
+            <div className={styles.railHeader}><h2>Vehicle Holds Foundation</h2><CarFront size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Vehicle holds are request-contract only. Manager approval, expiration, inventory verification, audit, and source-system gates are required before activation.
+            </p>
+            <div className={styles.enterpriseHoldList}>
+              {salesConsoleVehicleHoldReadModel.requests.map((hold) => (
+                <article key={hold.holdId}>
+                  <div>
+                    <strong>{hold.holdId}</strong>
+                    <span>{hold.stockNumber} · {hold.customerId}</span>
+                  </div>
+                  <span className={freshnessClass(hold.status === "verify-first" ? "verify-first" : "placeholder")}>{hold.status}</span>
+                  <small>Manager approval: {String(hold.managerApprovalRequired)}. Expiration: {String(hold.expirationRequired)}. Source write: {String(hold.sourceWrite)}. Enabled: {String(hold.enabled)}.</small>
+                </article>
+              ))}
+              {salesConsoleVehicleHoldReadModel.limits.map((limit) => (
+                <article key={limit.scope}>
+                  <div>
+                    <strong>{limit.scope} hold limit</strong>
+                    <span>{limit.limit}</span>
+                  </div>
+                  <span className={styles.statusWarning}>planned limit</span>
+                  <small>{limit.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {vehicleHoldFoundationIsDisabled() ? "Vehicle holds disabled" : "Vehicle hold activation risk"}</span>
+              <span><ShieldCheck size={13} /> {vehicleHoldsRequireManagerApprovalExpiryAndVerification() ? "Manager approval, expiry, and verification required" : "Hold gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {staleOrVerifyFirstInventoryBlocksHold() ? "Verify-first inventory blocks holds" : "Inventory hold risk"}</span>
+              <span><ShieldCheck size={13} /> {vehicleHoldsHaveAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Hold coverage incomplete"}</span>
+              {salesConsoleVehicleHoldReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review enterprise forecasting foundation">
+            <div className={styles.railHeader}><h2>Enterprise Forecasting Foundation</h2><LineChart size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Forecasting is read-only. Rows include confidence, freshness, source input summary, and role-limited visibility for restricted gross/finance metrics.
+            </p>
+            <div className={styles.enterpriseForecastList}>
+              {salesConsoleForecastReadModel.forecastRows.map((row) => (
+                <article key={row.metric}>
+                  <div>
+                    <strong>{row.metric}</strong>
+                    <span>{row.value} · confidence {row.confidence}</span>
+                  </div>
+                  <span className={freshnessClass(row.freshness)}>{row.freshness}</span>
+                  <small>Visible to: {row.visibleTo.join(", ")}. Restricted: {String(row.restricted)}.</small>
+                  <small>{row.inputSummary}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {forecastRowsHaveConfidenceAndFreshness() ? "Confidence and freshness visible" : "Forecast labels incomplete"}</span>
+              <span><ShieldCheck size={13} /> {restrictedForecastMetricsAreRoleLimited() ? "Restricted metrics role-limited" : "Forecast visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {staleForecastInputsLowerConfidence() ? "Stale inputs lower confidence" : "Forecast confidence risk"}</span>
+              {salesConsoleForecastReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review AI next best action foundation">
+            <div className={styles.railHeader}><h2>AI Next-Best-Action Foundation</h2><Star size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              AI is recommendation-only. It can explain priorities, but cannot message, quote, hold, approve, make finance decisions, or mutate CRM/DMS records.
+            </p>
+            <div className={styles.enterpriseAiList}>
+              {salesConsoleAiNextBestActionReadModel.recommendations.map((recommendation) => (
+                <article key={recommendation.recommendationId}>
+                  <div>
+                    <strong>{recommendation.actionType}</strong>
+                    <span>{recommendation.recommendationId} · confidence {recommendation.confidence}</span>
+                  </div>
+                  <span className={styles.statusWarning}>human confirmation</span>
+                  <small>{recommendation.reason}</small>
+                  <small>Evidence: {recommendation.evidenceLinks.join(", ")}. Blocked: {recommendation.blockedActions.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {aiRecommendationsAreAdvisoryOnly() ? "AI is advisory only" : "AI automation risk"}</span>
+              <span><ShieldCheck size={13} /> {aiRecommendationsHaveEvidenceReasonAndConfidence() ? "Evidence, reason, and confidence required" : "AI evidence incomplete"}</span>
+              <span><ShieldCheck size={13} /> {aiCannotExecuteRiskyActions() ? "AI cannot execute risky actions" : "AI action risk"}</span>
+              <span><ShieldCheck size={13} /> {aiActionsRequireFutureAuditAndPermissionCoverage() ? "Future action requires audit and permission gates" : "AI gate coverage incomplete"}</span>
+              {salesConsoleAiNextBestActionReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review sales coaching foundation">
+            <div className={styles.railHeader}><h2>Sales Coaching Foundation</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Coaching insights are explainable and role-limited. They do not create hidden scores, discipline workflows, or punitive automation.
+            </p>
+            <div className={styles.enterpriseCoachingList}>
+              {salesConsoleSalesCoachingReadModel.insights.map((insight) => (
+                <article key={insight.insightId}>
+                  <div>
+                    <strong>{insight.signal}</strong>
+                    <span>{insight.insightId} · {insight.staleDataHandling}</span>
+                  </div>
+                  <span className={styles.statusGood}>coaching-only</span>
+                  <small>{insight.evidence}</small>
+                  <small>Topic: {insight.suggestedTopic}. Visible to: {insight.visibleTo.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {coachingInsightsAreExplainable() ? "Coaching insights are explainable" : "Coaching explanation incomplete"}</span>
+              <span><ShieldCheck size={13} /> {coachingHasNoHiddenScoringOrPunitiveAutomation() ? "No hidden scoring or punitive automation" : "Coaching automation risk"}</span>
+              <span><ShieldCheck size={13} /> {coachingVisibilityIsRoleLimited() ? "Coaching visibility role-limited" : "Coaching visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {staleCoachingDataIsVerifyFirst() ? "Stale coaching data is verify-first" : "Coaching freshness risk"}</span>
+              {salesConsoleSalesCoachingReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review multi-store reporting foundation">
+            <div className={styles.railHeader}><h2>Multi-Store Reporting Foundation</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Multi-store reporting is read-only and export-disabled. Store visibility is role-limited and every row carries aggregation and freshness rules.
+            </p>
+            <div className={styles.enterpriseReportingList}>
+              {salesConsoleMultiStoreReportingReadModel.rows.map((row) => (
+                <article key={`${row.storeId}-${row.metric}`}>
+                  <div>
+                    <strong>{row.metric}</strong>
+                    <span>{row.storeId} · {row.value}</span>
+                  </div>
+                  <span className={freshnessClass(row.freshness)}>{row.freshness}</span>
+                  <small>Visible to: {row.visibleTo.join(", ")}. Restricted: {String(row.restricted)}.</small>
+                  <small>{row.aggregationRule}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {multiStoreReportingIsReadOnly() ? "Reporting is read-only" : "Reporting write risk"}</span>
+              <span><ShieldCheck size={13} /> {reportingRowsHaveAggregationAndFreshness() ? "Aggregation and freshness visible" : "Reporting labels incomplete"}</span>
+              <span><ShieldCheck size={13} /> {unauthorizedStoreVisibilityIsBlocked() ? "Unauthorized store visibility blocked" : "Store visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {reportingExportsRemainDisabled() ? "Exports disabled" : "Export risk"}</span>
+              {salesConsoleMultiStoreReportingReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Production MVP</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Stable read-only operating console. Planning and configuration evidence is separated into admin review panels.
+            </p>
+            <div className={styles.productionReadinessList}>
+              {salesConsoleProductionReadiness.productionChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={pilotStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.evidence} Owner: {check.owner}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Production Surface Boundary</h2><Gauge size={18} /></div>
+            <div className={styles.surfaceBoundaryList}>
+              {salesConsoleProductionReadiness.operationalSurfaces.map((surface) => (
+                <article key={surface.surface}>
+                  <strong>{surface.surface}</strong>
+                  <span className={styles.statusGood}>{surface.audience}</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+              {salesConsoleProductionReadiness.adminReviewSurfaces.map((surface) => (
+                <article key={surface.surface}>
+                  <strong>{surface.surface}</strong>
+                  <span className={styles.statusWarning}>{surface.audience}</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Production Empty States</h2><HelpCircle size={18} /></div>
+            <div className={styles.emptyStateList}>
+              {salesConsoleProductionReadiness.emptyStates.map((state) => (
+                <article key={state.surface}>
+                  <strong>{state.surface}</strong>
+                  <span>{state.userMessage}</span>
+                  <small>{state.verification}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Role-Based Console</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Active production MVP role: {activeRoleView?.label}. Source records stay as the system of record; this console only changes visibility.
+            </p>
+            <div className={styles.roleViewList}>
+              {salesConsoleRoleViews.map((role) => (
+                <article key={role.role}>
+                  <div>
+                    <strong>{role.label}</strong>
+                    <span>Default: {role.defaultSurface}</span>
+                  </div>
+                  <span className={role.role === salesConsoleMvpExecution.defaultRole ? styles.statusGood : styles.statusNeutral}>
+                    {role.role === salesConsoleMvpExecution.defaultRole ? "pilot default" : "available"}
+                  </span>
+                  <small>Visible: {role.visibleSurfaces.join(", ")}</small>
+                  <small>Restricted: {role.restrictedSurfaces.length > 0 ? role.restrictedSurfaces.join(", ") : "None in read-only pilot"}</small>
+                  <em>{role.placeholderBehavior}</em>
+                  <div className={styles.roleViewMetrics}>
+                    <span>{role.sellerQueueVisible} seller items</span>
+                    <span>{role.leadSignalsVisible} lead signals</span>
+                    <span>{role.managerRisksVisible} manager risks</span>
+                    <span>{role.dealsVisible} deals</span>
+                    <span>{role.inventoryMatchesVisible} vehicles</span>
+                    <span>{role.blockedActionCount} actions disabled/planned</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review pilot readiness">
+            <div className={styles.railHeader}><h2>Pilot-Ready MVP</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Admin review evidence from the limited pilot phase. A manager should understand the day&apos;s priorities within 30 seconds.
+            </p>
+            <div className={styles.priorityBriefList}>
+              {salesConsolePilotReadiness.priorityBrief.length > 0 ? (
+                salesConsolePilotReadiness.priorityBrief.map((priority) => (
+                  <article key={priority}><AlertTriangle size={14} /><span>{priority}</span></article>
+                ))
+              ) : (
+                <article><HelpCircle size={14} /><span>No priority work is available. Check source systems before using the console.</span></article>
+              )}
+            </div>
+            <div className={styles.pilotReadinessList}>
+              {salesConsolePilotReadiness.readinessChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={pilotStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.evidence} Owner: {check.owner}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot State Verification</h2><ShieldCheck size={18} /></div>
+            <div className={styles.stateVerificationList}>
+              {salesConsolePilotReadiness.stateVerification.map((state) => (
+                <article key={state.label}>
+                  <strong>{state.label}</strong>
+                  <span className={pilotStatusClass(state.status)}>{state.count}</span>
+                  <small>{state.meaning}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}>
+              <div>
+                <span className={styles.eyebrow}>Manager Command Center</span>
+                <h2>Today at a glance</h2>
+              </div>
+              <MoreVertical size={17} aria-hidden="true" />
+            </div>
+            <div className={styles.glanceGrid}>
+              {glanceMetrics.map((metric) => (
+                <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.delta}</small></div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M15 manager daily command brief">
+            <div className={styles.railHeader}><h2>M15 Manager Daily Command</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Manager view now highlights today&apos;s read-only priorities before approvals, discounts, holds, or finance actions are considered in source workflows.
+            </p>
+            <div className={styles.managerCommandBriefList}>
+              {salesConsoleM15ManagerCommandPolish.priorities.map((priority) => (
+                <article key={priority.priority}>
+                  <strong>{priority.priority}</strong>
+                  <span>{priority.count}</span>
+                  <small>{priority.managerMeaning}</small>
+                  <em>{priority.readOnlyBoundary}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Risk Queues</h2><a href="#command-center">View All</a></div>
+            <div className={styles.railList}>
+              {riskQueues.map((queue) => <div key={queue.label}><span>{queue.label}</span><strong className={toneClass(queue.tone)}>{queue.value}</strong></div>)}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Approvals</h2><a href="#deal-desk">View All</a></div>
+            <div className={styles.railList}>
+              {approvalQueues.map((queue) => <div key={queue.label}><span>{queue.label}</span><strong>{queue.value}</strong></div>)}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Forecast</h2><a href="#pipeline">View Forecast</a></div>
+            <div className={styles.forecastList}>
+              {forecastRows.map((row) => (
+                <div key={row.label}>
+                  <span>{row.label}</span>
+                  <strong>{row.value}</strong>
+                  <small>{row.target}</small>
+                  <i style={barStyle(row.attainment)} />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} id="lead-operations">
+            <div className={styles.railHeader}><h2>Lead Operations</h2><UsersRound size={18} /></div>
+            <div className={styles.leadHealth}>
+              {leadHealthSignals.map((signal) => {
+                const Icon = signal.icon;
+                return <span key={signal.label}><Icon size={14} /> {signal.label}</span>;
+              })}
+            </div>
+            <div className={styles.leadOperationsDepth}>
+              {salesConsoleM14LeadOperationsDepth.groups.map((group) => (
+                <article key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} leads</span>
+                  <small>{group.verifyPrompt}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Top Opportunities</h2><a href="#today">View All</a></div>
+            <div className={styles.opportunityList}>
+              {topOpportunities.map((opportunity) => (
+                <article key={opportunity.customer}>
+                  <div><strong>{opportunity.customer}</strong><span>{opportunity.vehicle}</span></div>
+                  <b>{opportunity.value}</b>
+                  <small>{opportunity.confidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Definition</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleMvpDefinition.operatingBoundary}
+            </p>
+            <div className={styles.mvpDefinition}>
+              <strong>Included</strong>
+              <ul>
+                {salesConsoleMvpDefinition.includedCapabilities.slice(0, 3).map((capability) => (
+                  <li key={capability}>{capability}</li>
+                ))}
+              </ul>
+              <strong>Excluded</strong>
+              <ul>
+                {salesConsoleMvpDefinition.excludedCapabilities.map((capability) => (
+                  <li key={capability}>{capability}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Read-Only Action Guardrails</h2><ShieldCheck size={18} /></div>
+            <div className={styles.actionGuardrailList}>
+              {salesConsoleMvpExecution.readOnlyGuardrails.map((guardrail) => (
+                <article key={guardrail.action}>
+                  <strong>{guardrail.action}</strong>
+                  <span className={executionStatusClass(guardrail.status)}>{guardrail.status}</span>
+                  <small>{guardrail.reason}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Execution Data Contract</h2><Gauge size={18} /></div>
+            <div className={styles.executionDataList}>
+              {salesConsoleMvpExecution.dataContractFields.map((field) => (
+                <article key={field.field}>
+                  <div>
+                    <strong>{field.field}</strong>
+                    <span>{field.surface}</span>
+                  </div>
+                  <span className={freshnessClass(field.freshness)}>{field.freshness}</span>
+                  <small>{field.source}</small>
+                  <em>{field.fallbackLabel}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Live Data Contract</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleMvpLiveDataContract.boundary}</p>
+            <div className={styles.liveSourceList}>
+              {salesConsoleMvpLiveDataContract.liveSources.map((source) => (
+                <article key={source.id}>
+                  <div>
+                    <strong>{source.name}</strong>
+                    <span>{source.owner}</span>
+                  </div>
+                  <span className={liveSourceStatusClass(source.status)}>{source.status}</span>
+                  <small>Feeds: {source.feeds.join(", ")}</small>
+                  <em>{source.fallback}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Real Data Wiring</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleMvpRealDataWiring.boundary}</p>
+            <div className={styles.liveSourceList}>
+              {salesConsoleMvpRealDataWiring.connectedSources.map((source) => (
+                <article key={source.source}>
+                  <div>
+                    <strong>{source.source}</strong>
+                    <span>Feeds: {source.surfaces.join(", ")}</span>
+                  </div>
+                  <span className={realDataStatusClass(source.status)}>{source.status}</span>
+                  <small>{source.fallback}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleMvpRealDataWiring.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Read Model Contracts</h2><FileCheck2 size={18} /></div>
+            <div className={styles.readModelList}>
+              {salesConsoleMvpLiveDataContract.readModels.map((model) => (
+                <article key={model.surface}>
+                  <strong>{model.surface}</strong>
+                  <span>Key: {model.recordKey}</span>
+                  <small>Required: {model.requiredFields.join(", ")}</small>
+                  <em>{model.placeholderRule}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Source Link Contracts</h2><ChevronRight size={18} /></div>
+            <div className={styles.sourceLinkList}>
+              {salesConsoleMvpLiveDataContract.sourceLinks.map((link) => (
+                <article key={link.label}>
+                  <strong>{link.label}</strong>
+                  <code>{link.routePattern}</code>
+                  <span className={freshnessClass(link.freshness)}>{link.freshness}</span>
+                  <small>{link.unavailableLabel}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Adapter Source Links</h2><ChevronRight size={18} /></div>
+            <div className={styles.sourceLinkList}>
+              {adapterSourceLinks.map((link) => (
+                <article key={`${link.owner}-${link.label}-${link.href}`}>
+                  <strong>{link.label}</strong>
+                  <code>{link.href}</code>
+                  <span className={freshnessClass(link.state)}>{link.state}</span>
+                  <small>{link.owner}: {link.unavailableLabel}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Read Adapter Preview</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Read-only adapter output from mock source-shaped records. No source records are changed.
+            </p>
+            <div className={styles.adapterPreviewGrid}>
+              <article>
+                <strong>Seller queue</strong>
+                <span>{salesConsoleReadAdapterPreview.sellerQueue.length} normalized items</span>
+                <small>{salesConsoleReadAdapterPreview.sellerQueue[0]?.customer}: {salesConsoleReadAdapterPreview.sellerQueue[0]?.blocker}</small>
+              </article>
+              <article>
+                <strong>Lead operations</strong>
+                <span>{salesConsoleReadAdapterPreview.leadOperations.length} lead signals</span>
+                <small>{salesConsoleReadAdapterPreview.leadOperations[1]?.label}: {salesConsoleReadAdapterPreview.leadOperations[1]?.slaLabel}</small>
+              </article>
+              <article>
+                <strong>Inventory intelligence</strong>
+                <span>{salesConsoleReadAdapterPreview.inventoryMatches.length} vehicle matches</span>
+                <small>{salesConsoleReadAdapterPreview.inventoryMatches[1]?.status}: {salesConsoleReadAdapterPreview.inventoryMatches[1]?.blockerDetail}</small>
+              </article>
+              <article>
+                <strong>Manager risks</strong>
+                <span>{salesConsoleReadAdapterPreview.managerRisks.length} aggregated risks</span>
+                <small>{salesConsoleReadAdapterPreview.managerRisks.map((risk) => `${risk.label} ${risk.count}`).join(" · ")}</small>
+              </article>
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Adapter Safety Rules</h2><ShieldCheck size={18} /></div>
+            <div className={styles.adapterRuleList}>
+              {salesConsoleMvpLiveDataContract.adapterRules.map((rule) => (
+                <article key={rule.rule}>
+                  <strong>{rule.rule}</strong>
+                  <span>{rule.enforcement}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot Readiness Smoke</h2><CheckCircle2 size={18} /></div>
+            <div className={styles.pilotReadinessList}>
+              {salesConsoleMvpExecution.pilotReadinessChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={executionStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot Acceptance Tracking</h2><ClipboardCheck size={18} /></div>
+            <div className={styles.pilotReadinessList}>
+              {salesConsolePilotReadiness.acceptanceTracker.map((check) => (
+                <article key={check.item}>
+                  <strong>{check.item}</strong>
+                  <span className={pilotStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.proof} Owner: {check.owner}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot Empty &amp; Fallback States</h2><HelpCircle size={18} /></div>
+            <div className={styles.emptyStateList}>
+              {salesConsolePilotReadiness.fallbackStates.map((state) => (
+                <article key={state.surface}>
+                  <strong>{state.surface}</strong>
+                  <span>{state.emptyLabel}</span>
+                  <small>{state.fallbackAction}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Recommended MVP Boundary</h2><CheckCircle2 size={18} /></div>
+            <div className={styles.boundaryCard}>
+              <strong>{salesConsoleMvpDefinition.recommendedMvpBoundary.recommendation}</strong>
+              <span>{salesConsoleMvpDefinition.recommendedMvpBoundary.releaseLine}</span>
+              <small>Pilot mode: {salesConsoleMvpDefinition.recommendedMvpBoundary.pilotMode}</small>
+              <small>Success standard: {salesConsoleMvpDefinition.recommendedMvpBoundary.successStandard}</small>
+              <em>Expansion trigger: {salesConsoleMvpDefinition.recommendedMvpBoundary.expansionTrigger}</em>
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleMvpDefinition.recommendedMvpBoundary.nonNegotiables.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Roles &amp; Permissions</h2><UserRoundCheck size={18} /></div>
+            <div className={styles.rolePermissionList}>
+              {salesConsoleMvpDefinition.rolesAndPermissions.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span>Can see: {role.canSee.join("; ")}</span>
+                  <span>Cannot do: {role.cannotDo.join("; ")}</span>
+                  <small>{role.mvpControl}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Data Source Map</h2><Gauge size={18} /></div>
+            <div className={styles.dataSourceList}>
+              {salesConsoleMvpDefinition.dataSourceMap.map((source) => (
+                <article key={source.surface}>
+                  <strong>{source.surface}</strong>
+                  <span>{source.source}</span>
+                  <small>Fields: {source.fields}</small>
+                  <small>Freshness: {source.freshness}</small>
+                  <em>Fallback: {source.fallback}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Pilot Acceptance Checklist</h2><ClipboardCheck size={18} /></div>
+            <div className={styles.acceptanceList}>
+              {salesConsoleMvpDefinition.pilotAcceptanceChecklist.map((check) => (
+                <article key={check.item}>
+                  <CheckCircle2 size={14} />
+                  <div>
+                    <strong>{check.item}</strong>
+                    <span>{check.proof}</span>
+                    <small>Owner: {check.owner}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>What Is Included In The MVP</h2><FileCheck2 size={18} /></div>
+            <div className={styles.includedMvpList}>
+              {salesConsoleMvpDefinition.includedInMvp.map((item) => (
+                <article key={item.area}>
+                  <strong>{item.area}</strong>
+                  <ul>
+                    {item.includes.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                  <small>{item.outcome}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>What Is Excluded From The MVP</h2><AlertTriangle size={18} /></div>
+            <div className={styles.scopeReviewList}>
+              {salesConsoleMvpDefinition.excludedFromMvp.map((item) => (
+                <article key={item.capability}>
+                  <strong>{item.capability}</strong>
+                  <span>{item.reason}</span>
+                  <small>Future path: {item.futurePath}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Build Order</h2><Clock3 size={18} /></div>
+            <div className={styles.buildOrderList}>
+              {salesConsoleMvpDefinition.buildOrder.map((item) => (
+                <article key={item.step}>
+                  <span>{item.step}</span>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>{item.deliverable}</small>
+                    <em>{item.dependency}</em>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Decision Gates</h2><ShieldCheck size={18} /></div>
+            <div className={styles.decisionGateList}>
+              {salesConsoleMvpDefinition.decisionGates.map((item) => (
+                <article key={item.gate}>
+                  <strong>{item.gate}</strong>
+                  <span>{item.question}</span>
+                  <small>Pass: {item.passSignal}</small>
+                  <em>If not passed: {item.ifNotPassed}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Principles</h2><ShieldCheck size={18} /></div>
+            <div className={styles.principleList}>
+              {salesConsoleMvpDefinition.principles.map((principle) => (
+                <article key={principle.name}>
+                  <strong>{principle.name}</strong>
+                  <span>{principle.meaning}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Milestone Roadmap</h2><Gauge size={18} /></div>
+            <div className={styles.milestoneList}>
+              {salesConsoleMvpDefinition.milestoneRoadmap.map((item) => (
+                <article key={item.id}>
+                  <span>{item.id}</span>
+                  <div>
+                    <strong>{item.milestone}</strong>
+                    <small>{item.exitProof}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <p className={styles.guardrailCopy}>
+              Roadmap continues through {salesConsoleMvpDefinition.milestoneRoadmap.at(-1)?.id}: pilot review and stabilization.
+            </p>
+          </section>
+
+          <section className={styles.hiddenSmokeText} aria-hidden="true">
+            <BadgeDollarSign /> <HandCoins /> <LineChart /> <UserRoundCheck /> <Gauge /> <FileCheck2 /> <ShieldCheck />
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
+}

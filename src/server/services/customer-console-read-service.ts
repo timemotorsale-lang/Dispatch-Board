@@ -1,7 +1,21 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { listRecentCustomerLeads } from "@/server/services/customer-lead-service";
 import { listConcernResolutionPackages } from "@/server/services/concern-resolution-service";
-import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
+import {
+  getInitialMinneapolisLocation,
+  INITIAL_ORGANIZATION
+} from "@/server/appointments/location-foundation";
+import {
+  getLocationLocalDate,
+  locationLocalDateMinuteToInstant
+} from "@/server/appointments/location-time-service";
+import { listAppointmentReadModels } from "@/server/services/appointment-read-service";
+import {
+  crmDashboardSourceTruth,
+  isCustomerLeadStageInLifecycle,
+  type CrmSourceTruthStatus
+} from "@/lib/crm-source-of-truth-registry";
 import { canViewCustomerContact } from "@/server/policies/access";
 import { createCustomer360Repository, type Customer360Repository } from "@/server/repositories/customer-360-repository";
 
@@ -12,14 +26,14 @@ export type CustomerConsoleReadMeta = {
 };
 
 export type CustomerDashboardReadModel = CustomerConsoleReadMeta & {
-  metrics: Array<{ label: string; value: string; trend: string; tone: string }>;
+  metrics: Array<{ label: string; sourceDetail: string; sourceStatus: CrmSourceTruthStatus; value: string; tone: string }>;
   pipeline: Array<{ label: string; value: number; tone: string }>;
   leadSources: Array<{ label: string; value: number; tone: string }>;
-  recentLeads: Array<{ initial: string; name: string; source: string; vehicle: string; date: string; status: string }>;
+  recentLeads: Array<{ initial: string; name: string; source: string; vehicle: string; date: string; status: string; href: string }>;
   topDeals: Array<{ customer: string; vehicle: string; amount: string; stage: string }>;
   tasks: Array<{ title: string; detail: string; priority: string }>;
   appointments: Array<{ time: string; customer: string; detail: string }>;
-  activity: Array<{ title: string; detail: string; time: string }>;
+  activity: Array<{ title: string; detail: string; time: string; href: string }>;
 };
 
 export type CustomerResolutionCase = {
@@ -97,47 +111,238 @@ function meta(user: AuthenticatedUser): CustomerConsoleReadMeta {
   return { generatedAt: new Date().toISOString(), source: "PREVIEW_READ_MODEL", viewerName: user.name };
 }
 
+function titleCase(value: string) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (match) => match.toUpperCase());
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "CU";
+}
+
+function formatDashboardDate(value: string | Date) {
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/Chicago"
+  });
+}
+
+function formatDashboardTime(value: string | Date | null | undefined) {
+  if (!value) return "Unscheduled";
+  return new Date(value).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago"
+  });
+}
+
+function formatAgo(value: string | Date, now = new Date()) {
+  const elapsed = Math.max(0, now.getTime() - new Date(value).getTime());
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function crmNextCustomerHref(customerId: string) {
+  return `/crm-next/customers/${encodeURIComponent(customerId)}`;
+}
+
+function leadSourceBreakdown(sources: string[]) {
+  const counts = sources.reduce<Record<string, number>>((acc, source) => {
+    const label = source.trim() || "Unknown";
+    acc[label] = (acc[label] ?? 0) + 1;
+    return acc;
+  }, {});
+  const tones = ["blue", "orange", "green", "red", "purple"];
+  const total = Math.max(1, sources.length);
+  return Object.entries(counts).slice(0, 5).map(([label, count], index) => ({
+    label,
+    tone: tones[index] ?? "blue",
+    value: Math.round((count / total) * 100)
+  }));
+}
+
+function measuredCount(count: number, hasMore = false) {
+  return hasMore ? `${count}+` : String(count);
+}
+
+function noSourceValue() {
+  return "No source data available";
+}
+
+function sourceDetail(id: string) {
+  const entry = crmDashboardSourceTruth(id);
+  const scope = entry.lifecycleScope?.counts.map((stage) => stage.replaceAll("_", " ").toLowerCase()).join(", ");
+  return scope ? `${entry.status} · ${entry.source} · Counts ${scope}` : `${entry.status} · ${entry.source}`;
+}
+
+function customerDashboardAppointmentWindow(now: Date) {
+  const location = getInitialMinneapolisLocation();
+  const localDate = getLocationLocalDate(now, location.timezone);
+  return {
+    location,
+    windowEnd: locationLocalDateMinuteToInstant({
+      localDate,
+      minuteOfDay: 1440,
+      timezone: location.timezone
+    }),
+    windowStart: locationLocalDateMinuteToInstant({
+      localDate,
+      minuteOfDay: 0,
+      timezone: location.timezone
+    })
+  };
+}
+
+function pipelineFromRows(rows: Array<{ status: string }>) {
+  const tones = ["blue", "green", "yellow", "purple", "red"];
+  const counts = rows.reduce<Record<string, number>>((acc, row) => {
+    const label = row.status || "Unknown";
+    acc[label] = (acc[label] ?? 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts).slice(0, 5).map(([label, value], index) => ({
+    label,
+    tone: tones[index] ?? "blue",
+    value
+  }));
+}
+
 const detailPanels: Record<CustomerResolutionDetail, (item: CustomerResolutionCase) => CustomerResolutionReadModel["detailPanel"]> = {
   details: (item) => ({
     title: "Case Details",
     summary: `Operational facts and SLA context for ${item.id}.`,
     sections: [
-      { title: "Case Information", rows: [{ label: "Type", value: item.category }, { label: "Channel", value: "Phone" }, { label: "Source", value: "Inbound Call" }, { label: "SLA", value: `${item.sla}% remaining`, tone: item.sla <= 50 ? "danger" : "success" }] },
-      { title: "Customer Information", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Open Cases", value: "1" }, { label: "Lifetime Value", value: "$28,450" }] },
-      { title: "Next Steps", rows: [{ label: "Completed", value: "Verify financing documents" }, { label: "Due today", value: "Check status with current owner" }, { label: "Tomorrow", value: "Update customer with resolution" }] }
+      { title: "Case Information", rows: [{ label: "Type", value: item.category }, { label: "Status", value: item.status }, { label: "Priority", value: item.priority }, { label: "SLA", value: `${item.sla}% remaining`, tone: item.sla <= 50 ? "danger" : "success" }] },
+      { title: "Customer Information", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Vehicle", value: item.vehicle }, { label: "Owner", value: item.owner || "Unassigned" }] },
+      { title: "Next Steps", rows: [{ label: "Current state", value: item.subject }, { label: "Due source", value: "No additional verified next-step records available" }] }
     ]
   }),
-  timeline: (item) => ({ title: "Case Timeline", summary: `Chronological case activity for ${item.customer}.`, sections: [{ title: "Today", rows: [{ label: "10:45 AM", value: "Required documents verified" }, { label: "10:23 AM", value: "Inbound customer call recorded" }, { label: "9:50 AM", value: `Case assigned to ${item.owner || "Unassigned queue"}` }] }, { title: "Yesterday", rows: [{ label: "4:10 PM", value: "SLA warning generated" }, { label: "2:35 PM", value: "Customer requested status update" }] }] }),
-  customer: (item) => ({ title: "Customer Context", summary: `Customer 360 summary for ${item.customer}.`, sections: [{ title: "Identity", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Customer Since", value: "Feb 18, 2023" }] }, { title: "Relationship", rows: [{ label: "Lifetime Value", value: "$28,450" }, { label: "Purchases", value: "2" }, { label: "Preferred Contact", value: "Phone" }] }] }),
-  vehicle: (item) => ({ title: "Vehicle Context", summary: `Vehicle facts linked to ${item.id}.`, sections: [{ title: item.vehicle, rows: [{ label: "Relationship", value: "Customer vehicle" }, { label: "VIN", value: "4T1B11HKXJU045678" }, { label: "Service Status", value: "No active repair order" }, { label: "Last Visit", value: "May 12, 2025" }] }] }),
-  related: (item) => ({ title: "Related Work", summary: `Tasks, appointments, and documents correlated to ${item.id}.`, sections: [{ title: "Tasks", rows: [{ label: "TMS-1048", value: "Financing follow-up - In Progress" }, { label: "TMS-1051", value: "Customer status update - Not Started" }] }, { title: "Appointments", rows: [{ label: "APT-10245", value: "Financing discussion - May 31, 10:00 AM" }] }, { title: "Documents", rows: [{ label: "Proof of income", value: "Received" }, { label: "Lender decision", value: "Pending" }] }] })
+  timeline: (item) => ({ title: "Case Timeline", summary: `Chronological case activity for ${item.customer}.`, sections: [{ title: "Verified case source", rows: [{ label: "Updated", value: item.updated }, { label: "Current status", value: item.status }, { label: "Activity", value: "No additional verified case timeline records available" }] }] }),
+  customer: (item) => ({ title: "Customer Context", summary: `Customer 360 summary for ${item.customer}.`, sections: [{ title: "Identity", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Owner", value: item.owner || "Unassigned" }] }, { title: "Relationship", rows: [{ label: "Lifetime Value", value: "No source data available" }, { label: "Purchases", value: "No source data available" }, { label: "Preferred Contact", value: "No source data available" }] }] }),
+  vehicle: (item) => ({ title: "Vehicle Context", summary: `Vehicle facts linked to ${item.id}.`, sections: [{ title: item.vehicle, rows: [{ label: "Relationship", value: item.vehicle === "No linked vehicle" ? "No linked vehicle" : "Linked to case source" }, { label: "VIN", value: "No source data available" }, { label: "Service Status", value: "No source data available" }, { label: "Last Visit", value: "No source data available" }] }] }),
+  related: (item) => ({ title: "Related Work", summary: `Tasks, appointments, and documents correlated to ${item.id}.`, sections: [{ title: "Tasks", rows: [{ label: "CRM tasks", value: "No verified related tasks available" }] }, { title: "Appointments", rows: [{ label: "Appointments", value: "No verified related appointments available" }] }, { title: "Documents", rows: [{ label: "Documents", value: "No verified related documents available" }] }] })
 };
 
 export async function getCustomerDashboardReadModel(
   user: AuthenticatedUser | null,
-  dependencies: { leadReader?: typeof listRecentCustomerLeads } = {}
+  dependencies: {
+    appointmentReader?: typeof listAppointmentReadModels;
+    customerReader?: typeof getUnifiedCrmCustomerList;
+    leadReader?: typeof listRecentCustomerLeads;
+    now?: () => Date;
+  } = {}
 ): Promise<CustomerDashboardReadModel> {
   const actor = assertAuthenticated(user);
+  const appointmentReader = dependencies.appointmentReader ?? listAppointmentReadModels;
   const leadReader = dependencies.leadReader ?? listRecentCustomerLeads;
-  const durableLeads = await leadReader(actor, 5);
+  const customerReader = dependencies.customerReader ?? getUnifiedCrmCustomerList;
+  const now = dependencies.now?.() ?? new Date();
+  const appointmentWindow = customerDashboardAppointmentWindow(now);
+  const [durableLeads, customers, appointmentResult] = await Promise.all([
+    leadReader(actor, 8),
+    customerReader(actor, { limit: 12, owner: "all", status: "all" }),
+    appointmentReader(actor, {
+      includeCancelled: false,
+      locationId: appointmentWindow.location.id,
+      windowEnd: appointmentWindow.windowEnd,
+      windowStart: appointmentWindow.windowStart
+    }).then((result) => ({ ok: true as const, result })).catch(() => ({ ok: false as const }))
+  ]);
+  const appointments = appointmentResult.ok ? appointmentResult.result : null;
+  const recentLeadRows = [
+    ...durableLeads.map((lead) => ({
+      initial: initials(lead.customer.displayName),
+      name: lead.customer.displayName,
+      source: titleCase(lead.sourceCode),
+      vehicle: lead.vehicleInterest ?? "No vehicle selected",
+      date: formatDashboardDate(lead.createdAt),
+      status: titleCase(lead.stage),
+      href: crmNextCustomerHref(lead.customer.id),
+      sortAt: new Date(lead.createdAt).getTime()
+    })),
+    ...customers.items.map((customer) => ({
+      initial: initials(customer.displayName),
+      name: customer.displayName,
+      source: titleCase(customer.sourceCode ?? "Customer Intake"),
+      vehicle: customer.hasNextAction ? "Next action scheduled" : "No vehicle selected",
+      date: formatDashboardDate(customer.updatedAt),
+      status: titleCase(customer.status),
+      href: crmNextCustomerHref(customer.id),
+      sortAt: new Date(customer.updatedAt).getTime()
+    }))
+  ].sort((left, right) => right.sortAt - left.sortAt).filter((row, index, rows) => rows.findIndex((candidate) => candidate.href === row.href) === index).slice(0, 5);
+  const activityRows = [
+    ...durableLeads.map((lead) => ({
+      title: "New lead received",
+      detail: `${lead.customer.displayName} via ${titleCase(lead.sourceCode)}`,
+      time: formatAgo(lead.createdAt, now),
+      href: crmNextCustomerHref(lead.customer.id),
+      sortAt: new Date(lead.createdAt).getTime()
+    })),
+    ...customers.items.filter((customer) => customer.hasNextAction).map((customer) => ({
+      title: "Customer next action due",
+      detail: `${customer.displayName} - ${customer.ownerName}`,
+      time: formatAgo(customer.updatedAt, now),
+      href: crmNextCustomerHref(customer.id),
+      sortAt: new Date(customer.updatedAt).getTime()
+    }))
+  ].sort((left, right) => right.sortAt - left.sortAt).filter((row, index, rows) => rows.findIndex((candidate) => `${candidate.title}:${candidate.href}` === `${row.title}:${row.href}`) === index).slice(0, 5);
+  const sourceRows = leadSourceBreakdown(recentLeadRows.map((row) => row.source));
+  const pipelineRows = pipelineFromRows(recentLeadRows);
+  const customerCountValue = measuredCount(customers.items.length, customers.page.hasMore);
+  const newLeadRows = durableLeads.filter((lead) => isCustomerLeadStageInLifecycle(String(lead.stage), ["LEAD"]));
+  const leadCountValue = measuredCount(newLeadRows.length);
+  const openDealLeads = durableLeads.filter((lead) => isCustomerLeadStageInLifecycle(String(lead.stage), ["QUALIFIED_OPPORTUNITY"]));
+  const wonThisMonthLeads = durableLeads.filter((lead) => {
+    if (!isCustomerLeadStageInLifecycle(String(lead.stage), ["SOLD"])) return false;
+    const wonAt = new Date(lead.updatedAt ?? lead.createdAt);
+    return wonAt.getFullYear() === now.getFullYear() && wonAt.getMonth() === now.getMonth();
+  });
   return {
     ...meta(actor),
     source: "HYBRID_READ_MODEL",
-    metrics: [{ label: "Total Customers", value: "2,842", trend: "12.5%", tone: "blue" }, { label: "New Leads", value: "168", trend: "8.3%", tone: "green" }, { label: "Open Deals", value: "74", trend: "15.2%", tone: "purple" }, { label: "Appointments", value: "28", trend: "5.7%", tone: "orange" }, { label: "Sales This Month", value: "$487,620", trend: "18.6%", tone: "cyan" }],
-    pipeline: [{ label: "New Leads", value: 168, tone: "blue" }, { label: "Contacted", value: 98, tone: "green" }, { label: "Qualified", value: 74, tone: "yellow" }, { label: "Proposal Sent", value: 42, tone: "purple" }, { label: "Won", value: 18, tone: "red" }],
-    leadSources: [{ label: "Website", value: 42, tone: "blue" }, { label: "Referral", value: 25, tone: "orange" }, { label: "Facebook", value: 15, tone: "green" }, { label: "Google Ads", value: 10, tone: "red" }, { label: "Walk-In", value: 8, tone: "purple" }],
-    recentLeads: durableLeads.map((lead) => ({
-      initial: lead.customer.displayName.slice(0, 1).toUpperCase(),
-      name: lead.customer.displayName,
-      source: lead.sourceCode.replaceAll("_", " "),
-      vehicle: lead.vehicleInterest ?? "No vehicle selected",
-      date: new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }),
-      status: lead.stage.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (value) => value.toUpperCase())
+    metrics: [
+      { label: "Total Customers", sourceDetail: sourceDetail("total-customers"), sourceStatus: "Live", value: customerCountValue, tone: "blue" },
+      { label: "New Leads", sourceDetail: sourceDetail("new-leads"), sourceStatus: "Live", value: leadCountValue, tone: "green" },
+      { label: "Open Deals", sourceDetail: sourceDetail("open-deals"), sourceStatus: "Live", value: String(openDealLeads.length), tone: "purple" },
+      { label: "Appointments", sourceDetail: sourceDetail("appointments"), sourceStatus: appointments ? "Live" : "Read-only", value: appointments ? String(appointments.appointmentCount) : noSourceValue(), tone: "orange" },
+      { label: "Sales This Month", sourceDetail: sourceDetail("sales-this-month"), sourceStatus: "Read-only", value: String(wonThisMonthLeads.length), tone: "cyan" }
+    ],
+    pipeline: pipelineRows,
+    leadSources: sourceRows,
+    recentLeads: recentLeadRows.map((row) => ({
+      date: row.date,
+      href: row.href,
+      initial: row.initial,
+      name: row.name,
+      source: row.source,
+      status: row.status,
+      vehicle: row.vehicle
     })),
-    topDeals: [{ customer: "Ahmed H.", vehicle: "2018 Toyota Camry", amount: "$15,500", stage: "Proposal" }, { customer: "Fardowsa A.", vehicle: "2019 Honda Accord", amount: "$18,900", stage: "Proposal" }, { customer: "Mustafa K.", vehicle: "2020 Toyota RAV4", amount: "$22,750", stage: "Qualified" }, { customer: "Ibrahim D.", vehicle: "2017 Nissan Rogue", amount: "$14,800", stage: "Negotiation" }, { customer: "Mohamed A.", vehicle: "2019 Ford Escape", amount: "$13,200", stage: "Qualified" }],
-    tasks: [{ title: "Follow up with Ahmed H.", detail: "2018 Toyota Camry", priority: "High" }, { title: "Call Elmi M. about financing", detail: "2019 Honda Accord", priority: "Medium" }, { title: "Confirm appointment", detail: "With Fardowsa A.", priority: "Medium" }, { title: "Send insurance documents", detail: "To Ibrahim D.", priority: "Low" }, { title: "Prepare vehicle for test drive", detail: "2017 RAV4", priority: "Low" }],
-    appointments: [{ time: "10:00 AM", customer: "Ahmed H.", detail: "2018 Toyota Camry" }, { time: "1:00 PM", customer: "Fardowsa A.", detail: "Financing Discussion" }, { time: "3:30 PM", customer: "Mustafa K.", detail: "Test Drive" }],
-    activity: [{ title: "New lead received", detail: "Abdirahman M. via Website", time: "5m ago" }, { title: "Deal updated", detail: "2019 Nissan Rogue - Won", time: "1h ago" }, { title: "Appointment scheduled", detail: "With Fardowsa A.", time: "2h ago" }, { title: "Customer updated", detail: "Ahmed H. - Contact Info", time: "3h ago" }]
+    topDeals: openDealLeads.slice(0, 5).map((lead) => ({
+      amount: "No source data",
+      customer: lead.customer.displayName,
+      stage: titleCase(String(lead.stage)),
+      vehicle: lead.vehicleInterest ?? "No vehicle selected"
+    })),
+    tasks: [],
+    appointments: (appointments?.appointments ?? []).slice(0, 5).map((appointment) => ({
+      customer: appointment.customer?.displayName ?? appointment.sourceReference ?? "Customer",
+      detail: appointment.title,
+      time: formatDashboardTime(appointment.startsAt)
+    })),
+    activity: activityRows.map((row) => ({
+      detail: row.detail,
+      href: row.href,
+      time: row.time,
+      title: row.title
+    }))
   };
 }
 

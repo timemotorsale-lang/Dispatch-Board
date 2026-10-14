@@ -1,0 +1,4 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe,expect,it } from "vitest";
+describe("quality control persistence",()=>{it("defines immutable QC evidence and release gates",async()=>{const schema=await readFile(path.join(process.cwd(),"prisma/schema.prisma"),"utf8"),sql=await readFile(path.join(process.cwd(),"prisma/migrations/20260714080000_add_quality_control_release/migration.sql"),"utf8");expect(schema).toMatch(/model RepairQualityInspection/);expect(schema).toMatch(/model RepairOrderReleaseAuthorization/);expect(schema).toMatch(/QC_PASSED/);expect(sql).toMatch(/RepairQualityInspection_disposition_check/);expect(sql).toMatch(/RepairOrderReleaseAuthorization_gate_check/);expect(sql).toMatch(/prevent_quality_release_evidence_mutation/);expect(sql).toMatch(/jsonb_array_length\("openExceptions"\) = 0/);});});
