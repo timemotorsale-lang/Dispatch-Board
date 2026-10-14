@@ -9,8 +9,17 @@ done
 
 printf '\nSystem DNS configuration\n'
 cat /etc/resolv.conf
+if command -v resolvectl >/dev/null 2>&1; then
+  resolvectl dns || true
+fi
 printf '\nDocker Hub addresses from the system resolver\n'
 getent ahostsv4 registry-1.docker.io || true
+
+printf '\nDocker daemon proxy presence (values are not logged)\n'
+if command -v docker >/dev/null 2>&1; then
+  proxy_format='HTTP proxy configured: {{if .HTTPProxy}}yes{{else}}no{{end}}; HTTPS proxy configured: {{if .HTTPSProxy}}yes{{else}}no{{end}}'
+  docker info --format "$proxy_format" 2>/dev/null || sudo -n docker info --format "$proxy_format" 2>/dev/null || true
+fi
 
 check_endpoint() {
   endpoint="$1"
