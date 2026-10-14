@@ -27,6 +27,11 @@ if sudo -n true 2>/dev/null; then
 else
   printf 'Passwordless administrative access: unavailable\n'
 fi
+printf '\nAvailable administrative command permissions\n'
+sudo -n -l || true
+if command -v networkctl >/dev/null 2>&1; then
+  networkctl status wlp1s0 --no-pager || true
+fi
 printf '\nDocker Hub addresses from the system resolver\n'
 getent ahostsv4 registry-1.docker.io || true
 
