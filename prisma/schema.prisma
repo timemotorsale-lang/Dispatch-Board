@@ -1925,6 +1925,7 @@ model User {
   userDuties                                   UserDuty[]
   generatedBoardDays                           BoardDay[]                             @relation("BoardDayGeneratedByUser")
   assignedTasks                                Task[]                                 @relation("TaskAssignedUser")
+  ownedTasks                                   Task[]                                 @relation("TaskOwnerUser")
   recommendedTasks                             Task[]                                 @relation("TaskRecommendedUser")
   createdTasks                                 Task[]                                 @relation("TaskCreatedByUser")
   createdRepairOrderTaskLinks                  RepairOrderTaskLink[]                  @relation("RepairOrderTaskLinkCreatedBy")
@@ -8301,6 +8302,7 @@ model Task {
   title                      String
   description                String                          @default("")
   assignedUserId             String
+  ownerUserId                String?
   recommendedUserId          String?
   recommendationReasonCode   String?
   recommendationExplanation  String?
@@ -8336,6 +8338,7 @@ model Task {
   updatedAt                  DateTime                        @updatedAt
   boardDay                   BoardDay                        @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
   assignedUser               User                            @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  ownerUser                  User?                           @relation("TaskOwnerUser", fields: [ownerUserId], references: [id], onDelete: Restrict)
   recommendedUser            User?                           @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
   createdByUser              User?                           @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reviewedByUser             User?                           @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
@@ -8368,6 +8371,7 @@ model Task {
   @@unique([boardDayId, carryoverSourceTaskId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
+  @@index([ownerUserId, status])
   @@index([boardDayId, workflowArea])
   @@index([acceptedByUserId, acceptedAt])
   @@index([completionOverrideByUserId, completionOverrideAt])

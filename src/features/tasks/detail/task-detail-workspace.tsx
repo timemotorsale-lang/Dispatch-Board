@@ -65,6 +65,7 @@ type TaskDetailWorkspaceProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
+  canReassign?: boolean;
   compactReview?: boolean;
   canUpdateStatus: boolean;
   hasClaimWorkflow?: boolean;
@@ -239,6 +240,7 @@ export function TaskDetailWorkspace({
   canManageCollaborators,
   canCreateAppointment,
   canOpenFullWorkbench = false,
+  canReassign = actorIsManager,
   compactReview = false,
   canUpdateStatus,
   hasClaimWorkflow = false,
@@ -313,6 +315,7 @@ export function TaskDetailWorkspace({
             canCreateAppointment={canCreateAppointment}
             canManageCollaborators={canManageCollaborators}
             canOpenFullWorkbench={canOpenFullWorkbench}
+            canReassign={canReassign}
             compactReview={compactReview}
             canUpdateStatus={canUpdateStatus}
             hasClaimWorkflow={hasClaimWorkflow}
@@ -394,7 +397,8 @@ export function TaskDetailWorkspace({
               <div><dt>SLA</dt><dd className={overdueDays ? "etw-danger-text" : undefined}>{overdueDays ? `Overdue (${overdueDays} days)` : `Due ${dateLabel(dueAt)}`}</dd></div>
               <div><dt>Created</dt><dd>{formatTaskDetailDateTime(concern?.createdAt ?? task.createdAt)}</dd></div>
               <div><dt>Reported By</dt><dd>{concern?.reportedByUser.name ?? task.createdByUser?.name ?? "System"}</dd></div>
-              <div><dt>Owner</dt><dd>{concern?.assignedOwner?.name ?? task.assignedUser.name}</dd></div>
+              <div><dt>Owner</dt><dd>{concern?.assignedOwner?.name ?? task.ownerUser?.name ?? task.assignedUser.name}</dd></div>
+              <div><dt>Assignee</dt><dd>{task.assignedUser.name}</dd></div>
               <div><dt>Manager Review</dt><dd>{resolutionTasks.some((item) => item.requiresManagerApproval) ? "Required" : "Not required"}</dd></div>
               <div><dt>Estimated Time</dt><dd>{planning.estimatedTime}</dd></div>
               <div><dt>Escalation</dt><dd>{concern?.escalationRequired ? "Monitored" : "Standard"}</dd></div>
@@ -435,7 +439,7 @@ export function TaskDetailWorkspace({
           <section className="etw-card etw-risk-card"><h2><ShieldAlert size={16} /> SLA &amp; Risk</h2><div className="etw-risk-grid"><div><span>SLA Clock</span><strong>{overdueDays || "On"}</strong><small>{overdueDays ? "Days Overdue" : "Track"}</small></div><div className="etw-risk-ring" style={{ "--risk": `${Math.max(12, Math.min(96, overdueDays * 4 + (concern?.escalationRequired ? 35 : 12)))}%` } as React.CSSProperties}><b>{concern?.escalationRequired ? "High" : "Active"}</b><span>Risk</span></div></div><p>Impact: <b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></p><p>Compliance Risk: <b>{concern?.escalationRequired ? "High" : "Monitored"}</b></p></section>
           <section className="etw-card" id="timeline"><h2><Activity size={16} /> Activity Feed</h2><div className="etw-side-feed">{feedItems.slice(0, 6).map((item) => <article key={item.id}><span /><div><small>{formatTaskDetailDateTime(item.createdAt)}</small><b>{item.message}</b><em>{item.actorName}</em></div></article>)}{feedItems.length === 0 ? <p>No activity recorded yet.</p> : null}</div></section>
           <section className="etw-card" id="approvals"><h2><Gauge size={16} /> Workflow Command</h2><TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} task={task} /></section>
-          {actorIsManager ? <section className="etw-card etw-assignment-card"><h2><UserRound size={16} /> Ownership</h2><TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /></section> : null}
+          {canReassign ? <section className="etw-card etw-assignment-card"><h2><UserRound size={16} /> Assignment</h2><TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /></section> : null}
           {!elevateAppointmentPanel ? <section id="customer-comms"><TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} /></section> : null}
           <section className="etw-card" id="documents"><h2><FileText size={16} /> Documents</h2><div className="etw-document-shell"><p>No documents are linked to this task yet.</p><button disabled type="button">+ Upload coming soon</button></div></section>
           <section className="etw-card etw-communication-card"><h2><MessageSquareText size={16} /> Customer Communication</h2><div className="etw-communication-channels"><button aria-label="WhatsApp customer" disabled type="button"><MessageCircle size={18} /></button><button aria-label="Call customer" disabled type="button"><Phone size={18} /></button><button aria-label="Email customer" disabled type="button"><Mail size={18} /></button></div><p>{task.customerReference ? `Last update for ${task.customerReference}` : "Link a customer to enable direct communication."}</p><span className="etw-update-sent">Update Sent</span><button disabled type="button">Send Customer Update</button></section>

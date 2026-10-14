@@ -38,6 +38,7 @@ const taskReadSelect = {
       email: true
     }
   },
+  ownerUser: { select: { id: true, name: true, email: true } },
   recommendedUser: {
     select: {
       id: true,

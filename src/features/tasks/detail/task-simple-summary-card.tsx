@@ -52,6 +52,7 @@ type TaskSimpleSummaryCardProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
+  canReassign?: boolean;
   compactReview?: boolean;
   canUpdateStatus: boolean;
   hasClaimWorkflow?: boolean;
@@ -479,15 +480,15 @@ function ExecutionPathSwitch({
   );
 }
 
-type SimpleOwner = {
+type SimpleAssignee = {
   id: string;
   name: string;
   email?: string;
 };
 
-type SimpleCollaborator = SimpleOwner & {
+type SimpleCollaborator = SimpleAssignee & {
   addedAt: string;
-  addedBy: SimpleOwner | null;
+  addedBy: SimpleAssignee | null;
   isActive: boolean;
   collaborationScope: string;
   capacityRequested: string | null;
@@ -511,15 +512,15 @@ function TaskPeopleControls({
   task: TaskReadModel;
 }) {
   const router = useRouter();
-  const [owner, setOwner] = useState<SimpleOwner>(task.assignedUser);
-  const [ownerDraftId, setOwnerDraftId] = useState(task.assignedUser.id);
+  const [assignee, setAssignee] = useState<SimpleAssignee>(task.assignedUser);
+  const [assigneeDraftId, setAssigneeDraftId] = useState(task.assignedUser.id);
   const [collaborators, setCollaborators] = useState<SimpleCollaborator[]>(task.collaborators ?? []);
   const [collaboratorDraftId, setCollaboratorDraftId] = useState("");
   const [collaboratorScopeDraft, setCollaboratorScopeDraft] = useState("");
   const [collaboratorCapacityDraft, setCollaboratorCapacityDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSavingOwner, setIsSavingOwner] = useState(false);
+  const [isSavingAssignee, setIsSavingAssignee] = useState(false);
   const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
   const [expanded, setExpanded] = useState(initialExpanded);
 
@@ -564,10 +565,10 @@ function TaskPeopleControls({
     }
   }
 
-  async function saveOwner() {
-    if (ownerDraftId === owner.id) return;
+  async function saveAssignee() {
+    if (assigneeDraftId === assignee.id) return;
 
-    setIsSavingOwner(true);
+    setIsSavingAssignee(true);
     setErrorMessage(null);
     setMessage(null);
 
@@ -575,41 +576,41 @@ function TaskPeopleControls({
       const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/assignment`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedUserId: ownerDraftId })
+        body: JSON.stringify({ assignedUserId: assigneeDraftId })
       });
       const result = (await response.json().catch(() => null)) as {
-        task?: { assignedUser: SimpleOwner };
+        task?: { assignedUser: SimpleAssignee };
         error?: string;
       } | null;
 
       if (!response.ok || !result?.task) {
-        throw new Error(result?.error ?? "Unable to change the task owner right now.");
+        throw new Error(result?.error ?? "Unable to change the task assignee right now.");
       }
 
-      const nextOwner = result.task.assignedUser;
-      setOwner(nextOwner);
-      setOwnerDraftId(nextOwner.id);
-      setMessage(`Owner changed to ${nextOwner.name}. This task is now available in ${nextOwner.name}'s My Tasks / Work.`);
+      const nextAssignee = result.task.assignedUser;
+      setAssignee(nextAssignee);
+      setAssigneeDraftId(nextAssignee.id);
+      setMessage(`Assignee changed to ${nextAssignee.name}. This task is now available in ${nextAssignee.name}'s My Tasks / Work.`);
 
-      if (collaborators.some((item) => item.id === nextOwner.id)) {
+      if (collaborators.some((item) => item.id === nextAssignee.id)) {
         await saveCollaborators(
-          collaborators.filter((item) => item.id !== nextOwner.id),
-          `Owner changed to ${nextOwner.name}. Collaborators updated.`
+          collaborators.filter((item) => item.id !== nextAssignee.id),
+          `Assignee changed to ${nextAssignee.name}. Collaborators updated.`
         );
       } else {
         router.refresh();
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to change the task owner right now.");
+      setErrorMessage(error instanceof Error ? error.message : "Unable to change the task assignee right now.");
     } finally {
-      setIsSavingOwner(false);
+      setIsSavingAssignee(false);
     }
   }
 
   const availableCollaborators = assignableUsers.filter(
-    (user) => user.id !== owner.id && !collaborators.some((item) => item.id === user.id)
+    (user) => user.id !== assignee.id && !collaborators.some((item) => item.id === user.id)
   );
-  const canSaveOwner = canReassign && !isSavingOwner && ownerDraftId !== owner.id;
+  const canSaveAssignee = canReassign && !isSavingAssignee && assigneeDraftId !== assignee.id;
   const canAddCollaborator = canManageCollaborators && !isSavingCollaborators && Boolean(collaboratorDraftId && collaboratorScopeDraft.trim());
   const collaboratorSummary = collaborators.length
     ? `${collaborators.length} collaborator${collaborators.length === 1 ? "" : "s"}`
@@ -625,37 +626,38 @@ function TaskPeopleControls({
       >
         <UserRound size={16} />
         <span>
-          <strong>{owner.name}</strong>
-          <small>Owner - {collaboratorSummary}</small>
+          <strong>{assignee.name}</strong>
+          <small>Assignee - {collaboratorSummary}</small>
         </span>
         <b>{expanded ? "Close" : "Manage"}</b>
       </button>
       {expanded ? (
         <div className="etw-compact-people-editor">
+          <div className="etw-compact-owner-row"><b>Owner</b><span>{(task.ownerUser ?? task.assignedUser).name}</span></div>
           <div className="etw-compact-owner-row">
-            <b>Owner</b>
+            <b>Assignee</b>
             {canReassign ? (
               <>
                 <select
-                  aria-label="Change task owner"
-                  disabled={isSavingOwner}
+                  aria-label="Change task assignee"
+                  disabled={isSavingAssignee}
                   onChange={(event) => {
-                    setOwnerDraftId(event.target.value);
+                    setAssigneeDraftId(event.target.value);
                     setErrorMessage(null);
                     setMessage(null);
                   }}
-                  value={ownerDraftId}
+                  value={assigneeDraftId}
                 >
                   {assignableUsers.map((user) => (
                     <option key={user.id} value={user.id}>{user.name}</option>
                   ))}
                 </select>
-                <button disabled={!canSaveOwner} onClick={() => void saveOwner()} type="button">
-                  {isSavingOwner ? "Saving..." : "Change"}
+                <button disabled={!canSaveAssignee} onClick={() => void saveAssignee()} type="button">
+                  {isSavingAssignee ? "Saving..." : "Change"}
                 </button>
               </>
             ) : (
-              <span>{owner.name}</span>
+              <span>{assignee.name}</span>
             )}
           </div>
           <div className="etw-compact-collaborator-row">
@@ -1144,6 +1146,7 @@ function TaskDocumentUploadControl({ task }: { task: TaskReadModel }) {
 
 export function TaskSimpleSummaryCard({
   actorIsManager,
+  canReassign = actorIsManager,
   assignableUsers,
   canComment,
   canCreateAppointment,
@@ -1232,6 +1235,7 @@ export function TaskSimpleSummaryCard({
   ]));
   const needsStatusAction = completionRequirements.length > 0 || missingUpdateLabels.length > 0 || Boolean(task.blockerReason) || [TaskStatus.BLOCKED, TaskStatus.WAITING_ON_PARTS, TaskStatus.WAITING_ON_APPROVAL, TaskStatus.READY_FOR_REVIEW].some((status) => status === currentStatus) || task.requiresManagerApproval;
   const needsPlanDecision = !isClosed && canUpdateStatus && !isTaskPlanConfirmed(task.executionAssurance) && (checklist.length > 0 || subtaskItems.length > 0);
+  const accountableOwner = task.ownerUser ?? task.assignedUser;
 
   return (
     <section className={`etw-compact-task-card etw-compact-tone-${cardTone}${compactReview ? " task-review-compact" : ""}`} aria-label="Task summary card">
@@ -1266,10 +1270,11 @@ export function TaskSimpleSummaryCard({
           <div className="etw-compact-owner-summary">
             <UserRound size={17} />
             <span>
-              <strong>{task.assignedUser.name}</strong>
-              {!compactReview ? <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small> : <small>Owner</small>}
+              <strong>{accountableOwner.name}</strong>
+              <small>{accountableOwner.id === task.assignedUser.id ? "Owner and assignee" : "Owner"}</small>
             </span>
           </div>
+          {accountableOwner.id !== task.assignedUser.id ? <div className="etw-compact-owner-summary"><UserRound size={17} /><span><strong>{task.assignedUser.name}</strong><small>Assignee</small></span></div> : null}
         </div>
 
         <dl className="etw-compact-task-fields etw-compact-task-fields-summary" aria-label="Task details">
@@ -1323,6 +1328,8 @@ export function TaskSimpleSummaryCard({
               <div><dt>Category</dt><dd>{taskCategory}</dd></div>
               <div><dt>Priority</dt><dd>{priorityLabel}</dd></div>
               <div><dt>Role</dt><dd>{roleLabel}</dd></div>
+              <div><dt>Owner</dt><dd>{accountableOwner.name}</dd></div>
+              <div><dt>Assignee</dt><dd>{task.assignedUser.name}</dd></div>
               <div><dt>Next step</dt><dd>{nextStep}</dd></div>
               <div><dt>Collaborators</dt><dd>{(task.collaborators ?? []).length}</dd></div>
             </dl>
@@ -1343,11 +1350,10 @@ export function TaskSimpleSummaryCard({
           ) : null}
           {activeTool === "assignee" ? (
             <>
-              <p>Change the owner here. Once assigned, this task appears in that staff member&apos;s My Tasks / Work.</p>
               <TaskPeopleControls
                 assignableUsers={assignableUsers}
                 canManageCollaborators={canManageCollaborators}
-                canReassign={actorIsManager}
+                canReassign={canReassign}
                 initialExpanded
                 task={task}
               />

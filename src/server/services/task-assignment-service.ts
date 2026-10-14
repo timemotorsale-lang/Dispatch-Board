@@ -17,6 +17,7 @@ type TaskAssignmentUserSummary = {
 export type TaskAssignmentResult = {
   id: string;
   assignedUser: TaskAssignmentUserSummary;
+  ownerUser: TaskAssignmentUserSummary;
   recommendedUser: TaskAssignmentUserSummary | null;
   recommendation: {
     reasonCode: string;
@@ -53,13 +54,13 @@ function toUserSummary(
   };
 }
 
-function assertCanManageTaskAssignments(user: AuthenticatedUser | null) {
+function assertCanManageTaskAssignments(user: AuthenticatedUser | null, task: TaskAssignmentRecord) {
   if (!user) {
     throw new Error("Authentication required.");
   }
 
-  if (!canManageAssignments(user)) {
-    throw new Error("Manager access required.");
+  if (!canManageAssignments(user) && (task.ownerUserId ?? task.assignedUserId) !== user.id) {
+    throw new Error("Only the task owner or a manager can reassign this task.");
   }
 
   return user;
@@ -68,6 +69,7 @@ function assertCanManageTaskAssignments(user: AuthenticatedUser | null) {
 function toTaskAssignmentResult(task: TaskAssignmentRecord): TaskAssignmentResult {
   return {
     id: task.id,
+    ownerUser: toUserSummary(task.ownerUser ?? task.assignedUser)!,
     assignedUser: {
       id: task.assignedUser.id,
       name: task.assignedUser.name,
@@ -109,7 +111,7 @@ export async function updateTaskAssignment(
   input: unknown,
   repository: TaskAssignmentRepository = createTaskAssignmentRepository()
 ) {
-  const authenticatedUser = assertCanManageTaskAssignments(user);
+  if (!user) throw new Error("Authentication required.");
   const normalizedTaskId = normalizeTaskId(taskId);
   const normalizedInput = normalizeTaskAssignmentInput(input);
   const task = await repository.findTaskById(normalizedTaskId);
@@ -117,6 +119,7 @@ export async function updateTaskAssignment(
   if (!task) {
     throw new Error("Task not found.");
   }
+  const authenticatedUser = assertCanManageTaskAssignments(user, task);
 
   if (task.assignedUserId === normalizedInput.assignedUserId) {
     throw new Error("Task is already assigned to this user.");
@@ -167,6 +170,7 @@ export async function updateTaskAssignment(
         previousAssignedUserName: task.assignedUser.name,
         nextAssignedUserId: updatedTask.assignedUser.id,
         nextAssignedUserName: updatedTask.assignedUser.name,
+        ownerUserId: task.ownerUserId ?? task.assignedUserId,
         recommendedUserId: task.recommendedUser?.id ?? null,
         recommendedUserName: task.recommendedUser?.name ?? null
       }

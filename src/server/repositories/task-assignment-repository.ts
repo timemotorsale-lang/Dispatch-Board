@@ -16,6 +16,8 @@ const taskAssignmentSelect = {
   title: true,
   boardDayId: true,
   assignedUserId: true,
+  ownerUserId: true,
+  ownerUser: { select: { id: true, name: true, email: true } },
   recommendedUserId: true,
   recommendationReasonCode: true,
   recommendationExplanation: true,

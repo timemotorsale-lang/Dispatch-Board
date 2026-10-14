@@ -82,6 +82,14 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
 }
 
 describe("task detail workspace", () => {
+  it("shows the accountable owner separately from the person assigned to execute", () => {
+    const ownerUser = { id: "owner-eli", name: "Eli Accountable", email: "eli@example.test" };
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager={false} assignableUsers={[]} canComment canManageCollaborators canCreateAppointment={false} canReassign canUpdateStatus={false} compactReview task={createTask({ ownerUser })} />);
+    expect(markup).toContain("Eli Accountable");
+    expect(markup).toContain("Sarah M.");
+    expect(markup).toContain("Assignee");
+    expect(markup).toContain('aria-label="Task status: In Progress"');
+  });
   it("displays the actual current status on the editable badge without mounting status controls", () => {
     for (const status of [TaskStatus.NOT_STARTED, TaskStatus.IN_PROGRESS, TaskStatus.WAITING_ON_APPROVAL, TaskStatus.COMPLETED]) {
       const label = status.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());

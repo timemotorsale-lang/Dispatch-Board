@@ -86,9 +86,9 @@ export function TaskAssignmentPanel({ assignableUsers, task }: TaskAssignmentPan
 
   return (
     <article className="panel-card">
-      <strong>Manager assignment</strong>
+      <strong>Task assignment</strong>
       <h2>Reassign task</h2>
-      <p>Move ownership without changing the task&apos;s workflow state.</p>
+      <p>Owner: {(task.ownerUser ?? task.assignedUser).name}</p>
 
       <div className="my-task-action-grid">
         <label className="field">

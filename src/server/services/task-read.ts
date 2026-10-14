@@ -160,6 +160,7 @@ export type TaskReadModel = {
   updatedAt: string;
   assignedUser: TaskReadUserSummary;
   recommendedUser: TaskReadUserSummary | null;
+  ownerUser?: TaskReadUserSummary;
   recommendation: TaskReadRecommendation | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
@@ -436,6 +437,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
+    ownerUser: toUserSummary(task.ownerUser ?? task.assignedUser)!,
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),

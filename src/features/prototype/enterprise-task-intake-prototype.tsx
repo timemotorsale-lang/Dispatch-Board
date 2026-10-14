@@ -153,7 +153,7 @@ export function calculateTaskIntakeReadiness(draft: IntakeDraft) {
     { label: "Due date and time", ready: Boolean(draft.dueDate && draft.dueTime), weight: 10 },
     { label: "Expected outcome", ready: (draft.expectedOutcome || draft.brief).trim().length >= 20, weight: 15 },
     { label: "Required updates", ready: draft.requiredUpdates.length > 0, weight: 10 },
-    { label: "Accountable owner", ready: Boolean(draft.assignedUserId), weight: 15 },
+    { label: "Assignee", ready: Boolean(draft.assignedUserId), weight: 15 },
     { label: "Manager control aligned", ready: (draft.priority !== "CRITICAL" && draft.intakeType !== "Manager Decision") || draft.requiresManagerApproval, weight: 5 },
     { label: "Context linked or intentionally omitted", ready: draft.intakeType === "Quick Task" || draft.contextOmitted || hasLinkedContext, weight: 10 }
   ];
@@ -396,7 +396,8 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
         <section className="task-intake-enterprise-panel">
           <header><p>Assignee and Collaborators</p><strong>{policy}</strong></header>
           <div className="task-intake-tool-grid">
-            <label><span>Accountable owner *</span><select disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorIds: current.collaboratorIds.filter((id) => id !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
+            <p>Owner: {collaboratorOptions.find((option) => option.id === currentUserId)?.name ?? "You"}</p>
+            <label><span>Assignee *</span><select disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorIds: current.collaboratorIds.filter((id) => id !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose assignee</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
             <label><span>Intake channel</span><select onChange={(event) => setDraft((current) => ({ ...current, channel: event.target.value }))} value={draft.channel}><option>Internal observation</option><option>Phone</option><option>Text / message</option><option>Email</option><option>Walk-in</option><option>Inspection</option><option>Vendor update</option></select></label>
           </div>
           <div className="task-intake-enterprise-summary">

@@ -51,7 +51,8 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const canOpenFullWorkbench = !fullWorkbenchArchived || actorIsManager;
   const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
   const canCreateAppointment = actorIsManager || user.id === task.assignedUser.id;
-  const canManageCollaborators = actorIsManager || user.id === task.assignedUser.id;
+  const canReassign = actorIsManager || user.id === task.ownerUser?.id;
+  const canManageCollaborators = canReassign || user.id === task.assignedUser.id;
   const executionFlags = getStaffExecutionFlags();
   const [assignableUsers, activityEvents, readiness] = await Promise.all([
     actorIsManager || canManageCollaborators ? listActiveUserSummaries() : Promise.resolve([]),
@@ -76,6 +77,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
       canOpenFullWorkbench={canOpenFullWorkbench}
+      canReassign={canReassign}
       hasClaimWorkflow={Boolean(claimWorkflow)}
       compactReview={resolvedSearchParams.review === "compact"}
       initialView={initialView}
