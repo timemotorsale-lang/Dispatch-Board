@@ -1,6 +1,7 @@
 node_modules
 .next
 .next-local/
+.next-import-export/
 .next-local.workspace-backup-*
 .next-dev-cache/
 .next-runtime/
@@ -31,3 +32,4 @@ blob-report/
 .worktrees/
 .codex-runtime/unified-crm-*.log
 .dispatch-board-data/
+deploy/docker/import-release-approval.json

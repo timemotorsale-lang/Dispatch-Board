@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
+      - general-overall-refinement
   workflow_dispatch:
 
 concurrency:
-  group: production-deploy
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -22,6 +23,17 @@ env:
   CRON_SECRET: ci-build-placeholder
 
 jobs:
+  security:
+    name: Dependency Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -98,6 +110,20 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Purchase import undo database proof
+        run: RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/purchase-import-undo.test.ts
+
+      - name: Production scanner detection proof
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clamav poppler-utils
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam
+          RUN_SCANNER_INTEGRATION=1 IMPORT_MALWARE_SCANNER_PATH=/usr/bin/clamscan npx vitest run src/tests/integration/purchase-scanner.test.ts
+
+      - name: Scanned purchase PDF OCR proof
+        run: RUN_OCR_INTEGRATION=1 DOCUMENT_TEXT_PDF_RENDERER_PATH=/usr/bin/pdftoppm npx vitest run src/tests/integration/purchase-ocr.test.ts
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -119,8 +145,10 @@ jobs:
 
   deploy:
     name: Deploy
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs:
+      - security
       - lint
       - typecheck
       - test
@@ -183,8 +211,41 @@ jobs:
             "DEPLOY_PATH='${DEPLOY_PATH}' RELEASE_REF='${RELEASE_REF}' RELEASE_SHA='${RELEASE_SHA}' bash -s" <<'REMOTE'
           set -euo pipefail
 
-          cd "$DEPLOY_PATH"
-          test -f deploy/docker/.env
+          fail_preflight() {
+            printf 'Deployment preflight failed: %s\n' "$1" >&2
+            exit 1
+          }
+
+          cd "$DEPLOY_PATH" || fail_preflight "deployment directory is unavailable at $DEPLOY_PATH."
+
+          require_file() {
+            file="$1"
+            description="$2"
+            if [ ! -f "$file" ]; then
+              fail_preflight "$description is missing at $DEPLOY_PATH/$file."
+            fi
+            if [ ! -r "$file" ]; then
+              fail_preflight "$description is not readable by the deployment user at $DEPLOY_PATH/$file."
+            fi
+          }
+
+          require_command() {
+            command -v "$1" >/dev/null 2>&1 || fail_preflight "required command '$1' is not available on the production host."
+          }
+
+          require_command curl
+          require_command jq
+          require_file deploy/docker/.env "production environment file"
+
+          purchase_import_release_enabled=false
+          if grep -Eq '^[[:space:]]*PURCHASE_IMPORT_RELEASE_ENABLED[[:space:]]*=[[:space:]]*true[[:space:]]*($|#)' deploy/docker/.env; then
+            purchase_import_release_enabled=true
+            require_file deploy/docker/import-release-approval.json "purchase import release approval file"
+            jq -e --arg revision "$RELEASE_SHA" '.revision == $revision' deploy/docker/import-release-approval.json >/dev/null ||
+              fail_preflight "purchase import release approval file must contain revision $RELEASE_SHA."
+          fi
+          echo "Deployment preflight passed."
+          export APP_VERSION="$RELEASE_SHA"
 
           compose() {
             if docker info >/dev/null 2>&1; then
@@ -197,9 +258,29 @@ jobs:
           git fetch --prune origin "$RELEASE_REF"
           git checkout --detach "$RELEASE_SHA"
 
+          previous_revision="$(curl -fsS http://127.0.0.1:3000/api/health | jq -er '.revision | select(test("^[a-f0-9]{40}$"))')"
+          previous_container="$(compose ps -q app)"
+          if docker info >/dev/null 2>&1; then
+            previous_image="$(docker inspect --format '{{.Image}}' "$previous_container")"
+            docker tag "$previous_image" "dispatch-board-app:$previous_revision"
+          else
+            previous_image="$(sudo -n docker inspect --format '{{.Image}}' "$previous_container")"
+            sudo -n docker tag "$previous_image" "dispatch-board-app:$previous_revision"
+          fi
+          echo "Retained rollback image: dispatch-board-app:$previous_revision"
           compose build
+          # Retain and verify a recoverable database snapshot before migrations.
+          compose run --rm -T --no-deps backup /bin/sh /opt/dispatch/verify-postgres-restore.sh </dev/null
           # Compose must not consume the remaining SSH here-document from stdin.
           compose run --rm -T migrate </dev/null
+          if [ "$purchase_import_release_enabled" = "true" ]; then
+            compose run --rm -T --no-deps signatures freshclam </dev/null
+            compose run --rm -T --no-deps \
+              -v "$DEPLOY_PATH/deploy/docker/import-release-approval.json:/run/import-release-approval.json:ro" \
+              migrate npm run check:purchase-import-release </dev/null
+          else
+            echo "Purchase import release is disabled; skipping purchase import promotion checks."
+          fi
           compose up -d --remove-orphans
           compose ps
 

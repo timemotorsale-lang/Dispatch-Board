@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applicableDecodeProposals } from "@/lib/crm-vehicle-decode";
+import { applicableDecodeProposals, emptyFieldDecodeProposals, fillEmptyDecodeFields } from "@/lib/crm-vehicle-decode";
 const mocks = vi.hoisted(() => ({ user: vi.fn(), list: vi.fn(), decode: vi.fn() }));
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.user }));
 vi.mock("@/server/vehicle-registry/service", () => ({ listVehicleRegistry: mocks.list }));
@@ -83,5 +83,16 @@ describe("CRM enterprise VIN decoding", () => {
       { field: "trim", label: "Trim", value: "EX", source: "NHTSA vPIC" },
       { field: "engine", label: "Engine", value: "3L", source: "NHTSA vPIC" }
     ], { make: "Honda", trim: "" }).map((proposal) => proposal.field)).toEqual(["trim"]);
+  });
+  it("auto-fills only blank vehicle fields and preserves staff entries", () => {
+    const proposals = [
+      { field: "make", label: "Make", value: "Honda", source: "NHTSA vPIC" as const },
+      { field: "model", label: "Model", value: "Accord", source: "NHTSA vPIC" as const },
+      { field: "color", label: "Color", value: "Blue", source: "Inventory" as const }
+    ];
+    expect(emptyFieldDecodeProposals(proposals, { make: "Toyota", model: "", color: "Red" }).map((proposal) => proposal.field)).toEqual(["model"]);
+    expect(fillEmptyDecodeFields({ make: "Toyota", model: "Accord", color: "" }, { make: "Honda", model: "Civic", color: "Blue" })).toEqual({ make: "Toyota", model: "Accord", color: "Blue" });
+    expect(fillEmptyDecodeFields({ vin, stockNumber: vin.slice(-6) }, { stockNumber: "STOCK-100" }).stockNumber).toBe("STOCK-100");
+    expect(fillEmptyDecodeFields({ vin, stockNumber: "MANUAL-1" }, { stockNumber: "STOCK-100" }).stockNumber).toBe("MANUAL-1");
   });
 });

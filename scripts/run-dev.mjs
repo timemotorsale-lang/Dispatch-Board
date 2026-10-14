@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import net from "node:net";
 
 const root = process.cwd();
 const nextCli = path.join(root, "node_modules", "next", "dist", "bin", "next");
@@ -112,6 +113,25 @@ async function prepareManagedWindowsDistDir() {
     nextDistDir = await ensureTempBackedDistDir(".next-runtime");
     console.log("Default .next-local cache is locked, so the dev server switched to '.next-runtime' for this session.");
   }
+}
+
+// Check the port before retargeting a shared cache used by a running server.
+const port = Number(process.env.PORT || 3000);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  console.error("PORT must be a whole number between 1 and 65535.");
+  process.exit(1);
+}
+try {
+  await new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", reject);
+    probe.listen(port, () => probe.close(error => error ? reject(error) : resolve()));
+  });
+} catch (error) {
+  console.error(error?.code === "EADDRINUSE"
+    ? `Port ${port} is already in use. No cache changes were made.`
+    : `Cannot use port ${port}: ${error.message}`);
+  process.exit(1);
 }
 
 await prepareManagedWindowsDistDir();

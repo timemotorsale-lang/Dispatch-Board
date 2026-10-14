@@ -184,7 +184,7 @@
 
 .actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
   padding: 12px;
@@ -197,12 +197,18 @@
   justify-content: center;
   gap: 8px;
   min-height: 56px;
+  padding: 0 10px;
+  text-align: center;
 }
 
-.actions button:first-child {
+.actions button {
   border-color: #4658d4;
   background: #4658d4;
   color: #fff;
+}
+
+.actions button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 42%);
 }
 
 .actions input,
@@ -216,10 +222,33 @@
   inset: 0;
   z-index: 90;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 100dvh;
   padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   background: #050b14;
+}
+
+.cameraOverlay header,
+.previewOverlay header {
+  display: grid;
+  gap: 2px;
+  padding: 0 4px 10px;
+  color: #fff;
+}
+
+.cameraOverlay header span,
+.previewOverlay header span {
+  color: #a9c5ff;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.cameraOverlay header strong,
+.previewOverlay header strong {
+  font-size: 18px;
+  line-height: 1.2;
 }
 
 .cameraOverlay video,
@@ -233,6 +262,17 @@
 
 .previewOverlay img {
   object-fit: contain;
+}
+
+.previewOverlay > p {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 18px;
+  color: #fff;
+  font-weight: 900;
 }
 
 .cameraOverlay > span {
@@ -377,5 +417,11 @@
   .page {
     max-width: 720px;
     margin: 0 auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .actions {
+    grid-template-columns: 1fr;
   }
 }

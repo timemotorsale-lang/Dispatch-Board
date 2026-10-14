@@ -3,6 +3,7 @@
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import { ArrowLeft, ArrowRight, Building2, ClipboardCheck, ListChecks, PackagePlus, RotateCcw, ShoppingCart, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
 type Named = { id: string; name?: string; code?: string; part?: { partNumber: string }; partNumber?: string; description?: string; status?: string; type?: string; locationId?: string; standardCostCents?: number; orderedTotalCents?: number; quantity?: number; unitCostCents?: number };
@@ -227,6 +228,7 @@ function Notice({ value }: { value: string }) {
 }
 
 export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo }: Props) {
+  const router = useRouter();
   const initialOrderId = initial.repairOrders.some((order) => order.id === initialRepairOrderId) ? initialRepairOrderId! : first(initial.repairOrders);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
   const [model, setModel] = useState(initial);
@@ -880,7 +882,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   };
   const returnToPreviousWork = () => {
     if (window.history.length > 1) window.history.back();
-    else window.location.assign("/vehicles/parts-operations");
+    else router.push("/vehicles/parts-operations");
   };
   const lineBounds = (value: string, cursor: number) => {
     const start = value.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;

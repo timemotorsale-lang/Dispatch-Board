@@ -5,8 +5,9 @@ import Link from "next/link";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
-import { CrmNextVinDecoder } from "./crm-next-vin-decoder";
+import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
 import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
+import { fillEmptyDecodeFields } from "@/lib/crm-vehicle-decode";
 import { FilePlus2, Eye, Download, Printer, X } from "lucide-react";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
@@ -54,6 +55,21 @@ const EMPTY_CUSTOMER_DEAL_PREFILL: CustomerDealPrefill = {
   phoneNumber: "",
   ssnLast4: ""
 };
+
+function normalizeCustomerDealPrefill(prefill?: Partial<CustomerDealPrefill> | null): CustomerDealPrefill {
+  return { ...EMPTY_CUSTOMER_DEAL_PREFILL, ...(prefill ?? {}) };
+}
+
+export function applyCustomerPrefillToTestDriveFacts<T extends { driverEmail: string; driverLicense: string; driverPhone: string; licenseState: string }>(current: T, prefill?: Partial<CustomerDealPrefill> | null): T {
+  const normalized = normalizeCustomerDealPrefill(prefill);
+  return {
+    ...current,
+    driverEmail: current.driverEmail || normalized.email,
+    driverLicense: current.driverLicense || (normalized.idLast4 ? `ID on file ending ${normalized.idLast4}` : ""),
+    driverPhone: current.driverPhone || normalized.phoneNumber,
+    licenseState: normalized.idState && current.licenseState === "MN" ? normalized.idState : current.licenseState,
+  };
+}
 
 export function crmNextDealDraftStorageKey(customerId: string) {
   return `crm-next:deal-draft:${customerId}`;
@@ -759,6 +775,7 @@ function RetailSaleExecutionDesk({
   onVehicleChange: (value: string) => void;
   vehicle: string;
 }) {
+  const vinDecoderRef = useRef<VinDecoderHandle>(null);
   const [selectedFeeCode, setSelectedFeeCode] = useDealDraftState("selectedFeeCode", MN_DMV_FEE_ITEMS[0]?.code ?? "");
   const selectedFee = MN_DMV_FEE_ITEMS.find((item) => item.code === selectedFeeCode) ?? MN_DMV_FEE_ITEMS[0];
   const [feeAmount, setFeeAmount] = useDealDraftState("feeAmount", selectedFee ? formatCurrency(selectedFee.amountCents) : "$0.00");
@@ -1004,11 +1021,11 @@ function RetailSaleExecutionDesk({
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
           <label><span>Vehicle type</span><select value={vehicleFacts.bodyType} onChange={(event) => updateVehicleFact("bodyType", event.target.value)}><option>Auto</option><option>Truck</option><option>SUV</option><option>Van</option></select></label>
           <label><span>New / used</span><select><option>Used</option><option>New</option></select></label>
-          <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>VIN</span><input onDoubleClick={() => vinDecoderRef.current?.decodeAndFill()} title="Double-click to decode and fill vehicle details" value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
           <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
-          <CrmNextVinDecoder vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values) => {
-            setVehicleFacts((current) => ({ ...current, ...values }));
+          <CrmNextVinDecoder ref={vinDecoderRef} vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values, onlyEmpty) => {
+            setVehicleFacts((current) => onlyEmpty ? fillEmptyDecodeFields(current, values) : ({ ...current, ...values }));
             setContractPacket(null);
             onVehicleChange(values.stockNumber || values.vin || vehicle);
           }} />
@@ -1441,6 +1458,7 @@ function DailyRentalExecutionDesk({
   const workflowNoun = isLoaner ? "loaner" : "rental";
   const workflowTitle = isLoaner ? "Vehicle loaner" : "Daily rental";
   const checkoutDeskRef = useRef<HTMLDivElement>(null);
+  const vinDecoderRef = useRef<VinDecoderHandle>(null);
   const workflowUnitLabel = isLoaner ? "Loaner unit" : "Rental unit";
   const feeStatusLabel = isLoaner ? "Deferred - waived if purchase completes" : "Due at checkout";
   const [preparedForms, setPreparedForms] = useDealDraftState<string[]>("preparedForms", []);
@@ -1787,10 +1805,10 @@ function DailyRentalExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, plate, or unit" /></label>
-          <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>VIN</span><input onDoubleClick={() => vinDecoderRef.current?.decodeAndFill()} title="Double-click to decode and fill vehicle details" value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
-          <CrmNextVinDecoder vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values) => {
-            setVehicleFacts((current) => ({ ...current, ...values }));
+          <CrmNextVinDecoder ref={vinDecoderRef} vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values, onlyEmpty) => {
+            setVehicleFacts((current) => onlyEmpty ? fillEmptyDecodeFields(current, values) : ({ ...current, ...values }));
             setContractPacket(null);
             onVehicleChange(values.stockNumber || values.vin || vehicle);
           }} />
@@ -2090,6 +2108,7 @@ function LeaseToOwnExecutionDesk({
   onVehicleChange: (value: string) => void;
   vehicle: string;
 }) {
+  const vinDecoderRef = useRef<VinDecoderHandle>(null);
   const [dealerWarrantyOffered, setDealerWarrantyOffered] = useDealDraftState("dealerWarrantyOffered", true);
   const leaseForms = LEASE_TO_OWN_FORM_PACKET.filter((form) => dealerWarrantyOffered || form.id !== LEASE_WARRANTY_FORM_ID);
   const [preparedForms, setPreparedForms] = useDealDraftState<string[]>("preparedForms", []);
@@ -2378,10 +2397,10 @@ function LeaseToOwnExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
-          <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>VIN</span><input onDoubleClick={() => vinDecoderRef.current?.decodeAndFill()} title="Double-click to decode and fill vehicle details" value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
-          <CrmNextVinDecoder vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values) => {
-            setVehicleFacts((current) => ({ ...current, ...values }));
+          <CrmNextVinDecoder ref={vinDecoderRef} vin={vehicleFacts.vin} query={vehicle} fields={vehicleFacts} onApply={(values, onlyEmpty) => {
+            setVehicleFacts((current) => onlyEmpty ? fillEmptyDecodeFields(current, values) : ({ ...current, ...values }));
             setContractPacket(null);
             onVehicleChange(values.stockNumber || values.vin || vehicle);
           }} />
@@ -3340,6 +3359,7 @@ function DealerFinanceExecutionDesk({
 }
 
 function TestDriveExecutionDesk({
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3357,6 +3377,7 @@ function TestDriveExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const vinDecoderRef = useRef<VinDecoderHandle>(null);
   const [facts, setFacts] = useDealDraftState("facts", {
     approvedRoute: "Local test drive route",
     driveMode: "SUPERVISED",
@@ -3401,6 +3422,21 @@ function TestDriveExecutionDesk({
   const agreementRevision = useRef(0);
   const [agreementPreviewOpen, setAgreementPreviewOpen] = useState(false);
   const [agreementStatus, setAgreementStatus] = useState({ kind: "idle", message: "" });
+  const normalizedCustomerPrefill = useMemo(() => normalizeCustomerDealPrefill(customerPrefill), [customerPrefill]);
+  const customerDetailRows = [
+    ["Phone", normalizedCustomerPrefill.phoneNumber],
+    ["Email", normalizedCustomerPrefill.email],
+    ["Address", normalizedCustomerPrefill.address],
+    ["Date of birth", normalizedCustomerPrefill.dateOfBirth],
+    ["ID type", normalizedCustomerPrefill.idType],
+    ["ID state", normalizedCustomerPrefill.idState],
+    ["ID last 4", normalizedCustomerPrefill.idLast4],
+  ].filter(([, value]) => Boolean(value));
+
+  useEffect(() => {
+    setFacts((current) => applyCustomerPrefillToTestDriveFacts(current, normalizedCustomerPrefill));
+  }, [normalizedCustomerPrefill, setFacts]);
+
   function localInstant(value: string) {
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toISOString() : "";
@@ -3543,6 +3579,7 @@ function TestDriveExecutionDesk({
           <label><span>Authorizing employee</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
           <label><span>Drive type</span><select value={facts.driveMode} onChange={(event) => update("driveMode", event.target.value)}><option value="SUPERVISED">Supervised</option><option value="UNACCOMPANIED">Unaccompanied</option></select></label>
           {facts.driveMode === "SUPERVISED" && <label><span>Accompanying employee</span><input value={facts.accompanyingEmployee} onChange={(event) => update("accompanyingEmployee", event.target.value)} /></label>}
+          {customerDetailRows.length ? <div className={`${styles.retailWide} ${styles.customerPrefillSummary}`}><span>Selected customer details</span><dl>{customerDetailRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div> : null}
           <fieldset className={styles.leaseCalculationMode}><legend>Staff verification</legend><label><input type="checkbox" checked={facts.licenseVerified} onChange={(event) => update("licenseVerified", event.target.checked)} />Valid license verified</label><label><input type="checkbox" checked={facts.insuranceVerified} onChange={(event) => update("insuranceVerified", event.target.checked)} />Coverage reviewed for this drive</label></fieldset>
         </div>
       </section>
@@ -3554,8 +3591,11 @@ function TestDriveExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => changeVehicle(event.target.value)} /></label>
-          <label><span>VIN</span><input maxLength={17} value={driveVin} onChange={(event) => update("vin", normalizeVin(event.target.value))} /></label>
+          <label><span>VIN</span><input maxLength={17} onDoubleClick={() => vinDecoderRef.current?.decodeAndFill()} title="Double-click to decode and fill vehicle details" value={driveVin} onChange={(event) => update("vin", normalizeVin(event.target.value))} /></label>
           <label><span>Stock number</span><input value={facts.stockNumber} onChange={(event) => update("stockNumber", event.target.value)} /></label>
+          <CrmNextVinDecoder ref={vinDecoderRef} vin={driveVin} query={vehicle} fields={{ vin: driveVin, stockNumber: facts.stockNumber, year: facts.year, make: facts.make, model: facts.model, trim: facts.trim }} onApply={(values, onlyEmpty) => {
+            setFacts((current) => ({ ...current, ...(onlyEmpty ? fillEmptyDecodeFields({ vin: current.vin, stockNumber: current.stockNumber, year: current.year, make: current.make, model: current.model, trim: current.trim }, values) : values) }));
+          }} />
           <label><span>Year</span><input value={facts.year} onChange={(event) => update("year", event.target.value)} /></label>
           <label><span>Make</span><input value={facts.make} onChange={(event) => update("make", event.target.value)} /></label>
           <label><span>Model</span><input value={facts.model} onChange={(event) => update("model", event.target.value)} /></label>
@@ -4231,21 +4271,23 @@ function readDealDraft(customerId: string): CrmNextDealDraft | null {
   }
 }
 
-export function CrmNextDealStartTool(props: { initialCustomerId?: string; initialWorkflowId?: string; model: CrmNextCommandCenter }) {
-  return <DealDraftWorkspace initialCustomerId={props.initialCustomerId} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
+export function CrmNextDealStartTool(props: { initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
+  return <DealDraftWorkspace initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
 }
 
 function DealStartDesk({
   initialCustomerId,
   initialWorkflowId,
+  initialVehicleReference,
   model
 }: {
   initialCustomerId?: string;
   initialWorkflowId?: string;
+  initialVehicleReference?: string;
   model: CrmNextCommandCenter;
 }) {
   const savedDeal = useDealDraft();
-  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? model.customers[0] ?? null;
+  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? (initialVehicleReference ? null : model.customers[0]) ?? null;
   const documentUploadQueue = useRef(Promise.resolve());
   const pendingDocumentUploads = useRef(0);
   const [documentUploadBusy, setDocumentUploadBusy] = useState(false);
@@ -4263,7 +4305,7 @@ function DealStartDesk({
     customerId: preferredCustomer?.id ?? "",
     note: "",
     ownerUserId: model.userId,
-    vehicle: ""
+    vehicle: initialVehicleReference ?? ""
   });
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
@@ -4292,9 +4334,9 @@ function DealStartDesk({
     return () => controller.abort();
   }, [selectedCustomerId]);
   const customerPrefill = useMemo(() => selectedCustomer ? {
-    ...selectedCustomer.dealPrefill,
-    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : "",
-    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : ""
+    ...normalizeCustomerDealPrefill(selectedCustomer.dealPrefill),
+    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : selectedCustomer.phone,
+    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : selectedCustomer.email
   } : EMPTY_CUSTOMER_DEAL_PREFILL, [selectedCustomer, selectedCustomerId, authorizedContact]);
   const manualCustomer = manualCustomerName.trim();
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
@@ -4319,7 +4361,7 @@ function DealStartDesk({
         customerId,
         note: "",
         ownerUserId: current.ownerUserId || model.userId,
-        vehicle: ""
+        vehicle: initialVehicleReference ? current.vehicle : ""
       }));
       return;
     }
@@ -4327,13 +4369,13 @@ function DealStartDesk({
     setManualCustomerName("");
     setForm((current) => ({
       ...current,
-      amount: draft?.amount ?? "",
+      amount: initialVehicleReference ? current.amount : draft?.amount ?? "",
       customerId,
-      note: draft?.note ?? "",
-      ownerUserId: draft?.ownerUserId || current.ownerUserId || model.userId,
-      vehicle: draft?.vehicle ?? ""
+      note: initialVehicleReference ? current.note : draft?.note ?? "",
+      ownerUserId: initialVehicleReference ? current.ownerUserId || model.userId : draft?.ownerUserId || current.ownerUserId || model.userId,
+      vehicle: initialVehicleReference ? current.vehicle : draft?.vehicle ?? ""
     }));
-    if (draft?.workflowId) setWorkflowId(draft.workflowId as DealWorkflowId);
+    if (draft?.workflowId && !initialVehicleReference) setWorkflowId(draft.workflowId as DealWorkflowId);
   }
 
   function updateManualCustomerName(value: string) {
@@ -4344,7 +4386,7 @@ function DealStartDesk({
       customerId: MANUAL_CUSTOMER_ID,
       note: "",
       ownerUserId: current.ownerUserId || model.userId,
-      vehicle: ""
+      vehicle: initialVehicleReference ? current.vehicle : ""
     });
   }
 

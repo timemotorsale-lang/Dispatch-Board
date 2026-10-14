@@ -1,0 +1,138 @@
+import { randomUUID } from "node:crypto";
+import { describe, expect, it } from "vitest";
+
+describe.skipIf(process.env.RUN_DATABASE_INTEGRATION !== "1")("inventory intake PostgreSQL proof", () => {
+  it("limits writes to a named pilot user and preserves readable drafts after shutdown", async () => {
+    const { prisma } = await import("@/server/db/client");
+    const { getVehicleIntake, saveVehicleIntake } = await import("@/server/inventory-unit/intake-service");
+    const { createInventoryUnit } = await import("@/server/inventory-unit/service");
+    const prefix = "evc-intake-pilot-" + randomUUID(), organizationId = prefix + "-org";
+    const actor = { id: prefix + "-actor", name: "Synthetic pilot", email: prefix + "@example.test", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
+    await prisma.organization.create({ data: { id: organizationId, name: prefix, code: prefix } });
+    await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "synthetic-only" } });
+    const locationId = prefix + "-loc";
+    await prisma.location.create({ data: { id: locationId, organizationId, code: prefix, name: "Synthetic pilot receiving", city: "Minneapolis", region: "MN", timezone: "America/Chicago" } });
+    const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: prefix, vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic pilot fixture", vinValidationSource: "SYNTHETIC" } });
+    await prisma.vehicleOperationsFeatureFlag.create({ data: { organizationId, code: "VEHICLE_OPERATIONS_MASTER", mode: "GENERAL", allowedUserIds: [] } });
+    const flag = await prisma.vehicleOperationsFeatureFlag.create({ data: { organizationId, code: "INVENTORY_INTAKE", mode: "PILOT", rolloutPercent: 0, allowedUserIds: [actor.id] } });
+    const deps = { organizationId }, initial = await getVehicleIntake(actor, vehicle.id, deps);
+    const body = { details: initial.details, status: "DRAFT", expectedVersion: 0, expectedUnitVersion: null, idempotencyKey: prefix + "-draft", reason: "Record isolated pilot acquisition draft" };
+    await expect(saveVehicleIntake({ ...actor, id: prefix + "-outside" }, vehicle.id, body, deps)).rejects.toThrow("not enabled");
+    await saveVehicleIntake(actor, vehicle.id, body, deps);
+    expect(await getVehicleIntake(actor, vehicle.id, deps)).toMatchObject({ status: "DRAFT", version: 1 });
+    await expect(createInventoryUnit(actor, { vehicleId: vehicle.id, inventoryNumber: prefix, locationId: prefix + "-loc", ownerUserId: actor.id, financialAcquiredAt: new Date().toISOString(), targetAt: new Date(Date.now() + 86400000).toISOString(), nextAction: "Receive pilot vehicle", idempotencyKey: prefix + "-unit", reason: "Do not enable broader inventory creation" }, deps)).rejects.toThrow("Retail inventory mutations are not enabled");
+    expect(await prisma.inventoryUnit.count({ where: { organizationId } })).toBe(0);
+    const create = { workflow: "ACQUISITION_INTAKE", vehicleId: vehicle.id, inventoryNumber: prefix, locationId, ownerUserId: actor.id, financialAcquiredAt: new Date().toISOString(), targetAt: new Date(Date.now() + 86400000).toISOString(), nextAction: "Continue acquisition intake", idempotencyKey: prefix + "-intake-unit", reason: "Open isolated acquisition intake cycle" };
+    const unsaved = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: prefix + "-unsaved", vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic draft guard fixture", vinValidationSource: "SYNTHETIC" } });
+    await expect(createInventoryUnit(actor, { ...create, vehicleId: unsaved.id, inventoryNumber: prefix + "-unsaved", idempotencyKey: prefix + "-no-draft" }, deps)).rejects.toThrow("Save a new acquisition intake draft");
+    const opened = await Promise.all([createInventoryUnit(actor, create, deps), createInventoryUnit(actor, create, deps)]);
+    expect(opened.filter(result => !result.duplicate)).toHaveLength(1);
+    expect(await prisma.inventoryUnit.count({ where: { organizationId } })).toBe(1);
+    await prisma.vehicleOperationsFeatureFlag.update({ where: { id: flag.id }, data: { mode: "OFF" } });
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...body, expectedVersion: 1, idempotencyKey: prefix + "-disabled" }, deps)).rejects.toThrow("not enabled");
+    expect(await getVehicleIntake(actor, vehicle.id, deps)).toMatchObject({ status: "DRAFT", version: 1 });
+    expect(await prisma.inventoryIntakeRevision.count({ where: { organizationId } })).toBe(1);
+    expect(await prisma.inventoryUnitCost.count({ where: { organizationId } })).toBe(0);
+    // A broad retail release must not reopen intake after its dedicated shutdown.
+    await prisma.vehicleOperationsFeatureFlag.create({ data: { organizationId, code: "RETAIL_INVENTORY", mode: "GENERAL", allowedUserIds: [] } });
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...body, expectedVersion: 1, idempotencyKey: prefix + "-retail-only" }, deps)).rejects.toThrow("not enabled");
+    await expect(getVehicleIntake({ ...actor, roles: ["Mechanic"] }, vehicle.id, deps)).rejects.toThrow("Vehicle capability required");
+  }, 30000);
+
+  it("confirms a prepared cycle with intake enabled while other retail writes remain disabled", async () => {
+    const { prisma } = await import("@/server/db/client");
+    const { getVehicleIntake, saveVehicleIntake } = await import("@/server/inventory-unit/intake-service");
+    const { recordInventoryCost, saveVehiclePricing, updateInventoryUnitControl } = await import("@/server/inventory-unit/service");
+    const prefix = "evc-intake-only-" + randomUUID(), organizationId = prefix + "-org", locationId = prefix + "-loc";
+    const actor = { id: prefix + "-actor", name: "Synthetic intake only", email: prefix + "@example.test", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
+    await prisma.organization.create({ data: { id: organizationId, name: prefix, code: prefix } });
+    await prisma.location.create({ data: { id: locationId, organizationId, code: prefix, name: "Synthetic intake-only location", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } });
+    await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "synthetic-only" } });
+    const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: prefix, vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic intake-only fixture", vinValidationSource: "SYNTHETIC" } });
+    const unit = await prisma.inventoryUnit.create({ data: { organizationId, vehicleId: vehicle.id, inventoryNumber: prefix, locationId, ownerUserId: actor.id, financialAcquiredAt: new Date("2026-10-01"), stageStartedAt: new Date("2026-10-01"), targetAt: new Date("2026-10-09"), lifecycleStage: "PURCHASED_OR_TRADE_IN", operatingState: "BLOCKED", stateReason: "Title evidence hold", nextAction: "Collect missing title" } });
+    await prisma.enterpriseAggregateVersion.create({ data: { organizationId, locationId, domain: "RETAIL_INVENTORY", subjectType: "INVENTORY_UNIT", subjectId: unit.id, version: 1 } });
+    await prisma.vehicleOperationsFeatureFlag.createMany({ data: [
+      { organizationId, code: "VEHICLE_OPERATIONS_MASTER", mode: "GENERAL", allowedUserIds: [] },
+      { organizationId, code: "INVENTORY_INTAKE", locationId, mode: "PILOT", rolloutPercent: 0, allowedUserIds: [actor.id] },
+      { organizationId, code: "RETAIL_INVENTORY", mode: "OFF", allowedUserIds: [] }
+    ] });
+    const deps = { organizationId, now: () => new Date("2026-10-07T12:00:00Z") };
+    const initial = await getVehicleIntake(actor, vehicle.id, deps);
+    const body = { details: { ...initial.details, source: "AUCTION", seller: "Synthetic seller", boughtFrom: "Synthetic auction", buyer: "Synthetic buyer", acquiredOn: "2026-10-01", reference: prefix, priceStatus: "INCURRED", purchaseCents: 352500, proposedPriceCents: 889500, whereabouts: "Synthetic receiving", odometer: 116289, keys: 1, condition: "Left fender damage", pendingNotes: "Collect missing title before release" }, status: "CONFIRMED", expectedVersion: 0, expectedUnitVersion: 1, idempotencyKey: prefix + "-confirm", reason: "Confirm isolated synthetic acquisition intake" };
+    const results = await Promise.all([saveVehicleIntake(actor, vehicle.id, body, deps), saveVehicleIntake(actor, vehicle.id, body, deps)]);
+    expect(results.filter(result => !result.duplicate)).toHaveLength(1);
+    expect(await prisma.inventoryUnitCost.count({ where: { inventoryUnitId: unit.id } })).toBe(1);
+    expect(await prisma.inventoryUnit.findUnique({ where: { id: unit.id } })).toMatchObject({ version: 2, operatingState: "BLOCKED", stateReason: "Title evidence hold", nextAction: "Collect missing title" });
+    const control = { locationId, ownerUserId: actor.id, operatingState: "ACTIVE", nextAction: "Do not release inventory", targetAt: "2026-10-09", expectedVersion: 2, idempotencyKey: prefix + "-control", reason: "Do not bypass isolated intake rollout" };
+    await expect(updateInventoryUnitControl(actor, unit.id, control, deps)).rejects.toThrow("Retail inventory mutations are not enabled");
+    await expect(saveVehiclePricing(actor, unit.id, { priceCents: 889500, packEnabled: false, packCents: 0, includeEstimates: false, marginMode: "OFF", threshold: null, expectedVersion: 2, idempotencyKey: prefix + "-price", reason: control.reason }, deps)).rejects.toThrow("Retail inventory mutations are not enabled");
+    await expect(recordInventoryCost(actor, unit.id, { action: "RECORD_COST", category: "RECONDITIONING", status: "INCURRED", amountCents: 10000, currency: "USD", reference: prefix + "-cost", observedAt: "2026-10-01T00:00:00.000Z", notes: "Synthetic recon charge", expectedVersion: 2, idempotencyKey: prefix + "-cost", reason: control.reason }, deps)).rejects.toThrow("Retail inventory mutations are not enabled");
+  }, 30000);
+
+  it("resumes drafts, atomically records purchase once, retains holds and pending handoff, and isolates cycles/access", async () => {
+    const { prisma } = await import("@/server/db/client");
+    const { getVehicleIntake, saveVehicleIntake } = await import("@/server/inventory-unit/intake-service");
+    const { getVehiclePricing } = await import("@/server/inventory-unit/service");
+    const { getVehicleJourney } = await import("@/server/inventory-unit/journey-service");
+    const prefix = "evc-intake-" + randomUUID(), organizationId = prefix + "-org", locationId = prefix + "-loc";
+    const actor = { id: prefix + "-actor", name: "Synthetic intake", email: prefix + "@example.test", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
+    await prisma.organization.create({ data: { id: organizationId, name: prefix, code: prefix } });
+    await prisma.location.create({ data: { id: locationId, organizationId, code: prefix, name: "Synthetic receiving", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } });
+    await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "synthetic-only" } });
+    const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: prefix, vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic no VIN assigned", vinValidationSource: "SYNTHETIC", specificationSnapshot: { specifications: { acquisitionSource: "AUCTION", externalLocation: "Synthetic auction yard", keyCount: 2, conditionSummary: "Visible bumper damage on arrival" } } } });
+    const deps = { organizationId, enforceRollout: false, now: () => new Date("2026-10-07T12:00:00Z") };
+    const initial = await getVehicleIntake(actor, vehicle.id, deps);
+    expect(initial).toMatchObject({ version: 0, status: "NOT_STARTED", details: { source: "AUCTION", whereabouts: "Synthetic auction yard", keys: 2, condition: "Visible bumper damage on arrival" } });
+    const details = { ...initial.details, seller: "Synthetic auction seller", boughtFrom: "Synthetic auction", buyer: "Synthetic buyer", acquiredOn: "2026-10-01", reference: "purchase-1", priceStatus: "INCURRED", purchaseCents: 1000000, proposedPriceCents: 1500000, odometer: 55000, titleStatus: "PENDING", documents: "Invoice and photos on file", pendingNotes: "Title clerk to collect missing title" };
+    const draft = { details, status: "DRAFT", expectedVersion: 0, expectedUnitVersion: null, idempotencyKey: prefix + "-draft", reason: "Record a synthetic acquisition intake" };
+    await saveVehicleIntake(actor, vehicle.id, draft, deps);
+    expect(await getVehicleIntake(actor, vehicle.id, deps)).toMatchObject({ version: 1, status: "DRAFT", details });
+    expect(await prisma.inventoryUnitCost.count({ where: { organizationId } })).toBe(0);
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...draft, status: "CONFIRMED", expectedVersion: 1, idempotencyKey: prefix + "-no-unit" }, deps)).rejects.toThrow("Open an inventory cycle");
+    const unit = await prisma.inventoryUnit.create({ data: { organizationId, vehicleId: vehicle.id, inventoryNumber: prefix, locationId, ownerUserId: actor.id, financialAcquiredAt: new Date("2026-10-01"), stageStartedAt: new Date("2026-10-01"), targetAt: new Date("2026-10-09"), lifecycleStage: "PURCHASED_OR_TRADE_IN", operatingState: "BLOCKED", stateReason: "Title evidence hold", nextAction: "Check title before release" } });
+    await prisma.enterpriseAggregateVersion.create({ data: { organizationId, locationId, domain: "RETAIL_INVENTORY", subjectType: "INVENTORY_UNIT", subjectId: unit.id, version: 1 } });
+    const confirm = { ...draft, status: "CONFIRMED", expectedVersion: 1, expectedUnitVersion: 1, idempotencyKey: prefix + "-confirm" };
+    const retries = await Promise.all([0, 1, 2].map(() => saveVehicleIntake(actor, vehicle.id, confirm, deps)));
+    expect(retries.filter(result => !result.duplicate)).toHaveLength(1);
+    expect(await prisma.inventoryUnitCost.count({ where: { inventoryUnitId: unit.id } })).toBe(1);
+    expect(await prisma.inventoryUnit.findUnique({ where: { id: unit.id } })).toMatchObject({ version: 2, operatingState: "BLOCKED", stateReason: "Title evidence hold", nextAction: "Check title before release", lifecycleStage: "PURCHASED_OR_TRADE_IN" });
+    expect(await getVehiclePricing(actor, vehicle.id, deps)).toMatchObject({ latest: null, intakePriceCents: 1500000, costs: { incurredCents: 1000000 } });
+    expect(await getVehicleJourney(actor, vehicle.id, { organizationId })).toMatchObject({ intake: { status: "CONFIRMED", pendingItems: ["Title"], handoff: { condition: details.condition, whereabouts: details.whereabouts, pendingNotes: details.pendingNotes } } });
+    const mechanic = await getVehicleJourney({ ...actor, roles: ["Mechanic"] }, vehicle.id, { organizationId });
+    expect(mechanic).toMatchObject({ costs: null, proposal: null, intake: { handoff: { condition: details.condition } } });
+    expect(mechanic?.intake?.handoff).not.toHaveProperty("purchaseCents");
+    expect(mechanic?.intake?.handoff).not.toHaveProperty("proposedPriceCents");
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...confirm, details: { ...details, seller: "Changed seller" } }, deps)).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...confirm, expectedVersion: 2, idempotencyKey: prefix + "-stale" }, deps)).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...confirm, expectedVersion: 2, expectedUnitVersion: 2, details: { ...details, purchaseCents: 1100000 }, idempotencyKey: prefix + "-different-cost" }, deps)).rejects.toThrow("Reconcile existing purchase");
+    expect(await prisma.inventoryIntakeRevision.count({ where: { vehicleId: vehicle.id } })).toBe(2);
+    await saveVehicleIntake(actor, vehicle.id, { ...confirm, expectedVersion: 2, expectedUnitVersion: 2, idempotencyKey: prefix + "-reuse" }, deps);
+    expect(await prisma.inventoryUnitCost.count({ where: { inventoryUnitId: unit.id } })).toBe(1);
+    expect(await prisma.inventoryUnit.findUnique({ where: { id: unit.id } })).toMatchObject({ version: 2 });
+    const revision = await prisma.inventoryIntakeRevision.findFirstOrThrow({ where: { vehicleId: vehicle.id } });
+    await expect(prisma.inventoryIntakeRevision.update({ where: { id: revision.id }, data: { reason: "rewrite" } })).rejects.toThrow("append-only");
+    await expect(prisma.inventoryIntakeRevision.delete({ where: { id: revision.id } })).rejects.toThrow("append-only");
+    expect(await prisma.enterpriseAuditEvent.count({ where: { organizationId, subjectType: "VEHICLE_INTAKE" } })).toBe(3);
+    expect(await prisma.inventoryAcquisitionCase.count({ where: { organizationId } })).toBe(0);
+    expect(await prisma.inventoryMerchandisingPackage.count({ where: { organizationId } })).toBe(0);
+    const pendingVehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: prefix + "-pending", vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic pending intake fixture", vinValidationSource: "SYNTHETIC" } });
+    const pendingUnit = await prisma.inventoryUnit.create({ data: { organizationId, vehicleId: pendingVehicle.id, inventoryNumber: prefix + "-pending", locationId, ownerUserId: actor.id, financialAcquiredAt: new Date("2026-10-01"), stageStartedAt: new Date("2026-10-01"), targetAt: new Date("2026-10-09"), nextAction: "Receive synthetic vehicle", lifecycleStage: "PURCHASED_OR_TRADE_IN", operatingState: "ACTIVE" } });
+    await prisma.enterpriseAggregateVersion.create({ data: { organizationId, locationId, domain: "RETAIL_INVENTORY", subjectType: "INVENTORY_UNIT", subjectId: pendingUnit.id, version: 1 } });
+    const pendingModel = await getVehicleIntake(actor, pendingVehicle.id, deps);
+    const pendingBody = { ...draft, expectedVersion: 0, expectedUnitVersion: 1, status: "CONFIRMED", idempotencyKey: prefix + "-pending-confirm", details: { ...pendingModel.details, whereabouts: "Synthetic receiving lane", condition: "Runs; preliminary arrival inspection pending", pendingNotes: "Purchasing staff will reconcile price, seller, title and supporting records" } };
+    await expect(saveVehicleIntake(actor, pendingVehicle.id, pendingBody, { ...deps, enforceRollout: true })).rejects.toThrow("not enabled");
+    await expect(saveVehicleIntake({ ...actor, roles: ["Service Advisor"] }, pendingVehicle.id, { ...pendingBody, details: { ...pendingBody.details, proposedPriceCents: 1000000 } }, deps)).rejects.toThrow("Vehicle capability required");
+    await saveVehicleIntake(actor, pendingVehicle.id, pendingBody, deps);
+    expect(await prisma.inventoryUnitCost.count({ where: { inventoryUnitId: pendingUnit.id } })).toBe(0);
+    expect(await prisma.inventoryUnit.findUnique({ where: { id: pendingUnit.id } })).toMatchObject({ version: 1, operatingState: "ACTIVE" });
+    expect(await getVehicleJourney(actor, pendingVehicle.id, { organizationId })).toMatchObject({ intake: { status: "CONFIRMED", pendingItems: expect.arrayContaining(["Purchase price", "Seller", "Title"]) } });
+    await expect(getVehicleIntake({ ...actor, roles: ["Mechanic"] }, vehicle.id, deps)).rejects.toThrow("Vehicle capability required");
+    await expect(getVehicleIntake(actor, vehicle.id, { ...deps, organizationId: prefix + "-outside" })).rejects.toThrow("not found");
+    await prisma.inventoryUnit.update({ where: { id: unit.id }, data: { operatingState: "CLOSED", closedAt: new Date("2026-10-07") } });
+    expect(await getVehicleIntake(actor, vehicle.id, deps)).toMatchObject({ version: 3, status: "NOT_STARTED", details: { purchaseCents: null, seller: "" } });
+    await prisma.vehicleCustodyEvent.create({ data: { organizationId, vehicleId: vehicle.id, locationId, eventType: "CHECK_IN", custodianType: "DEALERSHIP", occurredAt: new Date("2026-10-01"), sourceCode: "SYNTHETIC", reason: "Synthetic location isolation proof", recordedByUserId: actor.id } });
+    await prisma.vehicleCapabilityGrant.create({ data: { organizationId, locationId, userId: actor.id, capability: "INVENTORY_UNIT_MANAGE", effect: "DENY", constraints: {}, validFrom: new Date("2026-10-01") } });
+    await expect(getVehicleIntake(actor, vehicle.id, deps)).rejects.toThrow("Vehicle capability required");
+    await expect(saveVehicleIntake(actor, vehicle.id, { ...draft, expectedVersion: 3, idempotencyKey: prefix + "-deny" }, deps)).rejects.toThrow("Vehicle capability required");
+  }, 30000);
+});

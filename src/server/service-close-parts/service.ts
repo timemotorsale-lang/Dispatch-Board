@@ -3,7 +3,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
+import { describeVehicleOperationsBlock, evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { recordAcquisitionAppraisal } from "@/server/inventory-lifecycle/acquisition";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
@@ -56,7 +56,7 @@ async function authorize(actor: AuthenticatedUser | null, domain: Domain, manage
   }
   if (manage && context.enforceRollout) {
     const flags = await context.foundationRepository.listFeatureFlags(context.organizationId), decision = evaluateVehicleOperationsFeature(flags, domain, user.id, locationId);
-    if (!decision.executable) throw new Error(`${domain === "SHOP_OPERATIONS" ? "Shop" : "Parts"} Operations mutations are not enabled (${decision.reason}).`);
+    if (!decision.executable) throw new Error(`${domain === "SHOP_OPERATIONS" ? "Shop" : "Parts"} Operations mutations are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`);
   }
   return user;
 }

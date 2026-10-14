@@ -1,7 +1,7 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -16,6 +16,16 @@ const options = {
 };
 
 describe("enterprise service intake workspace", () => {
+  it("allows verified dealership repair intake without acquisition forms or an inventory unit", () => {
+    const repairOptions = { ...options, vehicles: [{ ...options.vehicles[0], registryRelationships: [{ relationshipType: "DEALERSHIP_OWNED" }] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={repairOptions} />);
+    expect(html).toContain("Ready for internal repair intake");
+    expect(html).not.toContain("Financial acquisition");
+    expect(html).not.toContain("Create &amp; Link Inventory Unit");
+    expect(html).not.toContain("Next: Add / Select Customer");
+    const unconfirmed = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
+    expect(unconfirmed).toContain("Confirm Dealership Ownership");
+  });
   it("renders a guided advisor check-in with spacious concern capture and governance cues", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" options={options} />);
 
@@ -83,6 +93,8 @@ describe("enterprise service intake workspace", () => {
 
   it("keeps the created repair order available before returning to the source workspace", () => {
     expect(buildServiceIntakeCompletionLinks("ro-123", "/diagnostics/labor-guide")).toEqual({
+      laborGuideHref: "/diagnostics/labor-guide?repairOrderId=ro-123&returnLabel=Return%20to%20repair%20planning&returnTo=%2Fvehicles%2Fshop-planning%3FrepairOrderId%3Dro-123%26returnTo%3D%252Fdiagnostics%252Flabor-guide",
+      repairPlanningHref: "/vehicles/shop-planning?repairOrderId=ro-123&returnTo=%2Fdiagnostics%2Flabor-guide",
       repairWorkbenchHref: "/vehicles/repair-workbench?repairOrderId=ro-123",
       returnHref: "/diagnostics/labor-guide?repairOrderId=ro-123",
       shopDispatchHref: "/vehicles/shop-dispatch?repairOrderId=ro-123",
@@ -111,9 +123,17 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Inventory source");
     expect(html).toContain("Customer not required");
     expect(html).toContain("Inventory unit INV-100 linked");
-    expect(html).toContain("Internal recon readiness");
+    expect(html).toContain("Internal repair readiness");
     expect(html).toContain("Inventory concern &amp; recon request");
     expect(html).not.toContain("Next: Add / Select Customer");
+  });
+
+  it("lets the sticky footer start VIN decode for intake vehicles that are not in local records", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialArrivalQuery="5TDYARAH6PS524303" initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
+
+    expect(html).toContain("VIN not found in local records");
+    expect(html).toContain("Next: Decode VIN");
+    expect(html).toContain(">Decode VIN");
   });
 
   it("keeps the final check-in action app-controlled instead of relying on native form validation", () => {
@@ -121,7 +141,7 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
 
     expect(html).toContain('noValidate=""');
-    expect(html).toContain('type="button">Capture Inventory Concern');
+    expect(html).toContain('type="button">Complete Check-In &amp; Create Repair Order');
   });
 
   it("shows open RO history without auto-matching a stale incoming concern", () => {
@@ -132,7 +152,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("Customer reports a check engine warning lamp.");
     expect(html).not.toContain("Same open concern detected");
     expect(html).toContain("RO-EXISTING");
-    expect(html).toContain("Save technician &amp; open");
+    expect(html).toContain("Open Labor Guide for this RO");
     expect(html).toContain("The concern appears different");
     expect(html).not.toContain("Duplicate RO blocked");
     expect(html).toContain("Repair-order decision");
@@ -152,7 +172,7 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports vibration above highway speed." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
     expect(html).toContain("The concern appears different");
-    expect(html).toContain("Save technician &amp; open");
+    expect(html).toContain("Open Labor Guide for this RO");
     expect(html).toContain("Create separate RO for this concern");
     expect(html).toContain("Repair-order decision");
   });
@@ -161,6 +181,11 @@ describe("enterprise service intake workspace", () => {
     const command = buildServiceIntakeVehicleCommand({ color: "White", description: "Customer reports an airbag warning light.", idempotencyKey: "service-intake-vin-1", locationId: "location-1", make: "HONDA", model: "Accord", odometer: "125000", odometerUnit: "MILES", vin: "1HGCM82633A004352", year: "2003" });
 
     expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ addMode: "QUICK", color: "White", description: "Customer reports an airbag warning light.", odometer: 125000, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin: "1HGCM82633A004352" });
+  });
+
+  it("uses the service-intake vehicle endpoint for intake-created canonical vehicles", () => {
+    expect(SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT).toBe("/api/service-intake/vehicles");
+    expect(serviceIntakeVehicleRelationshipEndpoint("vehicle 1")).toBe("/api/service-intake/vehicles/vehicle%201/relationship");
   });
 
   it("lets intake create a VIN-validated vehicle when external decode is unavailable", () => {

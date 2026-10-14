@@ -7,6 +7,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const body = await request.json().catch(() => null); if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Vehicle command must be an object.");
     const action = String((body as Record<string, unknown>).action ?? "") as keyof typeof handlers; const handler = handlers[action]; if (!handler) throw new Error("Vehicle registry action is invalid.");
-    return NextResponse.json(await handler(await getCurrentUser(), (await context.params).id, body));
+    const input = body as Record<string, unknown>;
+    const serviceIntakeRelationship =
+      action === "ADD_RELATIONSHIP" &&
+      input.sourceCode === "SERVICE_INTAKE" &&
+      input.relationshipType === "SERVICE_ONLY" &&
+      typeof input.customerId === "string" &&
+      input.customerId.trim().length > 0;
+    return NextResponse.json(await handler(await getCurrentUser(), (await context.params).id, body, serviceIntakeRelationship ? { enforceRollout: false } : undefined));
   } catch (error) { const message = error instanceof Error ? error.message : "Vehicle command failed."; const status = message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : error instanceof EnterpriseCommandConflictError ? 409 : 400; return NextResponse.json({ error: message }, { status }); }
 }

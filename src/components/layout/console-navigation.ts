@@ -2,6 +2,7 @@ import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays,
 
 import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { INVENTORY_TEAM_FUNCTIONS } from "@/lib/inventory-team-functions";
 import {
   getPermittedWorkspaces,
   getWorkspaceDefinition,
@@ -17,6 +18,7 @@ export type ConsoleNavigationDefinition = {
   badge?: string;
   homeHref: string;
   items: NavigationItem[];
+  inventoryMenu?: NavigationItem[];
   subtitle: string;
   title: string;
 };
@@ -103,7 +105,7 @@ const inventoryItems: NavigationItem[] = [
     icon: ShieldCheck
   },
   {
-    href: "/reports?scope=inventory",
+    href: "/vehicles/reports",
     title: "Reports",
     description: "Governed inventory, shop, and parts reporting.",
     icon: BarChart3
@@ -114,6 +116,16 @@ const inventoryItems: NavigationItem[] = [
     description: "Vehicle-operation policies, rollout, and health.",
     icon: Settings
   }
+];
+
+const inventoryMenu: NavigationItem[] = [
+  { href: "/vehicles/workflows/add-vehicle", title: "New Vehicle", description: "Add or find a vehicle.", icon: CarFront },
+  { href: "/vehicles/inventory/units", title: "Active Inventory List", description: "Find active dealership inventory.", icon: ClipboardList },
+  { href: "/vehicles/acquisition-appraisal", title: "Appraise New Vehicle", description: "Vehicle acquisition appraisal.", icon: BadgeDollarSign },
+  { href: "/vehicles/reports", title: "Inventory Reports", description: "Governed vehicle and inventory reporting.", icon: BarChart3 },
+  { href: "/vehicles/import-export?mode=export", title: "Export", description: "Export inventory CSV.", icon: FileText },
+  { href: "/vehicles/import-export?mode=import", title: "Import", description: "Review and import vehicle records.", icon: FileText },
+  { href: "/vehicles/recon-repair-advisor", title: "Reconditioning", description: "Open the separate recon workflow.", icon: Gauge }
 ];
 
 const salesItems: NavigationItem[] = [
@@ -426,6 +438,7 @@ export function getConsoleNavigation(
       badge: "Ready",
       homeHref: definition.landingRoute,
       items: getDispatchNavigationItems(user, workspace),
+      inventoryMenu: isInventoryConsolePath(pathname) && (workspace === "INVENTORY" || workspace === "VEHICLE_OPERATIONS_LEAD" || INVENTORY_TEAM_FUNCTIONS.some(item => user.duties.all.includes(item.name))) ? inventoryMenu : undefined,
       subtitle: definition.label,
       title: "Time Motor Sales"
     };
@@ -436,6 +449,7 @@ export function getConsoleNavigation(
       badge: "Live",
       homeHref: "/vehicles",
       items: inventoryItems,
+      inventoryMenu,
       subtitle: "Vehicle Operations",
       title: "Inventory Console"
     };

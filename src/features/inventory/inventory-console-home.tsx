@@ -249,7 +249,7 @@ export function InventoryConsoleHome({
           <Link href="/vehicles/disposition-wholesale">Disposition &amp; wholesale</Link>
           <Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link>
           <Link href="/vehicles/parts-operations">Parts operations</Link>
-          <Link href="/reports?scope=inventory">Reports &amp; exports</Link>
+          <Link href="/vehicles/reports">Reports &amp; exports</Link>
           <Link href="/activity?scope=inventory">Inventory event history</Link>
           <InventorySavedViewsMenu><InventoryConsoleSavedViews activeId={data.activeSavedViewId} activeView={data.savedView} canShare={data.canShareSavedViews} locationId={data.locationId} mode={highVolume ? "volume" : undefined} savedViews={data.savedViews} workspace="inventory" /></InventorySavedViewsMenu>
         </div>

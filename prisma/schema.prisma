@@ -1903,6 +1903,9 @@ model DiagnosticWorkspaceDraft {
 }
 
 model User {
+  reportingSeries                              ReportingSeries[]
+  reportingViews                               ReportingSavedView[]
+  reportingSchedules                           ReportingSchedule[]
   diagnosticWorkspaceDrafts                    DiagnosticWorkspaceDraft[]
   id                                           String                                 @id @default(cuid())
   name                                         String
@@ -3848,6 +3851,7 @@ model Vehicle {
   mergedVehicles                  Vehicle[]                        @relation("VehicleMergeLineage")
   tasks                           Task[]
   inventoryUnits                  InventoryUnit[]
+  inventoryIntakeRevisions        InventoryIntakeRevision[]
   inventoryAcquisitionCases       InventoryAcquisitionCase[]
   serviceVisits                   ServiceVisit[]
   serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
@@ -3896,6 +3900,8 @@ model InventoryUnit {
   serviceVisits          ServiceVisit[]
   repairOrders           RepairOrder[]
   costEntries            InventoryUnitCost[]
+  pricingProposals       InventoryPricingProposal[]
+  intakeRevisions        InventoryIntakeRevision[]
   acquisitionAppraisals  InventoryAcquisitionAppraisal[]
   purchaseAuthorizations InventoryPurchaseAuthorization[]
   receipts               InventoryReceipt[]
@@ -4167,6 +4173,49 @@ model InventoryRetailCompletionEvent {
   @@unique([completionId, version])
   @@index([organizationId, occurredAt])
   @@index([correlationId])
+}
+
+/// Append-only staff intake revisions; confirmation does not authorize purchase or release.
+model InventoryIntakeRevision {
+  id              String        @id @default(cuid())
+  organizationId  String
+  vehicleId       String
+  inventoryUnitId String?
+  version         Int
+  status          String
+  details         Json
+  pendingItems    Json
+  costRecordIds   Json
+  actorUserId     String
+  reason          String
+  createdAt       DateTime      @default(now())
+  vehicle         Vehicle       @relation(fields: [vehicleId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryIntakeRevision_vehicle_fkey")
+  inventoryUnit   InventoryUnit? @relation(fields: [inventoryUnitId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryIntakeRevision_unit_fkey")
+
+  @@unique([vehicleId, version], map: "InventoryIntakeRevision_vehicle_version_key")
+  @@index([organizationId, vehicleId, version], map: "InventoryIntakeRevision_scope_idx")
+}
+
+/// Append-only selling-price proposals with their recorded-cost comparison.
+model InventoryPricingProposal {
+  id                 String        @id @default(cuid())
+  organizationId     String
+  inventoryUnitId    String
+  actorUserId        String
+  inventoryVersion   Int
+  priceCents         Int
+  packCents          Int           @default(0)
+  packEnabled        Boolean       @default(false)
+  includeEstimates   Boolean       @default(false)
+  marginMode         String        @default("OFF")
+  threshold          Int?
+  comparisonSnapshot Json
+  reason             String
+  createdAt          DateTime      @default(now())
+  inventoryUnit      InventoryUnit @relation(fields: [inventoryUnitId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryPricingProposal_unit_fkey")
+
+  @@unique([inventoryUnitId, inventoryVersion])
+  @@index([organizationId, inventoryUnitId, createdAt], map: "InventoryPricingProposal_organizationId_inventoryUnitId_created")
 }
 
 /// Immutable financial observations supporting inventory exposure and gross-per-day reporting.
@@ -7117,6 +7166,7 @@ model VehicleDuplicateCase {
 }
 
 model VehicleEvidenceObject {
+  purchaseImports  PurchaseImportJob[]
   id               String                       @id @default(cuid())
   organizationId   String
   uploadedByUserId String
@@ -7750,6 +7800,9 @@ model StaffDay {
 }
 
 model StaffDailyReport {
+  idempotencyKey          String?
+  requestHash             String?
+  reportingRevision      ReportingRevision?
   id                      String                 @id @default(cuid())
   staffDayId              String
   version                 Int
@@ -7767,8 +7820,144 @@ model StaffDailyReport {
   submittedByUser         User                   @relation("StaffDailyReportSubmittedByUser", fields: [submittedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([staffDayId, version])
+  @@unique([staffDayId, idempotencyKey])
   @@index([staffDayId, status, submittedAt])
   @@index([submittedByUserId, submittedAt])
+}
+
+/// Period identity is independent from submission time. Daily contents stay in StaffDailyReport.
+model ReportingSeries {
+  id                 String @id @default(cuid())
+  organizationId     String
+  subjectUserId      String
+  subjectName        String
+  cadence            String
+  periodStart        String
+  periodEnd          String
+  timezone           String
+  calendarVersion    String
+  version            Int @default(0)
+  draft              Json?
+  acceptedRevisionId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  subject            User @relation(fields: [subjectUserId], references: [id], onDelete: Restrict)
+  revisions          ReportingRevision[]
+  acceptedRevision   ReportingRevision? @relation("ReportingAcceptedRevision", fields: [acceptedRevisionId], references: [id], onDelete: SetNull)
+  @@unique([organizationId, subjectUserId, cadence, periodStart])
+  @@index([organizationId, subjectUserId, periodStart])
+}
+
+model ReportingRevision {
+  id                 String @id @default(cuid())
+  seriesId           String
+  version            Int
+  submittedByUserId  String
+  submittedAt        DateTime @default(now())
+  idempotencyKey     String
+  requestHash        String
+  content            Json?
+  legacyDailyId      String? @unique
+  series             ReportingSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  legacyDaily        StaffDailyReport? @relation(fields: [legacyDailyId], references: [id], onDelete: Restrict)
+  reviews            ReportingReview[]
+  acceptedBy         ReportingSeries[] @relation("ReportingAcceptedRevision")
+  @@unique([seriesId, version])
+  @@unique([seriesId, idempotencyKey])
+  @@index([submittedAt])
+}
+
+model ReportingReview {
+  id          String @id @default(cuid())
+  revisionId  String
+  actorUserId String
+  action      String
+  comment     String
+  createdAt   DateTime @default(now())
+  revision    ReportingRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  @@index([revisionId, createdAt])
+}
+
+model ReportingCalendarPolicy {
+  id             String @id @default(cuid())
+  organizationId String
+  version        Int
+  status         String @default("DRAFT")
+  config         Json
+  createdByUserId String
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, version])
+}
+
+model ReportingAssignment {
+  id              String @id @default(cuid())
+  organizationId  String
+  subjectUserId   String
+  reviewerUserId  String
+  cadence         String
+  validFrom       String
+  validTo         String?
+  dailyDueMinute  Int?
+  createdAt       DateTime @default(now())
+  @@index([organizationId, subjectUserId, cadence, validFrom])
+}
+
+model ReportingExpectation {
+  id             String @id @default(cuid())
+  organizationId String
+  subjectUserId  String
+  cadence        String
+  periodStart    String
+  periodEnd      String
+  dueAt          DateTime
+  reviewBy       DateTime
+  calendarVersion String
+  reviewerUserId String
+  disposition    String @default("REQUIRED")
+  reason         String?
+  @@unique([organizationId, subjectUserId, cadence, periodStart])
+  @@index([organizationId, dueAt, disposition])
+}
+
+model ReportingSavedView {
+  id             String @id @default(cuid())
+  userId         String
+  name           String
+  definitionId   String
+  filters        Json
+  createdAt      DateTime @default(now())
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}
+
+model ReportingSchedule {
+  id             String @id @default(cuid())
+  userId         String
+  definitionId   String
+  cadence        String
+  timezone       String
+  enabled        Boolean @default(false)
+  version        Int @default(1)
+  nextRunAt      DateTime
+  createdAt      DateTime @default(now())
+  user           User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  jobs           ReportingJob[]
+  @@index([enabled, nextRunAt])
+}
+
+model ReportingJob {
+  id             String @id @default(cuid())
+  scheduleId     String
+  runKey         String @unique
+  status         String @default("PENDING")
+  attempts       Int @default(0)
+  lockedUntil    DateTime?
+  result         Json?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  schedule       ReportingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  @@index([status, lockedUntil])
 }
 
 model WorkRecommendation {
@@ -9061,6 +9250,46 @@ model EnterpriseAuditEvent {
   @@index([subjectType, subjectId, occurredAt])
   @@index([actorUserId, occurredAt])
   @@index([correlationId])
+}
+
+model PurchaseImportJob {
+  id                String   @id @default(cuid())
+  organizationId    String
+  locationId        String
+  createdByUserId   String
+  assignedToUserId  String
+  sourceEvidenceId  String
+  status            String   @default("PROCESSING")
+  fileName          String
+  vin               String   @default("")
+  reading           Json?
+  corrections       Json?
+  outcome           Json?
+  failureCode       String?
+  version           Int      @default(1)
+  attempts          Int      @default(0)
+  leaseUntil        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  source            VehicleEvidenceObject @relation(fields: [sourceEvidenceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, locationId, status, createdAt])
+  @@index([organizationId, assignedToUserId, createdAt])
+  @@index([sourceEvidenceId])
+}
+
+model PurchaseImportTemplate {
+  id               String   @id @default(cuid())
+  organizationId   String
+  locationId       String
+  createdByUserId  String
+  name             String
+  mapping          Json
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([organizationId, locationId, createdByUserId, name])
 }
 
 model EnterpriseOutboxMessage {

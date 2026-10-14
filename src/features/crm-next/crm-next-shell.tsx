@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -1600,6 +1601,7 @@ export function CrmNextTestDrivesView({ model }: { model: CrmNextCommandCenter }
 }
 
 export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
+  const router = useRouter();
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <SavedDealsLibrary
@@ -1611,7 +1613,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
         }}
         disabled={false}
         refreshKey="deals-page"
-        onOpen={(id) => window.location.assign(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}
+        onOpen={(id) => router.push(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}
       />
     </CrmNextFrame>
   );
@@ -1620,16 +1622,20 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
 export function CrmNextDealStartView({
   initialCustomerId,
   initialWorkflowId,
+  initialVehicleReference,
+  initialVehicleFacts,
   model
 }: {
   initialCustomerId?: string;
   initialWorkflowId?: string;
+  initialVehicleReference?: string;
+  initialVehicleFacts?: Record<string, string>;
   model: CrmNextCommandCenter;
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} model={model} />
+      <CrmNextDealStartTool initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
 }

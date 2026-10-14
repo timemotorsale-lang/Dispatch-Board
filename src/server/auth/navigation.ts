@@ -64,7 +64,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     description: "Inventory lifecycle, readiness, recon, and disposition.",
     landingRoute: "/vehicles",
     roleNames: ["Inventory Manager"],
-    dutyTerms: ["inventory management", "inventory lifecycle", "vehicle readiness"]
+    dutyTerms: ["inventory management", "inventory lifecycle", "vehicle readiness", "work on inventory", "manage inventory acquisition", "execute inventory recon", "verify inventory readiness", "publish inventory listings", "authorize inventory release", "edit acquisition intake", "edit inventory pricing"]
   },
   {
     key: "ADVISOR",
@@ -316,6 +316,18 @@ export function getDefaultLandingRoute(
   return getWorkspaceDefinition(getWorkspaceKey(user, preferredWorkspace)).landingRoute;
 }
 
+export function shouldStartAtTimeCard(user: AuthenticatedUser) {
+  return !getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT");
+}
+
+export function getPostLoginLandingRoute(
+  user: AuthenticatedUser,
+  preferredWorkspace?: WorkspaceKey | null
+) {
+  if (shouldStartAtTimeCard(user)) return "/time-attendance";
+  return getDefaultLandingRoute(user, preferredWorkspace);
+}
+
 export function resolveWorkspaceForPath(
   user: AuthenticatedUser,
   path: string,
@@ -370,7 +382,7 @@ export function getLoginRouteRedirect(
     return "/settings/password";
   }
 
-  return user ? getDefaultLandingRoute(user, preferredWorkspace) : null;
+  return user ? getPostLoginLandingRoute(user, preferredWorkspace) : null;
 }
 
 export function getSafePostLoginRedirect(
@@ -397,7 +409,7 @@ export function resolvePostLoginRoute(
     return "/settings/password";
   }
 
-  const fallback = getDefaultLandingRoute(user, preferredWorkspace);
+  const fallback = getPostLoginLandingRoute(user, preferredWorkspace);
   const safe = getSafePostLoginRedirect(returnTo, fallback);
   return safe !== fallback && isRoutePermittedForUser(user, safe) ? safe : fallback;
 }

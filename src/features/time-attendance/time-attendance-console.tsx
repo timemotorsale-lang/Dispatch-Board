@@ -39,6 +39,7 @@ type TimeAttendanceConsoleProps = {
   payrollReadiness: PayrollHandoffReadiness;
   hardeningReadiness: TimeAttendanceHardeningPilotReadiness;
   density: "calm" | "high";
+  workspaceHref: string;
 };
 
 function minutesLabel(minutes: number) {
@@ -62,8 +63,9 @@ function dotClass(tone: "good" | "warning" | "neutral") {
   return styles.dotNeutral;
 }
 
-export function TimeAttendanceConsole({ activeView, captureState, density, managerReviewQueue, model, payrollReadiness, hardeningReadiness }: TimeAttendanceConsoleProps) {
+export function TimeAttendanceConsole({ activeView, captureState, density, managerReviewQueue, model, payrollReadiness, hardeningReadiness, workspaceHref }: TimeAttendanceConsoleProps) {
   const isEmployeeView = activeView === "today" || activeView === "my-time";
+  const needsClockIn = captureState.state === "NONE" && captureState.allowedActions.includes("CLOCK_IN");
   const primaryException = model.exceptions[0] ?? null;
   const blockingExceptionCount = model.exceptions.filter((exception) => exception.blocking).length;
   const cardReadiness = !model.employeeCard.available
@@ -134,10 +136,12 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
     <section className={`${styles.console} ${density === "high" ? styles.consoleHighVolume : ""}`} aria-label="Time and Attendance CCC console">
       <header className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Protected workspace · Time & Attendance</span>
-          <h1>Time card command center</h1>
+          <span className={styles.eyebrow}>Protected start · Time Card</span>
+          <h1>{needsClockIn ? "Clock in first" : "Time card is active"}</h1>
           <p>
-            Record exact time, clear card issues, and keep payroll evidence ready without hunting through separate tools.
+            {needsClockIn
+              ? "Start your shift here, then continue to your assigned workspace with a clean time record."
+              : "Your time status is visible here. Continue to your workspace when you are ready to work."}
           </p>
           <div className={styles.chips} aria-label="Console readiness">
             <span className={styles.chipGood}><ShieldCheck size={14} /> Governed policy controls</span>
@@ -148,9 +152,18 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
         <div className={styles.heroCompactMeta}>
           <span>{model.currentUserName}</span>
           <span>{model.asOfLabel}</span>
-          <Link className={styles.secondaryAction} href="/command-center">Return to workspace</Link>
+          <Link className={needsClockIn ? styles.secondaryActionMuted : styles.secondaryAction} href={workspaceHref}>{needsClockIn ? "Go to workspace" : "Go to my workspace"}</Link>
         </div>
       </header>
+
+      <section className={styles.startGate} aria-label="Time card start checkpoint">
+        <div>
+          <span className={styles.sectionEyebrow}>Login checkpoint</span>
+          <h2>{needsClockIn ? "Clock in before starting work" : captureState.statusLabel}</h2>
+          <p>{needsClockIn ? "The clock-in control is the first action below. The workspace link stays available for exceptions, but the intended path is clock in first." : "You can continue to your assigned workspace while your time card remains available for meals, breaks, and clock out."}</p>
+        </div>
+        <Link className={needsClockIn ? styles.ghostAction : styles.primaryActionDark} href={workspaceHref}>{needsClockIn ? "Continue to workspace" : "Go to my workspace"}</Link>
+      </section>
 
       <nav className={styles.tabs} aria-label="Time and attendance workspaces">
         <Link aria-current={activeView === "today" ? "page" : undefined} className={activeView === "today" ? styles.tabActive : styles.tab} href="/time-attendance?view=today">Today</Link>

@@ -296,6 +296,13 @@ export const dispatchNavigationItems: NavigationItem[] = [
     isVisible: (user) => isManager(user)
   },
   {
+    href: "/reports",
+    title: "Reports",
+    description: "Daily, weekly, monthly reports, reviews, and saved reporting history.",
+    icon: BarChart3,
+    parentHref: "/board"
+  },
+  {
     href: "/staff",
     title: "Team",
     description: "Team duties and execution context.",
@@ -475,6 +482,13 @@ export const navigationGroups: NavigationGroup[] = [
         title: "Document Library",
         description: "Source-of-truth packets, requirements, review, and archive.",
         icon: FileText
+      },
+      {
+        href: "/reports",
+        title: "Reports",
+        description: "Daily, weekly, monthly reports, reviews, and saved reporting history.",
+        icon: BarChart3,
+        badge: "Live"
       }
     ]
   },

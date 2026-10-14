@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "prebuild": "node scripts/prepare-prisma-client.mjs",
+    "pretypecheck": "node scripts/prepare-prisma-client.mjs",
     "predev": "node scripts/clean-dev-runtime-cache.mjs && node scripts/prepare-dev-runtime.mjs",
     "dev": "node scripts/run-dev.mjs",
     "build": "next build",
@@ -12,9 +13,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:inventory-import-ui": "node scripts/check-purchase-import-ui.mjs",
+    "check:purchase-import-release": "tsx scripts/check-purchase-import-release.ts",
+    "reports:worker": "tsx scripts/run-reporting-worker.ts",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
     "validate:inventory-console": "tsx scripts/validate-inventory-console-program.ts",
+    "check:inventory-access": "tsx scripts/check-inventory-console-access.ts",
     "audit:inventory-console-slices": "tsx scripts/audit-inventory-console-vertical-slices.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -32,21 +37,38 @@
     "@prisma/client": "^6.19.3",
     "@tesseract.js-data/eng": "^1.0.0",
     "@zxing/browser": "^0.2.1",
+    "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
     "lucide-react": "^1.21.0",
     "next": "^16.2.9",
+    "papaparse": "^5.7.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tesseract.js": "^7.0.0"
   },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.0"
+    },
+    "@next/eslint-plugin-next": {
+      "fast-glob": "$fast-glob"
+    }
+  },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.51.1",
     "@types/node": "^25.9.3",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.9",
+    "fast-glob": "file:tools/next-eslint-glob",
     "prisma": "^6.19.3",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

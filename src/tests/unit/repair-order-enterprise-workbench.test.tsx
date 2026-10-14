@@ -187,7 +187,10 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Photos and evidence");
     expect(html).toContain("Review only");
     expect(html).toContain("Review Work Plan Draft");
-    expect(html).toContain("Start Diagnosis");
+    expect(html).toContain("Open Labor Guide");
+    expect(html).toContain("/diagnostics/labor-guide?query=Customer+reports+a+grinding+noise+from+the+front+brakes+when+stopping.");
+    expect(html).toContain("repairOrderId=ro-1");
+    expect(html).toContain("returnLabel=Return+to+repair+order");
     expect(html).toContain("Intake Completeness");
     expect(html).toContain("Flow Clock");
     expect(html).toContain("6/6");
@@ -708,7 +711,7 @@ describe("enterprise repair-order workbench", () => {
     );
 
     expect(html).toContain("Concern not recorded.");
-    expect(html).toContain("Continue governed repair flow");
+    expect(html).toContain("Open the compact Labor Guide workflow for this repair order.");
     expect(html).toContain("Not started");
     expect(html).toContain("Not recorded");
   });

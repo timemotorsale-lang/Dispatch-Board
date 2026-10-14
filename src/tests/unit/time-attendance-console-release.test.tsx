@@ -151,9 +151,13 @@ describe("time attendance console release UX", () => {
         managerReviewQueue={managerReviewQueue}
         model={model}
         payrollReadiness={payrollReadiness}
+        workspaceHref="/vehicles/advisor"
       />
     );
 
+    expect(markup).toContain("Time card is active");
+    expect(markup).toContain("Go to my workspace");
+    expect(markup).toContain("/vehicles/advisor");
     expect(markup.indexOf("Clock in / clock out")).toBeLessThan(markup.indexOf("Time card command bar"));
     expect(markup).toContain("Clock out");
     expect(markup).toContain("Meal and break actions");
@@ -169,6 +173,7 @@ describe("time attendance console release UX", () => {
         managerReviewQueue={managerReviewQueue}
         model={model}
         payrollReadiness={payrollReadiness}
+        workspaceHref="/manager-workspace"
       />
     );
 

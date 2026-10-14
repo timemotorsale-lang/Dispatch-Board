@@ -16,7 +16,18 @@ export const ADD_VEHICLE_ALLOWED_REASONS: Record<AddVehicleRelationship, readonl
   OWNERSHIP_NOT_CONFIRMED: ["REFERENCE_ONLY", "INSPECTION_DIAGNOSIS", "OTHER"]
 };
 
+export function addVehicleEntryRelationship(returnTo?: string): AddVehicleRelationship {
+  if (!returnTo) return "DEALERSHIP_INVENTORY";
+  if (!returnTo.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\")) return "CUSTOMER_VEHICLE";
+  const path = new URL(returnTo, "http://local.invalid").pathname;
+  const inventoryPages = ["/vehicles", "/vehicles/inventory", "/vehicles/inventory/units", "/vehicles/control-tower", "/vehicles/coo-workbook", "/vehicles/inventory-to-frontline", "/vehicles/workflows", "/vehicles/workflows/add-vehicle", "/vehicles/registry"];
+  return inventoryPages.includes(path) || /^\/vehicles\/[^/]+\/(intake|journey|costs|pricing|inventory-planning)$/.test(path) ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE";
+}
+
 export function recommendAddVehicleWorkflow(input: { description: string; reasonCode: AddVehicleReason; relationship: AddVehicleRelationship }) {
+  if (input.relationship === "DEALERSHIP_INVENTORY" && ["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"].includes(input.reasonCode)) {
+    return { code: "CREATE_INTERNAL_REPAIR_INTAKE", title: "Internal Repair Intake", description: "Dealership repairs use internal service intake without purchase or sale preparation.", confidence: "HIGH" as const, commandLabel: "Add Vehicle & Start Internal Repair" };
+  }
   if (input.relationship === "CUSTOMER_VEHICLE" && ["SERVICE_REPAIR", "INSPECTION_DIAGNOSIS"].includes(input.reasonCode)) {
     return { code: "CREATE_SERVICE_INTAKE", title: "Create Service Intake", description: "Customer vehicle and service intent prepare a walk-in repair-order intake.", confidence: "HIGH" as const, commandLabel: "Add Vehicle & Create Service Intake" };
   }
@@ -26,8 +37,8 @@ export function recommendAddVehicleWorkflow(input: { description: string; reason
   if (input.relationship === "TRADE_ACQUISITION_CANDIDATE" || input.reasonCode === "TRADE_APPRAISAL" || input.reasonCode === "ACQUISITION_REVIEW") {
     return { code: "START_ACQUISITION_APPRAISAL", title: "Start Trade / Acquisition Appraisal", description: "Trade or acquisition intent prepares appraisal without creating dealership ownership or a purchase commitment.", confidence: "HIGH" as const, commandLabel: "Add Vehicle & Start Appraisal" };
   }
-  if (input.relationship === "DEALERSHIP_INVENTORY" && input.reasonCode === "INVENTORY_RECON") {
-    return { code: "REVIEW_INVENTORY_CONTROL", title: "Open Vehicle Workbench", description: "Dealership-inventory intent opens the canonical vehicle Workbench for inventory planning, inspection, and recon.", confidence: "MEDIUM" as const, commandLabel: "Add Vehicle & Open Workbench" };
+  if (input.relationship === "DEALERSHIP_INVENTORY") {
+    return { code: "REVIEW_INVENTORY_CONTROL", title: "Acquisition & Intake", description: "Capture purchase and arrival details before the recon lifecycle.", confidence: "HIGH" as const, commandLabel: "Add Vehicle & Continue Intake" };
   }
   return { code: "OPEN_VEHICLE_360", title: "Open Vehicle 360", description: "Create canonical identity and review the vehicle before starting a consequential workflow.", confidence: "MEDIUM" as const, commandLabel: "Add Vehicle & Open Vehicle 360" };
 }

@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
@@ -788,6 +788,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Set follow-up");
     expect(html).toContain("Attach photo/document");
     expect(html).toContain("Resolve today, protect tomorrow, review the evidence, and close with an explicit approval.");
+    expect(html).toContain("Approval submits your staff daily report, closes your day, and preserves the handoff evidence.");
     expect(html).toContain("Review today’s results");
     expect(html).toContain("Protect tomorrow");
     expect(html).toContain("Review the daily report evidence");
@@ -1023,6 +1024,7 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("Promise Tracker");
     expect(moreToolsHtml).toContain("Training Moment Capture");
     expect(moreToolsHtml).toContain("Close My Day");
+    expect(moreToolsHtml).toContain("My work submits the same daily report managers review.");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/focus-compass");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");

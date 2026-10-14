@@ -1,5 +1,170 @@
 # Current Implementation Status
 
+## 2026-10-10 - Local Vehicle 360 Runtime Recovery
+
+Two verified development servers were using the same `.next-local` junction;
+the second review launch retargeted that shared alias while the original server
+was still running. Development logs showed EBUSY client-reference manifest errors.
+Both local Dispatch Board server trees were stopped and one fresh isolated-cache
+instance was started on port 3000. The exact reported Vehicle 360 record
+`9980b769-4d3a-4673-a8cc-eeeb262a0764` rendered its authenticated Tacoma workspace
+successfully after recovery. No vehicle data, feature flags or permissions were
+changed, and no application-code patch was required for this recovery. Port 3001
+is no longer the review server. Future local review launches must reuse the active
+server rather than retarget a cache alias used by another running instance.
+This runtime recovery does not represent a production deployment.
+
+## 2026-10-10 - Vehicle Sales Media Gallery
+
+The preparation workspace Media tab now has Photos and Videos views, batch upload,
+per-file progress/retry, camera capture entry, selectable thumbnail grids, small/
+large sizes, saved ordering, primary-photo selection, a photo/video viewer and
+selected ZIP downloads. The primary sales photo updates the persistent vehicle
+sidebar. Sales media is explicitly tagged in existing protected evidence links;
+inspection and acquisition files are not automatically copied into the gallery.
+The server enforces 40 active sales photos and a separate five-video limit under
+a scoped vehicle row lock. Each file retains the existing 10 MB maximum. Accepted
+formats are JPEG, PNG, WebP and MP4; the existing baseline signature scan quarantines
+mismatches. MP4 container validation is not full antivirus scanning, transcoding
+or a guarantee of browser codec support. Uploaded files retain a one-year date.
+
+Ordering and removal reuse versioned enterprise commands, audited snapshots and
+outbox events, with stable upload retry identities. Concurrent/stale gallery
+changes fail safely. Confirmed removal archives only selected sales links, not
+protected bytes or operational evidence; legal holds prevent removal. Existing
+evidence view/manage capabilities and Vehicle 360 rollout controls govern access.
+No new permission system, public publishing connector or schema migration is added.
+Photo overlays and full video processing are not implemented in this slice.
+
+Sixteen focused regression files (96 tests), typecheck and scoped lint pass.
+Desktop/mobile interactive fixtures at 1440px and 390px verify gallery image
+rendering, primary/sidebar updates, previews, reorder, removal confirmation,
+batch/retry identity, ZIP download, stale recovery, limit controls, retained UI
+state and no overflow. The authenticated local Media tab loaded with enabled
+upload controls on port 3001; port 3000 remains occupied and its process was not
+stopped. No real vehicle files were uploaded or removed. Production deployment
+and real upload/video playback acceptance remain unverified. These changes are
+not committed, pushed or deployed.
+
+## 2026-10-10 - Vehicle Workspace Tabs And Contextual Tools
+
+The preparation workspace now has Vehicle Info, Marketing, Media, Market Data,
+Purchase Info, Activities, Files, Accounting, Recon, Logs and Release Review tabs
+beside the persistent vehicle sidebar. Vehicle Info has Summary, General Info,
+Pricing and Description sections. Existing pricing, cost and acquisition forms
+are reused with their authorization, validation and save controls intact; edits
+remain mounted while switching tabs. Documents, decoded specifications, journey
+steps and history come from existing authorized vehicle services. Logs support
+date/source/text filtering and pagination, using recorded actors when available.
+
+The overflow menu links Start Deal and Start Desk with selected-vehicle reference
+and document facts, without selecting a buyer or replacing an existing saved deal.
+It also links as-is sale, governed sale/reservation review, appraisal and Vehicle
+360. Appraisal and retail-completion views retain the requested vehicle scope on
+refresh and do not silently substitute another vehicle. Deposit opens reservation
+review, not payment collection. Deletion and customer-facing preview are explicitly
+unavailable because no supported workflow exists. External publishing connectors
+and valuation subscriptions are not simulated or enabled. Release gates remain.
+
+Fourteen focused test files (80 tests), typecheck, scoped lint and diff checks pass.
+Interactive component checks at 1440px and 390px verify tabs, keyboard navigation,
+retained pricing/intake edits, overflow-menu links, log filters/pagination and no
+page overflow. The authenticated local page loaded the new tabs; the existing
+Start The Day reminder limits further live interaction. Live deal creation, saves,
+payment, sale completion and production deployment were not verified. No migration
+is required; this slice has not been committed, pushed or deployed.
+
+## 2026-10-10 - DealerCenter-Inspired Preparation Workspace Layout
+
+The frontline preparation page now keeps vehicle photo/identity in a left sidebar
+and places the section tabs at the top of the right-hand workspace. Only the
+selected panel is visible; pricing and costs use compact embedded layouts without
+duplicated standalone headers or centered page padding. Forms stay mounted across
+tab changes to preserve unsaved edits. Accessible tabs support arrow keys, Home
+and End. Existing section names, data sources, permissions, save APIs and release
+gates are unchanged; unsupported third-party sections are not simulated.
+Twelve focused unit tests, typecheck and scoped lint pass. Interactive component
+checks at 1440px and 390px verify one visible panel, retained pricing edits,
+keyboard navigation, stable sidebar dimensions and no page overflow. The live
+authenticated page loaded the new structure; further live tab interaction was
+blocked by the existing Start The Day reminder, which was not modified.
+Production deployment and live save operations were not verified for this slice.
+
+## 2026-10-10 - Vehicle Sale Preparation And As-Is Disposition Entry
+
+Registry rows, Vehicle Workbench and Vehicle 360 now link to Prepare for Sale and
+Start As-Is Sale for the exact canonical vehicle. The authenticated sale entry
+requires inventory access, current dealership-controlled ownership, an open unit
+and confirmed intake; customer-only ownership cannot enter inventory sale. Missing
+intake routes to acquisition intake. Ordinary preparation reuses the existing
+frontline workspace. As-is review records attributable recon rationale and defect
+disclosure in the existing disposition case snapshot, with no new vehicle record.
+A documented manual as-is review may start for newly acquired units without
+changing the automated aged-candidate policy. Repository transaction checks recheck
+ownership and current-cycle intake. Existing cases are reopened rather than cloned.
+As-is retail completion retains approvals/title/release/settlement gates and now
+requires buyer-acknowledgment evidence server-side; it records SOLD without falsely
+marking recon completed or frontline ready. Normal disposition behavior remains.
+Focused automated tests, typecheck/lint and desktop/mobile fixture checks pass.
+Live signed-in registry links and the selected-vehicle intake redirect were checked;
+no real sale/disposition record was created during verification. End-to-end sale
+completion and production deployment remain unverified. No migration is required.
+
+## 2026-10-10 - Horizontal Find Vehicle Registry
+
+Find Vehicle now presents canonical vehicles in a full-width horizontal table
+with vehicle/registry number, stock, VIN, plate, status and row actions. Existing
+Workbench, Vehicle 360 and preview routes/handlers are preserved. The selected
+preview appears beneath the list rather than reserving an empty right column.
+The table scrolls within its container on narrow screens. Fifteen focused registry
+tests, typecheck and lint pass; desktop/mobile component-fixture screenshots show
+no page overflow. Live authenticated acceptance and deployment remain unverified.
+
+## 2026-10-10 - Worklist Path Actions Without Row Selection
+
+Prepare for Sale and Recon Path now open a native vehicle-selection dialog when
+no inventory row is selected, instead of appearing disabled. A vehicle is required
+before navigation; the chosen canonical vehicle ID routes to the existing
+frontline-preparation or inventory-planning page and its authenticated services.
+Selected-row links remain direct, and an empty worklist keeps actions unavailable.
+Interactive component-fixture checks pass for both paths, required selection,
+Escape dismissal and mocked row-detail API selection at desktop/mobile widths.
+Focused tests, typecheck and lint pass. Live signed-in acceptance and production
+deployment have not been verified for this change.
+
+## 2026-10-10 - Inventory Intake Path Choice And Frontline Preparation
+
+Confirmed intake opens `/vehicles/[id]/workflow`, a dedicated vehicle workflow
+choice screen with identity, intake handoff, holds and pending items. Prepare for
+Sale opens the preparation workspace; Inventory Recon opens existing recon planning.
+Customer Repair is visible but unavailable for an active inventory cycle. Add
+Vehicle now presents all three choices before acquisition; selecting Customer Repair
+uses the existing customer relationship and direct service-intake handoff, without
+creating an inventory cycle. The worklist remains separate with full-width
+horizontal rows and vehicle-specific Prepare for Sale and Recon Path links;
+controls/history and cycle creation use
+progressive disclosure. Intake-originated cycle creation preserves the vehicle
+and returns to its intake form. Prepare for Sale opens `/vehicles/[id]/frontline`,
+a preparation workspace using authorized journey, price, cost and document data.
+Choosing a path does not mutate lifecycle state or bypass release evidence or
+independent approval. External valuation/history providers are not simulated.
+Focused unit/service tests and typecheck pass; component-fixture screenshots were
+reviewed at 1440px and 390px with no page overflow. Authenticated browser acceptance
+and production deployment remain unverified.
+
+## 2026-10-10 - Inventory Lifecycle Team Functions Implemented Locally
+
+Inventory lifecycle authorization now uses existing Team Management functions
+for acquisition, recon, readiness, pricing, publishing and release. Server-side
+action checks and workspace buttons use the corresponding authorities while
+retaining independent approvals, readiness evidence and technical qualification.
+The local migration adds assignable functions without assigning staff or changing
+rollout flags. The read-only `check:inventory-access` command distinguishes missing
+functions from rollout blockers, including MASTER_DISABLED. See
+[`INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md`](INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md)
+for assignment, verified local evidence, acceptance and rollback. This slice has
+not been deployed or verified in production.
+
 ## 2026-09-14 — Vendor Registry v1 review slice implemented
 
 The CRM Vendor Registry review slice is now implemented behind the existing authenticated app shell. It adds vendor master records for lenders/banks, warranty companies, transport providers, parts suppliers, recon/repair vendors, auction/wholesale partners, and internal contacts; controlled vendor status/category rules; vendor profile notes; activity history; linked work records; and a simple create-task handoff into the universal Task ledger.

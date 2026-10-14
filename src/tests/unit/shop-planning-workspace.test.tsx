@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 
@@ -14,11 +14,14 @@ describe("Shop Planning diagnostic release workspace", () => {
       inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
     };
     const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
-    expect(markup).toContain("Repair Planning Command Center");
+    expect(markup).toContain("Repair Planning");
     expect(markup).toContain("Vehicle released for diagnosis");
     expect(markup).toContain("Diagnostic mission");
     expect(markup).toContain("Diagnostic / mechanical");
-    expect(markup).toContain("Select the repair type now");
+    expect(markup).toContain("Choose path");
+    expect(markup).toContain("Build Labor Guide estimate");
+    expect(markup).toContain("/diagnostics/labor-guide?query=Customer+reports+grinding+from+the+front+passenger+brake.");
+    expect(markup).toContain("Quick action flow");
     expect(markup).toContain("Bodywork repair");
     expect(markup).toContain("Outside vendor");
     expect(markup).toContain("Send to outside vendor");

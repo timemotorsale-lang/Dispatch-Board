@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 type Item = {
@@ -37,6 +38,7 @@ export function RepairOrderCoreWorkspace({ initial, initialDraft, initialSearch 
   initialSearch?: string;
   options: Options;
 }) {
+  const router = useRouter();
   const now = new Date();
   const preparedVehicle = options.vehicles.some((vehicle) => vehicle.id === initialDraft?.vehicleId) ? initialDraft?.vehicleId : "";
   const [list, setList] = useState(initial);
@@ -88,7 +90,7 @@ export function RepairOrderCoreWorkspace({ initial, initialDraft, initialSearch 
         body: JSON.stringify({ ...create, idempotencyKey: crypto.randomUUID(), reason: "Document repair-order intake and ownership." }),
       });
       if (result.result?.id) {
-        window.location.assign(`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: result.result.id })}`);
+        router.push(`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: result.result.id })}`);
         return;
       }
       setNotice("The repair order was saved. Search for it in the list.");
