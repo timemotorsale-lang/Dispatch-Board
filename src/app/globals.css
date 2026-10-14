@@ -10901,6 +10901,26 @@ code {
 .etw-record-heading h1 { margin: 0 0 2px; font-size: 13px; line-height: 1.2; overflow-wrap: anywhere; }
 .etw-record-heading span { color: var(--etw-muted); font-size: 10px; }
 .etw-record-heading b { padding: 4px 6px; color: #dc263a; background: #fff1f2; border: 1px solid #ffd4da; border-radius: 5px; font-size: 8px; white-space: nowrap; }
+.task-title-editor { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.task-title-editor > div,
+.task-title-editor label { flex: 1; min-width: 0; }
+.task-title-editor h1 { margin: 0 0 2px; }
+.task-title-editor p { margin: 2px 0 0; color: #236a36; font-size: 9px; font-weight: 800; }
+.task-title-editor-icon { display: inline-grid; flex: 0 0 auto; width: 24px; height: 24px; place-items: center; color: #3151d4; background: #f3f6ff; border: 1px solid #cfdbff; border-radius: 6px; cursor: pointer; }
+.task-title-editor-icon:hover { background: #e8eeff; }
+.task-title-editor-editing { display: grid; gap: 6px; }
+.task-title-editor-editing label { display: grid; gap: 3px; }
+.task-title-editor-editing label > span { color: #63718a; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+.task-title-editor-editing input { width: 100%; min-height: 34px; padding: 6px 8px; color: #10203b; background: #fff; border: 1px solid #b9c9ee; border-radius: 7px; font-size: 13px; font-weight: 900; }
+.task-title-editor-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.task-title-editor-actions button { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 0 10px; color: #fff; background: #4059df; border: 0; border-radius: 6px; font-size: 10px; font-weight: 900; cursor: pointer; }
+.task-title-editor-actions button:last-child { width: 28px; padding: 0; color: #5d6c82; background: #edf1f6; }
+.task-title-editor-actions button:disabled { cursor: not-allowed; opacity: 0.55; }
+.task-title-editor-editing p[role="alert"] { color: #bd2130; }
+.tasks-console-rail-title .task-title-editor { align-items: center; }
+.tasks-console-rail-title .task-title-editor h1 { color: #17223a; font-size: 1.06rem; line-height: 1.2; }
+.tasks-console-rail-title .task-title-editor-icon { width: 30px; height: 30px; }
+.tasks-console-rail-title .task-title-editor-editing input { font-size: 0.98rem; }
 .etw-alert-icon { display: grid; place-items: center; width: 26px; height: 26px; color: #f04455 !important; background: #fff0f2; border-radius: 6px; }
 .etw-facts { display: grid; gap: 0; margin: 0; padding: 8px 10px; }
 .etw-facts > div { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px; padding: 5px 0; font-size: 10.5px; }

@@ -2,6 +2,7 @@ const taskMetadataAllowedKeys = new Set([
   "customerReference",
   "description",
   "dueAt",
+  "title",
   "vehicleReference"
 ]);
 
@@ -9,6 +10,7 @@ export type NormalizedTaskMetadataUpdateInput = {
   customerReference?: string | null;
   description?: string;
   dueAt?: Date;
+  title?: string;
   vehicleReference?: string | null;
 };
 
@@ -45,6 +47,28 @@ function normalizeDescription(value: unknown) {
 
   if (normalizedValue.length > 2000) {
     throw new Error("Task metadata description must be 2000 characters or fewer.");
+  }
+
+  return normalizedValue;
+}
+
+function normalizeTitle(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error("Task metadata updates require title to be a string when provided.");
+  }
+
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    throw new Error("Task title is required.");
+  }
+
+  if (normalizedValue.length > 160) {
+    throw new Error("Task metadata title must be 160 characters or fewer.");
   }
 
   return normalizedValue;
@@ -102,6 +126,11 @@ export function normalizeTaskMetadataUpdateInput(value: unknown): NormalizedTask
   rejectUnknownKeys(input);
 
   const normalizedInput: NormalizedTaskMetadataUpdateInput = {};
+
+  const title = normalizeTitle(input.title);
+  if (title !== undefined) {
+    normalizedInput.title = title;
+  }
 
   const description = normalizeDescription(input.description);
   if (description !== undefined) {

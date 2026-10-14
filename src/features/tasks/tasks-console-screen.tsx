@@ -33,6 +33,7 @@ import {
   formatTaskDisplayNumber,
   formatTaskEnumLabel
 } from "@/features/tasks/detail/task-detail-mappers";
+import { TaskTitleEditor } from "@/features/tasks/detail/task-title-editor";
 import { isTaskDueSoon, isTaskOverdue } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { TaskReadModel } from "@/server/services/task-read";
@@ -2861,7 +2862,11 @@ export function TasksConsoleScreen({
                     </div>
                   </div>
                   <div className="tasks-console-rail-title">
-                    <h2>{selectedBoardTask.title}</h2>
+                    <TaskTitleEditor
+                      onSaved={() => refreshSelectedTaskDetail(selectedBoardTask.id, "Task title saved.")}
+                      taskId={selectedBoardTask.id}
+                      title={activeTaskDetail?.title ?? selectedBoardTask.title}
+                    />
                     <p>{getTaskReference(selectedBoardTask)}</p>
                   </div>
                 </div>

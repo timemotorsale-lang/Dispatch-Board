@@ -111,6 +111,7 @@ describe("task detail workspace", () => {
     );
 
     expect(markup).toContain("Vehicle Recon &amp; Inspection");
+    expect(markup).toContain("Edit task title");
     expect(markup).toContain("Task Resolution Workbench");
     expect(markup).toContain("Generated Resolution Tasks");
     expect(markup).toContain("Checklist");

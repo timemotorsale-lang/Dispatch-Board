@@ -13,6 +13,7 @@ import {
 
 export type TaskMetadataUpdateResult = {
   id: string;
+  title: string;
   description: string | null;
   dueAt: string;
   vehicleReference: string | null;
@@ -76,6 +77,13 @@ function buildMetadataChangeSummary(
   const changes: string[] = [];
 
   if (
+    nextInput.title !== undefined &&
+    nextInput.title !== previousTask.title
+  ) {
+    changes.push("updated the title");
+  }
+
+  if (
     nextInput.description !== undefined &&
     nextInput.description !== previousTask.description
   ) {
@@ -109,6 +117,7 @@ function buildMetadataChangeSummary(
 function toTaskMetadataUpdateResult(task: TaskMetadataLookupRecord): TaskMetadataUpdateResult {
   return {
     id: task.id,
+    title: task.title,
     description: normalizeOptionalText(task.description),
     dueAt: task.dueAt.toISOString(),
     vehicleReference: normalizeOptionalText(task.vehicleReference),
@@ -134,6 +143,7 @@ export async function updateTaskMetadata(
   const authenticatedUser = assertCanUpdateTaskMetadata(user, task);
   assertCanUpdateDueAt(authenticatedUser, normalizedInput);
   const changes = buildMetadataChangeSummary(task, normalizedInput);
+  const previousTaskTitle = task.title;
 
   if (changes.length === 0) {
     throw new Error("Task metadata updates did not change any saved fields.");
@@ -147,7 +157,7 @@ export async function updateTaskMetadata(
       actorUserId: authenticatedUser.id,
       taskId: task.id,
       eventType: "task.metadata_updated",
-      message: `${authenticatedUser.name} ${changes.join(", ")} on ${task.title}.`,
+      message: `${authenticatedUser.name} ${changes.join(", ")} on ${previousTaskTitle}.`,
       metadata: {
         changedFields: changes
       }

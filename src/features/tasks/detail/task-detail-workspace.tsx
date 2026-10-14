@@ -47,6 +47,7 @@ import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-p
 import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator-panel";
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
+import { TaskTitleEditor } from "@/features/tasks/detail/task-title-editor";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
@@ -158,7 +159,7 @@ export function TaskDetailWorkspace({
       <div className="etw-layout">
         <aside className="etw-context-rail">
           <section className="etw-card etw-record-card">
-            <div className="etw-record-heading"><span className="etw-alert-icon"><AlertTriangle size={18} /></span><div><h1>{recordTitle}</h1><span>Case #{recordNumber}</span></div><b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></div>
+            <div className="etw-record-heading"><span className="etw-alert-icon"><AlertTriangle size={18} /></span><div>{concern ? <h1>{recordTitle}</h1> : <TaskTitleEditor taskId={task.id} title={task.title} />}<span>Case #{recordNumber}</span></div><b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></div>
             <dl className="etw-facts">
               <div><dt>Status</dt><dd><span className={`etw-status etw-status-${statusTone(concern?.status ?? task.status)}`}>{formatTaskEnumLabel(concern?.status ?? task.status)}</span></dd></div>
               <div><dt>Severity</dt><dd>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</dd></div>
