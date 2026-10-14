@@ -11,6 +11,9 @@ import { buildDefinitionOfDone, buildSubtasks } from "@/features/tasks/detail/ta
 import { normalizeRequiredUpdateProgress } from "@/features/tasks/detail/task-required-update-progress";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
+import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
+import { TaskStatusBadge } from "@/features/tasks/detail/task-status-badge";
+import { normalizeTaskExecutionAssurance } from "@/lib/task-execution-assurance";
 import { buildTaskNextActionRecommendation } from "@/server/services/task-next-action";
 import type { TaskReadModel } from "@/server/services/task-read";
 
@@ -79,6 +82,91 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
 }
 
 describe("task detail workspace", () => {
+  it("displays the actual current status on the editable badge without mounting status controls", () => {
+    for (const status of [TaskStatus.NOT_STARTED, TaskStatus.IN_PROGRESS, TaskStatus.WAITING_ON_APPROVAL, TaskStatus.COMPLETED]) {
+      const label = status.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+      const markup = renderToStaticMarkup(<TaskStatusBadge actorIsManager canUpdate currentStatus={status} onStatusChanged={() => undefined} task={createTask({ status })} tone="active" />);
+      expect(markup).toContain(`aria-label="Change task status: ${label}"`);
+      expect(markup).toContain('aria-haspopup="dialog"');
+      expect(markup).toContain('aria-expanded="false"');
+      expect(markup).not.toContain('role="dialog"');
+    }
+  });
+
+  it("keeps the status badge read-only when the user cannot update the task", () => {
+    const markup = renderToStaticMarkup(<TaskStatusBadge actorIsManager={false} canUpdate={false} currentStatus={TaskStatus.NOT_STARTED} onStatusChanged={() => undefined} task={createTask()} tone="pending" />);
+    expect(markup).toContain('aria-label="Task status: Not Started"');
+    expect(markup).toContain('disabled=""');
+    expect(markup).not.toContain("aria-haspopup");
+  });
+  it("keeps the compact review optional and moves supporting detail into tools", () => {
+    const props = { activityEvents: [], actorIsManager: true, assignableUsers: [], canComment: true, canManageCollaborators: true, canCreateAppointment: true, canOpenFullWorkbench: true, canUpdateStatus: true, task: createTask() };
+    const review = renderToStaticMarkup(<TaskDetailWorkspace {...props} compactReview />);
+    expect(review).toContain('aria-label="Task template review"');
+    expect(review).not.toContain("Task Execution View");
+    expect(review).not.toContain("Category:");
+    expect(review).not.toContain('aria-label="Task source and context"');
+    expect(review).not.toContain('aria-label="Open task sections"');
+    expect(review).toContain('aria-label="Edit task description"');
+    expect(review).toContain('aria-label="Task work log"');
+    expect(review).toMatch(/Add subtask \(\d+\)/);
+    expect(review).toMatch(/Open checklist \(\d+\)/);
+    const current = renderToStaticMarkup(<TaskDetailWorkspace {...props} />);
+    expect(current).toContain("Task Execution View");
+    expect(current).toContain('aria-label="Open task sections"');
+    expect(current).not.toContain('aria-label="Task template review"');
+  });
+
+  it("surfaces overdue work, blockers, and missing requirements without opening a tool", () => {
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager assignableUsers={[]} canComment canManageCollaborators canCreateAppointment canUpdateStatus compactReview task={createTask({ status: TaskStatus.BLOCKED, blockerReason: "Waiting for vendor estimate", requiredUpdateFields: [{ key: "evidence", label: "Repair evidence", type: "long_text", required: true, helpText: null }] })} />);
+    expect(markup).toContain('aria-label="Task attention"');
+    expect(markup).toContain("Past due since");
+    expect(markup).toContain("who owns the next step, and the revised due time");
+    expect(markup).not.toContain('aria-label="Next action"');
+    expect(markup).not.toContain('aria-label="Next step"');
+    expect(markup).toContain("Blocked: Waiting for vendor estimate");
+    expect(markup).toContain("Required update: Repair evidence");
+    expect(markup).toContain("Manager approval is required");
+    expect(markup).not.toContain('aria-label="Selected task tool"');
+  });
+
+  it("shows one contextual overdue message and opens the work log to record the response", () => {
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager assignableUsers={[]} canComment canManageCollaborators canCreateAppointment canUpdateStatus compactReview task={createTask({ requiresManagerApproval: false })} />);
+    expect(markup).toContain('aria-label="Task attention"');
+    expect(markup.match(/Past due since/g)).toHaveLength(1);
+    expect(markup).toContain("Record update");
+    expect(markup).not.toContain("Review requirements");
+    expect(markup).not.toContain("Next Action:");
+    expect(markup).not.toContain('aria-label="Next step"');
+  });
+
+  it("uses a neutral next step when the review task has no exceptions", () => {
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager assignableUsers={[]} canComment canManageCollaborators canCreateAppointment canUpdateStatus compactReview task={createTask({ requiresManagerApproval: false, dueAt: "2100-10-13T17:00:00.000Z" })} />);
+    expect(markup).toContain('aria-label="Next step"');
+    expect(markup).toContain("Record update");
+    expect(markup).not.toContain('aria-label="Task attention"');
+    expect(markup).not.toContain("Needs attention");
+  });
+
+  it("hides accepted plan controls from the review summary and preserves plan access", () => {
+    const assurance = normalizeTaskExecutionAssurance({ planReview: { status: "CONFIRMED" } });
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager assignableUsers={[]} canComment canManageCollaborators canCreateAppointment canUpdateStatus compactReview task={createTask({ executionAssurance: { ...assurance, state: "ON_TRACK" } })} />);
+    expect(markup).not.toContain('aria-label="Choose how to use the suggested task plan"');
+    expect(markup).not.toContain("Working plan accepted");
+    expect(markup).toContain('value="plan"');
+  });
+
+  it("combines comments and audit events in the review work log", () => {
+    const markup = renderToStaticMarkup(<TaskUpdatesCommentsCard canComment={false} compact includeEvents heading="Work log" taskId="task-1" initialFeedItems={[
+      { id: "comment-1", kind: "comment", actorName: "Eli", createdAt: "2026-10-13T12:00:00.000Z", message: "Customer contacted" },
+      { id: "event-1", kind: "event", actorName: "Eli", createdAt: "2026-10-13T13:00:00.000Z", message: "Owner changed" }
+    ]} />);
+    expect(markup).toContain("Customer contacted");
+    expect(markup).toContain("Owner changed");
+    expect(markup).toContain('aria-label="Work log history"');
+    expect(markup).not.toContain("Post a comment");
+  });
+
   it("reveals status functions only when selected from Task tools", () => {
     const props = { activityEvents: [], actorIsManager: true, assignableUsers: [], canComment: true, canManageCollaborators: true, canCreateAppointment: true, canUpdateStatus: true, task: createTask() };
     const collapsed = renderToStaticMarkup(<TaskDetailWorkspace {...props} />);

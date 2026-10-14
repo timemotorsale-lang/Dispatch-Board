@@ -18,7 +18,7 @@ type TaskDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
-  searchParams: Promise<{ returnTo?: string; view?: string; claimId?: string }>;
+  searchParams: Promise<{ returnTo?: string; view?: string; claimId?: string; review?: string }>;
 };
 
 export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
@@ -77,6 +77,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       canUpdateStatus={canUpdateStatus}
       canOpenFullWorkbench={canOpenFullWorkbench}
       hasClaimWorkflow={Boolean(claimWorkflow)}
+      compactReview={resolvedSearchParams.review === "compact"}
       initialView={initialView}
       readiness={readiness}
       returnTo={returnTo}

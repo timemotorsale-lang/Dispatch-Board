@@ -65,6 +65,7 @@ type TaskDetailWorkspaceProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
+  compactReview?: boolean;
   canUpdateStatus: boolean;
   hasClaimWorkflow?: boolean;
   initialView?: TaskWorkspaceView;
@@ -238,6 +239,7 @@ export function TaskDetailWorkspace({
   canManageCollaborators,
   canCreateAppointment,
   canOpenFullWorkbench = false,
+  compactReview = false,
   canUpdateStatus,
   hasClaimWorkflow = false,
   initialView = "simple",
@@ -293,23 +295,25 @@ export function TaskDetailWorkspace({
     buildSimpleNextStep(task, missingUpdateLabels, checklist, simpleCategory);
   const elevateAppointmentPanel = shouldElevateTaskAppointmentPanel(task);
 
-  if (taskView === "simple") {
+  if (taskView === "simple" || compactReview) {
     return (
-      <section className="enterprise-task-workbench etw-simple-workbench" aria-label="Simple task execution view">
-        <header className="etw-command-bar">
+      <section className={`enterprise-task-workbench etw-simple-workbench${compactReview ? " etw-simple-review" : ""}`} aria-label={compactReview ? "Task template review" : "Simple task execution view"}>
+        {compactReview ? <nav className="task-review-return" aria-label="Task navigation"><Link href={returnTo}>Return to Tasks</Link></nav> : <header className="etw-command-bar">
           <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Execution View</span></div></div>
           <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="simple" />
           <div className="etw-command-actions">{task.repairOrderHref ? <Link href={task.repairOrderHref}>Open Repair Order</Link> : null}<Link href={returnTo}>Return to Tasks</Link></div>
-        </header>
+        </header>}
 
         <main className="etw-simple-shell">
           <TaskSimpleSummaryCard
+            key={`${task.id}:${compactReview ? "review" : "current"}`}
             actorIsManager={actorIsManager}
             assignableUsers={assignableUsers}
             canComment={canComment}
             canCreateAppointment={canCreateAppointment}
             canManageCollaborators={canManageCollaborators}
             canOpenFullWorkbench={canOpenFullWorkbench}
+            compactReview={compactReview}
             canUpdateStatus={canUpdateStatus}
             hasClaimWorkflow={hasClaimWorkflow}
             checklist={checklist}

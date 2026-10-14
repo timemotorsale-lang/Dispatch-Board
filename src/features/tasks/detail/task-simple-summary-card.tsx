@@ -26,6 +26,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
+import { isTaskPlanConfirmed } from "@/lib/task-execution-assurance";
 import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
 import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-panel";
@@ -38,6 +39,8 @@ import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { TaskSourceContext } from "./task-source-context";
 import { TaskTitleEditor } from "./task-title-editor";
 import { TaskMetadataPanel } from "./task-metadata-panel";
+import { TaskDescriptionEditor } from "./task-description-editor";
+import { TaskStatusBadge } from "./task-status-badge";
 import { advancedTaskTools, taskTools, TaskToolPicker, type TaskToolSelection } from "./task-tool-picker";
 
 type TaskWorkspaceView = "simple" | "workbench";
@@ -49,6 +52,7 @@ type TaskSimpleSummaryCardProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
+  compactReview?: boolean;
   canUpdateStatus: boolean;
   hasClaimWorkflow?: boolean;
   checklist: TaskDetailChecklistItem[];
@@ -1149,6 +1153,7 @@ export function TaskSimpleSummaryCard({
   hasClaimWorkflow = false,
   checklist,
   commentCount,
+  compactReview = false,
   dueAt,
   dueLabel,
   feedItems,
@@ -1168,7 +1173,8 @@ export function TaskSimpleSummaryCard({
   taskCategory
 }: TaskSimpleSummaryCardProps) {
   const router = useRouter();
-  const requestedTool = useSearchParams().get("tool");
+  const rawRequestedTool = useSearchParams().get("tool");
+  const requestedTool = compactReview && rawRequestedTool === "activity" ? "updates" : rawRequestedTool;
   const initialTool = taskTools.some(([tool]) => tool === requestedTool && (canOpenFullWorkbench || !advancedTaskTools[tool])) ? requestedTool as TaskToolSelection : "";
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(
     initialTool === "subtask" ? "next" : initialTool === "checklist" ? "checklist" : initialTool === "updates" ? "comments" : initialTool === "repairDetails" ? "repairDetails" : null
@@ -1180,9 +1186,11 @@ export function TaskSimpleSummaryCard({
   );
 
   const togglePanel = (panel: SummaryPanel) => {
+    setActiveTool("");
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
   };
   const openTool = (tool: TaskToolSelection) => {
+    if (compactReview && tool === "activity") tool = "updates";
     if (tool === "subtask") {
       setActivePanel("next");
       setActiveTool("");
@@ -1211,36 +1219,55 @@ export function TaskSimpleSummaryCard({
   const repairDetails = buildRepairDetails(task, roleLabel, dueLabel, currentStatus);
   const cardTone = getCardTone(task, currentStatus);
   const displayStatusItems = getDisplayStatusItems(task, currentStatus, priorityLabel);
+  const isClosed = currentStatus === TaskStatus.COMPLETED;
+  const overdue = !isClosed && displayStatusItems.some((item) => item.label === "Past due");
+  const completionRequirements = readiness?.requirements.filter((item) => !item.satisfied).map((item) => item.label) ?? [];
+  const attentionItems = isClosed ? [] : Array.from(new Set([
+    ...(overdue ? [`Past due since ${dueLabel}. Confirm what happened, who owns the next step, and the revised due time.`] : []),
+    ...(currentStatus === TaskStatus.BLOCKED || task.blockerReason ? [task.blockerReason ? `Blocked: ${task.blockerReason}. Record the unblock action, owner, and ETA.` : "Blocked: record the unblock action, owner, and ETA."] : []),
+    ...(currentStatus === TaskStatus.WAITING_ON_PARTS ? ["Waiting on parts: confirm the owner and arrival time."] : []),
+    ...(currentStatus === TaskStatus.WAITING_ON_APPROVAL || currentStatus === TaskStatus.READY_FOR_REVIEW ? ["Manager review is pending. Review the submitted evidence and record the decision."] : task.requiresManagerApproval ? ["Manager approval is required before completion. Submit the outcome and evidence for review when ready."] : []),
+    ...missingUpdateLabels.map((label) => `Required update: ${label}. Record this before completing the task.`),
+    ...completionRequirements
+  ]));
+  const needsStatusAction = completionRequirements.length > 0 || missingUpdateLabels.length > 0 || Boolean(task.blockerReason) || [TaskStatus.BLOCKED, TaskStatus.WAITING_ON_PARTS, TaskStatus.WAITING_ON_APPROVAL, TaskStatus.READY_FOR_REVIEW].some((status) => status === currentStatus) || task.requiresManagerApproval;
+  const needsPlanDecision = !isClosed && canUpdateStatus && !isTaskPlanConfirmed(task.executionAssurance) && (checklist.length > 0 || subtaskItems.length > 0);
 
   return (
-    <section className={`etw-compact-task-card etw-compact-tone-${cardTone}`} aria-label="Task summary card">
+    <section className={`etw-compact-task-card etw-compact-tone-${cardTone}${compactReview ? " task-review-compact" : ""}`} aria-label="Task summary card">
       <div className="etw-compact-task-body">
         <header className="etw-compact-task-header">
           <div>
-            <div className="etw-compact-title-row">
+            {compactReview ? <div className="task-review-state">
+              <TaskStatusBadge actorIsManager={actorIsManager} canUpdate={canUpdateStatus} currentStatus={currentStatus} onStatusChanged={setCurrentStatus} readiness={readiness} task={task} tone={cardTone} />
+              {attentionItems.length ? <a className="task-review-attention-link" href="#task-attention"><AlertTriangle size={14} />Needs attention ({attentionItems.length})</a> : null}
+            </div> : <div className="etw-compact-title-row">
               <strong>{sourceLabel}</strong>
               <span>{recordNumber}</span>
               <em><Building2 size={14} />Category: {taskCategory}</em>
-              {displayStatusItems.map((item) => (
+              {displayStatusItems.map((item, index) => index === 0 ? (
+                <TaskStatusBadge actorIsManager={actorIsManager} canUpdate={canUpdateStatus} currentStatus={currentStatus} key="current-status" onStatusChanged={setCurrentStatus} readiness={readiness} task={task} tone={item.tone} />
+              ) : (
                 <b className={`etw-compact-state-${item.tone}`} key={`${item.tone}-${item.label}`}>
                   <Circle size={10} />
                   {item.label}
                 </b>
               ))}
-            </div>
+            </div>}
             {canUpdateStatus && !task.concernWorkspace ? <TaskTitleEditor taskId={task.id} title={recordTitle} /> : <h1>{recordTitle}</h1>}
           </div>
-          <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} onSelect={openTool} returnTo={returnTo} taskId={task.id} value={activeTool} />
-          <TaskSourceContext canEdit={canUpdateStatus} task={task} />
+          <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} compactReview={compactReview} counts={compactReview ? { subtask: openSubtasks.length, checklist: checklistCount, repairDetails: repairDetails.linkedCount, updates: feedItems.length } : undefined} onSelect={openTool} returnTo={returnTo} taskId={task.id} value={activeTool || (activePanel === "next" ? "subtask" : activePanel === "checklist" ? "checklist" : activePanel === "comments" ? "updates" : activePanel === "repairDetails" ? "repairDetails" : "")} />
+          {!compactReview ? <TaskSourceContext canEdit={canUpdateStatus} task={task} /> : null}
         </header>
 
-        <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>
+        {compactReview ? <TaskDescriptionEditor key={recordDescription} canEdit={canUpdateStatus && !task.concernWorkspace} description={recordDescription} taskId={task.id} /> : <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>}
+        <div className={compactReview ? "task-review-facts" : undefined}>
         <div className="etw-compact-task-utility-row">
           <div className="etw-compact-owner-summary">
             <UserRound size={17} />
             <span>
               <strong>{task.assignedUser.name}</strong>
-              <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small>
+              {!compactReview ? <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small> : <small>Owner</small>}
             </span>
           </div>
         </div>
@@ -1248,17 +1275,25 @@ export function TaskSimpleSummaryCard({
         <dl className="etw-compact-task-fields etw-compact-task-fields-summary" aria-label="Task details">
           <div><dt><CalendarDays size={17} />Due</dt><DueDateEditor canEdit={actorIsManager} dueAt={dueAt} dueLabel={dueLabel} taskId={task.id} /></div>
         </dl>
+        </div>
 
-        <section className="etw-compact-next-action" aria-label={hasClaimWorkflow ? "Task coordination" : "Next action"}>
+        {!compactReview || !attentionItems.length ? <section className="etw-compact-next-action" aria-label={compactReview ? "Next step" : hasClaimWorkflow ? "Task coordination" : "Next action"}>
           <div>
             <MessageSquareText size={18} />
-            <strong>{hasClaimWorkflow ? "Task coordination:" : "Next Action:"}</strong>
+            <strong>{compactReview ? "Next step:" : hasClaimWorkflow ? "Task coordination:" : "Next Action:"}</strong>
             <span>{hasClaimWorkflow ? "Claim follow-up" : nextStep}</span>
           </div>
           <nav aria-label="Tools for this next action">
-            <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>
+            <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />{compactReview && (!canComment || isClosed) ? "View work log" : "Record update"}</button>
           </nav>
-        </section>
+        </section> : null}
+        {compactReview && attentionItems.length ? <aside aria-label="Task attention" className="task-review-attention" id="task-attention">
+          <AlertTriangle size={17} />
+          <div><strong>Needs attention</strong><ul>{attentionItems.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul>
+            {attentionItems.length > 3 ? <details><summary>{attentionItems.length - 3} more requirements</summary><ul>{attentionItems.slice(3).map((item) => <li key={item}>{item}</li>)}</ul></details> : null}
+          </div>
+          <button onClick={() => needsStatusAction ? openTool("status") : togglePanel("comments")} type="button">{needsStatusAction ? "Review requirements" : canComment ? "Record update" : "View work log"}</button>
+        </aside> : null}
       </div>
 
       {activeTool ? (
@@ -1275,10 +1310,25 @@ export function TaskSimpleSummaryCard({
                 {activeTool === "metadata" ? "Task details and context" : null}
                 {activeTool === "approvals" ? "Approvals and completion" : null}
                 {activeTool === "activity" ? "Activity history" : null}
+                {activeTool === "details" ? "Task details" : null}
+                {activeTool === "plan" ? "Working plan" : null}
               </strong>
             </div>
             <button aria-label="Close selected task tool" onClick={() => setActiveTool("")} type="button"><X size={17} /></button>
           </header>
+          {activeTool === "details" ? <>
+            <dl className="task-review-detail-list">
+              <div><dt>Task number</dt><dd>{recordNumber}</dd></div>
+              <div><dt>Source</dt><dd>{sourceLabel}</dd></div>
+              <div><dt>Category</dt><dd>{taskCategory}</dd></div>
+              <div><dt>Priority</dt><dd>{priorityLabel}</dd></div>
+              <div><dt>Role</dt><dd>{roleLabel}</dd></div>
+              <div><dt>Next step</dt><dd>{nextStep}</dd></div>
+              <div><dt>Collaborators</dt><dd>{(task.collaborators ?? []).length}</dd></div>
+            </dl>
+            <TaskSourceContext canEdit={canUpdateStatus} task={task} />
+          </> : null}
+          {activeTool === "plan" ? <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} /> : null}
           {activeTool === "status" ? (
             <>
               <TaskStatusActionMenu canComment={canComment} canUpdate={canUpdateStatus} currentStatus={currentStatus} onStatusChanged={setCurrentStatus} task={task} />
@@ -1334,17 +1384,20 @@ export function TaskSimpleSummaryCard({
         </section>
       ) : null}
 
-      <nav className="etw-compact-task-links" aria-label="Open task sections">
+      {compactReview ? <nav className="task-review-worklog" aria-label="Task work log">
+        <button aria-expanded={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={16} />Work log <span>{feedItems.length}</span></button>
+      </nav> : <nav className="etw-compact-task-links" aria-label="Open task sections">
         <button aria-pressed={activePanel === "progress"} onClick={() => togglePanel("progress")} type="button"><Activity size={14} />Progress / Updates</button>
         <button aria-pressed={activePanel === "next"} onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Subtasks <span>{openSubtasks.length}</span></button>
         <button aria-pressed={activePanel === "checklist"} onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Checklist <span>{checklistCount}</span></button>
         <button aria-pressed={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={14} />Comments <span>{commentCount}</span></button>
         <button aria-pressed={activePanel === "repairDetails"} onClick={() => togglePanel("repairDetails")} type="button"><Wrench size={14} />Repair Details <span>{repairDetails.linkedCount}</span></button>
-      </nav>
+      </nav>}
 
-      <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} />
+      {!compactReview || needsPlanDecision && !activeTool && !activePanel ? <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} /> : null}
 
       {activePanel ? <div className="etw-compact-expanded-panel">
+        {compactReview ? <header className="task-review-panel-heading"><strong>{activePanel === "comments" ? "Work log" : activePanel === "next" ? "Subtasks" : activePanel === "checklist" ? "Checklist" : "Repair details"}</strong><button aria-label="Close selected task tool" onClick={() => setActivePanel(null)} title="Close tool" type="button"><X size={17} /></button></header> : null}
         {activePanel === "progress" ? (
           <TaskStatusPanel
             actorIsManager={actorIsManager}
@@ -1398,7 +1451,8 @@ export function TaskSimpleSummaryCard({
           <TaskUpdatesCommentsCard
             canComment={canComment}
             compact
-            heading="Progress Updates"
+            includeEvents={compactReview}
+            heading={compactReview ? "Work log" : "Progress Updates"}
             initialFeedItems={feedItems}
             onActivityChanged={() => router.refresh()}
             quickNoteShortcuts={progressShortcuts}
