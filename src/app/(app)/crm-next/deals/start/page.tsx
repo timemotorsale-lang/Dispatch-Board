@@ -6,7 +6,7 @@ import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
 import { notFound } from "next/navigation";
 
 type CrmNextDealStartPageProps = {
-  searchParams?: Promise<{ customerId?: string; pathway?: string; vehicleId?: string }>;
+  searchParams?: Promise<{ customerId?: string; pathway?: string; vehicleId?: string; review?: string }>;
 };
 
 export default async function CrmNextDealStartPage({ searchParams }: CrmNextDealStartPageProps = {}) {
@@ -23,5 +23,5 @@ export default async function CrmNextDealStartPage({ searchParams }: CrmNextDeal
   if (vehicleId && !journey) notFound();
   const initialVehicleReference = journey ? [journey.vehicle.year, journey.vehicle.make, journey.vehicle.model, journey.vehicle.vin, journey.vehicle.stockNumber].filter(Boolean).join(" / ") : undefined;
   const initialVehicleFacts = journey ? { year: String(journey.vehicle.year ?? ""), make: journey.vehicle.make ?? "", model: journey.vehicle.model ?? "", vin: journey.vehicle.vin ?? "", stockNumber: journey.vehicle.stockNumber ?? "" } : undefined;
-  return <CrmNextDealStartView initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={await getCrmNextOperationalCommandCenter(user)} />;
+  return <CrmNextDealStartView reviewTestDrive={resolvedSearchParams?.review === "test-drive"} initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={await getCrmNextOperationalCommandCenter(user)} />;
 }

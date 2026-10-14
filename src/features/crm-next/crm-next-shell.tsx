@@ -1198,6 +1198,11 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
 export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter }) {
   const reviewLinks = [
     {
+      href: "/prototype/test-drive",
+      label: "Test-Drive Form Comparison",
+      detail: "Current form and simplified checkout prototype, pending staff approval."
+    },
+    {
       href: "/crm-next/progress",
       label: "Progress",
       detail: "Implementation milestones, evidence, and current proof state."
@@ -1620,12 +1625,14 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
 }
 
 export function CrmNextDealStartView({
+  reviewTestDrive,
   initialCustomerId,
   initialWorkflowId,
   initialVehicleReference,
   initialVehicleFacts,
   model
 }: {
+  reviewTestDrive?: boolean;
   initialCustomerId?: string;
   initialWorkflowId?: string;
   initialVehicleReference?: string;
@@ -1635,7 +1642,7 @@ export function CrmNextDealStartView({
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
+      <CrmNextDealStartTool reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
 }

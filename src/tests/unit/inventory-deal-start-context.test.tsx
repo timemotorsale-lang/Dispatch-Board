@@ -23,6 +23,11 @@ describe("inventory Start Deal handoff", () => {
     const page = await DealStartPage({});
     expect(getVehicleJourney).not.toHaveBeenCalled();
     expect(page.props.initialVehicleReference).toBeUndefined();
+    expect(page.props.reviewTestDrive).toBe(false);
+  });
+  it("enables the short checkout only through the explicit review link", async () => {
+    const page = await DealStartPage({ searchParams: Promise.resolve({ pathway: "test-drive", review: "test-drive" }) });
+    expect(page.props.reviewTestDrive).toBe(true);
   });
   it("does not reveal vehicle context to denied CRM users", async () => {
     vi.mocked(resolveCrmNextAccess).mockReturnValueOnce({ allowed: false, reason: "Denied", fallbackHref: "/vehicles" } as ReturnType<typeof resolveCrmNextAccess>);
