@@ -120,6 +120,13 @@ To deploy an approved revision, wait for successful `CI` on the corresponding
 exact revision before accessing the production host. It retains the existing
 production environment, backup, migration, and health checks.
 
+If Docker Hub downloads fail with a certificate or network error, manually run
+`Diagnose Production Network` from `main`. It checks the server's DNS, verified
+TLS connections, an independent DNS-over-HTTPS comparison, and current health.
+It does not build images, deploy, migrate data, restart services, or change
+server configuration. HTTP 401 from the registry is normal for this unauthenticated
+connection check; a hostname certificate mismatch must be repaired, not bypassed.
+
 ## Project docs
 
 - Current implementation status: [docs/CURRENT_IMPLEMENTATION_STATUS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/CURRENT_IMPLEMENTATION_STATUS.md)
