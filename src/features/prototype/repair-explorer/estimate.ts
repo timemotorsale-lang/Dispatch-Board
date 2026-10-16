@@ -1,3 +1,5 @@
+import { brakeScopeConflict } from "@/lib/brake-baseline";
+
 export type EstimateLine = {
   id: string;
   label: string;
@@ -50,6 +52,7 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
       identifiers.add(line.id);
       if (line.conflictGroup) conflicts.add(line.conflictGroup);
     }
+    if (draft.lines.some((line, index) => draft.lines.slice(index + 1).some(other => brakeScopeConflict(line.id, other.id)))) return null;
     return draft;
   } catch {
     return null;

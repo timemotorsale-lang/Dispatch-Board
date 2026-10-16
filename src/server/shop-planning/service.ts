@@ -4,6 +4,7 @@ import { checkEstimateControls, validateEstimateControls } from "@/lib/labor-gui
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
+import { BRAKE_BASELINE_VERSION, brakeOperationForId } from "@/lib/brake-baseline";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository,type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
@@ -51,7 +52,7 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
       if(!canManageSettings(user))throw new Error("Only an administrator may override the active shop labor rate. Use the current shop rate and repeat review.");
       if(!controls.pricing.overrideReason?.trim())throw new Error("An administrator rate override reason is required.");
     }
-    data.assumptions=[data.assumptions,`Estimate controls v1 (staff reviewed, not independently verified): ${JSON.stringify(controls)}`,`Labor provenance: ${JSON.stringify(selectedCatalog.map(operation=>({operationId:operation.id,source:"INTERNAL_AUTHORED",version:"labor-taxonomy-v1",validatedStandard:false,proposedMinutes:Math.round(operation.hours*60)})))}`].filter(Boolean).join("\n");
+    data.assumptions=[data.assumptions,`Estimate controls v1 (staff reviewed, not independently verified): ${JSON.stringify(controls)}`,`Labor provenance: ${JSON.stringify(selectedCatalog.map(operation=>({operationId:operation.id,source:"INTERNAL_AUTHORED",version:brakeOperationForId(operation.id)?BRAKE_BASELINE_VERSION:"labor-taxonomy-v1",validatedStandard:false,proposedMinutes:Math.round(operation.hours*60),...(brakeOperationForId(operation.id)?{scope:brakeOperationForId(operation.id)}:{})})))}`].filter(Boolean).join("\n");
   }
   // Keep the original version on retries so the command ledger can replay the same result.
   const suppliedVersion=(value as Record<string,unknown>).expectedVersion;

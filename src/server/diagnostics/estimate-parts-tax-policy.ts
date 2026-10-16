@@ -1,4 +1,5 @@
 import type { LaborRepairOperation } from "./labor-operation-taxonomy";
+import { brakeOperationForId } from "@/lib/brake-baseline";
 
 export const DIAGNOSTIC_ESTIMATE_PARTS_TAX_POLICY_VERSION = "DGN-ESTIMATE-PARTS-TAX/1.0.0";
 
@@ -36,6 +37,7 @@ export type EstimatePartsTaxPolicyResult = {
 };
 
 type ExistingPart = {
+  policyRequirementKey?: string;
   laborRowId: string;
   name: string;
   number: string;
@@ -121,6 +123,8 @@ function transmissionReplacementParts(operation: LaborRepairOperation): Estimate
 }
 
 export function requiredPartsForLabor(operation: LaborRepairOperation): EstimateRequiredPart[] {
+  const brake = brakeOperationForId(operation.id);
+  if (brake) return brake.parts.map((part, index) => ({ category: "MAJOR_COMPONENT", description: part.name, key: `brake-part-${index}`, laborOperationId: operation.id, partNumber: "", pricingStatus: "PRICE_PENDING", quantity: part.quantity, taxable: true, unitPriceCents: 0 }));
   if (operation.id === "transmission-remove-install") return transmissionReplacementParts(operation);
   return [];
 }
@@ -131,6 +135,7 @@ export function requiredAddOnsForLabor(operation: LaborRepairOperation) {
 }
 
 function isSamePart(requirement: EstimateRequiredPart, part: ExistingPart) {
+  if (brakeOperationForId(requirement.laborOperationId)) return part.laborRowId === requirement.laborOperationId && (part.policyRequirementKey === requirement.key || canonical(part.name) === canonical(requirement.description));
   const requiredNumber = canonical(requirement.partNumber);
   const requiredDescription = canonical(requirement.description);
   const actualNumber = canonical(part.number);

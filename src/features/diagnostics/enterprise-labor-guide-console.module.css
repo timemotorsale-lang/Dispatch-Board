@@ -976,6 +976,19 @@
   padding: 9px 12px;
 }
 
+.operationResults article > details {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.operationResults article > details > summary {
+  cursor: pointer;
+  color: #344fa2;
+}
+
 .operationGroup {
   display: grid;
 }

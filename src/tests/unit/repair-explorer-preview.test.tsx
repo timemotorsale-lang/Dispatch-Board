@@ -28,7 +28,7 @@ describe("Repair Explorer preview", () => {
     expect(searchRepairs("P0300")[0].repair.id).toBe("engine-misfire");
     expect(searchRepairs("no start").some(({ repair }) => repair.id === "no-start")).toBe(true);
     expect(searchRepairs("no-start").some(({ repair }) => repair.id === "no-start")).toBe(true);
-    expect(searchRepairs("rear caliper")).toHaveLength(2);
+    expect(searchRepairs("rear caliper").filter(({ repair }) => /^Replace rear (left|right) brake caliper$/.test(repair.label))).toHaveLength(2);
     expect(searchRepairs("not-a-sample-repair")).toEqual([]);
     expect(REPAIR_SYSTEMS).toHaveLength(12);
   });

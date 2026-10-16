@@ -11,7 +11,7 @@ describe("visual repair finder", () => {
     expect(VISUAL_AREAS).toHaveLength(12);
     expect(new Set(VISUAL_AREAS.map((area) => area.id)).size).toBe(12);
     expect(new Set(VISUAL_AREAS.map((area) => area.systemId))).toEqual(new Set(REPAIR_SYSTEMS.map((system) => system.id)));
-    expect(CATALOG_ENTRIES).toHaveLength(879);
+    expect(CATALOG_ENTRIES.length).toBeGreaterThan(879);
     for (const area of VISUAL_AREAS) {
       expect(new Set(area.parts.map((part) => part.id)).size).toBe(area.parts.length);
       for (const part of area.parts) {

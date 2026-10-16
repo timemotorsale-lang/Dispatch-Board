@@ -1,5 +1,6 @@
 import { EXPANDED_REPAIR_SYSTEMS } from "./expanded-catalog";
 import { buildLaborPlan, type LaborPlan } from "./labor-guide";
+import { BRAKE_GROUPS, BRAKE_OPERATIONS } from "@/lib/brake-baseline";
 
 export type RepairOperation = {
   id: string;
@@ -95,6 +96,16 @@ const ORIGINAL_REPAIR_SYSTEMS: RepairSystem[] = [
 
 export const REPAIR_SYSTEMS: RepairSystem[] = EXPANDED_REPAIR_SYSTEMS.map((system) => {
   const original = ORIGINAL_REPAIR_SYSTEMS.find((item) => item.id === system.id);
+  if (system.id === "brakes") return {
+    ...system,
+    groups: [
+      ...BRAKE_GROUPS.map(group => ({ id: group.id, label: group.label, operations: BRAKE_OPERATIONS.filter(item => item.groupId === group.id).map(item => {
+        const repair: RepairOperation = { id: item.previewId, label: item.label, kind: item.diagnosis ? "diagnosis" : "repair", hours: item.hours, parts: item.parts.length ? null : 0, keywords: `${item.label} ${item.family} ${item.position} ${item.id} ${item.id === "brake-noise" ? "grinding squeal pulsation" : ""}`, includes: item.included };
+        const plan = buildLaborPlan(repair, group.id);
+        return { ...repair, laborPlan: { ...plan, basis: "WORK_BREAKDOWN" as const, scope: `${item.position}. Internal unvalidated planning allowance; review vehicle-specific access and procedures.` } };
+      }) }))
+    ]
+  };
   return {
     ...system,
     groups: system.groups.map((group) => {

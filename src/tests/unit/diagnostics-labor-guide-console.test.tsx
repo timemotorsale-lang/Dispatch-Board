@@ -29,8 +29,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Replace front brake caliper");
     expect(markup).toContain("Pads, Rotors, Drums &amp; Calipers");
     expect(markup).toContain("ABS, Stability &amp; Parking Brake");
-    expect(markup).toContain("4 fixes");
-    expect(markup).toContain("3 fixes");
+    expect(markup).toContain("Drum Brakes &amp; Measurements");
+    expect(markup).toContain("Electronic Assist &amp; Regenerative Braking");
     expect(markup).toContain("aria-expanded=\"false\"");
     expect(markup).not.toContain("Choose what needs to be fixed");
     expect(markup).not.toContain("Select</button>");
@@ -39,7 +39,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Edit Front brake pad set price and quantity");
     expect(markup).toContain("Suggested catalog match - fitment and price need review");
     expect(markup).toContain("Automatic Suggested Add-Ons");
-    expect(markup).toContain("Road test and repair verification");
+    expect(markup).toContain("Full brake fluid exchange (not an included circuit bleed)");
     expect(markup).toContain("Helpful items to review");
     expect(markup).not.toContain("Estimate Labor Rules");
     expect(markup).not.toContain("OEM Parts Map");

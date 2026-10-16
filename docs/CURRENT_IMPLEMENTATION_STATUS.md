@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-10-16 - Automobile and Light-Truck Brake Baseline
+
+The regular Labor Guide and Repair Explorer now share `brakes-light-duty-v1`: 119 brake operations across eight groups and all 21 audited coverage families. New entries include rotor-only and measurement/machining, serviceable caliper/drum components, conventional/electronic assist, EPB, ABS/stability, pedal controls, regeneration and vehicle-side light-truck towing controls. Heavy/trailer brake groups are no longer offered in the active brake preview; legacy saved amounts are not repriced. All other system catalog definitions remain unchanged.
+
+Progressive scope/parts/safety disclosures, unrestricted operation-list access, pending-price brake parts plans, persistent editing of derived parts, included-scope guards and required configuration/procedure/verification-plan review now support the baseline. Caliper/master/HCU selections no longer automatically charge a full brake-fluid exchange. Server presentation checks duplicate included brake scope and records versioned internal/unvalidated labor provenance and the reviewed scope. This is not verified vehicle-specific book labor, a measured-hours database, an OEM diagram library or a new technician release gate. See [Brake baseline coverage](BRAKE_BASELINE_COVERAGE.md) for the matrix, verification and remaining evidence work. Steering/suspension is the next audit slice, not completed by this change.
+
 ## 2026-10-15 - Labor Guide Controls and Administrator Labor Rate
 
 The regular Labor Guide now starts new estimates at the shop-requested $125/hour default and reads effective active `SHOP_LABOR_RATE` policies. `/settings/labor-rate` provides manager-protected draft, validation, independent approval and activation through the existing policy command/audit services. Rate changes do not reprice stored quotes or presented estimates; the dedicated feature introduces no schema migration. The requested 7% tax remains a draft assumption requiring an applicable jurisdiction/source reference, not a universal Minnesota tax assertion.

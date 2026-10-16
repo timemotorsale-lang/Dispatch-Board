@@ -20,6 +20,8 @@ import { emptyManualLaborReview, estimateReviewScope, manualReviewComplete, type
 import { GuidedEstimate } from "./guided-estimate";
 import { LaborGuideVehicleEntry } from "./labor-guide-vehicle-entry";
 import { EstimateControlsPanel } from "./estimate-controls-panel";
+import { BrakeOperationScope } from "./brake-operation-scope";
+import { brakeOperationForId, brakeScopeConflict } from "@/lib/brake-baseline";
 import { checkEstimateControls, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
 
 type ActiveRepairOrder = {
@@ -73,7 +75,7 @@ type PartsWorkspacePart = { description: string; id: string; partNumber: string;
 const commonSuggestedAddOns = [
   { id: "road-test", label: "Road test and repair verification", hours: 0.3 },
   { id: "torque-verification", label: "Torque verification", hours: 0.2 },
-  { id: "brake-fluid-service", label: "Brake hydraulic bleed / fluid exchange", hours: 0.8 },
+  { id: "brake-fluid-service", label: "Full brake fluid exchange (not an included circuit bleed)", hours: 1 },
 ];
 
 const defaultParts: SelectedPart[] = [
@@ -358,8 +360,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       ? "Add at least one labor or part line before creating this estimate."
       : "Creates the official estimate document and opens print and repair-workbench actions.";
   const suggestedAddOns = useMemo(() => {
-    return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id)).slice(0, 4);
-  }, [acceptedAddOnIds, estimatePolicy.requiredAddOnIds]);
+    return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id) && !(selectedLabor.some(operation => brakeOperationForId(operation.id) && operation.operation !== "Diagnose") && ["road-test", "torque-verification"].includes(item.id))).slice(0, 4);
+  }, [acceptedAddOnIds, estimatePolicy.requiredAddOnIds, selectedLabor]);
 
   useEffect(() => {
     const query = lookupQuery.trim();
@@ -391,6 +393,10 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }, [editingPartId]);
 
   function addLabor(operation: LaborRepairOperation) {
+    if (selectedLabor.some(line => brakeScopeConflict(line.id, operation.id))) {
+      setNotice("This brake work is already included in the selected scope. Remove the overlapping line before choosing an alternative.");
+      return;
+    }
     setSelectedLabor((current) => current.some((item) => item.id === operation.id) ? current : [...current, { ...operation, rowId: operation.id }]);
     setWorkTab("selected");
     void autoAddCatalogParts(operation);
@@ -495,6 +501,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   function startPartEdit(part: SelectedPart) {
+    setSelectedParts(current => current.some(item => item.id === part.id) ? current : [...current, part]);
     setEditingPartId(part.id);
     setPartDraft({ name: part.name, number: part.number, quantity: String(part.quantity), unitPrice: part.unitPrice ? part.unitPrice.toFixed(2) : "" });
   }
@@ -582,7 +589,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     draft.adopt();
     setClinical({});
     setLaborReview(emptyManualLaborReview);
-    setEstimateControls({ ...estimateControls, fitment: {}, overlapResolution: "", reviewedScope: "" });
+    setEstimateControls({ ...estimateControls, fitment: {}, overlapResolution: "", reviewedScope: "", brakeReview: undefined });
     setEstimateAttempt(null);
     setManualDetails(emptyLaborGuideDetails);
     if (!keepProposedWork) clearEstimateWorkspace();
@@ -625,6 +632,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   async function autoAddCatalogParts(operation: LaborRepairOperation) {
+    const brake = brakeOperationForId(operation.id);
+    if (brake) {
+      setNotice(brake.parts.length ? "Brake parts plan added with pricing pending. Confirm the VIN, quantities, hardware and fluid requirements before quoting." : "No replacement parts were added for this test or service. Add materials only when required by the reviewed procedure.");
+      return;
+    }
     const generation = partsRequestGeneration.current;
     setPartsCatalogBusy(true);
     try {
@@ -994,8 +1006,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                   </button>
                   {visibleGroupId === group.id ? (
                     <div className={styles.operationResults}>
-                      {group.operations.slice(0, 12).map((operation) => (
-                        <article key={operation.id} onDoubleClick={() => addLabor(operation)} role="group">
+                      {group.operations.map((operation) => (
+                        <article key={operation.id} role="group">
                           <button className={styles.operationChoice} onClick={() => addLabor(operation)} type="button">
                             <strong>{operation.title}</strong>
                             <small>{operation.included.slice(0, 3).join(", ")}</small>
@@ -1007,6 +1019,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                             ) : null}
                           </button>
                           <span>{operation.hours.toFixed(1)} hrs</span>
+                          <BrakeOperationScope operationId={operation.id} />
                         </article>
                       ))}
                     </div>

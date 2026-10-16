@@ -1,3 +1,5 @@
+import { BRAKE_GROUPS, BRAKE_OPERATIONS } from "@/lib/brake-baseline";
+
 export type LaborRepairOperation = {
   aliases: string[];
   component: string;
@@ -43,7 +45,7 @@ const labor = (
   overlapGroup: string | null = null,
 ): LaborRepairOperation => ({ aliases, component, concernExamples, hours, id, included, operation, overlapGroup, position, requiredAddOns, subsystem, system, title });
 
-export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = [
+const ORIGINAL_LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = [
   { id: "maintenance", title: "Maintenance & Scheduled Service", description: "Routine service, fluids, filters, belts, tune-up work, and mileage-based packages.", groups: [
     { id: "oil-fluids", title: "Oil, Fluids & Filters", operations: [
       labor("engine-oil-service", "Maintenance & Scheduled Service", "Oil, Fluids & Filters", "Engine Oil & Filter", "Service", "Engine Bay", "Engine oil and filter service", 0.5, ["oil change", "lube service"], ["Maintenance due", "Oil life warning"], ["Drain and fill oil", "Replace filter", "Reset maintenance reminder"], [], "maintenance-service"),
@@ -193,6 +195,25 @@ export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = [
     ] },
   ] },
 ];
+
+function brakeAction(label: string): LaborRepairOperation["operation"] {
+  const verb = label.split(" ")[0];
+  if (["Replace", "Repair", "Inspect", "Diagnose", "Adjust", "Measure"].includes(verb)) return verb as LaborRepairOperation["operation"];
+  if (/^(Program|Calibrate|Configure|Initialize)/.test(label)) return "Program / Calibrate";
+  return "Service";
+}
+
+const legacyOperations = ORIGINAL_LABOR_OPERATION_TAXONOMY.flatMap(system => system.groups.flatMap(group => group.operations));
+
+export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = ORIGINAL_LABOR_OPERATION_TAXONOMY.map(system => system.id === "brakes" ? {
+  ...system,
+  description: "Passenger-vehicle and light-truck brake baseline. Provisional planning hours require configuration, procedure and overlap review.",
+  groups: BRAKE_GROUPS.map(group => ({ id: group.id, title: group.title, operations: BRAKE_OPERATIONS.filter(operation => operation.groupId === group.id).map(operation => ({
+    id: operation.id, system: system.title, subsystem: group.title, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""),
+    title: operation.title, hours: operation.hours, aliases: [operation.label, operation.previewId, ...(legacyOperations.find(item => item.id === operation.id)?.aliases ?? [])], concernExamples: legacyOperations.find(item => item.id === operation.id)?.concernExamples ?? [operation.label], included: operation.included,
+    operation: brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess
+  })) }))
+} : { ...system, groups: system.groups.map(group => ({ ...group, operations: group.operations.filter(operation => operation.id !== "brake-fluid-service") })) });
 
 export const LABOR_OPERATION_ADD_ONS = [
   { id: "alignment", label: "Alignment recommended", hours: 1.2 },
