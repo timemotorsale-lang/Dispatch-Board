@@ -1,9 +1,11 @@
 import { estimateReviewScope, type ReviewLine } from "./estimate-review";
 import { brakeOperationForId, brakeScopeConflict } from "./brake-baseline";
+import { steeringOperationForId, steeringScopeConflict } from "./steering-baseline";
 
 export type EstimatePricing = { laborRate: number; partsMarkupPercent: number; taxRatePercent: number | null; taxReference: string; reason: string; overrideReason?: string; ratePolicyId?: string; ratePolicyVersion?: number };
 export const initialEstimatePricing: EstimatePricing = { laborRate: 125, partsMarkupPercent: 35, taxRatePercent: 7, taxReference: "", reason: "Use the active shop labor-rate policy. Confirm retail parts and applicable tax before presentation." };
-export type EstimateControls = { version: 1; pricing: EstimatePricing; fitment: Record<string, string>; overlapResolution: string; reviewedScope: string; brakeReview?: { configuration: string; procedureReference: string; verificationPlan: string } };
+export type SteeringReview = { configuration: string; procedureReference: string; verificationPlan: string; alignmentDecision: "" | "SEPARATE_LINE" | "INCLUDED_IN_SCOPE" | "NOT_REQUIRED" | "OUTSOURCE"; alignmentReason: string };
+export type EstimateControls = { version: 1; pricing: EstimatePricing; fitment: Record<string, string>; overlapResolution: string; reviewedScope: string; brakeReview?: { configuration: string; procedureReference: string; verificationPlan: string }; steeringReview?: SteeringReview };
 export type LaborScope = { id: string; title: string; hours: number; overlapGroup: string | null };
 
 export function laborOverlapGroups(labor: LaborScope[]) {
@@ -30,6 +32,12 @@ export function validateEstimatePricing(value: unknown): EstimatePricing {
 export function validateEstimateControls(value: unknown): EstimateControls {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Pricing, fitment and overlap review is required.");
   const controls = value as EstimateControls;
+  if (controls.steeringReview !== undefined) {
+    const review = controls.steeringReview;
+    if (!review || typeof review !== "object" || Array.isArray(review)) throw new Error("Invalid steering review.");
+    for (const field of ["configuration", "procedureReference", "verificationPlan", "alignmentReason"] as const) if (typeof review[field] !== "string" || review[field].length > 2000) throw new Error("Invalid steering review reference.");
+    if (!["", "SEPARATE_LINE", "INCLUDED_IN_SCOPE", "NOT_REQUIRED", "OUTSOURCE"].includes(review.alignmentDecision)) throw new Error("Invalid alignment decision.");
+  }
   if (controls.brakeReview !== undefined) {
     if (!controls.brakeReview || typeof controls.brakeReview !== "object" || Array.isArray(controls.brakeReview)) throw new Error("Invalid brake review.");
     for (const field of ["configuration", "procedureReference", "verificationPlan"] as const) if (typeof controls.brakeReview[field] !== "string" || controls.brakeReview[field].length > 2000) throw new Error("Invalid brake review reference.");
@@ -41,12 +49,20 @@ export function validateEstimateControls(value: unknown): EstimateControls {
 }
 
 export function estimateControlsScope(vehicleId: string, lines: ReviewLine[], controls: Omit<EstimateControls, "reviewedScope">) {
-  return JSON.stringify({ work: estimateReviewScope(vehicleId, lines), taxability: lines.map(line => ({ key: line.key, taxable: (line as ReviewLine & { taxable?: boolean }).taxable === true })), pricing: validateEstimatePricing(controls.pricing), fitment: Object.entries(controls.fitment).sort(([left], [right]) => left.localeCompare(right)), overlapResolution: controls.overlapResolution, ...(controls.brakeReview ? { brakeReview: controls.brakeReview } : {}) });
+  return JSON.stringify({ work: estimateReviewScope(vehicleId, lines), taxability: lines.map(line => ({ key: line.key, taxable: (line as ReviewLine & { taxable?: boolean }).taxable === true })), pricing: validateEstimatePricing(controls.pricing), fitment: Object.entries(controls.fitment).sort(([left], [right]) => left.localeCompare(right)), overlapResolution: controls.overlapResolution, ...(controls.brakeReview ? { brakeReview: controls.brakeReview } : {}), ...(controls.steeringReview ? { steeringReview: controls.steeringReview } : {}) });
 }
 
 export function checkEstimateControls(vehicleId: string, lines: ReviewLine[], controls: EstimateControls, labor: LaborScope[], taxCents: number) {
   const checked = validateEstimateControls(controls);
   const pricing = checked.pricing;
+  if (labor.some(line => steeringOperationForId(line.id))) {
+    const review = checked.steeringReview;
+    if (!review || [review.configuration, review.procedureReference, review.verificationPlan, review.alignmentReason].some(reference => !reference.trim()) || !review.alignmentDecision) throw new Error("Confirm steering/suspension configuration, procedure, verification and alignment decision before presentation.");
+    const hasAlignment = labor.some(line => steeringOperationForId(line.id)?.groupId === "steering-alignment" && /^(Perform|Adjust)/.test(steeringOperationForId(line.id)!.label));
+    if (review.alignmentDecision === "SEPARATE_LINE" && !hasAlignment) throw new Error("Add the reviewed alignment operation, or revise the alignment decision before presentation.");
+    if (["INCLUDED_IN_SCOPE", "NOT_REQUIRED", "OUTSOURCE"].includes(review.alignmentDecision) && hasAlignment) throw new Error("The alignment decision conflicts with a separate alignment labor line. Remove that line or select separate-line alignment.");
+    if (labor.some((line, index) => labor.slice(index + 1).some(other => steeringScopeConflict(line.id, other.id)))) throw new Error("Remove steering/suspension work already included in a selected package or incompatible alternative; an overlap note cannot authorize duplicate scope.");
+  }
   if (labor.some(line => brakeOperationForId(line.id))) {
     if (!checked.brakeReview || [checked.brakeReview.configuration, checked.brakeReview.procedureReference, checked.brakeReview.verificationPlan].some(reference => !reference.trim())) throw new Error("Confirm brake configuration, vehicle-specific procedure reference and verification plan before presentation.");
     if (labor.some((line, index) => labor.slice(index + 1).some(other => brakeScopeConflict(line.id, other.id)))) throw new Error("Remove brake work already included in a selected package; an overlap note cannot authorize duplicate scope.");

@@ -1,6 +1,7 @@
 import { EXPANDED_REPAIR_SYSTEMS } from "./expanded-catalog";
 import { buildLaborPlan, type LaborPlan } from "./labor-guide";
 import { BRAKE_GROUPS, BRAKE_OPERATIONS } from "@/lib/brake-baseline";
+import { STEERING_GROUPS, STEERING_OPERATIONS } from "@/lib/steering-baseline";
 
 export type RepairOperation = {
   id: string;
@@ -96,6 +97,14 @@ const ORIGINAL_REPAIR_SYSTEMS: RepairSystem[] = [
 
 export const REPAIR_SYSTEMS: RepairSystem[] = EXPANDED_REPAIR_SYSTEMS.map((system) => {
   const original = ORIGINAL_REPAIR_SYSTEMS.find((item) => item.id === system.id);
+  if (system.id === "steering") return {
+    ...system,
+    groups: STEERING_GROUPS.map(group => ({ id: group.id, label: group.label, operations: STEERING_OPERATIONS.filter(item => item.groupId === group.id).map(item => {
+      const repair: RepairOperation = { id: item.previewId, label: item.label, kind: item.diagnosis ? "diagnosis" : "repair", hours: item.hours, parts: item.parts.length ? null : 0, keywords: `${item.label} ${item.family} ${item.position} ${item.aliases.join(" ")} steering suspension`, includes: item.included };
+      const plan = buildLaborPlan(repair, group.id);
+      return { ...repair, laborPlan: { ...plan, basis: "WORK_BREAKDOWN" as const, scope: `${item.position}. Internal unvalidated planning allowance; confirm access, alignment and calibration requirements.` } };
+    }) }))
+  };
   if (system.id === "brakes") return {
     ...system,
     groups: [

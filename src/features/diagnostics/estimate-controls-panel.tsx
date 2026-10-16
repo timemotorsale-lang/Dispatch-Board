@@ -1,13 +1,17 @@
 "use client";
 
-import type { EstimateControls, EstimatePricing } from "@/lib/labor-guide-controls";
+import type { EstimateControls, EstimatePricing, SteeringReview } from "@/lib/labor-guide-controls";
 import { laborOverlapGroups, type LaborScope } from "@/lib/labor-guide-controls";
 import styles from "./estimate-controls-panel.module.css";
 import { brakeOperationForId } from "@/lib/brake-baseline";
+import { steeringOperationForId } from "@/lib/steering-baseline";
 
 export function EstimateControlsPanel({ controls, scope, labor, parts, onChange, canOverrideLaborRate = false, shopLaborRate = 125 }: { controls: EstimateControls; scope: string; labor: LaborScope[]; parts: { key: string; label: string }[]; onChange: (value: EstimateControls) => void; canOverrideLaborRate?: boolean; shopLaborRate?: number }) {
   const overlaps = laborOverlapGroups(labor);
   const hasBrakes = labor.some(line => brakeOperationForId(line.id));
+  const hasSteering = labor.some(line => steeringOperationForId(line.id));
+  const steeringReview: SteeringReview = controls.steeringReview ?? { configuration: "", procedureReference: "", verificationPlan: "", alignmentDecision: "", alignmentReason: "" };
+  const updateSteering = (field: keyof SteeringReview, value: string) => onChange({ ...controls, steeringReview: { ...steeringReview, [field]: value }, reviewedScope: "" });
   const brakeReview = controls.brakeReview ?? { configuration: "", procedureReference: "", verificationPlan: "" };
   const updatePricing = (field: keyof EstimatePricing, value: string) => {
     const numeric = ["laborRate", "partsMarkupPercent", "taxRatePercent"].includes(field);
@@ -33,6 +37,13 @@ export function EstimateControlsPanel({ controls, scope, labor, parts, onChange,
       <label>Verification plan & conditional materials<textarea maxLength={2000} value={brakeReview.verificationPlan} placeholder="Measurements/acceptance limits, fluid specification/volume, hardware, leak/pedal/holding checks, diagnostic verification and safe road-test conditions" onChange={event => onChange({ ...controls, brakeReview: { ...brakeReview, verificationPlan: event.target.value }, reviewedScope: "" })} /></label>
     </fieldset>}
     {overlaps.length > 0 && <><p role="status">Potential shared labor: {overlaps.map(group => group.lines.map(line => line.title).join(" + ")).join("; ")}. This is a review warning, not an automatic labor deduction.</p><label>Shared labor resolution<textarea maxLength={2000} value={controls.overlapResolution} placeholder="Adjust hours above, then explain the deduction—or document why these scopes do not overlap." onChange={event => onChange({ ...controls, overlapResolution: event.target.value, reviewedScope: "" })} /></label></>}
+    {hasSteering && <fieldset><legend>Steering & suspension scope review</legend><p>Use the exact vehicle procedure. Alignment, calibration and outsourced work are conditional—not automatically authorized or charged.</p>
+      <label>Steering/suspension configuration, axle/side & capability<textarea maxLength={2000} value={steeringReview.configuration} placeholder="VIN, suspension/assist type, selected units/quantity, supplied assembly contents and available equipment/training" onChange={event => updateSteering("configuration", event.target.value)} /></label>
+      <label>Steering/suspension procedure reference & labor basis<textarea maxLength={2000} value={steeringReview.procedureReference} placeholder="Applicable procedure, stored-energy/SRS/pressure precautions, access, fastening and adjusted planning hours" onChange={event => updateSteering("procedureReference", event.target.value)} /></label>
+      <label>Alignment decision<select aria-label="Alignment decision" value={steeringReview.alignmentDecision} onChange={event => updateSteering("alignmentDecision", event.target.value)}><option value="">Choose after procedure review</option><option value="SEPARATE_LINE">Add a separate alignment line</option><option value="INCLUDED_IN_SCOPE">Included in reviewed scope/hours</option><option value="NOT_REQUIRED">Not required for this scope</option><option value="OUTSOURCE">Refer for separately scoped alignment</option></select></label>
+      <label>Alignment decision reason & reference<textarea maxLength={2000} value={steeringReview.alignmentReason} placeholder="Explain required/separate, included, not required or referral; record procedure/measurement reference and any quoted sublet boundary" onChange={event => updateSteering("alignmentReason", event.target.value)} /></label>
+      <label>Steering/suspension verification & calibration plan<textarea maxLength={2000} value={steeringReview.verificationPlan} placeholder="Measurements/limits, hardware/fluids, loaded fastening, steering/ride height, required initialization/ADAS checks and safe verification conditions" onChange={event => updateSteering("verificationPlan", event.target.value)} /></label>
+    </fieldset>}
     <label><input type="checkbox" checked={controls.reviewedScope === scope} onChange={event => onChange({ ...controls, reviewedScope: event.target.checked ? scope : "" })} />I confirmed pricing, vehicle fitment and any shared labor for this exact work. Generic allowances are not verified labor standards.</label>
   </details>;
 }

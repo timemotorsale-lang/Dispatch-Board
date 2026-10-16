@@ -12,6 +12,7 @@ export type LaborPlan = {
 };
 
 const GROUP_HOURS: Record<string, number> = {
+  "steering-rear": 2, "steering-alignment": 1.2, "steering-diagnosis": 1,
   "brakes-electronic": 2, "brakes-controls": 1, "brakes-diagnosis": 1,
   "maintenance-sample": 0.5, "maintenance-fluids": 1, "maintenance-inspections": 1, "maintenance-belts": 1,
   "engine-assembly": 18, "engine-head": 10, "engine-bottom": 20, "engine-timing": 8, "engine-lubrication": 3,

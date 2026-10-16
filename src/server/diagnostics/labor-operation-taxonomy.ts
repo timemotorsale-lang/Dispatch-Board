@@ -1,4 +1,5 @@
 import { BRAKE_GROUPS, BRAKE_OPERATIONS } from "@/lib/brake-baseline";
+import { STEERING_GROUPS, STEERING_OPERATIONS } from "@/lib/steering-baseline";
 
 export type LaborRepairOperation = {
   aliases: string[];
@@ -211,6 +212,15 @@ export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = ORIGINAL_LABOR_O
   groups: BRAKE_GROUPS.map(group => ({ id: group.id, title: group.title, operations: BRAKE_OPERATIONS.filter(operation => operation.groupId === group.id).map(operation => ({
     id: operation.id, system: system.title, subsystem: group.title, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""),
     title: operation.title, hours: operation.hours, aliases: [operation.label, operation.previewId, ...(legacyOperations.find(item => item.id === operation.id)?.aliases ?? [])], concernExamples: legacyOperations.find(item => item.id === operation.id)?.concernExamples ?? [operation.label], included: operation.included,
+    operation: brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess
+  })) }))
+} : system.id === "steering-suspension" ? {
+  ...system,
+  description: "Passenger-vehicle and light-truck steering/suspension baseline. Verify component scope, support equipment, alignment and calibration needs before quotation.",
+  groups: STEERING_GROUPS.map(group => ({ id: group.id, title: group.title, operations: STEERING_OPERATIONS.filter(operation => operation.groupId === group.id).map(operation => ({
+    id: operation.id, system: system.title, subsystem: group.title, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""), title: operation.title,
+    hours: operation.hours, aliases: [operation.label, operation.previewId, ...operation.aliases, ...(legacyOperations.find(item => item.id === operation.id)?.aliases ?? [])],
+    concernExamples: legacyOperations.find(item => item.id === operation.id)?.concernExamples ?? [operation.label], included: operation.included,
     operation: brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess
   })) }))
 } : { ...system, groups: system.groups.map(group => ({ ...group, operations: group.operations.filter(operation => operation.id !== "brake-fluid-service") })) });

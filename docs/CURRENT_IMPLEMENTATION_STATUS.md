@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-10-16 - Automobile and Light-Truck Steering/Suspension Baseline
+
+After brake-baseline approval, the regular guide and Repair Explorer now share `steering-light-duty-v1`: 150 operations, ten groups and 18 audited coverage families. This includes front/rear and corner scopes, complete versus transferred-component assemblies, linkage/assist/column, springs/air/adaptive suspension, geometry, symptoms and verification. Pending-price parts, progressive scope/safety disclosures, generic-front diagram mappings, side-aware package/alias guards and versioned internal/unvalidated provenance reuse the approved brake approach without changing its catalog definitions or repricing saved values.
+
+Official steering estimate presentation now requires procedure/configuration/verification references and an explicit, explained alignment decision. Alignment is conditional, not an automatic add-on: separate-line choice requires the corresponding work; included/not-required/referral choices cannot also carry a separate alignment labor line. Server validation enforces these rules and duplicate-scope refusal. Vehicle transfer clears steering references, and readiness checks the actual control rules. Exact-name search results are prioritized over loose position-word matches. No new schema, external data dependency, vendor booking or execution authority is introduced.
+
+See [Steering and suspension coverage](STEERING_SUSPENSION_BASELINE_COVERAGE.md) for the matrix, compatibility checks and limitations. Coverage is not proof of verified times for every VIN; all labor remains provisional, manufacturer references require staff verification, and the existing generic front diagram does not illustrate every new subsystem. Other system data remains unchanged and future audits are not marked complete.
+
 ## 2026-10-16 - Automobile and Light-Truck Brake Baseline
 
 The regular Labor Guide and Repair Explorer now share `brakes-light-duty-v1`: 119 brake operations across eight groups and all 21 audited coverage families. New entries include rotor-only and measurement/machining, serviceable caliper/drum components, conventional/electronic assist, EPB, ABS/stability, pedal controls, regeneration and vehicle-side light-truck towing controls. Heavy/trailer brake groups are no longer offered in the active brake preview; legacy saved amounts are not repriced. All other system catalog definitions remain unchanged.

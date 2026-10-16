@@ -9,8 +9,10 @@ import { LaborEvidence } from "./labor-evidence";
 import { VisualRepairFinder } from "./visual-repair-finder";
 import { visualAreaForSystem } from "./visual-catalog";
 import styles from "./repair-explorer.module.css";
-import { brakeOperationForId, brakeScopeConflict } from "@/lib/brake-baseline";
+import { brakeOperationForId } from "@/lib/brake-baseline";
+import { repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { BrakeOperationScope } from "@/features/diagnostics/brake-operation-scope";
+import { SteeringOperationScope } from "@/features/diagnostics/steering-operation-scope";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 
@@ -61,8 +63,8 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
 
   function addRepair(repair: RepairOperation) {
     if (lines.some((line) => line.id === repair.id)) return;
-    if (lines.some(line => brakeScopeConflict(line.id, repair.id))) {
-      setStatus("This brake work is already included in a selected package. Remove the overlapping line before choosing this alternative.");
+    if (lines.some(line => repairScopeConflict(line.id, repair.id))) {
+      setStatus("This work is already included in a selected package or is an incompatible alternative. Remove the overlapping line before choosing this alternative.");
       return;
     }
     const sourceId = repair.catalogOperationId ?? repair.id;
@@ -230,6 +232,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
                 <h3>Included in this {mode === "diagnosis" ? "check" : "repair"}</h3>
                 <ul>{selected.includes.map((text) => <li key={text}><Check size={15} />{text}</li>)}</ul>
                 <BrakeOperationScope operationId={selected.id} />
+                <SteeringOperationScope operationId={selected.id} />
                 <LaborEvidence key={selected.id} repair={selected} groupId={group.id} storageKey={storageKey} onUseReportedHours={(hours, configuration, count) => applyReportedHours(selected.id, hours, configuration, count)} />
                 <details><summary>Parts, procedures & labor source</summary><p>Labor is a provisional planning allowance, not a verified book time. Parts, fitment and vehicle-specific procedures require review. {selected.parts === null ? "Enter parts pricing in estimate review." : `Provisional parts allowance: ${money(selected.parts)}. Confirm pricing before quoting.`}</p>{system.id === "ev" && <p>High-voltage work requires appropriately trained staff and vehicle-specific safety procedures.</p>}</details>
                 <details><summary>Related checks & additional work</summary><p>Confirm findings before adding related work. Diagnostic checks and repairs are separate estimate lines. Shared labor must be reviewed for overlap.</p></details>

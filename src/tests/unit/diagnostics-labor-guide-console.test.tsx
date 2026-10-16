@@ -6,6 +6,12 @@ import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-gu
 import { flattenLaborOperationTaxonomy, LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 
 describe("enterprise labor guide console", () => {
+  it("opens the strongest exact-name group before loose front/left matches in another system", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={[]} initialQuery="front left complete loaded strut" laborAddOns={LABOR_OPERATION_ADD_ONS} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    expect(markup).toContain("<strong>Replace front left complete loaded strut</strong>");
+    expect(markup).toContain('<option value="steering-suspension" selected="">');
+    expect(markup).toContain("Scope, parts &amp; safety checks");
+  });
   it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
@@ -181,6 +187,7 @@ describe("enterprise labor guide console", () => {
     expect(titles).toContain("Forward camera calibration");
     expect(titles).toContain("Replace front bumper cover");
     expect(titles).toContain("High-voltage disable and enable procedure");
-    expect(operations.filter((operation) => operation.requiredAddOns.length > 0).length).toBeGreaterThan(10);
+    expect(operations.some(operation => operation.requiredAddOns.includes("transmission-programming-relearn"))).toBe(true);
+    expect(LABOR_OPERATION_TAXONOMY.find(system => system.id === "steering-suspension")!.groups.flatMap(group => group.operations).every(operation => !operation.requiredAddOns.includes("alignment"))).toBe(true);
   });
 });

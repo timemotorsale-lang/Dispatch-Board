@@ -1,7 +1,7 @@
 .panel { margin: 1rem 0; padding: 1rem; border: 1px solid #b8c9df; border-radius: 10px; background: #f8faff; color: #16243b; overflow-wrap: anywhere; }
 .panel summary { cursor: pointer; font-weight: 700; padding: .4rem 0; }
 .panel label { display: flex; flex-direction: column; gap: .4rem; margin: .9rem 0; line-height: 1.5; }
-.panel input:not([type=checkbox]), .panel textarea { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 44px; padding: .65rem; color: #16243b; background: white; border: 1px solid #9aacc7; border-radius: .4rem; font: inherit; }
+.panel input:not([type=checkbox]), .panel textarea, .panel select { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 44px; padding: .65rem; color: #16243b; background: white; border: 1px solid #9aacc7; border-radius: .4rem; font: inherit; }
 .panel input:disabled { background: #eef2f8; color: #334967; }
 .panel textarea { min-height: 80px; }
 .panel p { line-height: 1.6; }

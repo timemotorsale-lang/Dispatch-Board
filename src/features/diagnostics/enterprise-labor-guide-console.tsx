@@ -21,7 +21,8 @@ import { GuidedEstimate } from "./guided-estimate";
 import { LaborGuideVehicleEntry } from "./labor-guide-vehicle-entry";
 import { EstimateControlsPanel } from "./estimate-controls-panel";
 import { BrakeOperationScope } from "./brake-operation-scope";
-import { brakeOperationForId, brakeScopeConflict } from "@/lib/brake-baseline";
+import { SteeringOperationScope } from "./steering-operation-scope";
+import { repairBaselineForId, repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { checkEstimateControls, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
 
 type ActiveRepairOrder = {
@@ -193,6 +194,8 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
   }
   const directSystem = repairTaxonomy.find((system) => `${system.title} ${system.description}`.toLocaleLowerCase().includes(searchText));
   if (directSystem) return directSystem.id;
+  const exactOperationSystem = repairTaxonomy.find(system => system.groups.some(group => group.operations.some(operation => operation.title.toLocaleLowerCase().includes(searchText))));
+  if (exactOperationSystem) return exactOperationSystem.id;
   const matchingSystem = repairTaxonomy.find((system) => system.groups.some((group) => group.operations.some((operation) => matchesRepairText(operation, searchText))));
   return matchingSystem?.id ?? fallback;
 }
@@ -265,7 +268,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     if (!normalizedQuery) return scoped;
     return scoped
       .filter((operation) => matchesRepairText(operation, normalizedQuery))
-      .sort((a, b) => Number(b.system === activeSystem?.title) - Number(a.system === activeSystem?.title));
+      .sort((a, b) => Number(b.title.toLocaleLowerCase().includes(normalizedQuery)) - Number(a.title.toLocaleLowerCase().includes(normalizedQuery)) || Number(b.system === activeSystem?.title) - Number(a.system === activeSystem?.title));
   }, [activeSystem, allOperations, engineAnalysis, mode, normalizedQuery]);
   const repairAreaOperations = useMemo(
     () => selectedLabor.length ? selectedLabor : normalizedQuery ? catalogOperations.slice(0, 3) : [],
@@ -360,7 +363,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       ? "Add at least one labor or part line before creating this estimate."
       : "Creates the official estimate document and opens print and repair-workbench actions.";
   const suggestedAddOns = useMemo(() => {
-    return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id) && !(selectedLabor.some(operation => brakeOperationForId(operation.id) && operation.operation !== "Diagnose") && ["road-test", "torque-verification"].includes(item.id))).slice(0, 4);
+    return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id) && !(selectedLabor.some(operation => repairBaselineForId(operation.id) && operation.operation !== "Diagnose") && ["road-test", "torque-verification"].includes(item.id))).slice(0, 4);
   }, [acceptedAddOnIds, estimatePolicy.requiredAddOnIds, selectedLabor]);
 
   useEffect(() => {
@@ -393,8 +396,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }, [editingPartId]);
 
   function addLabor(operation: LaborRepairOperation) {
-    if (selectedLabor.some(line => brakeScopeConflict(line.id, operation.id))) {
-      setNotice("This brake work is already included in the selected scope. Remove the overlapping line before choosing an alternative.");
+    if (selectedLabor.some(line => repairScopeConflict(line.id, operation.id))) {
+      setNotice("This work is already included in the selected scope or is an incompatible alternative. Remove the overlapping line before choosing an alternative.");
       return;
     }
     setSelectedLabor((current) => current.some((item) => item.id === operation.id) ? current : [...current, { ...operation, rowId: operation.id }]);
@@ -589,7 +592,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     draft.adopt();
     setClinical({});
     setLaborReview(emptyManualLaborReview);
-    setEstimateControls({ ...estimateControls, fitment: {}, overlapResolution: "", reviewedScope: "", brakeReview: undefined });
+    setEstimateControls({ ...estimateControls, fitment: {}, overlapResolution: "", reviewedScope: "", brakeReview: undefined, steeringReview: undefined });
     setEstimateAttempt(null);
     setManualDetails(emptyLaborGuideDetails);
     if (!keepProposedWork) clearEstimateWorkspace();
@@ -632,9 +635,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   async function autoAddCatalogParts(operation: LaborRepairOperation) {
-    const brake = brakeOperationForId(operation.id);
-    if (brake) {
-      setNotice(brake.parts.length ? "Brake parts plan added with pricing pending. Confirm the VIN, quantities, hardware and fluid requirements before quoting." : "No replacement parts were added for this test or service. Add materials only when required by the reviewed procedure.");
+    const baseline = repairBaselineForId(operation.id);
+    if (baseline) {
+      setNotice(baseline.operation.parts.length ? "Parts plan added with pricing pending. Confirm the VIN, quantities, hardware and materials before quoting." : "No replacement parts were added for this test or service. Add materials only when required by the reviewed procedure.");
       return;
     }
     const generation = partsRequestGeneration.current;
@@ -719,7 +722,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   ], [estimateLabor, estimateParts, laborRate]);
   const reviewScope = estimateReviewScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems);
   const controlsScope = estimateControlsScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems, estimateControls);
-  const guidedReady = manualReviewComplete(laborReview, reviewScope) && estimateControls.reviewedScope === controlsScope && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
+  const controlsReady = useMemo(() => {
+    try { checkEstimateControls(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); return true; }
+    catch { return false; }
+  }, [selectedRepairOrder?.vehicle.id, contextVehicle, contextVin, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents]);
+  const guidedReady = manualReviewComplete(laborReview, reviewScope) && controlsReady && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
   const reviewReady = manualReviewComplete(laborReview, reviewScope);
 
   async function presentEstimate() {
@@ -1020,6 +1027,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                           </button>
                           <span>{operation.hours.toFixed(1)} hrs</span>
                           <BrakeOperationScope operationId={operation.id} />
+                          <SteeringOperationScope operationId={operation.id} />
                         </article>
                       ))}
                     </div>
