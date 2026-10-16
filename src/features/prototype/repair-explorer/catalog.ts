@@ -1,9 +1,11 @@
+import { EXPANDED_REPAIR_SYSTEMS } from "./expanded-catalog";
+
 export type RepairOperation = {
   id: string;
   label: string;
   kind: "repair" | "diagnosis";
-  hours: number;
-  parts: number;
+  hours: number | null;
+  parts: number | null;
   keywords: string;
   includes: string[];
   conflictGroup?: string;
@@ -25,7 +27,7 @@ function sampleSystem(id: string, label: string, group: string, repair: RepairOp
   return { id, label, groups: [{ id: `${id}-sample`, label: group, operations: [repair, diagnosis] }] };
 }
 
-export const REPAIR_SYSTEMS: RepairSystem[] = [
+const ORIGINAL_REPAIR_SYSTEMS: RepairSystem[] = [
   sampleSystem("maintenance", "Maintenance", "Oil & filters",
     operation("oil-service", "Change engine oil & filter", 0.5, 65, "scheduled service oil filter lubrication"),
     operation("maintenance-inspection", "Inspect maintenance needs", 0.5, 0, "inspection mileage interval scheduled", "diagnosis")),
@@ -87,12 +89,26 @@ export const REPAIR_SYSTEMS: RepairSystem[] = [
     operation("ev-charge", "Diagnose charging concern", 1.5, 0, "hybrid EV charge port high voltage battery", "diagnosis"))
 ];
 
+export const REPAIR_SYSTEMS: RepairSystem[] = EXPANDED_REPAIR_SYSTEMS.map((system) => {
+  const original = ORIGINAL_REPAIR_SYSTEMS.find((item) => item.id === system.id);
+  return {
+    ...system,
+    groups: system.groups.map((group) => {
+      const originals = original?.groups.find((item) => item.id === group.id)?.operations ?? [];
+      const labels = new Set(originals.map((item) => item.label.toLowerCase()));
+      return { ...group, operations: [...originals, ...group.operations.filter((item) => !labels.has(item.label.toLowerCase()))] };
+    })
+  };
+});
+
 export const CATALOG_ENTRIES = REPAIR_SYSTEMS.flatMap((system) => system.groups.flatMap((group) => group.operations.map((repair) => ({ system, group, repair }))));
 
+export const CATALOG_COUNTS = { systems: REPAIR_SYSTEMS.length, groups: REPAIR_SYSTEMS.reduce((total, system) => total + system.groups.length, 0), operations: CATALOG_ENTRIES.length };
+
 export function searchRepairs(query: string) {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   return CATALOG_ENTRIES.filter(({ system, repair }) => {
-    const text = `${system.label} ${repair.label} ${repair.keywords}`.toLowerCase();
-    return words.every((word) => text.includes(word));
+    const terms = `${system.label} ${repair.label} ${repair.keywords}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    return words.every((word) => terms.some((term) => term.startsWith(word)));
   });
 }

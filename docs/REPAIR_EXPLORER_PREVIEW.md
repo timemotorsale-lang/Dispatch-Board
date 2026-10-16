@@ -16,12 +16,28 @@ needed to explore fictional sample work.
 7. Save a sample draft, reload the page, and choose Load saved sample.
 8. Try the same flow at phone width and using the keyboard.
 9. Return to the current Labor Guide using either return link.
+10. Open Engine → Engine assembly & mounts → Replace engine assembly. This new
+    operation has no assumed price. Add it, review the estimate, enter hours and
+    parts, then confirm that the incomplete-pricing notice clears.
+11. Explore the group overview for every system. Switch between repair operations
+    and diagnostic checks within each group; search also finds this expanded work.
 
 ## Scope and boundaries
 
-- Twelve representative systems; Brakes has deeper component and axle selection.
-- Sample operations and amounts are design fixtures, not a comprehensive catalog
-  or licensed, vehicle-specific labor guide. Diagnostics do not imply a repair.
+- Twelve systems now contain broad repair-group catalogs, including engine
+  assembly replacement, long/short blocks, internal engine work, diesel systems,
+  commercial vehicle work, ADAS, body equipment, hybrid and EV work.
+- Clicking a system opens a group overview; clicking a group exposes its repair
+  operations and diagnostic checks. The sidebar expands only the selected system.
+- This is a broad, editable taxonomy, not a guarantee of every make/model repair
+  or vehicle fitment. Some operations apply only to particular vehicle classes.
+  Custom work remains available for gaps. Diagnostics do not imply a repair.
+- Original demo operations retain their illustrative amounts and stable IDs.
+  Expanded operations have null hours and parts until explicitly priced in review.
+  Unpriced lines display an incomplete-pricing notice; confirmed zero and unknown
+  are distinct. A subtotal with unpriced lines is labeled Priced subtotal.
+- Engine assembly, long-block, short-block and overhaul alternatives share an
+  overlap guard. This does not replace production overlap or included-labor rules.
 - Custom work, estimates and totals live in client state. Saving is an explicit
   localStorage operation with a versioned key scoped to the signed-in user. Loading
   validates the saved data and confirms before replacing a nonempty sample estimate.
@@ -39,3 +55,13 @@ vehicle and repair-order context on the server and reuse current validation,
 permissions, tax rules, overlap rules and approval workflow. Use an opt-in rollout
 before changing defaults. Do not build a second production estimate engine from
 the sample calculation helpers.
+
+## Reference boundaries
+
+The catalog descriptions are original navigation labels, not copied service
+procedures. [MOTOR data products](https://www.motor.com/products-services/data-products/)
+illustrate the licensed-data path for vehicle-specific labor. The
+[Tesla service manual](https://service.tesla.com/docs/ModelY/ServiceManual/en-us/index.html)
+provides an OEM reference for distinct electric propulsion service areas. No
+supplier feed, licensed labor time, OEM repair procedure or fitment claim is
+embedded in this preview.

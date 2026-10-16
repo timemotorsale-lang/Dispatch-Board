@@ -1,8 +1,8 @@
 export type EstimateLine = {
   id: string;
   label: string;
-  hours: number;
-  parts: number;
+  hours: number | null;
+  parts: number | null;
   conflictGroup?: string;
 };
 
@@ -13,10 +13,11 @@ export function isValidAmount(value: unknown, maximum: number): value is number 
 }
 
 export function estimateTotals(lines: EstimateLine[], rate: number) {
-  const laborCents = lines.reduce((total, line) => total + Math.round(line.hours * rate * 100), 0);
-  const partsCents = lines.reduce((total, line) => total + Math.round(line.parts * 100), 0);
+  const laborCents = lines.reduce((total, line) => total + Math.round((line.hours ?? 0) * rate * 100), 0);
+  const partsCents = lines.reduce((total, line) => total + Math.round((line.parts ?? 0) * 100), 0);
   return {
-    hours: lines.reduce((total, line) => total + line.hours, 0),
+    hours: lines.reduce((total, line) => total + (line.hours ?? 0), 0),
+    unpricedLines: lines.filter((line) => line.hours === null || line.parts === null).length,
     labor: laborCents / 100,
     parts: partsCents / 100,
     subtotal: (laborCents + partsCents) / 100
@@ -32,7 +33,7 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
     for (const line of draft.lines) {
       if (!line || typeof line.id !== "string" || !line.id || line.id.length > 200 || identifiers.has(line.id)
         || typeof line.label !== "string" || !line.label.trim() || line.label.length > 200
-        || !isValidAmount(line.hours, 100) || !isValidAmount(line.parts, 100000)
+        || (line.hours !== null && !isValidAmount(line.hours, 100)) || (line.parts !== null && !isValidAmount(line.parts, 100000))
         || (line.conflictGroup !== undefined && (typeof line.conflictGroup !== "string" || !line.conflictGroup || conflicts.has(line.conflictGroup)))) return null;
       identifiers.add(line.id);
       if (line.conflictGroup) conflicts.add(line.conflictGroup);
