@@ -136,6 +136,8 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
     <div className={styles.preview}>
       <header className={styles.topbar}>
         <a href="/diagnostics/labor-guide"><ArrowLeft size={16} /> Current Labor Guide</a>
+        <a href="/prototype/brake-workflow">Try the guided brakes workflow →</a>
+        <a href="/prototype/service-workspace">Customer estimates & RO preview →</a>
         <strong>Dispatch Board <span>/ Repair Explorer</span></strong>
         <span className={styles.badge}>Review preview</span>
       </header>
