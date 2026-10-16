@@ -7,6 +7,8 @@ export type EstimateLine = {
   laborBasis?: "PLANNING" | "MANUAL" | "REPORTED_MEDIAN";
   laborConfiguration?: string;
   reportedJobCount?: number;
+  catalogOperationId?: string;
+  position?: "front-left" | "front-right";
 };
 
 export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[] };
@@ -41,7 +43,10 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
         || (line.laborBasis !== undefined && !["PLANNING", "MANUAL", "REPORTED_MEDIAN"].includes(line.laborBasis))
         || (line.laborConfiguration !== undefined && (typeof line.laborConfiguration !== "string" || !line.laborConfiguration.trim() || line.laborConfiguration.length > 200))
         || (line.reportedJobCount !== undefined && (!Number.isInteger(line.reportedJobCount) || line.reportedJobCount < 3 || line.reportedJobCount > 1000))
-        || (line.laborBasis === "REPORTED_MEDIAN" && (!line.laborConfiguration || line.reportedJobCount === undefined))) return null;
+        || (line.laborBasis === "REPORTED_MEDIAN" && (!line.laborConfiguration || line.reportedJobCount === undefined))
+        || (line.catalogOperationId !== undefined && (typeof line.catalogOperationId !== "string" || !line.catalogOperationId || line.catalogOperationId.length > 200))
+        || (line.position !== undefined && !["front-left", "front-right"].includes(line.position))
+        || (Boolean(line.catalogOperationId) !== Boolean(line.position))) return null;
       identifiers.add(line.id);
       if (line.conflictGroup) conflicts.add(line.conflictGroup);
     }

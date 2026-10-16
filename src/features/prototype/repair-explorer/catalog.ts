@@ -11,6 +11,8 @@ export type RepairOperation = {
   includes: string[];
   conflictGroup?: string;
   laborPlan?: LaborPlan;
+  catalogOperationId?: string;
+  position?: "front-left" | "front-right";
 };
 
 export type RepairGroup = { id: string; label: string; operations: RepairOperation[] };

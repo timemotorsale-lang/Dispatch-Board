@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Se
 import { CATALOG_COUNTS, REPAIR_SYSTEMS, searchRepairs, type RepairOperation } from "./catalog";
 import { estimateTotals, isValidAmount, parsePreviewDraft, type EstimateLine } from "./estimate";
 import { LaborEvidence } from "./labor-evidence";
+import { VisualRepairFinder } from "./visual-repair-finder";
 import styles from "./repair-explorer.module.css";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -21,6 +22,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
   const [rate, setRate] = useState(150);
   const [reportedOverrides, setReportedOverrides] = useState<Record<string, { hours: number; configuration: string; count: number }>>({});
   const [review, setReview] = useState(false);
+  const [visualOpen, setVisualOpen] = useState(false);
   const [status, setStatus] = useState("Choose a repair to start your sample estimate.");
   const contentHeading = useRef<HTMLHeadingElement>(null);
   const system = REPAIR_SYSTEMS.find((item) => item.id === systemId)!;
@@ -42,6 +44,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
     setAxle("front");
     setQuery("");
     setReview(false);
+    setVisualOpen(false);
   }
 
   function selectSystem(nextSystemId: string) {
@@ -50,18 +53,24 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
     setSelectedId("");
     setQuery("");
     setReview(false);
+    setVisualOpen(false);
   }
 
   function addRepair(repair: RepairOperation) {
     if (lines.some((line) => line.id === repair.id)) return;
+    const sourceId = repair.catalogOperationId ?? repair.id;
+    if (lines.some((line) => (line.catalogOperationId ?? line.id) === sourceId && (!line.position || !repair.position))) {
+      setStatus("The same catalog work is already added with a different position scope. Remove it before adding a scoped alternative.");
+      return;
+    }
     if (lines.length >= 100) { setStatus("This sample estimate supports up to 100 lines."); return; }
     if (repair.conflictGroup && lines.some((line) => line.conflictGroup === repair.conflictGroup)) {
       setStatus("An overlapping repair is already added. Remove that line before selecting this alternative.");
       return;
     }
     const reported = reportedOverrides[repair.id];
-    setLines([...lines, { id: repair.id, label: repair.label, hours: reported?.hours ?? repair.hours, parts: repair.parts, conflictGroup: repair.conflictGroup, laborBasis: reported ? "REPORTED_MEDIAN" : "PLANNING", laborConfiguration: reported?.configuration, reportedJobCount: reported?.count }]);
-    setSelectedId(repair.id);
+    setLines([...lines, { id: repair.id, label: repair.label, hours: reported?.hours ?? repair.hours, parts: repair.parts, conflictGroup: repair.conflictGroup, laborBasis: reported ? "REPORTED_MEDIAN" : "PLANNING", laborConfiguration: reported?.configuration, reportedJobCount: reported?.count, catalogOperationId: repair.catalogOperationId, position: repair.position }]);
+    setSelectedId(repair.catalogOperationId ?? repair.id);
     setStatus(`${repair.label} added with ${reported ? "technician-reported median" : "provisional planning"} hours. Review scope, labor overlap and parts before quoting.`);
   }
 
@@ -140,8 +149,9 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
         </div>
         <div className={styles.searchbar}>
           <Search size={21} aria-hidden="true" />
-          <input aria-label="Search all sample repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); }} />
+          <input aria-label="Search all sample repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); setVisualOpen(false); }} />
           {query ? <button type="button" onClick={() => setQuery("")}>Clear</button> : <span>All systems</span>}
+          <button type="button" className={styles.visualLaunch} aria-pressed={visualOpen} onClick={() => { setVisualOpen(!visualOpen); setQuery(""); setReview(false); }}>Find it visually</button>
         </div>
         <div className={styles.columns}>
           <aside className={styles.systems} aria-label="Vehicle systems">
@@ -172,7 +182,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
               </article>)}
               <div className={styles.note}><CircleHelp size={19} /><p>This preview stops at estimate review. Vehicle-specific labor, parts fitment, taxes, authorization and repair-order updates will be connected after the design is approved.</p></div>
               <button type="button" className={styles.secondary} onClick={() => { setReview(false); focusContent(); }}><ArrowLeft size={16} /> Keep adding work</button>
-            </> : query.trim() ? <>
+            </> : visualOpen ? <VisualRepairFinder initialArea={systemId === "brakes" ? "brakes" : systemId === "steering" ? "front-suspension" : null} initialOperationId={selectedId} addedIds={lines.map((line) => line.id)} onClose={() => { setVisualOpen(false); focusContent(); }} onView={(entry) => { selectGroup(entry.system.id, entry.group.id); setMode(entry.repair.kind); setSelectedId(entry.repair.id); if (entry.repair.id.startsWith("rear")) setAxle("rear"); focusContent(); }} onAdd={(entry, repair) => { setSystemId(entry.system.id); setGroupId(entry.group.id); setMode(entry.repair.kind); setAxle("front"); addRepair(repair); }} /> : query.trim() ? <>
               <p className={styles.breadcrumb}>Search / All sample systems</p><h2 ref={contentHeading} tabIndex={-1}>Matching work</h2>
               <p className={styles.description}>{results.length} {results.length === 1 ? "result" : "results"} for “{query}”</p>
               {!results.length && <div className={styles.empty}>No catalog matches. Try “engine assembly”, “grinding”, “P0300” or choose a system. You can also add custom work below.</div>}
@@ -215,7 +225,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
                 <details><summary>Related checks & additional work</summary><p>Confirm findings before adding related work. Diagnostic checks and repairs are separate estimate lines. Shared labor must be reviewed for overlap.</p></details>
               </div>}
             </>}
-            {!review && <details className={styles.custom}><summary>Can’t find the work? Add a custom line</summary><form onSubmit={addCustom}><label>Work description<input name="label" required maxLength={200} placeholder="Describe the work" /></label><div className={styles.lineFields}><label>Labor hours<input name="hours" type="number" min="0" max="100" step="0.1" defaultValue="1" required /></label><label>Parts total ($)<input name="parts" type="number" min="0" max="100000" step="0.01" defaultValue="0" required /></label></div><button className={styles.secondary} type="submit">Add custom work</button></form></details>}
+            {!review && !visualOpen && <details className={styles.custom}><summary>Can’t find the work? Add a custom line</summary><form onSubmit={addCustom}><label>Work description<input name="label" required maxLength={200} placeholder="Describe the work" /></label><div className={styles.lineFields}><label>Labor hours<input name="hours" type="number" min="0" max="100" step="0.1" defaultValue="1" required /></label><label>Parts total ($)<input name="parts" type="number" min="0" max="100000" step="0.01" defaultValue="0" required /></label></div><button className={styles.secondary} type="submit">Add custom work</button></form></details>}
           </section>
           <aside className={styles.estimate} aria-label="Sample estimate">
             <div className={styles.row}><h2>Estimate</h2><span className={styles.count}>{lines.length} {lines.length === 1 ? "line" : "lines"}</span></div>
