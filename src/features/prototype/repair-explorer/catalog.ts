@@ -1,4 +1,5 @@
 import { EXPANDED_REPAIR_SYSTEMS } from "./expanded-catalog";
+import { buildLaborPlan, type LaborPlan } from "./labor-guide";
 
 export type RepairOperation = {
   id: string;
@@ -9,6 +10,7 @@ export type RepairOperation = {
   keywords: string;
   includes: string[];
   conflictGroup?: string;
+  laborPlan?: LaborPlan;
 };
 
 export type RepairGroup = { id: string; label: string; operations: RepairOperation[] };
@@ -96,7 +98,13 @@ export const REPAIR_SYSTEMS: RepairSystem[] = EXPANDED_REPAIR_SYSTEMS.map((syste
     groups: system.groups.map((group) => {
       const originals = original?.groups.find((item) => item.id === group.id)?.operations ?? [];
       const labels = new Set(originals.map((item) => item.label.toLowerCase()));
-      return { ...group, operations: [...originals, ...group.operations.filter((item) => !labels.has(item.label.toLowerCase()))] };
+      return {
+        ...group,
+        operations: [...originals, ...group.operations.filter((item) => !labels.has(item.label.toLowerCase()))].map((operation) => {
+          const laborPlan = buildLaborPlan(operation, group.id);
+          return { ...operation, hours: laborPlan.hours, laborPlan };
+        })
+      };
     })
   };
 });

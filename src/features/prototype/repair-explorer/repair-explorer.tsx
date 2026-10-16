@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Se
 
 import { CATALOG_COUNTS, REPAIR_SYSTEMS, searchRepairs, type RepairOperation } from "./catalog";
 import { estimateTotals, isValidAmount, parsePreviewDraft, type EstimateLine } from "./estimate";
+import { LaborEvidence } from "./labor-evidence";
 import styles from "./repair-explorer.module.css";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -18,6 +19,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
   const [selectedId, setSelectedId] = useState("front-pads-rotors");
   const [lines, setLines] = useState<EstimateLine[]>([]);
   const [rate, setRate] = useState(150);
+  const [reportedOverrides, setReportedOverrides] = useState<Record<string, { hours: number; configuration: string; count: number }>>({});
   const [review, setReview] = useState(false);
   const [status, setStatus] = useState("Choose a repair to start your sample estimate.");
   const contentHeading = useRef<HTMLHeadingElement>(null);
@@ -57,15 +59,16 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
       setStatus("An overlapping repair is already added. Remove that line before selecting this alternative.");
       return;
     }
-    setLines([...lines, { id: repair.id, label: repair.label, hours: repair.hours, parts: repair.parts, conflictGroup: repair.conflictGroup }]);
+    const reported = reportedOverrides[repair.id];
+    setLines([...lines, { id: repair.id, label: repair.label, hours: reported?.hours ?? repair.hours, parts: repair.parts, conflictGroup: repair.conflictGroup, laborBasis: reported ? "REPORTED_MEDIAN" : "PLANNING", laborConfiguration: reported?.configuration, reportedJobCount: reported?.count }]);
     setSelectedId(repair.id);
-    setStatus(`${repair.label} added.${repair.hours === null || repair.parts === null ? " Enter labor hours and parts in Review estimate to price this work." : " Sample estimate updated."}`);
+    setStatus(`${repair.label} added with ${reported ? "technician-reported median" : "provisional planning"} hours. Review scope, labor overlap and parts before quoting.`);
   }
 
   function updateLine(id: string, field: "hours" | "parts", value: string) {
     const amount = value.trim() ? Number(value) : null;
     if (amount !== null && !isValidAmount(amount, field === "hours" ? 100 : 100000)) return;
-    setLines(lines.map((line) => line.id === id ? { ...line, [field]: amount } : line));
+    setLines(lines.map((line) => line.id === id ? { ...line, [field]: amount, ...(field === "hours" ? { laborBasis: "MANUAL" as const, laborConfiguration: undefined, reportedJobCount: undefined } : {}) } : line));
     setStatus("Sample estimate updated. Save the draft to keep these changes in this browser.");
   }
 
@@ -103,7 +106,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
       setStatus("Enter a repair name and valid amounts. The sample supports up to 100 lines.");
       return;
     }
-    setLines([...lines, { id: `custom-${crypto.randomUUID()}`, label, hours, parts }]);
+    setLines([...lines, { id: `custom-${crypto.randomUUID()}`, label, hours, parts, laborBasis: "MANUAL" }]);
     setStatus(`${label} added as custom sample work.`);
     form.reset();
   }
@@ -111,6 +114,12 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
   function removeLine(id: string) {
     setLines(lines.filter((line) => line.id !== id));
     setStatus("Repair removed. Sample estimate updated.");
+  }
+
+  function applyReportedHours(operationId: string, hours: number, configuration: string, count: number) {
+    setReportedOverrides({ ...reportedOverrides, [operationId]: { hours, configuration, count } });
+    setLines(lines.map((line) => line.id === operationId ? { ...line, hours, laborBasis: "REPORTED_MEDIAN", laborConfiguration: configuration, reportedJobCount: count } : line));
+    setStatus(`Using a technician-reported median from ${count} jobs for ${configuration}. Confirm it matches the estimate vehicle; this is not a validated shop standard.`);
   }
 
   return (
@@ -154,10 +163,11 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
             {review ? <>
               <p className={styles.breadcrumb}>Sample vehicle / Estimate review</p>
               <h2 ref={contentHeading} tabIndex={-1}>Review your estimate</h2>
-              <p className={styles.description}>Adjust the sample hours and parts before saving your browser draft.</p>
+              <p className={styles.description}>Review provisional labor hours and enter parts before saving your browser draft. Recorded job hours remain separate from planning allowances.</p>
               <label className={styles.rate}>Shop labor rate ($ / hour)<input aria-label="Shop labor rate" type="number" min="0" max="1000" step="0.01" value={rate} onChange={(event) => { const amount = Number(event.target.value); if (event.target.value && isValidAmount(amount, 1000)) { setRate(amount); setStatus("Sample shop rate updated."); } }} /></label>
               {!lines.length ? <div className={styles.empty}>No repairs remain. Return to Find repair to add work.</div> : lines.map((line) => <article className={styles.reviewLine} key={line.id}>
                 <div className={styles.row}><h3>{line.label}</h3><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label}`} onClick={() => removeLine(line.id)}><Trash2 size={17} /></button></div>
+                <p className={styles.laborBasis}>{line.laborBasis === "PLANNING" ? "Provisional planning allowance · no measured job evidence" : line.laborBasis === "REPORTED_MEDIAN" ? `Technician-reported median · ${line.reportedJobCount} jobs · ${line.laborConfiguration}` : "Manually entered hours · not source-verified"}</p>
                 <div className={styles.lineFields}><label>Labor hours<input aria-label={`Labor hours for ${line.label}`} type="number" min="0" max="100" step="0.1" placeholder="Enter hours" value={line.hours ?? ""} onChange={(event) => updateLine(line.id, "hours", event.target.value)} /></label><label>Parts total ($)<input aria-label={`Parts total for ${line.label}`} type="number" min="0" max="100000" step="0.01" placeholder="Enter parts total" value={line.parts ?? ""} onChange={(event) => updateLine(line.id, "parts", event.target.value)} /></label><strong>{line.hours === null || line.parts === null ? "Needs pricing" : money(estimateTotals([line], rate).subtotal)}</strong></div>
               </article>)}
               <div className={styles.note}><CircleHelp size={19} /><p>This preview stops at estimate review. Vehicle-specific labor, parts fitment, taxes, authorization and repair-order updates will be connected after the design is approved.</p></div>
@@ -167,7 +177,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
               <p className={styles.description}>{results.length} {results.length === 1 ? "result" : "results"} for “{query}”</p>
               {!results.length && <div className={styles.empty}>No catalog matches. Try “engine assembly”, “grinding”, “P0300” or choose a system. You can also add custom work below.</div>}
               {results.map(({ system: resultSystem, group: resultGroup, repair }) => <article className={styles.searchResult} key={repair.id}>
-                <div><span>{resultSystem.label} / {resultGroup.label}</span><h3>{repair.label}</h3><small>{repair.kind === "diagnosis" ? "Diagnostic work" : "Repair"} · {repair.hours === null ? "Needs pricing" : `${repair.hours.toFixed(1)} sample hrs`}</small></div>
+                <div><span>{resultSystem.label} / {resultGroup.label}</span><h3>{repair.label}</h3><small>{repair.kind === "diagnosis" ? "Diagnostic work" : "Repair"} · {repair.hours === null ? "Needs pricing" : `${repair.hours.toFixed(1)} hrs · provisional`}</small></div>
                 <button type="button" className={styles.secondary} onClick={() => { selectGroup(resultSystem.id, resultGroup.id); setMode(repair.kind); if (repair.id.startsWith("rear")) setAxle("rear"); else setAxle("front"); setSelectedId(repair.id); focusContent(); }}>View <ArrowRight size={16} /></button>
               </article>)}
             </> : !group ? <>
@@ -192,7 +202,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
                 {visible.map((repair) => {
                   const added = lines.some((line) => line.id === repair.id);
                   return <article key={repair.id} className={`${styles.operation} ${selectedId === repair.id ? styles.selected : ""}`}>
-                    <button type="button" className={styles.operationTitle} aria-pressed={selectedId === repair.id} onClick={() => setSelectedId(repair.id)}><Wrench size={18} /><span><strong>{repair.label}</strong><small>{repair.kind === "diagnosis" ? "Diagnostic assessment · findings before repairs" : repair.hours === null ? "Needs pricing · expand for scope" : `${repair.hours.toFixed(1)} sample labor hrs · expand for details`}</small></span></button>
+                    <button type="button" className={styles.operationTitle} aria-pressed={selectedId === repair.id} onClick={() => setSelectedId(repair.id)}><Wrench size={18} /><span><strong>{repair.label}</strong><small>{repair.hours === null ? "Needs pricing" : `${repair.hours.toFixed(1)} hrs · provisional ${repair.kind === "diagnosis" ? "initial assessment" : "planning allowance"}`}</small></span></button>
                     <button type="button" className={styles.addButton} disabled={added} aria-label={added ? `${repair.label} added` : `Add ${repair.label}`} onClick={() => addRepair(repair)}>{added ? <><Check size={16} /> Added</> : "Add"}</button>
                   </article>;
                 })}
@@ -200,7 +210,8 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
               {selected && selected.kind === mode && <div className={styles.repairDetails}>
                 <h3>Included in this {mode === "diagnosis" ? "check" : "repair"}</h3>
                 <ul>{selected.includes.map((text) => <li key={text}><Check size={15} />{text}</li>)}</ul>
-                <details><summary>Parts, procedures & labor source</summary><p>{selected.hours === null || selected.parts === null ? "Labor hours and parts must be entered in estimate review. This catalog entry supplies a work description, not a vehicle-specific labor time or service procedure." : `Sample allowance: ${selected.hours.toFixed(1)} hours and ${money(selected.parts)} in parts. Illustrative only; no licensed labor guide or live parts source is connected.`}</p>{system.id === "ev" && <p>High-voltage work requires appropriately trained staff and vehicle-specific safety procedures.</p>}</details>
+                <LaborEvidence key={selected.id} repair={selected} groupId={group.id} storageKey={storageKey} onUseReportedHours={(hours, configuration, count) => applyReportedHours(selected.id, hours, configuration, count)} />
+                <details><summary>Parts, procedures & labor source</summary><p>Labor is a provisional planning allowance, not a verified book time. Parts, fitment and vehicle-specific procedures require review. {selected.parts === null ? "Enter parts pricing in estimate review." : `Parts allowance: ${money(selected.parts)} (demo only).`}</p>{system.id === "ev" && <p>High-voltage work requires appropriately trained staff and vehicle-specific safety procedures.</p>}</details>
                 <details><summary>Related checks & additional work</summary><p>Confirm findings before adding related work. Diagnostic checks and repairs are separate estimate lines. Shared labor must be reviewed for overlap.</p></details>
               </div>}
             </>}
@@ -212,7 +223,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
             {!lines.length ? <div className={styles.empty}><Wrench size={26} /><strong>Your estimate starts here</strong><p>Add a repair or diagnostic check. Totals update as you go.</p></div> : <ul className={styles.estimateLines}>{lines.map((line) => <li key={line.id}><div><strong>{line.label}</strong><small>{line.hours === null ? "Hours needed" : `${line.hours.toFixed(1)} hrs`} · {line.parts === null ? "parts needed" : `parts ${money(line.parts)}`}</small></div><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label} from estimate`} onClick={() => removeLine(line.id)}><Trash2 size={15} /></button></li>)}</ul>}
             <dl className={styles.totals}><div><dt>Labor · {totals.hours.toFixed(1)} hrs × {money(rate)}</dt><dd>{money(totals.labor)}</dd></div><div><dt>Parts</dt><dd>{money(totals.parts)}</dd></div><div className={styles.subtotal}><dt>{totals.unpricedLines ? "Priced subtotal" : "Sample subtotal"}</dt><dd data-testid="estimate-subtotal">{money(totals.subtotal)}</dd></div></dl>
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
-            <p className={styles.priceNote}>Illustrative pricing. Excludes taxes and fees.</p>
+            <p className={styles.priceNote}>Provisional labor hours require review. Excludes taxes and fees. Waiting time is not technician labor.</p>
             <button type="button" className={styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save sample draft" : "Review estimate"}<ArrowRight size={17} /></button>
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save sample draft</button>}<button type="button" onClick={loadDraft}>Load saved sample</button></div>
             <p className={styles.status} role="status" aria-live="polite">{status}</p>

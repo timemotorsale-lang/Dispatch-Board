@@ -62,7 +62,8 @@ describe("Repair Explorer preview", () => {
       expect(CATALOG_ENTRIES.some(({ system, repair }) => system.id === "engine" && repair.label === label), label).toBe(true);
     }
     const replacement = searchRepairs("engine assembly").find(({ repair }) => repair.label === "Replace engine assembly")!.repair;
-    expect(replacement.hours).toBeNull();
+    expect(replacement.hours).toBe(18);
+    expect(replacement.laborPlan?.confidence).toBe("UNVALIDATED");
     expect(replacement.parts).toBeNull();
     expect(replacement.conflictGroup).toBe("engine-assembly-alternatives");
   });

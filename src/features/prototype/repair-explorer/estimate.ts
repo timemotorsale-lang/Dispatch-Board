@@ -4,6 +4,9 @@ export type EstimateLine = {
   hours: number | null;
   parts: number | null;
   conflictGroup?: string;
+  laborBasis?: "PLANNING" | "MANUAL" | "REPORTED_MEDIAN";
+  laborConfiguration?: string;
+  reportedJobCount?: number;
 };
 
 export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[] };
@@ -34,7 +37,11 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
       if (!line || typeof line.id !== "string" || !line.id || line.id.length > 200 || identifiers.has(line.id)
         || typeof line.label !== "string" || !line.label.trim() || line.label.length > 200
         || (line.hours !== null && !isValidAmount(line.hours, 100)) || (line.parts !== null && !isValidAmount(line.parts, 100000))
-        || (line.conflictGroup !== undefined && (typeof line.conflictGroup !== "string" || !line.conflictGroup || conflicts.has(line.conflictGroup)))) return null;
+        || (line.conflictGroup !== undefined && (typeof line.conflictGroup !== "string" || !line.conflictGroup || conflicts.has(line.conflictGroup)))
+        || (line.laborBasis !== undefined && !["PLANNING", "MANUAL", "REPORTED_MEDIAN"].includes(line.laborBasis))
+        || (line.laborConfiguration !== undefined && (typeof line.laborConfiguration !== "string" || !line.laborConfiguration.trim() || line.laborConfiguration.length > 200))
+        || (line.reportedJobCount !== undefined && (!Number.isInteger(line.reportedJobCount) || line.reportedJobCount < 3 || line.reportedJobCount > 1000))
+        || (line.laborBasis === "REPORTED_MEDIAN" && (!line.laborConfiguration || line.reportedJobCount === undefined))) return null;
       identifiers.add(line.id);
       if (line.conflictGroup) conflicts.add(line.conflictGroup);
     }
