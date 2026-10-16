@@ -3,18 +3,22 @@
 import { useId, useState, type KeyboardEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, ZoomIn, RotateCcw } from "lucide-react";
 
-import type { CATALOG_ENTRIES, RepairOperation } from "./catalog";
-import { VISUAL_AREAS, visualEntries, visualEstimateRepair, visualPartForOperation, type VehicleSide, type VisualAreaId } from "./visual-catalog";
+import { REPAIR_SYSTEMS, type CATALOG_ENTRIES, type RepairOperation } from "./catalog";
+import { VISUAL_AREAS, visualEntries, visualEstimateRepair, visualPartForOperation, type VehicleSide, type VisualArea, type VisualAreaId, type VisualPart } from "./visual-catalog";
 import styles from "./visual-repair-finder.module.css";
 
 type CatalogEntry = typeof CATALOG_ENTRIES[number];
+type VehicleZone = VisualArea["zone"];
+const DIAGRAM_CHOICES = REPAIR_SYSTEMS.map((system) => VISUAL_AREAS.find((area) => area.systemId === system.id)).filter((area) => area !== undefined);
+const ZONE_LABELS: Record<VehicleZone, string> = { "engine-bay": "Engine bay", "front-wheel": "Front wheel area", cabin: "Body and cabin", underbody: "Underbody and powertrain" };
 
 function activate(event: KeyboardEvent<SVGElement>, action: () => void) {
   if (event.key === "Enter" || event.key === " ") { event.preventDefault(); action(); }
 }
 
-function PartShape({ id }: { id: string }) {
-  switch (id) {
+function PartShape({ part }: { part: VisualPart }) {
+  if (part.drawing) return <>{part.drawing.map((shape, index) => <path key={index} d={shape.path} fill={shape.strokeOnly ? "none" : undefined} strokeWidth={shape.width} strokeLinecap="round" />)}</>;
+  switch (part.id) {
     case "rotor": return <><ellipse cx="293" cy="215" rx="76" ry="115" /><ellipse cx="293" cy="215" rx="57" ry="91" /><ellipse cx="293" cy="215" rx="25" ry="39" /></>;
     case "pads": return <><path d="M367 151 L384 143 L401 158 L401 264 L384 280 L367 271 Z" /><path d="M336 161 L347 155 L358 168 L358 255 L347 267 L336 260 Z" /><path d="M379 161 V260 M345 172 V252" className={styles.detailStroke} /></>;
     case "caliper": return <><path d="M385 119 Q425 110 448 138 L448 280 Q426 302 390 291 L390 262 L420 261 L420 156 L386 156 Z" /><circle cx="438" cy="146" r="5" /><circle cx="438" cy="278" r="5" /></>;
@@ -42,10 +46,10 @@ function AssemblyDiagram({ areaId, selectedPartId, zoomed, onSelect }: { areaId:
   return <svg viewBox={zoomed && selected ? selected.zoom : "0 0 600 400"} className={styles.assembly} role="group" aria-labelledby={titleId} aria-describedby={descriptionId}>
     <title id={titleId}>{`${area.label} component diagram`}</title>
     <desc id={descriptionId}>Original generic schematic. Select a numbered component with mouse, Enter or Space. The matching part list below provides the same choices. Geometry is not vehicle-specific or to scale.</desc>
-    <g className={styles.context} aria-hidden="true">{areaId === "brakes" ? <><ellipse cx="275" cy="218" rx="92" ry="130" /><path d="M167 318 L178 131 L214 98" /><path d="M269 218 L190 214" /></> : <><path d="M80 304 L100 360 L170 382 M248 33 L340 33" /><ellipse cx="411" cy="284" rx="65" ry="80" /></>}</g>
+    <g className={styles.context} aria-hidden="true">{areaId === "brakes" ? <><ellipse cx="275" cy="218" rx="92" ry="130" /><path d="M167 318 L178 131 L214 98" /><path d="M269 218 L190 214" /></> : areaId === "front-suspension" ? <><path d="M80 304 L100 360 L170 382 M248 33 L340 33" /><ellipse cx="411" cy="284" rx="65" ry="80" /></> : area.backdrop?.map((path, index) => <path key={index} d={path} />)}</g>
     {area.parts.map((part) => <g key={part.id} className={`${styles.part} ${selectedPartId === part.id ? styles.activePart : ""}`} role="button" tabIndex={0} aria-label={`Select ${part.label}`} aria-pressed={selectedPartId === part.id} onClick={() => onSelect(part.id)} onKeyDown={(event) => activate(event, () => onSelect(part.id))}>
       <title>{`${part.label}: ${part.description}`}</title>
-      <g className={styles.componentShape}><PartShape id={part.id} /></g>
+      <g className={styles.componentShape}><PartShape part={part} /></g>
     </g>)}
     {area.parts.map((part, index) => <g key={part.id} className={`${styles.callout} ${selectedPartId === part.id ? styles.activeCallout : ""}`} onClick={() => onSelect(part.id)} aria-hidden="true">
       <path d={`M${part.callout.join(" ")} L${part.target.join(" ")}`} />
@@ -55,35 +59,37 @@ function AssemblyDiagram({ areaId, selectedPartId, zoomed, onSelect }: { areaId:
   </svg>;
 }
 
-function VehicleOverview({ onFrontWheel }: { onFrontWheel: () => void }) {
+function VehicleOverview({ onSelectZone }: { onSelectZone: (zone: VehicleZone) => void }) {
   const titleId = useId();
   return <svg viewBox="0 0 600 235" role="group" aria-labelledby={titleId} className={styles.vehicle}>
-    <title id={titleId}>Vehicle overview: select the highlighted front wheel area</title>
+    <title id={titleId}>Vehicle overview: choose a highlighted vehicle area</title>
     <path d="M63 155 L78 117 L183 105 L239 56 L391 56 L444 112 L524 132 L539 172 L503 179 L103 179 L63 171 Z" fill="#e7eef7" stroke="#788ba3" strokeWidth="3" />
     <path d="M202 106 L247 67 L309 67 L309 109 Z M324 67 L384 67 L425 109 L324 109 Z" fill="white" stroke="#9baabd" strokeWidth="2" />
     <path d="M316 120 V168 M75 143 H107 M487 147 H531" stroke="#9baabd" strokeWidth="3" fill="none" />
     <circle cx="458" cy="173" r="33" fill="#53687f" /><circle cx="458" cy="173" r="17" fill="#e3ebf5" />
-    <g role="button" tabIndex={0} aria-label="Explore front wheel area" onClick={onFrontWheel} onKeyDown={(event) => activate(event, onFrontWheel)} className={styles.frontWheel}>
-      <circle cx="153" cy="173" r="49" fill="#eaf2ff" stroke="#155bd7" strokeWidth="2" strokeDasharray="5 4" />
+    <g role="button" tabIndex={0} aria-label="Explore front wheel area" onClick={() => onSelectZone("front-wheel")} onKeyDown={(event) => activate(event, () => onSelectZone("front-wheel"))} className={styles.frontWheel}>
+      <circle cx="153" cy="173" r="40" fill="#eaf2ff" stroke="#155bd7" strokeWidth="2" strokeDasharray="5 4" />
       <circle cx="153" cy="173" r="33" fill="#155bd7" /><circle cx="153" cy="173" r="17" fill="white" />
       <text x="153" y="233" textAnchor="middle" fill="#155bd7">Front wheel area →</text>
     </g>
+    {([{ zone: "engine-bay", x: 126, y: 109, number: "1" }, { zone: "cabin", x: 326, y: 114, number: "2" }, { zone: "underbody", x: 335, y: 190, number: "3" }] as const).map((spot) => <g key={spot.zone} role="button" tabIndex={0} aria-label={`Explore ${ZONE_LABELS[spot.zone].toLowerCase()}`} className={styles.frontWheel} onClick={() => onSelectZone(spot.zone)} onKeyDown={(event) => activate(event, () => onSelectZone(spot.zone))}><circle cx={spot.x} cy={spot.y} r="21" fill="#155bd7" stroke="white" strokeWidth="3" /><text x={spot.x} y={spot.y + 5} textAnchor="middle" fill="white">{spot.number}</text></g>)}
   </svg>;
 }
 
-export function VisualRepairFinder({ initialArea, initialOperationId, addedIds, onAdd, onView, onClose }: {
+export function VisualRepairFinder({ initialArea, initialOperationId, addedIds, onAdd, onView, onBrowseSystem, onClose }: {
   initialArea: VisualAreaId | null;
   initialOperationId: string;
   addedIds: string[];
   onAdd: (entry: CatalogEntry, repair: RepairOperation) => void;
   onView: (entry: CatalogEntry) => void;
+  onBrowseSystem: (systemId: string) => void;
   onClose: () => void;
 }) {
   const [areaId, setAreaId] = useState<VisualAreaId | null>(initialArea);
   const [partId, setPartId] = useState(initialArea ? visualPartForOperation(initialArea, initialOperationId)?.id ?? "" : "");
   const [side, setSide] = useState<VehicleSide | null>(null);
   const [zoomed, setZoomed] = useState(false);
-  const [areaChoice, setAreaChoice] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<VehicleZone | "all">("all");
   const [kind, setKind] = useState<"repair" | "diagnosis">("repair");
   const area = VISUAL_AREAS.find((item) => item.id === areaId);
   const part = area?.parts.find((item) => item.id === partId);
@@ -94,19 +100,21 @@ export function VisualRepairFinder({ initialArea, initialOperationId, addedIds, 
 
   return <div className={styles.finder}>
     <div className={styles.finderHeader}><div><p className={styles.eyebrow}>VISUAL PART FINDER</p><h2>Point to the part. Find the work.</h2></div><button type="button" className={styles.textButton} onClick={onClose}>Return to repair list</button></div>
-    <nav className={styles.breadcrumb} aria-label="Diagram location"><button type="button" onClick={() => { setAreaId(null); setAreaChoice(false); setPartId(""); }}>Vehicle overview</button>{area && <><ChevronRight size={14} /><span>Front wheel area</span><ChevronRight size={14} /><span>{area.label}</span></>}</nav>
+    <nav className={styles.breadcrumb} aria-label="Diagram location"><button type="button" onClick={() => { setAreaId(null); setSelectedZone("all"); setPartId(""); }}>Vehicle overview</button>{area && <><ChevronRight size={14} /><span>{area.location}</span><ChevronRight size={14} /><span>{area.label}</span></>}</nav>
     {!area ? <>
-      <p className={styles.description}>Choose the front wheel area to explore the parts behind it. These first diagrams cover front disc brakes and front suspension.</p>
-      <VehicleOverview onFrontWheel={() => setAreaChoice(true)} />
-      <div className={styles.areaCards} role="group" aria-label="Front wheel systems">
-        {VISUAL_AREAS.map((item) => <button type="button" key={item.id} onClick={() => chooseArea(item.id)}><strong>{item.label}</strong><span>{item.id === "brakes" ? "Disc, pads, caliper and fluid hose" : "Spring, damper, arms and steering links"}</span><ArrowRight size={18} /></button>)}
+      <p className={styles.description}>Choose a highlighted vehicle area or select a system below. Visual identification is available for all {DIAGRAM_CHOICES.length} catalog systems.</p>
+      <VehicleOverview onSelectZone={setSelectedZone} />
+      <div className={styles.zonePicker} role="group" aria-label="Vehicle areas"><button type="button" aria-pressed={selectedZone === "all"} onClick={() => setSelectedZone("all")}>All systems</button>{(Object.keys(ZONE_LABELS) as VehicleZone[]).map((zone) => <button type="button" key={zone} aria-pressed={selectedZone === zone} onClick={() => setSelectedZone(zone)}>{ZONE_LABELS[zone]}</button>)}</div>
+      <div className={styles.areaCards} role="group" aria-label={selectedZone === "front-wheel" ? "Front wheel systems" : "Vehicle diagram systems"}>
+        {DIAGRAM_CHOICES.filter((item) => selectedZone === "all" || item.zone === selectedZone).map((item) => <button type="button" key={item.id} onClick={() => chooseArea(item.id)}><strong>{item.label}</strong><span>{item.summary}</span><ArrowRight size={18} /></button>)}
       </div>
-      <p role="status" className={styles.description}>{areaChoice ? "Front wheel area selected. Choose brakes or front suspension above." : "You can also choose either system directly."}</p>
+      <p role="status" className={styles.description}>{selectedZone === "all" ? "All systems shown. These diagrams identify representative parts; the full catalog remains available." : `${ZONE_LABELS[selectedZone]} selected. Choose a system above. Locations are approximate; designs and equipment vary.`}</p>
     </> : <>
-      <div className={styles.toolbar}><div className={styles.areaSwitch} role="group" aria-label="Diagram system">{VISUAL_AREAS.map((item) => <button key={item.id} type="button" aria-pressed={area.id === item.id} onClick={() => chooseArea(item.id)}>{item.label}</button>)}</div><div className={styles.zoomButtons}><button type="button" disabled={!part || zoomed} onClick={() => setZoomed(true)}><ZoomIn size={15} /> Zoom selected part</button><button type="button" disabled={!zoomed} onClick={() => setZoomed(false)}><RotateCcw size={15} /> Fit diagram</button></div></div>
+      <label className={styles.diagramSelect}>Choose diagram system<select value={area.id} onChange={(event) => chooseArea(event.target.value as VisualAreaId)}>{DIAGRAM_CHOICES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+      <div className={styles.toolbar}><div className={styles.areaSwitch} role="group" aria-label="Diagram system">{DIAGRAM_CHOICES.filter((item) => item.zone === area.zone).map((item) => <button key={item.id} type="button" aria-pressed={area.id === item.id} onClick={() => chooseArea(item.id)}>{item.label}</button>)}</div><div className={styles.zoomButtons}><button type="button" disabled={!part || zoomed} onClick={() => setZoomed(true)}><ZoomIn size={15} /> Zoom selected part</button><button type="button" disabled={!zoomed} onClick={() => setZoomed(false)}><RotateCcw size={15} /> Fit diagram</button></div></div>
       <p className={styles.diagramCaption}>{area.subtitle}</p>
       <AssemblyDiagram areaId={area.id} selectedPartId={partId} zoomed={zoomed} onSelect={choosePart} />
-      <p className={styles.disclaimer}>Original identification schematic · not to scale or matched to the sample vehicle. Confirm design and serviceability before selecting work.</p>
+      <p className={styles.disclaimer}>Original identification schematic · not to scale or vehicle-specific. Confirm design and serviceability before selecting work.</p>
       <div className={styles.partList} role="group" aria-label="Diagram part list">{area.parts.map((item, index) => <button key={item.id} type="button" aria-pressed={partId === item.id} onClick={() => choosePart(item.id)}><span className={styles.partNumber}>{index + 1}</span><span>{item.label}</span></button>)}</div>
       {part ? <section className={styles.partWork} aria-label="Selected diagram component"><p className={styles.eyebrow}>SELECTED COMPONENT</p><h3>{part.label}</h3><p>{part.description}</p><p className={styles.scope}>{part.scope}</p>
         {part.sideRequired && <div className={styles.sidePicker} role="group" aria-label="Vehicle side"><span>Which side?</span>{(["left", "right"] as const).map((item) => <button type="button" key={item} aria-pressed={side === item} onClick={() => setSide(item)}>Vehicle {item}</button>)}<small>Left/right is from the vehicle’s forward-facing perspective.</small></div>}
@@ -118,7 +126,7 @@ export function VisualRepairFinder({ initialArea, initialOperationId, addedIds, 
           return <article key={entry.repair.id} className={styles.workRow}><div><strong>{entry.repair.label}</strong><small>{entry.repair.hours?.toFixed(1)} hrs · provisional planning allowance</small><button type="button" className={styles.textButton} onClick={() => onView(entry)}>View in catalog</button></div><button type="button" className={styles.addButton} disabled={!estimateRepair || added} aria-label={added ? `${estimateRepair!.label} added from diagram` : `Add ${estimateRepair?.label ?? entry.repair.label} from diagram`} onClick={() => { if (estimateRepair) onAdd(entry, estimateRepair); }}>{added ? <><Check size={15} /> Added</> : "Add"}</button></article>;
         })}
       </section> : <div className={styles.choosePrompt}>Select a numbered part in the illustration or the matching list. Its name and available work will appear here.</div>}
-      <button type="button" className={styles.textButton} onClick={() => { setAreaId(null); setPartId(""); setAreaChoice(true); }}><ArrowLeft size={15} /> Back to front wheel systems</button>
+      <div className={styles.catalogLinks}><button type="button" className={styles.textButton} onClick={() => { setAreaId(null); setPartId(""); setSelectedZone("all"); }}><ArrowLeft size={15} /> Back to vehicle systems</button><button type="button" className={styles.textButton} onClick={() => onBrowseSystem(area.systemId)}>Part not shown? Browse full system catalog <ArrowRight size={15} /></button></div>
     </>}
   </div>;
 }

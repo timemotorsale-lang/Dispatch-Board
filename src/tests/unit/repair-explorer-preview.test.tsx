@@ -15,9 +15,9 @@ describe("Repair Explorer preview", () => {
     expect(page.props.storageKey).toBe("dispatch-board.repair-explorer-preview.v1.reviewer");
   });
 
-  it("renders a clearly isolated sample with an empty estimate and a return link", () => {
+  it("renders a clearly isolated preview with an empty estimate and a return link", () => {
     const html = renderToStaticMarkup(<RepairExplorer storageKey="test-preview" />);
-    expect(html).toContain("Prototype · sample data");
+    expect(html).toContain("Review preview");
     expect(html).toContain("Your estimate starts here");
     expect(html).toContain('href="/diagnostics/labor-guide"');
     expect(html).toContain("no live repair orders, customer records or approvals are changed");

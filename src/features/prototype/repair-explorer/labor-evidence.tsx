@@ -77,7 +77,7 @@ export function LaborEvidence({ repair, groupId, storageKey, onUseReportedHours 
     <summary>Labor time: basis, range & completed-job records</summary>
     {plan && <div className={styles.evidenceBody}>
       <h3>{plan.hours.toFixed(1)} hrs · provisional planning allowance</h3>
-      <p>Planning range {plan.low.toFixed(1)}–{plan.high.toFixed(1)} hrs. {plan.basis === "DEMO_SEED" ? "Retained demo allowance." : "AI-authored work-breakdown estimate."} No measured jobs support this value yet. Range is a scenario allowance, not a statistical confidence interval.</p>
+      <p>Planning range {plan.low.toFixed(1)}–{plan.high.toFixed(1)} hrs. {plan.basis === "DEMO_SEED" ? "Initial planning allowance." : "AI-authored work-breakdown estimate."} No measured jobs support this value yet. Range is a scenario allowance, not a statistical confidence interval.</p>
       <dl className={styles.stageList}>{plan.stages.map((stage) => <div key={stage.label}><dt>{stage.label}</dt><dd>{Math.round(stage.hours * 60)} min</dd></div>)}</dl>
       <p>{plan.scope} Access, engine, drivetrain, equipment, corrosion and shared labor can change the time. Parts waiting, outside machining and unattended processes are excluded.</p>
       {LABOR_REFERENCE_EXAMPLES.filter((reference) => reference.groupId === groupId).map((reference) => <div className={styles.reference} key={reference.id}><a href={reference.url} target="_blank" rel="noreferrer">{reference.label}</a><strong>{reference.hours}</strong><p>{reference.scope}</p><p>Reference only. It is not automatically applied to this operation or included in the planning calculation.</p></div>)}

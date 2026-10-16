@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { CATALOG_ENTRIES } from "@/features/prototype/repair-explorer/catalog";
+import { CATALOG_ENTRIES, REPAIR_SYSTEMS } from "@/features/prototype/repair-explorer/catalog";
 import { parsePreviewDraft } from "@/features/prototype/repair-explorer/estimate";
-import { VISUAL_AREAS, visualEntries, visualEstimateRepair, visualPartForOperation } from "@/features/prototype/repair-explorer/visual-catalog";
+import { VISUAL_AREAS, visualAreaForSystem, visualEntries, visualEstimateRepair, visualPartForOperation } from "@/features/prototype/repair-explorer/visual-catalog";
 import { VisualRepairFinder } from "@/features/prototype/repair-explorer/visual-repair-finder";
 
 describe("visual repair finder", () => {
   it("maps every illustrated component and action to an existing catalog operation", () => {
-    expect(VISUAL_AREAS.map((area) => area.id)).toEqual(["brakes", "front-suspension"]);
+    expect(VISUAL_AREAS).toHaveLength(12);
+    expect(new Set(VISUAL_AREAS.map((area) => area.id)).size).toBe(12);
+    expect(new Set(VISUAL_AREAS.map((area) => area.systemId))).toEqual(new Set(REPAIR_SYSTEMS.map((system) => system.id)));
     expect(CATALOG_ENTRIES).toHaveLength(879);
     for (const area of VISUAL_AREAS) {
       expect(new Set(area.parts.map((part) => part.id)).size).toBe(area.parts.length);
@@ -59,12 +61,45 @@ describe("visual repair finder", () => {
   });
 
   it("provides keyboard-operable diagrams, equivalent part lists and explicit applicability labels", () => {
-    const html = renderToStaticMarkup(<VisualRepairFinder initialArea="brakes" initialOperationId="front-pads-rotors" addedIds={[]} onAdd={() => undefined} onView={() => undefined} onClose={() => undefined} />);
+    const html = renderToStaticMarkup(<VisualRepairFinder initialArea="brakes" initialOperationId="front-pads-rotors" addedIds={[]} onAdd={() => undefined} onView={() => undefined} onBrowseSystem={() => undefined} onClose={() => undefined} />);
     expect(html).toContain("Front brakes component diagram");
     expect(html).toContain('aria-label="Select Brake caliper"');
     expect(html).toContain('tabindex="0"');
     expect(html).toContain('aria-label="Diagram part list"');
-    expect(html).toContain("not to scale or matched to the sample vehicle");
+    expect(html).toContain("not to scale or vehicle-specific");
     expect(html).toContain("Replace front pads &amp; rotors");
+  });
+
+  it("opens the correct diagram for every catalog system without falling back to suspension geometry", () => {
+    for (const system of REPAIR_SYSTEMS) {
+      const areaId = visualAreaForSystem(system.id);
+      const area = VISUAL_AREAS.find((item) => item.id === areaId)!;
+      expect(area).toBeDefined();
+      const html = renderToStaticMarkup(<VisualRepairFinder initialArea={areaId} initialOperationId="" addedIds={[]} onAdd={() => undefined} onView={() => undefined} onBrowseSystem={() => undefined} onClose={() => undefined} />);
+      expect(html).toContain(`${area.label.replace(/&/g, "&amp;")} component diagram`);
+      expect(html).toContain("Part not shown? Browse full system catalog");
+      expect(area.parts.length).toBeGreaterThanOrEqual(5);
+      if (!["brakes", "front-suspension"].includes(area.id)) {
+        expect(area.parts.every((part) => part.drawing && part.drawing.length > 0)).toBe(true);
+        expect(html).not.toContain('cx="411" cy="284" rx="65"');
+      }
+    }
+    expect(visualAreaForSystem("unknown")).toBeNull();
+  });
+
+  it("keeps diagram targets, callouts and zoom boxes inside the illustration bounds", () => {
+    for (const area of VISUAL_AREAS) for (const part of area.parts) {
+      for (const [x, y] of [part.target, part.callout]) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThanOrEqual(600);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(y).toBeLessThanOrEqual(400);
+      }
+      const [x, y, width, height] = part.zoom.split(" ").map(Number);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(x + width).toBeLessThanOrEqual(600);
+      expect(y + height).toBeLessThanOrEqual(400);
+    }
   });
 });

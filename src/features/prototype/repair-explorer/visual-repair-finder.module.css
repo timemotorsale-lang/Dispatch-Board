@@ -16,7 +16,7 @@
 .areaCards span { grid-column: 1; font-size: 12px; color: #50617a; }
 .areaCards svg { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #155bd7; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
-.areaSwitch, .workSwitch { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid #dce4ee; border-radius: 7px; background: #f1f5fb; }
+.areaSwitch, .workSwitch { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 4px; padding: 3px; border: 1px solid #dce4ee; border-radius: 7px; background: #f1f5fb; }
 .areaSwitch button, .workSwitch button { background: transparent; border: 1px solid transparent; padding: 7px 10px; color: #50617a; font-size: 12px !important; min-height: 36px !important; }
 .areaSwitch button[aria-pressed="true"], .workSwitch button[aria-pressed="true"] { background: white; color: #155bd7; border-color: #aec9f4; font-weight: 700; }
 .zoomButtons { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -62,4 +62,11 @@
 .workRow .textButton { min-height: 30px !important; font-size: 11px !important; }
 .addButton { display: flex; align-items: center; gap: 4px; color: #155bd7; background: white; border: 1px solid #a3bff0; padding: 8px 14px; font-size: 12px !important; }
 .choosePrompt { padding: 17px; border: 1px dashed #bdcadd; color: #50617a; border-radius: 7px; margin: 20px 0; font-size: 13px; }
+.diagramSelect { display: grid; gap: 6px; max-width: 100%; font-size: 12px; color: #50617a; margin: 15px 0; }
+.diagramSelect select { min-width: 0; max-width: 100%; width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #bdcadd; border-radius: 7px; background: white; color: #17263d; font: inherit; }
+.diagramSelect select:focus-visible { outline: 3px solid #3678e8; outline-offset: 3px; }
+.zonePicker { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 18px; }
+.zonePicker button { border: 1px solid #bdcadd; border-radius: 6px; background: white; color: #50617a; padding: 8px 12px; font-size: 12px !important; }
+.zonePicker button[aria-pressed="true"] { border-color: #377bea; color: #155bd7; background: #f1f6ff; }
+.catalogLinks { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; }
 @media (max-width: 720px) { .finderHeader { flex-direction: column; gap: 5px; } .partList, .areaCards { grid-template-columns: minmax(0, 1fr); } .toolbar { gap: 5px; } .zoomButtons { gap: 14px; } .assembly { min-height: 240px; } .partWork h3 { font-size: 17px !important; } }

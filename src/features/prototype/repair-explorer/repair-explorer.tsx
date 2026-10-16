@@ -7,6 +7,7 @@ import { CATALOG_COUNTS, REPAIR_SYSTEMS, searchRepairs, type RepairOperation } f
 import { estimateTotals, isValidAmount, parsePreviewDraft, type EstimateLine } from "./estimate";
 import { LaborEvidence } from "./labor-evidence";
 import { VisualRepairFinder } from "./visual-repair-finder";
+import { visualAreaForSystem } from "./visual-catalog";
 import styles from "./repair-explorer.module.css";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -23,7 +24,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
   const [reportedOverrides, setReportedOverrides] = useState<Record<string, { hours: number; configuration: string; count: number }>>({});
   const [review, setReview] = useState(false);
   const [visualOpen, setVisualOpen] = useState(false);
-  const [status, setStatus] = useState("Choose a repair to start your sample estimate.");
+  const [status, setStatus] = useState("Choose a repair to start your estimate.");
   const contentHeading = useRef<HTMLHeadingElement>(null);
   const system = REPAIR_SYSTEMS.find((item) => item.id === systemId)!;
   const group = system.groups.find((item) => item.id === groupId);
@@ -63,7 +64,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
       setStatus("The same catalog work is already added with a different position scope. Remove it before adding a scoped alternative.");
       return;
     }
-    if (lines.length >= 100) { setStatus("This sample estimate supports up to 100 lines."); return; }
+    if (lines.length >= 100) { setStatus("This estimate supports up to 100 lines."); return; }
     if (repair.conflictGroup && lines.some((line) => line.conflictGroup === repair.conflictGroup)) {
       setStatus("An overlapping repair is already added. Remove that line before selecting this alternative.");
       return;
@@ -78,15 +79,15 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
     const amount = value.trim() ? Number(value) : null;
     if (amount !== null && !isValidAmount(amount, field === "hours" ? 100 : 100000)) return;
     setLines(lines.map((line) => line.id === id ? { ...line, [field]: amount, ...(field === "hours" ? { laborBasis: "MANUAL" as const, laborConfiguration: undefined, reportedJobCount: undefined } : {}) } : line));
-    setStatus("Sample estimate updated. Save the draft to keep these changes in this browser.");
+    setStatus("Estimate updated. Save the draft to keep these changes in this browser.");
   }
 
   function saveDraft() {
     try {
       window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines }));
-      setStatus("Sample draft saved in this browser. No repair order or customer record was changed.");
+      setStatus("Draft saved in this browser. No repair order or customer record was changed.");
     } catch {
-      setStatus("Browser storage is unavailable. Your sample estimate is still available until you leave this page.");
+      setStatus("Browser storage is unavailable. Your estimate is still available until you leave this page.");
     }
   }
 
@@ -94,11 +95,11 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
     try {
       const raw = window.localStorage.getItem(storageKey);
       const draft = raw ? parsePreviewDraft(raw) : null;
-      if (!draft) { setStatus(raw ? "The saved sample draft cannot be loaded. Your current estimate was kept." : "No saved sample draft in this browser yet."); return; }
-      if (lines.length && !window.confirm("Replace the current sample estimate with the saved browser draft?")) return;
+      if (!draft) { setStatus(raw ? "The saved draft cannot be loaded. Your current estimate was kept." : "No saved draft in this browser yet."); return; }
+      if (lines.length && !window.confirm("Replace the current estimate with the saved browser draft?")) return;
       setLines(draft.lines);
       setRate(draft.rate);
-      setStatus("Saved sample draft loaded from this browser.");
+      setStatus("Saved draft loaded from this browser.");
     } catch {
       setStatus("Browser storage is unavailable. Your current estimate was kept.");
     }
@@ -112,17 +113,17 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
     const hours = Number(data.get("hours"));
     const parts = Number(data.get("parts"));
     if (!label || !isValidAmount(hours, 100) || !isValidAmount(parts, 100000) || lines.length >= 100) {
-      setStatus("Enter a repair name and valid amounts. The sample supports up to 100 lines.");
+      setStatus("Enter a repair name and valid amounts. An estimate supports up to 100 lines.");
       return;
     }
     setLines([...lines, { id: `custom-${crypto.randomUUID()}`, label, hours, parts, laborBasis: "MANUAL" }]);
-    setStatus(`${label} added as custom sample work.`);
+    setStatus(`${label} added as custom work.`);
     form.reset();
   }
 
   function removeLine(id: string) {
     setLines(lines.filter((line) => line.id !== id));
-    setStatus("Repair removed. Sample estimate updated.");
+    setStatus("Repair removed. Estimate updated.");
   }
 
   function applyReportedHours(operationId: string, hours: number, configuration: string, count: number) {
@@ -136,11 +137,11 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
       <header className={styles.topbar}>
         <a href="/diagnostics/labor-guide"><ArrowLeft size={16} /> Current Labor Guide</a>
         <strong>Dispatch Board <span>/ Repair Explorer</span></strong>
-        <span className={styles.badge}>Prototype · sample data</span>
+        <span className={styles.badge}>Review preview</span>
       </header>
       <main className={styles.workspace}>
         <div className={styles.intro}>
-          <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>Sample vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</p></div>
+          <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</p></div>
           <nav className={styles.steps} aria-label="Estimate steps">
             <button type="button" aria-current={!review ? "step" : undefined} onClick={() => { setReview(false); focusContent(); }}><span>1</span> Find repair</button>
             <ChevronRight size={18} />
@@ -149,7 +150,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
         </div>
         <div className={styles.searchbar}>
           <Search size={21} aria-hidden="true" />
-          <input aria-label="Search all sample repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); setVisualOpen(false); }} />
+          <input aria-label="Search all repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); setVisualOpen(false); }} />
           {query ? <button type="button" onClick={() => setQuery("")}>Clear</button> : <span>All systems</span>}
           <button type="button" className={styles.visualLaunch} aria-pressed={visualOpen} onClick={() => { setVisualOpen(!visualOpen); setQuery(""); setReview(false); }}>Find it visually</button>
         </div>
@@ -169,12 +170,12 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
             ))}
             <p className={styles.catalogNote}>{CATALOG_COUNTS.systems} systems · {CATALOG_COUNTS.groups} groups · {CATALOG_COUNTS.operations} operations. Broad preview catalog; confirm vehicle applicability before pricing.</p>
           </aside>
-          <section className={styles.content} aria-label={review ? "Review sample estimate" : "Repair selection"}>
+          <section className={styles.content} aria-label={review ? "Review estimate" : "Repair selection"}>
             {review ? <>
-              <p className={styles.breadcrumb}>Sample vehicle / Estimate review</p>
+              <p className={styles.breadcrumb}>Estimate / Review</p>
               <h2 ref={contentHeading} tabIndex={-1}>Review your estimate</h2>
               <p className={styles.description}>Review provisional labor hours and enter parts before saving your browser draft. Recorded job hours remain separate from planning allowances.</p>
-              <label className={styles.rate}>Shop labor rate ($ / hour)<input aria-label="Shop labor rate" type="number" min="0" max="1000" step="0.01" value={rate} onChange={(event) => { const amount = Number(event.target.value); if (event.target.value && isValidAmount(amount, 1000)) { setRate(amount); setStatus("Sample shop rate updated."); } }} /></label>
+              <label className={styles.rate}>Shop labor rate ($ / hour)<input aria-label="Shop labor rate" type="number" min="0" max="1000" step="0.01" value={rate} onChange={(event) => { const amount = Number(event.target.value); if (event.target.value && isValidAmount(amount, 1000)) { setRate(amount); setStatus("Shop labor rate updated."); } }} /></label>
               {!lines.length ? <div className={styles.empty}>No repairs remain. Return to Find repair to add work.</div> : lines.map((line) => <article className={styles.reviewLine} key={line.id}>
                 <div className={styles.row}><h3>{line.label}</h3><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label}`} onClick={() => removeLine(line.id)}><Trash2 size={17} /></button></div>
                 <p className={styles.laborBasis}>{line.laborBasis === "PLANNING" ? "Provisional planning allowance · no measured job evidence" : line.laborBasis === "REPORTED_MEDIAN" ? `Technician-reported median · ${line.reportedJobCount} jobs · ${line.laborConfiguration}` : "Manually entered hours · not source-verified"}</p>
@@ -182,8 +183,8 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
               </article>)}
               <div className={styles.note}><CircleHelp size={19} /><p>This preview stops at estimate review. Vehicle-specific labor, parts fitment, taxes, authorization and repair-order updates will be connected after the design is approved.</p></div>
               <button type="button" className={styles.secondary} onClick={() => { setReview(false); focusContent(); }}><ArrowLeft size={16} /> Keep adding work</button>
-            </> : visualOpen ? <VisualRepairFinder initialArea={systemId === "brakes" ? "brakes" : systemId === "steering" ? "front-suspension" : null} initialOperationId={selectedId} addedIds={lines.map((line) => line.id)} onClose={() => { setVisualOpen(false); focusContent(); }} onView={(entry) => { selectGroup(entry.system.id, entry.group.id); setMode(entry.repair.kind); setSelectedId(entry.repair.id); if (entry.repair.id.startsWith("rear")) setAxle("rear"); focusContent(); }} onAdd={(entry, repair) => { setSystemId(entry.system.id); setGroupId(entry.group.id); setMode(entry.repair.kind); setAxle("front"); addRepair(repair); }} /> : query.trim() ? <>
-              <p className={styles.breadcrumb}>Search / All sample systems</p><h2 ref={contentHeading} tabIndex={-1}>Matching work</h2>
+            </> : visualOpen ? <VisualRepairFinder initialArea={visualAreaForSystem(systemId)} initialOperationId={selectedId} addedIds={lines.map((line) => line.id)} onBrowseSystem={(nextSystemId) => { selectSystem(nextSystemId); focusContent(); }} onClose={() => { setVisualOpen(false); focusContent(); }} onView={(entry) => { selectGroup(entry.system.id, entry.group.id); setMode(entry.repair.kind); setSelectedId(entry.repair.id); if (entry.repair.id.startsWith("rear")) setAxle("rear"); focusContent(); }} onAdd={(entry, repair) => { setSystemId(entry.system.id); setGroupId(entry.group.id); setMode(entry.repair.kind); setAxle("front"); addRepair(repair); }} /> : query.trim() ? <>
+              <p className={styles.breadcrumb}>Search / All systems</p><h2 ref={contentHeading} tabIndex={-1}>Matching work</h2>
               <p className={styles.description}>{results.length} {results.length === 1 ? "result" : "results"} for “{query}”</p>
               {!results.length && <div className={styles.empty}>No catalog matches. Try “engine assembly”, “grinding”, “P0300” or choose a system. You can also add custom work below.</div>}
               {results.map(({ system: resultSystem, group: resultGroup, repair }) => <article className={styles.searchResult} key={repair.id}>
@@ -221,21 +222,21 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
                 <h3>Included in this {mode === "diagnosis" ? "check" : "repair"}</h3>
                 <ul>{selected.includes.map((text) => <li key={text}><Check size={15} />{text}</li>)}</ul>
                 <LaborEvidence key={selected.id} repair={selected} groupId={group.id} storageKey={storageKey} onUseReportedHours={(hours, configuration, count) => applyReportedHours(selected.id, hours, configuration, count)} />
-                <details><summary>Parts, procedures & labor source</summary><p>Labor is a provisional planning allowance, not a verified book time. Parts, fitment and vehicle-specific procedures require review. {selected.parts === null ? "Enter parts pricing in estimate review." : `Parts allowance: ${money(selected.parts)} (demo only).`}</p>{system.id === "ev" && <p>High-voltage work requires appropriately trained staff and vehicle-specific safety procedures.</p>}</details>
+                <details><summary>Parts, procedures & labor source</summary><p>Labor is a provisional planning allowance, not a verified book time. Parts, fitment and vehicle-specific procedures require review. {selected.parts === null ? "Enter parts pricing in estimate review." : `Provisional parts allowance: ${money(selected.parts)}. Confirm pricing before quoting.`}</p>{system.id === "ev" && <p>High-voltage work requires appropriately trained staff and vehicle-specific safety procedures.</p>}</details>
                 <details><summary>Related checks & additional work</summary><p>Confirm findings before adding related work. Diagnostic checks and repairs are separate estimate lines. Shared labor must be reviewed for overlap.</p></details>
               </div>}
             </>}
             {!review && !visualOpen && <details className={styles.custom}><summary>Can’t find the work? Add a custom line</summary><form onSubmit={addCustom}><label>Work description<input name="label" required maxLength={200} placeholder="Describe the work" /></label><div className={styles.lineFields}><label>Labor hours<input name="hours" type="number" min="0" max="100" step="0.1" defaultValue="1" required /></label><label>Parts total ($)<input name="parts" type="number" min="0" max="100000" step="0.01" defaultValue="0" required /></label></div><button className={styles.secondary} type="submit">Add custom work</button></form></details>}
           </section>
-          <aside className={styles.estimate} aria-label="Sample estimate">
+          <aside className={styles.estimate} aria-label="Estimate">
             <div className={styles.row}><h2>Estimate</h2><span className={styles.count}>{lines.length} {lines.length === 1 ? "line" : "lines"}</span></div>
-            <p className={styles.description}>Sample vehicle · browser draft</p>
+            <p className={styles.description}>Estimate draft · this browser</p>
             {!lines.length ? <div className={styles.empty}><Wrench size={26} /><strong>Your estimate starts here</strong><p>Add a repair or diagnostic check. Totals update as you go.</p></div> : <ul className={styles.estimateLines}>{lines.map((line) => <li key={line.id}><div><strong>{line.label}</strong><small>{line.hours === null ? "Hours needed" : `${line.hours.toFixed(1)} hrs`} · {line.parts === null ? "parts needed" : `parts ${money(line.parts)}`}</small></div><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label} from estimate`} onClick={() => removeLine(line.id)}><Trash2 size={15} /></button></li>)}</ul>}
-            <dl className={styles.totals}><div><dt>Labor · {totals.hours.toFixed(1)} hrs × {money(rate)}</dt><dd>{money(totals.labor)}</dd></div><div><dt>Parts</dt><dd>{money(totals.parts)}</dd></div><div className={styles.subtotal}><dt>{totals.unpricedLines ? "Priced subtotal" : "Sample subtotal"}</dt><dd data-testid="estimate-subtotal">{money(totals.subtotal)}</dd></div></dl>
+            <dl className={styles.totals}><div><dt>Labor · {totals.hours.toFixed(1)} hrs × {money(rate)}</dt><dd>{money(totals.labor)}</dd></div><div><dt>Parts</dt><dd>{money(totals.parts)}</dd></div><div className={styles.subtotal}><dt>{totals.unpricedLines ? "Priced subtotal" : "Estimated subtotal"}</dt><dd data-testid="estimate-subtotal">{money(totals.subtotal)}</dd></div></dl>
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
             <p className={styles.priceNote}>Provisional labor hours require review. Excludes taxes and fees. Waiting time is not technician labor.</p>
-            <button type="button" className={styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save sample draft" : "Review estimate"}<ArrowRight size={17} /></button>
-            <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save sample draft</button>}<button type="button" onClick={loadDraft}>Load saved sample</button></div>
+            <button type="button" className={styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
+            <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>
