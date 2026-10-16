@@ -44,7 +44,6 @@ type ExistingPart = {
   unitPrice: number;
 };
 
-const mnTaxRate = 0.08;
 
 const canonical = (value: string) => value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const cents = (value: number) => Math.max(0, Math.round(value));
@@ -144,20 +143,21 @@ function isSamePart(requirement: EstimateRequiredPart, part: ExistingPart) {
   );
 }
 
-export function calculateMinnesotaEstimateTax(parts: ExistingPart[]): EstimateTaxPolicyResult {
+export function calculateMinnesotaEstimateTax(parts: ExistingPart[], taxRate = 0.07): EstimateTaxPolicyResult {
+  if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 0.3) throw new Error("Invalid configured tax rate.");
   const taxablePartsCents = parts.filter((part) => part.taxable !== false).reduce((sum, part) => sum + cents(part.quantity * part.unitPrice * 100), 0);
-  const taxCents = cents(taxablePartsCents * mnTaxRate);
+  const taxCents = cents(taxablePartsCents * taxRate);
   return {
     jurisdiction: "MN",
     laborTaxable: false,
     taxablePartsCents,
     taxCents,
-    taxRate: mnTaxRate,
-    taxSummary: "MN estimate policy taxes parts/materials only; separately stated repair labor is not taxed."
+    taxRate,
+    taxSummary: "MN estimate policy taxes parts/materials only; separately stated repair labor is not taxed. Rate is staff configured; confirm jurisdiction and effective date."
   };
 }
 
-export function evaluateEstimatePartsTaxPolicy(input: { labor: LaborRepairOperation[]; parts: ExistingPart[]; jurisdiction?: EstimateJurisdiction }): EstimatePartsTaxPolicyResult {
+export function evaluateEstimatePartsTaxPolicy(input: { labor: LaborRepairOperation[]; parts: ExistingPart[]; jurisdiction?: EstimateJurisdiction; taxRate?: number }): EstimatePartsTaxPolicyResult {
   const requiredParts = input.labor.flatMap(requiredPartsForLabor);
   const missingRequiredParts = requiredParts.filter((requirement) => !input.parts.some((part) => isSamePart(requirement, part)));
   const requiredAddOnIds = [...new Set(input.labor.flatMap(requiredAddOnsForLabor))];
@@ -172,7 +172,7 @@ export function evaluateEstimatePartsTaxPolicy(input: { labor: LaborRepairOperat
     missingRequiredParts,
     requiredAddOnIds,
     readinessCodes,
-    tax: calculateMinnesotaEstimateTax(input.parts),
+    tax: calculateMinnesotaEstimateTax(input.parts, input.taxRate),
     version: DIAGNOSTIC_ESTIMATE_PARTS_TAX_POLICY_VERSION
   };
 }

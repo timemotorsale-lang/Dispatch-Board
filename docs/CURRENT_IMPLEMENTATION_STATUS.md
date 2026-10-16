@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-10-15 - Labor Guide Controls and Administrator Labor Rate
+
+The regular Labor Guide now starts new estimates at the shop-requested $125/hour default and reads effective active `SHOP_LABOR_RATE` policies. `/settings/labor-rate` provides manager-protected draft, validation, independent approval and activation through the existing policy command/audit services. Rate changes do not reprice stored quotes or presented estimates; the dedicated feature introduces no schema migration. The requested 7% tax remains a draft assumption requiring an applicable jurisdiction/source reference, not a universal Minnesota tax assertion.
+
+Official Labor Guide presentation now requires pricing/fitment/shared-labor review, with server checks for recognized catalog keys and mandatory labor-source review for all labor-containing presentation calls. A reviewed preliminary-quote-to-RO transfer preserves the source quote and proposed work while clearing evidence, attempts and applicability reviews. Lookup failures are distinguished from no matches. Existing estimate, authorization and approved-job services remain the downstream execution path.
+
+Validation: 62 focused tests, type checking, scoped lint and isolated browser checks for rate inheritance, controls, quote transfer, mobile layout and new-control accessibility. Local read-only preflight found the existing policy table available, zero configured labor-rate policies, and `CUSTOMER_LIFECYCLE` / `SHOP_OPERATIONS` in GENERAL rollout mode. No policy was activated or live estimate repriced during implementation. See [Labor Guide estimating controls](LABOR_GUIDE_ESTIMATING_CONTROLS.md) for scope, policy steps and remaining enterprise work; this is not a claim of verified vehicle-specific labor times or automated tax/fitment integration.
+
 ## 2026-10-10 - Local Vehicle 360 Runtime Recovery
 
 Two verified development servers were using the same `.next-local` junction;

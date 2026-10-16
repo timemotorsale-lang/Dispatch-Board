@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 type SettingsWorkspaceNavProps = {
-  active: "settings" | "appointments" | "appointment-catalog" | "appointment-automation" | "vehicle-operations" | "admin";
+  active: "settings" | "appointments" | "appointment-catalog" | "appointment-automation" | "vehicle-operations" | "admin" | "labor-rate";
   counts?: {
     duties: number;
     roles: number;
@@ -23,6 +23,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
 
       <div className="settings-rail-group">
         <p className="settings-rail-label">Settings</p>
+        <Link className={active === "labor-rate" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} href="/settings/labor-rate"><span>Labor rate</span><small>Shop estimating default, reviewed changes and activation.</small></Link>
         <Link
           className={active === "vehicle-operations" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"}
           href="/settings/vehicle-operations"

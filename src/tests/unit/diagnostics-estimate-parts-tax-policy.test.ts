@@ -34,7 +34,7 @@ describe("diagnostic estimate parts and tax policy", () => {
 
     expect(result.tax.laborTaxable).toBe(false);
     expect(result.tax.taxablePartsCents).toBe(280000);
-    expect(result.tax.taxCents).toBe(Math.round(result.tax.taxablePartsCents * 0.08));
+    expect(result.tax.taxCents).toBe(Math.round(result.tax.taxablePartsCents * 0.07));
   });
 
   it("does not invent parts for diagnostic-only labor", () => {

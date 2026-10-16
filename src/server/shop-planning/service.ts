@@ -1,5 +1,9 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { estimateReviewScope, manualReviewComplete, validateManualReview } from "@/lib/estimate-review";
+import { checkEstimateControls, validateEstimateControls } from "@/lib/labor-guide-controls";
+import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
+import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
+import { canManageSettings } from "@/server/policies/access";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository,type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
@@ -29,10 +33,25 @@ export async function recordDirectRepairScope(actor:AuthenticatedUser|null,repai
 export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){
   const context=deps(input),data=normalizeEstimate(value,context.now()),{ro,user}=await mutationContext(actor,repairOrderId,context);
   const reviewValue=(value as Record<string,unknown>).manualLaborReview;
-  if(reviewValue!==undefined){
+  if(reviewValue!==undefined || data.lineItems.some(line=>line.type==="LABOR")){
     const review=validateManualReview(reviewValue);
     if(!manualReviewComplete(review,estimateReviewScope(ro.vehicle.id,data.lineItems)))throw new Error("Manual labor review is incomplete or the vehicle/work changed. Review again before presenting.");
     data.assumptions=[data.assumptions,`Manual review (not OEM verified). Engine: ${review.engine}. Configuration: ${review.configuration}. Source: ${review.source}. Limitations: ${review.limitations || "None stated"}. Presenter: ${user.name} (${user.id}). Recorded: ${data.presentedAt.toISOString()}.`].filter(Boolean).join("\n");
+  }
+  const catalog = flattenLaborOperationTaxonomy();
+  const selectedCatalog = data.lineItems.filter(line=>line.type==="LABOR").flatMap(line=>{
+    const operation = catalog.find(item=>`labor-${item.id.replace(/[^a-z0-9-]/gi,"-").toLowerCase()}`===line.key);
+    return operation ? [{ ...operation, hours: line.laborGuideMinutes / 60 }] : [];
+  });
+  const controlValue=(value as Record<string,unknown>).estimateControls;
+  if(selectedCatalog.length || controlValue!==undefined){
+    const controls=checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
+    const activeRate=await getActiveLaborRate(user);
+    if(controls.pricing.laborRate!==activeRate.laborRate){
+      if(!canManageSettings(user))throw new Error("Only an administrator may override the active shop labor rate. Use the current shop rate and repeat review.");
+      if(!controls.pricing.overrideReason?.trim())throw new Error("An administrator rate override reason is required.");
+    }
+    data.assumptions=[data.assumptions,`Estimate controls v1 (staff reviewed, not independently verified): ${JSON.stringify(controls)}`,`Labor provenance: ${JSON.stringify(selectedCatalog.map(operation=>({operationId:operation.id,source:"INTERNAL_AUTHORED",version:"labor-taxonomy-v1",validatedStandard:false,proposedMinutes:Math.round(operation.hours*60)})))}`].filter(Boolean).join("\n");
   }
   // Keep the original version on retries so the command ledger can replay the same result.
   const suppliedVersion=(value as Record<string,unknown>).expectedVersion;

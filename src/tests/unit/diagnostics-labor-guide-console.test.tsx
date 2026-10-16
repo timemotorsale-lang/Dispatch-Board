@@ -37,7 +37,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Add manual part");
     expect(markup).toContain("Retail");
     expect(markup).toContain("Edit Front brake pad set price and quantity");
-    expect(markup).toContain("Auto from parts catalog");
+    expect(markup).toContain("Suggested catalog match - fitment and price need review");
     expect(markup).toContain("Automatic Suggested Add-Ons");
     expect(markup).toContain("Road test and repair verification");
     expect(markup).toContain("Helpful items to review");
@@ -86,7 +86,10 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("#0678C112");
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
     expect(markup).toContain("Check in vehicle");
-    expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
+    expect(markup).toContain("/vehicles/workflows/add-vehicle?returnTo=%2Fdiagnostics%2Flabor-guide");
+    expect(markup).toContain("Add vehicle (new tab)");
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain("without leaving this estimate");
     expect(markup).toContain("Show next step to present estimate");
     expect(markup).toContain("Select the repair order shown in the customer and vehicle lookup before creating this estimate.");
     expect(markup).toContain("Selected Work");
