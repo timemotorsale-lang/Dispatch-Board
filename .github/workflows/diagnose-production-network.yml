@@ -10,7 +10,7 @@ permissions:
 jobs:
   diagnose:
     name: Read-only network diagnostics
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production

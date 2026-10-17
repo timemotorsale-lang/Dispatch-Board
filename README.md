@@ -127,6 +127,15 @@ It does not build images, deploy, migrate data, restart services, or change
 server configuration. HTTP 401 from the registry is normal for this unauthenticated
 connection check; a hostname certificate mismatch must be repaired, not bypassed.
 
+On the diagnosed Time Server, wired `eno1` DNS returns valid Docker addresses,
+while Wi-Fi `wlp1s0` DNS returns Comcast portal addresses. The prepared
+`deploy/docker/scripts/repair-wifi-dns-routing.sh` requires administrator access
+and the verified network layout. It installs a persistent Wi-Fi DNS routing
+override, verifies Docker Hub TLS, and reverts its override on verification
+failure. It does not deploy or restart Docker. Do not run it on a different
+network layout without review. The deployment SSH account currently lacks the
+administrative permissions required to apply this repair.
+
 ## Project docs
 
 - Current implementation status: [docs/CURRENT_IMPLEMENTATION_STATUS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/CURRENT_IMPLEMENTATION_STATUS.md)
