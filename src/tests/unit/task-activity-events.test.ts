@@ -93,7 +93,11 @@ function createTaskCreateRepositoryHarness() {
   };
 }
 
-function createTaskAssignmentRepositoryHarness() {
+function createTaskAssignmentRepositoryHarness(ownerUserId: string | null = null) {
+  const ownerUser = ownerUserId
+    ? { id: ownerUserId, name: "Eli Manager", email: "morgan.manager@local.test" }
+    : null;
+
   return {
     repository: {
       async findTaskById() {
@@ -102,6 +106,8 @@ function createTaskAssignmentRepositoryHarness() {
           title: "Review sales follow-up tasks",
           boardDayId: "board-day-1",
           assignedUserId: "user-jordan.sales@local.test",
+          ownerUserId,
+          ownerUser,
           recommendedUserId: "user-jordan.sales@local.test",
           assignedUser: {
             id: "user-jordan.sales@local.test",
@@ -138,6 +144,8 @@ function createTaskAssignmentRepositoryHarness() {
           title: "Review sales follow-up tasks",
           boardDayId: "board-day-1",
           assignedUserId: "user-casey.mechanic@local.test",
+          ownerUserId,
+          ownerUser,
           recommendedUserId: "user-jordan.sales@local.test",
           sourceType: TaskSourceType.MANAGER,
           sourceTemplateId: null,
@@ -258,37 +266,41 @@ describe("task activity events", () => {
     });
   });
 
-  it("records an activity event when a manager overrides a recommendation during reassignment", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
-    const { repository } = createTaskAssignmentRepositoryHarness();
+  it.each([null, "user-morgan.manager@local.test"])(
+    "records an activity event when a manager overrides a recommendation during reassignment with owner %s",
+    async (ownerUserId) => {
+      const { usersByEmail } = await createTestAuthStore();
+      const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+      const { repository } = createTaskAssignmentRepositoryHarness(ownerUserId);
 
-    await updateTaskAssignment(
-      managerUser,
-      "task-1",
-      {
-        assignedUserId: "user-casey.mechanic@local.test"
-      },
-      repository
-    );
+      await updateTaskAssignment(
+        managerUser,
+        "task-1",
+        {
+          assignedUserId: "user-casey.mechanic@local.test"
+        },
+        repository
+      );
 
-    expect(recordBoardActivityEvent).toHaveBeenCalledWith({
-      actorUserId: managerUser?.id ?? null,
-      boardDayId: "board-day-1",
-      eventType: "task.reassigned",
-      message:
-        "Eli Manager reassigned Review sales follow-up tasks from Baraka Sales to Walter Mechanic, overriding the recommendation for Baraka Sales.",
-      metadata: {
-        nextAssignedUserId: "user-casey.mechanic@local.test",
-        nextAssignedUserName: "Walter Mechanic",
-        previousAssignedUserId: "user-jordan.sales@local.test",
-        previousAssignedUserName: "Baraka Sales",
-        recommendedUserId: "user-jordan.sales@local.test",
-        recommendedUserName: "Baraka Sales"
-      },
-      taskId: "task-1"
-    });
-  });
+      expect(recordBoardActivityEvent).toHaveBeenCalledWith({
+        actorUserId: managerUser?.id ?? null,
+        boardDayId: "board-day-1",
+        eventType: "task.reassigned",
+        message:
+          "Eli Manager reassigned Review sales follow-up tasks from Baraka Sales to Walter Mechanic, overriding the recommendation for Baraka Sales.",
+        metadata: {
+          nextAssignedUserId: "user-casey.mechanic@local.test",
+          nextAssignedUserName: "Walter Mechanic",
+          ownerUserId: ownerUserId ?? "user-jordan.sales@local.test",
+          previousAssignedUserId: "user-jordan.sales@local.test",
+          previousAssignedUserName: "Baraka Sales",
+          recommendedUserId: "user-jordan.sales@local.test",
+          recommendedUserName: "Baraka Sales"
+        },
+        taskId: "task-1"
+      });
+    }
+  );
 
   it("records an activity event when staff moves approval-required work to ready for review", async () => {
     const { usersByEmail } = await createTestAuthStore();
