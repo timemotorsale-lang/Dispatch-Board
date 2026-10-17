@@ -13,16 +13,19 @@ import { brakeOperationForId } from "@/lib/brake-baseline";
 import { repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { BrakeOperationScope } from "@/features/diagnostics/brake-operation-scope";
 import { SteeringOperationScope } from "@/features/diagnostics/steering-operation-scope";
+import { LightDutyOperationScope } from "@/features/diagnostics/light-duty-operation-scope";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 
-export function RepairExplorer({ storageKey }: { storageKey: string }) {
-  const [systemId, setSystemId] = useState("brakes");
-  const [groupId, setGroupId] = useState("friction");
+export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: { storageKey: string; initialSystemId?: string; initialGroupId?: string }) {
+  const initialSystem = REPAIR_SYSTEMS.find(system => system.id === initialSystemId) ?? REPAIR_SYSTEMS.find(system => system.id === "brakes")!;
+  const initialGroup = initialSystem.groups.find(group => group.id === initialGroupId) ?? initialSystem.groups[0];
+  const [systemId, setSystemId] = useState(initialSystem.id);
+  const [groupId, setGroupId] = useState(initialGroup.id);
   const [axle, setAxle] = useState("front");
   const [mode, setMode] = useState<"repair" | "diagnosis">("repair");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState("front-pads-rotors");
+  const [selectedId, setSelectedId] = useState(initialGroup.operations.find(operation => operation.kind === "repair")?.id ?? "");
   const [lines, setLines] = useState<EstimateLine[]>([]);
   const [rate, setRate] = useState(150);
   const [reportedOverrides, setReportedOverrides] = useState<Record<string, { hours: number; configuration: string; count: number }>>({});
@@ -36,6 +39,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
   const visible = group?.operations.filter((item) => item.kind === mode && (group.id !== "friction" || mode === "diagnosis" || (brakeOperationForId(item.id)?.position.toLowerCase().startsWith(axle) ?? item.id.startsWith(axle)))) ?? [];
   const results = query.trim() ? searchRepairs(query) : [];
   const totals = estimateTotals(lines, rate);
+  const scopeConflict = lines.some((line, index) => lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)));
 
   function focusContent() {
     requestAnimationFrame(() => contentHeading.current?.focus());
@@ -107,7 +111,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
       if (lines.length && !window.confirm("Replace the current estimate with the saved browser draft?")) return;
       setLines(draft.lines);
       setRate(draft.rate);
-      setStatus("Saved draft loaded from this browser.");
+      setStatus(draft.lines.some((line, index) => draft.lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id))) ? "Saved draft loaded with original amounts. Current catalog scope conflicts need review before quoting." : "Saved draft loaded from this browser.");
     } catch {
       setStatus("Browser storage is unavailable. Your current estimate was kept.");
     }
@@ -146,6 +150,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
         <a href="/diagnostics/labor-guide"><ArrowLeft size={16} /> Current Labor Guide</a>
         <a href="/prototype/brake-workflow">Try the guided brakes workflow →</a>
         <a href="/prototype/service-workspace">Customer estimates & RO preview →</a>
+        <a href="/prototype/repair-coverage">Review ten-system coverage →</a>
         <strong>Dispatch Board <span>/ Repair Explorer</span></strong>
         <span className={styles.badge}>Review preview</span>
       </header>
@@ -164,6 +169,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
           {query ? <button type="button" onClick={() => setQuery("")}>Clear</button> : <span>All systems</span>}
           <button type="button" className={styles.visualLaunch} aria-pressed={visualOpen} onClick={() => { setVisualOpen(!visualOpen); setQuery(""); setReview(false); }}>Find it visually</button>
         </div>
+        {scopeConflict && <p role="alert">Current catalog review identifies duplicate or incompatible scope. Original amounts are retained; remove or revise the overlapping work before quoting. This preview does not authorize repairs.</p>}
         <div className={styles.columns}>
           <aside className={styles.systems} aria-label="Vehicle systems">
             <div className={styles.panelHeading}><h2>Vehicle systems</h2><p>Choose a system to explore.</p></div>
@@ -233,6 +239,7 @@ export function RepairExplorer({ storageKey }: { storageKey: string }) {
                 <ul>{selected.includes.map((text) => <li key={text}><Check size={15} />{text}</li>)}</ul>
                 <BrakeOperationScope operationId={selected.id} />
                 <SteeringOperationScope operationId={selected.id} />
+                <LightDutyOperationScope operationId={selected.id} />
                 <LaborEvidence key={selected.id} repair={selected} groupId={group.id} storageKey={storageKey} onUseReportedHours={(hours, configuration, count) => applyReportedHours(selected.id, hours, configuration, count)} />
                 <details><summary>Parts, procedures & labor source</summary><p>Labor is a provisional planning allowance, not a verified book time. Parts, fitment and vehicle-specific procedures require review. {selected.parts === null ? "Enter parts pricing in estimate review." : `Provisional parts allowance: ${money(selected.parts)}. Confirm pricing before quoting.`}</p>{system.id === "ev" && <p>High-voltage work requires appropriately trained staff and vehicle-specific safety procedures.</p>}</details>
                 <details><summary>Related checks & additional work</summary><p>Confirm findings before adding related work. Diagnostic checks and repairs are separate estimate lines. Shared labor must be reviewed for overlap.</p></details>

@@ -5,11 +5,13 @@ import { laborOverlapGroups, type LaborScope } from "@/lib/labor-guide-controls"
 import styles from "./estimate-controls-panel.module.css";
 import { brakeOperationForId } from "@/lib/brake-baseline";
 import { steeringOperationForId } from "@/lib/steering-baseline";
+import { LIGHT_DUTY_SYSTEMS, lightDutyOperationForId } from "@/lib/light-duty-baseline";
 
 export function EstimateControlsPanel({ controls, scope, labor, parts, onChange, canOverrideLaborRate = false, shopLaborRate = 125 }: { controls: EstimateControls; scope: string; labor: LaborScope[]; parts: { key: string; label: string }[]; onChange: (value: EstimateControls) => void; canOverrideLaborRate?: boolean; shopLaborRate?: number }) {
   const overlaps = laborOverlapGroups(labor);
   const hasBrakes = labor.some(line => brakeOperationForId(line.id));
   const hasSteering = labor.some(line => steeringOperationForId(line.id));
+  const expandedSystems = LIGHT_DUTY_SYSTEMS.filter(system => labor.some(line => lightDutyOperationForId(line.id)?.systemId === system.id));
   const steeringReview: SteeringReview = controls.steeringReview ?? { configuration: "", procedureReference: "", verificationPlan: "", alignmentDecision: "", alignmentReason: "" };
   const updateSteering = (field: keyof SteeringReview, value: string) => onChange({ ...controls, steeringReview: { ...steeringReview, [field]: value }, reviewedScope: "" });
   const brakeReview = controls.brakeReview ?? { configuration: "", procedureReference: "", verificationPlan: "" };
@@ -36,6 +38,12 @@ export function EstimateControlsPanel({ controls, scope, labor, parts, onChange,
       <label>Vehicle-specific procedure reference & labor basis<textarea maxLength={2000} value={brakeReview.procedureReference} placeholder="Manufacturer procedure/document, configuration, access, bleed/service-mode/programming requirements; explain adjusted provisional hours" onChange={event => onChange({ ...controls, brakeReview: { ...brakeReview, procedureReference: event.target.value }, reviewedScope: "" })} /></label>
       <label>Verification plan & conditional materials<textarea maxLength={2000} value={brakeReview.verificationPlan} placeholder="Measurements/acceptance limits, fluid specification/volume, hardware, leak/pedal/holding checks, diagnostic verification and safe road-test conditions" onChange={event => onChange({ ...controls, brakeReview: { ...brakeReview, verificationPlan: event.target.value }, reviewedScope: "" })} /></label>
     </fieldset>}
+    {expandedSystems.map(system => {
+      const review = controls.systemReviews?.[system.id] ?? { configuration: "", procedureReference: "", verificationPlan: "", capabilityPlan: "" };
+      return <fieldset key={system.id}><legend>{system.label} · exact-work review</legend><p>Expanded coverage awaits shop approval. Provisional hours and generic diagrams do not prove fitment or safe execution capability.</p>
+        {([["configuration", "Configuration, unit/side/bank, quantity & supplied contents"], ["procedureReference", "Vehicle-specific procedure reference & adjusted labor basis"], ["verificationPlan", "Verification limits, materials, commissioning & conditional follow-ups"], ["capabilityPlan", "Training, equipment & in-house capability or separately scoped referral"]] as const).map(([field, label]) => <label key={field}>{system.label} · {label}<textarea maxLength={2000} value={review[field]} onChange={event => onChange({ ...controls, systemReviews: { ...controls.systemReviews, [system.id]: { ...review, [field]: event.target.value } }, reviewedScope: "" })} /></label>)}
+      </fieldset>;
+    })}
     {overlaps.length > 0 && <><p role="status">Potential shared labor: {overlaps.map(group => group.lines.map(line => line.title).join(" + ")).join("; ")}. This is a review warning, not an automatic labor deduction.</p><label>Shared labor resolution<textarea maxLength={2000} value={controls.overlapResolution} placeholder="Adjust hours above, then explain the deduction—or document why these scopes do not overlap." onChange={event => onChange({ ...controls, overlapResolution: event.target.value, reviewedScope: "" })} /></label></>}
     {hasSteering && <fieldset><legend>Steering & suspension scope review</legend><p>Use the exact vehicle procedure. Alignment, calibration and outsourced work are conditional—not automatically authorized or charged.</p>
       <label>Steering/suspension configuration, axle/side & capability<textarea maxLength={2000} value={steeringReview.configuration} placeholder="VIN, suspension/assist type, selected units/quantity, supplied assembly contents and available equipment/training" onChange={event => updateSteering("configuration", event.target.value)} /></label>

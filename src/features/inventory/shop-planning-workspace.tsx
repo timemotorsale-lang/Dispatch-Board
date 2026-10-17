@@ -9,6 +9,7 @@ import { copyEstimateForRevision, type RevisableEstimate } from "@/lib/estimate-
 import { emptyManualLaborReview, estimateReviewScope } from "@/lib/estimate-review";
 import { estimateControlsScope, initialEstimatePricing, type EstimateControls } from "@/lib/labor-guide-controls";
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
+import { laborOperationForLineKey } from "@/lib/labor-catalog-selection";
 import { EstimateControlsPanel } from "@/features/diagnostics/estimate-controls-panel";
 import { EstimatePriceCorrection } from "./estimate-price-correction";
 import styles from "./shop-planning-workspace.module.css";
@@ -794,7 +795,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice("Add at least one estimate line before presenting the estimate.");
       return;
     }
-    const usesCatalog = flattenLaborOperationTaxonomy().some(operation => lineItems.some(line => line.key === `labor-${operation.id}`));
+    const usesCatalog = lineItems.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()));
     const saved = await submit("PRESENT_ESTIMATE", { lineItems, ...(lineItems.some(line => line.type === "LABOR") ? { manualLaborReview } : {}), ...(usesCatalog ? { estimateControls } : {}), taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt, ...(revisionSource ? { assumptions: revisionNotes, optionGroups: revisionOptions } : {}) }, revisionSource ? `Revise estimate v${revisionSource.version} (${revisionSource.id}): ${revisionReason.trim()}` : vendorPath ? "Present an immutable estimate version from the approved outside-vendor scope." : "Present an immutable estimate version from diagnostic evidence.");
     if (saved) {
       setEstimateLines([]);
@@ -808,24 +809,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 
   async function createFastApprovedRepairJob() {
     if (!selected || submitInFlight.current) return;
-    const now = new Date();
-    const presentedAt = Number.isNaN(new Date(estimate.presentedAt).getTime()) ? local(now.toISOString()) : estimate.presentedAt;
-    const expiresAtValue = new Date(estimate.expiresAt);
-    const expiresAt = Number.isNaN(expiresAtValue.getTime()) || expiresAtValue <= now ? daysAfter(now, 7) : estimate.expiresAt;
-    const description = estimate.description.trim() || directScope.scopeSummary.trim() || latestDiagnosis?.proposedCorrection || currentVendorWork?.scope || selected.serviceVisit.concernSummary || "Approved repair work";
-    const plannedCorrection = estimate.plannedCorrection.trim() || directScope.proposedCorrection.trim() || latestDiagnosis?.proposedCorrection || description;
-    const lineKey = estimate.lineKey.trim() || "LINE-1";
-    const lineItem = {
-      key: lineKey,
-      type: estimate.lineType,
-      description,
-      quantity: estimate.quantity || 1,
-      unitPriceCents: estimate.unitPriceCents,
-      taxable: estimate.taxable,
-      workTypeCode: estimate.workTypeCode.trim() || "GENERAL_REPAIR",
-      laborGuideMinutes: estimate.laborGuideMinutes || 60,
-      plannedCorrection,
-    };
+    const lineItem = accepted?.estimate.lineItems.find(line => line.type === "LABOR" && accepted.authorizedLineKeys.includes(line.key));
+    if (!lineItem) { setNotice("Present and authorize the reviewed estimate before creating completion work. No automatic price or approval will be generated."); navigateToInternalTarget("#repair-planning-step-3"); return; }
     submitInFlight.current = true;
     setBusy(true);
     setNotice("");
@@ -835,20 +820,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "CREATE_COMPLETION_JOB",
-          description,
-          discountCents: estimate.discountCents,
-          expiresAt,
           idempotencyKey: crypto.randomUUID(),
-          lineKey,
-          laborGuideMinutes: lineItem.laborGuideMinutes,
+          lineKey: lineItem.key,
           partDemandIds: job.partDemandIds,
           partsRequired: job.partsRequired,
-          plannedCorrection,
-          presentedAt,
           reason: "Create and open the approved completion repair job after failed vendor QC.",
-          taxCents: estimate.taxCents,
-          unitPriceCents: lineItem.unitPriceCents,
-          workTypeCode: lineItem.workTypeCode,
         }),
       }) as { result?: { job?: { id?: string; jobNumber?: string } } };
       setEstimateLines([]);
@@ -1414,7 +1390,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 {([ ["engine", "Engine / powertrain"], ["configuration", "Configuration / relevant options"], ["source", "Labor-hour and applicability source"], ["limitations", "Limitations / assumptions"] ] as const).map(([key, label]) => <Field key={key} label={label}><input maxLength={2000} value={manualLaborReview[key]} onChange={event => setManualLaborReview({ ...manualLaborReview, [key]: event.target.value, scope: "" })} /></Field>)}
                 <label><input type="checkbox" checked={manualLaborReview.scope === estimateReviewScope(selected.vehicle.id, estimateLines.length ? estimateLines : [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, laborGuideMinutes: estimate.laborGuideMinutes }])} onChange={event => setManualLaborReview({ ...manualLaborReview, scope: event.target.checked ? estimateReviewScope(selected.vehicle.id, estimateLines.length ? estimateLines : [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, laborGuideMinutes: estimate.laborGuideMinutes }]) : "" })} />I reviewed this vehicle and exact work. This is not OEM verification.</label>
               </details>
-              {estimateLines.some(line => flattenLaborOperationTaxonomy().some(operation => line.key === `labor-${operation.id}`)) && <EstimateControlsPanel controls={estimateControls} scope={estimateControlsScope(selected.vehicle.id, estimateLines, estimateControls)} labor={flattenLaborOperationTaxonomy().filter(operation => estimateLines.some(line => line.key === `labor-${operation.id}`))} parts={estimateLines.filter(line => line.type === "PART").map(line => ({ key: line.key, label: line.description }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={defaultLaborRate} />}
+              {estimateLines.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy())) && <EstimateControlsPanel controls={estimateControls} scope={estimateControlsScope(selected.vehicle.id, estimateLines, estimateControls)} labor={estimateLines.flatMap(line => { const operation = laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()); return operation ? [operation] : []; })} parts={estimateLines.filter(line => line.type === "PART").map(line => ({ key: line.key, label: line.description }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={defaultLaborRate} />}
               <Submit busy={busy}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>
             </form>
           </WorkflowStep>

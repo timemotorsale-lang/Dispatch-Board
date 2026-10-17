@@ -51,89 +51,17 @@ type ExistingPart = {
 const canonical = (value: string) => value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const cents = (value: number) => Math.max(0, Math.round(value));
 
-function transmissionReplacementParts(operation: LaborRepairOperation): EstimateRequiredPart[] {
-  const laborOperationId = operation.id;
-  return [
-    {
-      category: "MAJOR_COMPONENT",
-      description: "Transmission assembly - VIN fitment and supplier price required",
-      key: "transmission-assembly",
-      laborOperationId,
-      partNumber: "VIN-REVIEW-TRANSMISSION",
-      pricingStatus: "PRICE_PENDING",
-      quantity: 1,
-      taxable: true,
-      unitPriceCents: 0
-    },
-    {
-      category: "FLUID",
-      description: "Automatic transmission fluid - fill and level set allowance",
-      key: "automatic-transmission-fluid",
-      laborOperationId,
-      partNumber: "ATF-VIN-SPEC",
-      pricingStatus: "ESTIMATED",
-      quantity: 12,
-      taxable: true,
-      unitPriceCents: 1495
-    },
-    {
-      category: "FILTER",
-      description: "Transmission filter and pan gasket kit",
-      key: "transmission-filter-pan-gasket-kit",
-      laborOperationId,
-      partNumber: "TRANS-FILTER-KIT",
-      pricingStatus: "ESTIMATED",
-      quantity: 1,
-      taxable: true,
-      unitPriceCents: 6450
-    },
-    {
-      category: "SEAL",
-      description: "Axle/output shaft seal set",
-      key: "axle-output-shaft-seal-set",
-      laborOperationId,
-      partNumber: "TRANS-SEAL-SET",
-      pricingStatus: "ESTIMATED",
-      quantity: 1,
-      taxable: true,
-      unitPriceCents: 4200
-    },
-    {
-      category: "SEAL",
-      description: "Torque converter/front pump seal",
-      key: "torque-converter-front-pump-seal",
-      laborOperationId,
-      partNumber: "TRANS-PUMP-SEAL",
-      pricingStatus: "ESTIMATED",
-      quantity: 1,
-      taxable: true,
-      unitPriceCents: 1850
-    },
-    {
-      category: "HARDWARE",
-      description: "One-time-use fasteners, clips, and retainers allowance",
-      key: "transmission-install-hardware",
-      laborOperationId,
-      partNumber: "TRANS-HARDWARE",
-      pricingStatus: "ESTIMATED",
-      quantity: 1,
-      taxable: true,
-      unitPriceCents: 3250
-    }
-  ];
-}
 
 export function requiredPartsForLabor(operation: LaborRepairOperation): EstimateRequiredPart[] {
   const brake = brakeOperationForId(operation.id);
   if (brake) return brake.parts.map((part, index) => ({ category: "MAJOR_COMPONENT", description: part.name, key: `brake-part-${index}`, laborOperationId: operation.id, partNumber: "", pricingStatus: "PRICE_PENDING", quantity: part.quantity, taxable: true, unitPriceCents: 0 }));
   const baseline = repairBaselineForId(operation.id);
   if (baseline) return baseline.operation.parts.map((part, index) => ({ category: "MAJOR_COMPONENT", description: part.name, key: `ss-${index}`, laborOperationId: operation.id, partNumber: "", pricingStatus: "PRICE_PENDING", quantity: part.quantity, taxable: true, unitPriceCents: 0 }));
-  if (operation.id === "transmission-remove-install") return transmissionReplacementParts(operation);
   return [];
 }
 
 export function requiredAddOnsForLabor(operation: LaborRepairOperation) {
-  if (operation.id === "transmission-remove-install") return ["transmission-fluid-service", "transmission-programming-relearn"];
+  if (repairBaselineForId(operation.id)) return operation.requiredAddOns;
   return operation.requiredAddOns;
 }
 

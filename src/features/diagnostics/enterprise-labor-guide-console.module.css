@@ -2066,3 +2066,10 @@
     padding-block: 10px;
   }
 }
+.connectedWorkspace {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.modeTabs[hidden] {
+  display: none;
+}

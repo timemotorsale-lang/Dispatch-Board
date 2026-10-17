@@ -1,5 +1,6 @@
 import { CATALOG_ENTRIES, type RepairOperation } from "./catalog";
 import { EXPANDED_VISUAL_AREAS } from "./expanded-visual-catalog";
+import { LIGHT_DUTY_DIAGRAM_GROUPS } from "@/lib/light-duty-diagram-index";
 
 export type VisualAreaId = "brakes" | "front-suspension" | "maintenance" | "engine" | "transmission" | "tires" | "electrical" | "hvac" | "exhaust" | "safety" | "body" | "ev";
 export type VehicleSide = "left" | "right";
@@ -48,6 +49,13 @@ export function visualAreaForSystem(systemId: string): VisualAreaId | null {
 export function visualEntries(part: VisualPart, side: VehicleSide | null) {
   return CATALOG_ENTRIES.filter(({ repair }) => part.operations.includes(repair.label)
     && (!side || !/\b(left|right)\b/.test(repair.label) || repair.label.includes(side)));
+}
+
+export function visualRelatedGroups(part: VisualPart) {
+  return (LIGHT_DUTY_DIAGRAM_GROUPS[part.id] ?? []).flatMap(groupId => {
+    const entries = CATALOG_ENTRIES.filter(entry => entry.group.id === groupId);
+    return entries.length ? [{ id: groupId, label: entries[0].group.label, count: entries.length, entry: entries[0] }] : [];
+  });
 }
 
 export function visualPartForOperation(areaId: VisualAreaId, operationId: string) {

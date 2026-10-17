@@ -22,6 +22,10 @@ import { LaborGuideVehicleEntry } from "./labor-guide-vehicle-entry";
 import { EstimateControlsPanel } from "./estimate-controls-panel";
 import { BrakeOperationScope } from "./brake-operation-scope";
 import { SteeringOperationScope } from "./steering-operation-scope";
+import { LightDutyOperationScope } from "./light-duty-operation-scope";
+import { ConnectedRepairCatalog } from "./connected-repair-catalog";
+import { connectedLaborSelection } from "@/lib/labor-catalog-selection";
+import type { RepairOperation } from "@/features/prototype/repair-explorer/catalog";
 import { repairBaselineForId, repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { checkEstimateControls, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
 
@@ -200,7 +204,7 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
   return matchingSystem?.id ?? fallback;
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer = false }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean }) {
   const router = useRouter();
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
@@ -405,6 +409,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     void autoAddCatalogParts(operation);
   }
 
+  function addConnectedRepair(repair: RepairOperation) {
+    try { addLabor(connectedLaborSelection(repair, allOperations)); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "Selected work could not be added."); }
+  }
+
   function toggleGroup(groupId: string) {
     setOpenGroupId((current) => current === groupId ? "" : groupId);
   }
@@ -592,7 +601,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     draft.adopt();
     setClinical({});
     setLaborReview(emptyManualLaborReview);
-    setEstimateControls({ ...estimateControls, fitment: {}, overlapResolution: "", reviewedScope: "", brakeReview: undefined, steeringReview: undefined });
+    setEstimateControls({ ...estimateControls, fitment: {}, overlapResolution: "", reviewedScope: "", brakeReview: undefined, steeringReview: undefined, systemReviews: undefined });
     setEstimateAttempt(null);
     setManualDetails(emptyLaborGuideDetails);
     if (!keepProposedWork) clearEstimateWorkspace();
@@ -912,14 +921,17 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       }} />
       <EstimateControlsPanel controls={estimateControls} scope={controlsScope} labor={estimateLabor} parts={estimateParts.map(part => ({ key: lineKey("part", part.id), label: part.name }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={initialPricing.laborRate} />
       </div>
+      <nav aria-label="Labor guide experience"><Link href={`/diagnostics/labor-guide?${new URLSearchParams({ ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id } : {}), ...(connectedExplorer ? {} : { experience: "explorer" }) }).toString()}`}>{connectedExplorer ? "Use existing Labor Guide" : "Use connected Repair Explorer (pilot)"}</Link>{canOverrideLaborRate && <> · <Link href="/diagnostics/labor-evidence">Actual labor evidence</Link> · <Link href="/diagnostics/labor-readiness">Pilot readiness</Link></>}</nav>
       <details className={styles.workTools} open={workToolsOpen} onToggle={(event) => setWorkToolsOpen(event.currentTarget.open)} ref={workToolsRef} tabIndex={-1}><summary><span>Find labor or parts</span><small>Catalog, parts, evidence, notes</small></summary>
-      <div className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
+      <div hidden={connectedExplorer} className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
         <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>
       </div>
 
-      <div className={`${styles.workspaceShell} ${reviewOpen ? "" : styles.reviewCollapsed} ${editingPartId ? styles.editingWorkspace : ""}`}>
+      <div className={`${styles.workspaceShell} ${reviewOpen ? "" : styles.reviewCollapsed} ${editingPartId ? styles.editingWorkspace : ""} ${connectedExplorer ? styles.connectedWorkspace : ""}`}>
         <main className={styles.catalogWorkspace}>
+          {connectedExplorer && <ConnectedRepairCatalog vehicle={contextVehicle ?? ""} concern={contextConcern ?? ""} selected={estimateLabor} laborRate={laborRate} onSelect={addConnectedRepair} onReview={revealEstimateGuide} />}
+          <div hidden={connectedExplorer}>
           <div className={styles.catalogHeader}>
             <div>
               <span className={styles.catalogEyebrow}>{mode === "manual" ? "Complete Repair Catalog" : "Labor Intelligence Engine"}</span>
@@ -1028,6 +1040,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                           <span>{operation.hours.toFixed(1)} hrs</span>
                           <BrakeOperationScope operationId={operation.id} />
                           <SteeringOperationScope operationId={operation.id} />
+                          <LightDutyOperationScope operationId={operation.id} />
                         </article>
                       ))}
                     </div>
@@ -1037,6 +1050,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             </section>
           </div>
 
+          </div>
           <section className={styles.workTray} aria-label="RO work tray">
             <nav>
               {[
@@ -1123,7 +1137,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           </section>
         </main>
 
-        <aside className={styles.reviewPanel} aria-label="Estimate and repair order preview">
+        {!connectedExplorer && <aside className={styles.reviewPanel} aria-label="Estimate and repair order preview">
           <button className={styles.collapseReview} onClick={() => setReviewOpen((current) => !current)} type="button"><ChevronLeft />{reviewOpen ? "Collapse" : "Open preview"}</button>
           {reviewOpen ? (
             <>
@@ -1192,7 +1206,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               </section>
             </>
           ) : null}
-        </aside>
+        </aside>}
       </div>
       </details></div>
     </DiagnosticWorkspace>

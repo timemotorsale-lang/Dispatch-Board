@@ -6,6 +6,8 @@ import { presentRepairEstimate } from "@/server/shop-planning/service";
 import { estimateReviewScope } from "@/lib/estimate-review";
 import { estimateControlsScope, initialEstimatePricing, type EstimateControls } from "@/lib/labor-guide-controls";
 import { STEERING_OPERATIONS } from "@/lib/steering-baseline";
+import { LIGHT_DUTY_CATALOG_VERSION, LIGHT_DUTY_OPERATIONS, LIGHT_DUTY_SYSTEMS, lightDutyOperationForId } from "@/lib/light-duty-baseline";
+import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 vi.mock("@/server/services/labor-rate-settings", () => ({ getActiveLaborRate: vi.fn().mockResolvedValue({ laborRate: 125, policyId: "default", policyVersion: 0 }) }));
 
 const lines = [{ key: "labor-front-brake-pads-rotors", type: "LABOR", description: "Replace front pads and rotors", plannedCorrection: "Replace front pads and rotors", quantity: 1, unitPriceCents: 26250, laborGuideMinutes: 126, taxable: false, workTypeCode: "REPLACE" }, { key: "part-pads", type: "PART", description: "Pad set", plannedCorrection: "Supply pads", quantity: 1, unitPriceCents: 10000, laborGuideMinutes: 0, taxable: true, workTypeCode: "PART" }];
@@ -20,6 +22,22 @@ function fixture() {
   return { estimate, deps, body };
 }
 describe("Server presentation guards", () => {
+  it.each(LIGHT_DUTY_SYSTEMS.map(system => [system.id] as const))("requires %s references before any estimate write and records unvalidated provenance", async systemId => {
+    const { estimate, deps, body } = fixture();
+    const canonical = LIGHT_DUTY_OPERATIONS.find(operation => operation.systemId === systemId && !operation.diagnosis)!;
+    const operation = flattenLaborOperationTaxonomy().find(item => lightDutyOperationForId(item.id)?.id === canonical.id)!;
+    const selectedLines = [{ ...lines[0], key: `labor-${operation.id}`, description: operation.title, laborGuideMinutes: Math.round(operation.hours * 60), unitPriceCents: Math.round(operation.hours * 12500) }];
+    const controls: EstimateControls = { ...body.estimateControls, fitment: {}, brakeReview: undefined, reviewedScope: "" };
+    const input = { ...body, lineItems: selectedLines, taxCents: 0, estimateControls: controls, manualLaborReview: { ...body.manualLaborReview, scope: estimateReviewScope("vehicle", selectedLines) } };
+    await expect(presentRepairEstimate(actor, "ro", input, deps)).rejects.toThrow(`Confirm ${systemId}`);
+    expect(estimate).not.toHaveBeenCalled();
+    controls.systemReviews = { [systemId]: { configuration: "Selected VIN, unit, quantity and supplied contents", procedureReference: "Reviewed applicable manufacturer procedure and provisional hours", verificationPlan: "Applicable limits, materials and post-repair checks", capabilityPlan: "Staff capability and referral boundary reviewed" } };
+    controls.reviewedScope = estimateControlsScope("vehicle", selectedLines, controls);
+    await presentRepairEstimate(actor, "ro", input, deps);
+    expect(estimate).toHaveBeenCalledTimes(1);
+    expect(estimate.mock.calls[0][1].assumptions).toContain(`"version":"${LIGHT_DUTY_CATALOG_VERSION}"`);
+    expect(estimate.mock.calls[0][1].assumptions).toContain('"validatedStandard":false');
+  });
   it("requires steering review and records its baseline without inventing verified hours", async () => {
     const { estimate, deps, body } = fixture();
     const steeringLines = [{ ...lines[0], key: "labor-front-left-lower-control-arm", description: "Front left lower control arm", laborGuideMinutes: 144, unitPriceCents: 30000 }];

@@ -1,11 +1,13 @@
 import { estimateReviewScope, type ReviewLine } from "./estimate-review";
 import { brakeOperationForId, brakeScopeConflict } from "./brake-baseline";
 import { steeringOperationForId, steeringScopeConflict } from "./steering-baseline";
+import { LIGHT_DUTY_SYSTEMS, lightDutyOperationForId, lightDutyScopeConflict } from "./light-duty-baseline";
 
 export type EstimatePricing = { laborRate: number; partsMarkupPercent: number; taxRatePercent: number | null; taxReference: string; reason: string; overrideReason?: string; ratePolicyId?: string; ratePolicyVersion?: number };
 export const initialEstimatePricing: EstimatePricing = { laborRate: 125, partsMarkupPercent: 35, taxRatePercent: 7, taxReference: "", reason: "Use the active shop labor-rate policy. Confirm retail parts and applicable tax before presentation." };
 export type SteeringReview = { configuration: string; procedureReference: string; verificationPlan: string; alignmentDecision: "" | "SEPARATE_LINE" | "INCLUDED_IN_SCOPE" | "NOT_REQUIRED" | "OUTSOURCE"; alignmentReason: string };
-export type EstimateControls = { version: 1; pricing: EstimatePricing; fitment: Record<string, string>; overlapResolution: string; reviewedScope: string; brakeReview?: { configuration: string; procedureReference: string; verificationPlan: string }; steeringReview?: SteeringReview };
+export type SystemScopeReview = { configuration: string; procedureReference: string; verificationPlan: string; capabilityPlan: string };
+export type EstimateControls = { version: 1; pricing: EstimatePricing; fitment: Record<string, string>; overlapResolution: string; reviewedScope: string; brakeReview?: { configuration: string; procedureReference: string; verificationPlan: string }; steeringReview?: SteeringReview; systemReviews?: Record<string, SystemScopeReview> };
 export type LaborScope = { id: string; title: string; hours: number; overlapGroup: string | null };
 
 export function laborOverlapGroups(labor: LaborScope[]) {
@@ -32,6 +34,13 @@ export function validateEstimatePricing(value: unknown): EstimatePricing {
 export function validateEstimateControls(value: unknown): EstimateControls {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Pricing, fitment and overlap review is required.");
   const controls = value as EstimateControls;
+  if (controls.systemReviews !== undefined) {
+    if (!controls.systemReviews || typeof controls.systemReviews !== "object" || Array.isArray(controls.systemReviews) || Object.keys(controls.systemReviews).length > 10) throw new Error("Invalid expanded system reviews.");
+    for (const [systemId, review] of Object.entries(controls.systemReviews)) {
+      if (!LIGHT_DUTY_SYSTEMS.some(system => system.id === systemId) || !review || typeof review !== "object" || Array.isArray(review)) throw new Error("Invalid expanded system review.");
+      for (const field of ["configuration", "procedureReference", "verificationPlan", "capabilityPlan"] as const) if (typeof review[field] !== "string" || review[field].length > 2000) throw new Error("Invalid expanded system reference.");
+    }
+  }
   if (controls.steeringReview !== undefined) {
     const review = controls.steeringReview;
     if (!review || typeof review !== "object" || Array.isArray(review)) throw new Error("Invalid steering review.");
@@ -49,12 +58,18 @@ export function validateEstimateControls(value: unknown): EstimateControls {
 }
 
 export function estimateControlsScope(vehicleId: string, lines: ReviewLine[], controls: Omit<EstimateControls, "reviewedScope">) {
-  return JSON.stringify({ work: estimateReviewScope(vehicleId, lines), taxability: lines.map(line => ({ key: line.key, taxable: (line as ReviewLine & { taxable?: boolean }).taxable === true })), pricing: validateEstimatePricing(controls.pricing), fitment: Object.entries(controls.fitment).sort(([left], [right]) => left.localeCompare(right)), overlapResolution: controls.overlapResolution, ...(controls.brakeReview ? { brakeReview: controls.brakeReview } : {}), ...(controls.steeringReview ? { steeringReview: controls.steeringReview } : {}) });
+  return JSON.stringify({ work: estimateReviewScope(vehicleId, lines), taxability: lines.map(line => ({ key: line.key, taxable: (line as ReviewLine & { taxable?: boolean }).taxable === true })), pricing: validateEstimatePricing(controls.pricing), fitment: Object.entries(controls.fitment).sort(([left], [right]) => left.localeCompare(right)), overlapResolution: controls.overlapResolution, ...(controls.brakeReview ? { brakeReview: controls.brakeReview } : {}), ...(controls.steeringReview ? { steeringReview: controls.steeringReview } : {}), ...(controls.systemReviews ? { systemReviews: Object.fromEntries(Object.entries(controls.systemReviews).sort(([left], [right]) => left.localeCompare(right))) } : {}) });
 }
 
 export function checkEstimateControls(vehicleId: string, lines: ReviewLine[], controls: EstimateControls, labor: LaborScope[], taxCents: number) {
   const checked = validateEstimateControls(controls);
   const pricing = checked.pricing;
+  const expandedSystems = new Set(labor.flatMap(line => { const operation = lightDutyOperationForId(line.id); return operation ? [operation.systemId] : []; }));
+  for (const systemId of expandedSystems) {
+    const review = checked.systemReviews?.[systemId];
+    if (!review || [review.configuration, review.procedureReference, review.verificationPlan, review.capabilityPlan].some(reference => !reference.trim())) throw new Error(`Confirm ${systemId} configuration, procedure, verification and capability or referral plan before presentation.`);
+  }
+  if (labor.some((line, index) => labor.slice(index + 1).some(other => lightDutyScopeConflict(line.id, other.id)))) throw new Error("Remove expanded-catalog work already included in a selected package or incompatible alternative; an overlap note cannot authorize duplicate scope.");
   if (labor.some(line => steeringOperationForId(line.id))) {
     const review = checked.steeringReview;
     if (!review || [review.configuration, review.procedureReference, review.verificationPlan, review.alignmentReason].some(reference => !reference.trim()) || !review.alignmentDecision) throw new Error("Confirm steering/suspension configuration, procedure, verification and alignment decision before presentation.");

@@ -7,7 +7,7 @@ import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
 
-type PageProps = { searchParams?: Promise<{ mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
+type PageProps = { searchParams?: Promise<{ experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
 function safeReturnTo(value: string | undefined) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : undefined;
@@ -51,6 +51,6 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={activeRepairOrder?.id ?? "blank-estimate"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
+  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={activeRepairOrder?.id ?? "blank-estimate"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
 }
 

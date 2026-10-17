@@ -1,4 +1,5 @@
-import { repairScopeConflict } from "@/lib/repair-catalog-baselines";
+import { brakeScopeConflict } from "@/lib/brake-baseline";
+import { steeringScopeConflict } from "@/lib/steering-baseline";
 
 export type EstimateLine = {
   id: string;
@@ -52,7 +53,7 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
       identifiers.add(line.id);
       if (line.conflictGroup) conflicts.add(line.conflictGroup);
     }
-    if (draft.lines.some((line, index) => draft.lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)))) return null;
+    if (draft.lines.some((line, index) => draft.lines.slice(index + 1).some(other => brakeScopeConflict(line.id, other.id) || steeringScopeConflict(line.id, other.id)))) return null;
     return draft;
   } catch {
     return null;

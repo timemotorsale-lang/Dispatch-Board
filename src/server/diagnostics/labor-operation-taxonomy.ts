@@ -1,5 +1,6 @@
 import { BRAKE_GROUPS, BRAKE_OPERATIONS } from "@/lib/brake-baseline";
 import { STEERING_GROUPS, STEERING_OPERATIONS } from "@/lib/steering-baseline";
+import { LIGHT_DUTY_OPERATIONS, LIGHT_DUTY_SYSTEMS, laborSystemIdForLightDuty, lightDutyOperationForId } from "@/lib/light-duty-baseline";
 
 export type LaborRepairOperation = {
   aliases: string[];
@@ -206,6 +207,24 @@ function brakeAction(label: string): LaborRepairOperation["operation"] {
 
 const legacyOperations = ORIGINAL_LABOR_OPERATION_TAXONOMY.flatMap(system => system.groups.flatMap(group => group.operations));
 
+function expandedLaborGroups(system: LaborOperationSystem): LaborOperationGroup[] {
+  const groups = new Map<string, LaborOperationGroup>();
+  const operations = LIGHT_DUTY_OPERATIONS.filter(operation => laborSystemIdForLightDuty(operation) === system.id);
+  for (const operation of operations) {
+    const sourceGroup = LIGHT_DUTY_SYSTEMS.find(item => item.id === operation.systemId)!.groups.find(item => item.id === operation.groupId)!;
+    if (!groups.has(operation.groupId)) groups.set(operation.groupId, { id: operation.groupId, title: sourceGroup.label, operations: [] });
+    const legacy = legacyOperations.find(item => item.id === operation.id || operation.aliases.includes(item.id));
+    groups.get(operation.groupId)!.operations.push({ id: legacy?.id ?? operation.id, system: system.title, subsystem: sourceGroup.label, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""), title: legacy?.title ?? operation.title,
+      hours: operation.hours, aliases: [...operation.aliases, operation.id, ...(legacy?.aliases ?? [])], concernExamples: legacy?.concernExamples ?? [operation.label], included: operation.included,
+      operation: operation.diagnosis ? /^Inspect/.test(operation.label) ? "Inspect" : /^Measure/.test(operation.label) ? "Measure" : "Diagnose" : legacy?.operation ?? brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess });
+  }
+  for (const group of system.groups) {
+    const retained = group.operations.filter(operation => operation.id !== "brake-fluid-service" && !lightDutyOperationForId(operation.id));
+    if (retained.length) groups.set(`legacy-${group.id}`, { id: `legacy-${group.id}`, title: `${group.title} · existing reference entries`, operations: retained });
+  }
+  return [...groups.values()];
+}
+
 export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = ORIGINAL_LABOR_OPERATION_TAXONOMY.map(system => system.id === "brakes" ? {
   ...system,
   description: "Passenger-vehicle and light-truck brake baseline. Provisional planning hours require configuration, procedure and overlap review.",
@@ -223,7 +242,7 @@ export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = ORIGINAL_LABOR_O
     concernExamples: legacyOperations.find(item => item.id === operation.id)?.concernExamples ?? [operation.label], included: operation.included,
     operation: brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess
   })) }))
-} : { ...system, groups: system.groups.map(group => ({ ...group, operations: group.operations.filter(operation => operation.id !== "brake-fluid-service") })) });
+} : { ...system, groups: expandedLaborGroups(system) });
 
 export const LABOR_OPERATION_ADD_ONS = [
   { id: "alignment", label: "Alignment recommended", hours: 1.2 },

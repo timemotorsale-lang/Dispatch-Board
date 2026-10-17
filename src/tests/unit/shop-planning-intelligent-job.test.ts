@@ -46,7 +46,7 @@ describe("intelligent approved repair-job creation", () => {
     expect(job).not.toHaveBeenCalled();
   });
 
-  it("creates completion shortcut estimates with a positive approved amount", async () => {
+  it("does not invent a priced estimate or internally approve unreviewed completion work", async () => {
     const estimate = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "estimate-2", repairOrderVersion: 5 }, version: 5 });
     const authorization = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "auth-2", repairOrderVersion: 6 }, version: 6 });
     const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "job-2", jobNumber: "J002", repairOrderVersion: 7 }, version: 7 });
@@ -64,12 +64,9 @@ describe("intelligent approved repair-job creation", () => {
       job,
     } as unknown as ShopPlanningRepository;
 
-    await createCompletionRepairJob(manager, "ro-1", { description: "Paint handle", idempotencyKey: "completion-1", lineKey: "LINE-1", reason: "Create completion job.", unitPriceCents: 0 }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository });
-
-    expect(estimate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      lineItems: [expect.objectContaining({ key: "LINE-1", unitPriceCents: 1 })],
-    }));
-    expect(authorization).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authorizedLineKeys: ["LINE-1"], disposition: "ACCEPTED" }));
-    expect(job).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authorizationId: "auth-2", authorizedLineKey: "LINE-1" }));
+    await expect(createCompletionRepairJob(manager, "ro-1", { description: "Paint handle", idempotencyKey: "completion-1", lineKey: "LINE-1", reason: "Create completion job.", unitPriceCents: 0 }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository })).rejects.toThrow("review and authorize");
+    expect(estimate).not.toHaveBeenCalled();
+    expect(authorization).not.toHaveBeenCalled();
+    expect(job).not.toHaveBeenCalled();
   });
 });

@@ -137,16 +137,12 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("Replace front brake pads and rotors");
   });
 
-  it("shows transmission replacement required parts, accessories, programming, and MN tax policy", () => {
+  it("keeps transmission access materials pending and follow-up work separate", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="transmission" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
     expect(markup).toContain("Remove and install transmission assembly");
-    expect(markup).toContain("Transmission assembly - VIN fitment and supplier price required");
-    expect(markup).toContain("Automatic transmission fluid - fill and level set allowance");
-    expect(markup).toContain("Transmission filter and pan gasket kit");
-    expect(markup).toContain("Axle/output shaft seal set");
-    expect(markup).toContain("Torque converter/front pump seal");
-    expect(markup).toContain("Transmission programming, configuration, and adaptive relearn");
+    expect(markup).toContain("no replacement assembly assumed");
+    expect(markup).not.toContain("ATF-VIN-SPEC");
     expect(markup).toContain("Helpful items to review");
     expect(markup).toContain("Transmission assembly");
     expect(markup).not.toContain("OEM-TRANS-ASSEMBLY-VIN-REVIEW");
@@ -163,7 +159,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Door glass and regulator");
     expect(markup).not.toContain("OEM-DOOR-SHELL-VIN-REVIEW");
     expect(markup).toContain("Add part");
-    expect(markup).toContain("Replace door shell");
+    expect(markup).toContain("Panels, glass &amp; specialist assessment");
+    expect(flattenLaborOperationTaxonomy().find(operation => operation.id === "door-shell")?.title).toBe("Replace door shell");
   });
 
   it("provides an evidence upload workspace for RO photos and documents", () => {
@@ -187,7 +184,7 @@ describe("enterprise labor guide console", () => {
     expect(titles).toContain("Forward camera calibration");
     expect(titles).toContain("Replace front bumper cover");
     expect(titles).toContain("High-voltage disable and enable procedure");
-    expect(operations.some(operation => operation.requiredAddOns.includes("transmission-programming-relearn"))).toBe(true);
+    expect(operations.find(operation => operation.id === "transmission-remove-install")!.requiredAddOns).toEqual([]);
     expect(LABOR_OPERATION_TAXONOMY.find(system => system.id === "steering-suspension")!.groups.flatMap(group => group.operations).every(operation => !operation.requiredAddOns.includes("alignment"))).toBe(true);
   });
 });

@@ -36,7 +36,8 @@ describe("deterministic Diagnostics labor language intelligence", () => {
     const result = analyze("engine is shaking at idle");
 
     expect(result.intent).toBe("CUSTOMER_CONCERN");
-    expect(result.candidates[0]?.operation.id).toBe("engine-performance-diagnosis");
+    expect(result.candidates[0]?.operation.operation).toBe("Diagnose");
+    expect(result.candidates[0]?.operation.system).toBe("Engine Mechanical & Performance");
     expect(result.candidates[0]?.reasons).toContain("Preferred diagnostic work for a customer concern");
   });
 
@@ -70,5 +71,11 @@ describe("deterministic Diagnostics labor language intelligence", () => {
     expect(result.confidence).toBe("ABSTAIN");
     expect(result.candidates).toEqual([]);
     expect(result.clarification).toContain("custom diagnostic investigation");
+  });
+
+  it.each(["cooling issue", "battery warning", "A/C is warm", "engine shaking", "transmision issue", "door problem", "airbag warning"])("does not turn a concern into unproven repair work: %s", text => {
+    const result = analyze(text);
+    expect(result.intent).toBe("CUSTOMER_CONCERN");
+    expect(result.candidates.every(candidate => ["Diagnose", "Inspect", "Measure"].includes(candidate.operation.operation))).toBe(true);
   });
 });
