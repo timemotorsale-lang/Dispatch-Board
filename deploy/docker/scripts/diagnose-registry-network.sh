@@ -11,6 +11,26 @@ printf '\nSystem DNS configuration\n'
 cat /etc/resolv.conf
 if command -v resolvectl >/dev/null 2>&1; then
   resolvectl dns || true
+  for network_interface in eno1 wlp1s0; do
+    printf '\nDNS response through %s\n' "$network_interface"
+    timeout 15 resolvectl query -4 -i "$network_interface" auth.docker.io || true
+  done
+fi
+if command -v ip >/dev/null 2>&1; then
+  ip -4 route show default
+fi
+if command -v nmcli >/dev/null 2>&1; then
+  nmcli -t -f UUID,DEVICE connection show --active
+fi
+if sudo -n true 2>/dev/null; then
+  printf 'Passwordless administrative access: available\n'
+else
+  printf 'Passwordless administrative access: unavailable\n'
+fi
+printf '\nAvailable administrative command permissions\n'
+sudo -n -l || true
+if command -v networkctl >/dev/null 2>&1; then
+  networkctl status wlp1s0 --no-pager || true
 fi
 printf '\nDocker Hub addresses from the system resolver\n'
 getent ahostsv4 registry-1.docker.io || true
@@ -37,7 +57,7 @@ check_endpoint https://registry-1.docker.io/v2/ || default_path_ok=false
 check_endpoint https://auth.docker.io/ || default_path_ok=false
 
 printf '\nIndependent DNS-over-HTTPS comparison\n'
-if dns_response="$(curl --silent --show-error --fail --connect-timeout 10 --max-time 20 --header 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=registry-1.docker.io&type=A')"; then
+if dns_response="$(curl --silent --show-error --fail --noproxy '*' --resolve cloudflare-dns.com:443:1.1.1.1 --connect-timeout 10 --max-time 20 --header 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=registry-1.docker.io&type=A')"; then
   addresses="$(printf '%s' "$dns_response" | jq -r '.Answer[]? | select(.type == 1) | .data')"
   while IFS= read -r registry_address; do
     if ! [[ "$registry_address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
