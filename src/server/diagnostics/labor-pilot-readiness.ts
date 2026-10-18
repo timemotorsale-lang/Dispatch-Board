@@ -4,6 +4,7 @@ import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { getConnectedCatalogSystems } from "@/server/services/labor-catalog-settings";
 import { LIGHT_DUTY_SYSTEMS } from "@/lib/light-duty-baseline";
 
 export async function getLaborPilotReadiness(actor: AuthenticatedUser | null) {
@@ -17,5 +18,8 @@ export async function getLaborPilotReadiness(actor: AuthenticatedUser | null) {
     checks.push({ code: "SHOP_ROLLOUT", status: decision.executable ? "PASS" : "HOLD", detail: `Current actor rollout: ${decision.reason}. Location-specific capability checks still apply to each mutation.` });
   } else checks.push({ code: "SHOP_ROLLOUT", status: "HOLD", detail: "Shop rollout state could not be verified." });
   checks.push({ code: "EXTERNAL_RELEASE_EVIDENCE", status: "HOLD", detail: "Staging upgrade, backup/restore, rollback, security/permission rehearsal, business-policy review, alerts and independent operator sign-off must be supplied for the exact release revision. This page does not grant deployment approval." });
-  return { status: "HOLD" as const, checks, auditedSystems: ["Brakes", "Steering & suspension"], pendingSystemApprovals: LIGHT_DUTY_SYSTEMS.length };
+  const rollout = await getConnectedCatalogSystems(user);
+  const approved = LIGHT_DUTY_SYSTEMS.filter(system => rollout.allowedSystemIds.includes(system.id));
+  checks.push({ code: "EXPANDED_CATALOG_APPROVALS", status: approved.length === LIGHT_DUTY_SYSTEMS.length && !rollout.unavailable ? "PASS" : "HOLD", detail: `${approved.length} of ${LIGHT_DUTY_SYSTEMS.length} expanded systems have current independently approved active scope.`, href: "/settings/labor-catalog" });
+  return { status: "HOLD" as const, checks, auditedSystems: ["Brakes", "Steering & suspension", ...approved.map(system => system.label)], pendingSystemApprovals: LIGHT_DUTY_SYSTEMS.length - approved.length };
 }

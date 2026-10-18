@@ -3,6 +3,7 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
 import { LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 import { getRepairOrderDetail, listRepairOrders } from "@/server/repair-order/service";
+import { getConnectedCatalogSystems } from "@/server/services/labor-catalog-settings";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
@@ -20,10 +21,11 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
   const requestedRepairOrderId = first(params.repairOrderId);
   const returnTo = safeReturnTo(first(params.returnTo));
   const returnLabel = first(params.returnLabel)?.slice(0, 120);
-  const [ordersResult, activeResult, rateResult] = await Promise.allSettled([
+  const [ordersResult, activeResult, rateResult, catalogResult] = await Promise.allSettled([
     listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }),
     requestedRepairOrderId ? getRepairOrderDetail(user, requestedRepairOrderId) : Promise.resolve(null),
     getActiveLaborRate(user),
+    getConnectedCatalogSystems(user),
   ]);
   const orders = ordersResult.status === "fulfilled" ? ordersResult.value : { items: [] };
   const active = activeResult.status === "fulfilled" ? activeResult.value : null;
@@ -51,6 +53,6 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={activeRepairOrder?.id ?? "blank-estimate"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
+  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={activeRepairOrder?.id ?? "blank-estimate"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
 }
 

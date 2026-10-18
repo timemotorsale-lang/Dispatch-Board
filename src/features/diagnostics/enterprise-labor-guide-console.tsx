@@ -24,7 +24,7 @@ import { BrakeOperationScope } from "./brake-operation-scope";
 import { SteeringOperationScope } from "./steering-operation-scope";
 import { LightDutyOperationScope } from "./light-duty-operation-scope";
 import { ConnectedRepairCatalog } from "./connected-repair-catalog";
-import { connectedLaborSelection } from "@/lib/labor-catalog-selection";
+import { connectedLaborSelection, LABOR_PILOT_SYSTEMS } from "@/lib/labor-catalog-selection";
 import type { RepairOperation } from "@/features/prototype/repair-explorer/catalog";
 import { repairBaselineForId, repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { checkEstimateControls, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
@@ -204,7 +204,7 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
   return matchingSystem?.id ?? fallback;
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer = false }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
   const router = useRouter();
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
@@ -410,7 +410,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   function addConnectedRepair(repair: RepairOperation) {
-    try { addLabor(connectedLaborSelection(repair, allOperations)); }
+    try { addLabor(connectedLaborSelection(repair, allOperations, connectedSystemIds)); }
     catch (error) { setNotice(error instanceof Error ? error.message : "Selected work could not be added."); }
   }
 
@@ -725,6 +725,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       quantity: part.quantity,
       taxable: part.taxable !== false,
       type: "PART" as const,
+      laborLineKey: lineKey("labor", estimateLabor.find(item => item.rowId === part.laborRowId || item.id === part.laborRowId)?.rowId ?? part.laborRowId),
       unitPriceCents: Math.round(part.unitPrice * 100),
       workTypeCode: "PART",
     })),
@@ -841,7 +842,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             partId,
             quantityRequired: part.quantity,
             reason: "Create repair part demand from RO creation workspace.",
-            repairJobReference: estimateLabor.find((item) => item.rowId === part.laborRowId)?.title ?? null,
+            repairJobReference: lineKey("labor", estimateLabor.find(item => item.rowId === part.laborRowId || item.id === part.laborRowId)?.rowId ?? part.laborRowId),
             requiredAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
             substitutionAllowed: true,
           }),
@@ -930,7 +931,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
       <div className={`${styles.workspaceShell} ${reviewOpen ? "" : styles.reviewCollapsed} ${editingPartId ? styles.editingWorkspace : ""} ${connectedExplorer ? styles.connectedWorkspace : ""}`}>
         <main className={styles.catalogWorkspace}>
-          {connectedExplorer && <ConnectedRepairCatalog vehicle={contextVehicle ?? ""} concern={contextConcern ?? ""} selected={estimateLabor} laborRate={laborRate} onSelect={addConnectedRepair} onReview={revealEstimateGuide} />}
+          {connectedExplorer && <ConnectedRepairCatalog allowedSystemIds={connectedSystemIds} vehicle={contextVehicle ?? ""} concern={contextConcern ?? ""} selected={estimateLabor} laborRate={laborRate} onSelect={addConnectedRepair} onReview={revealEstimateGuide} />}
           <div hidden={connectedExplorer}>
           <div className={styles.catalogHeader}>
             <div>

@@ -1,6 +1,7 @@
 import { BASE_REPAIR_SYSTEMS, type RawRepairOperation } from "./light-duty-catalog-data";
 import { LIGHT_DUTY_ADDITIONS } from "./light-duty-catalog-additions";
 import { buildLaborPlan, type LaborPlan } from "./labor-planning";
+import { lightDutyScopeProfile } from "./light-duty-scope-profiles";
 
 export const LIGHT_DUTY_CATALOG_VERSION = "light-duty-expansion-v1";
 export const LIGHT_DUTY_IMPLEMENTATION_ORDER = [
@@ -113,24 +114,42 @@ function sharedAccessFor(groupId: string, label: string) {
   return groupId;
 }
 
-export const LIGHT_DUTY_OPERATIONS: readonly LightDutyOperation[] = LIGHT_DUTY_SYSTEMS.flatMap(system => system.groups.flatMap(group => group.operations.map(raw => {
+const authoredOperations: readonly LightDutyOperation[] = LIGHT_DUTY_SYSTEMS.flatMap(system => system.groups.flatMap(group => group.operations.map(raw => {
   const id = originalIds[raw.label] ?? compactId(raw.id);
   const diagnosis = raw.kind === "diagnosis";
   const basePlan = buildLaborPlan(raw, group.id);
+  const profile = lightDutyScopeProfile(system.id, group.id, raw.label, diagnosis);
   const scope = "One identified unit/circuit or explicitly named package; record axle, side/bank, quantity, configuration and supplied contents. Not a VIN-specific time.";
   const specialistReview = ["safety", "ev"].includes(system.id) || system.id === "hvac" || /refinish|structural|high.voltage|pyrotechnic|airbag/i.test(raw.label);
   return {
     id, previewId: id, aliases: [...new Set([raw.id, ...(raw.aliases ?? []), ...(legacyAliases[raw.label] ?? [])].filter(alias => alias !== id))], label: raw.label, title: raw.label, systemId: system.id, groupId: group.id, family: group.id,
     hours: basePlan.hours, diagnosis, position: scope, zone: raw.label.match(/\b(front|rear) (left|right)\b/)?.[0].replace(" ", "-") ?? "unspecified",
-    included: diagnosis ? ["Confirm and document this concern", "Perform only the selected initial test scope and record findings", "Report findings and next authorized diagnostic step; no component replacement is implied"] : ["Access and restore connections for the specifically selected unit", raw.label, "Applicable basic operating/leak checks; document results"],
-    excluded: ["Additional failed components, seized/damaged fasteners, machining and corrosion remediation unless explicitly scoped", "Unlisted fluids, programming, calibration, specialist services and deeper diagnosis; select only justified work", "Duplicate standalone charges for access or checks already included in a package"],
+    included: profile.included,
+    excluded: profile.excluded,
     parts: partsFor(raw.label, diagnosis), applicability: safety[system.id],
-    verification: ["Record applicable manufacturer procedure and acceptance limits", "Confirm required leak, electrical/mechanical, fault and operating checks for the selected scope", "Only perform a road/load test when the vehicle is safe and prerequisites are satisfied"],
-    conditional: [safety[system.id], "Review fluid/material specifications and actual quantities, one-time-use hardware, shared access and any commissioning or calibration; included work is not separately chargeable", "Unavailable training, equipment or procedure requires referral or hold, not assumed capability"],
+    verification: profile.verification,
+    conditional: [safety[system.id], ...profile.conditional],
     sharedAccess: sharedAccessFor(group.id, raw.label), contains: [], laborPlan: { ...basePlan, basis: "WORK_BREAKDOWN" as const, scope: `${scope} Internal unvalidated planning allowance; stage allocation is illustrative, not technician observations.` },
     implementationOrder: lightDutyImplementationOrder(system.id, group.id), reviewStatus: "AWAITING_SHOP_REVIEW" as const, specialistReview, keywords: `${raw.keywords} ${id === "engine-misfire" ? "P0300 P0301 rough idle shaking" : ""}`
   };
 })));
+
+function packageContainsOperation(packageOperation: LightDutyOperation, component: LightDutyOperation) {
+    if (packageOperation.diagnosis || component.diagnosis) return false;
+    if (["Replace engine long block", "Replace engine assembly", "Replace complete dressed engine assembly"].includes(packageOperation.label) && component.label === "Transfer reusable accessories to replacement long block") return true;
+    if (packageOperation.label === "Replace oil pan" && component.label === "Replace oil pan gasket") return true;
+    if (["Replace engine assembly", "Replace complete dressed engine assembly", "Replace engine long block", "Overhaul engine assembly"].includes(packageOperation.label) && ["engine-head", "engine-bottom", "engine-timing"].includes(component.groupId) && /^(Replace|Overhaul|Set engine)/.test(component.label)) return true;
+    if (packageOperation.label === "Replace engine short block" && component.groupId === "engine-bottom" && /crankshaft|connecting rod|piston|main bearing|engine block|bedplate/.test(component.label.toLowerCase())) return true;
+    if (packageOperation.label === "Replace both cylinder head gaskets" && /Replace (left|right)? ?cylinder head gasket/.test(component.label)) return true;
+    if (packageOperation.label === "Replace clutch kit with flywheel package" && ["Replace clutch kit", "Replace flywheel", "Replace clutch release bearing"].includes(component.label)) return true;
+    if (packageOperation.label === "Replace timing belt water pump package" && ["Replace timing belt set", "Replace timing belt with tensioner and guide pulleys", "Replace water pump"].includes(component.label)) return true;
+    if (packageOperation.label === "Replace A/C condenser with receiver-drier package" && ["Replace A/C condenser", "Replace receiver-drier", "Replace accumulator"].includes(component.label)) return true;
+    if (packageOperation.label === "Replace heater core with instrument panel removal package" && ["Replace heater core", "Remove and reinstall instrument panel"].includes(component.label)) return true;
+  return false;
+}
+
+const packageLabels = new Set(["Replace engine assembly","Replace complete dressed engine assembly","Replace engine long block","Overhaul engine assembly","Replace engine short block","Replace both cylinder head gaskets","Replace oil pan","Replace clutch kit with flywheel package","Replace timing belt water pump package","Replace A/C condenser with receiver-drier package","Replace heater core with instrument panel removal package"]);
+export const LIGHT_DUTY_OPERATIONS: readonly LightDutyOperation[] = authoredOperations.map(operation => ({ ...operation, contains: packageLabels.has(operation.label) ? authoredOperations.filter(component => component.id !== operation.id && packageContainsOperation(operation, component)).map(component => component.id) : [] }));
 
 const operationIndex = new Map(LIGHT_DUTY_OPERATIONS.flatMap(operation => [...new Set([operation.id, ...operation.aliases])].map(id => [id, operation] as const)));
 
@@ -153,18 +172,7 @@ export function lightDutyScopeConflict(leftId: string, rightId: string) {
   if ((left.aliases.includes("wheel-hub-bearing") || right.aliases.includes("wheel-hub-bearing")) && left.groupId === "tires-hubs" && right.groupId === "tires-hubs" && !left.diagnosis && !right.diagnosis) return true;
   if (assemblyAlternatives.has(left.label) && assemblyAlternatives.has(right.label)) return true;
   if (transmissionAlternatives.has(left.label) && transmissionAlternatives.has(right.label)) return true;
-  for (const [packageOperation, component] of [[left, right], [right, left]]) {
-    if (packageOperation.diagnosis || component.diagnosis) continue;
-    if (["Replace engine long block", "Replace engine assembly", "Replace complete dressed engine assembly"].includes(packageOperation.label) && component.label === "Transfer reusable accessories to replacement long block") return true;
-    if (packageOperation.label === "Replace oil pan" && component.label === "Replace oil pan gasket") return true;
-    if (["Replace engine assembly", "Replace complete dressed engine assembly", "Replace engine long block", "Overhaul engine assembly"].includes(packageOperation.label) && ["engine-head", "engine-bottom", "engine-timing"].includes(component.groupId) && /^(Replace|Overhaul|Set engine)/.test(component.label)) return true;
-    if (packageOperation.label === "Replace engine short block" && component.groupId === "engine-bottom" && /crankshaft|connecting rod|piston|main bearing|engine block|bedplate/.test(component.label.toLowerCase())) return true;
-    if (packageOperation.label === "Replace both cylinder head gaskets" && /Replace (left|right)? ?cylinder head gasket/.test(component.label)) return true;
-    if (packageOperation.label === "Replace clutch kit with flywheel package" && ["Replace clutch kit", "Replace flywheel", "Replace clutch release bearing"].includes(component.label)) return true;
-    if (packageOperation.label === "Replace timing belt water pump package" && ["Replace timing belt set", "Replace timing belt with tensioner and guide pulleys", "Replace water pump"].includes(component.label)) return true;
-    if (packageOperation.label === "Replace A/C condenser with receiver-drier package" && ["Replace A/C condenser", "Replace receiver-drier", "Replace accumulator"].includes(component.label)) return true;
-    if (packageOperation.label === "Replace heater core with instrument panel removal package" && ["Replace heater core", "Remove and reinstall instrument panel"].includes(component.label)) return true;
-  }
+  if (left.contains.includes(right.id) || right.contains.includes(left.id)) return true;
   return false;
 }
 

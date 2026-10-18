@@ -4,10 +4,10 @@ import type { LaborRepairOperation } from "@/server/diagnostics/labor-operation-
 
 export const LABOR_PILOT_SYSTEMS = ["brakes", "steering"] as const;
 
-export function connectedLaborSelection(selection: { id: string; catalogOperationId?: string; position?: "front-left" | "front-right" }, catalog: LaborRepairOperation[]) {
+export function connectedLaborSelection(selection: { id: string; catalogOperationId?: string; position?: "front-left" | "front-right" }, catalog: LaborRepairOperation[], allowedSystemIds: readonly string[] = LABOR_PILOT_SYSTEMS) {
   const baseline = repairBaselineForId(selection.catalogOperationId ?? selection.id);
-  if (!baseline || !["brakes", "steering"].includes(baseline.system)) throw new Error("This system has not completed the connected catalog audit. Use the existing guide for staff-reviewed work.");
-  const operation = catalog.find(item => item.id === baseline.operation.id);
+  if (!baseline || !allowedSystemIds.includes(baseline.system)) throw new Error("This system has not completed the connected catalog audit. Use the existing guide for staff-reviewed work.");
+  const operation = catalog.find(item => item.id === baseline.operation.id || (repairBaselineForId(item.id)?.operation.id === baseline.operation.id));
   if (!operation) throw new Error("The approved operation is unavailable in the current labor catalog.");
   if (selection.position && selection.id !== `${selection.catalogOperationId}:${selection.position}`) throw new Error("Invalid selected position scope.");
   const id = selection.position ? `${operation.id}:${selection.position}` : operation.id;

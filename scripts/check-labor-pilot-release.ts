@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { evaluateLaborPilotRelease, type LaborReleaseEvidence } from "../src/lib/labor-pilot-release";
+import { readEvidenceArtifact } from "./lib/labor-evidence-files.mjs";
 
 const file = process.argv[2];
 if (!file) { console.error("Usage: npx tsx scripts/check-labor-pilot-release.ts <evidence.json>. Missing staging, recovery, policy or owner evidence means HOLD."); process.exitCode = 1; }
@@ -14,7 +15,7 @@ else {
     for (const [gate, item] of Object.entries(evidence.gates ?? {})) {
       if (!item) continue;
       try {
-        const artifact = readFileSync(path.resolve(path.dirname(file), item.artifact));
+        const artifact = readEvidenceArtifact(path.dirname(file), item.artifact);
         if (createHash("sha256").update(artifact).digest("hex") !== item.sha256) result.blockers.push(`ARTIFACT_CHECKSUM_${gate}`);
       } catch { result.blockers.push(`ARTIFACT_UNAVAILABLE_${gate}`); }
     }
