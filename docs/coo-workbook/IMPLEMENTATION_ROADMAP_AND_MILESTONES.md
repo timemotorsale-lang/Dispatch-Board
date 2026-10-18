@@ -1,4 +1,4 @@
-# COO Workbook Implementation Roadmap and Milestones
+n# COO Workbook Implementation Roadmap and Milestones
 
 **Status:** Planning source of truth  
 **Scope:** Implementation roadmap for turning the COO Workbook into a live daily workspace, Quick Update capture tool, accountability engine, and report-generation pilot.  

@@ -125,6 +125,26 @@ jobs:
       - name: Scanned purchase PDF OCR proof
         run: RUN_OCR_INTEGRATION=1 DOCUMENT_TEXT_PDF_RENDERER_PATH=/usr/bin/pdftoppm npx vitest run src/tests/integration/purchase-ocr.test.ts
 
+  labor-browser:
+    name: Labor catalog browser fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:labor-pilot-ui
+      - run: npm run test:light-duty-catalog-ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: labor-browser-fixture-${{ github.sha }}
+          path: test-results/labor-pilot-ui/
+          if-no-files-found: warn
+
   build:
     name: Build
     runs-on: ubuntu-latest

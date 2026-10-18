@@ -1,4 +1,5 @@
 import { validateManualReview } from "./estimate-review";
+import { validateEstimateControls } from "./labor-guide-controls";
 function object(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -12,6 +13,7 @@ export function diagnosticDraftPayload(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid draft payload.");
   const data = value as Record<string, unknown>;
   if (data.laborReview !== undefined) validateManualReview(data.laborReview);
+  if (data.estimateControls !== undefined) validateEstimateControls(data.estimateControls);
   for (const key of ["labor", "parts", "evidence"]) {
     if (!Array.isArray(data[key]) || data[key].length > 300) throw new Error(`Invalid draft ${key}.`);
   }

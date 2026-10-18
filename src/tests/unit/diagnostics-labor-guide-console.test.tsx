@@ -6,6 +6,12 @@ import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-gu
 import { flattenLaborOperationTaxonomy, LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 
 describe("enterprise labor guide console", () => {
+  it("opens the strongest exact-name group before loose front/left matches in another system", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={[]} initialQuery="front left complete loaded strut" laborAddOns={LABOR_OPERATION_ADD_ONS} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    expect(markup).toContain("<strong>Replace front left complete loaded strut</strong>");
+    expect(markup).toContain('<option value="steering-suspension" selected="">');
+    expect(markup).toContain("Scope, parts &amp; safety checks");
+  });
   it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
@@ -29,17 +35,17 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Replace front brake caliper");
     expect(markup).toContain("Pads, Rotors, Drums &amp; Calipers");
     expect(markup).toContain("ABS, Stability &amp; Parking Brake");
-    expect(markup).toContain("4 fixes");
-    expect(markup).toContain("3 fixes");
+    expect(markup).toContain("Drum Brakes &amp; Measurements");
+    expect(markup).toContain("Electronic Assist &amp; Regenerative Braking");
     expect(markup).toContain("aria-expanded=\"false\"");
     expect(markup).not.toContain("Choose what needs to be fixed");
     expect(markup).not.toContain("Select</button>");
     expect(markup).toContain("Add manual part");
     expect(markup).toContain("Retail");
     expect(markup).toContain("Edit Front brake pad set price and quantity");
-    expect(markup).toContain("Auto from parts catalog");
+    expect(markup).toContain("Suggested catalog match - fitment and price need review");
     expect(markup).toContain("Automatic Suggested Add-Ons");
-    expect(markup).toContain("Road test and repair verification");
+    expect(markup).toContain("Full brake fluid exchange (not an included circuit bleed)");
     expect(markup).toContain("Helpful items to review");
     expect(markup).not.toContain("Estimate Labor Rules");
     expect(markup).not.toContain("OEM Parts Map");
@@ -86,7 +92,10 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("#0678C112");
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
     expect(markup).toContain("Check in vehicle");
-    expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
+    expect(markup).toContain("/vehicles/workflows/add-vehicle?returnTo=%2Fdiagnostics%2Flabor-guide");
+    expect(markup).toContain("Add vehicle (new tab)");
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain("without leaving this estimate");
     expect(markup).toContain("Show next step to present estimate");
     expect(markup).toContain("Select the repair order shown in the customer and vehicle lookup before creating this estimate.");
     expect(markup).toContain("Selected Work");
@@ -128,16 +137,12 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("Replace front brake pads and rotors");
   });
 
-  it("shows transmission replacement required parts, accessories, programming, and MN tax policy", () => {
+  it("keeps transmission access materials pending and follow-up work separate", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="transmission" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
     expect(markup).toContain("Remove and install transmission assembly");
-    expect(markup).toContain("Transmission assembly - VIN fitment and supplier price required");
-    expect(markup).toContain("Automatic transmission fluid - fill and level set allowance");
-    expect(markup).toContain("Transmission filter and pan gasket kit");
-    expect(markup).toContain("Axle/output shaft seal set");
-    expect(markup).toContain("Torque converter/front pump seal");
-    expect(markup).toContain("Transmission programming, configuration, and adaptive relearn");
+    expect(markup).toContain("no replacement assembly assumed");
+    expect(markup).not.toContain("ATF-VIN-SPEC");
     expect(markup).toContain("Helpful items to review");
     expect(markup).toContain("Transmission assembly");
     expect(markup).not.toContain("OEM-TRANS-ASSEMBLY-VIN-REVIEW");
@@ -154,7 +159,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Door glass and regulator");
     expect(markup).not.toContain("OEM-DOOR-SHELL-VIN-REVIEW");
     expect(markup).toContain("Add part");
-    expect(markup).toContain("Replace door shell");
+    expect(markup).toContain("Panels, glass &amp; specialist assessment");
+    expect(flattenLaborOperationTaxonomy().find(operation => operation.id === "door-shell")?.title).toBe("Replace door shell");
   });
 
   it("provides an evidence upload workspace for RO photos and documents", () => {
@@ -178,6 +184,7 @@ describe("enterprise labor guide console", () => {
     expect(titles).toContain("Forward camera calibration");
     expect(titles).toContain("Replace front bumper cover");
     expect(titles).toContain("High-voltage disable and enable procedure");
-    expect(operations.filter((operation) => operation.requiredAddOns.length > 0).length).toBeGreaterThan(10);
+    expect(operations.find(operation => operation.id === "transmission-remove-install")!.requiredAddOns).toEqual([]);
+    expect(LABOR_OPERATION_TAXONOMY.find(system => system.id === "steering-suspension")!.groups.flatMap(group => group.operations).every(operation => !operation.requiredAddOns.includes("alignment"))).toBe(true);
   });
 });
