@@ -8,6 +8,12 @@ export type ExplorerEstimateSeed = {
   parts: Array<{ id: string; laborRowId: string; name: string; number: string; pricingStatus: "PRICE_PENDING"; quantity: number; source: "MANUAL"; unitPrice: number }>;
 };
 
+export function assertExplorerDraftTarget(draft: PreviewDraft, target?: { id: string; vehicle: { id?: string } } | null) {
+  if ((draft.repairOrderId ?? null) !== (target?.id ?? null) || (draft.vehicleId ?? null) !== (target?.vehicle.id ?? null)) {
+    throw new Error("This draft belongs to a different repair order or vehicle. Return to the original guide; no work was attached or replaced.");
+  }
+}
+
 export function explorerEstimateSeed(raw: string, catalog: LaborRepairOperation[], allowedSystems: readonly string[]): { draft: PreviewDraft; seed: ExplorerEstimateSeed } {
   const draft = parsePreviewDraft(raw);
   if (!draft?.lines.length) throw new Error("The browser draft is missing or invalid. Return to Repair Explorer and generate it again. No current work was replaced.");

@@ -8574,6 +8574,12 @@ html[data-app-theme="dark"] .my-task-guided-field-heading > small[data-state="co
   overflow-x: clip;
   background: rgb(13 23 42 / 44%);
 }
+body:has([data-inventory-intake]) .operating-rhythm-toast {
+  top: 80px;
+  bottom: auto;
+  max-height: 40dvh;
+  overflow-y: auto;
+}
 .operating-rhythm-lock * {
   box-sizing: border-box;
 }

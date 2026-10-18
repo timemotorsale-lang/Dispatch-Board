@@ -3,10 +3,17 @@ import { normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, repairOr
 const now=new Date("2026-07-14T12:00:00Z");
 const base={arrivedAt:"2026-07-14T11:00:00Z",consentStatus:"PENDING",concernSummary:"Customer reports vibration above highway speed.",idempotencyKey:"ro-1",intakeSource:"WALK_IN",customerId:"customer-1",vehicleId:"vehicle-1",locationId:"loc-1",nextAction:"Complete intake review",ownerUserId:"owner-1",reason:"Open customer repair order intake.",targetAt:"2026-07-14T14:00:00Z",transportMode:"DROP_OFF"};
 describe("repair-order core domain",()=>{
-  it("allows internal repairs with vehicle identity and no acquisition unit", () => {
-    expect(normalizeRepairOrderCreate({ ...base, intakeSource: "INVENTORY_RECON", inventoryUnitId: null }, now)).toMatchObject({ vehicleId: "vehicle-1", customerId: null, inventoryUnitId: null });
-    expect(() => normalizeRepairOrderCreate({ ...base, intakeSource: "INVENTORY_RECON", inventoryUnitId: null, vehicleId: "" }, now)).toThrow("Vehicle ID");
-    expect(normalizeRepairOrderCreate({ ...base, intakeSource: "INVENTORY_RECON", inventoryUnitId: "unit-1", vehicleId: null }, now).inventoryUnitId).toBe("unit-1");
+  it.each([undefined, null, "", "   ", 123])("requires an inventory unit for recon when its ID is %s", inventoryUnitId => {
+    expect(() => normalizeRepairOrderCreate({ ...base, intakeSource: "INVENTORY_RECON", inventoryUnitId }, now)).toThrow("Inventory unit ID is required.");
+  });
+  it("normalizes recon with an inventory unit and optional canonical vehicle", () => {
+    expect(normalizeRepairOrderCreate({ ...base, intakeSource: "INVENTORY_RECON", inventoryUnitId: " unit-1 ", vehicleId: null }, now)).toMatchObject({ inventoryUnitId: "unit-1", vehicleId: null, customerId: null });
+    expect(normalizeRepairOrderCreate({ ...base, intakeSource: "INVENTORY_RECON", inventoryUnitId: "unit-1" }, now)).toMatchObject({ inventoryUnitId: "unit-1", vehicleId: "vehicle-1", customerId: null });
+  });
+  it("preserves customer walk-in identity without an inventory unit", () => {
+    expect(normalizeRepairOrderCreate({ ...base, inventoryUnitId: "unit-ignored" }, now)).toMatchObject({ customerId: "customer-1", vehicleId: "vehicle-1", inventoryUnitId: null });
+    expect(() => normalizeRepairOrderCreate({ ...base, customerId: "" }, now)).toThrow("Customer ID");
+    expect(() => normalizeRepairOrderCreate({ ...base, vehicleId: "" }, now)).toThrow("Vehicle ID");
   });
   it("normalizes controlled walk-in intake",()=>expect(normalizeRepairOrderCreate(base,now)).toMatchObject({intakeSource:"WALK_IN",operatingState:"ACTIVE",stateReason:null,keysReceivedCount:0}));
   it("requires documented consent evidence",()=>expect(()=>normalizeRepairOrderCreate({...base,consentStatus:"DOCUMENTED"},now)).toThrow("reference and time"));

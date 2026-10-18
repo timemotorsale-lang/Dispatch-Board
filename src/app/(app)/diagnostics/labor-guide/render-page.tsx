@@ -7,6 +7,7 @@ import { getConnectedCatalogSystems } from "@/server/services/labor-catalog-sett
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
+import { repairExplorerStorageKey } from "@/lib/repair-explorer-context";
 
 export type PageProps = { searchParams?: Promise<{ guide?: string | string[]; importExplorer?: string | string[]; experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
@@ -27,6 +28,9 @@ export async function renderLaborGuidePage({ searchParams }: PageProps, initialG
     getActiveLaborRate(user),
     getConnectedCatalogSystems(user),
   ]);
+  if (initialGuideView === "new" && first(params.importExplorer) === "1" && requestedRepairOrderId && (activeResult.status === "rejected" || !activeResult.value || activeResult.value.closedAt)) {
+    return <main><h1>Repair order could not open</h1><p role="alert">The requested repair order is unavailable, closed, or outside your access. No draft was imported. Return to the original guide and retry.</p><a href="/diagnostics/labor-guide">Return to Labor Guide</a></main>;
+  }
   const orders = ordersResult.status === "fulfilled" ? ordersResult.value : { items: [] };
   const active = activeResult.status === "fulfilled" ? activeResult.value : null;
   const laborRate = rateResult.status === "fulfilled" ? rateResult.value : null;
@@ -53,5 +57,5 @@ export async function renderLaborGuidePage({ searchParams }: PageProps, initialG
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <LaborGuideEntry initialGuideView={initialGuideView} explorerStorageKey={initialGuideView === "new" && first(params.importExplorer) === "1" ? `dispatch-board.repair-explorer-preview.v1.${user.id}.handoff` : undefined} activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={`${initialGuideView}:${user.id}:${activeRepairOrder?.id ?? "blank-estimate"}:${first(params.importExplorer) === "1" ? "explorer-import" : "guide"}`} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
+  return <LaborGuideEntry initialGuideView={initialGuideView} explorerStorageKey={initialGuideView === "new" && first(params.importExplorer) === "1" ? `${repairExplorerStorageKey(user.id, requestedRepairOrderId)}.handoff` : undefined} activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={`${initialGuideView}:${user.id}:${activeRepairOrder?.id ?? "blank-estimate"}:${first(params.importExplorer) === "1" ? "explorer-import" : "guide"}`} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
 }

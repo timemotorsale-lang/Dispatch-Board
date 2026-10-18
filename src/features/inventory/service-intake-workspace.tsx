@@ -291,7 +291,6 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const [newRepairVendor, setNewRepairVendor] = useState({ defaultLeadDays: 3, name: "", vendorType: "BODY_SHOP" });
   const [vendorBusy, setVendorBusy] = useState(false);
   const [vendorCreateOpen, setVendorCreateOpen] = useState(false);
-  const [inventoryUnitBusy, setInventoryUnitBusy] = useState(false);
 
   const normalizedArrivalVin = arrivalQuery.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const arrivalQueryIsVin = /^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedArrivalVin);
@@ -326,7 +325,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const singleOpenVehicleOrder = openVehicleOrders.length === 1 ? openVehicleOrders[0] : null;
   const existingRepairOrderToOpen = sameConcernOrder ?? (!newRepairOrderConfirmed ? singleOpenVehicleOrder : null);
   const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
-  const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
+  const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId && unit.vehicle.id === form.vehicleId);
   const customerDraftReady = isServiceIntakeCustomerDraftReady(newCustomer);
 
   useEffect(() => {
@@ -339,19 +338,23 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const isCustomerVehicle = form.vehicleRelationship === "CUSTOMER_VEHICLE";
   const isDealershipInventory = form.vehicleRelationship === "DEALERSHIP_INVENTORY";
   const canCompleteRelationshipIntake = isCustomerVehicle || isDealershipInventory;
-  const dealershipOwnershipConfirmed = Boolean(form.inventoryUnitId || selectedVehicle?.registryRelationships?.some(item => ["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"].includes(item.relationshipType)));
+  const inventoryUnitRequired = isDealershipInventory && !selectedInventoryUnit;
+  const inventoryReturnQuery = new URLSearchParams({ intakeSource: "INVENTORY_RECON", vehicleId: selectedVehicle?.id ?? "" });
+  if (returnTo) inventoryReturnQuery.set("returnTo", returnTo);
+  const inventoryEstablishmentHref = selectedVehicle ? `/vehicles/inventory/units?${new URLSearchParams({ vehicleId: selectedVehicle.id, returnTo: `/vehicles/repair-orders?${inventoryReturnQuery}` })}` : "/vehicles/inventory/units";
+  const acquisitionHref = selectedVehicle ? `/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(selectedVehicle.id)}&returnTo=${encodeURIComponent(`/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${encodeURIComponent(selectedVehicle.id)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`)}` : "/vehicles/acquisition-appraisal";
   const decodedVehicleReadyToCreate = Boolean(vehicleIdentityPreview?.identity?.vin && vehicleIdentityConfirmed && vehicleOdometer && vehicleQuickDetails.year && vehicleQuickDetails.make.trim() && vehicleQuickDetails.model.trim());
   const selectedLocation = options.locations.find((location) => location.id === form.locationId);
   const selectedOwner = assignableTechnicians.find((user) => user.id === form.ownerUserId);
   const selectedVendor = repairVendorRecords.find((vendor) => vendor.id === form.vendorId);
   const usesOutsideVendor = form.executionPath === "OUTSIDE_VENDOR";
   const checklist = [
-    { label: isDealershipInventory ? "Dealership ownership confirmed" : "Customer selected", ready: isDealershipInventory ? dealershipOwnershipConfirmed : isCustomerVehicle && Boolean(form.customerId) },
+    { label: isDealershipInventory ? "Canonical inventory unit selected" : "Customer selected", ready: isDealershipInventory ? Boolean(selectedInventoryUnit) : isCustomerVehicle && Boolean(form.customerId) },
     { label: "Vehicle selected", ready: Boolean(form.vehicleId) },
     { label: "Concern captured", ready: form.concernSummary.trim().length >= 10 },
     { label: "Repair-order decision", ready: !requiresRepairOrderDecision || newRepairOrderConfirmed || Boolean(existingRepairOrderToOpen) },
     { label: "Keys & transportation", ready: form.keysReceivedCount >= 0 && Boolean(form.transportMode) },
-    { label: isDealershipInventory ? "Internal repair readiness" : "Live service readiness", ready: isDealershipInventory || Boolean(readiness) },
+    { label: isDealershipInventory ? "Internal repair readiness" : "Live service readiness", ready: isDealershipInventory ? Boolean(selectedInventoryUnit) : Boolean(readiness) },
     { label: usesOutsideVendor ? "Vendor route & target" : "Technician & target", ready: Boolean(form.ownerUserId && form.targetAt && (!usesOutsideVendor || form.vendorId && form.vendorScope.trim().length >= 10 && form.vendorExpectedReturnAt)) },
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
@@ -366,14 +369,14 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           ? vehicleIdentityBusy ? "Decoding VIN" : "Decode VIN"
           : decodedVehicleReadyToCreate ? "Add & Select Vehicle" : "Confirm Vehicle & Odometer"
         : "Add / Select Vehicle"
+      : inventoryUnitRequired && !existingRepairOrderToOpen
+        ? "Establish Inventory Unit"
       : form.concernSummary.trim().length < 10
         ? isDealershipInventory ? "Capture Inventory Concern" : "Capture Customer Concern"
         : sameConcernOrder
           ? "Use Existing Repair Order"
         : existingRepairOrderToOpen
           ? "Open Existing RO in Labor Guide"
-          : isDealershipInventory && !dealershipOwnershipConfirmed
-              ? "Confirm Dealership Ownership"
           : requiresRepairOrderDecision && !newRepairOrderConfirmed
             ? "Choose Existing or Create New RO"
         : isCustomerVehicle && !readiness
@@ -453,29 +456,26 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         const draft = JSON.parse(saved) as Partial<{
           customerRecords: ServiceIntakeOptions["customers"];
           form: IntakeState;
-          inventoryUnitRecords: ServiceIntakeOptions["inventoryUnits"];
           vehicleRecords: ServiceIntakeOptions["vehicles"];
         }>;
         const draftForm = draft.form;
         if (draft.customerRecords) setCustomerRecords((records) => mergeById(records, draft.customerRecords));
         if (draft.vehicleRecords) setVehicleRecords((records) => mergeById(records, draft.vehicleRecords));
-        if (draft.inventoryUnitRecords) setInventoryUnitRecords((records) => mergeById(records, draft.inventoryUnitRecords));
         if (draftForm) {
           setForm((current) => {
             const vehicleId = initialVehicleId && options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : draftForm.vehicleId || current.vehicleId;
             const vehicleRelationship = initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship;
-            const availableInventoryUnits = mergeById(options.inventoryUnits, draft.inventoryUnitRecords);
             const inventoryUnitId = vehicleRelationship === "DEALERSHIP_INVENTORY"
-              ? availableInventoryUnits.find((unit) => unit.vehicle.id === vehicleId)?.id ?? ""
-              : draftForm.inventoryUnitId || current.inventoryUnitId;
+              ? options.inventoryUnits.find((unit) => unit.vehicle.id === vehicleId)?.id ?? ""
+              : "";
             return {
               ...current,
               ...draftForm,
-              concernSummary: current.concernSummary,
+              concernSummary: initialConcernSummary.trim() || (draftForm.vehicleId === vehicleId ? draftForm.concernSummary ?? current.concernSummary : current.concernSummary),
               inventoryUnitId,
               locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
               ownerUserId: technicianOptions(options.users).some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
-              vendorScope: current.vendorScope,
+              vendorScope: draftForm.vehicleId === vehicleId ? draftForm.vendorScope ?? current.vendorScope : current.vendorScope,
               vehicleId,
               vehicleRelationship,
             };
@@ -487,7 +487,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
+  }, [initialConcernSummary, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
 
   useEffect(() => {
     if (form.vehicleRelationship !== "DEALERSHIP_INVENTORY" || !form.vehicleId || form.inventoryUnitId) return;
@@ -499,7 +499,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, inventoryUnitRecords, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
+      window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
     }, 250);
     return () => window.clearTimeout(timer);
   }, [customerRecords, form, inventoryUnitRecords, returnTo, vehicleRecords]);
@@ -534,7 +534,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     setVehicleColorDraft(vehicle?.color ?? "");
     setForm((current) => ({ ...current, inventoryUnitId, vehicleId }));
     setArrivalQuery("");
-    setNotice(form.vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitId ? "Dealership vehicle and its active inventory unit were selected." : "Dealership vehicle selected. Create its governed inventory unit to continue internal recon." : form.customerId ? "Vehicle selected. Capture the concern, then refresh live readiness." : "Vehicle selected. Add or select the customer next.");
+    setNotice(form.vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitId ? "Dealership vehicle and its active inventory unit were selected." : "Dealership vehicle selected. Continue to Inventory Establishment for this vehicle to establish its inventory unit before internal recon." : form.customerId ? "Vehicle selected. Capture the concern, then refresh live readiness." : "Vehicle selected. Add or select the customer next.");
   }
 
   async function saveSelectedVehicleColor() {
@@ -588,7 +588,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       vehicleRelationship,
     }));
     setDrawer(null);
-    setNotice(vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitId ? "Dealership inventory selected. No customer is required; the existing inventory unit is linked." : "Dealership inventory selected. No customer is required; select a vehicle and confirm dealership ownership for internal repairs." : vehicleRelationship === "CUSTOMER_VEHICLE" ? "Customer vehicle selected. Add or select the canonical customer and vehicle." : vehicleRelationship === "TRADE_ACQUISITION" ? "Trade/acquisition candidates continue through governed appraisal before an inventory unit is created." : "Ownership is unconfirmed. Document custody and establish the relationship before creating customer or inventory work.");
+    setNotice(vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitId ? "Dealership inventory selected. No customer is required; the existing inventory unit is linked." : "Dealership inventory selected. No customer is required; select an existing inventory vehicle or continue to Inventory Establishment to establish inventory." : vehicleRelationship === "CUSTOMER_VEHICLE" ? "Customer vehicle selected. Add or select the canonical customer and vehicle." : vehicleRelationship === "TRADE_ACQUISITION" ? "Trade/acquisition candidates continue through governed appraisal before an inventory unit is created." : "Ownership is unconfirmed. Document custody and establish the relationship before creating customer or inventory work.");
   }
 
   function chooseAppointment(appointment: ServiceIntakeOptions["appointments"][number]) {
@@ -759,12 +759,12 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       setNotice("Search the local database by VIN first. If no vehicle is found, enter the 17-character VIN to decode and add it here.");
       return;
     }
-    if (isDealershipInventory && !dealershipOwnershipConfirmed) {
-      setNotice("Confirm dealership ownership below before starting internal repairs.");
+    if (inventoryUnitRequired) {
+      setNotice("An existing inventory unit for this vehicle is required. Continue to Inventory Establishment to open its canonical inventory cycle and confirm acquisition, then return to intake.");
       window.requestAnimationFrame(() => {
         inventoryUnitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
         window.requestAnimationFrame(() => {
-          inventoryUnitSectionRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+          inventoryUnitSectionRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
         });
       });
       return;
@@ -790,6 +790,16 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   function runFooterAction() {
     if (existingRepairOrderToOpen && (!usesOutsideVendor || form.vendorId)) {
       void openExistingRepairOrder(existingRepairOrderToOpen.id);
+      return;
+    }
+    if (inventoryUnitRequired && selectedVehicle) {
+      try {
+        window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
+      } catch {
+        setNotice("Your check-in could not be saved in this browser. Keep this tab open and use the Inventory Establishment link in a new tab, then return here.");
+        return;
+      }
+      window.location.assign(inventoryEstablishmentHref);
       return;
     }
     if (!ready) {
@@ -902,26 +912,6 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       setNotice(error instanceof Error ? error.message : "Vehicle could not be added.");
     } finally {
       setVehicleIdentityBusy(false);
-    }
-  }
-
-  async function confirmDealershipOwnership() {
-    if (!selectedVehicle || dealershipOwnershipConfirmed || !window.confirm("Confirm this vehicle is owned by the dealership. This records ownership for repairs, not a purchase or sale release.")) return;
-    setInventoryUnitBusy(true);
-    setNotice("");
-    try {
-      const response = await fetch(`/api/vehicles/${encodeURIComponent(selectedVehicle.id)}/commands`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "ADD_RELATIONSHIP", effectiveFrom: new Date(form.arrivedAt).toISOString(), expectedVersion: Number(selectedVehicle.version ?? 0), idempotencyKey: crypto.randomUUID(), locationId: form.locationId, reason: "Staff confirmed dealership ownership for internal repair intake; acquisition remains separate.", relationshipType: "DEALERSHIP_OWNED", sourceCode: "INTERNAL_REPAIR_INTAKE" }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Dealership ownership could not be confirmed.");
-      setVehicleRecords(records => records.map(vehicle => vehicle.id === selectedVehicle.id ? { ...vehicle, version: Number(body.version ?? body.result?.version ?? (vehicle.version ?? 0) + 1), registryRelationships: [...(vehicle.registryRelationships ?? []), { relationshipType: "DEALERSHIP_OWNED" }] } : vehicle));
-      setNotice("Dealership ownership confirmed. Continue internal repair intake; acquisition remains separate.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Dealership ownership could not be confirmed.");
-    } finally {
-      setInventoryUnitBusy(false);
     }
   }
 
@@ -1095,6 +1085,10 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (inventoryUnitRequired) {
+      runNextRequiredAction();
+      return;
+    }
     if (!ready) {
       setNotice("Complete the required check-in items before creating the repair order.");
       return;
@@ -1132,7 +1126,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           idempotencyKey: crypto.randomUUID(),
           intakeNotes: structuredNotes || null,
           intakeSource: isDealershipInventory ? "INVENTORY_RECON" : appointment ? "APPOINTMENT" : "WALK_IN",
-          inventoryUnitId: isDealershipInventory ? form.inventoryUnitId || null : null,
+          inventoryUnitId: isDealershipInventory ? selectedInventoryUnit!.id : null,
           keyTag: form.keyTag || null,
           keysReceivedCount: form.keysReceivedCount,
           locationId: form.locationId,
@@ -1143,7 +1137,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           promiseNotes: form.promiseNotes || null,
           readinessSnapshotId: freshReadiness?.snapshotId ?? null,
           reason: isDealershipInventory
-            ? "Create internal dealership repair intake with verified ownership, optional inventory linkage, concern, custody, owner, and target."
+            ? "Create internal dealership recon linked to its canonical inventory unit with concern, custody, owner, and target."
             : appointment
             ? "Create governed appointment service intake with attributable customer, vehicle, concern, custody, and readiness facts."
             : "Create governed walk-in service intake with attributable customer, vehicle, concern, custody, and readiness facts.",
@@ -1198,7 +1192,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         <section className="sic-card sic-identity sic-find-arrival">
           <header><span>1</span><div><h2>{isDealershipInventory ? "Find Dealership Vehicle or Inventory Unit" : "Find Customer, Vehicle, or Appointment"}</h2><p>{isDealershipInventory ? "Search canonical vehicle and inventory records before creating internal recon work. No customer is required." : "Search canonical records before creating work. No match? Create the missing record without leaving intake."}</p></div></header>
           <section className="sic-relationship-intent" aria-label="Vehicle relationship to dealership"><div><small>First, identify the relationship</small><strong>Who is this vehicle being handled for?</strong></div><div><button className={isCustomerVehicle ? "active" : ""} onClick={() => chooseVehicleRelationship("CUSTOMER_VEHICLE")} type="button"><UserRound /><span><b>Customer vehicle</b><small>Customer required</small></span></button><button className={isDealershipInventory ? "active inventory" : ""} onClick={() => chooseVehicleRelationship("DEALERSHIP_INVENTORY")} type="button"><CarFront /><span><b>Dealership inventory</b><small>No customer required</small></span></button><button className={form.vehicleRelationship === "TRADE_ACQUISITION" ? "active" : ""} onClick={() => chooseVehicleRelationship("TRADE_ACQUISITION")} type="button"><ClipboardCheck /><span><b>Trade / acquisition</b><small>Appraisal required</small></span></button><button className={form.vehicleRelationship === "OWNERSHIP_UNCONFIRMED" ? "active" : ""} onClick={() => chooseVehicleRelationship("OWNERSHIP_UNCONFIRMED")} type="button"><ShieldAlert /><span><b>Ownership unconfirmed</b><small>Document custody</small></span></button></div></section>
-          {!canCompleteRelationshipIntake ? <div className="sic-relationship-route"><ShieldAlert /><div><strong>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Inventory cannot begin before governed acquisition" : "Ownership must be established before work is created"}</strong><span>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue through appraisal and financial acquisition; that workflow creates the eligible inventory unit once authority is confirmed." : "Record custody and ownership evidence. Do not create a customer or dealership inventory record merely to bypass this decision."}</span></div><Link href={form.vehicleRelationship === "TRADE_ACQUISITION" ? "/vehicles/acquisition-appraisal" : selectedVehicle ? `/vehicles/360/${selectedVehicle.id}` : "/vehicles"}>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue to Acquisition Review" : "Open Vehicle Records"}</Link></div> : null}
+          {!canCompleteRelationshipIntake ? <div className="sic-relationship-route"><ShieldAlert /><div><strong>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Inventory cannot begin before governed acquisition" : "Ownership must be established before work is created"}</strong><span>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue through appraisal and financial acquisition; that workflow creates the eligible inventory unit once authority is confirmed." : "Record custody and ownership evidence. Do not create a customer or dealership inventory record merely to bypass this decision."}</span></div><Link href={form.vehicleRelationship === "TRADE_ACQUISITION" ? acquisitionHref : selectedVehicle ? `/vehicles/360/${selectedVehicle.id}` : "/vehicles"}>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue to Acquisition Review" : "Open Vehicle Records"}</Link></div> : null}
           <div className="sic-arrival-search"><Search /><input aria-label={isDealershipInventory ? "Find dealership vehicle or inventory unit" : "Find customer, vehicle, or appointment"} onChange={(event) => { setArrivalMode("search"); setArrivalQuery(event.target.value); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void runArrivalSearch(); } }} placeholder={isDealershipInventory ? "Search VIN, stock number, inventory number, plate, make, or model..." : "Search name, phone, email, VIN, plate, appointment, or RO..."} ref={arrivalSearchRef} type="search" value={arrivalQuery} /><button disabled={vehicleIdentityBusy} onClick={() => void runArrivalSearch()} type="button"><Search />{vehicleIdentityBusy ? "Searching…" : "Search"}</button></div>
           <section className="sic-vehicle-identity-intelligence" aria-label="Vehicle identity intelligence"><header><Search /><div><small>Vehicle Identity Intelligence</small><strong>Search, decode, and duplicate guard are always available at intake.</strong><span>{isDealershipInventory ? "Use this before opening internal recon so the shop receives the correct inventory unit." : "Use this before creating customer work so the shop receives the correct customer and vehicle."}</span></div></header><div>{identityIntelligenceRows.map((row) => <article className={row.ready ? "ready" : ""} key={row.key}>{row.ready ? <CheckCircle2 /> : <AlertTriangle />}<span><b>{row.label}</b>{row.value}</span></article>)}</div></section>
           <div className="sic-arrival-actions"><div>{isCustomerVehicle ? <><button onClick={() => { setArrivalQuery(""); setArrivalMode("today"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><CalendarDays />Today&apos;s Arrivals</button><button onClick={() => { setArrivalQuery(""); setArrivalMode("recent"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><UserRound />Recent Customers</button><button onClick={() => { setArrivalMode("search"); setArrivalQuery(""); setVehicleAddOpen(false); resetVehicleIdentityPreview(); setNotice("Walk-in intake selected. Find or add the customer and vehicle to continue."); }} type="button">Walk-In</button></> : <span className="sic-internal-intake-label"><CarFront />Internal dealership inventory intake</span>}<button onClick={() => { update("transportMode", "TOW"); setNotice("Tow-in selected. Capture the vehicle, keys, and custody facts before check-in."); }} type="button"><CarFront />Tow-In</button></div><div>{isCustomerVehicle ? <button className="create" onClick={() => { setCustomerDrawerMessage(""); setDrawer("customer"); }} type="button"><Plus />Add New Customer</button> : null}<button className="create" onClick={() => { setVehicleAddOpen(true); if (arrivalQueryIsVin) void decodeVehicleForIntake(); else { arrivalSearchRef.current?.focus(); setNotice("Search the local database first, then enter the complete VIN if the vehicle is not found."); } }} type="button"><Plus />Add New Vehicle</button></div></div>
@@ -1221,7 +1215,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           <div className="sic-selected-arrival">
             {isCustomerVehicle ? <article className={selectedCustomer ? "selected" : ""}><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Search or add a canonical customer"}</span></div>{selectedCustomer ? <button onClick={() => update("customerId", "")} type="button">Change</button> : null}</article> : <article className="selected inventory"><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Internal work · customer not required</span></div></article>}
             <article className={selectedVehicle ? "selected" : ""}><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle ? [selectedVehicle.color, selectedVehicle.vin ?? selectedVehicle.licensePlate].filter(Boolean).join(" · ") || "Search or add a canonical vehicle" : "Search or add a canonical vehicle"}</span></div>{selectedVehicle ? <button onClick={() => update("vehicleId", "")} type="button">Change</button> : null}</article>
-            {isDealershipInventory ? <article className={selectedInventoryUnit ? "selected inventory" : ""}><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Acquisition recorded separately"}</strong><span>{selectedInventoryUnit ? "Active dealership inventory" : "Required before internal recon"}</span></div></article> : <article className={readiness?.appointment ? "selected appointment" : ""}><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness will apply"}</span></div></article>}
+            {isDealershipInventory ? <article className={selectedInventoryUnit ? "selected inventory" : ""}><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Inventory unit required"}</strong><span>{selectedInventoryUnit ? "Active dealership inventory" : "Required before internal recon"}</span></div></article> : <article className={readiness?.appointment ? "selected appointment" : ""}><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness will apply"}</span></div></article>}
           </div>
           {selectedVehicle ? <section className="sic-vehicle-color-editor" aria-label="Vehicle color">
             <label><span>Vehicle color</span><input onChange={(event) => setVehicleColorDraft(event.target.value)} placeholder="Example: White" value={vehicleColorDraft} /></label>
@@ -1231,9 +1225,10 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
             <header><div><small>Decoded vehicle information</small><strong>{[selectedVehicle.year, selectedVehicle.make, selectedVehicle.model, selectedVehicleDetails?.decoded.trim].filter(Boolean).join(" ") || selectedVehicle.vehicleNumber}</strong><span>{selectedVehicleDetails ? `${selectedVehicleDetails.provider} · ${selectedVehicleDetails.source === "STORED_SNAPSHOT" ? "saved canonical snapshot" : "refreshed for this intake"}${selectedVehicleDetails.retrievedAt ? ` · ${new Date(selectedVehicleDetails.retrievedAt).toLocaleDateString()}` : ""}` : "Checking available canonical specifications…"}</span></div><Link href={`/vehicles/360/${selectedVehicle.id}`}>Vehicle 360</Link></header>
             {selectedVehicleDetails ? <div className="sic-selected-vehicle-facts"><span><b>Series / trim</b>{[selectedVehicleDetails.decoded.series, selectedVehicleDetails.decoded.trim].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Body</b>{[selectedVehicleDetails.decoded.bodyClass, selectedVehicleDetails.decoded.cabType].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Engine</b>{[selectedVehicleDetails.decoded.engineCylinders && `${selectedVehicleDetails.decoded.engineCylinders} cylinder`, selectedVehicleDetails.decoded.displacementLiters && `${selectedVehicleDetails.decoded.displacementLiters} L`, selectedVehicleDetails.decoded.engineConfiguration].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Transmission</b>{selectedVehicleDetails.decoded.transmissionStyle || "Not reported"}</span><span><b>Drivetrain</b>{selectedVehicleDetails.decoded.driveType || "Not reported"}</span><span><b>Fuel</b>{selectedVehicleDetails.decoded.fuelTypePrimary || "Not reported"}</span></div> : <div className={selectedVehicleDetailsError ? "sic-vehicle-profile-status error" : "sic-vehicle-profile-status"}>{selectedVehicleDetailsLoading ? "Retrieving decoded vehicle information…" : selectedVehicleDetailsError || "No decoded specification snapshot is available for this vehicle."}</div>}
           </section> : null}
-          {isDealershipInventory && selectedVehicle ? <section className="sic-inventory-link" aria-label="Dealership repair ownership" ref={inventoryUnitSectionRef}>
-            <header><ClipboardCheck /><div><small>Dealership repair ownership</small><strong>{selectedInventoryUnit ? `Inventory unit ${selectedInventoryUnit.inventoryNumber} linked` : "Confirm ownership for internal repairs"}</strong><span></span></div>{selectedInventoryUnit ? <Link href={`/vehicles/control-tower?inventoryUnitId=${selectedInventoryUnit.id}`}>Open inventory unit</Link> : null}</header>
-            <div className="sic-inventory-linked"><CheckCircle2 /><div><strong>{dealershipOwnershipConfirmed ? "Ready for internal repair intake" : "Confirm dealership ownership"}</strong><span>{selectedInventoryUnit ? `Repairs will be linked to ${selectedInventoryUnit.inventoryNumber}.` : "No purchase details or inventory unit are required for repairs. Acquisition and sale release remain separate."}</span></div>{!dealershipOwnershipConfirmed ? <button disabled={inventoryUnitBusy} onClick={() => void confirmDealershipOwnership()} type="button">{inventoryUnitBusy ? "Confirming ownership..." : "Confirm Dealership Ownership"}</button> : null}</div>
+          {isDealershipInventory && selectedVehicle ? <section className="sic-inventory-link" aria-label="Dealership inventory requirement" ref={inventoryUnitSectionRef}>
+            <header><ClipboardCheck /><div><small>Dealership inventory requirement</small><strong>{selectedInventoryUnit ? `Inventory unit ${selectedInventoryUnit.inventoryNumber} linked` : "Inventory unit required for internal recon"}</strong></div>{selectedInventoryUnit ? <Link href={`/vehicles/control-tower?inventoryUnitId=${selectedInventoryUnit.id}`}>Open inventory unit</Link> : null}</header>
+            <div className="sic-inventory-linked" role={selectedInventoryUnit ? "status" : "alert"}>{selectedInventoryUnit ? <CheckCircle2 /> : <ShieldAlert />}<div><strong>{selectedInventoryUnit ? "Inventory source linked" : "Establish inventory before creating recon work"}</strong><span>{selectedInventoryUnit ? `Repairs will be linked to ${selectedInventoryUnit.inventoryNumber}.` : "An existing inventory unit for this vehicle is required. Continue to Inventory Establishment to open its canonical inventory cycle and confirm acquisition, then return to intake. Use this existing vehicle; do not add a duplicate."}</span></div>{!selectedInventoryUnit ? <><Link href={inventoryEstablishmentHref}>Continue to Inventory Establishment</Link><Link href={acquisitionHref}>Review Acquisition</Link></> : null}</div>
+            <Link href={`/prototype/inventory-intake?${new URLSearchParams({ vehicleId: selectedVehicle.id })}`} target="_blank" rel="noopener noreferrer">Try compact intake · New form for review</Link>
           </section> : null}
           {selectedVehicle && selectedVehicleDetails ? <section className="sic-safety-intelligence" aria-label="NHTSA safety and service intelligence">
             <header><ShieldAlert /><div><small>NHTSA safety &amp; service intelligence</small><strong>Advisory review for this intake</strong><span>{safetyIntelligence ? `${safetyIntelligence.model.year} ${safetyIntelligence.model.make} ${safetyIntelligence.model.model} · checked ${new Date(safetyIntelligence.retrievedAt).toLocaleString()}` : "Checking official model-level safety sources…"}</span></div><button disabled={safetyIntelligenceLoading} onClick={() => void loadSafetyIntelligence()} type="button"><RefreshCw />{safetyIntelligenceLoading ? "Checking…" : "Refresh"}</button></header>
@@ -1248,7 +1243,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           </section> : null}
         </section>
 
-        {isDealershipInventory ? <section className="sic-card sic-live-readiness ready"><header><span><ClipboardCheck /></span><div><h2>Internal recon readiness</h2><p>Dealership inventory uses the governed inventory unit instead of a customer and appointment readiness snapshot.</p></div></header><div className="sic-readiness-unavailable inventory"><CarFront /><div><strong>{selectedInventoryUnit ? `${selectedInventoryUnit.inventoryNumber} is linked for internal work` : "Confirm ownership for internal repairs"}</strong><span>{selectedInventoryUnit ? "Capture the inventory concern, keys, condition, owner, and target to open recon." : "An active inventory unit is required before internal recon can begin."}</span></div></div></section> : <section className={`sic-card sic-live-readiness ${readiness?.status.toLocaleLowerCase().replaceAll("_", "-") ?? "loading"}`}>
+        {isDealershipInventory ? <section className={`sic-card sic-live-readiness ${selectedInventoryUnit ? "ready" : "unavailable"}`}><header><span><ClipboardCheck /></span><div><h2>Internal recon readiness</h2><p>Dealership inventory uses the governed inventory unit instead of a customer and appointment readiness snapshot.</p></div></header><div className="sic-readiness-unavailable inventory"><CarFront /><div><strong>{selectedInventoryUnit ? `${selectedInventoryUnit.inventoryNumber} is linked for internal work` : "Inventory unit required for internal recon"}</strong><span>{selectedInventoryUnit ? "Capture the inventory concern, keys, condition, owner, and target to open recon." : "An active inventory unit is required before internal recon can begin."}</span></div></div></section> : <section className={`sic-card sic-live-readiness ${readiness?.status.toLocaleLowerCase().replaceAll("_", "-") ?? "loading"}`}>
           <header><span><CalendarClock /></span><div><h2>Live service readiness</h2><p>Appointment match, current shop load, staff, bay capacity, resource reservations, and promise risk.</p></div><button disabled={readinessLoading || !form.customerId || !form.vehicleId} onClick={() => void evaluateReadiness()} type="button">{readinessLoading ? "Checking…" : "Refresh live facts"}</button></header>
           {readiness ? <><div className="sic-capacity-grid">
             <article className="appointment"><small>Matched appointment</small><strong>{readiness.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Walk-in"}</strong><span>{readiness.appointment?.appointmentNumber ?? "Current capacity"}</span></article>
@@ -1297,7 +1292,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       </main>
 
       <aside className="sic-sidebar">
-        <section className="sic-intake-summary"><h2>Live Intake Summary</h2>{isDealershipInventory ? <article><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Customer not required</span></div></article> : <article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article>}<article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article>{isDealershipInventory ? <article><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Acquisition recorded separately"}</strong><span>{selectedInventoryUnit ? "Internal repairs linked" : "Optional for internal repairs"}</span></div></article> : <article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article>}<div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>{usesOutsideVendor ? "Accountable advisor" : "Assigned technician"}</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div>{usesOutsideVendor ? <div><dt>Work destination</dt><dd>{selectedVendor?.name ?? "Required"}</dd></div> : null}<div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
+        <section className="sic-intake-summary"><h2>Live Intake Summary</h2>{isDealershipInventory ? <article><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Customer not required</span></div></article> : <article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article>}<article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article>{isDealershipInventory ? <article><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Inventory unit required"}</strong><span>{selectedInventoryUnit ? "Internal repairs linked" : "Required before internal recon"}</span></div></article> : <article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article>}<div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>{usesOutsideVendor ? "Accountable advisor" : "Assigned technician"}</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div>{usesOutsideVendor ? <div><dt>Work destination</dt><dd>{selectedVendor?.name ?? "Required"}</dd></div> : null}<div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
       </aside>
     </div>
 

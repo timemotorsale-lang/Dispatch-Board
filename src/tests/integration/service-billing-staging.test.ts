@@ -105,13 +105,14 @@ describe.skipIf(process.env.RUN_LABOR_STAGING_INTEGRATION !== "1")("isolated nat
     const browserActor = await prisma.user.findUnique({ where: { email: "morgan.manager@local.test" } });
     if (browserActor) {
       const org = "org-time-motor-sales", browserData = await fixture(org, browserActor.id, "browser");
+      const intakeVehicle = await prisma.vehicle.create({ data: { organizationId: org, vehicleNumber: `intake-button-${randomUUID()}`, vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic isolated intake button test", vinValidationSource: "SYNTHETIC", make: "Synthetic", model: "Intake test", registryRelationships: { create: { organizationId: org, relationshipType: "DEALERSHIP_OWNED", effectiveFrom: new Date(Date.now() - 60_000), sourceCode: "SYNTHETIC_ISOLATED_TEST" } } } });
       for (const code of ["VEHICLE_OPERATIONS_MASTER", "SHOP_OPERATIONS"]) {
         const flag = await prisma.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId: org, code, locationId: null } });
         if (flag) await prisma.vehicleOperationsFeatureFlag.update({ where: { id: flag.id }, data: { mode: "GENERAL" } });
         else await prisma.vehicleOperationsFeatureFlag.create({ data: { organizationId: org, code, mode: "GENERAL", allowedUserIds: [] } });
       }
       mkdirSync("test-results/labor-staging", { recursive: true });
-      writeFileSync("test-results/labor-staging/billing-browser-fixture.json", JSON.stringify({ repairOrderId: browserData.order.id, packageId: browserData.invoicePackage.id, estimateId: browserData.estimate.id }));
+      writeFileSync("test-results/labor-staging/billing-browser-fixture.json", JSON.stringify({ repairOrderId: browserData.order.id, packageId: browserData.invoicePackage.id, estimateId: browserData.estimate.id, intakeVehicleId: intakeVehicle.id }));
     }
   }, 60_000);
 });

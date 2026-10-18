@@ -1,5 +1,6 @@
 "use client";
 
+import { repairExplorerHandoffHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Search, Trash2, Wrench } from "lucide-react";
@@ -19,8 +20,9 @@ import { LightDutyOperationScope } from "@/features/diagnostics/light-duty-opera
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 
-export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, repairOrderId }: { storageKey: string; initialSystemId?: string; initialGroupId?: string; repairOrderId?: string }) {
+export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, context }: { storageKey: string; initialSystemId?: string; initialGroupId?: string; context?: RepairExplorerContext }) {
   const router = useRouter();
+  const repairOrderId = context?.repairOrderId;
   const initialSystem = REPAIR_SYSTEMS.find(system => system.id === initialSystemId) ?? REPAIR_SYSTEMS.find(system => system.id === "brakes")!;
   const initialGroup = initialSystem.groups.find(group => group.id === initialGroupId) ?? initialSystem.groups[0];
   const [systemId, setSystemId] = useState(initialSystem.id);
@@ -30,7 +32,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, re
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(initialGroup.operations.find(operation => operation.kind === "repair")?.id ?? "");
   const [lines, setLines] = useState<EstimateLine[]>([]);
-  const [rate, setRate] = useState(150);
+  const [rate, setRate] = useState(context?.laborRate ?? 150);
   const [reportedOverrides, setReportedOverrides] = useState<Record<string, { hours: number; configuration: string; count: number }>>({});
   const [review, setReview] = useState(false);
   const [visualOpen, setVisualOpen] = useState(false);
@@ -99,7 +101,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, re
 
   function saveDraft() {
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId }));
       setStatus("Draft saved in this browser. No repair order or customer record was changed.");
     } catch {
       setStatus("Browser storage is unavailable. Your estimate is still available until you leave this page.");
@@ -109,11 +111,11 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, re
   function generateEstimate() {
     if (!lines.length || scopeConflict) { setStatus("Add work and resolve scope conflicts before generating an estimate."); return; }
     try {
-      const raw = JSON.stringify({ version: 1, rate, lines });
+      const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId });
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
       window.localStorage.setItem(storageKey, raw);
       window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
-      router.push("/prototype/labor-guide?importExplorer=1");
+      router.push(repairExplorerHandoffHref(repairOrderId));
     } catch {
       setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
     }
@@ -124,6 +126,10 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, re
       const raw = window.localStorage.getItem(storageKey);
       const draft = raw ? parsePreviewDraft(raw) : null;
       if (!draft) { setStatus(raw ? "The saved draft cannot be loaded. Your current estimate was kept." : "No saved draft in this browser yet."); return; }
+      if ((draft.repairOrderId ?? null) !== (repairOrderId ?? null) || (draft.vehicleId ?? null) !== (context?.vehicleId ?? null)) {
+        setStatus("This saved draft belongs to another repair order or vehicle. Your current work was kept.");
+        return;
+      }
       if (lines.length && !window.confirm("Replace the current estimate with the saved browser draft?")) return;
       setLines(draft.lines);
       setRate(draft.rate);
@@ -173,7 +179,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, re
       <LaborGuideViewSwitch view="new" repairOrderId={repairOrderId} />
       <main className={styles.workspace}>
         <div className={styles.intro}>
-          <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</p></div>
+          <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>{context ? <>{context.vehicleLabel} · {context.vin ?? "VIN not recorded"} · {context.repairOrderNumber}{context.inventoryNumber ? ` · ${context.inventoryNumber}` : ""}<span className={styles.dot}>•</span> Concern: {context.concern}</> : <>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</>}</p></div>
           <nav className={styles.steps} aria-label="Estimate steps">
             <button type="button" aria-current={!review ? "step" : undefined} onClick={() => { setReview(false); focusContent(); }}><span>1</span> Find repair</button>
             <ChevronRight size={18} />
@@ -266,19 +272,19 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, re
           </section>
           <aside className={styles.estimate} aria-label="Estimate">
             <div className={styles.row}><h2>Estimate</h2><span className={styles.count}>{lines.length} {lines.length === 1 ? "line" : "lines"}</span></div>
-            <p className={styles.description}>Estimate draft · this browser</p>
+            <p className={styles.description}>{context ? `Proposed work · ${context.repairOrderNumber}` : "Estimate draft · this browser"}</p>
             {!lines.length ? <div className={styles.empty}><Wrench size={26} /><strong>Your estimate starts here</strong><p>Add a repair or diagnostic check. Totals update as you go.</p></div> : <ul className={styles.estimateLines}>{lines.map((line) => <li key={line.id}><div><strong>{line.label}</strong><small>{line.hours === null ? "Hours needed" : `${line.hours.toFixed(1)} hrs`} · {line.parts === null ? "parts needed" : `parts ${money(line.parts)}`}</small></div><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label} from estimate`} onClick={() => removeLine(line.id)}><Trash2 size={15} /></button></li>)}</ul>}
             <dl className={styles.totals}><div><dt>Labor · {totals.hours.toFixed(1)} hrs × {money(rate)}</dt><dd>{money(totals.labor)}</dd></div><div><dt>Parts</dt><dd>{money(totals.parts)}</dd></div><div className={styles.subtotal}><dt>{totals.unpricedLines ? "Priced subtotal" : "Estimated subtotal"}</dt><dd data-testid="estimate-subtotal">{money(totals.subtotal)}</dd></div></dl>
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
             <p className={styles.priceNote}>Provisional labor hours require review. Excludes taxes and fees. Waiting time is not technician labor.</p>
             <button type="button" className={review ? styles.secondary : styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
             {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
-            {review && <p className={styles.priceNote}>Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice.</p>}
+            {review && <p className={styles.priceNote}>{context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>
-        <footer className={styles.footer}><span>Browser draft only · no live repair orders, customer records or approvals are changed here. Generate / Print Estimate opens the governed live workflow.</span><a href="/diagnostics/labor-guide">Return to current Labor Guide <ArrowRight size={14} /></a></footer>
+        <footer className={styles.footer}><span>Browser draft only · no live repair orders, customer records or approvals are changed here. Generate / Print Estimate opens the governed live workflow.</span><a href={laborGuideHref("legacy", repairOrderId)}>Return to current Labor Guide <ArrowRight size={14} /></a></footer>
       </main>
     </div>
   );

@@ -6,6 +6,10 @@ import { estimateTotals, parsePreviewDraft } from "@/features/prototype/repair-e
 
 vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: vi.fn().mockResolvedValue({ id: "reviewer" }) }));
 
+const { getOrder, getRate } = vi.hoisted(() => ({ getOrder: vi.fn(), getRate: vi.fn().mockResolvedValue({ laborRate: 135 }) }));
+vi.mock("@/server/repair-order/service", () => ({ getRepairOrderDetail: getOrder }));
+vi.mock("@/server/services/labor-rate-settings", () => ({ getActiveLaborRate: getRate }));
+
 describe("Repair Explorer preview", () => {
   it("requires authentication and scopes browser drafts to the reviewer", async () => {
     const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
@@ -23,15 +27,32 @@ describe("Repair Explorer preview", () => {
     expect(html).toContain("no live repair orders, customer records or approvals are changed");
   });
 
-  it("opens the exact simplified guide and carries RO context only in the legacy return link", async () => {
+  it("opens the exact simplified guide with authorized RO, inventory and vehicle identity", async () => {
     const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    getOrder.mockResolvedValueOnce({ id: "ro/1", repairOrderNumber: "RO-017", closedAt: null, vehicle: { id: "vehicle-1", year: 2017, make: "FORD", model: "Fusion", vin: "3FA6P0K91HR406095", vehicleNumber: "VEH-1" }, inventoryUnit: { id: "unit-1", inventoryNumber: "INV-017" }, serviceVisit: { concernSummary: "Right fender damage" } });
     const page = await Page({ searchParams: Promise.resolve({ repairOrderId: "ro/1" }) });
+    expect(page.props.storageKey).toBe("dispatch-board.repair-explorer-preview.v1.reviewer.ro.ro%2F1");
+    expect(page.props.context.inventoryUnitId).toBe("unit-1");
     const html = renderToStaticMarkup(page);
     expect(html).toContain("Find the work. Build the estimate.");
     expect(html).toContain('href="/diagnostics/labor-guide?repairOrderId=ro%2F1"');
     expect(html).toContain('href="/prototype/repair-explorer?repairOrderId=ro%2F1"');
-    expect(html).toContain("Reference vehicle: 2019 Ford F-150");
+    expect(html).toContain("2017 FORD Fusion");
+    expect(html).toContain("INV-017");
+    expect(html).toContain("RO-017");
+    expect(html).toContain("Right fender damage");
+    expect(html).not.toContain("Reference vehicle: 2019 Ford F-150");
     expect(html).toContain("Your estimate starts here");
+  });
+
+  it.each(["denied", "missing", "closed"])("does not substitute a sample vehicle when the requested RO is %s", async failure => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    if (failure === "denied") getOrder.mockRejectedValueOnce(new Error("Access denied"));
+    else getOrder.mockResolvedValueOnce(failure === "missing" ? null : { closedAt: new Date() });
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ repairOrderId: "unavailable-ro" }) }));
+    expect(html).toContain("Repair order could not open");
+    expect(html).not.toContain("2019 Ford");
+    expect(html).not.toContain("Generate / Print Estimate");
   });
 
   it("finds work across systems by symptom, component and DTC", () => {

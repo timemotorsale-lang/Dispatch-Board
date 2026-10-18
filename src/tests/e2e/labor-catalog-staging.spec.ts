@@ -12,11 +12,26 @@ test.beforeAll(() => {
 });
 
 test("real authentication, manager-only approval settings and the expanded review catalog", async ({ page, request }) => {
+  const scriptErrors: string[] = [];
+  page.context().on("console", message => { if (message.type() === "error" && message.text().includes("Encountered a script tag")) scriptErrors.push(message.text()); });
   expect((await request.get("/api/settings/labor-catalog")).status()).toBe(401);
   const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
   expect(login.ok()).toBe(true);
   const rhythm = await (await page.request.get("/api/coo-workbook/rhythm")).json();
   expect((await page.request.post("/api/coo-workbook/rhythm", { data: { workbookId: rhythm.workbookId, action: "START_DELAY_EXPLAINED", reason: "Isolated synthetic estimate transfer verification; not starting a real workday.", sourcePath: "/diagnostics/labor-guide" } })).ok()).toBe(true);
+  const intakeFixture = JSON.parse(readFileSync("test-results/labor-staging/billing-browser-fixture.json", "utf8")) as { intakeVehicleId: string };
+  const intakeHref = `/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${intakeFixture.intakeVehicleId}`;
+  await page.goto(intakeHref);
+  const concern = page.getByPlaceholder("Example: Newly acquired inventory requires a complete safety inspection, front brake evaluation, warning-light diagnosis, and recon estimate.");
+  await concern.fill("Synthetic front brake inspection: keep this concern when returning.");
+  const establish = page.getByRole("button", { name: "Establish Inventory Unit", exact: true });
+  await expect(establish).toBeEnabled();
+  await establish.click();
+  await expect(page).toHaveURL(`/vehicles/inventory/units?${new URLSearchParams({ vehicleId: intakeFixture.intakeVehicleId, returnTo: intakeHref })}`);
+  await page.getByRole("link", { name: "Return to vehicle check-in" }).click();
+  await expect(page).toHaveURL(intakeHref);
+  await expect(concern).toHaveValue("Synthetic front brake inspection: keep this concern when returning.");
+  await expect(page.getByRole("button", { name: "Establish Inventory Unit", exact: true })).toBeEnabled();
   const settings = await page.request.get("/api/settings/labor-catalog");
   expect(settings.ok()).toBe(true);
   expect(settings.headers()["cache-control"]).toContain("no-store");
@@ -72,6 +87,20 @@ test("real authentication, manager-only approval settings and the expanded revie
   await expect(prototypePage).toHaveURL(`/prototype/repair-explorer?repairOrderId=${fixture.repairOrderId}`);
   await expect(prototypePage.getByRole("heading", { name: "Find the work. Build the estimate.", exact: true })).toBeVisible();
   await expect(prototypePage.getByRole("link", { name: "New guide · Prototype", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(prototypePage.getByText(order.repairOrderNumber, { exact: false }).first()).toBeVisible();
+  await expect(prototypePage.getByText("Reference vehicle: 2019 Ford F-150", { exact: false })).toHaveCount(0);
+  await expect(prototypePage.getByText("Your estimate starts here", { exact: true })).toBeVisible();
+  await prototypePage.getByRole("button", { name: "Add Replace front pads & rotors", exact: true }).click();
+  await prototypePage.getByRole("button", { name: "Review estimate", exact: true }).click();
+  await prototypePage.getByLabel("Parts total for Replace front pads & rotors", { exact: true }).fill("75");
+  await prototypePage.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
+  await expect(prototypePage).toHaveURL(`/prototype/labor-guide?importExplorer=1&repairOrderId=${fixture.repairOrderId}`);
+  await expect(prototypePage.getByRole("heading", { name: "Estimate worksheet", exact: true })).toBeVisible();
+  await expect(prototypePage.getByLabel("Unitemized allowance: Replace front pads & rotors unit price", { exact: true })).toHaveValue("75");
+  await expect(prototypePage.getByRole("link", { name: "Create / Print Final Invoice", exact: true })).toHaveAttribute("href", `/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
+  await prototypePage.goto("/prototype/repair-explorer?repairOrderId=not-an-accessible-order");
+  await expect(prototypePage.getByRole("alert").filter({ hasText: "No sample vehicle or draft has been substituted" })).toBeVisible();
+  await expect(prototypePage.getByRole("button", { name: "Generate / Print Estimate", exact: true })).toHaveCount(0);
   await prototypePage.close();
   await legacyPage.close();
   await expect(worksheet.getByLabel("Replace front brake pads and rotors hours", { exact: true })).toHaveValue("3.4");
@@ -102,4 +131,5 @@ test("real authentication, manager-only approval settings and the expanded revie
   expect((await page.request.post("/api/auth/login", { data: { email: "jordan.sales@local.test", password: "dispatch123!" } })).ok()).toBe(true);
   expect((await page.request.get("/api/settings/labor-catalog")).status()).toBe(403);
   expect((await page.request.post("/api/settings/labor-catalog", { data: { action: "CREATE_POLICY_DRAFT" } })).status()).toBe(403);
+  expect(scriptErrors).toEqual([]);
 });

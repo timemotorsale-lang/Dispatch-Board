@@ -24,14 +24,15 @@ describe("unified intake workspace", () => {
   it("offers a save-before-cycle next action for a new intake", () => {
     const html = renderToStaticMarkup(<VehicleIntakeWorkspace model={{ ...model, unit: null, status: "NOT_STARTED", version: 0 }}/>);
     expect(html).toContain("Save &amp; open inventory cycle");
-    expect(html).toContain("Record initial acquisition intake");
+    expect(html).not.toContain("Record / revision reason");
     expect(html).toContain("<footer");
     expect(html).not.toContain("Confirm intake &amp; continue to recon");
   });
   it("offers vehicle details after confirmation when the inventory cycle exists", () => {
     const html = renderToStaticMarkup(<VehicleIntakeWorkspace model={model}/>);
     expect(html).toContain("Confirm intake &amp; open vehicle details");
-    expect(html).toContain("Record / revision reason (required)");
+    expect(html).not.toContain("Record / revision reason");
+    expect(html).not.toContain('id="intake-reason"');
     expect(html).not.toContain("Save &amp; open inventory cycle");
   });
   it("groups intake with a modal cost workspace and retains holds", () => {

@@ -34,6 +34,8 @@
 .toolbar span { display: block; margin-top: 3px; color: var(--text-secondary, #526273); }
 .actions, .workspace nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .nextActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 10px 0; border-top: 1px solid #d8e0e7; position: sticky; bottom: 0; background: var(--surface, #fff); z-index: 5; }
+.feedback, .error { flex-basis: 100%; font-size: 12px; line-height: 1.5; }
+.error { color: var(--text-danger, #a4262c); border-left: 3px solid currentColor; padding: 6px 10px; }
 .context { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 2px 0 6px; }
 .context p { font-size: 11px; color: var(--text-secondary, #526273); }
 .hold { padding: 7px 10px; background: #fff5da; color: #654c0c; border-left: 3px solid #bd8a19; }
@@ -79,8 +81,6 @@
 .totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 1px solid #e1e7ec; padding: 8px 0; }
 .totals dt { font-size: 11px; }
 .totals dd { margin: 0; font-size: 14px; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
-.revision { grid-column: 1 / -1; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid #d8e0e7; }
-.revision label { margin: 0; }
 .note { font-size: 11px; color: var(--text-secondary, #526273); line-height: 1.5; }
 .workspace .pending { font-size: 11px; line-height: 1.5; }
 .dialog { width: min(1000px, calc(100vw - 40px)); max-height: 85vh; overflow: auto; border: 1px solid #b7c5d0; border-radius: 6px; padding: 0; background: var(--surface, #fff); color: inherit; }
@@ -100,6 +100,5 @@
   .actions { gap: 6px; }
   .actions button { padding: 7px 9px; min-height: 36px; }
   .context { gap: 8px; }
-  .revision { grid-template-columns: 1fr; gap: 5px; }
   .dialog { width: calc(100vw - 24px); }
 }
