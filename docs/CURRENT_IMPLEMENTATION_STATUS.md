@@ -1,5 +1,18 @@
 # Current Implementation Status
 
+## 2026-10-18 - Native Labor Guide Documents and Billing
+
+The user selected native invoices and payment records. The historical document audit now has implemented commercial-ledger, portal scope/version/partial-decision, actual-location read, delivery-evidence and retry safeguards; transactionally frozen issued documents; native immutable posted invoices and verified payment/refund/credit/void receipts; customer settled-closeout guards with separate internal recon cost treatment; and bounded location-authorized operational/invoice/receipt-activity reporting. Review routes and precise source, pricing, payment and recovery boundaries are in `docs/NATIVE_SERVICE_BILLING.md`.
+
+The two additive migrations were rehearsed only in isolated local schemas. No ordinary development/public-schema or production migration, real charge, live customer authorization, deployment, commit or push was performed. Verification: 4,686 full-suite tests passed with 33 conditional skips; lint/typecheck and a separate local production build passed. Full isolated staging passes both PostgreSQL journeys and both authenticated browser journeys, including invoice/payment, frozen estimate PDF, reporting, access refusal, partial authorization, void and settled-close replay. Production remains HOLD pending finance/customer/operator acceptance, deployed-baseline upgrade/backup-restore/rollback evidence and exact committed-candidate CI/promotion review. Payment records are native; actual electronic charging/settlement requires a separately configured processor. Legacy/incomplete evidence is held, not backfilled with invented facts.
+
+
+## 2026-10-17 - Labor Guide Document and Reporting Audit
+
+The audit in `docs/LABOR_GUIDE_DOCUMENT_WORKFLOW_AUDIT.md` distinguishes the completed catalog/controls from enterprise customer-service readiness. Existing canonical ROs, printable official estimates, authorization, jobs/clocks/QC, invoice-ready handoff and reporting foundations should be reused. Fourteen findings identify commercial calculation/reconciliation, portal money/scope/freshness, location-read authorization, response-loss retry, delivery evidence, historical document, billing-authority and reporting/acceptance gaps. Eight isolated mocked scenarios reproduced undesirable current behavior; 68 existing focused tests across 13 files still passed. These reproductions are audit evidence, not newly passing release acceptance or proof of live customer impact.
+
+The audit changed documentation only. No application/schema changes, production access, customer decisions, communications, policy activations, deployment, commit or push were performed. Full enterprise customer approval/invoice/report release remains HOLD until the applicable findings and native-versus-external billing decision are resolved and genuine staged acceptance/recovery evidence exists. This does not require approval of every possible vehicle configuration or rebuilding the catalog.
+
 ## 2026-10-17 - Expanded Catalog Execution Controls and Release Evidence
 
 The six audit follow-ups now have implementation support: per-labor-line part/demand allocation with ambiguity holds; server-derived qualification, procedure, bay/tool and parts checks; independently approved version/fingerprint-bound per-system rollout at `/settings/labor-catalog`; specific configuration/verification profiles for all 73 expanded groups and explicit included-operation identities for existing package guards; both browser fixtures in CI and exact-revision reviewed evidence gating in manual production promotion; and an isolated PostgreSQL/authenticated-browser staging runner plus a disposable baseline-upgrade/backup-restore GitHub workflow.

@@ -55,12 +55,12 @@ export default async function ShopPlanningPage({
   }
 
   return (
-    <ShopPlanningWorkspace
+    <><nav><Link href={`/service-documents?repairOrderId=${encodeURIComponent(params.repairOrderId ?? "")}`}>Service documents</Link>{" · "}<Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(params.repairOrderId ?? "")}`}>Native billing</Link></nav><ShopPlanningWorkspace
       initial={JSON.parse(JSON.stringify(initial))}
       defaultLaborRate={(await getActiveLaborRate(user)).laborRate}
       canOverrideLaborRate={canManageSettings(user)}
       returnTo={params.returnTo}
       vendorFollowUp={params.vendorFollowUp === "1" || params.vendorFollowUp === "true"}
-    />
+    /></>
   );
 }

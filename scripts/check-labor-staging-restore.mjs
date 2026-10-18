@@ -12,7 +12,7 @@ function query(database, sql) {
 }
 const tables = query("dispatch_board_labor_staging", "SELECT tablename FROM pg_tables WHERE schemaname = 'labor_staging_ci' ORDER BY tablename;").split("\n").map(value => value.trim());
 if (!tables.length || tables.some(table => !/^[A-Za-z0-9_]+$/.test(table))) throw new Error("Staging table inventory is unavailable or invalid.");
-const required = ["Customer", "Vehicle", "RepairOrder", "RepairEstimateVersion", "RepairAuthorization", "RepairJob", "RepairJobLaborClock", "RepairJobLaborEvent", "RepairQualityInspection", "EnterpriseAuditEvent", "VehiclePolicyVersion"];
+const required = ["Customer", "Vehicle", "RepairOrder", "RepairEstimateVersion", "RepairAuthorization", "RepairJob", "RepairJobLaborClock", "RepairJobLaborEvent", "RepairQualityInspection", "EnterpriseAuditEvent", "VehiclePolicyVersion", "ServiceDocument", "ServiceInvoice", "ServiceInvoiceEntry", "ServiceInvoiceSequence"];
 if (required.some(table => !tables.includes(table))) throw new Error("Required labor recovery tables are missing.");
 const statements = tables.map(table => `SELECT '${table}', count(*), md5(coalesce(string_agg(row_to_json(snapshot)::text, E'\\n' ORDER BY row_to_json(snapshot)::text), '')) FROM labor_staging_ci."${table}" AS snapshot;`).join("\n");
 const original = query("dispatch_board_labor_staging", statements);

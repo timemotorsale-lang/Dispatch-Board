@@ -8,6 +8,71 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model ServiceDocument {
+  id              String   @id @default(cuid())
+  organizationId  String
+  repairOrderId   String
+  kind            String
+  sourceId        String
+  sourceVersion   Int
+  templateVersion String
+  content         Json
+  sha256          String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@unique([organizationId, kind, sourceId, sourceVersion])
+  @@index([organizationId, repairOrderId, createdAt])
+}
+
+model ServiceInvoice {
+  id               String   @id
+  organizationId   String
+  repairOrderId    String
+  packageId        String   @unique
+  invoiceNumber    String
+  status           String   @default("POSTED")
+  currency         String   @default("USD")
+  subtotalCents    Int
+  discountCents    Int
+  taxCents         Int
+  totalCents       Int
+  ledger           Json
+  sourceFingerprint String
+  issuedAt         DateTime
+  createdByUserId   String
+  reason           String
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId, repairOrderId, issuedAt])
+}
+
+model ServiceInvoiceEntry {
+  id              String   @id @default(cuid())
+  organizationId  String
+  invoiceId       String
+  kind            String
+  amountCents     Int
+  method          String?
+  reference       String
+  relatedEntryId  String?
+  evidence        Json
+  occurredAt      DateTime
+  createdByUserId String
+  reason          String
+  createdAt       DateTime @default(now())
+
+  @@unique([organizationId, invoiceId, kind, reference])
+  @@index([organizationId, invoiceId, occurredAt])
+}
+
+model ServiceInvoiceSequence {
+  organizationId String @id
+  nextNumber     Int
+}
+
 enum BusinessDay {
   MONDAY
   TUESDAY

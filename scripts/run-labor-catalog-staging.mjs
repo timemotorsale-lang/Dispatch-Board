@@ -21,6 +21,6 @@ async function step(name, argumentsList) {
 }
 await step("candidate-migrations", ["node_modules/prisma/build/index.js", "migrate", "deploy"]);
 await step("synthetic-seed", ["node_modules/tsx/dist/cli.mjs", "prisma/seed.ts"]);
-await step("policy-database-proof", ["node_modules/vitest/vitest.mjs", "run", "src/tests/integration/labor-catalog-staging.test.ts"]);
-await step("authenticated-browser-proof", ["scripts/run-e2e.mjs", "src/tests/e2e/labor-catalog-staging.spec.ts", "--output=test-results/labor-staging/playwright"]);
+await step("policy-database-proof", ["node_modules/vitest/vitest.mjs", "run", "src/tests/integration/labor-catalog-staging.test.ts", "src/tests/integration/service-billing-staging.test.ts", "--maxWorkers=1"]);
+await step("authenticated-browser-proof", ["scripts/run-e2e.mjs", "src/tests/e2e/labor-catalog-staging.spec.ts", "src/tests/e2e/service-billing-staging.spec.ts", "--output=test-results/labor-staging/playwright"]);
 console.log("Automated isolated staging checks completed. Customer authorization/QC acceptance, live shop capability review, rollback, monitoring and operator signoffs still require recorded evidence. This script does not authorize deployment.");

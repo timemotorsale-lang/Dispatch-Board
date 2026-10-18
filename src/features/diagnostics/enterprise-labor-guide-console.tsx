@@ -725,6 +725,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       quantity: part.quantity,
       taxable: part.taxable !== false,
       type: "PART" as const,
+      partNumber: part.number,
       laborLineKey: lineKey("labor", estimateLabor.find(item => item.rowId === part.laborRowId || item.id === part.laborRowId)?.rowId ?? part.laborRowId),
       unitPriceCents: Math.round(part.unitPrice * 100),
       workTypeCode: "PART",

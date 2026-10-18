@@ -117,21 +117,22 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   const receivePurchaseOrder = action === "RECEIVE_PURCHASE_ORDER" ? view.purchaseOrders.find((item) => item.id === subjectId) ?? null : null;
   const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, receivePurchaseOrder?.locationId ?? order?.locationId ?? null, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
 
+  const receipt = shop ? await context.repository.commandReceipt?.(context.organizationId, action, String(raw.idempotencyKey ?? "")) : null;
   if (action === "GENERATE_INVOICE_PACKAGE") {
     const data = normalizeInvoicePackage(raw);
     if (!order) throw new Error("Repair order was not found.");
-    const version = await context.repository.aggregateVersion(context.organizationId, "SHOP_OPERATIONS", "REPAIR_ORDER", order.id);
+    const version = receipt?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, "SHOP_OPERATIONS", "REPAIR_ORDER", order.id);
     return context.repository.generateInvoice(command({ actorUserId: user.id, commandType: action, domain: "SHOP_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: order.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: order.id, subjectType: "REPAIR_ORDER" }), { ...data, createdByUserId: user.id });
   }
   if (action === "TRANSITION_INVOICE_HANDOFF") {
     const data = normalizeInvoiceHandoff(raw), invoice = view.repairOrders.flatMap((item) => item.invoicePackages).find((item) => item.id === subjectId);
     if (!invoice) throw new Error("Invoice-ready package was not found.");
-    const owningOrder = view.repairOrders.find((item) => item.id === invoice.repairOrderId), version = await context.repository.aggregateVersion(context.organizationId, "SHOP_OPERATIONS", "SERVICE_INVOICE_PACKAGE", invoice.id);
+    const owningOrder = view.repairOrders.find((item) => item.id === invoice.repairOrderId), version = receipt?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, "SHOP_OPERATIONS", "SERVICE_INVOICE_PACKAGE", invoice.id);
     return context.repository.transitionInvoice(command({ actorUserId: user.id, commandType: action, domain: "SHOP_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: owningOrder?.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: invoice.id, subjectType: "SERVICE_INVOICE_PACKAGE" }), invoice.id, data);
   }
   if (action === "CLOSE_REPAIR_ORDER" || action === "REOPEN_REPAIR_ORDER") {
     if (!order) throw new Error("Repair order was not found.");
-    const data = action === "CLOSE_REPAIR_ORDER" ? normalizeClose(raw) : normalizeReopen(raw), version = await context.repository.aggregateVersion(context.organizationId, "SHOP_OPERATIONS", "REPAIR_ORDER", order.id);
+    const data = action === "CLOSE_REPAIR_ORDER" ? normalizeClose(raw) : normalizeReopen(raw), version = receipt?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, "SHOP_OPERATIONS", "REPAIR_ORDER", order.id);
     const enterprise = command({ actorUserId: user.id, commandType: action, domain: "SHOP_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: order.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: order.id, subjectType: "REPAIR_ORDER" });
     return action === "CLOSE_REPAIR_ORDER" ? context.repository.closeOrder(enterprise, data as ReturnType<typeof normalizeClose>) : context.repository.reopenOrder(enterprise, data);
   }

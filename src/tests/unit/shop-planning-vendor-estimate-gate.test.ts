@@ -41,10 +41,11 @@ function database(vendorBasis: unknown, stage = "AUTHORIZATION", aggregateVersio
     enterpriseCommandLedger: { create: vi.fn().mockResolvedValue({ id: "command-1" }), findUnique: vi.fn().mockResolvedValue(null) },
     enterpriseDomainEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
     enterpriseOutboxMessage: { create: vi.fn() },
+    serviceDocument: { create: vi.fn().mockResolvedValue({ id: "document-1" }) },
     repairDiagnosisVersion: { create: vi.fn().mockResolvedValue({ id: "diagnosis-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
-    repairEstimateVersion: { create: vi.fn().mockResolvedValue({ id: "estimate-version-1", version: 1, totalCents: 32000 }), findFirst: vi.fn().mockResolvedValue(null) },
+    repairEstimateVersion: { create: vi.fn().mockResolvedValue({ ...estimateData, id: "estimate-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
     repairOrder: {
-      findFirst: vi.fn().mockResolvedValue({ version: repairOrderVersion }),
+      findFirst: vi.fn().mockResolvedValue({ version: repairOrderVersion, repairOrderNumber: "RO-1", customer: null, vehicle: { year: 2020, make: "Synthetic", model: "Fixture", vehicleNumber: "V-1" }, serviceVisit: { concernSummary: "Synthetic concern" }, location: { name: "Test site", timezone: "America/Chicago" }, organization: { name: "Synthetic organization" } }),
       findFirstOrThrow: vi.fn().mockResolvedValue({ closedAt: null, id: "ro-1", locationId: "location-1", nextAction: "Present estimate.", operatingState: "ACTIVE", organizationId: "org-1", ownerUserId: "manager-1", stage, stageStartedAt: new Date("2026-08-25T11:00:00Z"), targetAt: null }),
       update: vi.fn().mockResolvedValue({ id: "ro-1", locationId: "location-1", nextAction: "Capture decision.", operatingState: "ACTIVE", ownerUserId: "manager-1", stage: "ESTIMATE", targetAt: null, version: repairOrderVersion + 1 }),
     },

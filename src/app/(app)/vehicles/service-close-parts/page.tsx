@@ -30,5 +30,5 @@ export default async function ServiceClosePartsPage({ searchParams }: { searchPa
       </div>
     </section>;
   }
-  return <ServiceClosePartsWorkspace initial={JSON.parse(JSON.stringify(initial))} initialRepairOrderId={value("repairOrderId")} returnLabel={value("returnLabel")} returnTo={value("returnTo")} />;
+  return <><nav><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(value("repairOrderId") ?? "")}`}>Native billing</Link>{" · "}<Link href={`/service-documents?repairOrderId=${encodeURIComponent(value("repairOrderId") ?? "")}`}>Documents and receipts</Link>{" · "}<Link href="/diagnostics/labor-reports">Labor reports</Link></nav><ServiceClosePartsWorkspace initial={JSON.parse(JSON.stringify(initial))} initialRepairOrderId={value("repairOrderId")} returnLabel={value("returnLabel")} returnTo={value("returnTo")} /></>;
 }

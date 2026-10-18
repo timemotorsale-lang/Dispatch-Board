@@ -1,8 +1,8 @@
 export type ManualLaborReview = { engine: string; configuration: string; source: string; limitations: string; scope: string };
 export const emptyManualLaborReview: ManualLaborReview = { engine: "", configuration: "", source: "", limitations: "", scope: "" };
-export type ReviewLine = { key: string; description: string; type: string; quantity: number; unitPriceCents: number; laborGuideMinutes: number; laborLineKey?: string };
+export type ReviewLine = { key: string; description: string; type: string; quantity: number; unitPriceCents: number; laborGuideMinutes: number; laborLineKey?: string; partNumber?: string };
 export function estimateReviewScope(vehicleId: string, lines: ReviewLine[]) {
-  return JSON.stringify({ vehicleId, lines: lines.map(({ key, description, type, quantity, unitPriceCents, laborGuideMinutes, laborLineKey }) => ({ key, description, type, quantity, unitPriceCents, laborGuideMinutes, ...(laborLineKey ? { laborLineKey } : {}) })) });
+  return JSON.stringify({ vehicleId, lines: lines.map(({ key, description, type, quantity, unitPriceCents, laborGuideMinutes, laborLineKey, partNumber }) => ({ key, description, type, quantity, unitPriceCents, laborGuideMinutes, ...(laborLineKey ? { laborLineKey } : {}), ...(partNumber ? { partNumber } : {}) })) });
 }
 export function manualReviewComplete(review: ManualLaborReview, scope: string) {
   return Boolean(review.engine.trim() && review.configuration.trim() && review.source.trim() && review.scope === scope);
