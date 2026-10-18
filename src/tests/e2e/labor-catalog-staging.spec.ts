@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 
 test.setTimeout(120_000);
+test.use({ actionTimeout: 15_000 });
 
 test.beforeAll(() => {
   if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Use the isolated labor staging runner, not an ordinary development or production server.");
@@ -13,6 +15,8 @@ test("real authentication, manager-only approval settings and the expanded revie
   expect((await request.get("/api/settings/labor-catalog")).status()).toBe(401);
   const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
   expect(login.ok()).toBe(true);
+  const rhythm = await (await page.request.get("/api/coo-workbook/rhythm")).json();
+  expect((await page.request.post("/api/coo-workbook/rhythm", { data: { workbookId: rhythm.workbookId, action: "START_DELAY_EXPLAINED", reason: "Isolated synthetic estimate transfer verification; not starting a real workday.", sourcePath: "/diagnostics/labor-guide" } })).ok()).toBe(true);
   const settings = await page.request.get("/api/settings/labor-catalog");
   expect(settings.ok()).toBe(true);
   expect(settings.headers()["cache-control"]).toContain("no-store");
@@ -28,6 +32,33 @@ test("real authentication, manager-only approval settings and the expanded revie
   await page.getByRole("button", { name: "Diagnose a concern", exact: true }).click();
   await expect(page.getByRole("button", { name: "Diagnose a concern", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({ path: "test-results/labor-staging/authenticated-catalog.png", fullPage: true, caret: "initial" });
+  await page.goto("/prototype/repair-explorer");
+  await page.getByRole("button", { name: "Add Replace front pads & rotors", exact: true }).click();
+  await page.getByRole("button", { name: "Review estimate", exact: true }).click();
+  await page.getByLabel("Parts total for Replace front pads & rotors", { exact: true }).fill("120");
+  await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
+  await expect(page).toHaveURL(/importExplorer=1/);
+  await page.getByRole("button", { name: "Review transferred draft", exact: true }).click();
+  await expect(page.getByText(/parts allowance \$120.00/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue to customer / vehicle and estimate review", exact: true }).click();
+  await expect(page.getByPlaceholder("Search customer, phone, VIN, plate, vehicle, or RO number")).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Explorer parts allowances need itemization" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create / Print Final Invoice", exact: true })).toHaveCount(0);
+  const fixture = JSON.parse(readFileSync("test-results/labor-staging/billing-browser-fixture.json", "utf8")) as { repairOrderId: string };
+  const orderResponse = await page.request.get(`/api/repair-orders/${fixture.repairOrderId}`);
+  expect(orderResponse.ok()).toBe(true);
+  const order = await orderResponse.json();
+  await page.getByPlaceholder("Search customer, phone, VIN, plate, vehicle, or RO number").fill(order.repairOrderNumber);
+  await page.getByRole("region", { name: "Repair order lookup results" }).getByRole("button").filter({ hasText: order.repairOrderNumber }).click();
+  await page.getByRole("button", { name: "Save source quote & attach proposed work to this RO", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Create / Print Final Invoice", exact: true })).toHaveAttribute("href", `/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
+  await expect(page.getByText(/Proposed work attached to/)).toBeVisible();
+  await page.getByRole("button", { name: "Show next step to present estimate", exact: true }).click();
+  await expect(page.getByText("Replace unitemized Explorer allowances with actual part descriptions and part numbers, or explicitly remove them. Allowances cannot be issued as parts.", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "test-results/labor-staging/explorer-estimate-handoff.png", fullPage: true, caret: "initial" });
+  await page.goto("/prototype/repair-explorer");
+  await page.getByRole("button", { name: "Load saved draft", exact: true }).click();
+  await expect(page.getByTestId("estimate-subtotal")).toHaveText("$435.00");
   await page.request.post("/api/auth/logout");
   expect((await page.request.post("/api/auth/login", { data: { email: "jordan.sales@local.test", password: "dispatch123!" } })).ok()).toBe(true);
   expect((await page.request.get("/api/settings/labor-catalog")).status()).toBe(403);

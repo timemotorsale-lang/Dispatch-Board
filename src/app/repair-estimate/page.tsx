@@ -87,7 +87,7 @@ export default async function OfficialRepairEstimatePage({ searchParams }: { sea
     const estimate = ro.estimateVersions.find(item => item.id === estimateId);
     if (!estimate) notFound();
     const frozen = (await getRepairDocuments(user, ro.id)).documents.find(document => document.kind === "ESTIMATE" && document.sourceId === estimate.id);
-    if (frozen) return <ServiceDocument content={frozen.content} sha256={frozen.sha256} templateVersion={frozen.templateVersion} />;
+    if (frozen) return <ServiceDocument repairOrderId={ro.id} content={frozen.content} sha256={frozen.sha256} templateVersion={frozen.templateVersion} />;
     const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
     const persistedLines = estimate.lineItems as Array<{ description: string; quantity: number; unitPriceCents: number; type: string }>;
     return <OfficialRepairEstimateDocument

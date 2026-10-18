@@ -1,4 +1,4 @@
-import { EnterpriseLaborGuideConsole } from "@/features/diagnostics/enterprise-labor-guide-console";
+import { LaborGuideEntry } from "@/features/diagnostics/labor-guide-entry";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
 import { LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
@@ -8,7 +8,7 @@ import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
 
-type PageProps = { searchParams?: Promise<{ experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
+type PageProps = { searchParams?: Promise<{ importExplorer?: string | string[]; experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
 function safeReturnTo(value: string | undefined) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : undefined;
@@ -53,6 +53,6 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={activeRepairOrder?.id ?? "blank-estimate"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
+  return <LaborGuideEntry explorerStorageKey={first(params.importExplorer) === "1" ? `dispatch-board.repair-explorer-preview.v1.${user.id}.handoff` : undefined} activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={`${user.id}:${activeRepairOrder?.id ?? "blank-estimate"}:${first(params.importExplorer) === "1" ? "explorer-import" : "guide"}`} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
 }
 

@@ -1,5 +1,14 @@
 # Current Implementation Status
 
+## 2026-10-18 - Repair Explorer Document Actions
+
+Repair Explorer review now offers **Generate / Print Estimate**, preserving the browser draft and explicitly transferring proposed work into the existing governed Labor Guide editor. The transfer resolves canonical catalog identities, refuses held/invalid/duplicate/overlapping work, retains genuine custom work, requires actual RO/customer/vehicle selection and keeps parts allowances unitemized until replaced or removed. Sample identity, approvals and previous vehicle reviews are not imported; current rate policy and all existing labor/parts/tax controls still apply.
+
+Staff issued documents now link to documents, customer authorization and guarded final invoicing for the same RO, with no staff links on customer portal rendering and no navigation in print. Native billing loads linked ROs automatically, exposes package preparation/readiness, an explicit final-invoice creation action and an issued-invoice print link. No new migration is introduced. The native-billing baseline is local commit `237e3c9a`; this follow-up is local only, with no push, merge or deployment. Ordinary development/public and production database migrations have not been applied by this follow-up. Production acceptance remains HOLD under the gates below.
+
+
+Verification for the document-action follow-up: 4,692 full-suite tests passed with 33 conditional skips (941 passing files, 31 conditional skipped files). Final focused navigation/transfer checks passed 42 tests. Both real PostgreSQL staging journeys and both authenticated browser journeys passed, including preserved Explorer draft/allowances, actual RO selection, refusal to issue an unitemized allowance, official estimate printing, final invoice PDF/print-only navigation hiding, payment/report and access boundaries. Full lint, typechecking and a separate local production build passed. The staged handoff screen was visually inspected. These synthetic checks are not real customer authorization or permission to deploy.
+
 ## 2026-10-18 - Native Labor Guide Documents and Billing
 
 The user selected native invoices and payment records. The historical document audit now has implemented commercial-ledger, portal scope/version/partial-decision, actual-location read, delivery-evidence and retry safeguards; transactionally frozen issued documents; native immutable posted invoices and verified payment/refund/credit/void receipts; customer settled-closeout guards with separate internal recon cost treatment; and bounded location-authorized operational/invoice/receipt-activity reporting. Review routes and precise source, pricing, payment and recovery boundaries are in `docs/NATIVE_SERVICE_BILLING.md`.

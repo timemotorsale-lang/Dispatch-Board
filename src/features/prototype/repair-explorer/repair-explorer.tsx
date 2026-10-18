@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Search, Trash2, Wrench } from "lucide-react";
 
@@ -18,6 +19,7 @@ import { LightDutyOperationScope } from "@/features/diagnostics/light-duty-opera
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 
 export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: { storageKey: string; initialSystemId?: string; initialGroupId?: string }) {
+  const router = useRouter();
   const initialSystem = REPAIR_SYSTEMS.find(system => system.id === initialSystemId) ?? REPAIR_SYSTEMS.find(system => system.id === "brakes")!;
   const initialGroup = initialSystem.groups.find(group => group.id === initialGroupId) ?? initialSystem.groups[0];
   const [systemId, setSystemId] = useState(initialSystem.id);
@@ -100,6 +102,19 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: 
       setStatus("Draft saved in this browser. No repair order or customer record was changed.");
     } catch {
       setStatus("Browser storage is unavailable. Your estimate is still available until you leave this page.");
+    }
+  }
+
+  function generateEstimate() {
+    if (!lines.length || scopeConflict) { setStatus("Add work and resolve scope conflicts before generating an estimate."); return; }
+    try {
+      const raw = JSON.stringify({ version: 1, rate, lines });
+      if (!parsePreviewDraft(raw)) throw new Error("invalid");
+      window.localStorage.setItem(storageKey, raw);
+      window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
+      router.push("/diagnostics/labor-guide?importExplorer=1");
+    } catch {
+      setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
     }
   }
 
@@ -197,7 +212,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: 
                 <p className={styles.laborBasis}>{line.laborBasis === "PLANNING" ? "Provisional planning allowance · no measured job evidence" : line.laborBasis === "REPORTED_MEDIAN" ? `Technician-reported median · ${line.reportedJobCount} jobs · ${line.laborConfiguration}` : "Manually entered hours · not source-verified"}</p>
                 <div className={styles.lineFields}><label>Labor hours<input aria-label={`Labor hours for ${line.label}`} type="number" min="0" max="100" step="0.1" placeholder="Enter hours" value={line.hours ?? ""} onChange={(event) => updateLine(line.id, "hours", event.target.value)} /></label><label>Parts total ($)<input aria-label={`Parts total for ${line.label}`} type="number" min="0" max="100000" step="0.01" placeholder="Enter parts total" value={line.parts ?? ""} onChange={(event) => updateLine(line.id, "parts", event.target.value)} /></label><strong>{line.hours === null || line.parts === null ? "Needs pricing" : money(estimateTotals([line], rate).subtotal)}</strong></div>
               </article>)}
-              <div className={styles.note}><CircleHelp size={19} /><p>This preview stops at estimate review. Vehicle-specific labor, parts fitment, taxes, authorization and repair-order updates will be connected after the design is approved.</p></div>
+              <div className={styles.note}><CircleHelp size={19} /><p>Ready for a customer estimate? Choose Generate / Print Estimate, select the actual repair order, then review labor, itemized parts and taxes. Printing is available after the official estimate is issued. Customer approval and final invoicing remain separate steps.</p></div>
               <button type="button" className={styles.secondary} onClick={() => { setReview(false); focusContent(); }}><ArrowLeft size={16} /> Keep adding work</button>
             </> : visualOpen ? <VisualRepairFinder initialArea={visualAreaForSystem(systemId)} initialOperationId={selectedId} addedIds={lines.map((line) => line.id)} onBrowseSystem={(nextSystemId) => { selectSystem(nextSystemId); focusContent(); }} onClose={() => { setVisualOpen(false); focusContent(); }} onView={(entry) => { selectGroup(entry.system.id, entry.group.id); setMode(entry.repair.kind); setSelectedId(entry.repair.id); if (entry.repair.id.startsWith("rear")) setAxle("rear"); focusContent(); }} onAdd={(entry, repair) => { setSystemId(entry.system.id); setGroupId(entry.group.id); setMode(entry.repair.kind); setAxle("front"); addRepair(repair); }} /> : query.trim() ? <>
               <p className={styles.breadcrumb}>Search / All systems</p><h2 ref={contentHeading} tabIndex={-1}>Matching work</h2>
@@ -254,12 +269,14 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: 
             <dl className={styles.totals}><div><dt>Labor · {totals.hours.toFixed(1)} hrs × {money(rate)}</dt><dd>{money(totals.labor)}</dd></div><div><dt>Parts</dt><dd>{money(totals.parts)}</dd></div><div className={styles.subtotal}><dt>{totals.unpricedLines ? "Priced subtotal" : "Estimated subtotal"}</dt><dd data-testid="estimate-subtotal">{money(totals.subtotal)}</dd></div></dl>
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
             <p className={styles.priceNote}>Provisional labor hours require review. Excludes taxes and fees. Waiting time is not technician labor.</p>
-            <button type="button" className={styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
+            <button type="button" className={review ? styles.secondary : styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
+            {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
+            {review && <p className={styles.priceNote}>Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice.</p>}
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>
-        <footer className={styles.footer}><span>Design review only · no live repair orders, customer records or approvals are changed.</span><a href="/diagnostics/labor-guide">Return to current Labor Guide <ArrowRight size={14} /></a></footer>
+        <footer className={styles.footer}><span>Browser draft only · no live repair orders, customer records or approvals are changed here. Generate / Print Estimate opens the governed live workflow.</span><a href="/diagnostics/labor-guide">Return to current Labor Guide <ArrowRight size={14} /></a></footer>
       </main>
     </div>
   );

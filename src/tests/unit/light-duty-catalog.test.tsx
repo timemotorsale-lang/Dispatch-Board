@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { LIGHT_DUTY_CATALOG_VERSION, LIGHT_DUTY_COVERAGE, LIGHT_DUTY_IMPLEMENTATION_ORDER, LIGHT_DUTY_OPERATIONS, LIGHT_DUTY_SYSTEMS, lightDutyOperationForId, lightDutyScopeConflict } from "@/lib/light-duty-baseline";
 import { LIGHT_DUTY_DIAGRAM_GROUPS } from "@/lib/light-duty-diagram-index";
 import { CATALOG_ENTRIES } from "@/features/prototype/repair-explorer/catalog";

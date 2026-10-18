@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { RepairExplorer } from "@/features/prototype/repair-explorer/repair-explorer";
 import { CATALOG_COUNTS, CATALOG_ENTRIES, REPAIR_SYSTEMS, searchRepairs } from "@/features/prototype/repair-explorer/catalog";
 import { estimateTotals, parsePreviewDraft } from "@/features/prototype/repair-explorer/estimate";

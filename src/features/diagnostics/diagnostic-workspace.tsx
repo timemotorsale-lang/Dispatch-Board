@@ -18,13 +18,14 @@ type Planning = {
   repairJobs: Array<{ id: string; jobNumber: string; description: string; status: string }>;
 };
 
-export function DiagnosticWorkspace({ vehicle, customer, vin, concern, repairOrderId, repairOrderNumber, tools, children, feedback, onSave, onFindDrafts, saveStatus, returnTo, returnLabel, clinical, onClinicalChange, onClinicalPersist }: {
+export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, customer, vin, concern, repairOrderId, repairOrderNumber, tools, children, feedback, onSave, onFindDrafts, saveStatus, returnTo, returnLabel, clinical, onClinicalChange, onClinicalPersist }: {
+  initialSection?: Section;
   vehicle: string | null | undefined; customer: string | null | undefined; vin: string | null | undefined; concern: string | null | undefined;
   repairOrderId?: string; repairOrderNumber?: string; tools: ReactNode; children: ReactNode;
   onSave: () => Promise<boolean>; onFindDrafts: () => Promise<unknown>; saveStatus: string; returnTo?: string; returnLabel?: string; feedback?: ReactNode;
   clinical?: ClinicalDrafts; onClinicalChange?: (value: ClinicalDrafts) => void; onClinicalPersist?: (value: ClinicalDrafts) => Promise<boolean>;
 }) {
-  const [section, setSection] = useState<Section>("Overview");
+  const [section, setSection] = useState<Section>(initialSection);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<{ id: string; value: Planning } | null>(null);
   const [loadError, setLoadError] = useState("");

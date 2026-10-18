@@ -27,6 +27,7 @@ import { ConnectedRepairCatalog } from "./connected-repair-catalog";
 import { connectedLaborSelection, LABOR_PILOT_SYSTEMS } from "@/lib/labor-catalog-selection";
 import type { RepairOperation } from "@/features/prototype/repair-explorer/catalog";
 import { repairBaselineForId, repairScopeConflict } from "@/lib/repair-catalog-baselines";
+import { unresolvedExplorerAllowance, type ExplorerEstimateSeed } from "@/lib/explorer-estimate-handoff";
 import { checkEstimateControls, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
 
 type ActiveRepairOrder = {
@@ -204,7 +205,7 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
   return matchingSystem?.id ?? fallback;
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
+export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { initialExplorerSeed?: ExplorerEstimateSeed; activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
   const router = useRouter();
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
@@ -216,8 +217,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [analyzedEnginePrompt, setAnalyzedEnginePrompt] = useState("");
   const [openGroupId, setOpenGroupId] = useState<string>("");
   const [workTab, setWorkTab] = useState<WorkTab>(initialWorkTab);
-  const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialSelectedWork === "empty" ? [] : (initialSelectedWork === "transmission" ? transmissionStarter : brakeStarter).map((operation) => ({ ...operation, rowId: operation.id })));
-  const [selectedParts, setSelectedParts] = useState<SelectedPart[]>(initialSelectedWork === "starter" ? defaultParts : []);
+  const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialExplorerSeed?.labor ?? (initialSelectedWork === "empty" ? [] : (initialSelectedWork === "transmission" ? transmissionStarter : brakeStarter).map((operation) => ({ ...operation, rowId: operation.id }))));
+  const [selectedParts, setSelectedParts] = useState<SelectedPart[]>(initialExplorerSeed?.parts ?? (initialSelectedWork === "starter" ? defaultParts : []));
   const [evidenceDrafts, setEvidenceDrafts] = useState<EvidenceDraft[]>([]);
   const [evidenceNote, setEvidenceNote] = useState("");
   const [evidenceCategory, setEvidenceCategory] = useState<EvidenceDraft["category"]>("DIAGNOSTIC_PHOTO");
@@ -737,7 +738,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     try { checkEstimateControls(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); return true; }
     catch { return false; }
   }, [selectedRepairOrder?.vehicle.id, contextVehicle, contextVin, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents]);
-  const guidedReady = manualReviewComplete(laborReview, reviewScope) && controlsReady && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
+  const unresolvedAllowances = estimateParts.some(unresolvedExplorerAllowance);
+  const guidedReady = !unresolvedAllowances && manualReviewComplete(laborReview, reviewScope) && controlsReady && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
   const reviewReady = manualReviewComplete(laborReview, reviewScope);
 
   async function presentEstimate() {
@@ -750,6 +752,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     if (!selectedLabor.length && !selectedParts.length) {
       revealWorkTools("labor");
       setNotice("Add at least one labor or part line before presenting an estimate.");
+      return;
+    }
+    if (unresolvedAllowances) {
+      revealWorkTools("parts");
+      setNotice("Replace unitemized Explorer allowances with actual part descriptions and part numbers, or explicitly remove them. Allowances cannot be issued as parts.");
       return;
     }
     if (estimateParts.some(part => part.pricingStatus === "PRICE_PENDING")) {
@@ -858,7 +865,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   return (
-    <DiagnosticWorkspace clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
+    <DiagnosticWorkspace initialSection={initialExplorerSeed ? "Estimate" : undefined} clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
       <section className={styles.lookupBand} aria-label="Draft protection">
         <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
         <button disabled={draft.saving || busy} onClick={() => void draft.refresh().catch(error => setNotice(error.message))} type="button">Find saved drafts</button>
@@ -911,8 +918,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
       </>}>
       <div className={styles.console} aria-label="Estimate editor">
-      {selectedRepairOrder ? <nav aria-label="Continue this repair order"><Link href={`/vehicles/shop-planning?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`}>Estimate revisions, customer authorization & approved jobs →</Link><span> Presentation is not customer approval. Authorize the exact revision before dispatch.</span></nav> : null}
+      {selectedRepairOrder ? <nav aria-label="Continue this repair order"><Link href={`/vehicles/shop-planning?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`}>Estimate revisions, customer authorization & approved jobs →</Link><Link href={`/service-documents?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> View Documents & Approvals</Link><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> Create / Print Final Invoice</Link><span> Presentation is not customer approval. Authorize the exact revision before dispatch.</span></nav> : null}
       {initialNotice ? <p role="alert">{initialNotice}</p> : null}
+      {unresolvedAllowances && <p role="alert">Explorer parts allowances need itemization. In Parts, edit each allowance with actual part description, number and verified pricing, or remove it and add the actual parts. A price alone does not resolve an allowance.</p>}
       <div ref={estimateGuideRef} tabIndex={-1}>
       <GuidedEstimate vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
         ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, editable: selectedLabor.some(row => row.rowId === item.rowId) })),
