@@ -98,6 +98,20 @@ test("real authentication, manager-only approval settings and the expanded revie
   await expect(prototypePage.getByRole("heading", { name: "Estimate worksheet", exact: true })).toBeVisible();
   await expect(prototypePage.getByLabel("Unitemized allowance: Replace front pads & rotors unit price", { exact: true })).toHaveValue("75");
   await expect(prototypePage.getByRole("link", { name: "Create / Print Final Invoice", exact: true })).toHaveAttribute("href", `/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
+  const savedBrowserDraft = await prototypePage.evaluate(repairOrderId => {
+    const key = Object.keys(sessionStorage).find(key => key.endsWith(".handoff") && key.includes(repairOrderId));
+    if (!key) throw new Error("Missing synthetic handoff fixture.");
+    const draft = JSON.parse(sessionStorage.getItem(key)!);
+    draft.lines[0] = { id: "synthetic-held-operation", label: "Synthetic held catalog repair", hours: 2, parts: 0 };
+    sessionStorage.setItem(key, JSON.stringify(draft));
+    return sessionStorage.getItem(key);
+  }, fixture.repairOrderId);
+  await prototypePage.reload();
+  await expect(prototypePage.getByRole("heading", { name: "Review selected work", exact: true })).toBeVisible();
+  await expect(prototypePage.getByText("Synthetic held catalog repair", { exact: true })).toBeVisible();
+  await expect(prototypePage.getByRole("link", { name: "Return to this RO’s planning", exact: true })).toHaveAttribute("href", `/vehicles/shop-planning?repairOrderId=${fixture.repairOrderId}`);
+  expect(await prototypePage.evaluate(repairOrderId => sessionStorage.getItem(Object.keys(sessionStorage).find(key => key.endsWith(".handoff") && key.includes(repairOrderId))!), fixture.repairOrderId)).toBe(savedBrowserDraft);
+  await prototypePage.screenshot({ path: "test-results/labor-staging/estimate-catalog-review.png", fullPage: true });
   await prototypePage.goto("/prototype/repair-explorer?repairOrderId=not-an-accessible-order");
   await expect(prototypePage.getByRole("alert").filter({ hasText: "No sample vehicle or draft has been substituted" })).toBeVisible();
   await expect(prototypePage.getByRole("button", { name: "Generate / Print Estimate", exact: true })).toHaveCount(0);

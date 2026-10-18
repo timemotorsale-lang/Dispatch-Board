@@ -17,6 +17,15 @@ describe("functional compact inventory intake", () => {
     expect(html).toContain("Main receiving");
   });
 
+  it("provides a focused advisor intake with optional purchase details collapsed", () => {
+    const html = renderToStaticMarkup(<CompactInventoryIntake advisor initialVin="3FA6P0K91HR406095" options={options} />);
+    expect(html).toContain("Vehicle intake · start work");
+    expect(html).toContain("Save &amp; Open Planning");
+    expect(html).toContain('value="3FA6P0K91HR406095"');
+    const purchase = html.match(/<details\b[^>]*><summary>Purchase details/);
+    expect(purchase?.[0]).not.toContain('open=""');
+    expect(purchase).not.toBeNull();
+  });
   it("prefills authorized context and preserves recorded facts", () => {
     const html = renderToStaticMarkup(<CompactInventoryIntake options={options} context={{ vehicleId: "vehicle-1", vehicleNumber: "VEH-1", vin: "3FA6P0K91HR406095", year: 2017, make: "Ford", model: "Fusion", inventoryNumber: "INV-1", intakeVersion: 3, unitVersion: 6, canPrice: true, details: { seller: "Actual seller", purchaseCents: 123400, proposedPriceCents: 150000, priceStatus: "INCURRED", odometer: 0 } }} />);
     for (const value of ["VEH-1", "INV-1", "3FA6P0K91HR406095", "Actual seller", "1234.00", "1500.00"]) expect(html).toContain(value);
@@ -30,7 +39,7 @@ describe("functional compact inventory intake", () => {
     const controls = [...html.matchAll(/<(?:input|textarea|select)\b[^>]*id="([^"]+)"[^>]*>/g)];
     for (const control of controls) expect(html).toContain(`for="${control[1]}"`);
     expect(html).toContain("Pending details / follow-up");
-    const extra = html.match(/<details\b[\s\S]*?<\/details>/)?.[0] ?? "";
+    const extra = html.match(/<details\b[\s\S]*?<\/details>/g)?.find(details => details.includes("Additional details")) ?? "";
     expect(extra).toContain("Additional details");
     expect(extra).not.toMatch(/\srequired(?:=|\s|>)/);
     expect(extra).not.toContain("Proposed asking price");

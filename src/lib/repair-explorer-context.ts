@@ -1,4 +1,5 @@
 export type RepairExplorerContext = {
+  reviewWorkflow?: boolean;
   repairOrderId: string;
   repairOrderNumber: string;
   vehicleId: string;
@@ -15,8 +16,9 @@ export function repairExplorerStorageKey(userId: string, repairOrderId?: string)
   return repairOrderId ? `${base}.ro.${encodeURIComponent(repairOrderId)}` : base;
 }
 
-export function repairExplorerHandoffHref(repairOrderId?: string) {
+export function repairExplorerHandoffHref(repairOrderId?: string, reviewWorkflow = false) {
   const query = new URLSearchParams({ importExplorer: "1" });
+  if (reviewWorkflow) query.set("workflow", "review");
   if (repairOrderId) query.set("repairOrderId", repairOrderId);
   return `/prototype/labor-guide?${query}`;
 }

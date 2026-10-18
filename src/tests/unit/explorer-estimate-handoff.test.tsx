@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
-import { explorerEstimateSeed, unresolvedExplorerAllowance } from "@/lib/explorer-estimate-handoff";
+import { explorerEstimateIssues, explorerEstimateSeed, unresolvedExplorerAllowance } from "@/lib/explorer-estimate-handoff";
+import { EstimateHandoffReview } from "@/features/diagnostics/labor-guide-entry";
+import { EstimateWorkflowNextStep } from "@/features/inventory/estimate-workflow-next-step";
 import { LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 import { normalizeEstimate } from "@/server/shop-planning/domain";
 import { EnterpriseLaborGuideConsole } from "@/features/diagnostics/enterprise-labor-guide-console";
@@ -12,6 +14,24 @@ const raw = (lines: unknown[], rate = 150) => JSON.stringify({ version: 1, rate,
 const selected = { id: "front-pads-rotors", label: "Replace front pads & rotors", hours: 2.1, parts: 120 };
 
 describe("Explorer to official estimate handoff", () => {
+  it("identifies blocked operations without converting them to custom work or dropping selections", () => {
+    const draft = raw([selected, { ...selected, id: "unknown", label: "Unapproved repair" }]);
+    expect(explorerEstimateIssues(draft, catalog, ["brakes"])).toEqual([{ id: "unknown", label: "Unapproved repair", message: expect.stringContaining("connected catalog audit") }]);
+    expect(() => explorerEstimateSeed(draft, catalog, ["brakes"])).toThrow("connected catalog audit");
+    expect(JSON.parse(draft).lines).toHaveLength(2);
+    const html = renderToStaticMarkup(<EstimateHandoffReview error="Catalog review required" issues={explorerEstimateIssues(draft, catalog, ["brakes"])} repairOrder={{ id: "ro/1", repairOrderNumber: "RO-1" }} />);
+    expect(html).toContain("Unapproved repair");
+    expect(html).toContain("browser draft is retained");
+    expect(html).toContain("has not saved an estimate or authorized repairs");
+    expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro%2F1");
+    expect(html).toContain("Open existing guide for staff review");
+  });
+  it("keeps saved estimate printing and next-step review scoped to the same RO", () => {
+    const html = renderToStaticMarkup(<EstimateWorkflowNextStep repairOrderId="ro/1" estimateId="est/2" />);
+    expect(html).toContain("Estimate saved to this RO");
+    expect(html).toContain("repairOrderId=ro%2F1&amp;estimateId=est%2F2");
+    expect(html).toContain("does not authorize repairs");
+  });
   it("preserves hours and allowances without converting the sample vehicle, rate or approval into live facts", () => {
     const { draft, seed } = explorerEstimateSeed(raw([selected]), catalog, ["brakes", "steering"]);
     expect(draft.rate).toBe(150);

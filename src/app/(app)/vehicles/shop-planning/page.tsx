@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
+import { EstimateWorkflowNextStep } from "@/features/inventory/estimate-workflow-next-step";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getShopPlanningWorkspace } from "@/server/shop-planning/service";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
@@ -9,7 +10,7 @@ import { canManageSettings } from "@/server/policies/access";
 export default async function ShopPlanningPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ repairOrderId?: string; returnTo?: string; vendorFollowUp?: string }>;
+  searchParams?: Promise<{ repairOrderId?: string; estimateId?: string; returnTo?: string; vendorFollowUp?: string }>;
 }) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
@@ -49,13 +50,16 @@ export default async function ShopPlanningPage({
   }
 
   if (params.repairOrderId) {
-    initial.repairOrders.sort((left, right) =>
-      left.id === params.repairOrderId ? -1 : right.id === params.repairOrderId ? 1 : 0,
-    );
+    const selected = initial.repairOrders.find(order => order.id === params.repairOrderId);
+    if (!selected) return <section><h1>Repair planning unavailable</h1><p role="alert">This repair order is not available for planning. No other vehicle was selected.</p><Link href="/vehicles/recon-repair-advisor">Return to advisor</Link></section>;
+    initial.repairOrders = [selected];
   }
+  const savedEstimate = params.repairOrderId && params.estimateId
+    ? initial.repairOrders[0]?.estimateVersions.find(estimate => estimate.id === params.estimateId)
+    : null;
 
   return (
-    <><nav><Link href={`/service-documents?repairOrderId=${encodeURIComponent(params.repairOrderId ?? "")}`}>Service documents</Link>{" · "}<Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(params.repairOrderId ?? "")}`}>Native billing</Link></nav><ShopPlanningWorkspace
+    <><nav>{savedEstimate && params.repairOrderId ? <EstimateWorkflowNextStep repairOrderId={params.repairOrderId} estimateId={savedEstimate.id} /> : params.estimateId ? <p role="alert">The requested estimate was not found on this RO. Review its current estimates below.</p> : null}<Link href={`/service-documents?repairOrderId=${encodeURIComponent(params.repairOrderId ?? "")}`}>Service documents</Link>{" · "}<Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(params.repairOrderId ?? "")}`}>Native billing</Link></nav><ShopPlanningWorkspace
       initial={JSON.parse(JSON.stringify(initial))}
       defaultLaborRate={(await getActiveLaborRate(user)).laborRate}
       canOverrideLaborRate={canManageSettings(user)}

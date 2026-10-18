@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
@@ -248,7 +249,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false, reviewWorkbench = false }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null);
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
@@ -1042,7 +1043,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         }
       }
       const completionLinks = buildServiceIntakeCompletionLinks(repairOrderId, returnTo);
-      window.location.assign(usesOutsideVendor ? completionLinks.repairWorkbenchHref : completionLinks.laborGuideHref);
+      window.location.assign(reviewWorkbench ? repairReviewHref(repairOrderId) : usesOutsideVendor ? completionLinks.repairWorkbenchHref : completionLinks.laborGuideHref);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The technician assignment could not be saved.");
     } finally {
@@ -1154,6 +1155,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (usesOutsideVendor) await saveOutsideVendorToRepairOrder(result.id);
       else if (reused) await saveTechnicianToRepairOrder(result.id);
       setCreated({ ...result, reused });
+      if (reviewWorkbench) window.location.assign(repairReviewHref(result.id));
       window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(reused ? `${result.repairOrderNumber} is the active synchronized card for this vehicle. It was opened and no duplicate was created.` : `${result.repairOrderNumber} was created as this vehicle's active repair card.`);
     } catch (error) {

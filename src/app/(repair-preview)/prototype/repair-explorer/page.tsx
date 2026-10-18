@@ -6,7 +6,7 @@ import { repairExplorerStorageKey, type RepairExplorerContext } from "@/lib/repa
 
 export const metadata = { title: "Repair Explorer Preview | Dispatch Board" };
 
-export default async function RepairExplorerPreviewPage({ searchParams }: { searchParams?: Promise<{ system?: string; group?: string; repairOrderId?: string | string[] }> } = {}) {
+export default async function RepairExplorerPreviewPage({ searchParams }: { searchParams?: Promise<{ workflow?: string; system?: string; group?: string; repairOrderId?: string | string[] }> } = {}) {
   const params = searchParams ? await searchParams : {};
   const repairOrderId = Array.isArray(params.repairOrderId) ? params.repairOrderId[0] : params.repairOrderId;
   const user = await requireCurrentUser(`/prototype/repair-explorer${repairOrderId ? `?${new URLSearchParams({ repairOrderId })}` : ""}`);
@@ -16,7 +16,7 @@ export default async function RepairExplorerPreviewPage({ searchParams }: { sear
       const [order, rate] = await Promise.all([getRepairOrderDetail(user, repairOrderId), getActiveLaborRate(user)]);
       if (!order || order.closedAt) throw new Error("Repair order is unavailable.");
       context = {
-        repairOrderId: order.id, repairOrderNumber: order.repairOrderNumber,
+        reviewWorkflow: params.workflow === "review", repairOrderId: order.id, repairOrderNumber: order.repairOrderNumber,
         vehicleId: order.vehicle.id, vehicleLabel: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber,
         vin: order.vehicle.vin, inventoryUnitId: order.inventoryUnit?.id ?? null, inventoryNumber: order.inventoryUnit?.inventoryNumber ?? null,
         concern: order.serviceVisit.concernSummary, laborRate: rate.laborRate,

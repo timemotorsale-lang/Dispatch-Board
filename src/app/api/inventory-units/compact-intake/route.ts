@@ -5,6 +5,9 @@ import { EnterpriseCommandConflictError } from "@/server/enterprise-command/doma
 import { getCompactIntake, getCompactIntakeModel, saveCompactIntake } from "@/server/inventory-unit/compact-intake-service";
 
 function failure(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2021", "P2022"].includes(error.code)) {
+    return NextResponse.json({ error: "Intake is temporarily unavailable because this database needs an application update. Ask an administrator to apply the pending database migrations, then retry. Do not create another vehicle or inventory unit." }, { status: 503 });
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientUnknownRequestError || error instanceof Prisma.PrismaClientValidationError || error instanceof Prisma.PrismaClientInitializationError || error instanceof Prisma.PrismaClientRustPanicError) {
     return NextResponse.json({ error: "Intake could not be saved. No changes were committed. Reload before retrying." }, { status: 500 });
   }

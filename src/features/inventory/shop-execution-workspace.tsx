@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { notifyRepairReviewSaved } from "@/lib/repair-workflow-review";
 import { FormEvent, useMemo, useState } from "react";
 
 type User = { id: string; name: string; roles?: string[] };
@@ -89,7 +90,7 @@ function derivedRepairOrders(model: Model): RepairOrderSummary[] {
   })).filter((order, index, orders) => order.id && orders.findIndex((item) => item.id === order.id) === index);
 }
 
-export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialVehicleId, sourceVehicle }: { initial: Model; initialRepairOrderId?: string; initialVehicleId?: string; sourceVehicle?: SourceVehicle | null }) {
+export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialVehicleId, sourceVehicle, reviewOrderId }: { initial: Model; initialRepairOrderId?: string; initialVehicleId?: string; sourceVehicle?: SourceVehicle | null; reviewOrderId?: string }) {
   const initialOrders = derivedRepairOrders(initial);
   const initialOrderExists = initialRepairOrderId ? initialOrders.some((order) => order.id === initialRepairOrderId) : false;
   const initialVehicleOrder = initialVehicleId ? initialOrders.find((order) => order.vehicle.id === initialVehicleId) : null;
@@ -146,7 +147,9 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     try {
       await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
       setNotice(success);
-      setModel(await request("/api/shop-execution") as Model);
+      const next = await request("/api/shop-execution") as Model;
+      setModel(reviewOrderId ? { ...next, jobs: next.jobs.filter(job => job.repairOrder.id === reviewOrderId), repairOrders: derivedRepairOrders(next).filter(order => order.id === reviewOrderId) } : next);
+      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Shop dispatch request failed.");
     } finally {

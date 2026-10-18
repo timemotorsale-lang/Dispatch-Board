@@ -37,3 +37,16 @@ export function explorerEstimateSeed(raw: string, catalog: LaborRepairOperation[
 export function unresolvedExplorerAllowance(part: { id: string; name: string; number: string }) {
   return part.id.startsWith("explorer-allowance-") && (!part.number.trim() || part.name.toLowerCase().startsWith("unitemized allowance:"));
 }
+
+export function explorerEstimateIssues(raw: string, catalog: LaborRepairOperation[], allowedSystems: readonly string[]) {
+  const draft = parsePreviewDraft(raw);
+  if (!draft) return [];
+  return draft.lines.flatMap(line => {
+    try {
+      explorerEstimateSeed(JSON.stringify({ ...draft, lines: [line] }), catalog, allowedSystems);
+      return [];
+    } catch (error) {
+      return [{ id: line.id, label: line.label, message: error instanceof Error ? error.message : "Review this operation before importing." }];
+    }
+  });
+}

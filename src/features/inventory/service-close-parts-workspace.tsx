@@ -3,6 +3,7 @@
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import { ArrowLeft, ArrowRight, Building2, ClipboardCheck, ListChecks, PackagePlus, RotateCcw, ShoppingCart, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
+import { notifyRepairReviewSaved, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
@@ -21,7 +22,7 @@ type Transfer = Named & { locationId: string; transferNumber: string };
 type Recovery = Named & { actualCreditCents: number | null; expectedCreditCents?: number; partId: string; sourceReference?: string; type: string; vendor?: { name: string } | null };
 type Model = { custodyEvents: CustodyEvent[]; demands: Demand[]; discrepancies: Discrepancy[]; interchanges: Named[]; locations: Named[]; offers: Offer[]; parts: Named[]; purchaseOrders: PurchaseOrder[]; receipts: Receipt[]; recoveries: Recovery[]; repairOrders: RepairOrder[]; requisitions: Requisition[]; stockLocations: Named[]; transfers: Transfer[]; vendors: Named[] };
 
-type Props = { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string };
+type Props = { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
 type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "progress" | "use" | "return";
 type BudgetRequestStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "DENIED";
 
@@ -227,7 +228,7 @@ function Notice({ value }: { value: string }) {
   return <div className={`scp-notice ${danger ? "danger" : "success"}`} role="status">{value}</div>;
 }
 
-export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo }: Props) {
+export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo, reviewOrderId }: Props) {
   const router = useRouter();
   const initialOrderId = initial.repairOrders.some((order) => order.id === initialRepairOrderId) ? initialRepairOrderId! : first(initial.repairOrders);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -328,7 +329,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   };
 
   async function refresh() {
-    setModel(await request());
+    setModel(scopedRepairOrders(await request(), reviewOrderId));
   }
 
   async function run(action: () => Promise<unknown>, success: string) {
@@ -338,6 +339,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       await action();
       await refresh();
       setNotice(success);
+      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
     } catch (error) {
       // A multi-step parts save may have completed one of its governed records
       // before a later step failed. Always reload so the next click resumes from

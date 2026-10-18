@@ -1,5 +1,51 @@
 # Current Implementation Status
 
+## 2026-10-18 - Unapproved Repair Workflow Checkpoint
+
+The user does not approve the current workbench design. This branch is a work-in-progress checkpoint for later refinement, not an adopted workflow or production release candidate. Preserve the existing default experience. Do not merge, deploy or treat completed automated checks as design acceptance.
+
+When resuming, review the complete vehicle intake-to-handoff journey with the user before further adoption decisions. The priority remains compact, brief execution tools, clear saved-work visibility, one canonical vehicle/inventory/RO context and straightforward next actions, not dashboards. The current implementation and its verification history are recorded below; unfinished vendor-only release/financial evidence remains guarded. Local database backups, temporary caches and generated test output are not part of the checkpoint.
+
+## 2026-10-18 - Recorded Work Visibility in Review Workbench
+
+Every review step now retains a compact Already recorded strip: arrival and current RO owner, latest saved estimate revision/amount with same-RO View / Print, that revision's actual authorization decision, QC-passed/unfinished job counts, concern, saved next action and recorded hold reason. Browser-only drafts are not described as saved estimates. Workflow links show recorded statuses rather than implying completion from navigation or stage position.
+
+Collapsed History exposes saved estimate revisions and their own decisions, inspection and diagnosis versions, job statuses/readiness reasons, outside work, and bounded loaded notes/movement. Earlier approvals do not approve a newer estimate; cancelled jobs stay in history but not completion totals. Historical timestamps explicitly use UTC. This is a read-only presentation of the already-authorized RO read model; it creates no estimate, approval, inspection, job or stage transition and does not change adoption or release gates.
+
+Verification: 58 focused planning/visibility tests passed, edited-file lint/typecheck passed, and the isolated staging rerun passed all five PostgreSQL proofs and three authenticated browser journeys. Browser acceptance verifies a saved estimate/approval and completed job remain visible on the Parts step, exact-RO print access, collapsed history, desktop/mobile overflow and unchanged source records after viewing. Release status reads the saved release authorization rather than inferring approval from the stage. Two earlier intake/Explorer interaction checks failed on the initial staging run and passed unchanged on rerun. No production writes, commit or deployment.
+
+## 2026-10-18 - Complete Repair Workbench Review Path
+
+A separate functional review starts at `/prototype/repair-workflow`, linked from the existing advisor. Find vehicle reuses canonical identity and an open RO; absent an RO, compact intake creates/reuses inventory and repair order atomically. Customer-owned check-in remains separate from dealership inventory and can return to the review workbench.
+
+`/prototype/repair-workbench?repairOrderId=...` is the same-RO execution home: inspect, diagnose/scope, estimate, authorize, parts/release, assign, repair labor, QC, and closeout/handoff. Saved evidence determines the current task; opening another tool is not approval or advancement. Focused forms hide dashboard summaries and duplicate progress rails. Review walkaround confirmation is not prechecked. Refreshes never substitute another RO. Failed saves retain entries; leaving edited fields prompts before discarding. Labor Guide, blocked-catalog recovery and saved estimate printing retain the opt-in review context.
+
+Closeout verifies current release, financial package, readiness, recipient, odometer, keys and handoff evidence. Customer repair requires a current posted and settled native invoice; internal recon uses internal costs, not invented customer payments. The scoped closeout endpoint enforces rollout, permissions and URL RO identity, limits commands and sanitizes database failures. New repair/handoff forms retain command identity on unchanged retries. Closure offers existing sale-preparation/document tools, not automatic frontline approval, sale, or adoption. Vendor progress and failed-QC loops reuse guarded tools; incomplete/vendor-only release or financial evidence remains held, never fabricated.
+
+Verification: 4,888 full-suite tests passed, 36 conditional skips. Five isolated PostgreSQL proofs and three authenticated browser journeys passed, including nine scoped tools, phone overflow, real-vehicle guide continuity, frozen printing, payment, QC release, current readiness and actual closeout. The closeout test uses synthetic prior repair/QC fixtures; it does not represent real customer consent, real repairs, or acceptance of every field in every workflow branch. Default experience remains unchanged. No commit, push, merge, deployment or production writes.
+
+## 2026-10-18 - Estimate Handoff Back to Recon / Shop Planning
+
+Catalog-blocked Explorer imports now show operation-specific review issues plus original-draft editing, existing-guide review and same-RO planning actions instead of a dead-end message. The browser draft is retained. Catalog approval, labor/parts checks and cross-RO targeting remain enforced; held catalog lines are not converted to custom work or partially discarded.
+
+Successful governed estimate presentation returns the saved estimate ID to exact-RO shop planning. The page verifies ownership of that estimate, offers frozen-document printing and identifies review/authorization as the next step. Invalid estimate IDs do not display success. Printed documents retain a same-RO recon/shop continuation. No authorization, dispatch, QC or closeout is performed automatically.
+
+Verification: 30 focused handoff/planning/console tests passed. Five isolated database proofs and all three authenticated browser journeys passed, including named held-operation recovery, retained handoff data, same-RO saved-estimate/print links and unchanged authorization/job/stage data when opening planning. No real vehicle/financial records, production migrations, commit, push, merge or deployment are performed by this slice.
+
+## 2026-10-18 - Approved Local Service-Document Schema Repair
+
+The local `localhost:5432/dispatch_board` public schema was missing the two existing service-document/native-billing migrations. After explicit user approval, a custom-format public-schema backup was created under local `tmp/database-backups` and its archive listing validated. Both pending migrations were applied without resetting data. Migration status is now current; Prisma can read ServiceDocument and all four new document/billing tables exist. Before/after vehicle, inventory-unit, RO and service-visit counts are unchanged. The selected Ford Fusion has no existing open RO; no intake or financial records were created during verification.
+
+Missing-table/column failures now return a sanitized 503 administrator-update message from regular and compact intake, rather than blaming staff inputs or revealing database internals. Eighteen focused API tests and edited-file lint passed. This repair changes only the approved local schema; no production connection, merge, push, commit or application deployment was performed. Backups and temporary caches remain outside the commit scope.
+
+## 2026-10-18 - Advisor Find Work to Exact Planning or Compact Intake
+
+The separate Recon/Repair Advisor is search-first. Metrics and secondary tools are collapsed. Find work resolves authorized canonical vehicle/VIN/stock/inventory identity and open ROs instead of detouring through the general RO list. Existing open work opens exact-RO planning; inventory without an RO opens vehicle-specific inventory planning; missing inventory opens compact intake with canonical identity. Multiple matches require a choice. Customer ROs do not require dealership inventory. A valid unmatched VIN can prefill intake without creating records on GET.
+
+Advisor intake collapses optional purchase details and offers **Save & Open Planning**, retaining the atomic guarded create/reuse workflow. Exact-RO planning rejects unavailable targets rather than selecting another vehicle. Existing default Service Advisor and non-advisor intake remain available; this is not global production adoption.
+
+Verification: 16 focused tests, TypeScript and edited-file lint passed. Five isolated database proofs and all three authenticated browser journeys passed, including advisor search, canonical compact intake, inventory routing and same-RO planning after save. No real inventory data, commit, push, merge or deployment is performed.
+
 ## 2026-10-18 - Optional Intake Documents and Follow-up Notes
 
 Both current acquisition intake and the opt-in compact form accept empty document references and follow-up notes when saving or confirming. Shared server validation and compact client validation no longer demand a ten-character plan for pending information. Missing seller/title/documents continue to be persisted and displayed as Pending; blank notes do not assert receipt, resolution or approval. Actual whereabouts/condition, permission, version, financial reconciliation and existing downstream release controls remain unchanged. Confirming intake records receipt/intake, not complete paperwork or authority to sell/release the vehicle.

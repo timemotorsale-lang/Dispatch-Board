@@ -7,6 +7,15 @@ vi.mock("@/server/repair-order/service", () => ({ createRepairOrder: create, lis
 import { POST } from "@/app/api/repair-orders/route";
 
 describe("intake error presentation", () => {
+  it.each(["P2021", "P2022"])("identifies an outdated database without blaming intake details: %s", async code => {
+    create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("Private database schema and vehicle details", { code, clientVersion: "test" }));
+    const response = await POST(request());
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toContain("pending database migrations");
+    expect(body.error).toContain("Do not create another vehicle");
+    expect(body.error).not.toContain("Private");
+  });
   const request = () => new Request("http://localhost/api/repair-orders", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } });
   it("does not expose database details or a failing vehicle row to staff", async () => {
     create.mockRejectedValueOnce(new Prisma.PrismaClientUnknownRequestError("ServiceVisit constraint failed; private row: VIN and customer details", { clientVersion: "test" }));

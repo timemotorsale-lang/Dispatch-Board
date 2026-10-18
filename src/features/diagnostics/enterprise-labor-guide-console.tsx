@@ -1,4 +1,5 @@
 "use client";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
 
 import { BookOpen, Brain, Check, ChevronLeft, ClipboardCheck, Edit3, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
@@ -207,7 +208,7 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
   return matchingSystem?.id ?? fallback;
 }
 
-export function EnterpriseLaborGuideConsole({ initialGuideView, initialExplorerSeed, activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer: initialConnectedExplorer = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { initialGuideView?: LaborGuideView; initialExplorerSeed?: ExplorerEstimateSeed; activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
+export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialGuideView, initialExplorerSeed, activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedExplorer: initialConnectedExplorer = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { reviewWorkflow?: boolean; initialGuideView?: LaborGuideView; initialExplorerSeed?: ExplorerEstimateSeed; activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
   const router = useRouter();
   const guideView: LaborGuideView = initialGuideView ?? (initialExplorerSeed || initialConnectedExplorer ? "new" : "legacy");
   const connectedExplorer = guideView === "new";
@@ -331,7 +332,7 @@ export function EnterpriseLaborGuideConsole({ initialGuideView, initialExplorerS
   const subtotal = laborTotal + partsTotal;
   const taxAndSupplies = estimatePolicy.tax.taxCents / 100;
   const total = subtotal + taxAndSupplies;
-  const laborGuideReturnTo = guideView === "new" ? `/prototype/labor-guide${selectedRepairOrder ? `?${new URLSearchParams({ repairOrderId: selectedRepairOrder.id })}` : ""}` : laborGuideHref("legacy", selectedRepairOrder?.id);
+  const laborGuideReturnTo = guideView === "new" ? `/prototype/labor-guide${selectedRepairOrder ? `?${new URLSearchParams({ repairOrderId: selectedRepairOrder.id, ...(reviewWorkflow ? { workflow: "review" } : {}) })}` : ""}` : laborGuideHref("legacy", selectedRepairOrder?.id, reviewWorkflow);
   const assignTechnicianHref = selectedRepairOrder
     ? `/vehicles/repair-workbench?${new URLSearchParams({
       repairOrderId: selectedRepairOrder.id,
@@ -811,9 +812,9 @@ export function EnterpriseLaborGuideConsole({ initialGuideView, initialExplorerS
       const result = await request<{ result?: { id?: string; estimateVersion?: number; totalCents?: number } }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(attempt.body),
       });
-      setNotice(`Estimate presented${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}. Opening the official estimate document.`);
+      setNotice(`Estimate saved${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}. Returning to this RO for review and authorization.`);
       if (!result.result?.id) throw new Error("Estimate response was incomplete. Retry to retrieve the same estimate; do not create a second one.");
-      router.push(`/repair-estimate?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&estimateId=${encodeURIComponent(result.result.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`);
+      router.push(reviewWorkflow ? `${repairReviewHref(selectedRepairOrder.id, "authorization")}&estimateId=${encodeURIComponent(result.result.id)}` : `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: selectedRepairOrder.id, estimateId: result.result.id })}`);
     } catch (error) {
       // A definite rejection can start a fresh attempt after the prerequisite is corrected.
       // Network failures and uncertain server errors retain the saved retry identity.
@@ -876,7 +877,7 @@ export function EnterpriseLaborGuideConsole({ initialGuideView, initialExplorerS
 
   return (
     <>
-    <LaborGuideViewSwitch view={guideView} activeGuide={guideView === "legacy"} disabled={busy || draft.saving} repairOrderId={selectedRepairOrder?.id} />
+    <LaborGuideViewSwitch reviewWorkflow={reviewWorkflow} view={guideView} activeGuide={guideView === "legacy"} disabled={busy || draft.saving} repairOrderId={selectedRepairOrder?.id} />
     <DiagnosticWorkspace initialSection="Estimate" clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
       <section className={styles.lookupBand} aria-label="Draft protection">
         <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
@@ -930,7 +931,7 @@ export function EnterpriseLaborGuideConsole({ initialGuideView, initialExplorerS
 
       </>}>
       <div className={styles.console} aria-label="Estimate editor">
-      {selectedRepairOrder ? <nav aria-label="Continue this repair order"><Link href={`/vehicles/shop-planning?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`}>Estimate revisions, customer authorization & approved jobs →</Link><Link href={`/service-documents?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> View Documents & Approvals</Link><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> Create / Print Final Invoice</Link><span> Presentation is not customer approval. Authorize the exact revision before dispatch.</span></nav> : null}
+      {selectedRepairOrder ? <nav aria-label="Continue this repair order"><Link href={reviewWorkflow ? repairReviewHref(selectedRepairOrder.id) : `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`}>Estimate revisions, customer authorization & approved jobs →</Link><Link href={`/service-documents?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> View Documents & Approvals</Link><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> Create / Print Final Invoice</Link><span> Presentation is not customer approval. Authorize the exact revision before dispatch.</span></nav> : null}
       {initialNotice ? <p role="alert">{initialNotice}</p> : null}
       {unresolvedAllowances && <p role="alert">Explorer parts allowances need itemization. Edit part details below or remove the allowance and add actual parts. A price alone does not resolve an allowance.</p>}
       <div ref={estimateGuideRef} tabIndex={-1}>

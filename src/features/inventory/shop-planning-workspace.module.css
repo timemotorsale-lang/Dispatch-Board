@@ -337,3 +337,13 @@
 @media(max-width:850px){.estimateEntryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.estimateEntryGrid{grid-template-columns:1fr}}
 @media(max-width:850px){.repairTypePicker{grid-template-columns:1fr}.repairTypePicker .pathPicker{justify-content:flex-start}}
+.focused .hero, .focused .orderBar, .focused .toolStrip, .focused .rail { display: none; }
+.focused { margin: 0; padding: 0; }
+.focused .layout { grid-template-columns: minmax(0, 1fr); }
+.focused .step { margin: 0; }
+.focused .staffNow, .focused .mission, .focused .stepRail { display: none; }
+.focused .commandGrid { grid-template-columns: minmax(0, 1fr); }
+.focused .clearanceTimeline { display: none; }
+.focused .clearanceHeader { grid-template-columns: minmax(0, 1fr) auto; padding: 10px; }
+.focused .clearanceRow { padding: 9px; }
+.focused .clearanceReview { gap: 10px; }

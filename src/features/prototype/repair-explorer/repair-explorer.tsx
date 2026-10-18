@@ -115,7 +115,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
       window.localStorage.setItem(storageKey, raw);
       window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
-      router.push(repairExplorerHandoffHref(repairOrderId));
+      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow));
     } catch {
       setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
     }
@@ -169,14 +169,14 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   return (
     <div className={styles.preview}>
       <header className={styles.topbar}>
-        <a href={laborGuideHref("legacy", repairOrderId)}><ArrowLeft size={16} /> Current Labor Guide</a>
+        <a href={laborGuideHref("legacy", repairOrderId, context?.reviewWorkflow)}><ArrowLeft size={16} /> Current Labor Guide</a>
         <a href="/prototype/brake-workflow">Try the guided brakes workflow →</a>
         <a href="/prototype/service-workspace">Customer estimates & RO preview →</a>
         <a href="/prototype/repair-coverage">Review ten-system coverage →</a>
         <strong>Dispatch Board <span>/ Repair Explorer</span></strong>
         <span className={styles.badge}>Review preview</span>
       </header>
-      <LaborGuideViewSwitch view="new" repairOrderId={repairOrderId} />
+      <LaborGuideViewSwitch reviewWorkflow={context?.reviewWorkflow} view="new" repairOrderId={repairOrderId} />
       <main className={styles.workspace}>
         <div className={styles.intro}>
           <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>{context ? <>{context.vehicleLabel} · {context.vin ?? "VIN not recorded"} · {context.repairOrderNumber}{context.inventoryNumber ? ` · ${context.inventoryNumber}` : ""}<span className={styles.dot}>•</span> Concern: {context.concern}</> : <>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</>}</p></div>
@@ -284,7 +284,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>
-        <footer className={styles.footer}><span>Browser draft only · no live repair orders, customer records or approvals are changed here. Generate / Print Estimate opens the governed live workflow.</span><a href={laborGuideHref("legacy", repairOrderId)}>Return to current Labor Guide <ArrowRight size={14} /></a></footer>
+        <footer className={styles.footer}><span>Browser draft only · no live repair orders, customer records or approvals are changed here. Generate / Print Estimate opens the governed live workflow.</span><a href={laborGuideHref("legacy", repairOrderId, context?.reviewWorkflow)}>Return to current Labor Guide <ArrowRight size={14} /></a></footer>
       </main>
     </div>
   );
