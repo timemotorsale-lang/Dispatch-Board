@@ -14,11 +14,12 @@ import { brakeOperationForId } from "@/lib/brake-baseline";
 import { repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { BrakeOperationScope } from "@/features/diagnostics/brake-operation-scope";
 import { SteeringOperationScope } from "@/features/diagnostics/steering-operation-scope";
+import { LaborGuideViewSwitch, laborGuideHref } from "@/features/diagnostics/labor-guide-view-switch";
 import { LightDutyOperationScope } from "@/features/diagnostics/light-duty-operation-scope";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 
-export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: { storageKey: string; initialSystemId?: string; initialGroupId?: string }) {
+export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, repairOrderId }: { storageKey: string; initialSystemId?: string; initialGroupId?: string; repairOrderId?: string }) {
   const router = useRouter();
   const initialSystem = REPAIR_SYSTEMS.find(system => system.id === initialSystemId) ?? REPAIR_SYSTEMS.find(system => system.id === "brakes")!;
   const initialGroup = initialSystem.groups.find(group => group.id === initialGroupId) ?? initialSystem.groups[0];
@@ -112,7 +113,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: 
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
       window.localStorage.setItem(storageKey, raw);
       window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
-      router.push("/diagnostics/labor-guide?importExplorer=1");
+      router.push("/prototype/labor-guide?importExplorer=1");
     } catch {
       setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
     }
@@ -162,13 +163,14 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId }: 
   return (
     <div className={styles.preview}>
       <header className={styles.topbar}>
-        <a href="/diagnostics/labor-guide"><ArrowLeft size={16} /> Current Labor Guide</a>
+        <a href={laborGuideHref("legacy", repairOrderId)}><ArrowLeft size={16} /> Current Labor Guide</a>
         <a href="/prototype/brake-workflow">Try the guided brakes workflow →</a>
         <a href="/prototype/service-workspace">Customer estimates & RO preview →</a>
         <a href="/prototype/repair-coverage">Review ten-system coverage →</a>
         <strong>Dispatch Board <span>/ Repair Explorer</span></strong>
         <span className={styles.badge}>Review preview</span>
       </header>
+      <LaborGuideViewSwitch view="new" repairOrderId={repairOrderId} />
       <main className={styles.workspace}>
         <div className={styles.intro}>
           <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</p></div>

@@ -23,6 +23,17 @@ describe("Repair Explorer preview", () => {
     expect(html).toContain("no live repair orders, customer records or approvals are changed");
   });
 
+  it("opens the exact simplified guide and carries RO context only in the legacy return link", async () => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    const page = await Page({ searchParams: Promise.resolve({ repairOrderId: "ro/1" }) });
+    const html = renderToStaticMarkup(page);
+    expect(html).toContain("Find the work. Build the estimate.");
+    expect(html).toContain('href="/diagnostics/labor-guide?repairOrderId=ro%2F1"');
+    expect(html).toContain('href="/prototype/repair-explorer?repairOrderId=ro%2F1"');
+    expect(html).toContain("Reference vehicle: 2019 Ford F-150");
+    expect(html).toContain("Your estimate starts here");
+  });
+
   it("finds work across systems by symptom, component and DTC", () => {
     expect(searchRepairs("grinding").some(({ repair }) => repair.id === "brake-noise")).toBe(true);
     expect(searchRepairs("P0300")[0].repair.id).toBe("engine-misfire");

@@ -28,9 +28,23 @@ The new document/billing routes require the two additive migrations below. They 
 10. Commands retain their original subject/version and hash on retry; unchanged response-loss retries recover the receipt without another financial entry. Different payloads under the same successful key conflict. The billing screen retains an uncertain request for unchanged retry. A lost one-time portal link is not fabricated/recovered in plaintext: reissue an attributable access grant when needed.
 11. Customer financial closeout requires a current posted, fully settled invoice, current QC/readiness/release and key/handoff evidence. Closeout cannot predate its financial activity or current readiness. Internal cost closeout does not require a customer payment. Database guards also prevent duplicate/no-work cancellation from bypassing posted native-invoice closeout. Financial changes to a closed RO require an attributable reopen first.
 
+## Separate current and simplified prototype guides
+
+The visible navigation opens two distinct authenticated pages:
+
+- **Legacy guide**: `/diagnostics/labor-guide`, the current detailed catalog and multi-step estimate guide.
+- **New guide · Prototype**: `/prototype/repair-explorer`, the separate Repair Explorer Preview headed “Find the work. Build the estimate.” This is the screenshot-matched simplified guide, not another Legacy mode.
+- `/prototype/labor-guide` is the downstream official estimate worksheet only. The prototype’s explicit **Generate / Print Estimate** action hands proposed work to this guarded workflow.
+
+The other guide opens in a new tab, leaving the current page and its unsaved edits, actual RO, evidence, review and retry state open. The selected RO ID is included for authenticated context, but the other guide does not import, overwrite or merge that page's draft. Use normal Save draft before closing or reloading either page. Navigation is disabled during an active command/save.
+
+The simplified prototype retains its sample vehicle and browser-only draft; an RO ID in its URL is only return-navigation context. Navigating to it does not bind sample work to an actual RO. Official estimate/invoice actions happen after the explicit document handoff and remain live guarded operations, not sandbox writes. No account preference, adoption switch, rollout activation or schema migration is stored. Prototype adoption remains a separate decision.
+
+Older current-guide URLs with `guide=new`, `experience=explorer` or a deliberate Explorer import redirect to the dedicated prototype. Explicit `guide=legacy` stays in Legacy; it does not import a browser draft. Direct links may include an RO ID, but that ID is rechecked against the signed-in user's existing access.
+
 ## Execution-first UX contract
 
-Simplicity and easy duty execution are the primary UI acceptance criteria for this RO workflow. Routine work must use a compact worksheet, not a dashboard or a second copy of commercial data.
+The following acceptance criteria govern the New review presentation; they do not adopt it as the default. Simplicity and easy duty execution are the primary UI acceptance criteria for this RO workflow. Routine work must use a compact worksheet, not a dashboard or a second copy of commercial data.
 
 - Start in the estimate worksheet, with actual RO/customer/vehicle context and editable work, hours, parts, tax and total. Keep actual RO selection visible until a real RO is linked, even if a preliminary vehicle description exists.
 - Provide one visible **Generate / Print Estimate** action. Keep catalog lookup, alternate experiences, evidence and historical previews in optional tools. Keep labor-basis and pricing/fitment/safety reviews collapsed until requested; show concise unresolved requirements and open the relevant review when blocked. Collapsing a control must never mark it reviewed.

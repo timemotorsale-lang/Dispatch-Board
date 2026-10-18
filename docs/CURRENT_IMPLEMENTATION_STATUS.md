@@ -1,5 +1,15 @@
 # Current Implementation Status
 
+## 2026-10-18 - Separate Legacy and Simplified Prototype Guides
+
+The navigation opens two separate guides: **Legacy guide** at `/diagnostics/labor-guide` and **New guide · Prototype** at `/prototype/repair-explorer`. The new guide is the existing screenshot-matched Repair Explorer Preview headed “Find the work. Build the estimate.” It is not the official estimate worksheet at `/prototype/labor-guide`.
+
+Switching opens the other guide in a new tab, preserving the original page and unsaved work. Only an RO ID is carried for the authenticated Legacy return link; the preview retains its explicitly labeled sample vehicle and browser-only draft. Navigating between guides does not import work or write RO records. The prototype also shows the switch, with New highlighted.
+
+The prototype’s deliberate Generate / Print Estimate handoff still opens `/prototype/labor-guide?importExplorer=1`, the separate guarded official-document worksheet. This downstream worksheet does not mark itself as the prototype home; its New link opens Repair Explorer. Its document return links stay on the worksheet. Legacy `guide=new` and `experience=explorer` aliases open Repair Explorer; explicit document imports retain the worksheet destination. Explicit Legacy requests stay Legacy.
+
+No global adoption preference, schema change, commit, push, merge, deployment or production migration is introduced. Verification of the final destination correction: 38 focused tests passed, TypeScript and targeted lint passed, and the authenticated isolated catalog browser journey passed. The browser opened Legacy and then the exact Repair Explorer prototype in separate tabs while retaining edited hours, parts allowance and the actual RO in the original worksheet; navigation issued no RO POST/PATCH/DELETE writes. The full suite, billing browser journey and production build were not rerun for this destination-only correction.
+
 ## 2026-10-18 - Compact RO Execution Workflow
 
 The primary Labor Guide path now starts in one editable estimate worksheet, not an overview dashboard. Explorer drafts open directly without two transfer confirmations, retain their original browser copy and expose original planning values only in optional import details. Actual RO selection remains visible until linked. Staff can edit itemized part details/pricing or remove optional work beside each line, see labor/parts/tax/total, and use one visible Generate / Print Estimate action. Catalog, evidence, alternate guide modes and historical previews are collapsed supporting tools. Labor-basis and pricing/fitment/safety reviews are progressively disclosed and still required; hiding them never approves them.
