@@ -56,7 +56,7 @@ export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, cust
   const findingsStatus = unavailable ? "Not loaded" : diagnosis ? "Recorded" : "Not yet recorded";
   const authorizationStatus = unavailable ? "Not loaded" : decision ? decision.disposition.replaceAll("_", " ") : "No decision recorded";
   const showTools = () => setToolsOpen(true);
-  const toolPanelOpen = toolsOpen || (section === "Estimate" && !vehicle);
+  const toolPanelOpen = toolsOpen || (section === "Estimate" && !repairOrderId);
 
   return <section className={styles.workspace} aria-label="Diagnostic vehicle workspace" onClickCapture={async event => {
     const link = (event.target as HTMLElement).closest("a");

@@ -2073,3 +2073,4 @@
 .modeTabs[hidden] {
   display: none;
 }
+.console{min-width:0;max-width:100%}.console>nav,.console>p,.notice{overflow-wrap:anywhere}.console>details>summary{cursor:pointer;padding:10px 0;font-weight:600}

@@ -251,7 +251,9 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
   const [estimateControls, setEstimateControls] = useState<EstimateControls>({ version: 1, pricing: { ...initialPricing }, fitment: {}, overlapResolution: "", reviewedScope: "" });
   const laborRate = estimateControls.pricing.laborRate;
   const partsMarkup = 1 + estimateControls.pricing.partsMarkupPercent / 100;
-  const [workToolsOpen, setWorkToolsOpen] = useState(true);
+  const [workToolsOpen, setWorkToolsOpen] = useState(initialWorkTab !== "selected");
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const checksRef = useRef<HTMLDetailsElement>(null);
   const estimateGuideRef = useRef<HTMLDivElement | null>(null);
   const workToolsRef = useRef<HTMLDetailsElement | null>(null);
   const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt, clinical, laborReview, estimateControls }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt, clinical, laborReview, estimateControls]);
@@ -360,7 +362,6 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
   const partsNeedCount = estimateParts.reduce((sum, item) => sum + item.quantity, 0);
   const pendingPricingCount = estimateParts.filter((item) => item.pricingStatus === "PRICE_PENDING" || item.unitPrice === 0).length;
   const policyRequiredCount = estimateParts.filter((item) => item.source === "POLICY_REQUIRED").length;
-  const canCreateEstimate = Boolean(selectedRepairOrder) && Boolean(selectedLabor.length || selectedParts.length);
   const totalWorkLines = estimateLabor.length + estimateParts.length;
   const createEstimateReason = !selectedRepairOrder
     ? "Select the repair order shown in the customer and vehicle lookup before creating this estimate."
@@ -630,6 +631,11 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
     });
   }
 
+  function revealChecks() {
+    setControlsOpen(true);
+    requestAnimationFrame(() => { checksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); checksRef.current?.focus({ preventScroll: true }); });
+  }
+
   function revealEstimateGuide() {
     window.requestAnimationFrame(() => {
       estimateGuideRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -739,7 +745,6 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
     catch { return false; }
   }, [selectedRepairOrder?.vehicle.id, contextVehicle, contextVin, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents]);
   const unresolvedAllowances = estimateParts.some(unresolvedExplorerAllowance);
-  const guidedReady = !unresolvedAllowances && manualReviewComplete(laborReview, reviewScope) && controlsReady && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
   const reviewReady = manualReviewComplete(laborReview, reviewScope);
 
   async function presentEstimate() {
@@ -755,12 +760,12 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
       return;
     }
     if (unresolvedAllowances) {
-      revealWorkTools("parts");
+      revealEstimateGuide();
       setNotice("Replace unitemized Explorer allowances with actual part descriptions and part numbers, or explicitly remove them. Allowances cannot be issued as parts.");
       return;
     }
     if (estimateParts.some(part => part.pricingStatus === "PRICE_PENDING")) {
-      revealWorkTools("parts");
+      revealEstimateGuide();
       setNotice("Enter or confirm part pricing before presenting this estimate.");
       return;
     }
@@ -770,7 +775,7 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
       return;
     }
     try { checkEstimateControls(selectedRepairOrder.vehicle.id ?? "", lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Estimate controls need review."); revealEstimateGuide(); return; }
+    catch (error) { setNotice(error instanceof Error ? error.message : "Estimate controls need review."); revealChecks(); return; }
     setBusy(true);
     setNotice("");
     try {
@@ -865,7 +870,7 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
   }
 
   return (
-    <DiagnosticWorkspace initialSection={initialExplorerSeed ? "Estimate" : undefined} clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
+    <DiagnosticWorkspace initialSection="Estimate" clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
       <section className={styles.lookupBand} aria-label="Draft protection">
         <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
         <button disabled={draft.saving || busy} onClick={() => void draft.refresh().catch(error => setNotice(error.message))} type="button">Find saved drafts</button>
@@ -920,18 +925,20 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
       <div className={styles.console} aria-label="Estimate editor">
       {selectedRepairOrder ? <nav aria-label="Continue this repair order"><Link href={`/vehicles/shop-planning?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`}>Estimate revisions, customer authorization & approved jobs →</Link><Link href={`/service-documents?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> View Documents & Approvals</Link><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}`}> Create / Print Final Invoice</Link><span> Presentation is not customer approval. Authorize the exact revision before dispatch.</span></nav> : null}
       {initialNotice ? <p role="alert">{initialNotice}</p> : null}
-      {unresolvedAllowances && <p role="alert">Explorer parts allowances need itemization. In Parts, edit each allowance with actual part description, number and verified pricing, or remove it and add the actual parts. A price alone does not resolve an allowance.</p>}
+      {unresolvedAllowances && <p role="alert">Explorer parts allowances need itemization. Edit part details below or remove the allowance and add actual parts. A price alone does not resolve an allowance.</p>}
       <div ref={estimateGuideRef} tabIndex={-1}>
       <GuidedEstimate vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
-        ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, editable: selectedLabor.some(row => row.rowId === item.rowId) })),
-        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, pending: item.pricingStatus === "PRICE_PENDING", editable: selectedParts.some(row => row.id === item.id) })),
-      ]} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onFindVehicle={() => setDetailsOpen(true)} onAddWork={() => revealWorkTools("labor")} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
+        ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, removable: selectedLabor.some(row => row.rowId === item.rowId), editable: selectedLabor.some(row => row.rowId === item.rowId) })),
+        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, number: item.number, pending: item.pricingStatus === "PRICE_PENDING" || unresolvedExplorerAllowance(item), removable: item.source !== "POLICY_REQUIRED", editable: true })),
+      ]} checksReady={controlsReady && pricingAvailable && !unresolvedAllowances} onReviewChecks={revealChecks} summary={[{ label: "Labor", value: money(laborTotal) }, { label: "Parts", value: money(partsTotal) }, { label: "Tax", value: money(taxAndSupplies) }]} onRemove={line => { if (line.kind === "Labor") deleteLabor(line.id); else deletePart(line.id); }} onPartChange={(line, field, value) => { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, [field]: value }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onFindVehicle={() => setDetailsOpen(true)} onAddWork={() => revealWorkTools("labor")} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
         if (line.kind === "Labor") setSelectedLabor(rows => rows.map(row => row.rowId === line.id ? { ...row, hours: value } : row));
-        else setSelectedParts(rows => rows.map(row => row.id === line.id ? { ...row, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) } : row));
+        else { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }
       }} />
+      <details ref={checksRef} open={controlsOpen} onToggle={event => setControlsOpen(event.currentTarget.open)} tabIndex={-1}><summary>Pricing, fitment &amp; safety checks · {controlsReady ? "Reviewed" : "Review needed"}</summary>
       <EstimateControlsPanel controls={estimateControls} scope={controlsScope} labor={estimateLabor} parts={estimateParts.map(part => ({ key: lineKey("part", part.id), label: part.name }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={initialPricing.laborRate} />
+      </details>
       </div>
-      <nav aria-label="Labor guide experience"><Link href={`/diagnostics/labor-guide?${new URLSearchParams({ ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id } : {}), ...(connectedExplorer ? {} : { experience: "explorer" }) }).toString()}`}>{connectedExplorer ? "Use existing Labor Guide" : "Use connected Repair Explorer (pilot)"}</Link>{canOverrideLaborRate && <> · <Link href="/diagnostics/labor-evidence">Actual labor evidence</Link> · <Link href="/diagnostics/labor-readiness">Pilot readiness</Link></>}</nav>
+      <details><summary>Additional guide tools</summary><nav aria-label="Labor guide experience"><Link href={`/diagnostics/labor-guide?${new URLSearchParams({ ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id } : {}), ...(connectedExplorer ? {} : { experience: "explorer" }) }).toString()}`}>{connectedExplorer ? "Use existing Labor Guide" : "Use connected Repair Explorer (pilot)"}</Link>{canOverrideLaborRate && <> · <Link href="/diagnostics/labor-evidence">Actual labor evidence</Link> · <Link href="/diagnostics/labor-readiness">Pilot readiness</Link></>}</nav></details>
       <details className={styles.workTools} open={workToolsOpen} onToggle={(event) => setWorkToolsOpen(event.currentTarget.open)} ref={workToolsRef} tabIndex={-1}><summary><span>Find labor or parts</span><small>Catalog, parts, evidence, notes</small></summary>
       <div hidden={connectedExplorer} className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
@@ -1166,7 +1173,7 @@ export function EnterpriseLaborGuideConsole({ initialExplorerSeed, activeRepairO
                 <div><dt>Tax</dt><dd>{money(taxAndSupplies)}</dd></div>
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
               </dl>
-              <button aria-describedby="create-estimate-help" className={styles.createRo} data-ready={canCreateEstimate && guidedReady} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : canCreateEstimate && guidedReady ? "Create & Open Official Estimate" : "Show next step to present estimate"}</button>
+              <button aria-describedby="create-estimate-help" className={styles.createRo} disabled={busy} onClick={revealEstimateGuide} type="button">Return to estimate worksheet</button>
               <p className={styles.createEstimateHint} id="create-estimate-help">{createEstimateReason}</p>
               <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
                 <header>

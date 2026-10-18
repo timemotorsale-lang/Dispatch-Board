@@ -1,5 +1,16 @@
 # Current Implementation Status
 
+## 2026-10-18 - Compact RO Execution Workflow
+
+The primary Labor Guide path now starts in one editable estimate worksheet, not an overview dashboard. Explorer drafts open directly without two transfer confirmations, retain their original browser copy and expose original planning values only in optional import details. Actual RO selection remains visible until linked. Staff can edit itemized part details/pricing or remove optional work beside each line, see labor/parts/tax/total, and use one visible Generate / Print Estimate action. Catalog, evidence, alternate guide modes and historical previews are collapsed supporting tools. Labor-basis and pricing/fitment/safety reviews are progressively disclosed and still required; hiding them never approves them.
+
+Native billing selects the latest eligible native package automatically and displays its frozen approved charges, discount, tax and total before explicit invoice creation. It does not select an older ready package behind a new hold or reuse a voided package. Missing legacy preview requires a newly prepared package. RO IDs, financial history, reporting and uncommon adjustments are optional tools; the existing approval, execution/QC, payment, permission and unchanged-request retry safeguards remain. Existing exact-version authorization forms and document printing are reused rather than duplicated. Phone estimate rows stack with labels.
+
+The governing simplicity acceptance contract and revised staff sequence are recorded in `docs/NATIVE_SERVICE_BILLING.md`. This is a local follow-up to `56caf192`; no push, merge, deployment, rollout activation or ordinary development/public or production migration is performed. This focused RO flow does not claim a redesign of every application console or remove production acceptance gates.
+
+
+Verification for compact execution: 4,700 full-suite tests passed with 33 conditional skips (942 passing files, 31 conditional skipped files); full lint, final edited-file lint, typechecking and a separate production build passed. Both isolated PostgreSQL journeys and both authenticated browser journeys passed, including direct import, inline parts/removal, exact-work review holds, one visible estimate issue action, phone layout without horizontal overflow, invoice amount preview and automatic current-package selection, print/PDF, receipts/report and access boundaries. Desktop and phone screenshots were visually inspected. Synthetic checks are not actual customer approval, cashier evidence, money movement or deployment permission.
+
 ## 2026-10-18 - Repair Explorer Document Actions
 
 Repair Explorer review now offers **Generate / Print Estimate**, preserving the browser draft and explicitly transferring proposed work into the existing governed Labor Guide editor. The transfer resolves canonical catalog identities, refuses held/invalid/duplicate/overlapping work, retains genuine custom work, requires actual RO/customer/vehicle selection and keeps parts allowances unitemized until replaced or removed. Sample identity, approvals and previous vehicle reviews are not imported; current rate policy and all existing labor/parts/tax controls still apply.

@@ -17,7 +17,9 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   expect((await page.request.post("/api/coo-workbook/rhythm", {data:{workbookId:rhythm.workbookId,action:"START_DELAY_EXPLAINED",reason:"Isolated synthetic billing verification; not starting a real operational workday.",sourcePath:"/vehicles/service-billing"}})).ok()).toBe(true);
   await page.goto(`/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Service Billing", exact: true })).toBeVisible();
-  await page.getByRole("combobox", { name: "Invoice package", exact: true }).selectOption(fixture.packageId);
+  await expect(page.getByRole("heading", { name: "Review final invoice", exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Invoice package", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("cell", { name: "$50.00", exact: true })).toBeVisible();
   await page.getByLabel("Detailed business reason").fill("Synthetic browser invoice posting verification");
   await page.getByRole("button", { name: "Create Final Invoice", exact: true }).click();
   await expect(page.getByText(/Open balance \$143.50/)).toBeVisible();

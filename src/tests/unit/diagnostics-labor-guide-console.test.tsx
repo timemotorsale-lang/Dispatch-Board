@@ -61,7 +61,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Active RO RO-3411");
     expect(markup).toContain("Open simple findings entry");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
-    expect(markup).toContain("Show next step to present estimate");
+    expect(markup).toContain("Generate / Print Estimate");
     expect(markup).toContain("Creates the official estimate document and opens print and repair-workbench actions.");
     expect(markup).toContain("Parts needed for this repair");
     expect(markup).toContain("Open Parts Ordering Workflow");
@@ -96,7 +96,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Add vehicle (new tab)");
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain("without leaving this estimate");
-    expect(markup).toContain("Show next step to present estimate");
+    expect(markup).toContain("Generate / Print Estimate");
     expect(markup).toContain("Select the repair order shown in the customer and vehicle lookup before creating this estimate.");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");

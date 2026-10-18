@@ -22,3 +22,4 @@
 .stageCards .stageDone{border-color:#b7dac6;background:#f7fcf9}
 .stageCards .stageDone span{color:white;background:#228158}
 @media(max-width:800px){.stageCards{grid-template-columns:1fr}}
+.identity>div{min-width:0;max-width:100%;overflow-wrap:anywhere}
