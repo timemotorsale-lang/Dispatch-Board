@@ -60,7 +60,7 @@ export async function createRegistryVehicle(actor: AuthenticatedUser | null, val
   const workflowContext = raw.workflowContext && typeof raw.workflowContext === "object" && !Array.isArray(raw.workflowContext) ? raw.workflowContext as Record<string, unknown> : null;
   const payload = workflowContext ? { ...identity, workflowContext } : identity;
   const createCommand = command({ actorUserId: user.id, commandType: "CREATE_VEHICLE", expectedVersion: 0, idempotencyKey, locationId, organizationId: context.organizationId, payload: { ...payload, canonicalOrigins: trustedCreation.canonicalOrigins ?? {}, specificationSource: trustedCreation.specificationSnapshot ? "NHTSA_VPIC" : null, initialOdometer: trustedCreation.initialOdometer ? { reading: trustedCreation.initialOdometer.reading, unit: trustedCreation.initialOdometer.unit } : null }, reason, subjectId: id });
-  return trustedCreation.canonicalOrigins || trustedCreation.specificationSnapshot || trustedCreation.initialOdometer ? context.repository.createVehicle(createCommand, identity, trustedCreation) : context.repository.createVehicle(createCommand, identity);
+  return trustedCreation.rejectDuplicateIdentity || trustedCreation.canonicalOrigins || trustedCreation.specificationSnapshot || trustedCreation.initialOdometer ? context.repository.createVehicle(createCommand, identity, trustedCreation) : context.repository.createVehicle(createCommand, identity);
 }
 
 export async function findVehicleRegistryByPlate(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {

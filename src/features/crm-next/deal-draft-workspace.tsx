@@ -11,6 +11,7 @@ type Snapshot = Record<string, unknown>;
 type DraftSummary = { id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string; status?: SavedDealStatus };
 type Draft = DraftSummary & { revision: number; snapshot: Snapshot };
 type Store = {
+  draftId: () => string;
   read: (key: string) => unknown;
   write: (key: string, value: unknown) => void;
   seed: (key: string, value: unknown) => void;
@@ -148,7 +149,7 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
     if (!blocked.current) timer.current = setTimeout(() => { void save(); }, 1000);
   }, [save]);
   const store = useMemo<Store>(() => ({
-    read: (key) => snapshot.current[key], write, save,
+    read: (key) => snapshot.current[key], write, save, draftId: () => id.current,
     seed: (key, value) => { if (snapshot.current[key] === undefined) snapshot.current[key] = value; },
     recordJacket: (pathway, jacketId) => write("jackets", { ...(snapshot.current.jackets as Record<string, string> ?? {}), [pathway]: jacketId }),
     reference: (key, renew) => {

@@ -1,3 +1,4 @@
+import { validateDealDocumentContext } from "@/server/deal-continuity/service";
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
   let stage: "generation" | "archive" = "generation";
   try {
     const actor = await getCurrentUser();
+    await validateDealDocumentContext(actor, payload ?? {});
     const result = await generateUnifiedCrmContractPacket(actor, payload ?? {});
     stage = "archive";
     return NextResponse.json(await archiveGeneratedSalesPacket(actor, payload ?? {}, result), { status: 201 });

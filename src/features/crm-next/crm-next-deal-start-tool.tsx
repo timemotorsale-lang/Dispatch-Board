@@ -2,10 +2,15 @@
 
 import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
+import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
+import { VehicleUseTool } from "./vehicle-use-tool";
+import { emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
+import identityStyles from "./shared-deal-identities.module.css";
 import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
 import { fillEmptyDecodeFields } from "@/lib/crm-vehicle-decode";
 import { FilePlus2, Eye, Download, Printer, X } from "lucide-react";
@@ -828,6 +833,7 @@ function RetailSaleExecutionDesk({
     year: ""
   });
 
+  useCanonicalDealVehicle(setVehicleFacts);
   function selectFee(code: string) {
     const nextFee = MN_DMV_FEE_ITEMS.find((item) => item.code === code) ?? MN_DMV_FEE_ITEMS[0];
     setSelectedFeeCode(code);
@@ -861,7 +867,9 @@ function RetailSaleExecutionDesk({
   }
 
   const getDocumentContext = useContext(DealDocumentContext);
+  const identityDraft = useDealDraft();
   async function generateContractPacket() {
+    if (identityDraft && !await identityDraft.save()) return;
     setPacketStatus({ kind: "generating", message: "Generating and archiving contract packet..." });
     const response = await requestContractPacket({
       body: JSON.stringify({
@@ -1432,6 +1440,7 @@ function DailyRentalExecutionDesk({
   customerPrefill,
   customerName,
   customerNameEditable = false,
+  originalVehicleReference = "",
   mode = "daily-rental",
   onComplete,
   onAmountChange,
@@ -1445,6 +1454,7 @@ function DailyRentalExecutionDesk({
   customerPrefill: CustomerDealPrefill;
   customerName: string;
   customerNameEditable?: boolean;
+  originalVehicleReference?: string;
   mode?: "daily-rental" | "vehicle-loaner";
   onComplete: () => void;
   onAmountChange: (value: string) => void;
@@ -1485,6 +1495,7 @@ function DailyRentalExecutionDesk({
     vin: "",
     year: ""
   });
+  useCanonicalDealVehicle(setVehicleFacts);
   const [rentalFacts, setRentalFacts] = useDealDraftState("rentalFacts", {
     additionalDriverName: "",
     additionalDriverStatus: "None",
@@ -1519,6 +1530,7 @@ function DailyRentalExecutionDesk({
   useEffect(() => {
     setRentalFacts((current) => ({
       ...current,
+      interestedVehicle: isLoaner && originalVehicleReference ? originalVehicleReference : current.interestedVehicle,
       cellPhone: current.cellPhone || customerPrefill.phoneNumber,
       dob: current.dob || customerPrefill.dateOfBirth,
       email: current.email || customerPrefill.email,
@@ -1526,7 +1538,7 @@ function DailyRentalExecutionDesk({
       state: customerPrefill.idState && current.state === "MN" ? customerPrefill.idState : current.state,
       streetAddress: current.streetAddress || customerPrefill.address
     }));
-  }, [customerPrefill, setRentalFacts]);
+  }, [customerPrefill, setRentalFacts, isLoaner, originalVehicleReference]);
 
   const rentalDays = daysBetween(rentalFacts.pickupDate, rentalFacts.dropoffDate);
   const dailyRateCents = dollarsToCents(rentalFacts.ratePerDay);
@@ -1701,7 +1713,9 @@ function DailyRentalExecutionDesk({
   }
 
   const getDocumentContext = useContext(DealDocumentContext);
+  const identityDraft = useDealDraft();
   async function generateRentalPacket() {
+    if (identityDraft && !await identityDraft.save()) return;
     setPacketStatus({ kind: "generating", message: `Generating and archiving ${workflowNoun} packet...` });
     const response = await requestContractPacket({
       body: JSON.stringify({
@@ -2129,6 +2143,7 @@ function LeaseToOwnExecutionDesk({
     vin: "",
     year: ""
   });
+  useCanonicalDealVehicle(setVehicleFacts);
   const [leaseInputs, setLeaseInputs] = useDealDraftState("leaseInputs", {
     calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT",
     targetPayment: "$250.00",
@@ -2266,7 +2281,9 @@ function LeaseToOwnExecutionDesk({
   }
 
   const getDocumentContext = useContext(DealDocumentContext);
+  const identityDraft = useDealDraft();
   async function generateLeasePacket() {
+    if (identityDraft && !await identityDraft.save()) return;
     if (calculationError) {
       setPacketStatus({ kind: "error", message: calculationError });
       return;
@@ -2739,7 +2756,9 @@ function BhphExecutionDesk({
   }
 
   const getDocumentContext = useContext(DealDocumentContext);
+  const identityDraft = useDealDraft();
   async function generateBhphPacket() {
+    if (identityDraft && !await identityDraft.save()) return;
     setPacketStatus({ kind: "generating", message: "Generating and archiving BHPH packet..." });
     const vin = getVinFromVehicleInput(vehicle);
     const response = await requestContractPacket({
@@ -3418,6 +3437,7 @@ function TestDriveExecutionDesk({
   const [returnPhotos, setReturnPhotos] = useDealDraftState<Record<string, string>>("returnPhotos", {});
   const [documents, setDocuments] = useDealDraftState<Record<string, string>>("documents", {});
   const [returnReceived, setReturnReceived] = useDealDraftState("returnReceived", false);
+  useCanonicalDealVehicle(setFacts);
   const [agreementPacket, setAgreementPacket] = useArchivedDealPacket<GeneratedContractPacket>();
   const agreementRevision = useRef(0);
   const [agreementPreviewOpen, setAgreementPreviewOpen] = useState(false);
@@ -3506,7 +3526,9 @@ function TestDriveExecutionDesk({
   }
 
   const getDocumentContext = useContext(DealDocumentContext);
+  const identityDraft = useDealDraft();
   async function generateAgreement() {
+    if (identityDraft && !await identityDraft.save()) return;
     if (agreementError || !validVehicle || customerName === "Customer not selected") {
       setAgreementStatus({ kind: "error", message: agreementError || "Select the driver and capture the vehicle VIN." });
       return;
@@ -4252,27 +4274,9 @@ function OutsideFinanceExecutionDesk({
   );
 }
 
-function readDealDraft(customerId: string): CrmNextDealDraft | null {
-  if (!customerId || typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem(crmNextDealDraftStorageKey(customerId));
-    if (!stored) return null;
-    const parsed = JSON.parse(stored) as Partial<CrmNextDealDraft>;
-    return {
-      amount: parsed.amount ?? "",
-      customerId,
-      note: parsed.note ?? "",
-      ownerUserId: parsed.ownerUserId ?? "",
-      vehicle: parsed.vehicle ?? "",
-      workflowId: parsed.workflowId ?? "retail-sale"
-    };
-  } catch {
-    return null;
-  }
-}
-
 export function CrmNextDealStartTool(props: { initialCustomerId?: string; initialWorkflowId?: string; model: CrmNextCommandCenter }) {
-  return <DealDraftWorkspace initialCustomerId={props.initialCustomerId} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
+  const params = useSearchParams();
+  return <DealDraftWorkspace key={params.toString()} initialCustomerId={props.initialCustomerId} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
 }
 
 function DealStartDesk({
@@ -4285,7 +4289,12 @@ function DealStartDesk({
   model: CrmNextCommandCenter;
 }) {
   const savedDeal = useDealDraft();
-  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? model.customers[0] ?? null;
+  const router = useRouter();
+  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? null;
+  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(model.customers.map(customer => ({ ...customer, customerNumber: customer.id })));
+  const [identity, setIdentity] = useDealDraftState<DealIdentity>("identity", { ...emptyDealIdentity });
+  const [relatedSource, setRelatedSource] = useState<{ customerName: string; sourceVehicleReference: string; sourceVehicleId: string } | null>(null);
+  const [sourceError, setSourceError] = useState("");
   const documentUploadQueue = useRef(Promise.resolve());
   const pendingDocumentUploads = useRef(0);
   const [documentUploadBusy, setDocumentUploadBusy] = useState(false);
@@ -4300,7 +4309,7 @@ function DealStartDesk({
   const [manualCustomerName, setManualCustomerName] = useDealDraftState("manualCustomerName", "");
   const [form, setForm] = useDealDraftState("form", {
     amount: "",
-    customerId: preferredCustomer?.id ?? "",
+    customerId: preferredCustomer?.id ?? initialCustomerId ?? "",
     note: "",
     ownerUserId: model.userId,
     vehicle: ""
@@ -4314,8 +4323,88 @@ function DealStartDesk({
   const wholesaleWorkflow = workflow.id === "wholesale";
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
-  const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? model.customers.find((customer) => customer.id === form.customerId) ?? null : null;
+  const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? customerChoices.find((customer) => customer.id === form.customerId) ?? null : null;
   const selectedCustomerId = selectedCustomer?.id ?? "";
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search), vehicleId = params.get("vehicleId");
+    if (!vehicleId || identity.vehicleId || params.has("draftId")) return;
+    const controller = new AbortController();
+    void fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(vehicleId)}`, { signal: controller.signal }).then(async response => {
+      const vehicle = await response.json(); if (!response.ok) throw new Error(vehicle.error);
+      if (controller.signal.aborted) return;
+      setIdentity(current => ({ ...current, vehicleId: vehicle.id, inventoryUnitId: vehicle.inventoryUnitId, vehicle }));
+      setForm(current => ({ ...current, vehicle: [vehicle.label, vehicle.vin, vehicle.stockNumber].filter(Boolean).join(" / ") }));
+    }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
+    return () => controller.abort();
+  }, [identity.vehicleId, setIdentity, setForm]);
+  useEffect(() => {
+    if (!form.customerId || form.customerId === MANUAL_CUSTOMER_ID) return;
+    const controller = new AbortController();
+    void fetch(`/api/crm/v1/deal-identities?type=customer&id=${encodeURIComponent(form.customerId)}`, { signal: controller.signal }).then(async response => {
+      const customer = await response.json();
+      if (!response.ok) throw new Error(customer.error);
+      if (controller.signal.aborted) return;
+      setCustomerChoices(current => [customer, ...current.filter(item => item.id !== customer.id)]);
+      setIdentity(current => ({ ...current, customerId: customer.id }));
+    }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
+    return () => controller.abort();
+  }, [form.customerId, setIdentity]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sourceDraftId = params.get("sourceDraftId") || identity.sourceDraftId;
+    const sourceJacketId = params.get("sourceJacketId") || identity.sourceJacketId;
+    if (!sourceDraftId && !sourceJacketId) return;
+    const controller = new AbortController();
+    const query = new URLSearchParams({ type: "source", ...(sourceDraftId ? { sourceDraftId } : {}), ...(sourceJacketId ? { sourceJacketId } : {}) });
+    void fetch(`/api/crm/v1/deal-identities?${query}`, { signal: controller.signal }).then(async response => {
+      const source = await response.json(); if (!response.ok) throw new Error(source.error);
+      if (controller.signal.aborted) return;
+      setRelatedSource(source);
+      setIdentity(current => ({ ...current, sourceDraftId: source.sourceDraftId, sourceJacketId: source.sourceJacketId, sourceVehicleId: source.sourceVehicleId, customerId: source.customerId || current.customerId }));
+      if (source.customerId) setForm(current => ({ ...current, customerId: source.customerId }));
+    }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
+    return () => controller.abort();
+  }, [identity.sourceDraftId, identity.sourceJacketId, setIdentity, setForm]);
+  async function chooseSharedCustomer(customer: DealCustomerChoice) {
+    if (form.customerId && form.customerId !== customer.id && form.customerId !== MANUAL_CUSTOMER_ID) {
+      if (!window.confirm("Save this deal and start a separate deal for the selected customer? Existing terms and evidence will not be copied.")) return;
+      if (!await savedDeal?.save()) return;
+      router.push(`/crm-next/deals/start?${new URLSearchParams({ new: "1", customerId: customer.id, pathway: workflowId })}`);
+      return;
+    }
+    setCustomerChoices(current => [customer, ...current.filter(item => item.id !== customer.id)]);
+    setManualCustomerName(""); setForm(current => ({ ...current, customerId: customer.id }));
+    setIdentity(current => ({ ...current, customerId: customer.id }));
+  }
+  async function chooseSharedVehicle(vehicle: DealVehicleChoice) {
+    if (identity.vehicleId === vehicle.id) {
+      setIdentity(current => ({ ...current, inventoryUnitId: vehicle.inventoryUnitId, vehicle }));
+      return;
+    }
+    if (identity.vehicleId && savedDeal?.draftId()) {
+      try {
+        const response = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(savedDeal.draftId())}`, { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok && response.status !== 404) throw new Error(result.error || "Recheck the current assignment before changing vehicle.");
+        if (result.bookings?.some((booking: { status: string }) => ["RESERVED", "CHECKED_OUT"].includes(booking.status))) {
+          setSourceError("Return or cancel the current vehicle assignment before changing its vehicle. Your existing selection is unchanged.");
+          return;
+        }
+      } catch (error) { setSourceError(error instanceof Error ? error.message : "The current assignment could not be checked."); return; }
+    }
+    setSourceError("");
+    if (identity.vehicleId && identity.vehicleId !== vehicle.id && !window.confirm("Changing the vehicle requires fresh agreement and handoff evidence. Existing issued packets remain saved. Continue?")) return;
+    for (const key of ["releasePhotos", "returnPhotos", "documents", "signedDocuments", "paperwork", "packet", "evidence", "handoff"]) savedDeal?.write(`${workflowId}:${key}`, {});
+    savedDeal?.write(`${workflowId}:preparedForms`, []);
+    savedDeal?.write(`${workflowId}:generatedPacketId`, "");
+    savedDeal?.write(`${workflowId}:returnReceived`, false);
+    const facts = savedDeal?.read(`${workflowId}:facts`);
+    if (facts && typeof facts === "object") savedDeal?.write(`${workflowId}:facts`, { ...facts, licenseVerified: false, insuranceVerified: false, keysReturned: false });
+    const fields = savedDeal?.read("fields") as Record<string, unknown> | undefined;
+    if (fields) savedDeal?.write("fields", Object.fromEntries(Object.entries(fields).filter(([key]) => !key.startsWith(workflowId + ":"))));
+    setIdentity(current => ({ ...current, vehicleId: vehicle.id, inventoryUnitId: vehicle.inventoryUnitId, vehicle }));
+    setForm(current => ({ ...current, vehicle: [vehicle.label, vehicle.vin, vehicle.stockNumber].filter(Boolean).join(" / ") }));
+  }
   const [authorizedContact, setAuthorizedContact] = useState<{ customerId: string; phoneNumber: string; email: string } | null>(null);
   useEffect(() => {
     if (!selectedCustomerId) return;
@@ -4340,55 +4429,27 @@ function DealStartDesk({
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
   const customerReady = form.customerId === MANUAL_CUSTOMER_ID ? Boolean(manualCustomer) : effectiveCustomerName !== "Customer not selected";
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
-  const effectiveAmount = testDriveWorkflow && !form.amount.trim() ? "$0.00" : form.amount;
-  const effectiveEstimatedValueCents = testDriveWorkflow && !form.amount.trim() ? 0 : estimatedValueCents;
+  const effectiveAmount = nonRevenueWorkflow && !form.amount.trim() ? "$0.00" : form.amount;
+  const effectiveEstimatedValueCents = nonRevenueWorkflow && !form.amount.trim() ? 0 : estimatedValueCents;
   const completedCount = useMemo(() => [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
   const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
 
   function update(key: keyof typeof form, value: string) {
+    if (key === "vehicle" && identity.vehicle?.vin && !value.toUpperCase().includes(identity.vehicle.vin)) setIdentity(current => ({ ...current, vehicleId: "", inventoryUnitId: null, vehicle: null }));
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function updateCustomer(customerId: string) {
-    if (customerId === MANUAL_CUSTOMER_ID) {
-      setForm((current) => ({
-        ...current,
-        amount: "",
-        customerId,
-        note: "",
-        ownerUserId: current.ownerUserId || model.userId,
-        vehicle: ""
-      }));
-      return;
+  async function applyPreset(preset: DealStartPreset) {
+    if (workflowId !== preset.workflowId && form.customerId && form.vehicle) {
+      if (!window.confirm("Start this as a separate related path? The existing deal and its paperwork will remain saved.")) return;
+      if (!await savedDeal?.save()) return;
+      const params = new URLSearchParams({ new: "1", pathway: preset.workflowId, customerId: form.customerId });
+      if (preset.workflowId === "vehicle-loaner") params.set("sourceDraftId", savedDeal!.draftId());
+      else if (identity.vehicleId) params.set("vehicleId", identity.vehicleId);
+      router.push(`/crm-next/deals/start?${params}`); return;
     }
-    const draft = readDealDraft(customerId);
-    setManualCustomerName("");
-    setForm((current) => ({
-      ...current,
-      amount: draft?.amount ?? "",
-      customerId,
-      note: draft?.note ?? "",
-      ownerUserId: draft?.ownerUserId || current.ownerUserId || model.userId,
-      vehicle: draft?.vehicle ?? ""
-    }));
-    if (draft?.workflowId) setWorkflowId(draft.workflowId as DealWorkflowId);
-  }
-
-  function updateManualCustomerName(value: string) {
-    setManualCustomerName(value);
-    setForm((current) => current.customerId === MANUAL_CUSTOMER_ID ? current : {
-      ...current,
-      amount: "",
-      customerId: MANUAL_CUSTOMER_ID,
-      note: "",
-      ownerUserId: current.ownerUserId || model.userId,
-      vehicle: ""
-    });
-  }
-
-  function applyPreset(preset: DealStartPreset) {
     setSelectedPresetId(preset.id);
     setWorkflowId(preset.workflowId);
     setExecutionOpen(false);
@@ -4417,8 +4478,13 @@ function DealStartDesk({
       setStatus({ kind: "error", message: pendingDocumentUploads.current ? "Wait for the documents to finish saving." : "Resolve the document save error before completing this workflow." });
       return;
     }
-    if (form.customerId === MANUAL_CUSTOMER_ID) {
-      setStatus({ kind: "success", message: `${workflow.label} intake is ready for ${effectiveCustomerName}. Create the permanent customer record before opening a CRM opportunity.` });
+    if (form.customerId === MANUAL_CUSTOMER_ID || !identity.customerId || !identity.vehicleId) {
+      setStatus({ kind: "error", message: "Select or add the shared CRM customer and canonical vehicle above before continuing. Legacy manual entries remain saved for review." });
+      return;
+    }
+    if (nonRevenueWorkflow) {
+      const saved = await savedDeal?.save();
+      setStatus({ kind: saved ? "success" : "error", message: saved ? "Operational path saved. Use assignment and handoff; no sales opportunity or original deal was replaced." : "Resolve the draft save before continuing." });
       return;
     }
     if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return;
@@ -4451,29 +4517,14 @@ function DealStartDesk({
 
   function renderCustomerSelector(label = FIELD_LABELS.customer) {
     return (
-      <>
-        <label>
-          <span>{label}</span>
-          <select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}>
-            <option value="">Select customer</option>
-            {model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-            <option value={MANUAL_CUSTOMER_ID}>Add customer manually</option>
-          </select>
-        </label>
-        {form.customerId === MANUAL_CUSTOMER_ID ? (
-          <label>
-            <span>Manual customer name</span>
-            <input autoFocus value={manualCustomerName} onChange={(event) => setManualCustomerName(event.target.value)} placeholder="Customer name" />
-          </label>
-        ) : null}
-      </>
+      <p><strong>{label}:</strong> {effectiveCustomerName}. Use the shared selector above to add or select a customer once.</p>
     );
   }
 
   function getDocumentContext() {
     const key = `crm-next:document-jacket:${form.customerId}:${workflowId}:${form.vehicle.trim()}`;
     const reference = savedDeal?.reference(key) ?? crypto.randomUUID();
-    return { jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: form.customerId === MANUAL_CUSTOMER_ID ? "" : form.customerId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
+    return { workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
   }
 
   function archiveSelectedFile(input: HTMLInputElement) {
@@ -4509,8 +4560,16 @@ function DealStartDesk({
   }
 
   return (
+    <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section className={styles.dealStartTool} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
+      <div className={identityStyles.identityGrid}>
+        <SharedDealCustomerPicker selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} />
+        <SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} />
+      </div>
+      {sourceError && <p role="alert">{sourceError}</p>}
+      {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
+      {(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}
       <header className={styles.dealStartHeader}>
         <div>
           <span className={styles.eyebrow}>Revenue execution desk</span>
@@ -4687,7 +4746,7 @@ function DealStartDesk({
           <button type="button" onClick={() => setExecutionOpen(true)}>Open selected desk</button>
         </section>
       ) : (
-      <DealDraftScope name={workflowId}><main className={styles.dealExecutionBody}>
+      <DealDraftScope key={identity.vehicleId || "unlinked"} name={workflowId}><main className={styles.dealExecutionBody}>
           {financeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
@@ -4845,12 +4904,11 @@ function DealStartDesk({
                 amount={form.amount}
                 customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
-                customerNameEditable={form.customerId === MANUAL_CUSTOMER_ID || !selectedCustomer}
+                originalVehicleReference={relatedSource?.sourceVehicleReference ?? ""}
                 key={workflow.id}
                 mode={workflow.id === "vehicle-loaner" ? "vehicle-loaner" : "daily-rental"}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
-                onCustomerNameChange={updateManualCustomerName}
                 onSaveDraft={saveDraft}
                 onVehicleChange={(value) => update("vehicle", value)}
                 statusKind={status.kind}
@@ -4888,6 +4946,7 @@ function DealStartDesk({
       ) : null}
     </section>
     </DealDocumentContext.Provider>
+    </SharedDealVehicleContext.Provider>
   );
 }
 
