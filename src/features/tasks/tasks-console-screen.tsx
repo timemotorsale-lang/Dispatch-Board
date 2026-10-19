@@ -33,6 +33,7 @@ import {
   formatTaskDisplayNumber,
   formatTaskEnumLabel
 } from "@/features/tasks/detail/task-detail-mappers";
+import { TaskTitleEditor } from "@/features/tasks/detail/task-title-editor";
 import { isTaskDueSoon, isTaskOverdue } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { TaskReadModel } from "@/server/services/task-read";
@@ -204,7 +205,7 @@ const TASKS_CONSOLE_COLUMNS: Array<{ key: TasksConsoleColumnKey; label: string }
   { key: "title", label: "Task description" },
   { key: "priority", label: "Priority" },
   { key: "status", label: "Status" },
-  { key: "owner", label: "Owner" },
+  { key: "owner", label: "Assignee" },
   { key: "department", label: "Department" },
   { key: "dueTime", label: "Due Time" },
   { key: "vehicleCustomer", label: "Vehicle / Customer" },
@@ -300,7 +301,7 @@ function getGroupByLabel(groupBy: TasksConsoleGroupBy) {
   }
 
   if (groupBy === "owner") {
-    return "Owner";
+    return "Assignee";
   }
 
   if (groupBy === "department") {
@@ -670,7 +671,7 @@ function getOwnerFilterLabel(tasks: BoardReadTask[], ownerId: string) {
     return "Unassigned";
   }
 
-  return tasks.find((task) => task.assignedUser?.id === ownerId)?.assignedUser?.name ?? "Selected owner";
+  return tasks.find((task) => task.assignedUser?.id === ownerId)?.assignedUser?.name ?? "Selected assignee";
 }
 
 function getTaskOwnerInitials(task: Pick<BoardReadTask, "assignedUser">) {
@@ -683,7 +684,7 @@ function getTaskOwnerInitials(task: Pick<BoardReadTask, "assignedUser">) {
 }
 
 function isTaskOwnedByOrCollaborating(task: BoardReadTask, currentUserId: string) {
-  return getTaskOwnerId(task) === currentUserId || task.collaborators?.some((collaborator) => collaborator.id === currentUserId) === true;
+  return getTaskOwnerId(task) === currentUserId || task.ownerUser?.id === currentUserId || task.collaborators?.some((collaborator) => collaborator.id === currentUserId) === true;
 }
 
 function isTaskCompletedOnBoardDate(task: BoardReadTask, boardDate: string) {
@@ -872,7 +873,7 @@ function createRightRailFieldRows(task: TaskReadModel | null) {
 
   return [
     {
-      label: "Owner",
+      label: "Assignee",
       value: task.assignedUser.name
     },
     {
@@ -1122,7 +1123,7 @@ export function TasksConsoleScreen({
     activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
     acquisitionView !== "all" ? `View: ${getAcquisitionViewLabel(acquisitionView)}` : null,
     activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
-    activeOwnerFilter ? `Owner: ${getOwnerFilterLabel(allTasks, activeOwnerFilter)}` : null,
+    activeOwnerFilter ? `Assignee: ${getOwnerFilterLabel(allTasks, activeOwnerFilter)}` : null,
     groupBy !== "none" ? `Grouped by ${getGroupByLabel(groupBy)}` : null,
     searchText.trim() ? `Search: ${searchText.trim()}` : null,
     activeView === "board" ? "Board lanes" : null
@@ -2497,7 +2498,7 @@ export function TasksConsoleScreen({
               <input name="title" placeholder="Example: Check vehicles needing inspection" required />
             </label>
             <label>
-              <span>Owner</span>
+              <span>Assignee</span>
               <select defaultValue={defaultQuickCreateAssigneeId} name="assignedUserId" required>
                 {assigneeOptions.map((user) => (
                   <option key={user.id} value={user.id}>
@@ -2797,7 +2798,7 @@ export function TasksConsoleScreen({
                           {visibleColumnSet.has("title") ? <th className="tasks-console-column-title">Task description</th> : null}
                           {visibleColumnSet.has("priority") ? <th className="tasks-console-column-priority">Priority</th> : null}
                           {visibleColumnSet.has("status") ? <th className="tasks-console-column-status">Status</th> : null}
-                          {visibleColumnSet.has("owner") ? <th className="tasks-console-column-owner">Owner</th> : null}
+                          {visibleColumnSet.has("owner") ? <th className="tasks-console-column-owner">Assignee</th> : null}
                           {visibleColumnSet.has("department") ? <th className="tasks-console-column-department">Department</th> : null}
                           {visibleColumnSet.has("dueTime") ? <th className="tasks-console-column-due-time">Due Time</th> : null}
                           {visibleColumnSet.has("vehicleCustomer") ? (
@@ -3198,7 +3199,11 @@ export function TasksConsoleScreen({
                     </div>
                   </div>
                   <div className="tasks-console-rail-title">
-                    <h2>{selectedBoardTask.title}</h2>
+                    <TaskTitleEditor
+                      onSaved={() => refreshSelectedTaskDetail(selectedBoardTask.id, "Task title saved.")}
+                      taskId={selectedBoardTask.id}
+                      title={activeTaskDetail?.title ?? selectedBoardTask.title}
+                    />
                     <p>{getTaskReference(selectedBoardTask)}</p>
                   </div>
                 </div>

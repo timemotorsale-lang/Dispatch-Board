@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ createRegistryVehicle: vi.fn(), decodeVinWithNhtsa: vi.fn(), findVehicleRegistryByPlate: vi.fn(), listVehicleRegistry: vi.fn(), previewVehicleRegistryImport: vi.fn() }));
+const mocks = vi.hoisted(() => ({ createRegistryVehicle: vi.fn(), getRegistryVehicleCreationReplay: vi.fn(), decodeVinWithNhtsa: vi.fn(), findVehicleRegistryByPlate: vi.fn(), listVehicleRegistry: vi.fn(), previewVehicleRegistryImport: vi.fn() }));
 vi.mock("@/server/vehicle-identification/nhtsa", () => ({ decodeVinWithNhtsa: mocks.decodeVinWithNhtsa }));
-vi.mock("@/server/vehicle-registry/service", () => ({ createRegistryVehicle: mocks.createRegistryVehicle, findVehicleRegistryByPlate: mocks.findVehicleRegistryByPlate, listVehicleRegistry: mocks.listVehicleRegistry, previewVehicleRegistryImport: mocks.previewVehicleRegistryImport }));
+vi.mock("@/server/vehicle-registry/service", () => ({ createRegistryVehicle: mocks.createRegistryVehicle, getRegistryVehicleCreationReplay: mocks.getRegistryVehicleCreationReplay, findVehicleRegistryByPlate: mocks.findVehicleRegistryByPlate, listVehicleRegistry: mocks.listVehicleRegistry, previewVehicleRegistryImport: mocks.previewVehicleRegistryImport }));
 
 import { normalizeAddVehicleWorkflowInput, previewAddVehicleIdentity, startAddVehicleWorkflow } from "@/server/inventory-workflow-launcher/add-vehicle";
 
@@ -10,6 +10,18 @@ const vin = "1HGCM82633A004352";
 const decode = { provider: "NHTSA_VPIC", mappingVersion: 1, retrievedAt: "2026-07-31T12:00:00.000Z", vin, warnings: [], decoded: { bodyClass: "Sedan/Saloon", cabType: null, displacementLiters: "3", doors: "4", driveType: "FWD", engineConfiguration: "V-Shaped", engineCylinders: "6", fuelTypePrimary: "Gasoline", fuelTypeSecondary: null, gvwr: null, make: "HONDA", manufacturer: "HONDA", model: "Accord", modelYear: 2003, plantCountry: "USA", series: null, transmissionStyle: "Automatic", trim: "EX", vehicleType: "PASSENGER CAR" } };
 
 describe("Add Vehicle canonical identification service", () => {
+  it.each(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS", "REFERENCE_ONLY", "OTHER"])("returns the intent-specific destination for dealership reason %s", async reasonCode => {
+    mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
+    const result = await startAddVehicleWorkflow(null, { acquisitionSource: "AUCTION", description: "Record the dealership vehicle arrival condition.", idempotencyKey: "inventory-route-" + reasonCode, locationId: "loc-1", make: "Honda", model: "Accord", odometer: 100, reasonCode, relationship: "DEALERSHIP_INVENTORY", vin, year: 2003 });
+    expect(result.nextWorkflow).toMatchObject(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"].includes(reasonCode) ? { code: "CREATE_INTERNAL_REPAIR_INTAKE", href: "/vehicles/repair-orders?concernSummary=Record+the+dealership+vehicle+arrival+condition.&intakeSource=INVENTORY_RECON&vehicleId=vehicle-1" } : { code: "REVIEW_INVENTORY_CONTROL", href: "/vehicles/vehicle-1/intake", commandLabel: "Add Vehicle & Continue Intake" });
+  });
+
+  it("returns the registry duplicate response when creation is replayed", async () => {
+    mocks.createRegistryVehicle.mockResolvedValueOnce({ duplicate: true, result: { id: "existing-vehicle" }, version: 1 });
+    const result = await startAddVehicleWorkflow(null, { description: "Customer reports a brake warning light.", idempotencyKey: "retry-completed", locationId: "loc-1", make: "Honda", model: "Accord", odometer: 100, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin, year: 2003 });
+    expect(result).toMatchObject({ duplicate: true, result: { id: "existing-vehicle" } });
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledOnce();
+  });
   beforeEach(() => { vi.clearAllMocks(); mocks.decodeVinWithNhtsa.mockResolvedValue(decode); mocks.previewVehicleRegistryImport.mockResolvedValue({ rows: [{ status: "VALID", normalized: { vin, vinState: "VALID", vinValidationSource: "ISO_3779_CHECK_DIGIT_V1" }, potentialDuplicate: null }] }); });
 
   it("returns a free NHTSA decode after canonical duplicate validation", async () => {
@@ -68,6 +80,12 @@ describe("Add Vehicle canonical identification service", () => {
 
   it("can start from a service-intake path without requiring registry rollout execution", async () => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
+    await startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Customer repair intake with warning light.", idempotencyKey: "service-intake-vehicle-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, odometerUnit: "MILES", reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin, year: 2000 });
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ vin }), {}, expect.objectContaining({ initialOdometer: expect.objectContaining({ reading: 42183 }) }));
+  });
+
+  it("can start from a service-intake path without requiring registry rollout execution", async () => {
+    mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     await startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Customer repair intake with warning light.", idempotencyKey: "service-intake-vehicle-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, odometerUnit: "MILES", reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin, year: 2000 }, { enforceRegistryRollout: false });
     expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ vin }), { enforceRollout: false }, expect.objectContaining({ initialOdometer: expect.objectContaining({ reading: 42183 }) }));
   });
@@ -75,7 +93,7 @@ describe("Add Vehicle canonical identification service", () => {
   it("opens the new canonical vehicle in Inventory Control", async () => {
     mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
     const result = await startAddVehicleWorkflow(null, { acquisitionSource: "AUCTION", addMode: "QUICK", description: "Visible front damage; vehicle remains drivable.", externalLocation: "Copart — Des Moines, IA", idempotencyKey: "add-inventory-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY", vin, whereabouts: "AUCTION_FACILITY", year: 2000 });
-    expect(result.nextWorkflow.href).toBe("/vehicles/vehicle-1/workbench");
+    expect(new URL(result.nextWorkflow.href, "http://local").searchParams.get("intakeSource")).toBe("INVENTORY_RECON");
     expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.anything(), {}, expect.objectContaining({ specificationSnapshot: expect.objectContaining({ specifications: expect.objectContaining({ externalLocation: "Copart — Des Moines, IA", whereabouts: "AUCTION_FACILITY" }) }) }));
   });
 });

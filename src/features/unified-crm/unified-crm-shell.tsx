@@ -16,6 +16,7 @@ import {
   X
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
@@ -992,6 +993,7 @@ export function UnifiedCrmShell({
   workQueueError,
   workQueueFailureKind
 }: UnifiedCrmShellProps) {
+  const router = useRouter();
   const [selected, setSelected] = useState(
     reviewQueueItems.find((item) => item.id === initialSelectedId) ?? reviewQueueItems[0]
   );
@@ -1017,7 +1019,7 @@ export function UnifiedCrmShell({
 
   function selectAndReturnHome(item: ReviewQueueItem) {
     setSelected(item);
-    if (activeView !== "home" && activeView !== "work") window.location.assign(`/crm?selected=${encodeURIComponent(item.id)}`);
+    if (activeView !== "home" && activeView !== "work") router.push(`/crm?selected=${encodeURIComponent(item.id)}`);
   }
 
   const noticeMode = activeView === "customers"

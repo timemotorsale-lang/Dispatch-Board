@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 import { ServiceClosePartsWorkspace } from "@/features/inventory/service-close-parts-workspace";
 

@@ -24,6 +24,19 @@ const testUser: AuthenticatedUser = {
 };
 
 describe("application shell Sales Console return navigation", () => {
+  it("renders the Inventory sidebar submenu with direct import and export links", () => {
+    currentPathname = "/vehicles/import-export";
+    currentSearchParams = new URLSearchParams("mode=import");
+    const markup = renderToStaticMarkup(<AppShell user={testUser}><section>Import vehicles</section></AppShell>);
+    expect(markup).toContain('class="console-inventory-menu" open=""');
+    expect(markup).toContain('aria-label="Inventory tools"');
+    expect(markup).toContain('href="/vehicles/import-export?mode=import"');
+    expect(markup).toContain('href="/vehicles/import-export?mode=export"');
+    expect(markup).toContain('href="/vehicles/inventory/units"');
+    for (const title of ["New Vehicle", "Active Inventory List", "Appraise New Vehicle", "Inventory Reports", "Reconditioning"]) expect(markup).toContain(title);
+    expect(markup).not.toContain("Rebook All Vehicles");
+    expect(markup).not.toContain("Craigslist");
+  });
   beforeEach(() => {
     currentPathname = "/customers/customer-360";
     currentSearchParams = new URLSearchParams("returnTo=/sales");

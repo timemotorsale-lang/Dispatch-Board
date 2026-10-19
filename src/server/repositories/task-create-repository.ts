@@ -144,6 +144,7 @@ export function createTaskCreateRepository(
       return database.task.create({
         data: {
           assignedUserId: input.assignedUserId,
+          ownerUserId: input.createdByUserId,
           ...(input.collaboratorRequests?.length ? { collaborators: { createMany: { data: input.collaboratorRequests.map((request) => ({
             userId: request.userId,
             addedByUserId: input.createdByUserId,

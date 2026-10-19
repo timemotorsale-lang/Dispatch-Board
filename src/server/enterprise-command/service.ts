@@ -30,7 +30,7 @@ export async function executeEnterpriseVehicleCommand(actor: AuthenticatedUser |
   return { commandId: result.command.id, correlationId: result.command.correlationId, duplicate: result.duplicate, version: result.version, result: result.command.resultSnapshot };
 }
 
-export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE"] as const;
+export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "INVENTORY_INTAKE", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE"] as const;
 export type VehicleOperationsFeatureCode = (typeof VEHICLE_OPERATIONS_FEATURES)[number];
 
 export const DIAGNOSTICS_FEATURES = ["DIAGNOSTICS_MASTER", "DIAGNOSTIC_CASES", "DIAGNOSTIC_EVIDENCE", "DIAGNOSTIC_REASONING", "DIAGNOSTIC_PUBLISHING", "DIAGNOSTIC_KNOWLEDGE", "DIAGNOSTIC_AI"] as const;
@@ -54,6 +54,14 @@ function evaluateRolloutFeature(flags: VehicleFeatureFlagRecord[], masterCode: s
 
 export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord[], code: VehicleOperationsFeatureCode, userId: string, locationId: string | null) {
   return evaluateRolloutFeature(flags, "VEHICLE_OPERATIONS_MASTER", code, userId, locationId);
+}
+
+export function describeVehicleOperationsBlock(reason: string) {
+  if (reason === "MASTER_DISABLED") return "Vehicle operations are paused or not configured. Ask a rollout administrator to enable the vehicle operations master setting in Settings > Vehicle Operations.";
+  if (reason === "FEATURE_DISABLED") return "This workflow is paused or not configured in Settings > Vehicle Operations.";
+  if (reason === "OUTSIDE_PILOT") return "Your account is outside this workflow's pilot. Ask a rollout administrator to add you to the pilot.";
+  if (reason === "SHADOW_ONLY") return "This workflow is in preview mode; saving is not enabled yet.";
+  return "Ask a rollout administrator to review this workflow's rollout settings.";
 }
 
 export function evaluateDiagnosticsFeature(flags: VehicleFeatureFlagRecord[], code: DiagnosticsFeatureCode, userId: string, locationId: string | null) {

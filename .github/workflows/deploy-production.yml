@@ -1,0 +1,209 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deployment:
+        description: "Approve production deployment of the selected main revision"
+        required: true
+        default: false
+        type: boolean
+      labor_evidence_run_id:
+        description: Successful Labor Release Evidence review run ID for this exact main revision
+        required: true
+        type: string
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+env:
+  DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/Dispatch-Board' }}
+
+jobs:
+  deploy:
+    name: Deploy
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_deployment
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Verify reviewed evidence provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABOR_EVIDENCE_RUN_ID: ${{ inputs.labor_evidence_run_id }}
+        run: node scripts/verify-labor-evidence-run.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.labor_evidence_run_id }}
+          name: labor-release-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/labor-release-evidence
+      - name: Require current evidence before contacting production
+        run: npm run check:labor-pilot-release -- "$RUNNER_TEMP/labor-release-evidence/evidence.json"
+      - name: Require successful CI for this revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          successful_runs="$(gh api "repos/$GH_REPO/actions/workflows/deploy.yml/runs?head_sha=$RELEASE_SHA&status=success&per_page=100" --jq '[.workflow_runs[] | select(.head_sha == env.RELEASE_SHA and .head_branch == "main" and .event == "push" and .name == "CI" and .conclusion == "success")] | length')"
+          if [ "$successful_runs" -eq 0 ]; then
+            echo "Production deployment requires successful main-branch CI for $RELEASE_SHA." >&2
+            exit 1
+          fi
+
+      - name: Validate deployment secrets
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in DEPLOY_HOST DEPLOY_SSH_KEY DEPLOY_USER TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ secrets.DEPLOY_HOST }}
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+          PRODUCTION_HEALTH_URL: https://dispatch-board.tail0d2437.ts.net/api/health
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' RELEASE_REF='${RELEASE_REF}' RELEASE_SHA='${RELEASE_SHA}' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          fail_preflight() {
+            printf 'Deployment preflight failed: %s\n' "$1" >&2
+            exit 1
+          }
+
+          cd "$DEPLOY_PATH" || fail_preflight "deployment directory is unavailable at $DEPLOY_PATH."
+
+          require_file() {
+            file="$1"
+            description="$2"
+            if [ ! -f "$file" ]; then
+              fail_preflight "$description is missing at $DEPLOY_PATH/$file."
+            fi
+            if [ ! -r "$file" ]; then
+              fail_preflight "$description is not readable by the deployment user at $DEPLOY_PATH/$file."
+            fi
+          }
+
+          require_command() {
+            command -v "$1" >/dev/null 2>&1 || fail_preflight "required command '$1' is not available on the production host."
+          }
+
+          require_command curl
+          require_command jq
+          require_file deploy/docker/.env "production environment file"
+
+          purchase_import_release_enabled=false
+          if grep -Eq '^[[:space:]]*PURCHASE_IMPORT_RELEASE_ENABLED[[:space:]]*=[[:space:]]*true[[:space:]]*($|#)' deploy/docker/.env; then
+            purchase_import_release_enabled=true
+            require_file deploy/docker/import-release-approval.json "purchase import release approval file"
+            jq -e --arg revision "$RELEASE_SHA" '.revision == $revision' deploy/docker/import-release-approval.json >/dev/null ||
+              fail_preflight "purchase import release approval file must contain revision $RELEASE_SHA."
+          fi
+          echo "Deployment preflight passed."
+          export APP_VERSION="$RELEASE_SHA"
+
+          compose() {
+            if docker info >/dev/null 2>&1; then
+              docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
+            else
+              sudo -n docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
+            fi
+          }
+
+          git fetch --prune origin "$RELEASE_REF"
+          git checkout --detach "$RELEASE_SHA"
+
+          previous_revision="$(curl -fsS http://127.0.0.1:3000/api/health | jq -er '.revision | select(test("^[a-f0-9]{40}$"))')"
+          previous_container="$(compose ps -q app)"
+          if docker info >/dev/null 2>&1; then
+            previous_image="$(docker inspect --format '{{.Image}}' "$previous_container")"
+            docker tag "$previous_image" "dispatch-board-app:$previous_revision"
+          else
+            previous_image="$(sudo -n docker inspect --format '{{.Image}}' "$previous_container")"
+            sudo -n docker tag "$previous_image" "dispatch-board-app:$previous_revision"
+          fi
+          echo "Retained rollback image: dispatch-board-app:$previous_revision"
+          compose build
+          # Retain and verify a recoverable database snapshot before migrations.
+          compose run --rm -T --no-deps backup /bin/sh /opt/dispatch/verify-postgres-restore.sh </dev/null
+          # Compose must not consume the remaining SSH here-document from stdin.
+          compose run --rm -T migrate </dev/null
+          if [ "$purchase_import_release_enabled" = "true" ]; then
+            compose run --rm -T --no-deps signatures freshclam </dev/null
+            compose run --rm -T --no-deps \
+              -v "$DEPLOY_PATH/deploy/docker/import-release-approval.json:/run/import-release-approval.json:ro" \
+              migrate npm run check:purchase-import-release </dev/null
+          else
+            echo "Purchase import release is disabled; skipping purchase import promotion checks."
+          fi
+          compose up -d --remove-orphans
+          compose ps
+
+          curl -fsS http://127.0.0.1:3000/api/health >/dev/null
+          bash deploy/docker/scripts/verify-tailscale-serve.sh
+          REMOTE
+
+          for attempt in {1..10}; do
+            if curl -fsS --max-time 10 "$PRODUCTION_HEALTH_URL" |
+              jq -e --arg revision "$RELEASE_SHA" '.status == "ok" and .revision == $revision' >/dev/null; then
+              echo "Production is serving release $RELEASE_SHA."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Production did not serve release $RELEASE_SHA at $PRODUCTION_HEALTH_URL." >&2
+          exit 1

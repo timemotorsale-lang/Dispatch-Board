@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Camera, Pencil } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
@@ -189,6 +190,7 @@ function todayInputDate() {
 }
 
 export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested = false }: { loadError?: string; model?: ClaimReadModel; authorizationRequested?: boolean }) {
+  const router = useRouter();
   const [actionError, setActionError] = useState("");
   const [authorizationOpen, setAuthorizationOpen] = useState(authorizationRequested);
   const [actionMessage, setActionMessage] = useState("");
@@ -562,7 +564,7 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
       setActionMessage(`Reminder saved for ${date}.`);
       setReminderStatus(`Reminder saved for ${date}. Opening the Appointment Console reminders now...`);
       window.setTimeout(() => {
-        window.location.assign(`/appointments?section=follow-up&localDate=${encodeURIComponent(date)}`);
+        router.push(`/appointments?section=follow-up&localDate=${encodeURIComponent(date)}`);
       }, 350);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "The reminder could not be saved.";

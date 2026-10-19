@@ -39,11 +39,13 @@ const creates = new Set(["UPSERT_SERVICE_PROMISE", "RECORD_COMMUNICATION_PREFERE
 export async function getCustomerLifecycleWorkspace(actor: AuthenticatedUser | null, input: Dependencies = {}) { const context = dependencies(input); await authorize(actor, "CUSTOMER_LIFECYCLE_VIEW", context); return context.repository.overview(context.organizationId); }
 
 export async function executeCustomerLifecycleCommand(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
-  const context = dependencies(input), normalized = normalizeLifecycleCommand(value, context.now()), action = normalized.action, user = await authorize(actor, capability(action, action === "APPROVE_POLICY"), context, true), raw = payload(normalized), id = creates.has(action) ? randomUUID() : required(normalized.subjectId, "Subject ID", 100), subjectType = subjectTypes[action];
+  const context = dependencies(input), normalized = normalizeLifecycleCommand(value, context.now()), action = normalized.action, user = await authorize(actor, capability(action, action === "APPROVE_POLICY"), context, true), raw = payload(normalized);
+  const receipt = action.includes("POLICY") ? await context.repository.policyCommandReceipt?.(context.organizationId, action, normalized.idempotencyKey) : null;
+  const id = creates.has(action) ? receipt?.subjectId ?? randomUUID() : required(normalized.subjectId, "Subject ID", 100), subjectType = subjectTypes[action];
   let rawToken: string | null = null;
   if (action === "CREATE_ESTIMATE_APPROVAL" || action === "CREATE_PORTAL_GRANT") { rawToken = randomBytes(32).toString("base64url"); raw.tokenHashSha256 = hashAccessToken(rawToken); }
   if (action === "CREATE_ESTIMATE_APPROVAL") raw.destinationMasked = maskDestination(String(raw.destination));
-  const expectedVersion = creates.has(action) ? 0 : await context.repository.aggregateVersion(context.organizationId, subjectType, id);
+  const expectedVersion = receipt?.expectedVersion ?? (creates.has(action) ? 0 : await context.repository.aggregateVersion(context.organizationId, subjectType, id));
   const command = normalizeEnterpriseCommand({ actorUserId: user.id, commandType: action, domain: "CUSTOMER_LIFECYCLE", expectedVersion, idempotencyKey: normalized.idempotencyKey, locationId: null, organizationId: context.organizationId, payload: raw, reason: normalized.reason, subjectId: id, subjectType });
   const result = await context.repository.execute(command, raw);
   if (!rawToken) return result;

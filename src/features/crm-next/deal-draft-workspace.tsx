@@ -97,7 +97,7 @@ export function DealDraftScope({ name, children }: { name: string; children: Rea
   return <ScopeContext.Provider value={name}><div ref={root} className={styles.scope} data-deal-draft-scope={name}>{children}</div></ScopeContext.Provider>;
 }
 
-export function DealDraftWorkspace({ initialCustomerId, customers, children }: { initialCustomerId?: string; customers: Array<{ id: string; name: string }>; children: ReactNode }) {
+export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, customers, children }: { initialCustomerId?: string; initialVehicleFacts?: Record<string, string>; customers: Array<{ id: string; name: string }>; children: ReactNode }) {
   const snapshot = useRef<Snapshot>({}), id = useRef(""), revision = useRef(0), changes = useRef(0), savedChanges = useRef(0);
   const initialized = useRef(false), queue = useRef(Promise.resolve()), timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), root = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false), [epoch, setEpoch] = useState(0), [drafts, setDrafts] = useState<DraftSummary[]>([]);
@@ -161,7 +161,7 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
 
   const install = useCallback(async (draft: Draft | null) => {
     initialized.current = false; clearTimeout(timer.current);
-    const next = draft?.snapshot ?? {};
+    const next = draft?.snapshot ?? (initialVehicleFacts ? Object.fromEntries(Object.keys(SALES_DOCUMENT_PATHWAYS).map(pathway => [`${pathway}:vehicleFacts`, { ...initialVehicleFacts }])) : {});
     // Never restore upload readiness from a filename that was not saved to its jacket.
     for (const pathway of Object.keys(SALES_DOCUMENT_PATHWAYS)) {
       const jacketId = (next.jackets as Record<string, string> | undefined)?.[pathway];
@@ -182,7 +182,7 @@ export function DealDraftWorkspace({ initialCustomerId, customers, children }: {
     changes.current = 0; savedChanges.current = 0; blocked.current = false; setConflict(false);
     setSelectedId(draft?.id ?? ""); setError(""); setMessage(draft ? "Saved deal reopened" : "New draft"); setEpoch((value) => value + 1); setLoaded(true);
     setTimeout(() => { initialized.current = true; }, 0);
-  }, []);
+  }, [initialVehicleFacts]);
 
   useEffect(() => {
     let active = true;

@@ -7,7 +7,7 @@ type Context = { params: Promise<{ id: string }> };
 function status(message: string) {
   if (message === "Authentication required.") return 401;
   if (message === "Task not found.") return 404;
-  if (message === "Only the task owner or a manager can manage collaborators.") return 403;
+  if (message === "Only the task owner, assignee, or a manager can manage collaborators.") return 403;
   if (message.includes("collaborator") || message.includes("Task id")) return 400;
   return 500;
 }

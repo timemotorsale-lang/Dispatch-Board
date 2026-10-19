@@ -1,0 +1,72 @@
+.finder { color: #17263d; }
+.finderHeader { display: flex; align-items: start; justify-content: space-between; gap: 15px; }
+.finderHeader h2 { font-size: 24px; }
+.eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #4d6482; margin-bottom: 6px !important; }
+.textButton { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: #155bd7; padding: 5px 0; font-size: 12px !important; text-align: left; }
+.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: #61728b; font-size: 11px; margin: 14px 0; }
+.breadcrumb button { padding: 0; background: transparent; border: 0; color: #155bd7; font-size: 11px !important; min-height: 30px !important; text-decoration: underline; }
+.description { color: #50617a; font-size: 13px; margin: 10px 0 !important; }
+.vehicle { display: block; width: 100%; max-height: 280px; padding: 15px; margin: 18px 0; background: #f7faff; border-radius: 9px; }
+.vehicle text { font-size: 14px; font-weight: 700; }
+.frontWheel { cursor: pointer; }
+.frontWheel:focus-visible { outline: 3px solid #155bd7; outline-offset: 3px; }
+.areaCards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.areaCards button { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 18px; background: #fff; border: 1px solid #bdcadd; text-align: left; color: #17263d; }
+.areaCards strong { font-size: 15px; }
+.areaCards span { grid-column: 1; font-size: 12px; color: #50617a; }
+.areaCards svg { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #155bd7; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.areaSwitch, .workSwitch { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 4px; padding: 3px; border: 1px solid #dce4ee; border-radius: 7px; background: #f1f5fb; }
+.areaSwitch button, .workSwitch button { background: transparent; border: 1px solid transparent; padding: 7px 10px; color: #50617a; font-size: 12px !important; min-height: 36px !important; }
+.areaSwitch button[aria-pressed="true"], .workSwitch button[aria-pressed="true"] { background: white; color: #155bd7; border-color: #aec9f4; font-weight: 700; }
+.zoomButtons { display: flex; gap: 12px; flex-wrap: wrap; }
+.zoomButtons button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #155bd7; font-size: 11px !important; padding: 0; min-height: 32px !important; }
+.diagramCaption { color: #50617a; font-size: 12px; margin-bottom: 8px !important; }
+.assembly { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; max-height: 460px; background: #f7faff; border: 1px solid #dce4ee; border-radius: 9px; }
+.context { fill: none; stroke: #c1cede; stroke-width: 3; stroke-dasharray: 5 5; pointer-events: none; }
+.part { cursor: pointer; color: #61758c; }
+.componentShape { fill: #dce5ef; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; }
+.part:hover, .part:focus-visible, .activePart { color: #155bd7; outline: none; }
+.part:hover .componentShape, .part:focus-visible .componentShape, .activePart .componentShape { fill: #b8d4ff; stroke-width: 4; }
+.part:focus-visible .componentShape { stroke: #102746; stroke-dasharray: 4 2; }
+.componentShape .detailStroke { fill: none; stroke-width: 2; }
+.componentShape .hose { fill: none; stroke-width: 9; stroke-linecap: round; }
+.componentShape .wire { fill: none; stroke-width: 6; stroke-linecap: round; }
+.componentShape .spring { fill: none; stroke-width: 9; stroke-linecap: round; }
+.componentShape .link { fill: none; stroke-width: 8; stroke-linecap: round; }
+.callout { color: #4f637c; cursor: pointer; }
+.callout path { stroke: currentColor; stroke-width: 1.5; fill: none; }
+.callout circle { fill: white; stroke: currentColor; stroke-width: 2; }
+.callout text { fill: currentColor; font: 700 14px Arial, sans-serif; pointer-events: none; }
+.activeCallout { color: #155bd7; }
+.activeCallout circle { fill: #155bd7; }
+.activeCallout text { fill: white; }
+.disclaimer { color: #5b6b81; font-size: 11px; margin: 10px 0 16px !important; }
+.partList { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.partList button { display: flex; gap: 9px; align-items: center; border: 1px solid #dce4ee; background: white; padding: 9px 11px; font-size: 12px !important; color: #425570; text-align: left; min-height: 45px !important; }
+.partList button[aria-pressed="true"] { border-color: #377bea; background: #f1f6ff; color: #155bd7; font-weight: 700; }
+.partNumber { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid #bdcadd; border-radius: 50%; font-size: 11px; flex-shrink: 0; background: white; }
+.partWork { border-top: 1px solid #dce4ee; margin: 22px 0 12px; padding-top: 20px; }
+.partWork h3 { font-size: 19px !important; margin-bottom: 6px !important; }
+.partWork > p:not(.eyebrow) { font-size: 13px; color: #50617a; margin: 6px 0; }
+.partWork .scope { font-size: 12px !important; background: #f2f6fb; border-radius: 6px; padding: 11px; margin: 12px 0 !important; }
+.sidePicker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.sidePicker > span { font-size: 12px; font-weight: 700; margin-right: 5px; }
+.sidePicker button { background: white; border: 1px solid #bdcadd; color: #425570; font-size: 12px !important; padding: 8px 13px; }
+.sidePicker button[aria-pressed="true"] { border-color: #377bea; color: #155bd7; background: #f1f6ff; }
+.sidePicker small { flex-basis: 100%; color: #5b6b81; font-size: 11px; }
+.workSwitch { margin-bottom: 12px; }
+.workRow { display: flex; align-items: center; gap: 15px; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #edf1f6; }
+.workRow strong { display: block; font-size: 13px; }
+.workRow small { display: block; color: #5b6b81; font-size: 11px; margin-top: 4px; }
+.workRow .textButton { min-height: 30px !important; font-size: 11px !important; }
+.addButton { display: flex; align-items: center; gap: 4px; color: #155bd7; background: white; border: 1px solid #a3bff0; padding: 8px 14px; font-size: 12px !important; }
+.choosePrompt { padding: 17px; border: 1px dashed #bdcadd; color: #50617a; border-radius: 7px; margin: 20px 0; font-size: 13px; }
+.diagramSelect { display: grid; gap: 6px; max-width: 100%; font-size: 12px; color: #50617a; margin: 15px 0; }
+.diagramSelect select { min-width: 0; max-width: 100%; width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #bdcadd; border-radius: 7px; background: white; color: #17263d; font: inherit; }
+.diagramSelect select:focus-visible { outline: 3px solid #3678e8; outline-offset: 3px; }
+.zonePicker { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 18px; }
+.zonePicker button { border: 1px solid #bdcadd; border-radius: 6px; background: white; color: #50617a; padding: 8px 12px; font-size: 12px !important; }
+.zonePicker button[aria-pressed="true"] { border-color: #377bea; color: #155bd7; background: #f1f6ff; }
+.catalogLinks { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; }
+@media (max-width: 720px) { .finderHeader { flex-direction: column; gap: 5px; } .partList, .areaCards { grid-template-columns: minmax(0, 1fr); } .toolbar { gap: 5px; } .zoomButtons { gap: 14px; } .assembly { min-height: 240px; } .partWork h3 { font-size: 17px !important; } }

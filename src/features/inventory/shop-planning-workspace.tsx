@@ -2,9 +2,15 @@
 
 import { ArrowLeft, BadgeCheck, Building2, CarFront, Check, ChevronRight, ClipboardCheck, FileCheck2, Gauge, LockKeyhole, PackageCheck, ShieldCheck, Stethoscope, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import { copyEstimateForRevision, type RevisableEstimate } from "@/lib/estimate-revision";
+import { emptyManualLaborReview, estimateReviewScope } from "@/lib/estimate-review";
+import { estimateControlsScope, initialEstimatePricing, type EstimateControls } from "@/lib/labor-guide-controls";
+import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
+import { laborOperationForLineKey } from "@/lib/labor-catalog-selection";
+import { EstimateControlsPanel } from "@/features/diagnostics/estimate-controls-panel";
 import { EstimatePriceCorrection } from "./estimate-price-correction";
 import styles from "./shop-planning-workspace.module.css";
 
@@ -227,7 +233,8 @@ const inspectionClearanceSeed: ClearanceItem[] = [
   { detail: "Extra customer concern, cosmetic note, or optional shop observation.", key: "OPTIONAL_NOTE", label: "Optional note", proof: "", required: false, result: "NOT_APPLICABLE", status: "OPTIONAL" },
 ];
 
-export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false }: { initial: Model; returnTo?: string; vendorFollowUp?: boolean }) {
+export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false, defaultLaborRate = 125, canOverrideLaborRate = false }: { initial: Model; returnTo?: string; vendorFollowUp?: boolean; defaultLaborRate?: number; canOverrideLaborRate?: boolean }) {
+  const router = useRouter();
   const [model, setModel] = useState(initial);
   const [selectedId, setSelectedId] = useState(initial.repairOrders[0]?.id ?? "");
   const [notice, setNotice] = useState("");
@@ -252,6 +259,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const defaultExpiresAt = defaultTime ? daysAfter(defaultTime, 7) : "";
   const [estimate, setEstimate] = useState<EstimateDraft>(createEstimateDraft(defaultPresentedAt, defaultExpiresAt));
   const [estimateLines, setEstimateLines] = useState<Line[]>([]);
+  const [manualLaborReview, setManualLaborReview] = useState({ ...emptyManualLaborReview });
+  const [estimateControls, setEstimateControls] = useState<EstimateControls>({ version: 1, pricing: { ...initialEstimatePricing, laborRate: defaultLaborRate }, fitment: {}, overlapResolution: "", reviewedScope: "" });
   const [editingStep, setEditingStep] = useState<number | null>(null);
   const cancelDraftEdits = useRef<(() => void) | null>(null);
   const [revisionSource, setRevisionSource] = useState<{ id: string; version: number } | null>(null);
@@ -732,7 +741,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setReleaseJobs([]);
     if (firstRepairJobId) {
       setNotice(`${firstRepairJobNumber || "Repair job"} created. Opening the repair workbench now.`);
-      window.setTimeout(() => window.location.assign(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
+      window.setTimeout(() => router.push(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
       return;
     }
     setNotice("Repair job created. Open repair work order below to assign work, update parts, complete repair, then move to Final QC.");
@@ -786,7 +795,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice("Add at least one estimate line before presenting the estimate.");
       return;
     }
-    const saved = await submit("PRESENT_ESTIMATE", { lineItems, taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt, ...(revisionSource ? { assumptions: revisionNotes, optionGroups: revisionOptions } : {}) }, revisionSource ? `Revise estimate v${revisionSource.version} (${revisionSource.id}): ${revisionReason.trim()}` : vendorPath ? "Present an immutable estimate version from the approved outside-vendor scope." : "Present an immutable estimate version from diagnostic evidence.");
+    const usesCatalog = lineItems.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()));
+    const saved = await submit("PRESENT_ESTIMATE", { lineItems, ...(lineItems.some(line => line.type === "LABOR") ? { manualLaborReview } : {}), ...(usesCatalog ? { estimateControls } : {}), taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt, ...(revisionSource ? { assumptions: revisionNotes, optionGroups: revisionOptions } : {}) }, revisionSource ? `Revise estimate v${revisionSource.version} (${revisionSource.id}): ${revisionReason.trim()}` : vendorPath ? "Present an immutable estimate version from the approved outside-vendor scope." : "Present an immutable estimate version from diagnostic evidence.");
     if (saved) {
       setEstimateLines([]);
       resetEstimateDraft("LINE-1");
@@ -799,24 +809,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 
   async function createFastApprovedRepairJob() {
     if (!selected || submitInFlight.current) return;
-    const now = new Date();
-    const presentedAt = Number.isNaN(new Date(estimate.presentedAt).getTime()) ? local(now.toISOString()) : estimate.presentedAt;
-    const expiresAtValue = new Date(estimate.expiresAt);
-    const expiresAt = Number.isNaN(expiresAtValue.getTime()) || expiresAtValue <= now ? daysAfter(now, 7) : estimate.expiresAt;
-    const description = estimate.description.trim() || directScope.scopeSummary.trim() || latestDiagnosis?.proposedCorrection || currentVendorWork?.scope || selected.serviceVisit.concernSummary || "Approved repair work";
-    const plannedCorrection = estimate.plannedCorrection.trim() || directScope.proposedCorrection.trim() || latestDiagnosis?.proposedCorrection || description;
-    const lineKey = estimate.lineKey.trim() || "LINE-1";
-    const lineItem = {
-      key: lineKey,
-      type: estimate.lineType,
-      description,
-      quantity: estimate.quantity || 1,
-      unitPriceCents: estimate.unitPriceCents,
-      taxable: estimate.taxable,
-      workTypeCode: estimate.workTypeCode.trim() || "GENERAL_REPAIR",
-      laborGuideMinutes: estimate.laborGuideMinutes || 60,
-      plannedCorrection,
-    };
+    const lineItem = accepted?.estimate.lineItems.find(line => line.type === "LABOR" && accepted.authorizedLineKeys.includes(line.key));
+    if (!lineItem) { setNotice("Present and authorize the reviewed estimate before creating completion work. No automatic price or approval will be generated."); navigateToInternalTarget("#repair-planning-step-3"); return; }
     submitInFlight.current = true;
     setBusy(true);
     setNotice("");
@@ -826,20 +820,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "CREATE_COMPLETION_JOB",
-          description,
-          discountCents: estimate.discountCents,
-          expiresAt,
           idempotencyKey: crypto.randomUUID(),
-          lineKey,
-          laborGuideMinutes: lineItem.laborGuideMinutes,
+          lineKey: lineItem.key,
           partDemandIds: job.partDemandIds,
           partsRequired: job.partsRequired,
-          plannedCorrection,
-          presentedAt,
           reason: "Create and open the approved completion repair job after failed vendor QC.",
-          taxCents: estimate.taxCents,
-          unitPriceCents: lineItem.unitPriceCents,
-          workTypeCode: lineItem.workTypeCode,
         }),
       }) as { result?: { job?: { id?: string; jobNumber?: string } } };
       setEstimateLines([]);
@@ -847,7 +832,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       const jobId = response.result?.job?.id;
       setNotice(`Completion job ${response.result?.job?.jobNumber ?? ""} created. Opening the repair work order.`.trim());
       await refresh();
-      if (jobId) window.location.assign(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
+      if (jobId) router.push(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
       else window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Completion job creation failed.");
@@ -1401,6 +1386,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 <p>{displayNotice}</p>
                 {directPath && displayNotice.includes("Save the bodywork repair scope first") ? <button className={styles.inlineNavAction} onClick={() => navigateToInternalTarget("#repair-planning-step-2")} type="button">Open bodywork scope<ChevronRight /></button> : null}
               </div> : null}
+              <details><summary>Labor source and applicability review (required for labor)</summary>
+                {([ ["engine", "Engine / powertrain"], ["configuration", "Configuration / relevant options"], ["source", "Labor-hour and applicability source"], ["limitations", "Limitations / assumptions"] ] as const).map(([key, label]) => <Field key={key} label={label}><input maxLength={2000} value={manualLaborReview[key]} onChange={event => setManualLaborReview({ ...manualLaborReview, [key]: event.target.value, scope: "" })} /></Field>)}
+                <label><input type="checkbox" checked={manualLaborReview.scope === estimateReviewScope(selected.vehicle.id, estimateLines.length ? estimateLines : [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, laborGuideMinutes: estimate.laborGuideMinutes }])} onChange={event => setManualLaborReview({ ...manualLaborReview, scope: event.target.checked ? estimateReviewScope(selected.vehicle.id, estimateLines.length ? estimateLines : [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, laborGuideMinutes: estimate.laborGuideMinutes }]) : "" })} />I reviewed this vehicle and exact work. This is not OEM verification.</label>
+              </details>
+              {estimateLines.some(line => laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy())) && <EstimateControlsPanel controls={estimateControls} scope={estimateControlsScope(selected.vehicle.id, estimateLines, estimateControls)} labor={estimateLines.flatMap(line => { const operation = laborOperationForLineKey(line.key, flattenLaborOperationTaxonomy()); return operation ? [operation] : []; })} parts={estimateLines.filter(line => line.type === "PART").map(line => ({ key: line.key, label: line.description }))} onChange={setEstimateControls} canOverrideLaborRate={canOverrideLaborRate} shopLaborRate={defaultLaborRate} />}
               <Submit busy={busy}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>
             </form>
           </WorkflowStep>

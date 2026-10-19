@@ -16,17 +16,17 @@ import {
   ExternalLink,
   X,
   ShieldCheck,
-  Sparkles,
   UserPlus,
   UserRound,
   Wrench
 } from "lucide-react";
 import { TaskStatus } from "@prisma/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
+import { isTaskPlanConfirmed } from "@/lib/task-execution-assurance";
 import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
 import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-panel";
@@ -37,11 +37,14 @@ import type { TaskCompletionReadiness } from "@/server/services/task-execution-r
 import type { TaskReadModel } from "@/server/services/task-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { TaskSourceContext } from "./task-source-context";
+import { TaskTitleEditor } from "./task-title-editor";
+import { TaskMetadataPanel } from "./task-metadata-panel";
+import { TaskDescriptionEditor } from "./task-description-editor";
+import { TaskStatusBadge } from "./task-status-badge";
+import { advancedTaskTools, taskTools, TaskToolPicker, type TaskToolSelection } from "./task-tool-picker";
 
 type TaskWorkspaceView = "simple" | "workbench";
 type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "repairDetails";
-type TaskToolSelection = "" | "assignee" | "planner" | "documents" | "subtask" | "checklist" | "workbench";
-
 type TaskSimpleSummaryCardProps = {
   actorIsManager: boolean;
   assignableUsers: ActiveUserSummary[];
@@ -49,6 +52,8 @@ type TaskSimpleSummaryCardProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
+  canReassign?: boolean;
+  compactReview?: boolean;
   canUpdateStatus: boolean;
   hasClaimWorkflow?: boolean;
   checklist: TaskDetailChecklistItem[];
@@ -475,15 +480,15 @@ function ExecutionPathSwitch({
   );
 }
 
-type SimpleOwner = {
+type SimpleAssignee = {
   id: string;
   name: string;
   email?: string;
 };
 
-type SimpleCollaborator = SimpleOwner & {
+type SimpleCollaborator = SimpleAssignee & {
   addedAt: string;
-  addedBy: SimpleOwner | null;
+  addedBy: SimpleAssignee | null;
   isActive: boolean;
   collaborationScope: string;
   capacityRequested: string | null;
@@ -507,15 +512,15 @@ function TaskPeopleControls({
   task: TaskReadModel;
 }) {
   const router = useRouter();
-  const [owner, setOwner] = useState<SimpleOwner>(task.assignedUser);
-  const [ownerDraftId, setOwnerDraftId] = useState(task.assignedUser.id);
+  const [assignee, setAssignee] = useState<SimpleAssignee>(task.assignedUser);
+  const [assigneeDraftId, setAssigneeDraftId] = useState(task.assignedUser.id);
   const [collaborators, setCollaborators] = useState<SimpleCollaborator[]>(task.collaborators ?? []);
   const [collaboratorDraftId, setCollaboratorDraftId] = useState("");
   const [collaboratorScopeDraft, setCollaboratorScopeDraft] = useState("");
   const [collaboratorCapacityDraft, setCollaboratorCapacityDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSavingOwner, setIsSavingOwner] = useState(false);
+  const [isSavingAssignee, setIsSavingAssignee] = useState(false);
   const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
   const [expanded, setExpanded] = useState(initialExpanded);
 
@@ -560,10 +565,10 @@ function TaskPeopleControls({
     }
   }
 
-  async function saveOwner() {
-    if (ownerDraftId === owner.id) return;
+  async function saveAssignee() {
+    if (assigneeDraftId === assignee.id) return;
 
-    setIsSavingOwner(true);
+    setIsSavingAssignee(true);
     setErrorMessage(null);
     setMessage(null);
 
@@ -571,41 +576,41 @@ function TaskPeopleControls({
       const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/assignment`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedUserId: ownerDraftId })
+        body: JSON.stringify({ assignedUserId: assigneeDraftId })
       });
       const result = (await response.json().catch(() => null)) as {
-        task?: { assignedUser: SimpleOwner };
+        task?: { assignedUser: SimpleAssignee };
         error?: string;
       } | null;
 
       if (!response.ok || !result?.task) {
-        throw new Error(result?.error ?? "Unable to change the task owner right now.");
+        throw new Error(result?.error ?? "Unable to change the task assignee right now.");
       }
 
-      const nextOwner = result.task.assignedUser;
-      setOwner(nextOwner);
-      setOwnerDraftId(nextOwner.id);
-      setMessage(`Owner changed to ${nextOwner.name}. This task is now available in ${nextOwner.name}'s My Tasks / Work.`);
+      const nextAssignee = result.task.assignedUser;
+      setAssignee(nextAssignee);
+      setAssigneeDraftId(nextAssignee.id);
+      setMessage(`Assignee changed to ${nextAssignee.name}. This task is now available in ${nextAssignee.name}'s My Tasks / Work.`);
 
-      if (collaborators.some((item) => item.id === nextOwner.id)) {
+      if (collaborators.some((item) => item.id === nextAssignee.id)) {
         await saveCollaborators(
-          collaborators.filter((item) => item.id !== nextOwner.id),
-          `Owner changed to ${nextOwner.name}. Collaborators updated.`
+          collaborators.filter((item) => item.id !== nextAssignee.id),
+          `Assignee changed to ${nextAssignee.name}. Collaborators updated.`
         );
       } else {
         router.refresh();
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to change the task owner right now.");
+      setErrorMessage(error instanceof Error ? error.message : "Unable to change the task assignee right now.");
     } finally {
-      setIsSavingOwner(false);
+      setIsSavingAssignee(false);
     }
   }
 
   const availableCollaborators = assignableUsers.filter(
-    (user) => user.id !== owner.id && !collaborators.some((item) => item.id === user.id)
+    (user) => user.id !== assignee.id && !collaborators.some((item) => item.id === user.id)
   );
-  const canSaveOwner = canReassign && !isSavingOwner && ownerDraftId !== owner.id;
+  const canSaveAssignee = canReassign && !isSavingAssignee && assigneeDraftId !== assignee.id;
   const canAddCollaborator = canManageCollaborators && !isSavingCollaborators && Boolean(collaboratorDraftId && collaboratorScopeDraft.trim());
   const collaboratorSummary = collaborators.length
     ? `${collaborators.length} collaborator${collaborators.length === 1 ? "" : "s"}`
@@ -621,37 +626,38 @@ function TaskPeopleControls({
       >
         <UserRound size={16} />
         <span>
-          <strong>{owner.name}</strong>
-          <small>Owner - {collaboratorSummary}</small>
+          <strong>{assignee.name}</strong>
+          <small>Assignee - {collaboratorSummary}</small>
         </span>
         <b>{expanded ? "Close" : "Manage"}</b>
       </button>
       {expanded ? (
         <div className="etw-compact-people-editor">
+          <div className="etw-compact-owner-row"><b>Owner</b><span>{(task.ownerUser ?? task.assignedUser).name}</span></div>
           <div className="etw-compact-owner-row">
-            <b>Owner</b>
+            <b>Assignee</b>
             {canReassign ? (
               <>
                 <select
-                  aria-label="Change task owner"
-                  disabled={isSavingOwner}
+                  aria-label="Change task assignee"
+                  disabled={isSavingAssignee}
                   onChange={(event) => {
-                    setOwnerDraftId(event.target.value);
+                    setAssigneeDraftId(event.target.value);
                     setErrorMessage(null);
                     setMessage(null);
                   }}
-                  value={ownerDraftId}
+                  value={assigneeDraftId}
                 >
                   {assignableUsers.map((user) => (
                     <option key={user.id} value={user.id}>{user.name}</option>
                   ))}
                 </select>
-                <button disabled={!canSaveOwner} onClick={() => void saveOwner()} type="button">
-                  {isSavingOwner ? "Saving..." : "Change"}
+                <button disabled={!canSaveAssignee} onClick={() => void saveAssignee()} type="button">
+                  {isSavingAssignee ? "Saving..." : "Change"}
                 </button>
               </>
             ) : (
-              <span>{owner.name}</span>
+              <span>{assignee.name}</span>
             )}
           </div>
           <div className="etw-compact-collaborator-row">
@@ -811,11 +817,11 @@ function TaskStatusActionMenu({
     pendingReasonOption && (!pendingReasonOption.requiresReason || trimmedReason)
   );
 
-  function actionFromStatus(status: TaskStatus): StatusAction {
+  function actionFromStatus(status: TaskStatus): StatusAction | "" {
     if (status === TaskStatus.BLOCKED) return "BLOCKED";
     if (status === TaskStatus.COMPLETED) return "COMPLETED";
 
-    return "IN_PROGRESS";
+    return status === TaskStatus.IN_PROGRESS ? "IN_PROGRESS" : "";
   }
 
   async function saveCloseComment(action: StatusAction) {
@@ -898,7 +904,7 @@ function TaskStatusActionMenu({
   }
 
   return (
-    <dd className="etw-compact-status-menu">
+    <div className="etw-compact-status-menu">
       <select
         aria-label="Task status"
         disabled={!canUpdate}
@@ -914,6 +920,7 @@ function TaskStatusActionMenu({
         }}
         value={pendingReasonAction ?? actionFromStatus(currentStatus)}
       >
+        <option disabled value="">{statusLabelFromValue(currentStatus)}</option>
         {statusActionOptions.map((option) => (
           <option key={option.action} value={option.action}>{option.label}</option>
         ))}
@@ -975,7 +982,7 @@ function TaskStatusActionMenu({
           ) : null}
         </div>
       ) : null}
-    </dd>
+    </div>
   );
 }
 
@@ -1139,6 +1146,7 @@ function TaskDocumentUploadControl({ task }: { task: TaskReadModel }) {
 
 export function TaskSimpleSummaryCard({
   actorIsManager,
+  canReassign = actorIsManager,
   assignableUsers,
   canComment,
   canCreateAppointment,
@@ -1148,6 +1156,7 @@ export function TaskSimpleSummaryCard({
   hasClaimWorkflow = false,
   checklist,
   commentCount,
+  compactReview = false,
   dueAt,
   dueLabel,
   feedItems,
@@ -1167,15 +1176,24 @@ export function TaskSimpleSummaryCard({
   taskCategory
 }: TaskSimpleSummaryCardProps) {
   const router = useRouter();
-  const [activePanel, setActivePanel] = useState<SummaryPanel | null>(null);
+  const rawRequestedTool = useSearchParams().get("tool");
+  const requestedTool = compactReview && rawRequestedTool === "activity" ? "updates" : rawRequestedTool;
+  const initialTool = taskTools.some(([tool]) => tool === requestedTool && (canOpenFullWorkbench || !advancedTaskTools[tool])) ? requestedTool as TaskToolSelection : "";
+  const [activePanel, setActivePanel] = useState<SummaryPanel | null>(
+    initialTool === "subtask" ? "next" : initialTool === "checklist" ? "checklist" : initialTool === "updates" ? "comments" : initialTool === "repairDetails" ? "repairDetails" : null
+  );
   const [currentStatus, setCurrentStatus] = useState(task.status as TaskStatus);
   const [deliveryPlannerOpen, setDeliveryPlannerOpen] = useState(false);
-  const [activeTool, setActiveTool] = useState<TaskToolSelection>("");
+  const [activeTool, setActiveTool] = useState<TaskToolSelection>(
+    ["subtask", "checklist", "updates", "repairDetails"].includes(initialTool) ? "" : initialTool
+  );
 
   const togglePanel = (panel: SummaryPanel) => {
+    setActiveTool("");
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
   };
   const openTool = (tool: TaskToolSelection) => {
+    if (compactReview && tool === "activity") tool = "updates";
     if (tool === "subtask") {
       setActivePanel("next");
       setActiveTool("");
@@ -1186,11 +1204,15 @@ export function TaskSimpleSummaryCard({
       setActiveTool("");
       return;
     }
-    if (tool === "workbench") {
-      router.push(viewHref(task.id, "workbench", returnTo));
+    if (tool === "updates" || tool === "repairDetails") {
+      setActivePanel(tool === "updates" ? "comments" : "repairDetails");
       setActiveTool("");
       return;
     }
+    if (tool && advancedTaskTools[tool]) {
+      if (!canOpenFullWorkbench) return;
+    }
+    setActivePanel(null);
     setActiveTool(tool);
     if (tool !== "planner") setDeliveryPlannerOpen(false);
   };
@@ -1200,86 +1222,83 @@ export function TaskSimpleSummaryCard({
   const repairDetails = buildRepairDetails(task, roleLabel, dueLabel, currentStatus);
   const cardTone = getCardTone(task, currentStatus);
   const displayStatusItems = getDisplayStatusItems(task, currentStatus, priorityLabel);
+  const isClosed = currentStatus === TaskStatus.COMPLETED;
+  const overdue = !isClosed && displayStatusItems.some((item) => item.label === "Past due");
+  const completionRequirements = readiness?.requirements.filter((item) => !item.satisfied).map((item) => item.label) ?? [];
+  const attentionItems = isClosed ? [] : Array.from(new Set([
+    ...(overdue ? [`Past due since ${dueLabel}. Confirm what happened, who owns the next step, and the revised due time.`] : []),
+    ...(currentStatus === TaskStatus.BLOCKED || task.blockerReason ? [task.blockerReason ? `Blocked: ${task.blockerReason}. Record the unblock action, owner, and ETA.` : "Blocked: record the unblock action, owner, and ETA."] : []),
+    ...(currentStatus === TaskStatus.WAITING_ON_PARTS ? ["Waiting on parts: confirm the owner and arrival time."] : []),
+    ...(currentStatus === TaskStatus.WAITING_ON_APPROVAL || currentStatus === TaskStatus.READY_FOR_REVIEW ? ["Manager review is pending. Review the submitted evidence and record the decision."] : task.requiresManagerApproval ? ["Manager approval is required before completion. Submit the outcome and evidence for review when ready."] : []),
+    ...missingUpdateLabels.map((label) => `Required update: ${label}. Record this before completing the task.`),
+    ...completionRequirements
+  ]));
+  const needsStatusAction = completionRequirements.length > 0 || missingUpdateLabels.length > 0 || Boolean(task.blockerReason) || [TaskStatus.BLOCKED, TaskStatus.WAITING_ON_PARTS, TaskStatus.WAITING_ON_APPROVAL, TaskStatus.READY_FOR_REVIEW].some((status) => status === currentStatus) || task.requiresManagerApproval;
+  const needsPlanDecision = !isClosed && canUpdateStatus && !isTaskPlanConfirmed(task.executionAssurance) && (checklist.length > 0 || subtaskItems.length > 0);
+  const accountableOwner = task.ownerUser ?? task.assignedUser;
 
   return (
-    <section className={`etw-compact-task-card etw-compact-tone-${cardTone}`} aria-label="Task summary card">
+    <section className={`etw-compact-task-card etw-compact-tone-${cardTone}${compactReview ? " task-review-compact" : ""}`} aria-label="Task summary card">
       <div className="etw-compact-task-body">
         <header className="etw-compact-task-header">
           <div>
-            <div className="etw-compact-title-row">
+            {compactReview ? <div className="task-review-state">
+              <TaskStatusBadge actorIsManager={actorIsManager} canUpdate={canUpdateStatus} currentStatus={currentStatus} onStatusChanged={setCurrentStatus} readiness={readiness} task={task} tone={cardTone} />
+              {attentionItems.length ? <a className="task-review-attention-link" href="#task-attention"><AlertTriangle size={14} />Needs attention ({attentionItems.length})</a> : null}
+            </div> : <div className="etw-compact-title-row">
               <strong>{sourceLabel}</strong>
               <span>{recordNumber}</span>
               <em><Building2 size={14} />Category: {taskCategory}</em>
-              {displayStatusItems.map((item) => (
+              {displayStatusItems.map((item, index) => index === 0 ? (
+                <TaskStatusBadge actorIsManager={actorIsManager} canUpdate={canUpdateStatus} currentStatus={currentStatus} key="current-status" onStatusChanged={setCurrentStatus} readiness={readiness} task={task} tone={item.tone} />
+              ) : (
                 <b className={`etw-compact-state-${item.tone}`} key={`${item.tone}-${item.label}`}>
                   <Circle size={10} />
                   {item.label}
                 </b>
               ))}
-            </div>
-            <h1>{recordTitle}</h1>
+            </div>}
+            {canUpdateStatus && !task.concernWorkspace ? <TaskTitleEditor taskId={task.id} title={recordTitle} /> : <h1>{recordTitle}</h1>}
           </div>
-          <nav className="etw-view-switcher" aria-label="Task view switch">
-            <Link aria-current="page" href={viewHref(task.id, "simple", returnTo)}><Sparkles size={14} />Simple View</Link>
-            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link> : null}
-          </nav>
-          <TaskSourceContext canEdit={canUpdateStatus} task={task} />
+          <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} compactReview={compactReview} counts={compactReview ? { subtask: openSubtasks.length, checklist: checklistCount, repairDetails: repairDetails.linkedCount, updates: feedItems.length } : undefined} onSelect={openTool} returnTo={returnTo} taskId={task.id} value={activeTool || (activePanel === "next" ? "subtask" : activePanel === "checklist" ? "checklist" : activePanel === "comments" ? "updates" : activePanel === "repairDetails" ? "repairDetails" : "")} />
+          {!compactReview ? <TaskSourceContext canEdit={canUpdateStatus} task={task} /> : null}
         </header>
 
-        <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>
+        {compactReview ? <TaskDescriptionEditor key={recordDescription} canEdit={canUpdateStatus && !task.concernWorkspace} description={recordDescription} taskId={task.id} /> : <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>}
+        <div className={compactReview ? "task-review-facts" : undefined}>
         <div className="etw-compact-task-utility-row">
           <div className="etw-compact-owner-summary">
             <UserRound size={17} />
             <span>
-              <strong>{task.assignedUser.name}</strong>
-              <small>Owner · {(task.collaborators ?? []).length} collaborator{(task.collaborators ?? []).length === 1 ? "" : "s"}</small>
+              <strong>{accountableOwner.name}</strong>
+              <small>{accountableOwner.id === task.assignedUser.id ? "Owner and assignee" : "Owner"}</small>
             </span>
           </div>
-          <label className="etw-compact-tool-picker">
-            <Grid3X3 size={15} />
-            <span>Available tools</span>
-            <select
-              aria-label="Open task tool"
-              onChange={(event) => openTool(event.currentTarget.value as TaskToolSelection)}
-              value={activeTool}
-            >
-              <option value="">Select a tool...</option>
-              <option value="assignee">Assign staff</option>
-              <option value="planner">Planner</option>
-              <option value="documents">Upload document or photo</option>
-              <option value="subtask">Add subtask</option>
-              <option value="checklist">Open checklist</option>
-              {canOpenFullWorkbench ? <option value="workbench">Full workbench</option> : null}
-            </select>
-          </label>
+          {accountableOwner.id !== task.assignedUser.id ? <div className="etw-compact-owner-summary"><UserRound size={17} /><span><strong>{task.assignedUser.name}</strong><small>Assignee</small></span></div> : null}
         </div>
 
-        <dl className="etw-compact-task-fields" aria-label="Task details">
+        <dl className="etw-compact-task-fields etw-compact-task-fields-summary" aria-label="Task details">
           <div><dt><CalendarDays size={17} />Due</dt><DueDateEditor canEdit={actorIsManager} dueAt={dueAt} dueLabel={dueLabel} taskId={task.id} /></div>
-          <div><dt><ShieldCheck size={17} />Role</dt><dd>{roleLabel}</dd></div>
-          <div><dt><Grid3X3 size={17} />Path</dt><ExecutionPathSwitch canEdit={canUpdateStatus} taskId={task.id} workflowArea={task.workflowArea} /></div>
-          <div>
-            <dt><Activity size={17} />Status</dt>
-            <TaskStatusActionMenu
-              canComment={canComment}
-              canUpdate={canUpdateStatus}
-              currentStatus={currentStatus}
-              onStatusChanged={setCurrentStatus}
-              task={task}
-            />
-          </div>
         </dl>
+        </div>
 
-        <section className="etw-compact-next-action" aria-label={hasClaimWorkflow ? "Task coordination" : "Next action"}>
+        {!compactReview || !attentionItems.length ? <section className="etw-compact-next-action" aria-label={compactReview ? "Next step" : hasClaimWorkflow ? "Task coordination" : "Next action"}>
           <div>
             <MessageSquareText size={18} />
-            <strong>{hasClaimWorkflow ? "Task coordination:" : "Next Action:"}</strong>
+            <strong>{compactReview ? "Next step:" : hasClaimWorkflow ? "Task coordination:" : "Next Action:"}</strong>
             <span>{hasClaimWorkflow ? "Claim follow-up" : nextStep}</span>
           </div>
           <nav aria-label="Tools for this next action">
-            <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>
+            <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />{compactReview && (!canComment || isClosed) ? "View work log" : "Record update"}</button>
           </nav>
-        </section>
+        </section> : null}
+        {compactReview && attentionItems.length ? <aside aria-label="Task attention" className="task-review-attention" id="task-attention">
+          <AlertTriangle size={17} />
+          <div><strong>Needs attention</strong><ul>{attentionItems.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul>
+            {attentionItems.length > 3 ? <details><summary>{attentionItems.length - 3} more requirements</summary><ul>{attentionItems.slice(3).map((item) => <li key={item}>{item}</li>)}</ul></details> : null}
+          </div>
+          <button onClick={() => needsStatusAction ? openTool("status") : togglePanel("comments")} type="button">{needsStatusAction ? "Review requirements" : canComment ? "Record update" : "View work log"}</button>
+        </aside> : null}
       </div>
 
       {activeTool ? (
@@ -1288,20 +1307,53 @@ export function TaskSimpleSummaryCard({
             <div>
               <small>Selected tool</small>
               <strong>
+                {activeTool === "status" ? "Status" : null}
+                {activeTool === "workflow" ? "Role and execution path" : null}
                 {activeTool === "assignee" ? "Assign staff" : null}
                 {activeTool === "planner" ? "Planner" : null}
                 {activeTool === "documents" ? "Upload document or photo" : null}
+                {activeTool === "metadata" ? "Task details and context" : null}
+                {activeTool === "approvals" ? "Approvals and completion" : null}
+                {activeTool === "activity" ? "Activity history" : null}
+                {activeTool === "details" ? "Task details" : null}
+                {activeTool === "plan" ? "Working plan" : null}
               </strong>
             </div>
             <button aria-label="Close selected task tool" onClick={() => setActiveTool("")} type="button"><X size={17} /></button>
           </header>
+          {activeTool === "details" ? <>
+            <dl className="task-review-detail-list">
+              <div><dt>Task number</dt><dd>{recordNumber}</dd></div>
+              <div><dt>Source</dt><dd>{sourceLabel}</dd></div>
+              <div><dt>Category</dt><dd>{taskCategory}</dd></div>
+              <div><dt>Priority</dt><dd>{priorityLabel}</dd></div>
+              <div><dt>Role</dt><dd>{roleLabel}</dd></div>
+              <div><dt>Owner</dt><dd>{accountableOwner.name}</dd></div>
+              <div><dt>Assignee</dt><dd>{task.assignedUser.name}</dd></div>
+              <div><dt>Next step</dt><dd>{nextStep}</dd></div>
+              <div><dt>Collaborators</dt><dd>{(task.collaborators ?? []).length}</dd></div>
+            </dl>
+            <TaskSourceContext canEdit={canUpdateStatus} task={task} />
+          </> : null}
+          {activeTool === "plan" ? <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} /> : null}
+          {activeTool === "status" ? (
+            <>
+              <TaskStatusActionMenu canComment={canComment} canUpdate={canUpdateStatus} currentStatus={currentStatus} onStatusChanged={setCurrentStatus} task={task} />
+              <TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} onStatusChanged={setCurrentStatus} task={task} />
+            </>
+          ) : null}
+          {activeTool === "workflow" ? (
+            <dl className="etw-compact-task-fields">
+              <div><dt><ShieldCheck size={17} />Role</dt><dd>{roleLabel}</dd></div>
+              <div><dt><Grid3X3 size={17} />Path</dt><ExecutionPathSwitch canEdit={canUpdateStatus} taskId={task.id} workflowArea={task.workflowArea} /></div>
+            </dl>
+          ) : null}
           {activeTool === "assignee" ? (
             <>
-              <p>Change the owner here. Once assigned, this task appears in that staff member&apos;s My Tasks / Work.</p>
               <TaskPeopleControls
                 assignableUsers={assignableUsers}
                 canManageCollaborators={canManageCollaborators}
-                canReassign={actorIsManager}
+                canReassign={canReassign}
                 initialExpanded
                 task={task}
               />
@@ -1327,20 +1379,31 @@ export function TaskSimpleSummaryCard({
             </>
           ) : null}
           {activeTool === "documents" ? <TaskDocumentUploadControl task={task} /> : null}
+          {activeTool === "metadata" && canOpenFullWorkbench ? <TaskMetadataPanel actorIsManager={actorIsManager} task={task} /> : null}
+          {activeTool === "approvals" && canOpenFullWorkbench ? <TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} onStatusChanged={setCurrentStatus} task={task} /> : null}
+          {activeTool === "activity" && canOpenFullWorkbench ? (
+            <div className="etw-side-feed">
+              {feedItems.map((item) => <article key={item.id}><span /><div><small>{formatDueLabel(item.createdAt)}</small><b>{item.message}</b><em>{item.actorName}</em></div></article>)}
+              {!feedItems.length ? <p>No activity recorded yet.</p> : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
-      <nav className="etw-compact-task-links" aria-label="Open task sections">
+      {compactReview ? <nav className="task-review-worklog" aria-label="Task work log">
+        <button aria-expanded={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={16} />Work log <span>{feedItems.length}</span></button>
+      </nav> : <nav className="etw-compact-task-links" aria-label="Open task sections">
         <button aria-pressed={activePanel === "progress"} onClick={() => togglePanel("progress")} type="button"><Activity size={14} />Progress / Updates</button>
         <button aria-pressed={activePanel === "next"} onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Subtasks <span>{openSubtasks.length}</span></button>
         <button aria-pressed={activePanel === "checklist"} onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Checklist <span>{checklistCount}</span></button>
         <button aria-pressed={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={14} />Comments <span>{commentCount}</span></button>
         <button aria-pressed={activePanel === "repairDetails"} onClick={() => togglePanel("repairDetails")} type="button"><Wrench size={14} />Repair Details <span>{repairDetails.linkedCount}</span></button>
-      </nav>
+      </nav>}
 
-      <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} />
+      {!compactReview || needsPlanDecision && !activeTool && !activePanel ? <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} /> : null}
 
       {activePanel ? <div className="etw-compact-expanded-panel">
+        {compactReview ? <header className="task-review-panel-heading"><strong>{activePanel === "comments" ? "Work log" : activePanel === "next" ? "Subtasks" : activePanel === "checklist" ? "Checklist" : "Repair details"}</strong><button aria-label="Close selected task tool" onClick={() => setActivePanel(null)} title="Close tool" type="button"><X size={17} /></button></header> : null}
         {activePanel === "progress" ? (
           <TaskStatusPanel
             actorIsManager={actorIsManager}
@@ -1394,7 +1457,8 @@ export function TaskSimpleSummaryCard({
           <TaskUpdatesCommentsCard
             canComment={canComment}
             compact
-            heading="Progress Updates"
+            includeEvents={compactReview}
+            heading={compactReview ? "Work log" : "Progress Updates"}
             initialFeedItems={feedItems}
             onActivityChanged={() => router.refresh()}
             quickNoteShortcuts={progressShortcuts}
@@ -1426,7 +1490,7 @@ export function TaskSimpleSummaryCard({
                 </dl>
               </article>
             </div>
-            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Open full repair/workbench details</Link> : null}
+            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Resolution history</Link> : null}
           </section>
         ) : null}
       </div> : null}

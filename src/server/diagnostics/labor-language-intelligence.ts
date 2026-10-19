@@ -117,12 +117,11 @@ function singularize(token: string) {
   return token;
 }
 
+const canonicalConcepts = new Map(Object.entries(conceptAliases).flatMap(([concept, aliases]) => [concept, ...aliases.map(normalize)].map(alias => [alias, concept] as const)));
+
 function canonicalToken(token: string) {
   const singular = singularize(token);
-  for (const [concept, aliases] of Object.entries(conceptAliases)) {
-    if (concept === singular || aliases.some((alias) => normalize(alias) === singular)) return concept;
-  }
-  return singular;
+  return canonicalConcepts.get(singular) ?? singular;
 }
 
 function tokenize(value: string, options: { retainConcernWords?: boolean } = {}) {
@@ -158,7 +157,7 @@ function tokenSimilarity(query: string, candidate: string) {
   if (query === candidate) return 1;
   if (query.length >= 4 && candidate.length >= 4 && (query.startsWith(candidate) || candidate.startsWith(query))) return 0.86;
   const maximumDistance = Math.min(query.length, candidate.length) >= 8 ? 2 : Math.min(query.length, candidate.length) >= 5 ? 1 : 0;
-  if (!maximumDistance) return 0;
+  if (!maximumDistance || Math.abs(query.length - candidate.length) > maximumDistance) return 0;
   const distance = editDistance(query, candidate);
   return distance <= maximumDistance ? 0.78 - (distance - 1) * 0.08 : 0;
 }
@@ -205,10 +204,6 @@ function detectSystems(text: string, taxonomy: LaborOperationSystem[]) {
       });
     })
     .map((system) => ({ id: system.id, title: system.title }));
-}
-
-function systemIdForOperation(operation: LaborRepairOperation, taxonomy: LaborOperationSystem[]) {
-  return taxonomy.find((system) => system.groups.some((group) => group.operations.some((candidate) => candidate.id === operation.id)))?.id ?? null;
 }
 
 function classifyIntent(text: string, actions: string[], systems: Array<{ id: string; title: string }>, queryTokens: string[]) {
@@ -265,13 +260,12 @@ export function analyzeLaborLanguage(
   const queryTokens = [...new Set(tokenize(normalizedText))];
   const intent = classifyIntent(normalizedText, detectedActions, detectedSystems, queryTokens);
   const indexed = taxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations.map(operationIndex)));
+  const systemByOperation = new Map(taxonomy.flatMap(system => system.groups.flatMap(group => group.operations.map(operation => [operation.id, system.id] as const))));
   const documentFrequency = new Map<string, number>();
-  for (const token of new Set(indexed.flatMap((entry) => entry.tokens))) {
-    documentFrequency.set(token, indexed.filter((entry) => entry.tokens.includes(token)).length);
-  }
+  for (const entry of indexed) for (const token of entry.tokens) documentFrequency.set(token, (documentFrequency.get(token) ?? 0) + 1);
 
   const ranked = indexed.map((entry) => {
-    const operationSystemId = systemIdForOperation(entry.operation, taxonomy);
+    const operationSystemId = systemByOperation.get(entry.operation.id);
     const reasons = new Set<string>();
     let score = 0;
     let exactPhrase = false;
@@ -328,15 +322,19 @@ export function analyzeLaborLanguage(
   const recognizedSystems = new Set(detectedSystems.map((system) => system.id));
   let eligible = ranked.filter((item) => item.score > 0);
   if (recognizedSystems.size) {
-    const inSystem = eligible.filter((item) => recognizedSystems.has(systemIdForOperation(item.entry.operation, taxonomy) ?? ""));
+    const inSystem = eligible.filter((item) => recognizedSystems.has(systemByOperation.get(item.entry.operation.id) ?? ""));
     if (inSystem.length) eligible = inSystem;
   }
   const recognizedSystemTokens = new Set(
     detectedSystems.flatMap((system) => tokenize([system.title, ...(systemAliases[system.id] ?? [])].join(" ")))
   );
-  const specificConcernTokens = queryTokens.filter((token) => !recognizedSystemTokens.has(token));
+  const specificConcernTokens = queryTokens.filter(token => ![...recognizedSystemTokens].some(systemToken => tokenSimilarity(token, systemToken) >= 0.7));
+  if (intent === "CUSTOMER_CONCERN") eligible = eligible.filter(item => ["DIAGNOSE", "INSPECT", "MEASURE"].includes(operationAction(item.entry.operation)));
   if (intent === "CUSTOMER_CONCERN" && detectedSystems.length && specificConcernTokens.length === 0) {
     eligible = eligible.filter((item) => ["DIAGNOSE", "INSPECT", "MEASURE"].includes(operationAction(item.entry.operation)));
+    const startingPoints: Record<string, string> = { engine: "engine-performance-diagnosis", "transmission-drivetrain": "transmission-concern-diagnosis" };
+    const general = eligible.filter(item => detectedSystems.some(system => startingPoints[system.id] === item.entry.operation.id));
+    if (general.length) eligible = general;
   }
   eligible.sort((left, right) => right.score - left.score || left.entry.operation.title.localeCompare(right.entry.operation.title));
 

@@ -10,6 +10,12 @@ type CaseItem = { id: string; version: number; status: string; source: string; s
 type Model = { contractVersion: string; freshness: string; generatedAt: string; items: CaseItem[]; totals: { active: number; authorizationPending: number; evidenceRequired: number; readyForAppraisal: number } };
 type Options = { locations: Option[]; users: Option[]; vehicles: Option[] };
 
+function scopeVehicleCases(model: Model, vehicleId?: string): Model {
+  if (!vehicleId) return model;
+  const items = model.items.filter(item => item.vehicle.id === vehicleId);
+  return { ...model, items, totals: { active: items.filter(item => !["DECLINED", "EXPIRED", "CANCELLED", "REJECTED", "HANDOFF_READY", "REVERSED"].includes(item.status)).length, authorizationPending: items.filter(item => item.status === "AUTHORIZATION_PENDING").length, evidenceRequired: items.filter(item => ["EVIDENCE_REQUIRED", "INSUFFICIENT"].includes(item.status)).length, readyForAppraisal: items.filter(item => item.status === "READY_FOR_APPRAISAL").length } };
+}
+
 const local = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 const money = (value: unknown) => typeof value === "number" ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value / 100) : "Not calculated";
 const dollarsFromCents = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? String(Math.round(value / 100)) : "";
@@ -77,9 +83,11 @@ function nextStepCopy(item: CaseItem | null) {
 }
 
 export function AcquisitionAppraisalWorkspace({ initial, initialCaseId, initialVehicleId, options, returnTo }: { initial: Model; initialCaseId?: string; initialVehicleId?: string; options: Options; returnTo?: string }) {
-  const initialCase = initial.items.find((item) => item.id === initialCaseId) ?? initial.items.find((item) => item.vehicle.id === initialVehicleId) ?? initial.items[0] ?? null;
+  const scopedModel = scopeVehicleCases(initial, initialVehicleId);
+  const scopedItems = scopedModel.items;
+  const initialCase = scopedItems.find((item) => item.id === initialCaseId) ?? scopedItems[0] ?? null;
   const now = new Date();
-  const [model, setModel] = useState(initial);
+  const [model, setModel] = useState(scopedModel);
   const [selected, setSelected] = useState<CaseItem | null>(initialCase);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -88,10 +96,10 @@ export function AcquisitionAppraisalWorkspace({ initial, initialCaseId, initialV
   const activeGate = gateIndex(selected?.status);
   const next = gateCopy(selected);
   const step = nextStepCopy(selected);
-  const [create, setCreate] = useState({ acquisitionType: "PURCHASE", expiresAt: local(new Date(now.getTime() + 7 * 86_400_000)), intendedUse: "RETAIL", locationId: options.locations[0]?.id ?? "", ownerUserId: options.users[0]?.id ?? "", source: "MANUAL", sourceReference: "", vehicleId: options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId! : options.vehicles[0]?.id ?? "" });
+  const [create, setCreate] = useState({ acquisitionType: "PURCHASE", expiresAt: local(new Date(now.getTime() + 7 * 86_400_000)), intendedUse: "RETAIL", locationId: options.locations[0]?.id ?? "", ownerUserId: options.users[0]?.id ?? "", source: "MANUAL", sourceReference: "", vehicleId: initialVehicleId ? options.vehicles.some(vehicle => vehicle.id === initialVehicleId) ? initialVehicleId : "" : options.vehicles[0]?.id ?? "" });
 
   async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Acquisition request failed."); return body; }
-  async function refresh(preferredId?: string) { const nextModel = await request("/api/acquisition-cases") as Model; setModel(nextModel); const id = preferredId ?? selected?.id; const item = nextModel.items.find((candidate) => candidate.id === id) ?? nextModel.items.find((candidate) => candidate.vehicle.id === initialVehicleId) ?? nextModel.items[0] ?? null; setSelected(item); return item; }
+  async function refresh(preferredId?: string) { const nextModel = scopeVehicleCases(await request("/api/acquisition-cases") as Model, initialVehicleId); setModel(nextModel); const id = preferredId ?? selected?.id; const item = nextModel.items.find((candidate) => candidate.id === id) ?? nextModel.items[0] ?? null; setSelected(item); return item; }
   async function submitCreate(event: FormEvent) { event.preventDefault(); setBusy(true); setNotice(""); try { await request("/api/acquisition-cases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...create, expiresAt: new Date(create.expiresAt).toISOString(), expectedVersion: 0, idempotencyKey: crypto.randomUUID(), reason: "Register governed acquisition opportunity for evidence qualification." }) }); await refresh(); setNotice("Acquisition opportunity registered with immutable command, event, audit, and outbox evidence."); } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to register acquisition opportunity."); } finally { setBusy(false); } }
   async function submitAction(action: string, values: Record<string, unknown>) { if (!selected) return; setBusy(true); setNotice(""); try { await request(`/api/acquisition-cases/${selected.id}/commands`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, expectedVersion: selected.version, idempotencyKey: crypto.randomUUID(), reason: `${action.replaceAll("_", " ").toLowerCase()} with reviewed R4 acquisition evidence.`, ...values }) }); const updated = await refresh(selected.id); setNotice(`${action.replaceAll("_", " ")} completed and appended to immutable acquisition history.`); if (action === "CONFIRM_FINANCIAL_ACQUISITION" && updated?.inventoryUnit) window.location.assign(safeReturnTo); } catch (error) { setNotice(error instanceof Error ? error.message : "Acquisition command failed."); } finally { setBusy(false); } }
 
@@ -157,7 +165,7 @@ export function AcquisitionAppraisalWorkspace({ initial, initialCaseId, initialV
     <details className={styles.registration} id="register-acquisition" open={!selected}>
       <summary><span><Plus /><b>Register acquisition opportunity</b><small>Creates a pre-control decision record only</small></span><ChevronRight /></summary>
       <form onSubmit={submitCreate}><div className={styles.registrationIntro}><h2>Source and assignment</h2><p>This does not create inventory, ownership, a bid, or a commitment. It opens the evidence qualification gate for the selected canonical vehicle.</p></div><div className={styles.formGrid}>
-        <label><span>Canonical vehicle</span><select value={create.vehicleId} onChange={(event) => setCreate((value) => ({ ...value, vehicleId: event.target.value }))}>{options.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicleNumber} · {vehicleLabel(vehicle)}</option>)}</select></label>
+        <label><span>Canonical vehicle</span><select value={create.vehicleId} onChange={(event) => setCreate((value) => ({ ...value, vehicleId: event.target.value }))}><option value="">Select a vehicle</option>{options.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicleNumber} · {vehicleLabel(vehicle)}</option>)}</select></label>
         <label><span>Acquisition source</span><input value={create.source} onChange={(event) => setCreate((value) => ({ ...value, source: event.target.value }))} /></label>
         <label><span>Unique source reference <b>Required</b></span><input required value={create.sourceReference} onChange={(event) => setCreate((value) => ({ ...value, sourceReference: event.target.value }))} /></label>
         <label><span>Acquisition type</span><select value={create.acquisitionType} onChange={(event) => setCreate((value) => ({ ...value, acquisitionType: event.target.value }))}>{["PURCHASE", "TRADE", "CONSIGNMENT", "TRANSFER"].map((value) => <option key={value}>{value}</option>)}</select></label>

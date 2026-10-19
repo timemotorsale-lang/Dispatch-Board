@@ -1,6 +1,7 @@
 node_modules
 .next
 .next-local/
+.next-import-export/
 .next-local.workspace-backup-*
 .next-dev-cache/
 .next-runtime/
@@ -33,3 +34,4 @@ blob-report/
 .dispatch-board-data/
 tmp/database-backups/
 tmp/deal-continuity/
+deploy/docker/import-release-approval.json

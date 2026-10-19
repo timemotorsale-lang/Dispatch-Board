@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AddVehicleWorkflow, addVehicleSubmitEndpoint } from "@/features/inventory/add-vehicle-workflow";
-import { recommendAddVehicleWorkflow } from "@/lib/add-vehicle-workflow";
+import { AddVehicleWorkflow } from "@/features/inventory/add-vehicle-workflow";
+import { ADD_VEHICLE_ALLOWED_REASONS, addVehicleEntryRelationship, recommendAddVehicleWorkflow } from "@/lib/add-vehicle-workflow";
+import { addVehicleSubmitEndpoint } from "@/features/inventory/add-vehicle-workflow";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -22,19 +23,29 @@ const base = {
 };
 
 describe("Add Vehicle workflow", () => {
+  it.each(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"])("does not require an acquisition source for dealership repair reason %s", reasonCode => {
+    expect(normalizeAddVehicleWorkflowInput({ ...base, relationship: "DEALERSHIP_INVENTORY", reasonCode, acquisitionSource: "" }).acquisitionSource).toBeUndefined();
+  });
+  it("offers all three entry paths before acquisition intake", () => {
+    const html = renderToStaticMarkup(createElement(AddVehicleWorkflow, { options: { locations: [] } }));
+    expect(html).toContain("Vehicle workflow");
+    expect(html).toContain("Prepare for Sale");
+    expect(html).toContain("Inventory Recon");
+    expect(html).toContain("Customer Repair");
+  });
   it("recommends service intake without implying a repair order", () => {
     const result = recommendAddVehicleWorkflow(base);
     expect(result.code).toBe("CREATE_SERVICE_INTAKE");
     expect(result.title).toBe("Create Service Intake");
   });
 
-  it("submits service and diagnostics vehicle adds through the intake-safe endpoint", () => {
+  it("submits customer service through intake and dealership recon through inventory workflow", () => {
     const service = recommendAddVehicleWorkflow(base);
     expect(service.code).toBe("CREATE_SERVICE_INTAKE");
     expect(addVehicleSubmitEndpoint(service.code)).toBe("/api/service-intake/vehicles");
 
     const inventory = recommendAddVehicleWorkflow({ description: "Prepare acquired vehicle for recon.", reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY" });
-    expect(inventory.code).toBe("REVIEW_INVENTORY_CONTROL");
+    expect(inventory.code).toBe("CREATE_INTERNAL_REPAIR_INTAKE");
     expect(addVehicleSubmitEndpoint(inventory.code)).toBe("/api/inventory-console/workflows/add-vehicle");
   });
 
@@ -52,14 +63,33 @@ describe("Add Vehicle workflow", () => {
     expect(() => normalizeAddVehicleWorkflowInput({ ...base, description: "Brake" })).toThrow("at least 10 characters");
   });
 
-  it("routes dealership recon directly to the vehicle workbench", () => {
+  it("routes dealership recon directly to internal repair intake", () => {
     const result = recommendAddVehicleWorkflow({ description: "Prepare acquired vehicle for recon.", reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY" });
-    expect(result.title).toBe("Open Vehicle Workbench");
-    expect(result.commandLabel).toBe("Add Vehicle & Open Workbench");
+    expect(result.title).toBe("Internal Repair Intake");
+    expect(result.commandLabel).toBe("Add Vehicle & Start Internal Repair");
+  });
+
+  it.each(ADD_VEHICLE_ALLOWED_REASONS.DEALERSHIP_INVENTORY)("routes dealership reason %s by repair versus acquisition intent", reasonCode => {
+    expect(recommendAddVehicleWorkflow({ description: "Record inventory arrival condition.", reasonCode, relationship: "DEALERSHIP_INVENTORY" }).code).toBe(["INVENTORY_RECON", "INSPECTION_DIAGNOSIS"].includes(reasonCode) ? "CREATE_INTERNAL_REPAIR_INTAKE" : "REVIEW_INVENTORY_CONTROL");
+  });
+
+  it.each([undefined, "/vehicles", "/vehicles/inventory", "/vehicles/control-tower", "/vehicles/workflows", "/vehicles/workflows/add-vehicle", "/vehicles/registry", "/vehicles/vehicle-1/intake", "/vehicles/vehicle-1/journey?view=next"])("defaults inventory entry %s to dealership inventory", path => {
+    expect(addVehicleEntryRelationship(path)).toBe("DEALERSHIP_INVENTORY");
+  });
+
+  it.each(["/vehicles/repair-orders", "/vehicles/recon-repair-advisor", "/diagnostics/labor-guide", "//external.invalid/vehicles", "/vehicles/inventory-other"])("does not change service/general entry %s to inventory", path => {
+    expect(addVehicleEntryRelationship(path)).toBe("CUSTOMER_VEHICLE");
+  });
+
+  it("labels an inventory-context wizard with its actual intake destination", () => {
+    const html = renderToStaticMarkup(createElement(AddVehicleWorkflow, { options: { locations: [{ code: "MPLS", id: "loc-1", name: "Minneapolis" }] }, returnTo: "/vehicles/inventory" }));
+    expect(html).toContain("Add Vehicle &amp; Continue Intake");
+    expect(html).toContain("Condition at acquisition");
+    expect(html).not.toContain("Customer-reported concern");
   });
 
   it("requires and normalizes an acquisition source for dealership inventory", () => {
-    const inventory = { ...base, acquisitionSource: "AUCTION", reasonCode: "INVENTORY_RECON" as const, relationship: "DEALERSHIP_INVENTORY" as const };
+    const inventory = { ...base, acquisitionSource: "AUCTION", reasonCode: "REFERENCE_ONLY" as const, relationship: "DEALERSHIP_INVENTORY" as const };
     expect(() => normalizeAddVehicleWorkflowInput({ ...inventory, acquisitionSource: "" })).toThrow("Acquisition source is required");
     expect(normalizeAddVehicleWorkflowInput(inventory).acquisitionSource).toBe("AUCTION");
   });

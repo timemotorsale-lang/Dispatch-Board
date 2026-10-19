@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, X } from "lucide-react";
+import { CarFront, ChevronDown, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -71,6 +71,15 @@ export function ConsoleSidebar({ console, isOpen, managerContext, onClose, prese
       </div>
 
       <nav aria-label={`${console.subtitle} navigation`} className="sidebar-navigation console-sidebar-navigation">
+        {console.inventoryMenu?.length ? <details className="console-inventory-menu" open>
+          <summary className="sidebar-link"><CarFront aria-hidden="true" size={18} strokeWidth={1.8} /><span>Inventory</span><ChevronDown className="console-inventory-chevron" aria-hidden="true" size={14} /></summary>
+          <div aria-label="Inventory tools">
+            {console.inventoryMenu.map(item => {
+              const active = isActive(pathname, searchParams, item);
+              return <Link aria-current={active ? "page" : undefined} className={`sidebar-link sidebar-link-child${active ? " sidebar-link-active" : ""}`} href={containedHref(preserveBoardDate(item.href, selectedBoardDate))} key={item.title} onClick={onClose}><span>{item.title}</span></Link>;
+            })}
+          </div>
+        </details> : null}
         {console.items.map((item) => {
           const Icon = item.icon;
           const active = isActive(pathname, searchParams, item);

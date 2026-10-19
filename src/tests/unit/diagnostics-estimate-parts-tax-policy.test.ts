@@ -8,20 +8,17 @@ const transmissionReplacement = operations.find((operation) => operation.id === 
 const engineDiagnosis = operations.find((operation) => operation.id === "engine-performance-diagnosis");
 
 describe("diagnostic estimate parts and tax policy", () => {
-  it("adds the full transmission replacement accessory package", () => {
+  it("keeps removal/reinstallation materials unpriced and follow-up work conditional", () => {
     if (!transmissionReplacement) throw new Error("Transmission replacement operation missing.");
 
     const result = evaluateEstimatePartsTaxPolicy({ labor: [transmissionReplacement], parts: [] });
     const descriptions = result.missingRequiredParts.map((part) => part.description);
 
-    expect(descriptions).toContain("Transmission assembly - VIN fitment and supplier price required");
-    expect(descriptions).toContain("Automatic transmission fluid - fill and level set allowance");
-    expect(descriptions).toContain("Transmission filter and pan gasket kit");
-    expect(descriptions).toContain("Axle/output shaft seal set");
-    expect(descriptions).toContain("Torque converter/front pump seal");
-    expect(descriptions).toContain("One-time-use fasteners, clips, and retainers allowance");
-    expect(result.requiredAddOnIds).toEqual(expect.arrayContaining(["transmission-fluid-service", "transmission-programming-relearn"]));
-    expect(result.readinessCodes).toEqual(expect.arrayContaining(["REQUIRED_PARTS_RECOMMENDED", "PART_PRICE_REVIEW_REQUIRED", "PROGRAMMING_RELEARN_REQUIRED"]));
+    expect(descriptions).toHaveLength(1);
+    expect(descriptions[0]).toContain("no replacement assembly assumed");
+    expect(result.requiredParts[0]).toMatchObject({ unitPriceCents: 0, partNumber: "", pricingStatus: "PRICE_PENDING" });
+    expect(result.requiredAddOnIds).toEqual([]);
+    expect(result.readinessCodes).toContain("PART_PRICE_REVIEW_REQUIRED");
   });
 
   it("taxes Minnesota estimate parts and materials without taxing labor", () => {
@@ -34,7 +31,7 @@ describe("diagnostic estimate parts and tax policy", () => {
 
     expect(result.tax.laborTaxable).toBe(false);
     expect(result.tax.taxablePartsCents).toBe(280000);
-    expect(result.tax.taxCents).toBe(Math.round(result.tax.taxablePartsCents * 0.08));
+    expect(result.tax.taxCents).toBe(Math.round(result.tax.taxablePartsCents * 0.07));
   });
 
   it("does not invent parts for diagnostic-only labor", () => {

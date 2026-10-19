@@ -1,5 +1,222 @@
 # Current Implementation Status
 
+## 2026-10-17 - Expanded Catalog Execution Controls and Release Evidence
+
+The six audit follow-ups now have implementation support: per-labor-line part/demand allocation with ambiguity holds; server-derived qualification, procedure, bay/tool and parts checks; independently approved version/fingerprint-bound per-system rollout at `/settings/labor-catalog`; specific configuration/verification profiles for all 73 expanded groups and explicit included-operation identities for existing package guards; both browser fixtures in CI and exact-revision reviewed evidence gating in manual production promotion; and an isolated PostgreSQL/authenticated-browser staging runner plus a disposable baseline-upgrade/backup-restore GitHub workflow.
+
+Catalog approval is checked at job creation, dispatch and START/RESUME. Start/resume also recheck current qualifications, reservations, the assigned active canonical procedure and declared allocated resource capabilities. Parts never default to the first job in a multi-job estimate. Empty caller/historical requirement arrays cannot remove canonical expanded protections. Policy command retries reuse their original subject/version receipt while retaining request-hash validation; this was reproduced and verified against a real isolated PostgreSQL schema.
+
+Local isolated staging has exercised persisted independent policy lifecycle/holds, partial synthetic line approval, missing qualifications/parts holds, real START/PAUSE history, revoked authorization refusal, and authenticated manager/ordinary-staff API boundaries. Synthetic decisions and equipment declarations are explicitly fixtures, not real customer, personnel or shop approvals. No development/public-schema or production records were changed. The GitHub deployed-baseline upgrade and disposable backup/restore workflow is prepared but has not been executed for a committed candidate in this change.
+
+Verification: the final full regression run passed 4,670 tests with 32 conditional skips (937 passing files, 30 conditional skipped files). Both isolated browser fixtures, local lint/typecheck, a separate production build, the real PostgreSQL staging proof and the authenticated browser permission test passed. The incomplete evidence template was correctly rejected as HOLD. Changed workflow YAML parses; GitHub execution of the new upgrade/restore and protected evidence/promotion workflows remains pending a pushed, reviewed candidate and configured environment protections. Local builds reused the installed generated Prisma client; clean CI must regenerate it.
+
+All ten expanded systems remain disabled unless operators independently approve their exact current scope; no approval or deployment was performed. Provisional hours remain unvalidated. Full end-to-end staged QC/release acceptance, production-scale database/file recovery, prior-application rollback, monitoring and business/operator signoffs remain HOLD. See `docs/LABOR_CATALOG_STAGING_AND_APPROVALS.md` for review addresses, capability setup and the guarded release sequence. Earlier dated entries below are historical evidence, not the latest release status.
+
+## 2026-10-16 - Ten Remaining Catalog Systems in Six Implementation Groups
+
+`light-duty-expansion-v1` expands the ten remaining passenger-automobile/light-truck systems in the recommended six-group order: maintenance; engine; cooling/electrical/starting; transmission/driveline; HVAC/fuel/emissions; remaining tires/body/safety/hybrid/EV. Cooling/fuel remain Engine subgroups in the preview, not additional top-level systems. Shared canonical definitions now provide 1,080 operations across 73 expanded groups; including unchanged brakes (119) and steering/suspension (150), the preview has 12 systems, 91 groups and 1,349 operations. Heavy-commercial/PTO/industrial cargo groups are excluded from active expansion.
+
+`/prototype/repair-coverage` provides a progressive review matrix and deep links into every subsystem. Existing diagram callouts discover related subsystem catalogs without inventing physical component geometry or vehicle side. Both guides share scope, exclusions, verification, unvalidated planning allowances and pending-price parts/material plans. Official presentation now requires per-selected-system configuration, procedure, verification and capability/referral review; package/alias conflicts are enforced server-side. Historic amounts are not repriced or silently discarded. Concern-only language stays diagnosis-first, with matching optimized for the larger catalog.
+
+All ten expansions are implemented for review, not independently shop-approved. The connected pilot remains limited to approved brakes and steering/suspension. No verified VIN-specific labor standard, complete exploded-diagram library, live deployment or new customer approval is implied. See `docs/LIGHT_DUTY_CATALOG_EXPANSION.md` for counts, coverage matrix, safety sources, compatibility and approval boundaries. Earlier “other systems unchanged/audits pending” entries below describe prior slices and are superseded by this review implementation.
+
+Verification: 108 focused tests and 43 final scoped guard/presentation checks passed; both isolated browser fixtures, full lint, local typecheck and the final isolated production build passed. The full regression run reported 4,645 passes, 31 skips and one unrelated existing task-reassignment metadata failure. Deployment remains HOLD pending that failure and the operational/independent approval gates; no commit, push, database migration or customer action was performed.
+
+## 2026-10-16 - Connected Labor Pilot and Release Hold
+
+The opt-in `/diagnostics/labor-guide?experience=explorer` now uses the approved brake and steering catalog with the existing real vehicle/RO, persisted workspace and official estimate services. Default navigation still opens the legacy guide. Preview-local drafts/prices are not promoted. The remaining ten systems are disabled in this connected selector pending their own audits.
+
+Current authorization is rechecked at authorized-job creation, dispatch and clock start/resume; the completion shortcut no longer invents prices or internally approves work. Labor attribution/correction boundaries and event chronology are enforced. Manager-only `/diagnostics/labor-evidence` reads persisted clocks and QC with explicit study exclusion reasons; it never declares a validated standard. `/diagnostics/labor-readiness` and the manual evidence/hash checker expose missing operational gates without activating policies or deploying.
+
+The isolated browser fixture passed the connected selection-to-estimate task and regional accessibility checks, but mocks HTTP and is not staging/database evidence. Local typecheck, schema validation and the isolated production build passed; Windows Prisma engine regeneration hit the running development lock and used the existing generated client, requiring clean release-environment regeneration. The full suite reported 4,604 passes, 31 skips and two unresolved failures (transmission concern classification and task reassignment metadata). Dependency audit found zero vulnerabilities. Deployment remains HOLD pending green candidate checks plus real staging, recovery, rollback, policy and independent operator proof. See `docs/LABOR_PILOT_PRODUCTION_READINESS.md`. No commit, push, live customer action, database mutation or rollout activation was performed in this slice.
+
+## 2026-10-16 - Automobile and Light-Truck Steering/Suspension Baseline
+
+After brake-baseline approval, the regular guide and Repair Explorer now share `steering-light-duty-v1`: 150 operations, ten groups and 18 audited coverage families. This includes front/rear and corner scopes, complete versus transferred-component assemblies, linkage/assist/column, springs/air/adaptive suspension, geometry, symptoms and verification. Pending-price parts, progressive scope/safety disclosures, generic-front diagram mappings, side-aware package/alias guards and versioned internal/unvalidated provenance reuse the approved brake approach without changing its catalog definitions or repricing saved values.
+
+Official steering estimate presentation now requires procedure/configuration/verification references and an explicit, explained alignment decision. Alignment is conditional, not an automatic add-on: separate-line choice requires the corresponding work; included/not-required/referral choices cannot also carry a separate alignment labor line. Server validation enforces these rules and duplicate-scope refusal. Vehicle transfer clears steering references, and readiness checks the actual control rules. Exact-name search results are prioritized over loose position-word matches. No new schema, external data dependency, vendor booking or execution authority is introduced.
+
+See [Steering and suspension coverage](STEERING_SUSPENSION_BASELINE_COVERAGE.md) for the matrix, compatibility checks and limitations. Coverage is not proof of verified times for every VIN; all labor remains provisional, manufacturer references require staff verification, and the existing generic front diagram does not illustrate every new subsystem. Other system data remains unchanged and future audits are not marked complete.
+
+## 2026-10-16 - Automobile and Light-Truck Brake Baseline
+
+The regular Labor Guide and Repair Explorer now share `brakes-light-duty-v1`: 119 brake operations across eight groups and all 21 audited coverage families. New entries include rotor-only and measurement/machining, serviceable caliper/drum components, conventional/electronic assist, EPB, ABS/stability, pedal controls, regeneration and vehicle-side light-truck towing controls. Heavy/trailer brake groups are no longer offered in the active brake preview; legacy saved amounts are not repriced. All other system catalog definitions remain unchanged.
+
+Progressive scope/parts/safety disclosures, unrestricted operation-list access, pending-price brake parts plans, persistent editing of derived parts, included-scope guards and required configuration/procedure/verification-plan review now support the baseline. Caliper/master/HCU selections no longer automatically charge a full brake-fluid exchange. Server presentation checks duplicate included brake scope and records versioned internal/unvalidated labor provenance and the reviewed scope. This is not verified vehicle-specific book labor, a measured-hours database, an OEM diagram library or a new technician release gate. See [Brake baseline coverage](BRAKE_BASELINE_COVERAGE.md) for the matrix, verification and remaining evidence work. Steering/suspension is the next audit slice, not completed by this change.
+
+## 2026-10-15 - Labor Guide Controls and Administrator Labor Rate
+
+The regular Labor Guide now starts new estimates at the shop-requested $125/hour default and reads effective active `SHOP_LABOR_RATE` policies. `/settings/labor-rate` provides manager-protected draft, validation, independent approval and activation through the existing policy command/audit services. Rate changes do not reprice stored quotes or presented estimates; the dedicated feature introduces no schema migration. The requested 7% tax remains a draft assumption requiring an applicable jurisdiction/source reference, not a universal Minnesota tax assertion.
+
+Official Labor Guide presentation now requires pricing/fitment/shared-labor review, with server checks for recognized catalog keys and mandatory labor-source review for all labor-containing presentation calls. A reviewed preliminary-quote-to-RO transfer preserves the source quote and proposed work while clearing evidence, attempts and applicability reviews. Lookup failures are distinguished from no matches. Existing estimate, authorization and approved-job services remain the downstream execution path.
+
+Validation: 62 focused tests, type checking, scoped lint and isolated browser checks for rate inheritance, controls, quote transfer, mobile layout and new-control accessibility. Local read-only preflight found the existing policy table available, zero configured labor-rate policies, and `CUSTOMER_LIFECYCLE` / `SHOP_OPERATIONS` in GENERAL rollout mode. No policy was activated or live estimate repriced during implementation. See [Labor Guide estimating controls](LABOR_GUIDE_ESTIMATING_CONTROLS.md) for scope, policy steps and remaining enterprise work; this is not a claim of verified vehicle-specific labor times or automated tax/fitment integration.
+
+## 2026-10-10 - Local Vehicle 360 Runtime Recovery
+
+Two verified development servers were using the same `.next-local` junction;
+the second review launch retargeted that shared alias while the original server
+was still running. Development logs showed EBUSY client-reference manifest errors.
+Both local Dispatch Board server trees were stopped and one fresh isolated-cache
+instance was started on port 3000. The exact reported Vehicle 360 record
+`9980b769-4d3a-4673-a8cc-eeeb262a0764` rendered its authenticated Tacoma workspace
+successfully after recovery. No vehicle data, feature flags or permissions were
+changed, and no application-code patch was required for this recovery. Port 3001
+is no longer the review server. Future local review launches must reuse the active
+server rather than retarget a cache alias used by another running instance.
+This runtime recovery does not represent a production deployment.
+
+## 2026-10-10 - Vehicle Sales Media Gallery
+
+The preparation workspace Media tab now has Photos and Videos views, batch upload,
+per-file progress/retry, camera capture entry, selectable thumbnail grids, small/
+large sizes, saved ordering, primary-photo selection, a photo/video viewer and
+selected ZIP downloads. The primary sales photo updates the persistent vehicle
+sidebar. Sales media is explicitly tagged in existing protected evidence links;
+inspection and acquisition files are not automatically copied into the gallery.
+The server enforces 40 active sales photos and a separate five-video limit under
+a scoped vehicle row lock. Each file retains the existing 10 MB maximum. Accepted
+formats are JPEG, PNG, WebP and MP4; the existing baseline signature scan quarantines
+mismatches. MP4 container validation is not full antivirus scanning, transcoding
+or a guarantee of browser codec support. Uploaded files retain a one-year date.
+
+Ordering and removal reuse versioned enterprise commands, audited snapshots and
+outbox events, with stable upload retry identities. Concurrent/stale gallery
+changes fail safely. Confirmed removal archives only selected sales links, not
+protected bytes or operational evidence; legal holds prevent removal. Existing
+evidence view/manage capabilities and Vehicle 360 rollout controls govern access.
+No new permission system, public publishing connector or schema migration is added.
+Photo overlays and full video processing are not implemented in this slice.
+
+Sixteen focused regression files (96 tests), typecheck and scoped lint pass.
+Desktop/mobile interactive fixtures at 1440px and 390px verify gallery image
+rendering, primary/sidebar updates, previews, reorder, removal confirmation,
+batch/retry identity, ZIP download, stale recovery, limit controls, retained UI
+state and no overflow. The authenticated local Media tab loaded with enabled
+upload controls on port 3001; port 3000 remains occupied and its process was not
+stopped. No real vehicle files were uploaded or removed. Production deployment
+and real upload/video playback acceptance remain unverified. These changes are
+not committed, pushed or deployed.
+
+## 2026-10-10 - Vehicle Workspace Tabs And Contextual Tools
+
+The preparation workspace now has Vehicle Info, Marketing, Media, Market Data,
+Purchase Info, Activities, Files, Accounting, Recon, Logs and Release Review tabs
+beside the persistent vehicle sidebar. Vehicle Info has Summary, General Info,
+Pricing and Description sections. Existing pricing, cost and acquisition forms
+are reused with their authorization, validation and save controls intact; edits
+remain mounted while switching tabs. Documents, decoded specifications, journey
+steps and history come from existing authorized vehicle services. Logs support
+date/source/text filtering and pagination, using recorded actors when available.
+
+The overflow menu links Start Deal and Start Desk with selected-vehicle reference
+and document facts, without selecting a buyer or replacing an existing saved deal.
+It also links as-is sale, governed sale/reservation review, appraisal and Vehicle
+360. Appraisal and retail-completion views retain the requested vehicle scope on
+refresh and do not silently substitute another vehicle. Deposit opens reservation
+review, not payment collection. Deletion and customer-facing preview are explicitly
+unavailable because no supported workflow exists. External publishing connectors
+and valuation subscriptions are not simulated or enabled. Release gates remain.
+
+Fourteen focused test files (80 tests), typecheck, scoped lint and diff checks pass.
+Interactive component checks at 1440px and 390px verify tabs, keyboard navigation,
+retained pricing/intake edits, overflow-menu links, log filters/pagination and no
+page overflow. The authenticated local page loaded the new tabs; the existing
+Start The Day reminder limits further live interaction. Live deal creation, saves,
+payment, sale completion and production deployment were not verified. No migration
+is required; this slice has not been committed, pushed or deployed.
+
+## 2026-10-10 - DealerCenter-Inspired Preparation Workspace Layout
+
+The frontline preparation page now keeps vehicle photo/identity in a left sidebar
+and places the section tabs at the top of the right-hand workspace. Only the
+selected panel is visible; pricing and costs use compact embedded layouts without
+duplicated standalone headers or centered page padding. Forms stay mounted across
+tab changes to preserve unsaved edits. Accessible tabs support arrow keys, Home
+and End. Existing section names, data sources, permissions, save APIs and release
+gates are unchanged; unsupported third-party sections are not simulated.
+Twelve focused unit tests, typecheck and scoped lint pass. Interactive component
+checks at 1440px and 390px verify one visible panel, retained pricing edits,
+keyboard navigation, stable sidebar dimensions and no page overflow. The live
+authenticated page loaded the new structure; further live tab interaction was
+blocked by the existing Start The Day reminder, which was not modified.
+Production deployment and live save operations were not verified for this slice.
+
+## 2026-10-10 - Vehicle Sale Preparation And As-Is Disposition Entry
+
+Registry rows, Vehicle Workbench and Vehicle 360 now link to Prepare for Sale and
+Start As-Is Sale for the exact canonical vehicle. The authenticated sale entry
+requires inventory access, current dealership-controlled ownership, an open unit
+and confirmed intake; customer-only ownership cannot enter inventory sale. Missing
+intake routes to acquisition intake. Ordinary preparation reuses the existing
+frontline workspace. As-is review records attributable recon rationale and defect
+disclosure in the existing disposition case snapshot, with no new vehicle record.
+A documented manual as-is review may start for newly acquired units without
+changing the automated aged-candidate policy. Repository transaction checks recheck
+ownership and current-cycle intake. Existing cases are reopened rather than cloned.
+As-is retail completion retains approvals/title/release/settlement gates and now
+requires buyer-acknowledgment evidence server-side; it records SOLD without falsely
+marking recon completed or frontline ready. Normal disposition behavior remains.
+Focused automated tests, typecheck/lint and desktop/mobile fixture checks pass.
+Live signed-in registry links and the selected-vehicle intake redirect were checked;
+no real sale/disposition record was created during verification. End-to-end sale
+completion and production deployment remain unverified. No migration is required.
+
+## 2026-10-10 - Horizontal Find Vehicle Registry
+
+Find Vehicle now presents canonical vehicles in a full-width horizontal table
+with vehicle/registry number, stock, VIN, plate, status and row actions. Existing
+Workbench, Vehicle 360 and preview routes/handlers are preserved. The selected
+preview appears beneath the list rather than reserving an empty right column.
+The table scrolls within its container on narrow screens. Fifteen focused registry
+tests, typecheck and lint pass; desktop/mobile component-fixture screenshots show
+no page overflow. Live authenticated acceptance and deployment remain unverified.
+
+## 2026-10-10 - Worklist Path Actions Without Row Selection
+
+Prepare for Sale and Recon Path now open a native vehicle-selection dialog when
+no inventory row is selected, instead of appearing disabled. A vehicle is required
+before navigation; the chosen canonical vehicle ID routes to the existing
+frontline-preparation or inventory-planning page and its authenticated services.
+Selected-row links remain direct, and an empty worklist keeps actions unavailable.
+Interactive component-fixture checks pass for both paths, required selection,
+Escape dismissal and mocked row-detail API selection at desktop/mobile widths.
+Focused tests, typecheck and lint pass. Live signed-in acceptance and production
+deployment have not been verified for this change.
+
+## 2026-10-10 - Inventory Intake Path Choice And Frontline Preparation
+
+Confirmed intake opens `/vehicles/[id]/workflow`, a dedicated vehicle workflow
+choice screen with identity, intake handoff, holds and pending items. Prepare for
+Sale opens the preparation workspace; Inventory Recon opens existing recon planning.
+Customer Repair is visible but unavailable for an active inventory cycle. Add
+Vehicle now presents all three choices before acquisition; selecting Customer Repair
+uses the existing customer relationship and direct service-intake handoff, without
+creating an inventory cycle. The worklist remains separate with full-width
+horizontal rows and vehicle-specific Prepare for Sale and Recon Path links;
+controls/history and cycle creation use
+progressive disclosure. Intake-originated cycle creation preserves the vehicle
+and returns to its intake form. Prepare for Sale opens `/vehicles/[id]/frontline`,
+a preparation workspace using authorized journey, price, cost and document data.
+Choosing a path does not mutate lifecycle state or bypass release evidence or
+independent approval. External valuation/history providers are not simulated.
+Focused unit/service tests and typecheck pass; component-fixture screenshots were
+reviewed at 1440px and 390px with no page overflow. Authenticated browser acceptance
+and production deployment remain unverified.
+
+## 2026-10-10 - Inventory Lifecycle Team Functions Implemented Locally
+
+Inventory lifecycle authorization now uses existing Team Management functions
+for acquisition, recon, readiness, pricing, publishing and release. Server-side
+action checks and workspace buttons use the corresponding authorities while
+retaining independent approvals, readiness evidence and technical qualification.
+The local migration adds assignable functions without assigning staff or changing
+rollout flags. The read-only `check:inventory-access` command distinguishes missing
+functions from rollout blockers, including MASTER_DISABLED. See
+[`INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md`](INVENTORY_LIFECYCLE_TEAM_FUNCTIONS.md)
+for assignment, verified local evidence, acceptance and rollback. This slice has
+not been deployed or verified in production.
+
 ## 2026-09-14 — Vendor Registry v1 review slice implemented
 
 The CRM Vendor Registry review slice is now implemented behind the existing authenticated app shell. It adds vendor master records for lenders/banks, warranty companies, transport providers, parts suppliers, recon/repair vendors, auction/wholesale partners, and internal contacts; controlled vendor status/category rules; vendor profile notes; activity history; linked work records; and a simple create-task handoff into the universal Task ledger.

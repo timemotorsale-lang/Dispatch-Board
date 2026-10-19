@@ -39,6 +39,7 @@ export type TaskMetadataLookupRecord = {
 export type TaskMetadataUpdateData = {
   description?: string;
   dueAt?: Date;
+  title?: string;
   vehicleReference?: string | null;
   customerReference?: string | null;
   workflowArea?: WorkflowArea;
@@ -72,6 +73,7 @@ export function createTaskMetadataRepository(
         data: {
           ...(data.description !== undefined ? { description: data.description } : {}),
           ...(data.dueAt !== undefined ? { dueAt: data.dueAt } : {}),
+          ...(data.title !== undefined ? { title: data.title } : {}),
           ...(data.vehicleReference !== undefined
             ? { vehicleReference: data.vehicleReference }
             : {}),

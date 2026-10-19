@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isGeneralManager } from "@/server/policies/access";
+import { evaluateVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { SHOP_RECON_STAGES, type ShopReconStageCode } from "./foundation";
 import { getShopReconOperationalWorkspace, type ShopReconWorkLane } from "./operational-workspace";
 import { getShopReconStageWorkspace } from "./stage-workspace";
@@ -122,7 +123,18 @@ export function normalizeShopReconScopeChange(value: unknown) {
   };
 }
 
-export function canCompleteShopReconStage(actor: AuthenticatedUser, stageCode: ShopReconStageCode) {
+export function inventoryShopStageCapability(stageCode: ShopReconStageCode): VehicleCapability | null {
+  if (technicalStages.includes(stageCode)) return null;
+  if (stageCode === "SERVICE_RECON_JOB_INTAKE" || stageCode === "VEHICLE_INTAKE_CUSTODY") return "INVENTORY_ACQUISITION_MANAGE";
+  if (stageCode === "QUALITY_CONTROL_ROAD_TEST") return "INVENTORY_READINESS_VERIFY";
+  if (stageCode === "RELEASE_HANDOVER_READINESS" || stageCode === "VEHICLE_HANDOVER_SHOP_EXIT") return "INVENTORY_RELEASE_MANAGE";
+  return "INVENTORY_RECON_MANAGE";
+}
+
+export function canCompleteShopReconStage(actor: AuthenticatedUser, stageCode: ShopReconStageCode, lane?: ShopReconWorkLane) {
+  if (!actor.isActive) return { allowed: false, authority: "Active staff account" };
+  const capability = inventoryShopStageCapability(stageCode);
+  if (lane === "INVENTORY_RECON" && capability && evaluateVehicleCapability({ actor, capability, locationId: null }).allowed) return { allowed: true, authority: "Assigned inventory stage function" };
   if (stageCode === "SERVICE_RECON_JOB_INTAKE") return { allowed: named(actor, "Brock") || named(actor, "Eli") || actor.roles.includes("Service Advisor") || actor.roles.includes("Inventory Manager"), authority: "Service Advisor or Inventory intake authority" };
   if (stageCode === "AUTHORIZATION") return { allowed: named(actor, "Brock") || named(actor, "Eli") || actor.roles.includes("Service Advisor") || actor.roles.includes("Inventory Manager"), authority: "Lane authorization authority" };
   if (stageCode === "QUALITY_CONTROL_ROAD_TEST") return { allowed: named(actor, "Brock") || actor.roles.includes("Quality Control") || actor.roles.includes("Quality Inspector"), authority: "Qualified independent QC" };
@@ -149,7 +161,7 @@ export function evaluateDraftCompletion(stageCode: ShopReconStageCode, draft: { 
 }
 
 export function evaluateGovernedTransition(input: { actor: AuthenticatedUser; fromStage: ShopReconStageCode; toStage: ShopReconStageCode; facts: Partial<Record<ShopReconGateFact, boolean>>; draft: { checklist: unknown; formData: unknown; evidence: unknown }; lane?: ShopReconWorkLane; override: { kind: string; authorizedByUserId: string; expiresAt: Date | null } | null; now: Date }) {
-  const base = evaluateShopReconTransition({ fromStage: input.fromStage, toStage: input.toStage, facts: input.facts }), draft = evaluateDraftCompletion(input.fromStage, input.draft, input.lane), authority = canCompleteShopReconStage(input.actor, input.fromStage);
+  const base = evaluateShopReconTransition({ fromStage: input.fromStage, toStage: input.toStage, facts: input.facts }), draft = evaluateDraftCompletion(input.fromStage, input.draft, input.lane), authority = canCompleteShopReconStage(input.actor, input.fromStage, input.lane);
   const overrideActive = Boolean(input.override && (!input.override.expiresAt || input.override.expiresAt > input.now));
   const hardMissingFacts = base.missingFacts.filter(fact => hardFacts.includes(fact));
   const backwards = SHOP_RECON_STAGES.find(item => item.code === input.toStage)!.order <= SHOP_RECON_STAGES.find(item => item.code === input.fromStage)!.order;

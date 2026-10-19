@@ -4,6 +4,8 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import type { ShopPlanningRepository } from "@/server/shop-planning/repository";
 import { createApprovedRepairJobs, createCompletionRepairJob } from "@/server/shop-planning/service";
+import { LIGHT_DUTY_OPERATIONS } from "@/lib/light-duty-baseline";
+import { catalogLaborLineKey } from "@/lib/catalog-job-readiness";
 
 const manager: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.com", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
 const foundation = { listCapabilityGrants: vi.fn().mockResolvedValue([]), listFeatureFlags: vi.fn().mockResolvedValue([]) } as unknown as EnterpriseCommandRepository;
@@ -28,6 +30,23 @@ function order(disposition = "ACCEPTED") {
 }
 
 describe("intelligent approved repair-job creation", () => {
+  it("keeps battery parts and specialist requirements on the battery job rather than the first job", async () => {
+    const engine = LIGHT_DUTY_OPERATIONS.find(item => item.label === "Replace engine assembly")!;
+    const battery = LIGHT_DUTY_OPERATIONS.find(item => item.label === "Replace high-voltage battery assembly")!;
+    const engineKey = catalogLaborLineKey(engine.id), batteryKey = catalogLaborLineKey(battery.id);
+    const base = order();
+    const lineItems = [engine, battery].map(operation => ({ key: catalogLaborLineKey(operation.id), type: "LABOR", description: operation.label, laborGuideMinutes: 60, plannedCorrection: operation.label, workTypeCode: "CALLER_SUPPLIED" }));
+    const snapshot = { ...base, estimateVersions: [{ ...base.estimateVersions[0], lineItems: [...lineItems, { key: "battery-part", type: "PART", description: "Reviewed battery", laborGuideMinutes: 0, plannedCorrection: "Install battery", workTypeCode: "PART", laborLineKey: batteryKey }], authorizations: [{ id: "auth-1", disposition: "ACCEPTED", authorizedLineKeys: [engineKey, batteryKey, "battery-part"] }] }], partDemands: [{ id: "battery-demand", repairJobId: null, status: "REQUESTED", repairJobReference: batteryKey }] };
+    const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "job-1", repairOrderVersion: 5 }, version: 5 });
+    const repository = { get: vi.fn().mockResolvedValue(snapshot), job } as unknown as ShopPlanningRepository;
+    await createApprovedRepairJobs(manager, "ro-1", { idempotencyKey: "multi-catalog-job", reason: "Create reviewed authorized jobs" }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository });
+    expect(job.mock.calls[0][1]).toMatchObject({ authorizedLineKey: engineKey, partDemandIds: [] });
+    expect(job.mock.calls[1][1]).toMatchObject({ authorizedLineKey: batteryKey, partDemandIds: ["battery-demand"], partsRequired: true, requiredSkills: ["CATALOG_EV"], requiredCertifications: ["HV_PLATFORM_QUALIFIED"], workTypeCode: "CATALOG_EV_BATTERY" });
+    job.mockClear();
+    snapshot.partDemands[0].repairJobReference = "Unmapped old title";
+    await expect(createApprovedRepairJobs(manager, "ro-1", { idempotencyKey: "ambiguous-catalog-job", reason: "Review ambiguous parts" }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository })).rejects.toThrow("Map each active");
+    expect(job).not.toHaveBeenCalled();
+  });
   it("creates executable labor only and carries the available parts demand into that job", async () => {
     const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "job-1", repairOrderVersion: 5 }, version: 5 });
     const repository = { get: vi.fn().mockResolvedValue(order()), job } as unknown as ShopPlanningRepository;
@@ -46,7 +65,7 @@ describe("intelligent approved repair-job creation", () => {
     expect(job).not.toHaveBeenCalled();
   });
 
-  it("creates completion shortcut estimates with a positive approved amount", async () => {
+  it("does not invent a priced estimate or internally approve unreviewed completion work", async () => {
     const estimate = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "estimate-2", repairOrderVersion: 5 }, version: 5 });
     const authorization = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "auth-2", repairOrderVersion: 6 }, version: 6 });
     const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "job-2", jobNumber: "J002", repairOrderVersion: 7 }, version: 7 });
@@ -64,12 +83,9 @@ describe("intelligent approved repair-job creation", () => {
       job,
     } as unknown as ShopPlanningRepository;
 
-    await createCompletionRepairJob(manager, "ro-1", { description: "Paint handle", idempotencyKey: "completion-1", lineKey: "LINE-1", reason: "Create completion job.", unitPriceCents: 0 }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository });
-
-    expect(estimate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      lineItems: [expect.objectContaining({ key: "LINE-1", unitPriceCents: 1 })],
-    }));
-    expect(authorization).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authorizedLineKeys: ["LINE-1"], disposition: "ACCEPTED" }));
-    expect(job).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authorizationId: "auth-2", authorizedLineKey: "LINE-1" }));
+    await expect(createCompletionRepairJob(manager, "ro-1", { description: "Paint handle", idempotencyKey: "completion-1", lineKey: "LINE-1", reason: "Create completion job.", unitPriceCents: 0 }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository })).rejects.toThrow("review and authorize");
+    expect(estimate).not.toHaveBeenCalled();
+    expect(authorization).not.toHaveBeenCalled();
+    expect(job).not.toHaveBeenCalled();
   });
 });

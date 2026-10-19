@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { orderUnifiedTimelineItems } from "@/server/services/unified-timeline-service";
 
 export const VEHICLE_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024;
-export const VEHICLE_EVIDENCE_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain"] as const;
+export const VEHICLE_EVIDENCE_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "video/mp4"] as const;
+export const SALES_PHOTO_LIMIT = 40;
+export const SALES_VIDEO_LIMIT = 5;
 export const VEHICLE_EVIDENCE_CATEGORIES = ["PHOTO", "INSPECTION", "REPAIR", "TITLE", "WARRANTY", "CUSTOMER_APPROVAL", "DELIVERY", "OTHER"] as const;
 export const VEHICLE_EVIDENCE_ACCESS_LEVELS = ["INTERNAL", "RESTRICTED"] as const;
 
@@ -68,6 +70,7 @@ export function scanVehicleEvidence(content: Buffer, contentType: string): Evide
     "image/jpeg": (buffer) => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff,
     "image/png": (buffer) => buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
     "image/webp": (buffer) => buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP",
+    "video/mp4": (buffer) => buffer.length >= 12 && buffer.subarray(4, 8).toString("ascii") === "ftyp" && ["isom", "iso2", "mp41", "mp42", "avc1", "M4V "].includes(buffer.subarray(8, 12).toString("ascii")),
     "text/plain": () => !prefix.includes(0)
   };
   if (!signatures[contentType]?.(content)) return { malwareStatus: "DETECTED", malwareScanner: "BUILTIN_SIGNATURE_BASELINE_V1", reasonCode: "CONTENT_TYPE_SIGNATURE_MISMATCH" };
@@ -79,6 +82,10 @@ export function normalizeEvidenceUpload(value: unknown, now: Date) {
   const contentType = String(raw.contentType ?? "").trim().toLowerCase() as (typeof VEHICLE_EVIDENCE_CONTENT_TYPES)[number];
   if (!VEHICLE_EVIDENCE_CONTENT_TYPES.includes(contentType)) throw new Error("Content type is invalid.");
   const content = parseBase64(raw.contentBase64);
+  const salesMedia = String(raw.subjectType ?? "").trim().toUpperCase() === "SALES_MEDIA";
+  if (contentType === "video/mp4" && !salesMedia) throw new Error("Video uploads must use the sales media collection.");
+  if (salesMedia && (!contentType.startsWith("image/") && contentType !== "video/mp4")) throw new Error("Sales media must be a photo or MP4 video.");
+  if (salesMedia && (String(raw.relationship ?? "SUPPORTS").toUpperCase() !== "SUPPORTS" || String(raw.subjectId ?? raw.vehicleId) !== String(raw.vehicleId) || String(raw.accessLevel ?? "INTERNAL").toUpperCase() !== "INTERNAL")) throw new Error("Sales media must belong to the selected vehicle with internal access.");
   const scan = scanVehicleEvidence(content, contentType);
   return {
     accessLevel: oneOf(raw.accessLevel ?? "INTERNAL", VEHICLE_EVIDENCE_ACCESS_LEVELS, "Access level"),
@@ -116,7 +123,7 @@ export function stableEvidenceId(organizationId: string, idempotencyKey: string)
   return `evi-${createHash("sha256").update(`${organizationId}:${idempotencyKey.trim()}`).digest("hex").slice(0, 24)}`;
 }
 
-export type Vehicle360TimelineItem = { id: string; occurredAt: Date; source: string; type: string; title: string; detail: string | null; subjectType: string; subjectId: string };
+export type Vehicle360TimelineItem = { id: string; occurredAt: Date; source: string; type: string; title: string; detail: string | null; subjectType: string; subjectId: string; actorName?: string | null };
 
 export function sortVehicleTimeline(items: Vehicle360TimelineItem[], limit = 200) {
   return orderUnifiedTimelineItems(items, limit);

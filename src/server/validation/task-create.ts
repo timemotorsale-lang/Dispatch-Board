@@ -28,9 +28,23 @@ const taskPriorityValues = new Set(Object.values(TaskTemplatePriority));
 
 export type NormalizedTaskIntakeMetadata = {
   channel: string;
+  contextOmitted: boolean;
+  enterpriseControls?: {
+    escalationPath: string;
+    evidenceRequirement: string;
+    reviewCadence: string;
+    slaPolicy: string;
+    visibility: string;
+  };
   expectedOutcome: string;
   intakeType: string;
   requiredUpdates: string[];
+  taskTools?: {
+    checklistItems: string[];
+    subtaskTemplates: string[];
+    uploadedEvidence: string[];
+    uploadRequirements: string[];
+  };
 };
 
 export type NormalizedTaskConversionContext = {
@@ -188,6 +202,15 @@ function normalizeCollaboratorIds(value: unknown) {
   return ids;
 }
 
+function normalizeStringList(value: unknown, fieldName: string, maxLength = 25) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error(`Task intake ${fieldName} must be an array when provided.`);
+  const items = value.map((item) => normalizeRequiredText(item, `Every ${fieldName} item must be a non-empty string.`));
+  if (items.length > maxLength) throw new Error(`Task intake ${fieldName} can contain at most ${maxLength} items.`);
+  if (new Set(items).size !== items.length) throw new Error(`Task intake ${fieldName} cannot contain duplicates.`);
+  return items;
+}
+
 function normalizeCollaboratorRequests(value: unknown) {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) throw new Error("Task creation requires collaboratorRequests to be an array when provided.");
@@ -223,19 +246,51 @@ function normalizePriority(value: unknown) {
 function normalizeIntakeMetadata(value: unknown) {
   if (value === undefined) return undefined;
   const metadata = assertTaskCreateObject(value);
-  const allowedKeys = new Set(["channel", "expectedOutcome", "intakeType", "requiredUpdates"]);
+  const allowedKeys = new Set(["channel", "contextOmitted", "enterpriseControls", "expectedOutcome", "intakeType", "requiredUpdates", "taskTools"]);
   for (const key of Object.keys(metadata)) {
     if (!allowedKeys.has(key)) throw new Error(`Task intake metadata contains an unsupported field: "${key}".`);
   }
   if (!Array.isArray(metadata.requiredUpdates) || metadata.requiredUpdates.length === 0 || metadata.requiredUpdates.length > 12) {
     throw new Error("Task intake metadata requires between 1 and 12 required updates.");
   }
-  return {
+  const normalizedMetadata: NormalizedTaskIntakeMetadata = {
     channel: normalizeRequiredText(metadata.channel, "Task intake metadata requires a channel."),
+    contextOmitted: normalizeBoolean(
+      metadata.contextOmitted,
+      "Task intake metadata requires contextOmitted to be boolean when provided."
+    ),
     expectedOutcome: normalizeRequiredText(metadata.expectedOutcome, "Task intake metadata requires an expected outcome."),
     intakeType: normalizeRequiredText(metadata.intakeType, "Task intake metadata requires an intake type."),
     requiredUpdates: metadata.requiredUpdates.map((item) => normalizeRequiredText(item, "Every required update must be a non-empty string."))
   };
+  if (metadata.enterpriseControls !== undefined) {
+    const controls = assertTaskCreateObject(metadata.enterpriseControls);
+    const controlKeys = new Set(["escalationPath", "evidenceRequirement", "reviewCadence", "slaPolicy", "visibility"]);
+    for (const key of Object.keys(controls)) {
+      if (!controlKeys.has(key)) throw new Error(`Task intake enterprise controls contain an unsupported field: "${key}".`);
+    }
+    normalizedMetadata.enterpriseControls = {
+      escalationPath: normalizeRequiredText(controls.escalationPath, "Task intake enterprise controls require an escalation path."),
+      evidenceRequirement: normalizeRequiredText(controls.evidenceRequirement, "Task intake enterprise controls require an evidence requirement."),
+      reviewCadence: normalizeRequiredText(controls.reviewCadence, "Task intake enterprise controls require a review cadence."),
+      slaPolicy: normalizeRequiredText(controls.slaPolicy, "Task intake enterprise controls require an SLA policy."),
+      visibility: normalizeRequiredText(controls.visibility, "Task intake enterprise controls require visibility.")
+    };
+  }
+  if (metadata.taskTools !== undefined) {
+    const taskTools = assertTaskCreateObject(metadata.taskTools);
+    const taskToolKeys = new Set(["checklistItems", "subtaskTemplates", "uploadedEvidence", "uploadRequirements"]);
+    for (const key of Object.keys(taskTools)) {
+      if (!taskToolKeys.has(key)) throw new Error(`Task intake task tools contain an unsupported field: "${key}".`);
+    }
+    normalizedMetadata.taskTools = {
+      checklistItems: normalizeStringList(taskTools.checklistItems, "checklistItems", 40),
+      subtaskTemplates: normalizeStringList(taskTools.subtaskTemplates, "subtaskTemplates", 20),
+      uploadedEvidence: normalizeStringList(taskTools.uploadedEvidence, "uploadedEvidence", 20),
+      uploadRequirements: normalizeStringList(taskTools.uploadRequirements, "uploadRequirements", 20)
+    };
+  }
+  return normalizedMetadata;
 }
 
 function normalizeConversionContext(value: unknown) {
@@ -300,7 +355,7 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
     if (normalizedInput.title.length < 8) throw new Error("Task intake requires an executable title of at least 8 characters.");
     if (normalizedInput.description.length < 16) throw new Error("Task intake requires clear task details of at least 16 characters.");
     if (intakeMetadata.expectedOutcome.length < 20) throw new Error("Task intake requires an expected outcome of at least 20 characters.");
-    if (intakeTypeRequiresCustomerOrVehicle(intakeMetadata.intakeType) && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
+    if (intakeTypeRequiresCustomerOrVehicle(intakeMetadata.intakeType) && !intakeMetadata.contextOmitted && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
       throw new Error("Task intake requires customer or vehicle context for this intake type.");
     }
     normalizedInput.intakeMetadata = intakeMetadata;

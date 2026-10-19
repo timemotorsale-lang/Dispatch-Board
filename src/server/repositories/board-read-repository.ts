@@ -37,6 +37,7 @@ const boardTaskSelect = {
       email: true
     }
   },
+  ownerUser: { select: { id: true, name: true, email: true } },
   collaborators: {
     select: {
       userId: true,

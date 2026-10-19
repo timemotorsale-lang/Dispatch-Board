@@ -159,6 +159,7 @@ describe("task read service", () => {
     const result = await getTaskReadModelById(staffUser, "task-1", createTaskReadRepository());
 
     expect(result).toEqual({
+      ownerUser: { id: "user-sales", name: "Baraka Sales", email: "jordan.sales@local.test" },
       id: "task-1",
       boardDayId: "board-day-1",
       boardDate: "2026-06-18",

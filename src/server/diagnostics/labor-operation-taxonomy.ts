@@ -1,3 +1,7 @@
+import { BRAKE_GROUPS, BRAKE_OPERATIONS } from "@/lib/brake-baseline";
+import { STEERING_GROUPS, STEERING_OPERATIONS } from "@/lib/steering-baseline";
+import { LIGHT_DUTY_OPERATIONS, LIGHT_DUTY_SYSTEMS, laborSystemIdForLightDuty, lightDutyOperationForId } from "@/lib/light-duty-baseline";
+
 export type LaborRepairOperation = {
   aliases: string[];
   component: string;
@@ -43,7 +47,7 @@ const labor = (
   overlapGroup: string | null = null,
 ): LaborRepairOperation => ({ aliases, component, concernExamples, hours, id, included, operation, overlapGroup, position, requiredAddOns, subsystem, system, title });
 
-export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = [
+const ORIGINAL_LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = [
   { id: "maintenance", title: "Maintenance & Scheduled Service", description: "Routine service, fluids, filters, belts, tune-up work, and mileage-based packages.", groups: [
     { id: "oil-fluids", title: "Oil, Fluids & Filters", operations: [
       labor("engine-oil-service", "Maintenance & Scheduled Service", "Oil, Fluids & Filters", "Engine Oil & Filter", "Service", "Engine Bay", "Engine oil and filter service", 0.5, ["oil change", "lube service"], ["Maintenance due", "Oil life warning"], ["Drain and fill oil", "Replace filter", "Reset maintenance reminder"], [], "maintenance-service"),
@@ -193,6 +197,52 @@ export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = [
     ] },
   ] },
 ];
+
+function brakeAction(label: string): LaborRepairOperation["operation"] {
+  const verb = label.split(" ")[0];
+  if (["Replace", "Repair", "Inspect", "Diagnose", "Adjust", "Measure"].includes(verb)) return verb as LaborRepairOperation["operation"];
+  if (/^(Program|Calibrate|Configure|Initialize)/.test(label)) return "Program / Calibrate";
+  return "Service";
+}
+
+const legacyOperations = ORIGINAL_LABOR_OPERATION_TAXONOMY.flatMap(system => system.groups.flatMap(group => group.operations));
+
+function expandedLaborGroups(system: LaborOperationSystem): LaborOperationGroup[] {
+  const groups = new Map<string, LaborOperationGroup>();
+  const operations = LIGHT_DUTY_OPERATIONS.filter(operation => laborSystemIdForLightDuty(operation) === system.id);
+  for (const operation of operations) {
+    const sourceGroup = LIGHT_DUTY_SYSTEMS.find(item => item.id === operation.systemId)!.groups.find(item => item.id === operation.groupId)!;
+    if (!groups.has(operation.groupId)) groups.set(operation.groupId, { id: operation.groupId, title: sourceGroup.label, operations: [] });
+    const legacy = legacyOperations.find(item => item.id === operation.id || operation.aliases.includes(item.id));
+    groups.get(operation.groupId)!.operations.push({ id: legacy?.id ?? operation.id, system: system.title, subsystem: sourceGroup.label, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""), title: legacy?.title ?? operation.title,
+      hours: operation.hours, aliases: [...operation.aliases, operation.id, ...(legacy?.aliases ?? [])], concernExamples: legacy?.concernExamples ?? [operation.label], included: operation.included,
+      operation: operation.diagnosis ? /^Inspect/.test(operation.label) ? "Inspect" : /^Measure/.test(operation.label) ? "Measure" : "Diagnose" : legacy?.operation ?? brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess });
+  }
+  for (const group of system.groups) {
+    const retained = group.operations.filter(operation => operation.id !== "brake-fluid-service" && !lightDutyOperationForId(operation.id));
+    if (retained.length) groups.set(`legacy-${group.id}`, { id: `legacy-${group.id}`, title: `${group.title} · existing reference entries`, operations: retained });
+  }
+  return [...groups.values()];
+}
+
+export const LABOR_OPERATION_TAXONOMY: LaborOperationSystem[] = ORIGINAL_LABOR_OPERATION_TAXONOMY.map(system => system.id === "brakes" ? {
+  ...system,
+  description: "Passenger-vehicle and light-truck brake baseline. Provisional planning hours require configuration, procedure and overlap review.",
+  groups: BRAKE_GROUPS.map(group => ({ id: group.id, title: group.title, operations: BRAKE_OPERATIONS.filter(operation => operation.groupId === group.id).map(operation => ({
+    id: operation.id, system: system.title, subsystem: group.title, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""),
+    title: operation.title, hours: operation.hours, aliases: [operation.label, operation.previewId, ...(legacyOperations.find(item => item.id === operation.id)?.aliases ?? [])], concernExamples: legacyOperations.find(item => item.id === operation.id)?.concernExamples ?? [operation.label], included: operation.included,
+    operation: brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess
+  })) }))
+} : system.id === "steering-suspension" ? {
+  ...system,
+  description: "Passenger-vehicle and light-truck steering/suspension baseline. Verify component scope, support equipment, alignment and calibration needs before quotation.",
+  groups: STEERING_GROUPS.map(group => ({ id: group.id, title: group.title, operations: STEERING_OPERATIONS.filter(operation => operation.groupId === group.id).map(operation => ({
+    id: operation.id, system: system.title, subsystem: group.title, component: operation.label.replace(/^(Replace|Diagnose|Inspect|Measure) /, ""), title: operation.title,
+    hours: operation.hours, aliases: [operation.label, operation.previewId, ...operation.aliases, ...(legacyOperations.find(item => item.id === operation.id)?.aliases ?? [])],
+    concernExamples: legacyOperations.find(item => item.id === operation.id)?.concernExamples ?? [operation.label], included: operation.included,
+    operation: brakeAction(operation.label), position: operation.position, requiredAddOns: [], overlapGroup: operation.sharedAccess
+  })) }))
+} : { ...system, groups: expandedLaborGroups(system) });
 
 export const LABOR_OPERATION_ADD_ONS = [
   { id: "alignment", label: "Alignment recommended", hours: 1.2 },

@@ -18,7 +18,23 @@ function versioned(raw: JsonObject) { return { ...base(raw), expectedCaseVersion
 export function normalizeCandidateCreate(value: unknown) {
   const raw = object(value), reasonCodes = list(raw.reasonCodes, "Candidate reasons"), targetAt = date(raw.targetAt, "Review target");
   if (!reasonCodes.length) throw new Error("At least one candidate reason is required.");
-  return { ...base(raw), inventoryUnitId: text(raw.inventoryUnitId, "Inventory unit ID", 100), ownerUserId: text(raw.ownerUserId, "Owner user ID", 100), reasonCodes, targetAt };
+  if (raw.saleCondition != null && raw.saleCondition !== "AS_IS") throw new Error("Sale condition is invalid.");
+  const asIsReview = raw.saleCondition === "AS_IS" ? { saleCondition: "AS_IS" as const, reconDecisionReason: text(raw.reconDecisionReason, "Recon decision reason", 2000), knownDefects: text(raw.knownDefects, "Known defects and condition disclosure", 4000) } : null;
+  if (asIsReview && (asIsReview.reconDecisionReason.length < 10 || asIsReview.knownDefects.length < 10)) throw new Error("As-is decision and disclosure must each contain at least 10 characters.");
+  return { ...base(raw), asIsReview, inventoryUnitId: text(raw.inventoryUnitId, "Inventory unit ID", 100), ownerUserId: text(raw.ownerUserId, "Owner user ID", 100), reasonCodes, targetAt };
+}
+
+export function assertAsIsBuyerAcknowledgment(candidateSnapshot: unknown, value: unknown) {
+  const snapshots = Array.isArray(candidateSnapshot) ? candidateSnapshot : [];
+  const isAsIs = snapshots.some(snapshot => {
+    if (!snapshot || typeof snapshot !== "object") return false;
+    const review = snapshot.asIsReview;
+    return review && typeof review === "object" && review.saleCondition === "AS_IS";
+  });
+  if (!isAsIs) return;
+  const raw = object(value);
+  if (raw.buyerAcknowledgedDisclosures !== true) throw new Error("Buyer acknowledgment of as-is condition and known defects is required.");
+  text(raw.buyerAcknowledgmentReference, "Buyer acknowledgment evidence reference", 1000);
 }
 
 export function normalizeCandidateReview(value: unknown) {
@@ -89,7 +105,7 @@ export function normalizeCompletion(value: unknown) {
   const gates = ["titleReady", "releaseReady", "custodyVerified", "transportVerified", "receiptVerified"] as const;
   const missing = gates.filter(gate => raw[gate] !== true);
   if (missing.length) throw new Error(`Completion gates are not satisfied: ${missing.join(", ")}.`);
-  return { ...versioned(raw), acceptedOfferVersion: raw.acceptedOfferVersion == null ? null : integer(raw.acceptedOfferVersion, "Accepted offer version", 1), buyerOrDestination: text(raw.buyerOrDestination, "Buyer or destination", 200), custodyVerified: true, paymentReference: text(raw.paymentReference, "Payment or transfer reference", 200), receiptVerified: true, releaseReady: true, titleReady: true, transportVerified: true, type };
+  return { ...versioned(raw), buyerAcknowledgedDisclosures: raw.buyerAcknowledgedDisclosures === true, buyerAcknowledgmentReference: optional(raw.buyerAcknowledgmentReference, 1000), acceptedOfferVersion: raw.acceptedOfferVersion == null ? null : integer(raw.acceptedOfferVersion, "Accepted offer version", 1), buyerOrDestination: text(raw.buyerOrDestination, "Buyer or destination", 200), custodyVerified: true, paymentReference: text(raw.paymentReference, "Payment or transfer reference", 200), receiptVerified: true, releaseReady: true, titleReady: true, transportVerified: true, type };
 }
 
 export function normalizeSettlement(value: unknown) {

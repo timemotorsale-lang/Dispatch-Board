@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
@@ -771,6 +772,7 @@ function normalizeReviewActionPlan(plan: Partial<ReviewActionPlan>, fallbackDate
 }
 
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
+  const router = useRouter();
   const searchParams = currentWorkbookSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
@@ -1007,7 +1009,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     const params = new URLSearchParams(searchParams.toString());
     params.set("workbookScope", scope === "MY" ? "MY" : "COO");
     if (!params.has("date")) params.set("date", model.boardDate);
-    window.location.assign(`/vehicles/coo-workbook/close-my-day?${params.toString()}`);
+    router.push(`/vehicles/coo-workbook/close-my-day?${params.toString()}`);
   };
   const workbookExitHref = sourceReturnTo?.startsWith("/") && !sourceReturnTo.startsWith("//") ? sourceReturnTo : scopedWorkbookHref("/vehicles/coo-workbook");
   const repairOrderHref = (repairOrderId: string) => repairOrderWorkbookHref(repairOrderId, workbookExitHref, sourceReturnTo ? "My Workspace" : activeWorkbookLabel);
@@ -1989,7 +1991,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 
   function openWorkbookTool(toolPath: string) {
     if (typeof window === "undefined") return;
-    window.location.href = `${toolPath}${window.location.search}`;
+    router.push(`${toolPath}${window.location.search}`);
   }
 
   async function refreshWorkbook() {
@@ -2545,7 +2547,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       setWorkspaceNotice(`Task resumed: ${payload.task.title}`);
 
       if (typeof window !== "undefined") {
-        window.location.href = `/tasks/${encodeURIComponent(payload.task.id)}?view=simple&returnTo=${encodeURIComponent("/vehicles/coo-workbook")}`;
+        router.push(`/tasks/${encodeURIComponent(payload.task.id)}?view=simple&returnTo=${encodeURIComponent("/vehicles/coo-workbook")}`);
       }
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to resume this item as a task right now.");

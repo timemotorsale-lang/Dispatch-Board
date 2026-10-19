@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { Vehicle360Workspace, type Vehicle360View } from "@/features/inventory/vehicle-360-workspace";
@@ -8,6 +8,7 @@ const navigationMock = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(navigationMock.search),
 }));
 
@@ -43,6 +44,15 @@ const view: Vehicle360View = {
 };
 
 describe("Vehicle 360 enterprise command center", () => {
+  it("retains document upload without offering a second photo uploader", () => {
+    navigationMock.search = "section=evidence&category=PHOTO";
+    const html = renderToStaticMarkup(<Vehicle360Workspace initial={view}/>);
+    expect(html).toContain("Upload documents");
+    expect(html).toContain('accept="application/pdf,text/plain"');
+    expect(html).not.toContain('accept="application/pdf,image/jpeg');
+    expect(html).not.toContain('<option value="PHOTO"');
+    navigationMock.search = "returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning";
+  });
   it("renders the approved landing page and preserves the exact workflow return", () => {
     const html = renderToStaticMarkup(<Vehicle360Workspace initial={view} />);
 
