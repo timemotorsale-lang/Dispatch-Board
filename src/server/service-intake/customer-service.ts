@@ -63,9 +63,9 @@ export function normalizeServiceIntakePhoneNumber(value: string | null) {
   return phoneNumber;
 }
 
-export async function createServiceIntakeCustomer(actor: AuthenticatedUser | null, value: CustomerInput) {
+export async function createServiceIntakeCustomer(actor: AuthenticatedUser | null, value: CustomerInput, options: { organizationId?: string; source?: string } = {}) {
   const user = assertAuthenticatedUser(actor);
-  const organizationId = INITIAL_ORGANIZATION.id;
+  const organizationId = options.organizationId ?? INITIAL_ORGANIZATION.id;
   const locationId = text(value?.locationId, "Location", 100, true)!;
   const displayName = text(value?.displayName, "Customer name", 200, true)!;
   const phoneNumber = text(value?.phoneNumber, "Phone number", 50);
@@ -84,7 +84,10 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
   assertVehicleCapability({ actor: user, capability: "CUSTOMER_INTAKE_CREATE", grants, locationId, now: new Date() });
 
   const normalizedPhone = normalizeServiceIntakePhoneNumber(phoneNumber);
-  const duplicate = await prisma.customer.findFirst({
+  return prisma.$transaction(async (tx) => {
+  if (!await tx.location.findFirst({ where: { id: locationId, organizationId }, select: { id: true } })) throw new Error("Choose a location belonging to this organization.");
+  for (const key of [normalizedPhone, email].filter(Boolean).sort()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + key}, 0))`;
+  const duplicate = await tx.customer.findFirst({
     where: {
       organizationId,
       status: "ACTIVE",
@@ -92,6 +95,7 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
       OR: [
         ...(email ? [{ email: { equals: email, mode: "insensitive" as const } }] : []),
         ...(normalizedPhone ? [{ contactPoints: { some: { type: "PHONE", normalizedValue: normalizedPhone } } }] : []),
+        ...(normalizedPhone ? [{ phoneNumber: normalizedPhone }] : []),
       ],
     },
     select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true },
@@ -100,7 +104,6 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
 
   const id = randomUUID();
   const correlationId = randomUUID();
-  const customer = await prisma.$transaction(async (tx) => {
     const created = await tx.customer.create({
       data: {
         id,
@@ -117,14 +120,14 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
         idState,
         idLast4: last4(idNumber),
         preferredContactMethod,
-        sourceCode: "SERVICE_INTAKE",
+        sourceCode: options.source ?? "SERVICE_INTAKE",
+        ...(options.source === "DEAL_SHARED_CUSTOMER" ? { ownerUserId: user.id } : {}),
       },
       select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true },
     });
     if (phoneNumber && normalizedPhone) await tx.customerContactPoint.create({ data: { customerId: id, type: "PHONE", value: phoneNumber, normalizedValue: normalizedPhone, isPrimary: preferredContactMethod === "PHONE", consentStatus: "UNKNOWN" } });
     if (email) await tx.customerContactPoint.create({ data: { customerId: id, type: "EMAIL", value: email, normalizedValue: email, isPrimary: preferredContactMethod === "EMAIL", consentStatus: "UNKNOWN" } });
     await tx.enterpriseAuditEvent.create({ data: { organizationId, locationId, actorUserId: user.id, domain: "SHOP_OPERATIONS", subjectType: "CUSTOMER", subjectId: id, eventType: "SERVICE_INTAKE_CUSTOMER_CREATED", reason: "Create a canonical customer during governed vehicle intake.", newValue: created, metadata: { source: "SERVICE_INTAKE" }, correlationId } });
-    return created;
+    return { customer: created, duplicate: false };
   });
-  return { customer, duplicate: false };
 }

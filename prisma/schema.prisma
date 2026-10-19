@@ -2254,6 +2254,9 @@ model AppSetting {
 }
 
 model Organization {
+  dealWorkflowContexts DealWorkflowContext[]
+  vehicleUseBookings VehicleUseBooking[]
+  dealContinuityEvents DealContinuityEvent[]
   id                                    String                                 @id @default(cuid())
   code                                  String                                 @unique
   name                                  String
@@ -2782,6 +2785,7 @@ model UserLocationAccess {
 }
 
 model Customer {
+  dealWorkflowContexts DealWorkflowContext[]
   id                              String                           @id @default(cuid())
   organizationId                  String
   customerNumber                  String
@@ -3173,6 +3177,8 @@ model DocumentLibraryPacket {
 }
 
 model DealDeskDraft {
+  continuity DealWorkflowContext? @relation("ContextDraft")
+  relatedDealContexts DealWorkflowContext[] @relation("SourceDealDraft")
   id                 String @id
   organizationId     String
   ownerUserId        String
@@ -3193,6 +3199,8 @@ model DealDeskDraft {
 }
 
 model SalesDocumentJacket {
+  relatedDealContexts DealWorkflowContext[] @relation("SourceDealJacket")
+  vehicleUseBookings VehicleUseBooking[]
   id                 String @id @default(cuid())
   organizationId     String
   packetId           String @unique
@@ -3811,6 +3819,9 @@ model UnifiedCrmForecastSnapshot {
 }
 
 model Vehicle {
+  dealWorkflowContexts DealWorkflowContext[] @relation("DealVehicle")
+  sourceDealContexts DealWorkflowContext[] @relation("SourceDealVehicle")
+  vehicleUseBookings VehicleUseBooking[]
   id                              String                           @id @default(cuid())
   organizationId                  String
   vehicleNumber                   String
@@ -3876,6 +3887,7 @@ model Vehicle {
 }
 
 model InventoryUnit {
+  dealWorkflowContexts DealWorkflowContext[]
   id                     String                           @id @default(cuid())
   organizationId         String
   vehicleId              String
@@ -10404,4 +10416,75 @@ model GrowthPolicyAuditEvent {
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, eventType, occurredAt])
   @@index([policyVersionId, occurredAt])
+}
+
+model DealWorkflowContext {
+  id String @id
+  organizationId String
+  draftId String @unique
+  customerId String
+  vehicleId String?
+  inventoryUnitId String?
+  sourceDraftId String?
+  sourceJacketId String?
+  sourceVehicleId String?
+  createdByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  draft DealDeskDraft @relation("ContextDraft", fields: [draftId], references: [id], onDelete: Restrict)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle Vehicle? @relation("DealVehicle", fields: [vehicleId], references: [id], onDelete: Restrict)
+  inventoryUnit InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  sourceDraft DealDeskDraft? @relation("SourceDealDraft", fields: [sourceDraftId], references: [id], onDelete: Restrict)
+  sourceJacket SalesDocumentJacket? @relation("SourceDealJacket", fields: [sourceJacketId], references: [id], onDelete: Restrict)
+  sourceVehicle Vehicle? @relation("SourceDealVehicle", fields: [sourceVehicleId], references: [id], onDelete: Restrict)
+  bookings VehicleUseBooking[]
+  events DealContinuityEvent[]
+  @@index([organizationId, customerId])
+}
+
+model VehicleUseBooking {
+  id String @id
+  organizationId String
+  contextId String
+  vehicleId String
+  agreementJacketId String?
+  status String @default("RESERVED")
+  startsAt DateTime
+  expectedReturnAt DateTime
+  checkedOutAt DateTime?
+  returnedAt DateTime?
+  version Int @default(1)
+  reason String
+  departureSnapshot Json?
+  returnSnapshot Json?
+  createdByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  context DealWorkflowContext @relation(fields: [contextId], references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  agreementJacket SalesDocumentJacket? @relation(fields: [agreementJacketId], references: [id], onDelete: Restrict)
+  events DealContinuityEvent[]
+  @@index([organizationId, vehicleId, status, startsAt])
+  @@index([contextId, createdAt])
+}
+
+model DealContinuityEvent {
+  id String @id
+  organizationId String
+  contextId String
+  bookingId String?
+  operationKey String
+  requestHash String
+  action String
+  actorUserId String
+  result Json
+  occurredAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  context DealWorkflowContext @relation(fields: [contextId], references: [id], onDelete: Restrict)
+  booking VehicleUseBooking? @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  @@unique([organizationId, operationKey])
+  @@index([contextId, occurredAt])
 }

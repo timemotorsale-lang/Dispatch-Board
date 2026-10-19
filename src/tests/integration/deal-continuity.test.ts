@@ -1,0 +1,85 @@
+import { randomUUID } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
+
+describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated shared deal continuity", () => {
+  it("reuses identities across every path and preserves the original deal through actual loaner return", async () => {
+    const url = new URL(process.env.DATABASE_URL!);
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !/^deal_staging_\d+$/.test(url.searchParams.get("schema") ?? "")) throw new Error("An isolated loopback deal_staging schema is required.");
+    const { prisma } = await import("@/server/db/client");
+    const { saveDealDeskDraft } = await import("@/server/sales-documents/deal-drafts");
+    const { executeVehicleUse, readDealContinuity, resolveDealSource, validateDealDocumentContext } = await import("@/server/deal-continuity/service");
+    const { createDealCustomer, createDealVehicle, dealCustomer, dealVehicle, searchDealVehicles } = await import("@/server/deal-continuity/identities");
+    const prefix = `deal-proof-${randomUUID()}`;
+    const organizationId = process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID!;
+    const actor: AuthenticatedUser = { id: `${prefix}-staff`, name: "Isolated review staff", email: `${prefix}@example.test`, isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
+    await prisma.organization.upsert({ where: { id: organizationId }, create: { id: organizationId, code: "DEAL_TEST", name: "Isolated deal review only" }, update: {} });
+    await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "NON_LOGIN_TEST_FIXTURE" } });
+    const location = await prisma.location.create({ data: { organizationId, code: prefix, name: "Isolated review lot", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } });
+    const customer = await createDealCustomer(actor, { displayName: "Isolated linked customer", phoneNumber: "+16125550199", locationId: location.id });
+    await expect(createDealCustomer(actor, { displayName: "Possible duplicate", phoneNumber: "612-555-0199", locationId: location.id })).rejects.toMatchObject({ status: 409 });
+    expect(await prisma.customer.count({ where: { organizationId } })).toBe(1);
+    const simultaneousCustomers = await Promise.allSettled([1, 2].map(() => createDealCustomer(actor, { displayName: "Simultaneous isolated customer", phoneNumber: "+16125550299", locationId: location.id })));
+    expect(simultaneousCustomers.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(await prisma.customer.count({ where: { organizationId, phoneNumber: "+16125550299" } })).toBe(1);
+    const original = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: `${prefix}-original`, stockNumber: "004352", vin: "1HGCM82633A004352", vinState: "VALID", year: 2003, make: "Honda", model: "Accord" } });
+    const temporary = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: `${prefix}-temporary`, stockNumber: "352563", vin: "1M8GDM9AXKP042788", vinState: "VALID", year: 1989, make: "MCI", model: "Review vehicle" } });
+    await prisma.vehicleOperationsFeatureFlag.createMany({ data: ["VEHICLE_OPERATIONS_MASTER", "VEHICLE_REGISTRY"].map(code => ({ organizationId, code, mode: "GENERAL" as const, rolloutPercent: 100, allowedUserIds: [] })) });
+    const { isValidVin } = await import("@/server/vehicle-registry/domain");
+    const newVin = [..."0123456789X"].map(check => `1HGCM826${check}3A004353`).find(isValidVin)!;
+    const vehicleRace = await Promise.allSettled([1, 2].map(() => createDealVehicle(actor, { vin: newVin, locationId: location.id, idempotencyKey: randomUUID(), make: "Honda", model: "Isolated duplicate-prevention proof", year: 2003 })));
+    expect(vehicleRace.some(result => result.status === "fulfilled")).toBe(true);
+    expect(await prisma.vehicle.count({ where: { organizationId, OR: [{ vin: newVin }, { vinRaw: newVin }] } })).toBe(1);
+    expect(await createDealVehicle(actor, { vin: newVin })).toMatchObject({ duplicate: true, vehicle: { vin: newVin } });
+    const unit = await prisma.inventoryUnit.create({ data: { organizationId, vehicleId: temporary.id, inventoryNumber: `${prefix}-stock`, financialAcquiredAt: new Date(), stageStartedAt: new Date(), ownerUserId: actor.id, locationId: location.id, targetAt: new Date(), nextAction: "Isolated review", lifecycleStage: "FRONTLINE_READY" } });
+    expect(await dealVehicle({ ...actor, roles: ["Salesperson"], id: "other-authorized-salesperson" }, temporary.id)).toMatchObject({ id: temporary.id, vin: temporary.vin });
+    expect((await searchDealVehicles(actor, new URLSearchParams({ q: unit.inventoryNumber }))).items.map(item => item.id)).toContain(temporary.id);
+    const originalDraft = await saveDealDeskDraft(actor, { id: randomUUID(), revision: 0, pathway: "lease-to-own", customerId: customer.id, customerName: customer.name, vehicleReference: original.stockNumber, snapshot: { "desk:identity": { customerId: customer.id, vehicleId: original.id }, "lease-to-own:terms": { agreement: "Original terms must remain unchanged" } } });
+    const originalBefore = JSON.stringify(await prisma.dealDeskDraft.findUnique({ where: { id: originalDraft.id } }));
+    for (const pathway of Object.keys(SALES_DOCUMENT_PATHWAYS)) {
+      const saved = await saveDealDeskDraft(actor, { id: randomUUID(), revision: 0, pathway, customerId: customer.id, customerName: customer.name, vehicleReference: temporary.stockNumber, snapshot: { "desk:identity": { customerId: customer.id, vehicleId: temporary.id } } });
+      expect(await prisma.dealWorkflowContext.findUnique({ where: { draftId: saved.id } })).toMatchObject({ customerId: customer.id, vehicleId: temporary.id, inventoryUnitId: unit.id });
+    }
+    const source = await resolveDealSource(actor, { sourceDraftId: originalDraft.id });
+    expect(source).toMatchObject({ customerId: customer.id, sourceVehicleId: original.id });
+    const identity = { customerId: customer.id, vehicleId: temporary.id, sourceDraftId: originalDraft.id, sourceVehicleId: original.id };
+    const loaner = await saveDealDeskDraft(actor, { id: randomUUID(), revision: 0, pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.name, vehicleReference: temporary.stockNumber, snapshot: { "desk:identity": identity } });
+    const competitor = await saveDealDeskDraft(actor, { id: randomUUID(), revision: 0, pathway: "daily-rental", customerId: customer.id, customerName: customer.name, vehicleReference: temporary.stockNumber, snapshot: { "desk:identity": { customerId: customer.id, vehicleId: temporary.id } } });
+    const startsAt = new Date(Date.now() - 600000).toISOString(), expectedReturnAt = new Date(Date.now() + 86400000).toISOString();
+    const reserve = { action: "RESERVE", operationKey: randomUUID(), reason: "Original lease delivery pending", startsAt, expectedReturnAt };
+    const race = await Promise.allSettled([executeVehicleUse(actor, loaner.id, reserve), executeVehicleUse(actor, competitor.id, { ...reserve, operationKey: randomUUID() })]);
+    expect(race.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    let booking = await prisma.vehicleUseBooking.findFirstOrThrow({ where: { vehicleId: temporary.id, status: "RESERVED" } });
+    if (booking.contextId !== loaner.id) {
+      await executeVehicleUse(actor, competitor.id, { action: "CANCEL", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, reason: "End competing test reservation" });
+      await executeVehicleUse(actor, loaner.id, reserve);
+      booking = await prisma.vehicleUseBooking.findFirstOrThrow({ where: { contextId: loaner.id, status: "RESERVED" } });
+    }
+    expect(await executeVehicleUse(actor, loaner.id, reserve)).toMatchObject({ duplicate: true });
+    await expect(executeVehicleUse(actor, loaner.id, { ...reserve, reason: "Different retry payload" })).rejects.toMatchObject({ status: 409 });
+    await expect(saveDealDeskDraft(actor, { id: loaner.id, revision: loaner.revision, pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.name, vehicleReference: original.stockNumber, snapshot: { "desk:identity": { customerId: customer.id, vehicleId: original.id } } })).rejects.toMatchObject({ status: 409 });
+    await expect(dealCustomer({ ...actor, roles: ["Salesperson"], id: "unrelated-user" }, customer.id)).rejects.toBeDefined();
+    await expect(readDealContinuity(null, loaner.id)).rejects.toMatchObject({ status: 401 });
+    const actual = { operationKey: randomUUID(), action: "HANDOFF", bookingId: booking.id, expectedVersion: booking.version, reason: "Actual isolated handoff", occurredAt: new Date(Date.now() - 300000).toISOString(), odometer: 10000, fuel: "Full", condition: "Isolated condition evidence", recipient: "Isolated customer", keysVerified: true, driverVerified: true, evidence: ["ISOLATED_TEST_REPORT_NOT_REAL_HANDOFF"] };
+    await expect(executeVehicleUse(actor, loaner.id, actual)).rejects.toThrow("finalize");
+    const packet = await prisma.documentLibraryPacket.create({ data: { organizationId, ownerType: "CUSTOMER", ownerId: customer.id, ownerLabel: customer.name, packetType: "TEST_FIXTURE", workflow: "vehicle-loaner", title: "Isolated finalized agreement fixture" } });
+    const jacket = await prisma.salesDocumentJacket.create({ data: { organizationId, packetId: packet.id, dealReference: randomUUID(), dealNumber: "ISOLATED-LOANER", pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.name, vehicleReference: temporary.stockNumber!, vin: temporary.vin, state: "CHECKED_OUT", requirements: [], createdByUserId: actor.id, versions: { create: { version: 1, phase: "CHECKOUT", disposition: "CHECKED_OUT", snapshot: { isolatedTestFixture: true }, finalizedByUserId: actor.id } } } });
+    await prisma.dealDeskDraft.update({ where: { id: loaner.id }, data: { snapshot: { "desk:identity": identity, jackets: { "vehicle-loaner": jacket.id } } } });
+    expect((await readDealContinuity(actor, loaner.id)).agreements).toEqual([{ id: jacket.id, dealNumber: jacket.dealNumber }]);
+    await executeVehicleUse(actor, loaner.id, { ...actual, agreementJacketId: jacket.id });
+    expect((await dealVehicle(actor, temporary.id)).availability).toContain("Out");
+    await expect(validateDealDocumentContext(actor, { workflowContextId: competitor.id, customerId: customer.id, customerName: customer.name, pathway: "daily-rental", vehicle: { vin: temporary.vin } })).rejects.toThrow("checked out");
+    booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
+    await expect(executeVehicleUse(actor, loaner.id, { ...actual, action: "RETURN", operationKey: randomUUID(), expectedVersion: booking.version, odometer: 9000 })).rejects.toThrow("lower");
+    await executeVehicleUse(actor, loaner.id, { action: "EXTEND", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, expectedReturnAt: new Date(Date.now() + 2 * 86400000).toISOString(), reason: "Original delivery remains pending" });
+    booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
+    await executeVehicleUse(actor, loaner.id, { ...actual, action: "RETURN", operationKey: randomUUID(), expectedVersion: booking.version, odometer: 10050, occurredAt: new Date().toISOString() });
+    expect(await prisma.vehicleUseBooking.findUnique({ where: { id: booking.id } })).toMatchObject({ status: "RETURNED" });
+    expect(await prisma.vehicleCustodyEvent.count({ where: { vehicleId: temporary.id, sourceReference: booking.id } })).toBe(2);
+    expect(await prisma.vehicleOdometerObservation.count({ where: { vehicleId: temporary.id, sourceReference: booking.id } })).toBe(2);
+    expect(JSON.stringify(await prisma.dealDeskDraft.findUnique({ where: { id: originalDraft.id } }))).toBe(originalBefore);
+    await expect(prisma.dealContinuityEvent.deleteMany({ where: { contextId: loaner.id } })).rejects.toThrow();
+    await prisma.$disconnect();
+  }, 60000);
+});
