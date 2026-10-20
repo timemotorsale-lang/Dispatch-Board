@@ -155,9 +155,9 @@ export const CRM_ACTION_SOURCE_TRUTH = [
   {
     id: "upload-document",
     label: "Upload Doc",
-    owner: "Customer document intake",
-    source: "Customer notes and document intake",
-    staffMessage: "Document context saves to the customer timeline; binary archive storage remains a future document-library layer.",
+    owner: "Document Library",
+    source: "Customer-linked document upload and review",
+    staffMessage: "Opens Document Library with the customer selected. Actual uploads require configured document storage and document permissions.",
     status: "Live"
   },
   {

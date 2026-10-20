@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { QuickUpdateReminders } from "./quick-update-reminders";
 import { CategoryBadge, categoryAppearance, categoryRowStyle } from "./category-badge";
+import { CalendarDetailDialog } from "./calendar-detail-dialog";
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
 
@@ -1049,6 +1050,7 @@ function LegacyAppointmentConsoleNewAppointment() {
 void LegacyAppointmentConsoleNewAppointment;
 
 type AppointmentNewInitialContext = {
+  crmCustomerId?: string;
   customerReference?: string;
   localDate?: string;
   reason?: string;
@@ -1103,7 +1105,9 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const [selectedCustomer, setSelectedCustomer] = useState<AppointmentIdentityCustomer | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(null);
   const appointmentWindow = useAppointmentWindow(form.localDate, calendarView);
-  const identityQuery = (customerQuery || vehicleQuery).trim();
+  const customerIdentityQuery = customerQuery === initialContext?.customerReference && initialContext.crmCustomerId
+    ? initialContext.crmCustomerId : customerQuery.trim();
+  const identityQuery = customerIdentityQuery.length >= 2 || vehicleQuery.trim().length >= 2 ? JSON.stringify([customerIdentityQuery, vehicleQuery.trim()]) : "";
   const effectiveIdentityResults = identityQuery.length < 2 ? { customers: [], vehicles: [] } : identityResults;
   const effectiveIdentityStatus = identityQuery.length < 2 ? "idle" : identityStatus;
   const startsAtIso = useMemo(() => localDateTimeToIso(form.localDate, form.startTime), [form.localDate, form.startTime]);
@@ -1414,15 +1418,23 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
         setIdentityStatus("loading");
 
         try {
-          const response = await fetch(`/api/appointments/identity-search?query=${encodeURIComponent(identityQuery)}`);
-          const result = await response.json().catch(() => null) as AppointmentIdentitySearchResponse | { error?: string } | null;
-
-          if (!response.ok || !result || !("customers" in result)) {
-            throw new Error("Identity search unavailable.");
+          const [customerSearch, vehicleSearch] = JSON.parse(identityQuery) as [string, string];
+          async function search(query: string): Promise<AppointmentIdentitySearchResponse> {
+            if (query.length < 2) return { customers: [], vehicles: [] };
+            const response = await fetch(`/api/appointments/identity-search?query=${encodeURIComponent(query)}`);
+            const result = await response.json().catch(() => null) as AppointmentIdentitySearchResponse | null;
+            if (!response.ok || !result || !Array.isArray(result.customers) || !Array.isArray(result.vehicles)) throw new Error("Identity search unavailable.");
+            return result;
           }
+          const [customers, vehicles] = await Promise.all([search(customerSearch), search(vehicleSearch)]);
+          const result = { customers: customers.customers, vehicles: vehicles.vehicles };
 
           if (!cancelled) {
             setIdentityResults(result);
+            if (customerSearch === initialContext?.crmCustomerId) {
+              const linked = result.customers.find((customer) => customer.id === customerSearch);
+              if (linked) setSelectedCustomer(linked);
+            }
             setIdentityStatus("ready");
           }
         } catch {
@@ -1440,7 +1452,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [identityQuery]);
+  }, [identityQuery, initialContext?.crmCustomerId]);
 
   function chooseCustomer(customer: AppointmentIdentityCustomer) {
     setSelectedCustomer(customer);
@@ -1702,6 +1714,141 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     }
   }
 
+  const calendarDetail = calendarInsightCard ? (
+              <CalendarDetailDialog onClose={() => setCalendarInsightCard(null)} onSubmit={(event) => void createAppointment(event)}>
+                <header>
+                  <strong>
+                    {calendarInsightCard === "recommendations" ? "Recommended openings" :
+                      calendarInsightCard === "resources" ? "Resource depth" :
+                        calendarInsightCard === "advisor" ? "Advisor routing" :
+                          calendarInsightCard === "categories" ? "Categories" :
+                            calendarInsightCard === "appointment" && expandedAppointment ? expandedAppointment.appointmentNumber :
+                            editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : "Create appointment"}
+                  </strong>
+                  <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
+                </header>
+                {calendarInsightCard === "categories" ? (
+                  <div className="calendar-category-picker">
+                    {appointmentCategories.map((category) => (
+                      <button
+                        className={selectedPurpose.category === category ? "active" : ""}
+                        key={category}
+                        onClick={() => chooseCalendarCategory(category)}
+                        style={calendarCategoryStyle(category)}
+                        type="button"
+                      >
+                        <strong>{category}</strong>
+                        <span>{purposeOptions.filter((purpose) => purpose.category === category).length} purpose{purposeOptions.filter((purpose) => purpose.category === category).length === 1 ? "" : "s"}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : calendarInsightCard === "recommendations" ? (
+                  <div className="calendar-enterprise-list">
+                    {smartSlotRecommendations.map((recommendation, index) => (
+                      <button
+                        className={form.startTime === recommendation.slot ? "active" : ""}
+                        key={`card-${recommendation.slot}`}
+                        onClick={() => chooseTimeSlot(recommendation.slot, "timeline")}
+                        type="button"
+                      >
+                        <b>#{index + 1}</b>
+                        <span><strong>{formatTime(localDateTimeToIso(form.localDate, recommendation.slot))}</strong><small>{recommendation.reason}</small></span>
+                        <em>{recommendation.score}%</em>
+                      </button>
+                    ))}
+                  </div>
+                ) : calendarInsightCard === "resources" ? (
+                  <div className="calendar-enterprise-resource-grid">
+                    {calendarResourceLanes.map((resource) => (
+                      <article className={resource.tone} key={`card-${resource.label}`}>
+                        <strong>{resource.label}</strong>
+                        <span>{resource.status}</span>
+                        <b>{resource.value}</b>
+                      </article>
+                    ))}
+                  </div>
+                ) : calendarInsightCard === "advisor" ? (
+                  <div className="calendar-enterprise-list">
+                    {calendarAdvisorOptions.map((advisor) => (
+                      <button
+                        className={form.advisor === advisor.name ? "active" : ""}
+                        disabled={!advisor.available}
+                        key={`card-${advisor.name}`}
+                        onClick={() => { updateField("advisor", advisor.name); setNotice(`${advisor.name} is assigned as appointment owner.`); }}
+                        type="button"
+                      >
+                        <span><strong>{advisor.name}</strong><small>{advisor.available ? "Available for routing" : "Blocked for review"}</small></span>
+                        <em>{advisor.load}%</em>
+                      </button>
+                    ))}
+                  </div>
+                ) : calendarInsightCard === "appointment" && expandedAppointment ? (
+                  <div className="calendar-enterprise-draft calendar-enterprise-appointment-detail">
+                    <dl>
+                      <div><dt>Time</dt><dd>{formatTime(expandedAppointment.startsAt)} - {formatTime(expandedAppointment.endsAt)}</dd></div>
+                      <div><dt>Purpose</dt><dd>{expandedAppointment.title}</dd></div>
+                      <div><dt>Customer</dt><dd>{expandedAppointment.customer?.displayName ?? "No customer"}</dd></div>
+                      <div><dt>Vehicle</dt><dd>{vehicleLabel(expandedAppointment)}</dd></div>
+                      <div><dt>Owner</dt><dd>{expandedAppointment.owner?.name ?? "Unassigned"}</dd></div>
+                      <div><dt>Status</dt><dd>{expandedAppointment.bookingStatus ?? "DRAFT"}</dd></div>
+                    </dl>
+                    <footer>
+                      <Link href={boardFocusHref(expandedAppointment)}>Open board</Link>
+                      <button onClick={() => hydrateAppointmentForEdit(expandedAppointment)} type="button">Edit appointment</button>
+                    </footer>
+                  </div>
+                ) : (
+                  <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category)}>
+                    <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
+                    {customerQuery.trim().length >= 2 && !selectedCustomer ? (
+                      <div className="appointment-identity-results" aria-label="Matching customers">
+                        {effectiveIdentityResults.customers.map((customer) => <button key={customer.id} onClick={() => chooseCustomer(customer)} type="button"><span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber}</small></span></button>)}
+                        {!effectiveIdentityResults.customers.length ? <p>{effectiveIdentityStatus === "loading" ? "Searching customers..." : "No match. The typed name is draft context, not a linked customer."}</p> : null}
+                      </div>
+                    ) : null}
+                    <label><span>Vehicle</span><input onChange={(event) => { setSelectedVehicle(null); setVehicleQuery(event.target.value); updateField("vehicle", event.target.value); }} placeholder="VIN, stock #, plate, or vehicle" value={vehicleQuery} /></label>
+                    {vehicleQuery.trim().length >= 2 && !selectedVehicle ? (
+                      <div className="appointment-identity-results" aria-label="Matching vehicles">
+                        {effectiveIdentityResults.vehicles.map((vehicle) => <button key={vehicle.id} onClick={() => chooseVehicle(vehicle)} type="button"><span><strong>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")}</strong><small>{vehicle.vin ?? vehicle.vehicleNumber}</small></span></button>)}
+                        {!effectiveIdentityResults.vehicles.length ? <p>{effectiveIdentityStatus === "loading" ? "Searching vehicles..." : "No match. Select an existing vehicle to link its record."}</p> : null}
+                      </div>
+                    ) : null}
+                    <label><span>Purpose</span><select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>{appointmentPurposeGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}</optgroup>)}</select></label>
+                    <div className="calendar-enterprise-draft-row">
+                      <label><span>Date</span><input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} /></label>
+                      <label><span>Time</span><input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} /></label>
+                      <label><span>Duration</span><select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>{[30, 45, 60, 75, 90, 120].map((duration) => <option key={duration} value={duration}>{duration} min</option>)}</select></label>
+                    </div>
+                    <div className="calendar-enterprise-draft-row">
+                      <label><span>Advisor</span><select onChange={(event) => updateField("advisor", event.target.value)} value={form.advisor}>{calendarAdvisorOptions.map((advisor) => <option disabled={!advisor.available} key={advisor.name} value={advisor.name}>{advisor.name}</option>)}</select></label>
+                      <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                    </div>
+                    <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
+                    {duplicateCustomerTimeAppointment && duplicateCustomerTimeKey ? (
+                      <div className="appointment-duplicate-warning" role="alert">
+                        <strong>Possible double appointment</strong>
+                        <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
+                        <label>
+                          <input
+                            checked={duplicateCustomerTimeConfirmed}
+                            onChange={(event) => setConfirmedDuplicateAppointmentKey(event.target.checked ? duplicateCustomerTimeKey : null)}
+                            type="checkbox"
+                          />
+                          Confirm this duplicate time intentionally.
+                        </label>
+                      </div>
+                    ) : null}
+                    <footer>
+                      <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
+                      {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New draft</button> : null}
+                      <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save changes" : "Create appointment"}</button>
+                    </footer>
+                  </div>
+                )}
+                {notice ? <p role="status">{notice}</p> : null}
+              </CalendarDetailDialog>
+            ) : null;
+
   if (fullPageCalendarOpen) {
     return (
       <AppointmentConsoleShell>
@@ -1713,6 +1860,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               </div>
               <nav>
                 <button onClick={closeFullPageCalendar} type="button">Back</button>
+                <button className="primary" onClick={() => startNewAppointmentDraft()} type="button">New appointment</button>
                 <button onClick={goToToday} type="button">Today</button>
                 <button onClick={() => updateField("localDate", calendarView === "month" ? addMonths(form.localDate, -1) : addDays(form.localDate, calendarView === "week" ? -7 : -1))} type="button">‹</button>
                 <button onClick={() => updateField("localDate", calendarView === "month" ? addMonths(form.localDate, 1) : addDays(form.localDate, calendarView === "week" ? 7 : 1))} type="button">›</button>
@@ -1746,6 +1894,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 ))}
               </div>
             </header>
+            {calendarDetail}
               {calendarView === "day" ? (
                 <>
                   <div className={calendarAppointmentsExpanded ? "calendar-stage calendar-stage-expanded-all" : "calendar-stage"}>
@@ -1754,127 +1903,6 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                     <div className="availability constrained mid" />
                     <div className="availability good lower" />
                     <div className="availability constrained bottom" />
-                    {calendarInsightCard ? (
-                      <aside className="calendar-enterprise-popover" aria-label="Enterprise calendar detail">
-                        <header>
-                          <strong>
-                            {calendarInsightCard === "recommendations" ? "Recommended openings" :
-                              calendarInsightCard === "resources" ? "Resource depth" :
-                                calendarInsightCard === "advisor" ? "Advisor routing" :
-                                  calendarInsightCard === "categories" ? "Categories" :
-                                    calendarInsightCard === "appointment" && expandedAppointment ? expandedAppointment.appointmentNumber :
-                                    editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : "Create appointment"}
-                          </strong>
-                          <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
-                        </header>
-                        {calendarInsightCard === "categories" ? (
-                          <div className="calendar-category-picker">
-                            {appointmentCategories.map((category) => (
-                              <button
-                                className={selectedPurpose.category === category ? "active" : ""}
-                                key={category}
-                                onClick={() => chooseCalendarCategory(category)}
-                                style={calendarCategoryStyle(category)}
-                                type="button"
-                              >
-                                <strong>{category}</strong>
-                                <span>{purposeOptions.filter((purpose) => purpose.category === category).length} purpose{purposeOptions.filter((purpose) => purpose.category === category).length === 1 ? "" : "s"}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ) : calendarInsightCard === "recommendations" ? (
-                          <div className="calendar-enterprise-list">
-                            {smartSlotRecommendations.map((recommendation, index) => (
-                              <button
-                                className={form.startTime === recommendation.slot ? "active" : ""}
-                                key={`card-${recommendation.slot}`}
-                                onClick={() => chooseTimeSlot(recommendation.slot, "timeline")}
-                                type="button"
-                              >
-                                <b>#{index + 1}</b>
-                                <span><strong>{formatTime(localDateTimeToIso(form.localDate, recommendation.slot))}</strong><small>{recommendation.reason}</small></span>
-                                <em>{recommendation.score}%</em>
-                              </button>
-                            ))}
-                          </div>
-                        ) : calendarInsightCard === "resources" ? (
-                          <div className="calendar-enterprise-resource-grid">
-                            {calendarResourceLanes.map((resource) => (
-                              <article className={resource.tone} key={`card-${resource.label}`}>
-                                <strong>{resource.label}</strong>
-                                <span>{resource.status}</span>
-                                <b>{resource.value}</b>
-                              </article>
-                            ))}
-                          </div>
-                        ) : calendarInsightCard === "advisor" ? (
-                          <div className="calendar-enterprise-list">
-                            {calendarAdvisorOptions.map((advisor) => (
-                              <button
-                                className={form.advisor === advisor.name ? "active" : ""}
-                                disabled={!advisor.available}
-                                key={`card-${advisor.name}`}
-                                onClick={() => { updateField("advisor", advisor.name); setNotice(`${advisor.name} is assigned as appointment owner.`); }}
-                                type="button"
-                              >
-                                <span><strong>{advisor.name}</strong><small>{advisor.available ? "Available for routing" : "Blocked for review"}</small></span>
-                                <em>{advisor.load}%</em>
-                              </button>
-                            ))}
-                          </div>
-                        ) : calendarInsightCard === "appointment" && expandedAppointment ? (
-                          <div className="calendar-enterprise-draft calendar-enterprise-appointment-detail">
-                            <dl>
-                              <div><dt>Time</dt><dd>{formatTime(expandedAppointment.startsAt)} - {formatTime(expandedAppointment.endsAt)}</dd></div>
-                              <div><dt>Purpose</dt><dd>{expandedAppointment.title}</dd></div>
-                              <div><dt>Customer</dt><dd>{expandedAppointment.customer?.displayName ?? "No customer"}</dd></div>
-                              <div><dt>Vehicle</dt><dd>{vehicleLabel(expandedAppointment)}</dd></div>
-                              <div><dt>Owner</dt><dd>{expandedAppointment.owner?.name ?? "Unassigned"}</dd></div>
-                              <div><dt>Status</dt><dd>{expandedAppointment.bookingStatus ?? "DRAFT"}</dd></div>
-                            </dl>
-                            <footer>
-                              <Link href={boardFocusHref(expandedAppointment)}>Open board</Link>
-                              <button onClick={() => hydrateAppointmentForEdit(expandedAppointment)} type="button">Edit appointment</button>
-                            </footer>
-                          </div>
-                        ) : (
-                          <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category)}>
-                            <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
-                            <label><span>Vehicle</span><input onChange={(event) => { setSelectedVehicle(null); setVehicleQuery(event.target.value); updateField("vehicle", event.target.value); }} placeholder="VIN, stock #, plate, or vehicle" value={vehicleQuery} /></label>
-                            <label><span>Purpose</span><select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>{appointmentPurposeGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}</optgroup>)}</select></label>
-                            <div className="calendar-enterprise-draft-row">
-                              <label><span>Date</span><input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} /></label>
-                              <label><span>Time</span><input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} /></label>
-                              <label><span>Duration</span><select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>{[30, 45, 60, 75, 90, 120].map((duration) => <option key={duration} value={duration}>{duration} min</option>)}</select></label>
-                            </div>
-                            <div className="calendar-enterprise-draft-row">
-                              <label><span>Advisor</span><select onChange={(event) => updateField("advisor", event.target.value)} value={form.advisor}>{calendarAdvisorOptions.map((advisor) => <option disabled={!advisor.available} key={advisor.name} value={advisor.name}>{advisor.name}</option>)}</select></label>
-                              <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                            </div>
-                            <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
-                            {duplicateCustomerTimeAppointment && duplicateCustomerTimeKey ? (
-                              <div className="appointment-duplicate-warning" role="alert">
-                                <strong>Possible double appointment</strong>
-                                <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
-                                <label>
-                                  <input
-                                    checked={duplicateCustomerTimeConfirmed}
-                                    onChange={(event) => setConfirmedDuplicateAppointmentKey(event.target.checked ? duplicateCustomerTimeKey : null)}
-                                    type="checkbox"
-                                  />
-                                  Confirm this duplicate time intentionally.
-                                </label>
-                              </div>
-                            ) : null}
-                            <footer>
-                              <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
-                              {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New draft</button> : null}
-                              <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save changes" : "Create appointment"}</button>
-                            </footer>
-                          </div>
-                        )}
-                      </aside>
-                    ) : null}
                     {appointmentTimeSlots.map((slot) => (
                       <button
                         aria-label={`Pick ${formatTime(localDateTimeToIso(form.localDate, slot))}`}
@@ -2128,8 +2156,10 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               </nav>
               <strong>{calendarView === "month" ? monthLabel(form.localDate) : calendarView === "week" ? `Week of ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: defaultTimezone }).format(noonDate(weekStart(form.localDate)))}` : appointmentDateLabel}</strong>
               {activeWorkspace === "calendar" ? <button className="appointment-compact-control" onClick={returnToCompactLayout} type="button">Compact layout</button> : null}
+              <button onClick={expandCalendarWorkspace} type="button">Open full calendar</button>
             </header>
-            {calendarView === "day" ? (
+            {calendarDetail}
+              {calendarView === "day" ? (
               <>
                 <section className={quickSlotsOpen ? "appointment-time-picker open" : "appointment-time-picker"} aria-label="Available appointment times">
                   <button

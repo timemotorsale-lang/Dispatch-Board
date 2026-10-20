@@ -158,6 +158,7 @@ type DocumentLibraryLandingProps = {
   error?: string | null;
   initialLibrary: DocumentLibraryModel | null;
   initialOwnerId?: string;
+  initialOwnerLabel?: string;
 };
 
 type DocumentLibraryActionResponse = {
@@ -277,7 +278,7 @@ function StatusBadge({ label, tone = statusTone(label) }: { label: string; tone?
   return <span className={`${styles.statusBadge} ${styles[tone]}`}><CheckCircle2 size={13} />{formatLabel(label)}</span>;
 }
 
-export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId }: DocumentLibraryLandingProps) {
+export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, initialOwnerLabel }: DocumentLibraryLandingProps) {
   const [libraryState, setLibraryState] = useState(initialLibrary);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -301,8 +302,8 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId }
   const [intake, setIntake] = useState({
     documentType: "CUSTOMER_AUTHORIZATION",
     fileName: "",
-    ownerId: "",
-    ownerLabel: "",
+    ownerId: initialOwnerId ?? "",
+    ownerLabel: initialOwnerLabel ?? "",
     ownerType: "CUSTOMER" as DocumentRecord["owner"]["type"],
     reason: "",
     reference: "",
