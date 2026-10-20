@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-10-20 — Remove global Labor Pilot release-evidence gate
+
+At the owner's explicit request, the twelve-gate Labor Pilot readiness checker, its evidence template/helpers/workflow and the mandatory production evidence-run input have been removed. General manual deployment still requires `main`, explicit confirmation, successful exact-revision CI, production preflight, verified backup/restore, migrations and health/revision checks. Optional isolated staging and its corrected restore verifier remain. In-app labor authorization, catalog policy approvals, qualifications, QC, billing and tax controls are unchanged. Earlier entries describing mandatory Labor Pilot evidence are historical and no longer describe the current workflow. This source change alone does not commit, merge or deploy anything, and does not rewrite previously shared Git commits.
+
 ## 2026-10-17 - Expanded Catalog Execution Controls and Release Evidence
 
 The six audit follow-ups now have implementation support: per-labor-line part/demand allocation with ambiguity holds; server-derived qualification, procedure, bay/tool and parts checks; independently approved version/fingerprint-bound per-system rollout at `/settings/labor-catalog`; specific configuration/verification profiles for all 73 expanded groups and explicit included-operation identities for existing package guards; both browser fixtures in CI and exact-revision reviewed evidence gating in manual production promotion; and an isolated PostgreSQL/authenticated-browser staging runner plus a disposable baseline-upgrade/backup-restore GitHub workflow.
