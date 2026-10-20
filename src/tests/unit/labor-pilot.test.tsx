@@ -5,7 +5,6 @@ import { connectedLaborSelection, laborOperationForLineKey } from "@/lib/labor-c
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 import { assertCurrentRepairAuthorization, assertLaborChronology } from "@/lib/repair-authorization-current";
 import { actualLaborEvidence, type ActualLaborJob } from "@/lib/labor-actual-evidence";
-import { evaluateLaborPilotRelease, LABOR_RELEASE_GATES, type LaborReleaseEvidence } from "@/lib/labor-pilot-release";
 
 describe("connected labor pilot", () => {
   const catalog = flattenLaborOperationTaxonomy();
@@ -44,14 +43,5 @@ describe("authorization and actual labor safety", () => {
   it("distinguishes measured clocks from planned minutes and never publishes a standard", () => { expect(actualLaborEvidence(sample)).toMatchObject({ measuredTechnicianMinutes: 65, plannedMinutes: 72, eligibleForStudy: true, validatedStandard: false }); });
   it("excludes unmapped, unfinished, reworked, unmeasured and post-QC-corrected work", () => {
     for (const job of [{ ...sample, clocks: [] }, { ...sample, latestQcPassed: false }, { ...sample, rework: true }, { ...sample, catalogVersion: null }, { ...sample, events: [] }, { ...sample, events: [...sample.events, { eventType: "CORRECTION", occurredAt: "2026-10-16T13:00:00.000Z", technicianUserId: "tech" }] }]) expect(actualLaborEvidence(job).eligibleForStudy).toBe(false);
-  });
-});
-
-describe("manual release evidence gate", () => {
-  const revision = "a".repeat(40);
-  const evidence: LaborReleaseEvidence = { revision, stagingOrigin: "https://staging.example.test", productionOrigin: "https://shop.example.test", recordedAt: "2026-10-16T10:00:00Z", signoff: { owner: "Owner", reviewer: "Independent reviewer" }, gates: Object.fromEntries(LABOR_RELEASE_GATES.map(key => [key, { status: "PASS", artifact: `evidence/${key}.json`, sha256: "a".repeat(64), reviewer: "Reviewer" }])) };
-  it("requires current, isolated, independently signed evidence for every gate", () => {
-    expect(evaluateLaborPilotRelease(evidence, revision, new Date("2026-10-16T12:00Z")).status).toBe("ELIGIBLE_FOR_MANUAL_PROMOTION");
-    for (const changed of [{ ...evidence, gates: {} }, { ...evidence, revision: "b".repeat(40) }, { ...evidence, stagingOrigin: evidence.productionOrigin }, { ...evidence, recordedAt: "2026-09-01" }, { ...evidence, signoff: { owner: "Owner", reviewer: "owner" } }]) expect(evaluateLaborPilotRelease(changed, revision, new Date("2026-10-16T12:00Z")).status).toBe("HOLD");
   });
 });

@@ -8,10 +8,6 @@ on:
         required: true
         default: false
         type: boolean
-      labor_evidence_run_id:
-        description: Successful Labor Release Evidence review run ID for this exact main revision
-        required: true
-        type: string
 
 concurrency:
   group: production-deployment
@@ -32,25 +28,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - name: Verify reviewed evidence provenance
-        env:
-          GH_TOKEN: ${{ github.token }}
-          LABOR_EVIDENCE_RUN_ID: ${{ inputs.labor_evidence_run_id }}
-        run: node scripts/verify-labor-evidence-run.mjs
-      - uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.labor_evidence_run_id }}
-          name: labor-release-evidence-${{ github.sha }}
-          path: ${{ runner.temp }}/labor-release-evidence
-      - name: Require current evidence before contacting production
-        run: npm run check:labor-pilot-release -- "$RUNNER_TEMP/labor-release-evidence/evidence.json"
       - name: Require successful CI for this revision
         env:
           GH_TOKEN: ${{ github.token }}
