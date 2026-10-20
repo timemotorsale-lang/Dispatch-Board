@@ -4,6 +4,7 @@ import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 import { advanceBalance, businessDate, cashExpected, cents, MONEY_CATEGORIES, moneyToday, MoneyError, parseCardCsv, PAYMENT_METHODS, receiptPending, text } from "@/lib/money-resources";
+import { purchasingCommand, purchasingData, purchasingPolicy, purchaseSnapshot, type PurchasingData } from "./purchasing";
 
 type Database = Prisma.TransactionClient;
 export async function moneyAccess(actor: AuthenticatedUser | null, database: Database = prisma) {
@@ -65,9 +66,9 @@ export async function getMoneyResources(actor: AuthenticatedUser | null, query =
   const access = await moneyAccess(actor);
   const scope = { organizationId: access.organizationId, ...(!access.manager ? { employeeId: access.actor.id } : {}) };
   const day = query.get("date") ? businessDate(query.get("date")) : moneyToday();
-  const [accounts, entries, advances, requests, charges, users, vehicles, orders, vendors, closes] = await Promise.all([
-    prisma.moneyAccount.findMany({ where: { organizationId: access.organizationId, ...(!access.manager ? { OR: [{ assignedUserId: access.actor.id }, { assignedUserId: null, kind: { not: "CARD" } }, { entries: { some: { employeeId: access.actor.id, kind: "ADVANCE_ISSUE", approvalStatus: { not: "SETTLED" } } } }] } : {}) }, include: { assignedUser: { select: { name: true } } }, orderBy: { label: "asc" } }),
-    prisma.moneyEntry.findMany({ where: { ...scope, OR: [{ businessDate: day }, { approvalStatus: "PENDING" }, { kind: "EXPENSE", approvalStatus: { not: "SUPERSEDED" }, receiptDocumentId: null, receiptExplanation: null }, { kind: "EXPENSE", paymentMethod: "PERSONAL", approvalStatus: "APPROVED" }, { approvalStatus: "APPROVED", reconciledAt: null, account: { kind: "CARD" } }] }, include: { employee: { select: { name: true } }, account: { select: { label: true, lastFour: true } }, matchedCharge: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 501 }),
+  const [accounts, entries, advances, requests, charges, users, vehicles, orders, vendors, closes, purchasing] = await Promise.all([
+    prisma.moneyAccount.findMany({ where: { organizationId: access.organizationId, ...(!access.manager ? { OR: [{ assignedUserId: access.actor.id }, { assignedUserId: null, kind: { not: "CARD" } }, { purchasingAuthorizations: { some: { employeeId: access.actor.id, organizationId: access.organizationId } } }, { entries: { some: { employeeId: access.actor.id, kind: "ADVANCE_ISSUE", approvalStatus: { not: "SETTLED" } } } }] } : {}) }, include: { assignedUser: { select: { name: true } } }, orderBy: { label: "asc" } }),
+    prisma.moneyEntry.findMany({ where: { ...scope, OR: [{ businessDate: day }, { approvalStatus: "PENDING" }, { kind: "EXPENSE", approvalStatus: { not: "SUPERSEDED" }, purchasingSnapshot: { path: ["flags"], not: [] } }, { kind: "EXPENSE", approvalStatus: { not: "SUPERSEDED" }, receiptDocumentId: null, receiptExplanation: null }, { kind: "EXPENSE", paymentMethod: "PERSONAL", approvalStatus: "APPROVED" }, { approvalStatus: "APPROVED", reconciledAt: null, account: { kind: "CARD" } }] }, include: { employee: { select: { name: true } }, account: { select: { label: true, lastFour: true } }, matchedCharge: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 501 }),
     prisma.moneyEntry.findMany({ where: { ...scope, kind: "ADVANCE_ISSUE", approvalStatus: { not: "SETTLED" } }, include: { employee: { select: { name: true } } }, take: 201 }),
     prisma.moneyEntry.findMany({ where: { ...scope, kind: "FUNDS_REQUEST", approvalStatus: "APPROVED", children: { none: { kind: "ADVANCE_ISSUE" } } }, include: { employee: { select: { name: true } } }, take: 201 }),
     prisma.moneyCardCharge.findMany({ where: { organizationId: access.organizationId, ...(!access.manager ? { account: { assignedUserId: access.actor.id } } : {}), OR: [{ matchedEntryId: null }, { businessDate: day }] }, include: { account: { select: { label: true } } }, orderBy: { businessDate: "desc" }, take: 501 }),
@@ -75,12 +76,13 @@ export async function getMoneyResources(actor: AuthenticatedUser | null, query =
     prisma.vehicle.findMany({ where: { organizationId: access.organizationId, mergedIntoVehicleId: null }, select: { id: true, vehicleNumber: true, stockNumber: true, year: true, make: true, model: true }, orderBy: { updatedAt: "desc" }, take: 200 }),
     prisma.repairOrder.findMany({ where: { organizationId: access.organizationId, closedAt: null }, select: { id: true, vehicleId: true, repairOrderNumber: true }, take: 200 }),
     prisma.vendor.findMany({ where: { organizationId: access.organizationId }, select: { id: true, name: true }, take: 200 }),
-    access.manager ? prisma.moneyDailyClose.findMany({ where: { organizationId: access.organizationId, businessDate: day }, include: { account: { select: { label: true } } }, orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([])
+    access.manager ? prisma.moneyDailyClose.findMany({ where: { organizationId: access.organizationId, businessDate: day }, include: { account: { select: { label: true } } }, orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([]),
+    purchasingData(prisma, access)
   ]);
   const balances = await Promise.all(advances.slice(0, 200).map(async issued => ({ ...issued, balanceCents: advanceBalance(issued.amountCents, await advanceChildren(prisma, issued)) })));
-  return JSON.parse(JSON.stringify({ manager: access.manager, actorId: access.actor.id, day, accounts, entries: entries.slice(0, 500), advances: balances, requests, charges: charges.slice(0, 500), users, vehicles, orders, vendors, closes, limited: entries.length > 500 || advances.length > 200 || charges.length > 500 })) as MoneyResourcesModel;
+  return JSON.parse(JSON.stringify({ ...purchasing, manager: access.manager, actorId: access.actor.id, day, accounts, entries: entries.slice(0, 500), advances: balances, requests, charges: charges.slice(0, 500), users, vehicles, orders, vendors, closes, limited: purchasing.purchasingLimited || entries.length > 500 || advances.length > 200 || charges.length > 500 })) as MoneyResourcesModel;
 }
-export type MoneyResourcesModel = {
+export type MoneyResourcesModel = PurchasingData & {
   manager: boolean; actorId: string; day: string; limited: boolean;
   accounts: Array<{ id: string; label: string; kind: string; assignedUserId: string | null; lastFour: string | null; active: boolean; limitCents: number | null; openingBalanceCents: number }>;
   entries: Array<Omit<MoneyEntry, "createdAt" | "reconciledAt"> & { createdAt: string; reconciledAt: string | null; employee: { name: string }; account: { label: string; lastFour: string | null } | null; matchedCharge: { id: string } | null }>;
@@ -106,7 +108,9 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
     if (replay) { if (replay.requestHash !== hash || replay.actorUserId !== access.actor.id) throw new MoneyError("This save reference belongs to a different action.", 409); return replay.result; }
     let result: unknown;
     let subjectId = text(value.id) || "resources";
-    if (action === "CREATE_ACCOUNT") {
+    if (["AUTHORIZE_PURCHASING", "REVOKE_PURCHASING", "REQUEST_PURCHASE_APPROVAL", "REVIEW_PURCHASE_APPROVAL"].includes(action)) {
+      result = await purchasingCommand(database, access, action, value);
+    } else if (action === "CREATE_ACCOUNT") {
       management(access);
       const kind = text(value.kind), label = text(value.label, 100), assignedUserId = text(value.employeeId) || null, lastFour = text(value.lastFour, 4) || null;
       if (!["CARD", "CASH", "BANK"].includes(kind) || !label) throw new MoneyError("Name the funding source and choose its type.");
@@ -118,10 +122,12 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
       if (!purpose || !PAYMENT_METHODS.includes(paymentMethod as typeof PAYMENT_METHODS[number])) throw new MoneyError("Enter the business purpose and payment method.");
       const issued = value.advanceId ? await entry(database, access, value.advanceId) : null;
       if (issued && (issued.kind !== "ADVANCE_ISSUE" || issued.employeeId !== access.actor.id || issued.approvalStatus === "SETTLED" || issued.accountId !== text(value.accountId))) throw new MoneyError("Choose your own unsettled advance and its funding source.");
-      const selected = value.accountId ? issued ? await database.moneyAccount.findFirstOrThrow({ where: { id: text(value.accountId), organizationId: access.organizationId } }) : await account(database, access, value.accountId) : null;
+      const policy = action === "RECORD" && value.authorizationId ? await purchasingPolicy(database, access, value.authorizationId) : null;
+      if (policy && (paymentMethod !== "CARD" || issued || text(value.accountId) !== policy.accountId)) throw new MoneyError("Choose the card on this purchasing authorization, without an unrelated advance.");
+      const selected = policy ? policy.account : value.accountId ? issued ? await database.moneyAccount.findFirstOrThrow({ where: { id: text(value.accountId), organizationId: access.organizationId } }) : await account(database, access, value.accountId) : null;
       if (selected && selected.kind !== paymentMethod) throw new MoneyError("The funding source must match the payment method.");
-      const employeeId = action === "RECORD" && access.manager && selected?.kind === "CARD" ? selected.assignedUserId! : access.actor.id;
-      if (!issued && selected?.assignedUserId && selected.assignedUserId !== access.actor.id && !(access.manager && selected.kind === "CARD")) throw new MoneyError("Record spending against your own assigned card or funds.");
+      const employeeId = policy?.employeeId ?? (action === "RECORD" && access.manager && selected?.kind === "CARD" ? selected.assignedUserId! : access.actor.id);
+      if (!policy && !issued && selected?.assignedUserId && selected.assignedUserId !== access.actor.id && !(access.manager && selected.kind === "CARD")) throw new MoneyError("Record spending against your own assigned card or funds.");
       if (value.employeeId && text(value.employeeId) !== employeeId) throw new MoneyError("The responsible employee must match the selected card or your own funds.");
       if (employeeId !== access.actor.id) await staff(database, access, employeeId);
       if (paymentMethod === "CARD" && !selected) throw new MoneyError(access.manager ? "Select a company card or add it below the funding source." : "Select your assigned company card. Ask a manager to add or assign it if missing.");
@@ -134,7 +140,9 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
       }
       const category = text(value.category) || "Other";
       if (!MONEY_CATEGORIES.includes(category as typeof MONEY_CATEGORIES[number])) throw new MoneyError("Choose a spending category.");
-      result = await database.moneyEntry.create({ data: { ...linked, organizationId: access.organizationId, employeeId, kind: action === "REQUEST" ? "FUNDS_REQUEST" : "EXPENSE", amountCents, businessDate: businessDate(value.businessDate || moneyToday()), merchant: text(value.merchant, 200), purpose, category, paymentMethod, accountId: selected?.id ?? null, parentId, reference: text(value.reference, 150) || null } });
+      const date = businessDate(value.businessDate || moneyToday());
+      const purchasing = action === "RECORD" && paymentMethod === "CARD" ? await purchaseSnapshot(database, access, value, { ...linked, employeeId, accountId: selected?.id ?? null, amountCents, category, purpose, businessDate: date }) : {};
+      result = await database.moneyEntry.create({ data: { ...linked, ...purchasing, organizationId: access.organizationId, employeeId, kind: action === "REQUEST" ? "FUNDS_REQUEST" : "EXPENSE", amountCents, businessDate: date, merchant: text(value.merchant, 200), purpose, category, paymentMethod, accountId: selected?.id ?? null, parentId, reference: text(value.reference, 150) || null } });
     } else if (action === "IMPORT") {
       management(access); const selected = await account(database, access, value.accountId, true);
       if (selected.kind !== "CARD") throw new MoneyError("Choose an assigned company card for the statement.");
@@ -180,7 +188,7 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
       } else if (action === "REVIEW") {
         management(access);
         if (original.employeeId === access.actor.id) throw new MoneyError("A different manager must review your own spending or returned funds.", 403);
-        if (original.kind === "EXPENSE" && await database.moneyAudit.findFirst({ where: { subjectId: original.id, organizationId: access.organizationId, action: "RECORD", actorUserId: access.actor.id }, select: { id: true } })) throw new MoneyError("A different manager must review spending you recorded on behalf of staff.", 403);
+        if (original.kind === "EXPENSE" && await database.moneyAudit.findFirst({ where: { organizationId: access.organizationId, action: { in: ["RECORD", "CORRECT"] }, result: { path: ["id"], equals: original.id }, actorUserId: access.actor.id }, select: { id: true } })) throw new MoneyError("A different manager must review spending you recorded on behalf of staff.", 403);
         if (original.approvalStatus !== "PENDING" || !["APPROVED", "REJECTED"].includes(text(value.decision))) throw new MoneyError("Only pending records can be reviewed.", 409);
         if (value.decision === "APPROVED" && receiptPending(original)) throw new MoneyError("Attach the receipt or record a missing-receipt explanation before approval.");
         if (!text(value.note, 1000)) throw new MoneyError("Record the review decision briefly.");
@@ -194,7 +202,9 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
         void _id; void _date; void _version;
         const funding = value.accountId ? await account(database, access, value.accountId) : null;
         if (funding && (funding.kind !== original.paymentMethod || (funding.assignedUserId && funding.assignedUserId !== original.employeeId))) throw new MoneyError("Use a matching funding source assigned to the original employee.");
-        result = await database.moneyEntry.create({ data: { ...copy, accountId: funding?.id ?? copy.accountId, amountCents: cents(value.amount), purpose: `${original.purpose}\nCorrection: ${note}`.slice(0, 1000), approvalStatus: "PENDING", reviewedById: null, reconciledAt: null, reference: `Correction of ${original.id}` } });
+        const corrected = { ...original, accountId: funding?.id ?? copy.accountId, amountCents: cents(value.amount), purpose: `${original.purpose}\nCorrection: ${note}`.slice(0, 1000) };
+        const purchasing = original.paymentMethod === "CARD" ? await purchaseSnapshot(database, access, { authorizationId: original.purchasingAuthorizationId }, corrected) : { purchasingAuthorizationId: null, purchaseApprovalId: null, purchasingSnapshot: Prisma.DbNull };
+        result = await database.moneyEntry.create({ data: { ...copy, ...purchasing, accountId: corrected.accountId, amountCents: corrected.amountCents, purpose: corrected.purpose, approvalStatus: "PENDING", reviewedById: null, reconciledAt: null, reference: `Correction of ${original.id}` } });
       } else if (action === "ISSUE") {
         management(access);
         if (original.kind !== "FUNDS_REQUEST" || original.approvalStatus !== "APPROVED" || original.employeeId === access.actor.id) throw new MoneyError("Issue funds against another staff member’s approved request.");

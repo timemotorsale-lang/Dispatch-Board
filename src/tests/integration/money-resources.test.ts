@@ -5,6 +5,8 @@ import { getMoneyResources, moneyCommand } from "@/server/money-resources/servic
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { moneyToday } from "@/lib/money-resources";
 import { attachMoneyReceipt, readMoneyReceipt } from "@/server/money-resources/receipts";
+import { moneyExpenseReport, expenseReportCsv } from "@/server/money-resources/report";
+import { savedPurchasingFlags } from "@/lib/money-purchasing";
 
 describe.skipIf(process.env.RUN_MONEY_DB_TESTS !== "1")("isolated money accountability database", () => {
   const suffix = randomUUID(), organizationId = `money-org-${suffix}`, otherOrg = `money-other-${suffix}`;
@@ -123,5 +125,58 @@ describe.skipIf(process.env.RUN_MONEY_DB_TESTS !== "1")("isolated money accounta
     const source = await command(manager, { action: "CREATE_ACCOUNT", kind: "CASH", label: "Immutable source", opening: "20" });
     await expect(prisma.moneyAccount.update({ where: { id: String(source.id) }, data: { openingBalanceCents: 99999 } })).rejects.toThrow("cannot be reassigned");
     await expect(prisma.moneyEntry.create({ data: { organizationId: otherOrg, employeeId: outsider.id, kind: "EXPENSE", amountCents: 100, businessDate: moneyToday(), merchant: "Cross tenant", purpose: "Invalid account", category: "Other", paymentMethod: "CASH", accountId: String(source.id) } })).rejects.toThrow("scope mismatch");
+  });
+  it("authorizes a purchaser separately from card custody, validates exact prior approvals and retains exceptions after revocation", async () => {
+    const vendor = await prisma.vendor.create({ data: { organizationId, vendorNumber: `PUR-${suffix}`, name: "Authorized parts vendor", normalizedName: `authorized-${suffix}`, category: "OTHER" } });
+    const card = await command(manager, { action: "CREATE_ACCOUNT", kind: "CARD", label: "Stored vendor card", employeeId: manager.id, lastFour: "4455" });
+    const tomorrow = new Date(Date.parse(moneyToday()) + 86400000).toISOString().slice(0, 10);
+    const policyInput = { action: "AUTHORIZE_PURCHASING", employeeId: worker.id, vendorId: vendor.id, accountId: card.id, startsOn: moneyToday(), expiresOn: tomorrow, limit: "50", purposeScope: "Parts for recon only", categories: ["Parts"], requiresPriorApproval: true };
+    await expect(command(worker, policyInput)).rejects.toThrow("manager");
+    const policy = await command(manager, policyInput);
+    await expect(command(manager, policyInput)).rejects.toThrow("overlapping");
+    expect((await getMoneyResources(worker)).accounts.some(item => item.id === card.id)).toBe(true);
+    expect((await getMoneyResources(outsider)).authorizations.some(item => item.id === policy.id)).toBe(false);
+    const purchase = { action: "RECORD", authorizationId: policy.id, vendorId: vendor.id, accountId: card.id, paymentMethod: "CARD", amount: "40", category: "Parts", purpose: "Authorized recon purchase", businessDate: moneyToday() };
+    const request = await command(worker, { ...purchase, action: "REQUEST_PURCHASE_APPROVAL" });
+    await expect(command({ ...worker, roles: ["General Manager"] }, { action: "REVIEW_PURCHASE_APPROVAL", id: request.id, version: 1, decision: "APPROVED", note: "Cannot approve own request" })).rejects.toThrow("different manager");
+    await command(manager, { action: "REVIEW_PURCHASE_APPROVAL", id: request.id, version: 1, decision: "APPROVED", note: "Approved exact recon parts purchase" });
+    await expect(command(worker, { ...purchase, amount: "41", purchaseApprovalId: request.id })).rejects.toThrow("exact purchase");
+    const recorded = await command(worker, { ...purchase, purchaseApprovalId: request.id });
+    expect(recorded.employeeId).toBe(worker.id);
+    expect(savedPurchasingFlags(recorded.purchasingSnapshot)).toEqual([]);
+    await expect(command(worker, { ...purchase, purchaseApprovalId: request.id })).rejects.toThrow("unused prior approval");
+    const over = await command(worker, { ...purchase, amount: "60", purpose: "Over-limit actual purchase must remain recorded" });
+    expect(savedPurchasingFlags(over.purchasingSnapshot)).toHaveLength(2);
+    await expect(prisma.moneyPurchasingAuthorization.update({ where: { id: String(policy.id) }, data: { perPurchaseLimitCents: 999999 } })).rejects.toThrow("immutable");
+    await command(manager, { action: "REVOKE_PURCHASING", id: policy.id, version: 1, note: "Vendor permission ended" });
+    await expect(command(worker, { ...purchase, action: "REQUEST_PURCHASE_APPROVAL" })).rejects.toThrow("active authorization");
+    const late = await command(worker, { ...purchase, amount: "5", purpose: "Previously incurred charge reported after revocation" });
+    expect(savedPurchasingFlags(late.purchasingSnapshot).join(" ")).toContain("revoked");
+    await expect(command(outsider, purchase)).rejects.toThrow("not available");
+    await expect(command(worker, { ...purchase, vendorId: "unrelated-vendor" })).rejects.toThrow();
+    await expect(prisma.moneyEntry.update({ where: { id: String(recorded.id) }, data: { purchasingSnapshot: { flags: [] } } })).rejects.toThrow("immutable");
+    await command(worker, { action: "REFUND", id: recorded.id, version: 1, amount: "10", reference: "Supplier refund actually received" });
+    const query = new URLSearchParams({ from: moneyToday(), to: moneyToday(), vendorId: vendor.id, employeeId: worker.id, groupBy: "vendor" });
+    const report = await moneyExpenseReport(manager, query, true);
+    expect(report.totals).toMatchObject({ count: 4, purchasesCents: 10500, refundsCents: 1000, netCents: 9500 });
+    expect(report.groups[0].netCents).toBe(9500);
+    expect(report.rows.find(item => item.id === recorded.id)?.recordedBy).toBe(worker.name);
+    expect(expenseReportCsv(report)).toContain("Authorized parts vendor");
+    query.set("exceptions", "1");
+    expect((await moneyExpenseReport(worker, query)).totals.count).toBe(3);
+    query.set("employeeId", manager.id);
+    await expect(moneyExpenseReport(worker, query)).rejects.toThrow("own spending");
+  });
+  it("reports complete totals and exports beyond a single page without exposing another organization", async () => {
+    const vendor = await prisma.vendor.create({ data: { organizationId, vendorNumber: `REP-${suffix}`, name: "Report-only vendor", normalizedName: `report-${suffix}`, category: "OTHER" } });
+    await prisma.moneyEntry.createMany({ data: Array.from({ length: 52 }, (_, index) => ({ organizationId, employeeId: worker.id, vendorId: vendor.id, kind: "EXPENSE", amountCents: 100, businessDate: moneyToday(), merchant: "=HYPERLINK(untrusted)", purpose: `Report row ${index}`, category: "Parts", paymentMethod: "PERSONAL" })) });
+    const query = new URLSearchParams({ from: moneyToday(), to: moneyToday(), vendorId: vendor.id });
+    const first = await moneyExpenseReport(worker, query);
+    expect(first.rows).toHaveLength(50); expect(first.totals.netCents).toBe(5200);
+    query.set("page", "2");
+    expect((await moneyExpenseReport(worker, query)).rows).toHaveLength(2);
+    const complete = await moneyExpenseReport(worker, query, true);
+    expect(complete.rows).toHaveLength(52); expect(expenseReportCsv(complete).split("\r\n")).toHaveLength(53);
+    expect((await moneyExpenseReport(outsider, query)).totals.count).toBe(0);
   });
 });

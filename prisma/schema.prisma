@@ -1903,6 +1903,11 @@ model DiagnosticWorkspaceDraft {
 }
 
 model User {
+  purchasingAuthorizations MoneyPurchasingAuthorization[] @relation("AuthorizedPurchaser")
+  issuedPurchasingAuthorizations MoneyPurchasingAuthorization[] @relation("AuthorizationIssuer")
+  purchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseRequester")
+  recordedPurchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseRecorder")
+  reviewedPurchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseReviewer")
   moneyAccounts MoneyAccount[]
   moneyEntries MoneyEntry[]
   moneyAudits MoneyAudit[]
@@ -2256,7 +2261,60 @@ model AppSetting {
   updatedAt           DateTime      @updatedAt
 }
 
+model MoneyPurchasingAuthorization {
+  id String @id @default(cuid())
+  organizationId String
+  employeeId String
+  vendorId String
+  accountId String
+  purposeScope String
+  categories String[]
+  perPurchaseLimitCents Int
+  requiresPriorApproval Boolean @default(false)
+  startsOn String
+  expiresOn String
+  createdByUserId String
+  revokedAt DateTime?
+  revocationReason String?
+  createdAt DateTime @default(now())
+  version Int @default(1)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  employee User @relation("AuthorizedPurchaser", fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy User @relation("AuthorizationIssuer", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  account MoneyAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  approvals MoneyPurchaseApproval[]
+  entries MoneyEntry[]
+  @@index([organizationId, employeeId, startsOn, expiresOn], map: "MoneyPurchasingAuthorization_org_employee_dates_idx")
+}
+
+model MoneyPurchaseApproval {
+  id String @id @default(cuid())
+  organizationId String
+  authorizationId String
+  employeeId String
+  amountCents Int
+  purpose String
+  category String
+  businessDate String
+  status String @default("PENDING")
+  createdByUserId String
+  reviewedByUserId String?
+  reviewNote String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  version Int @default(1)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  authorization MoneyPurchasingAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
+  employee User @relation("PurchaseRequester", fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy User @relation("PurchaseRecorder", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  reviewedBy User? @relation("PurchaseReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  entry MoneyEntry?
+  @@index([organizationId, employeeId, status, businessDate], map: "MoneyPurchaseApproval_org_employee_status_date_idx")
+}
+
 model MoneyAccount {
+  purchasingAuthorizations MoneyPurchasingAuthorization[]
   id String @id @default(cuid())
   organizationId String
   label String
@@ -2276,6 +2334,11 @@ model MoneyAccount {
 }
 
 model MoneyEntry {
+  purchasingAuthorizationId String?
+  purchaseApprovalId String? @unique
+  purchasingSnapshot Json?
+  purchasingAuthorization MoneyPurchasingAuthorization? @relation(fields: [purchasingAuthorizationId], references: [id], onDelete: Restrict)
+  purchaseApproval MoneyPurchaseApproval? @relation(fields: [purchaseApprovalId], references: [id], onDelete: Restrict)
   id String @id @default(cuid())
   organizationId String
   employeeId String
@@ -2372,6 +2435,8 @@ model MoneyDailyClose {
 }
 
 model Organization {
+  purchasingAuthorizations MoneyPurchasingAuthorization[]
+  purchaseApprovals MoneyPurchaseApproval[]
   moneyAccounts MoneyAccount[]
   moneyEntries MoneyEntry[]
   moneyCharges MoneyCardCharge[]
@@ -3047,6 +3112,7 @@ model CustomerDocumentRequirement {
 }
 
 model Vendor {
+  purchasingAuthorizations MoneyPurchasingAuthorization[]
   moneyEntries MoneyEntry[]
   id                  String             @id @default(cuid())
   organizationId      String

@@ -5,6 +5,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MONEY_CATEGORIES, PAYMENT_METHODS, moneyFlags, moneyLabel, moneyToday, receiptPending, signedExpense } from "@/lib/money-resources";
 import type { MoneyResourcesModel } from "@/server/money-resources/service";
 import styles from "./workbench.module.css";
+import { savedPurchasingFlags } from "@/lib/money-purchasing";
+import { PurchasingTools } from "./purchasing-tools";
+import { ExpenseReport } from "./expense-report";
 
 type Entry = MoneyResourcesModel["entries"][number];
 type Fields = Record<string, unknown>;
@@ -58,14 +61,16 @@ export function MoneyResourcesWorkbench({ vehicleId = "", repairOrderId = "", in
   }
   const actionButton = (row: Pick<Entry, "id" | "version" | "purpose">, action: string, title: string) => <button disabled={busy} onClick={() => { setSelected({ entry: row, action }); setNotice(""); }} type="button">{title}</button>;
   const entries = model?.entries.filter(row => `${row.merchant} ${row.purpose} ${row.employee.name} ${row.reference ?? ""}`.toLowerCase().includes(search.toLowerCase())) ?? [];
-  const review = entries.filter(row => row.approvalStatus === "PENDING" || receiptPending(row));
+  const review = entries.filter(row => ["PENDING", "REJECTED"].includes(row.approvalStatus) || receiptPending(row));
   return <main className={styles.workbench}>
     <header className={styles.header}><div><Link href="/vehicles/coo-workbook/more-tools">← Workbook extra tools</Link><h1>Money & Resources</h1><p>Record once. Keep the receipt, responsible person and next action together.</p></div><Link href="/vehicles/coo-workbook">Return to workbook</Link></header>
-    <nav className={styles.tabs} aria-label="Money tools">{["Record spending", "My spending", "Funds", "Card transactions", ...(model?.manager ? ["Review", "Daily journal", "Funding sources"] : [])].map(item => <button aria-pressed={view === item} key={item} onClick={() => { setView(item); setSelected(null); }} type="button">{item}</button>)}</nav>
+    <nav className={styles.tabs} aria-label="Money tools">{["Record spending", "My spending", "Purchasing authorizations", "Expense report", "Funds", "Card transactions", ...(model?.manager ? ["Review", "Daily journal", "Funding sources"] : [])].map(item => <button aria-pressed={view === item} key={item} onClick={() => { setView(item); setSelected(null); }} type="button">{item}</button>)}</nav>
     {notice ? <p className={failed ? styles.error : styles.notice} role={failed ? "alert" : "status"}>{notice}</p> : null}
     {!model ? <section className={styles.panel}><p>{failed ? "The tool cannot load yet. No records have been changed." : "Loading your spending tools…"}</p>{failed ? <button onClick={() => void refresh().catch(error => setNotice(error.message))} type="button">Try again</button> : null}</section> : <>
       {model.limited ? <p role="alert">This list reached its display limit. Use the date filter or management journal export; older obligations are not automatically closed.</p> : null}
       {view === "Record spending" ? <SpendingForm model={model} vehicleId={vehicleId} repairOrderId={repairOrderId} onSaved={async () => { await refresh(); }} /> : null}
+      {view === "Purchasing authorizations" ? <PurchasingTools model={model} onCommand={execute} busy={busy} /> : null}
+      {view === "Expense report" ? <ExpenseReport model={model} /> : null}
       {view === "Funds" ? <>
         <section className={styles.panel}><h2>Request funds</h2><form className={styles.form} onSubmit={event => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); void execute({ ...data, action: "REQUEST", businessDate: day }, "Funds requested. Money has not been issued."); }}><label>Amount ($)<input name="amount" inputMode="decimal" required /></label><label className={styles.wide}>Business purpose<input name="purpose" required maxLength={1000} /></label><button disabled={busy} type="submit">Request funds</button></form></section>
         <section className={styles.panel}><h2>Funds to account for</h2>{model.advances.length ? model.advances.map(advance => <article className={styles.row} key={advance.id}><div><strong>{advance.employee.name} · {moneyLabel(advance.amountCents)} issued</strong><p>{advance.purpose}</p><small>Unsettled balance: {moneyLabel(advance.balanceCents)} · purchases and returns still need review</small></div><div className={styles.actions}>{advance.employeeId === model.actorId ? actionButton(advance, "RETURN", "Record unused funds returned") : model.manager ? actionButton(advance, "SETTLE", "Review settlement") : null}<button onClick={() => void showHistory(advance)} type="button">History</button></div></article>) : <p>No unsettled advances.</p>}</section>
@@ -80,6 +85,7 @@ export function MoneyResourcesWorkbench({ vehicleId = "", repairOrderId = "", in
             {row.kind === "EXPENSE" ? <p>{row.receiptDocumentId ? <a href={`/api/money-resources/${row.id}/receipt`} target="_blank" rel="noreferrer">View receipt</a> : row.receiptExplanation ? `Receipt exception: ${row.receiptExplanation}` : "Receipt pending — attach it or explain the missing evidence."}</p> : null}
             {row.vehicleId ? <Link href={`/vehicles/${row.vehicleId}/costs`}>Vehicle costs {row.inventoryCostId ? "· existing cost linked" : "· spending is not posted as a second cost"}</Link> : null}
             {moneyFlags(row, model.entries, model.accounts.find(source => source.id === row.accountId)?.limitCents).map(flag => <p key={flag} className={styles.flag}>{flag}</p>)}
+            {row.approvalStatus !== "SUPERSEDED" ? savedPurchasingFlags(row.purchasingSnapshot).map(flag => <p key={flag} className={styles.flag}>{flag}</p>) : null}
           </div>
           <div className={styles.actions}>
             {row.kind === "EXPENSE" && row.approvalStatus !== "SUPERSEDED" && !row.reconciledAt ? <><label className={styles.upload}>Attach receipt<input type="file" accept="application/pdf,image/jpeg,image/png" onChange={event => { const file = event.target.files?.[0]; if (file) void uploadReceipt(row.id, file).then(refresh).then(() => { setFailed(false); setNotice("Receipt attached for review."); }).catch(error => { setFailed(true); setNotice(error.message); }); }} /></label>{actionButton(row, "EXPLAIN", "Explain / follow up")}</> : null}
@@ -129,8 +135,19 @@ function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { model: Mon
   const [method, setMethod] = useState(assigned ? "CARD" : "CASH"), [sourceId, setSourceId] = useState(assigned?.id ?? "");
   const [vehicle, setVehicle] = useState(vehicleId), [order, setOrder] = useState(repairOrderId), [busy, setBusy] = useState(false), [notice, setNotice] = useState(""), [failed, setFailed] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
+  const [authorizationId, setAuthorizationId] = useState(""), [purchaseApprovalId, setPurchaseApprovalId] = useState(""), [vendorId, setVendorId] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const policy = model.authorizations.find(item => item.id === authorizationId);
+  function applyApproval(id: string) {
+    setPurchaseApprovalId(id);
+    const approval = model.purchaseApprovals.find(item => item.id === id);
+    if (approval) for (const [key, value] of Object.entries({ amount: (approval.amountCents / 100).toFixed(2), purpose: approval.purpose, category: approval.category, businessDate: approval.businessDate })) {
+      const field = formRef.current?.elements.namedItem(key);
+      if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) field.value = value;
+    }
+  }
   const selectedSource = model.accounts.find(source => source.id === sourceId);
-  const sourceOptions = model.accounts.filter(source => source.kind === method && ((source.active && (model.manager && source.kind === "CARD" || !source.assignedUserId || source.assignedUserId === model.actorId)) || model.advances.some(advance => advance.accountId === source.id && advance.employeeId === model.actorId)));
+  const sourceOptions = model.accounts.filter(source => source.kind === method && ((source.active && (model.manager && source.kind === "CARD" || !source.assignedUserId || source.assignedUserId === model.actorId)) || policy?.accountId === source.id || model.advances.some(advance => advance.accountId === source.id && advance.employeeId === model.actorId)));
   const sourceLabel = (source: MoneyResourcesModel["accounts"][number]) => [source.label, source.lastFour ? `•••• ${source.lastFour}` : "", model.manager ? model.users.find(user => user.id === source.assignedUserId)?.name : ""].filter(Boolean).join(" · ");
   const { send: save, reset: resetSave } = useSave();
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -140,21 +157,22 @@ function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { model: Mon
     let id: string | undefined;
     try {
       const fields = Object.fromEntries([...data.entries()].filter(([key]) => key !== "receipt"));
-      const result = await save({ ...fields, action: "RECORD", paymentMethod: method, accountId: sourceId, vehicleId: vehicle, repairOrderId: order }); id = result.id;
+      const result = await save({ ...fields, action: "RECORD", paymentMethod: method, accountId: sourceId, vehicleId: vehicle, repairOrderId: order, vendorId, authorizationId, purchaseApprovalId }); id = result.id;
       const file = data.get("receipt");
       if (id && file instanceof File && file.size) await uploadReceipt(id, file);
       await onSaved(); setNotice(file instanceof File && file.size ? "Spending and receipt saved for review." : "Spending saved. Receipt pending; add it later from My spending.");
-      if (addAnother) { form.reset(); resetSave(); }
+      if (addAnother) { form.reset(); setPurchaseApprovalId(""); resetSave(); }
     } catch (error) { setFailed(true); setNotice(`${id ? "Spending is saved; receipt or refresh needs attention. " : ""}${error instanceof Error ? error.message : "Try again. Your entries are still here."}`); }
     finally { setBusy(false); }
   }
   return <section className={styles.panel}><h2>Record spending</h2><p>Record actual spending now. A missing receipt or purchase reference will not prevent recording it.</p>
-    <form className={styles.form} onSubmit={event => void submit(event)}>
+    <form ref={formRef} className={styles.form} onSubmit={event => void submit(event)}>
+      {model.authorizations.length ? <div className={styles.wide}><label>Vendor purchasing authorization<select aria-label="Vendor purchasing authorization" value={authorizationId} onChange={event => { const found = model.authorizations.find(item => item.id === event.target.value); setAuthorizationId(event.target.value); setPurchaseApprovalId(""); if (found) { setMethod("CARD"); setSourceId(found.accountId); setVendorId(found.vendorId); } else if (policy) { setSourceId(""); } }}><option value="">Own funding / no vendor authorization selected</option>{model.authorizations.map(item => <option key={item.id} value={item.id}>{item.vendor.name} · {item.employee.name}{item.revokedAt || item.expiresOn < moneyToday() ? " · ended — actual purchase exception" : ""}</option>)}</select></label>{policy ? <><p>{policy.purposeScope} · {policy.categories.join(", ")} · limit {moneyLabel(policy.perPurchaseLimitCents)} · {policy.startsOn} to {policy.expiresOn}. {policy.requiresPriorApproval ? "Prior approval required." : "Above-limit purchases require prior approval."}</p><label>Prior approval (optional for recording an actual purchase)<select aria-label="Prior approval" value={purchaseApprovalId} onChange={event => applyApproval(event.target.value)}><option value="">Not linked — flag if approval was required</option>{model.purchaseApprovals.filter(item => item.authorizationId === policy.id && item.status === "APPROVED" && !item.entry).map(item => <option value={item.id} key={item.id}>{item.businessDate} · {moneyLabel(item.amountCents)} · {item.purpose}</option>)}</select></label><small>Selecting an approval fills its exact purchase details. Changes must match the approval. Missing approval never hides actual spending; it is flagged for independent review.</small></> : null}</div> : null}
       <label>Amount ($)<input name="amount" required inputMode="decimal" placeholder="0.00" autoFocus /></label><label>Date<input name="businessDate" required type="date" defaultValue={model.day} /></label>
-      <label>Paid using<select value={method} onChange={event => { setMethod(event.target.value); setSourceId(""); }}>{PAYMENT_METHODS.map(item => <option key={item} value={item}>{item === "PERSONAL" ? "Personal funds — reimbursement requested" : label(item)}</option>)}</select></label>
+      <label>Paid using<select value={method} onChange={event => { setMethod(event.target.value); setSourceId(""); setAuthorizationId(""); setPurchaseApprovalId(""); }}>{PAYMENT_METHODS.map(item => <option key={item} value={item}>{item === "PERSONAL" ? "Personal funds — reimbursement requested" : label(item)}</option>)}</select></label>
       {method !== "PERSONAL" ? <div><label>Funding source{method !== "CARD" ? " (if known)" : ""}<select aria-label="Funding source" value={sourceId} required={method === "CARD"} onChange={event => setSourceId(event.target.value)}><option value="">{method === "CARD" ? model.manager ? "Choose a company card" : "Choose your assigned card" : "Unknown — flag for review"}</option>{sourceOptions.map(source => <option key={source.id} value={source.id}>{sourceLabel(source)}</option>)}</select></label>{method === "CARD" ? <>
         {model.manager ? <button type="button" aria-expanded={addingCard} aria-controls="inline-company-card" onClick={() => setAddingCard(!addingCard)}>+ Add company card</button> : !sourceOptions.length ? <p>No card is assigned to you. Ask a manager to add or assign your card; other staff’s cards are protected.</p> : null}
-        {selectedSource && model.manager ? <small>Responsible staff: {model.users.find(user => user.id === selectedSource.assignedUserId)?.name || "Assigned cardholder"}. You are recorded as the person entering this purchase; another manager must review it.</small> : null}
+        {selectedSource && model.manager ? <small>Responsible staff: {policy?.employee.name || model.users.find(user => user.id === selectedSource.assignedUserId)?.name || "Assigned cardholder"}. You are recorded as the person entering this purchase; another manager must review it.</small> : null}
       </> : null}</div> : <p>Only an approved expense can be reimbursed. This form does not send payment.</p>}
       <label>Paid to<input name="merchant" placeholder="Merchant / vendor, if known" maxLength={200} /></label><label>Category<select name="category">{MONEY_CATEGORIES.map(category => <option key={category}>{category}</option>)}</select></label>
       <label className={styles.wide}>Business purpose<input name="purpose" required placeholder="What did you buy and why?" maxLength={1000} /></label>
@@ -163,11 +181,11 @@ function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { model: Mon
       <details className={styles.wide} open={!!vehicleId || !!repairOrderId}><summary>Link vehicle / repair order / vendor or purchase reference</summary><div className={styles.form}>
         <label>Existing vehicle<select value={vehicle} onChange={event => { setVehicle(event.target.value); setOrder(""); }}><option value="">Department / general expense</option>{model.vehicles.map(item => <option key={item.id} value={item.id}>{[item.year, item.make, item.model, item.stockNumber || item.vehicleNumber].filter(Boolean).join(" · ")}</option>)}</select></label>
         <label>Existing repair order<select value={order} onChange={event => { const found = model.orders.find(item => item.id === event.target.value); setOrder(event.target.value); if (found) setVehicle(found.vehicleId); }}><option value="">Not linked to an RO</option>{model.orders.filter(item => !vehicle || item.vehicleId === vehicle).map(item => <option key={item.id} value={item.id}>{item.repairOrderNumber}</option>)}</select></label>
-        <label>Existing vendor<select name="vendorId"><option value="">Not selected / merchant entered above</option>{model.vendors.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>
+        <label>Existing vendor<select aria-label="Existing vendor" value={vendorId} onChange={event => setVendorId(event.target.value)}><option value="">Not selected / merchant entered above</option>{model.vendors.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>
         <label>Purchase / payment reference (optional)<input name="reference" maxLength={150} /></label><label>Existing inventory cost ID (optional)<input name="inventoryCostId" placeholder="Link an already recorded matching cost" /></label>
       </div></details>
       <div className={`${styles.actions} ${styles.wide}`}><button disabled={busy} type="submit" value="save">{busy ? "Saving…" : "Save spending"}</button><button disabled={busy} type="submit" value="another">Save & add another</button></div>
-    </form>{addingCard && model.manager ? <InlineCompanyCard model={model} onCancel={() => setAddingCard(false)} onSaved={async id => { await onSaved(); setMethod("CARD"); setSourceId(id); setAddingCard(false); }} /> : null}{notice ? <p className={failed ? styles.error : styles.notice} role={failed ? "alert" : "status"}>{notice}</p> : null}
+    </form>{addingCard && model.manager ? <InlineCompanyCard model={model} onCancel={() => setAddingCard(false)} onSaved={async id => { await onSaved(); setMethod("CARD"); setSourceId(id); setAuthorizationId(""); setPurchaseApprovalId(""); setAddingCard(false); }} /> : null}{notice ? <p className={failed ? styles.error : styles.notice} role={failed ? "alert" : "status"}>{notice}</p> : null}
   </section>;
 }
 
