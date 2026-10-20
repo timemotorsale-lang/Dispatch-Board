@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent, MouseEvent, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -35,6 +35,20 @@ export function isTasksSidebarCompact(pathname: string, mode: WorkspaceMode) {
   return pathname === "/tasks" && mode !== "standard";
 }
 
+function subscribeSidebarPreference(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener("sidebar-preference", onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener("sidebar-preference", onChange);
+  };
+}
+
+function getSidebarPreference() {
+  const saved = window.localStorage.getItem("dispatch-board.sidebar");
+  return saved === "collapsed" ? true : saved === "expanded" ? false : null;
+}
+
 function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const router = useRouter();
@@ -64,7 +78,12 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const consoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const sidebarCompact = !tasksConsoleHome && isTasksSidebarCompact(pathname, mode);
+  const sidebarPreference = useSyncExternalStore(subscribeSidebarPreference, getSidebarPreference, () => null);
+  const sidebarCompact = sidebarPreference ?? (!tasksConsoleHome && isTasksSidebarCompact(pathname, mode));
+  function toggleSidebarCompact() {
+    window.localStorage.setItem("dispatch-board.sidebar", sidebarCompact ? "expanded" : "collapsed");
+    window.dispatchEvent(new Event("sidebar-preference"));
+  }
   const salesConsoleReturnTo = searchParams.get("returnTo");
   const showSalesConsoleReturn =
     Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
@@ -150,7 +169,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
       ].filter(Boolean).join(" ")}
     >
       <SessionHealthGuard />
-      {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
+      {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} onToggleCompact={toggleSidebarCompact} user={user} /> : null}
       {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {tasksConsoleHome ? <TasksWorkspaceSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} managerContext={managerContext} onClose={() => setNavigationOpen(false)} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} /> : null}

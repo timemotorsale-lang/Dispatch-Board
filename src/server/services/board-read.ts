@@ -67,6 +67,7 @@ export type BoardReadTask = {
   requiredUpdateFields: BoardReadRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
   assignedUser: BoardReadUserSummary;
+  ownerUser?: BoardReadUserSummary;
   collaborators?: BoardReadCollaboratorSummary[];
   recommendedUser: BoardReadUserSummary | null;
   recommendation: BoardReadRecommendation | null;
@@ -353,6 +354,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
       name: task.assignedUser.name,
       email: task.assignedUser.email || undefined
     },
+    ownerUser: toUserSummary(task.ownerUser ?? task.assignedUser)!,
     collaborators: (task.collaborators ?? []).map((collaborator) => ({
       id: collaborator.user.id,
       name: collaborator.user.name,

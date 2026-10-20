@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronsRight, LockKeyhole, LogOut, X } from "lucide-react";
+import { ChevronDown, ChevronsLeft, ChevronsRight, LockKeyhole, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -14,6 +14,7 @@ type AppSidebarProps = {
   compact: boolean;
   isOpen: boolean;
   onClose(): void;
+  onToggleCompact?(): void;
   user: AuthenticatedUser;
 };
 
@@ -21,7 +22,7 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) {
+export function AppSidebar({ compact, isOpen, onClose, onToggleCompact, user }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
@@ -35,6 +36,7 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>TIME MOTOR SALES</strong><small>COMMAND CONTROL CENTER</small></span>
         </Link>
+        {onToggleCompact ? <button className="sidebar-collapse-button" aria-label={compact ? "Expand navigation" : "Collapse navigation"} title={compact ? "Expand navigation" : "Collapse navigation"} onClick={onToggleCompact} type="button">{compact ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}</button> : null}
         <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
 

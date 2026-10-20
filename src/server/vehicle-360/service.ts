@@ -51,6 +51,26 @@ export async function uploadVehicleEvidence(actor: AuthenticatedUser | null, val
   return context.repository.createEvidence(command({ actorUserId: user.id, commandType: "UPLOAD_VEHICLE_EVIDENCE", expectedVersion: 0, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload, reason: data.reason, subjectId: id }), { ...payload, actorUserId: user.id, content: data.content, malwareScanner: data.scan.malwareScanner, reasonCode: data.scan.reasonCode, retentionUntil: data.retentionUntil });
 }
 
+export async function getVehicleSalesMedia(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies = {}) {
+  const context = deps(input), { grants, user } = await auth(actor, "VEHICLE_EVIDENCE_VIEW", context);
+  const collection = await context.repository.readSalesMedia(context.organizationId, required(vehicleId, "Vehicle ID", 100));
+  const capability = evaluateVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_MANAGE", grants, locationId: null, now: context.now() });
+  const rollout = !context.enforceRollout || evaluateVehicleOperationsFeature(await context.foundationRepository.listFeatureFlags(context.organizationId), "VEHICLE_360", user.id, null).executable;
+  return { ...collection, canManage: capability.allowed && rollout };
+}
+
+export async function changeVehicleSalesMedia(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
+  const context = deps(input), { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true), raw = record(value);
+  const expectedVersion = Number(raw.expectedVersion);
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Expected media version is invalid.");
+  const removeIds = raw.removeIds ?? [];
+  const addIds = raw.addIds ?? [];
+  if (!Array.isArray(addIds) || addIds.some(id => typeof id !== "string") || new Set(addIds).size !== addIds.length || addIds.length > 40) throw new Error("Intake photo selection is invalid.");
+  if (!Array.isArray(removeIds) || removeIds.some(id => typeof id !== "string") || new Set(removeIds).size !== removeIds.length || removeIds.length > 45) throw new Error("Removal selection is invalid.");
+  const id = required(vehicleId, "Vehicle ID", 100);
+  return context.repository.changeSalesMedia(normalizeEnterpriseCommand({ actorUserId: user.id, commandType: "UPDATE_SALES_MEDIA", expectedVersion, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), organizationId: context.organizationId, domain: "VEHICLE_EVIDENCE", subjectType: "SALES_MEDIA", subjectId: id, locationId: null, payload: { order: raw.order, removeIds, addIds }, reason: required(raw.reason, "Business reason", 500) }), { order: raw.order, removeIds, addIds });
+}
+
 export async function updateVehicleEvidenceGovernance(actor: AuthenticatedUser | null, evidenceId: string, value: unknown, input: Dependencies = {}) {
   const context = deps(input), data = normalizeEvidenceGovernance(value, context.now()), { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true);
   const payload = { accessLevel: data.accessLevel, legalHold: data.legalHold, retentionUntil: data.retentionUntil?.toISOString() ?? null };

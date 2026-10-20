@@ -53,7 +53,7 @@ export async function getVehicleRegistryDetail(actor: AuthenticatedUser | null, 
 }
 
 export async function createRegistryVehicle(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}, trustedCreation: RegistryCreationDetails = {}) {
-  const context = deps(input); const raw = record(value, "Vehicle create request"); const id = randomUUID();
+  const context = deps(input); const raw = record(value, "Vehicle create request"); const id = trustedCreation.vehicleId ?? randomUUID();
   const normalized = normalizeVehicleIdentity({ ...raw, vehicleNumber: typeof raw.vehicleNumber === "string" && raw.vehicleNumber.trim() ? raw.vehicleNumber : `VEH-${id.slice(0, 8).toUpperCase()}` });
   const { idempotencyKey, locationId, reason, ...identity } = normalized;
   const user = await authorize(actor, "VEHICLE_IDENTITY_CREATE", locationId, context, true);

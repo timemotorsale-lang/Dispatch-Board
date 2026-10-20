@@ -12,6 +12,8 @@ import type {
 export const SHARED_DEVELOPMENT_PASSWORD = "dispatch123!";
 
 export const dayOneDutyDefinitions = [
+  { name: "Import inventory records", workflowArea: "INVENTORY", description: "Import new vehicle identity records without approving acquisition, pricing or release." },
+  { name: "Export inventory data", workflowArea: "INVENTORY", description: "Download inventory data for authorized locations." },
   {
     name: "Review today's dispatch board",
     workflowArea: "Management",

@@ -94,7 +94,8 @@ function inflatePdfStreams(pdfText: string) {
     if (end === -1) break;
     const raw = pdfText.slice(start, end).replace(/\r?\n$/, "");
     try {
-      streams.push(decodeUtf8(inflateSync(Buffer.from(raw, "binary"))));
+      streams.push(decodeUtf8(inflateSync(Buffer.from(raw, "binary"), { maxOutputLength: 4 * 1024 * 1024 })));
+      if (streams.length >= 20) break;
     } catch {
       // Keep scanning other streams; malformed or image streams are expected in many PDFs.
     }
@@ -114,17 +115,18 @@ function stringsFromPdfContent(content: string) {
     }
     if (match[2]) {
       const arrayText = match[2];
+      const fragments: string[] = [];
       for (const literal of arrayText.matchAll(/\((?:\\.|[^\\()])*\)|<([0-9a-fA-F\s]+)>/g)) {
         const raw = literal[0];
-        extracted.push(raw.startsWith("<") ? decodePdfHexString(raw.slice(1, -1)) : decodePdfLiteralString(raw.slice(1, -1)));
+        fragments.push(raw.startsWith("<") ? decodePdfHexString(raw.slice(1, -1)) : decodePdfLiteralString(raw.slice(1, -1)));
       }
-      extracted.push("\n");
+      extracted.push(fragments.join(""));
       continue;
     }
     const literal = token.match(/\((?:\\.|[^\\()])*\)/)?.[0];
     if (literal) extracted.push(decodePdfLiteralString(literal.slice(1, -1)));
   }
-  return extracted.join(" ");
+  return extracted.join("\n");
 }
 
 function pdfOcrEnabled() {
@@ -138,7 +140,7 @@ async function renderPdfPagesForOcr(bytes: Uint8Array) {
   await writeFile(inputPath, bytes);
   const renderer = process.env.DOCUMENT_TEXT_PDF_RENDERER_PATH?.trim() || "pdftoppm";
   const maxPages = Math.max(1, Math.min(10, Number(process.env.DOCUMENT_TEXT_PDF_OCR_MAX_PAGES) || 3));
-  await execFileAsync(renderer, [
+  try { await execFileAsync(renderer, [
     "-png",
     "-r",
     process.env.DOCUMENT_TEXT_PDF_OCR_DPI?.trim() || "220",
@@ -148,7 +150,8 @@ async function renderPdfPagesForOcr(bytes: Uint8Array) {
     String(maxPages),
     inputPath,
     outputPrefix
-  ], { windowsHide: true });
+  ], { windowsHide: true, timeout: 60_000 }); }
+  catch (error) { await rm(root, { force: true, recursive: true }); throw error; }
   const files = (await readdir(root))
     .filter((file) => /^page-\d+\.png$/i.test(file))
     .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));

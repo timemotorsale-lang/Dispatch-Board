@@ -3,6 +3,7 @@
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { AlertCircle, Camera, CarFront, CheckCircle2, ClipboardCheck, FileText, Gauge, PackageCheck, PenLine, ShieldCheck, UserPlus, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -150,6 +151,7 @@ function customerFrom(value: unknown) {
 }
 
 export function CrmNextIntakeForm() {
+  const router = useRouter();
   const [mode, setMode] = useState<IntakeMode>("customer");
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const [customerFields, setCustomerFields] = useState<CustomerFields>(EMPTY_CUSTOMER_FIELDS);
@@ -274,7 +276,7 @@ export function CrmNextIntakeForm() {
         customerHref,
         message: `${customer.displayName} is ready in Customer Console.`
       });
-      window.location.assign(customerHref);
+      router.push(customerHref);
     } catch (error) {
       setState({ kind: "error", message: error instanceof Error ? error.message : "Customer could not be saved." });
     }

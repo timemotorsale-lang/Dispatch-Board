@@ -20,7 +20,6 @@ import {
   Phone,
   Settings,
   ShieldAlert,
-  Sparkles,
   UserRound,
   UsersRound,
   WalletCards,
@@ -50,7 +49,9 @@ import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskPlanReviewCard } from "@/features/tasks/detail/task-plan-review-card";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
+import { TaskTitleEditor } from "@/features/tasks/detail/task-title-editor";
 import { TaskSimpleSummaryCard } from "@/features/tasks/detail/task-simple-summary-card";
+import { TaskToolPicker } from "@/features/tasks/detail/task-tool-picker";
 import { TaskWorkbenchSearch } from "@/features/tasks/detail/task-workbench-search";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
@@ -64,6 +65,8 @@ type TaskDetailWorkspaceProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
+  canReassign?: boolean;
+  compactReview?: boolean;
   canUpdateStatus: boolean;
   hasClaimWorkflow?: boolean;
   initialView?: TaskWorkspaceView;
@@ -105,13 +108,6 @@ function shouldElevateTaskAppointmentPanel(task: TaskReadModel) {
   const sourceText = `${task.title} ${task.description ?? ""} ${task.workflowArea}`.toLocaleLowerCase();
 
   return sourceText.includes("deliver") || sourceText.includes("delivery") || sourceText.includes("sold vehicle");
-}
-
-function viewHref(taskId: string, view: TaskWorkspaceView, returnTo: string) {
-  const params = new URLSearchParams({ view });
-  if (returnTo && returnTo !== "/tasks") params.set("returnTo", returnTo);
-
-  return `/tasks/${encodeURIComponent(taskId)}?${params.toString()}`;
 }
 
 function sourceLabel(task: TaskReadModel) {
@@ -236,25 +232,6 @@ function buildSimpleNextStep(task: TaskReadModel, missingFields: string[], check
   return "Record the latest outcome, then mark the task complete or set the next check-in.";
 }
 
-function ViewSwitcher({
-  canOpenFullWorkbench,
-  returnTo,
-  taskId,
-  view
-}: {
-  canOpenFullWorkbench: boolean;
-  returnTo: string;
-  taskId: string;
-  view: TaskWorkspaceView;
-}) {
-  return (
-    <nav className="etw-view-switcher" aria-label="Task view switch">
-      <Link aria-current={view === "simple" ? "page" : undefined} href={viewHref(taskId, "simple", returnTo)}><Sparkles size={14} />Simple View</Link>
-      {canOpenFullWorkbench ? <Link aria-current={view === "workbench" ? "page" : undefined} href={viewHref(taskId, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link> : null}
-    </nav>
-  );
-}
-
 export function TaskDetailWorkspace({
   activityEvents,
   actorIsManager,
@@ -263,6 +240,8 @@ export function TaskDetailWorkspace({
   canManageCollaborators,
   canCreateAppointment,
   canOpenFullWorkbench = false,
+  canReassign = actorIsManager,
+  compactReview = false,
   canUpdateStatus,
   hasClaimWorkflow = false,
   initialView = "simple",
@@ -318,23 +297,26 @@ export function TaskDetailWorkspace({
     buildSimpleNextStep(task, missingUpdateLabels, checklist, simpleCategory);
   const elevateAppointmentPanel = shouldElevateTaskAppointmentPanel(task);
 
-  if (taskView === "simple") {
+  if (taskView === "simple" || compactReview) {
     return (
-      <section className="enterprise-task-workbench etw-simple-workbench" aria-label="Simple task execution view">
-        <header className="etw-command-bar">
+      <section className={`enterprise-task-workbench etw-simple-workbench${compactReview ? " etw-simple-review" : ""}`} aria-label={compactReview ? "Task template review" : "Simple task execution view"}>
+        {compactReview ? <nav className="task-review-return" aria-label="Task navigation"><Link href={returnTo}>Return to Tasks</Link></nav> : <header className="etw-command-bar">
           <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Execution View</span></div></div>
           <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="simple" />
           <div className="etw-command-actions">{task.repairOrderHref ? <Link href={task.repairOrderHref}>Open Repair Order</Link> : null}<Link href={returnTo}>Return to Tasks</Link></div>
-        </header>
+        </header>}
 
         <main className="etw-simple-shell">
           <TaskSimpleSummaryCard
+            key={`${task.id}:${compactReview ? "review" : "current"}`}
             actorIsManager={actorIsManager}
             assignableUsers={assignableUsers}
             canComment={canComment}
             canCreateAppointment={canCreateAppointment}
             canManageCollaborators={canManageCollaborators}
             canOpenFullWorkbench={canOpenFullWorkbench}
+            canReassign={canReassign}
+            compactReview={compactReview}
             canUpdateStatus={canUpdateStatus}
             hasClaimWorkflow={hasClaimWorkflow}
             checklist={checklist}
@@ -393,7 +375,7 @@ export function TaskDetailWorkspace({
       <header className="etw-command-bar">
         <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Resolution Workbench</span></div></div>
         <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="workbench" />
-        <ViewSwitcher canOpenFullWorkbench={canOpenFullWorkbench} returnTo={returnTo} taskId={task.id} view="workbench" />
+        <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} returnTo={returnTo} taskId={task.id} />
         <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}${concern?.id ? `&concern=${encodeURIComponent(concern.id)}` : ""}`}>Task Intake</Link></div>
       </header>
 
@@ -408,14 +390,15 @@ export function TaskDetailWorkspace({
       <div className="etw-layout">
         <aside className="etw-context-rail">
           <section className="etw-card etw-record-card">
-            <div className="etw-record-heading"><span className="etw-alert-icon"><AlertTriangle size={18} /></span><div><h1>{recordTitle}</h1><span>Case #{recordNumber}</span></div><b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></div>
+            <div className="etw-record-heading"><span className="etw-alert-icon"><AlertTriangle size={18} /></span><div>{concern ? <h1>{recordTitle}</h1> : <TaskTitleEditor taskId={task.id} title={task.title} />}<span>Case #{recordNumber}</span></div><b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></div>
             <dl className="etw-facts">
               <div><dt>Status</dt><dd><span className={`etw-status etw-status-${statusTone(concern?.status ?? task.status)}`}>{formatTaskEnumLabel(concern?.status ?? task.status)}</span></dd></div>
               <div><dt>Severity</dt><dd>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</dd></div>
               <div><dt>SLA</dt><dd className={overdueDays ? "etw-danger-text" : undefined}>{overdueDays ? `Overdue (${overdueDays} days)` : `Due ${dateLabel(dueAt)}`}</dd></div>
               <div><dt>Created</dt><dd>{formatTaskDetailDateTime(concern?.createdAt ?? task.createdAt)}</dd></div>
               <div><dt>Reported By</dt><dd>{concern?.reportedByUser.name ?? task.createdByUser?.name ?? "System"}</dd></div>
-              <div><dt>Owner</dt><dd>{concern?.assignedOwner?.name ?? task.assignedUser.name}</dd></div>
+              <div><dt>Owner</dt><dd>{concern?.assignedOwner?.name ?? task.ownerUser?.name ?? task.assignedUser.name}</dd></div>
+              <div><dt>Assignee</dt><dd>{task.assignedUser.name}</dd></div>
               <div><dt>Manager Review</dt><dd>{resolutionTasks.some((item) => item.requiresManagerApproval) ? "Required" : "Not required"}</dd></div>
               <div><dt>Estimated Time</dt><dd>{planning.estimatedTime}</dd></div>
               <div><dt>Escalation</dt><dd>{concern?.escalationRequired ? "Monitored" : "Standard"}</dd></div>
@@ -426,7 +409,7 @@ export function TaskDetailWorkspace({
           <div id="task-collaborators"><TaskCollaboratorPanel canManage={canManageCollaborators} staff={assignableUsers} task={task} /></div>
           <section className="etw-card"><h2><FileText size={16} /> Case Summary</h2><p className="etw-summary">{recordDescription}</p></section>
           <section className="etw-card"><h2>Tags</h2><div className="etw-tags">{tags.map((tag) => <span key={tag.id}>{tag.label}</span>)}</div></section>
-          <TaskMetadataPanel actorIsManager={actorIsManager} task={task} />
+          <div id="task-metadata"><TaskMetadataPanel actorIsManager={actorIsManager} task={task} /></div>
         </aside>
 
         <main className="etw-main">
@@ -456,7 +439,7 @@ export function TaskDetailWorkspace({
           <section className="etw-card etw-risk-card"><h2><ShieldAlert size={16} /> SLA &amp; Risk</h2><div className="etw-risk-grid"><div><span>SLA Clock</span><strong>{overdueDays || "On"}</strong><small>{overdueDays ? "Days Overdue" : "Track"}</small></div><div className="etw-risk-ring" style={{ "--risk": `${Math.max(12, Math.min(96, overdueDays * 4 + (concern?.escalationRequired ? 35 : 12)))}%` } as React.CSSProperties}><b>{concern?.escalationRequired ? "High" : "Active"}</b><span>Risk</span></div></div><p>Impact: <b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></p><p>Compliance Risk: <b>{concern?.escalationRequired ? "High" : "Monitored"}</b></p></section>
           <section className="etw-card" id="timeline"><h2><Activity size={16} /> Activity Feed</h2><div className="etw-side-feed">{feedItems.slice(0, 6).map((item) => <article key={item.id}><span /><div><small>{formatTaskDetailDateTime(item.createdAt)}</small><b>{item.message}</b><em>{item.actorName}</em></div></article>)}{feedItems.length === 0 ? <p>No activity recorded yet.</p> : null}</div></section>
           <section className="etw-card" id="approvals"><h2><Gauge size={16} /> Workflow Command</h2><TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} task={task} /></section>
-          {actorIsManager ? <section className="etw-card etw-assignment-card"><h2><UserRound size={16} /> Ownership</h2><TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /></section> : null}
+          {canReassign ? <section className="etw-card etw-assignment-card"><h2><UserRound size={16} /> Assignment</h2><TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /></section> : null}
           {!elevateAppointmentPanel ? <section id="customer-comms"><TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} /></section> : null}
           <section className="etw-card" id="documents"><h2><FileText size={16} /> Documents</h2><div className="etw-document-shell"><p>No documents are linked to this task yet.</p><button disabled type="button">+ Upload coming soon</button></div></section>
           <section className="etw-card etw-communication-card"><h2><MessageSquareText size={16} /> Customer Communication</h2><div className="etw-communication-channels"><button aria-label="WhatsApp customer" disabled type="button"><MessageCircle size={18} /></button><button aria-label="Call customer" disabled type="button"><Phone size={18} /></button><button aria-label="Email customer" disabled type="button"><Mail size={18} /></button></div><p>{task.customerReference ? `Last update for ${task.customerReference}` : "Link a customer to enable direct communication."}</p><span className="etw-update-sent">Update Sent</span><button disabled type="button">Send Customer Update</button></section>

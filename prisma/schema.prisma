@@ -1925,6 +1925,7 @@ model User {
   userDuties                                   UserDuty[]
   generatedBoardDays                           BoardDay[]                             @relation("BoardDayGeneratedByUser")
   assignedTasks                                Task[]                                 @relation("TaskAssignedUser")
+  ownedTasks                                   Task[]                                 @relation("TaskOwnerUser")
   recommendedTasks                             Task[]                                 @relation("TaskRecommendedUser")
   createdTasks                                 Task[]                                 @relation("TaskCreatedByUser")
   createdRepairOrderTaskLinks                  RepairOrderTaskLink[]                  @relation("RepairOrderTaskLinkCreatedBy")
@@ -3862,6 +3863,7 @@ model Vehicle {
   mergedVehicles                  Vehicle[]                        @relation("VehicleMergeLineage")
   tasks                           Task[]
   inventoryUnits                  InventoryUnit[]
+  inventoryIntakeRevisions        InventoryIntakeRevision[]
   inventoryAcquisitionCases       InventoryAcquisitionCase[]
   serviceVisits                   ServiceVisit[]
   serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
@@ -3911,6 +3913,8 @@ model InventoryUnit {
   serviceVisits          ServiceVisit[]
   repairOrders           RepairOrder[]
   costEntries            InventoryUnitCost[]
+  pricingProposals       InventoryPricingProposal[]
+  intakeRevisions        InventoryIntakeRevision[]
   acquisitionAppraisals  InventoryAcquisitionAppraisal[]
   purchaseAuthorizations InventoryPurchaseAuthorization[]
   receipts               InventoryReceipt[]
@@ -4182,6 +4186,49 @@ model InventoryRetailCompletionEvent {
   @@unique([completionId, version])
   @@index([organizationId, occurredAt])
   @@index([correlationId])
+}
+
+/// Append-only staff intake revisions; confirmation does not authorize purchase or release.
+model InventoryIntakeRevision {
+  id              String        @id @default(cuid())
+  organizationId  String
+  vehicleId       String
+  inventoryUnitId String?
+  version         Int
+  status          String
+  details         Json
+  pendingItems    Json
+  costRecordIds   Json
+  actorUserId     String
+  reason          String
+  createdAt       DateTime      @default(now())
+  vehicle         Vehicle       @relation(fields: [vehicleId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryIntakeRevision_vehicle_fkey")
+  inventoryUnit   InventoryUnit? @relation(fields: [inventoryUnitId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryIntakeRevision_unit_fkey")
+
+  @@unique([vehicleId, version], map: "InventoryIntakeRevision_vehicle_version_key")
+  @@index([organizationId, vehicleId, version], map: "InventoryIntakeRevision_scope_idx")
+}
+
+/// Append-only selling-price proposals with their recorded-cost comparison.
+model InventoryPricingProposal {
+  id                 String        @id @default(cuid())
+  organizationId     String
+  inventoryUnitId    String
+  actorUserId        String
+  inventoryVersion   Int
+  priceCents         Int
+  packCents          Int           @default(0)
+  packEnabled        Boolean       @default(false)
+  includeEstimates   Boolean       @default(false)
+  marginMode         String        @default("OFF")
+  threshold          Int?
+  comparisonSnapshot Json
+  reason             String
+  createdAt          DateTime      @default(now())
+  inventoryUnit      InventoryUnit @relation(fields: [inventoryUnitId, organizationId], references: [id, organizationId], onDelete: Restrict, map: "InventoryPricingProposal_unit_fkey")
+
+  @@unique([inventoryUnitId, inventoryVersion])
+  @@index([organizationId, inventoryUnitId, createdAt], map: "InventoryPricingProposal_organizationId_inventoryUnitId_created")
 }
 
 /// Immutable financial observations supporting inventory exposure and gross-per-day reporting.
@@ -7132,6 +7179,7 @@ model VehicleDuplicateCase {
 }
 
 model VehicleEvidenceObject {
+  purchaseImports  PurchaseImportJob[]
   id               String                       @id @default(cuid())
   organizationId   String
   uploadedByUserId String
@@ -8266,6 +8314,7 @@ model Task {
   title                      String
   description                String                          @default("")
   assignedUserId             String
+  ownerUserId                String?
   recommendedUserId          String?
   recommendationReasonCode   String?
   recommendationExplanation  String?
@@ -8301,6 +8350,7 @@ model Task {
   updatedAt                  DateTime                        @updatedAt
   boardDay                   BoardDay                        @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
   assignedUser               User                            @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  ownerUser                  User?                           @relation("TaskOwnerUser", fields: [ownerUserId], references: [id], onDelete: Restrict)
   recommendedUser            User?                           @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
   createdByUser              User?                           @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reviewedByUser             User?                           @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
@@ -8333,6 +8383,7 @@ model Task {
   @@unique([boardDayId, carryoverSourceTaskId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
+  @@index([ownerUserId, status])
   @@index([boardDayId, workflowArea])
   @@index([acceptedByUserId, acceptedAt])
   @@index([completionOverrideByUserId, completionOverrideAt])
@@ -9215,6 +9266,46 @@ model EnterpriseAuditEvent {
   @@index([subjectType, subjectId, occurredAt])
   @@index([actorUserId, occurredAt])
   @@index([correlationId])
+}
+
+model PurchaseImportJob {
+  id                String   @id @default(cuid())
+  organizationId    String
+  locationId        String
+  createdByUserId   String
+  assignedToUserId  String
+  sourceEvidenceId  String
+  status            String   @default("PROCESSING")
+  fileName          String
+  vin               String   @default("")
+  reading           Json?
+  corrections       Json?
+  outcome           Json?
+  failureCode       String?
+  version           Int      @default(1)
+  attempts          Int      @default(0)
+  leaseUntil        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  source            VehicleEvidenceObject @relation(fields: [sourceEvidenceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, locationId, status, createdAt])
+  @@index([organizationId, assignedToUserId, createdAt])
+  @@index([sourceEvidenceId])
+}
+
+model PurchaseImportTemplate {
+  id               String   @id @default(cuid())
+  organizationId   String
+  locationId       String
+  createdByUserId  String
+  name             String
+  mapping          Json
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([organizationId, locationId, createdByUserId, name])
 }
 
 model EnterpriseOutboxMessage {

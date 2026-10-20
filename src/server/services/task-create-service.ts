@@ -195,7 +195,7 @@ export async function createManualTask(
   }
 
   if (normalizedInput.collaboratorIds.includes(normalizedInput.assignedUserId)) {
-    throw new Error("The task owner cannot also be a collaborator.");
+    throw new Error("The task assignee cannot also be a collaborator.");
   }
   if (normalizedInput.collaboratorIds.length) {
     const collaborators = await repository.findActiveUsersByIds?.(normalizedInput.collaboratorIds);

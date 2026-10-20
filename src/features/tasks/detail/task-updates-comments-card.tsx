@@ -21,6 +21,7 @@ type UnifiedFeedItem = {
 type TaskUpdatesCommentsCardProps = {
   canComment: boolean;
   compact?: boolean;
+  includeEvents?: boolean;
   heading?: string;
   initialFeedItems: UnifiedFeedItem[];
   onActivityChanged?: () => void;
@@ -44,6 +45,7 @@ const TASK_NOTE_SHORTCUTS = [
 export function TaskUpdatesCommentsCard({
   canComment,
   compact = false,
+  includeEvents = false,
   heading = "Case Notes",
   initialFeedItems,
   onActivityChanged,
@@ -54,10 +56,10 @@ export function TaskUpdatesCommentsCard({
   const [feedItems, setFeedItems] = useState(initialFeedItems);
   const [draftBody, setDraftBody] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(includeEvents);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quickNotesOpen, setQuickNotesOpen] = useState(false);
-  const progressItems = feedItems.filter((item) => item.kind === "comment");
+  const progressItems = includeEvents ? feedItems : feedItems.filter((item) => item.kind === "comment");
 
   useEffect(() => {
     if (refreshKey === 0) {
@@ -161,7 +163,7 @@ export function TaskUpdatesCommentsCard({
   if (compact) {
     return (
       <section className="etw-notes-card">
-        <button
+        {!includeEvents ? <button
           aria-expanded={historyOpen}
           className="etw-note-heading etw-note-heading-button"
           onClick={() => setHistoryOpen((current) => !current)}
@@ -169,7 +171,7 @@ export function TaskUpdatesCommentsCard({
         >
           <span><strong>{heading}</strong><em>{progressItems.length}</em></span>
           <ChevronDown size={15} />
-        </button>
+        </button> : null}
         {historyOpen ? (
           <div className="etw-note-history" aria-label={`${heading} history`}>
             {progressItems.length ? progressItems.map((item) => (

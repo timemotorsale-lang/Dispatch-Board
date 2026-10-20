@@ -63,6 +63,7 @@ describe("task route", () => {
   it("updates task metadata from PATCH", async () => {
     mocks.updateTaskMetadata.mockResolvedValue({
       id: "task-1",
+      title: "Review blocked tasks",
       description: "Revised detail",
       dueAt: "2026-07-04T17:00:00.000Z",
       vehicleReference: "2018 Ford Explorer",
@@ -88,6 +89,7 @@ describe("task route", () => {
     await expect(response.json()).resolves.toEqual({
       task: {
         id: "task-1",
+        title: "Review blocked tasks",
         description: "Revised detail",
         dueAt: "2026-07-04T17:00:00.000Z",
         vehicleReference: "2018 Ford Explorer",

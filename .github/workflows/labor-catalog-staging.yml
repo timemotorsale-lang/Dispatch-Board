@@ -1,0 +1,77 @@
+name: Labor Catalog Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_revision:
+        description: Full 40-character revision currently deployed in production; used only to rehearse migrations in a disposable database
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: dispatch_board_labor_staging
+          POSTGRES_USER: build
+          POSTGRES_PASSWORD: build
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U build -d dispatch_board_labor_staging"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/dispatch_board_labor_staging?schema=labor_staging_ci
+      LABOR_STAGING_DATABASE_URL: postgresql://build:build@127.0.0.1:5432/dispatch_board_labor_staging?schema=labor_staging_ci
+      LABOR_STAGING_CONFIRM: isolated
+      CRON_SECRET: isolated-synthetic-staging-only
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Apply the deployed baseline migrations in the disposable database
+        env:
+          BASELINE_REVISION: ${{ inputs.baseline_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$BASELINE_REVISION" =~ ^[0-9a-fA-F]{40}$ ]] || exit 1
+          git cat-file -e "$BASELINE_REVISION^{commit}"
+          mkdir -p "$RUNNER_TEMP/labor-baseline"
+          git archive "$BASELINE_REVISION" prisma/migrations prisma/schema.prisma | tar -x -C "$RUNNER_TEMP/labor-baseline"
+          mkdir -p test-results/labor-staging
+          npx prisma migrate deploy --schema "$RUNNER_TEMP/labor-baseline/prisma/schema.prisma" 2>&1 | tee test-results/labor-staging/baseline-migrations.log
+      - name: Rehearse candidate upgrade, real policy transactions and authenticated browser permissions
+        run: node scripts/run-labor-catalog-staging.mjs
+      - name: Verify actual backup restoration without contacting production
+        run: |
+          set -euo pipefail
+          container="${{ job.services.postgres.id }}"
+          docker exec "$container" pg_dump -U build -d dispatch_board_labor_staging -Fc > "$RUNNER_TEMP/labor-staging.dump"
+          docker exec "$container" createdb -U build dispatch_board_labor_restore
+          docker exec -i "$container" pg_restore -U build -d dispatch_board_labor_restore --exit-on-error < "$RUNNER_TEMP/labor-staging.dump"
+          LABOR_STAGING_CONTAINER="$container" node scripts/check-labor-staging-restore.mjs | tee test-results/labor-staging/backup-restore.log
+          printf 'Candidate %s; deployed baseline %s. Disposable database only; external file restoration and application rollback remain operator acceptance work.\n' "$GITHUB_SHA" "$BASELINE_REVISION" >> test-results/labor-staging/backup-restore.log
+        env:
+          BASELINE_REVISION: ${{ inputs.baseline_revision }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: labor-staging-proof-${{ github.sha }}
+          path: test-results/labor-staging/
+          if-no-files-found: error
+          retention-days: 14

@@ -19,6 +19,9 @@ function dependencyBlockers(value: Record<string, unknown>) { return Object.entr
 
 export function createCustomerLifecycleRepository(database: PrismaClient = prisma) {
   return {
+    policyCommandReceipt(organizationId: string, commandType: string, idempotencyKey: string) {
+      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "CUSTOMER_LIFECYCLE", commandType, idempotencyKey } }, select: { subjectId: true, expectedVersion: true } });
+    },
     async overview(organizationId: string) {
       const [customers, repairOrders, promises, preferences, approvals, statuses, coverages, claims, reconciliations, handoffs, portalGrants, policies] = await Promise.all([
         database.customer.findMany({ where: { organizationId, archivedAt: null, mergedIntoCustomerId: null }, orderBy: { displayName: "asc" }, take: 200, include: { registryVehicleRelationships: { where: { effectiveTo: null }, include: { vehicle: { select: { id: true, vehicleNumber: true, year: true, make: true, model: true, status: true } } } }, serviceVisits: { orderBy: { arrivedAt: "desc" }, take: 10, select: { id: true, arrivedAt: true, concernSummary: true, vehicleId: true } }, interactions: { orderBy: { occurredAt: "desc" }, take: 10 } } }),

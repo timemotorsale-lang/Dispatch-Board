@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getShopPlanningWorkspace } from "@/server/shop-planning/service";
+import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
+import { canManageSettings } from "@/server/policies/access";
 
 export default async function ShopPlanningPage({
   searchParams,
@@ -55,6 +57,8 @@ export default async function ShopPlanningPage({
   return (
     <ShopPlanningWorkspace
       initial={JSON.parse(JSON.stringify(initial))}
+      defaultLaborRate={(await getActiveLaborRate(user)).laborRate}
+      canOverrideLaborRate={canManageSettings(user)}
       returnTo={params.returnTo}
       vendorFollowUp={params.vendorFollowUp === "1" || params.vendorFollowUp === "true"}
     />

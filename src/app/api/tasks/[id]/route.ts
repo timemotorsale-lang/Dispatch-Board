@@ -30,9 +30,12 @@ function getTaskReadErrorStatus(message: string) {
     message === "Task metadata updates require at least one field." ||
     message === "Task metadata updates did not change any saved fields." ||
     message === "Task metadata updates require dueAt to be a valid timestamp." ||
+    message === "Task metadata updates require title to be a string when provided." ||
     message === "Task metadata updates require description to be a string when provided." ||
     message === "Task metadata updates require vehicleReference to be a string when provided." ||
     message === "Task metadata updates require customerReference to be a string when provided." ||
+    message === "Task title is required." ||
+    message.startsWith("Task metadata title must be ") ||
     message === "Task metadata updates require workflowArea to be a valid execution path." ||
     message.startsWith("Task metadata description must be ") ||
     message.startsWith("Task metadata vehicleReference must be ") ||

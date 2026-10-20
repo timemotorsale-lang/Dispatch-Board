@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
 import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
@@ -16,6 +16,16 @@ const options = {
 };
 
 describe("enterprise service intake workspace", () => {
+  it("allows verified dealership repair intake without acquisition forms or an inventory unit", () => {
+    const repairOptions = { ...options, vehicles: [{ ...options.vehicles[0], registryRelationships: [{ relationshipType: "DEALERSHIP_OWNED" }] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={repairOptions} />);
+    expect(html).toContain("Ready for internal repair intake");
+    expect(html).not.toContain("Financial acquisition");
+    expect(html).not.toContain("Create &amp; Link Inventory Unit");
+    expect(html).not.toContain("Next: Add / Select Customer");
+    const unconfirmed = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
+    expect(unconfirmed).toContain("Confirm Dealership Ownership");
+  });
   it("renders a guided advisor check-in with spacious concern capture and governance cues", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" options={options} />);
 
@@ -113,7 +123,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Inventory source");
     expect(html).toContain("Customer not required");
     expect(html).toContain("Inventory unit INV-100 linked");
-    expect(html).toContain("Internal recon readiness");
+    expect(html).toContain("Internal repair readiness");
     expect(html).toContain("Inventory concern &amp; recon request");
     expect(html).not.toContain("Next: Add / Select Customer");
   });
@@ -131,7 +141,7 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
 
     expect(html).toContain('noValidate=""');
-    expect(html).toContain('type="button">Capture Inventory Concern');
+    expect(html).toContain('type="button">Complete Check-In &amp; Create Repair Order');
   });
 
   it("shows open RO history without auto-matching a stale incoming concern", () => {

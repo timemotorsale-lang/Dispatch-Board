@@ -35,10 +35,10 @@ export async function replaceTaskCollaborators(user: AuthenticatedUser | null, t
   const id = normalizeTaskId(taskId);
   const task = await repository.findTaskById(id);
   if (!task) throw new Error("Task not found.");
-  if (!isManager(user) && task.assignedUserId !== user.id) throw new Error("Only the task owner or a manager can manage collaborators.");
+  if (!isManager(user) && task.assignedUserId !== user.id && task.ownerUserId !== user.id) throw new Error("Only the task owner, assignee, or a manager can manage collaborators.");
 
   const { collaboratorIds, collaboratorRequests } = normalizeTaskCollaboratorInput(input);
-  if (collaboratorIds.includes(task.assignedUserId)) throw new Error("The task owner cannot also be a collaborator.");
+  if (collaboratorIds.includes(task.assignedUserId)) throw new Error("The task assignee cannot also be a collaborator.");
   const activeUsers = await repository.findActiveUsersByIds(collaboratorIds);
   if (activeUsers.length !== collaboratorIds.length) throw new Error("Every collaborator must be an active staff member.");
 

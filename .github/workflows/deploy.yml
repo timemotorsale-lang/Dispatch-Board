@@ -1,10 +1,13 @@
-name: CI and Deploy
+name: CI
 
 on:
   push:
     branches:
       - main
       - general-overall-refinement
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -13,16 +16,25 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   NODE_VERSION: "24"
   NODE_OPTIONS: --max-old-space-size=4096
-  DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/Dispatch-Board' }}
   DATABASE_URL: postgresql://build:build@127.0.0.1:5432/dispatch_board_test?schema=public
   CRON_SECRET: ci-build-placeholder
 
 jobs:
+  security:
+    name: Dependency Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -99,6 +111,40 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Purchase import undo database proof
+        run: RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/purchase-import-undo.test.ts
+
+      - name: Production scanner detection proof
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clamav poppler-utils
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam
+          RUN_SCANNER_INTEGRATION=1 IMPORT_MALWARE_SCANNER_PATH=/usr/bin/clamscan npx vitest run src/tests/integration/purchase-scanner.test.ts
+
+      - name: Scanned purchase PDF OCR proof
+        run: RUN_OCR_INTEGRATION=1 DOCUMENT_TEXT_PDF_RENDERER_PATH=/usr/bin/pdftoppm npx vitest run src/tests/integration/purchase-ocr.test.ts
+
+  labor-browser:
+    name: Labor catalog browser fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:labor-pilot-ui
+      - run: npm run test:light-duty-catalog-ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: labor-browser-fixture-${{ github.sha }}
+          path: test-results/labor-pilot-ui/
+          if-no-files-found: warn
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -117,105 +163,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-  deploy:
-    name: Deploy
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs:
-      - lint
-      - typecheck
-      - test
-      - build
-    environment: production
-    steps:
-      - name: Validate deployment secrets
-        shell: bash
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
-        run: |
-          set -euo pipefail
-          missing=()
-          for name in DEPLOY_HOST DEPLOY_SSH_KEY DEPLOY_USER TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
-            if [ -z "${!name:-}" ]; then
-              missing+=("$name")
-            fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
-            exit 1
-          fi
-
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-          ping: ${{ secrets.DEPLOY_HOST }}
-
-      - name: Configure SSH
-        shell: bash
-        run: |
-          set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Deploy over SSH
-        shell: bash
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          RELEASE_REF: ${{ github.ref_name }}
-          RELEASE_SHA: ${{ github.sha }}
-          PRODUCTION_HEALTH_URL: https://dispatch-board.tail0d2437.ts.net/api/health
-        run: |
-          set -euo pipefail
-
-          ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "DEPLOY_PATH='${DEPLOY_PATH}' RELEASE_REF='${RELEASE_REF}' RELEASE_SHA='${RELEASE_SHA}' bash -s" <<'REMOTE'
-          set -euo pipefail
-
-          cd "$DEPLOY_PATH"
-          test -f deploy/docker/.env
-
-          compose() {
-            if docker info >/dev/null 2>&1; then
-              docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
-            else
-              sudo -n docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
-            fi
-          }
-
-          git fetch --prune origin "$RELEASE_REF"
-          git checkout --detach "$RELEASE_SHA"
-
-          compose build
-          # Compose must not consume the remaining SSH here-document from stdin.
-          compose run --rm -T migrate </dev/null
-          compose up -d --remove-orphans
-          compose ps
-
-          curl -fsS http://127.0.0.1:3000/api/health >/dev/null
-          bash deploy/docker/scripts/verify-tailscale-serve.sh
-          REMOTE
-
-          for attempt in {1..10}; do
-            if curl -fsS --max-time 10 "$PRODUCTION_HEALTH_URL" |
-              jq -e --arg revision "$RELEASE_SHA" '.status == "ok" and .revision == $revision' >/dev/null; then
-              echo "Production is serving release $RELEASE_SHA."
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "Production did not serve release $RELEASE_SHA at $PRODUCTION_HEALTH_URL." >&2
-          exit 1

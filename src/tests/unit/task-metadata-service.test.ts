@@ -34,6 +34,9 @@ function createTaskMetadataRepositoryHarness() {
         return task;
       },
       async updateTaskMetadata(_taskId, data) {
+        if (data.title !== undefined) {
+          task.title = data.title;
+        }
         if (data.description !== undefined) {
           task.description = data.description;
         }
@@ -85,6 +88,33 @@ describe("task metadata service", () => {
         "Walter Hernandez updated the description, updated the customer reference on Vehicle Recon & Inspection.",
       metadata: {
         changedFields: ["updated the description", "updated the customer reference"]
+      },
+      taskId: "task-1"
+    });
+  });
+
+  it("lets assigned staff update the task title", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+    const { repository } = createTaskMetadataRepositoryHarness();
+
+    const task = await updateTaskMetadata(
+      staffUser,
+      "task-1",
+      {
+        title: "Confirm Explorer brake inspection"
+      },
+      repository
+    );
+
+    expect(task.title).toBe("Confirm Explorer brake inspection");
+    expect(recordBoardActivityEvent).toHaveBeenCalledWith({
+      actorUserId: staffUser?.id ?? null,
+      boardDayId: "board-day-1",
+      eventType: "task.metadata_updated",
+      message: `${staffUser?.name} updated the title on Vehicle Recon & Inspection.`,
+      metadata: {
+        changedFields: ["updated the title"]
       },
       taskId: "task-1"
     });

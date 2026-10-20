@@ -5751,6 +5751,264 @@
   margin: 0;
 }
 
+.dealStartTool[data-test-drive-review="true"] [hidden] {
+  display: none !important;
+}
+
+.testDriveReview [hidden] {
+  display: none !important;
+}
+
+.testDriveCheckout {
+  width: 100%;
+  max-width: 880px;
+  color: var(--crm-next-ink, #182438);
+}
+
+.testDriveCheckout header,
+.testDriveCheckout footer,
+.testDriveActive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.testDriveCheckout h3 {
+  margin: 6px 0;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.testDriveCheckout p {
+  margin: 4px 0;
+}
+
+.testDriveCheckout button,
+.testDrivePanelHeading button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #ccd6e3;
+  border-radius: 6px;
+  background: var(--crm-next-surface, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+
+.testDriveCheckout button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.testDriveCheckList {
+  border-top: 1px solid #ccd6e3;
+}
+
+.testDriveCheckList button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto 16px;
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-bottom: 1px solid #ccd6e3;
+  border-radius: 0;
+  text-align: left;
+}
+
+.testDriveCheckList button:hover,
+.testDriveCheckList button[aria-expanded="true"] {
+  background: #eaf1ff;
+  color: #182438;
+}
+
+.testDriveCheckout footer button {
+  background: #245cc3;
+  border-color: #245cc3;
+  color: #fff;
+}
+
+.testDriveCheckout footer {
+  flex-wrap: wrap;
+}
+
+.testDriveCheckout footer .testDriveDeferPhotos {
+  background: var(--crm-next-surface, #fff);
+  border-color: #b7c8dc;
+  color: var(--crm-next-ink, #182438);
+}
+
+.testDrivePhotoPlan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.testDrivePhotoPlan button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #b7c8dc;
+  border-radius: 6px;
+  background: var(--crm-next-surface, #fff);
+  color: var(--crm-next-ink, #182438);
+  cursor: pointer;
+}
+
+.testDrivePhotoTile {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ccd6e3;
+  border-radius: 6px;
+}
+
+.testDriveReview .testDrivePhotoTile label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.testDrivePhotoTile input {
+  width: 100%;
+}
+
+.testDriveReviewError {
+  padding: 10px 0;
+  color: #a34420;
+}
+
+.testDriveActive dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 0;
+}
+
+.testDriveActive dd {
+  margin: 4px 0 0;
+}
+
+.testDriveReview .rentalEvidenceBoard {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.testDriveReview details > summary {
+  padding: 12px 0;
+  cursor: pointer;
+}
+
+.testDrivePanelHeading {
+  scroll-margin-top: 100px;
+}
+
+.testDriveVehiclePicker {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.testDriveVehicleModes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.testDriveVehicleModes button,
+.testDriveVehiclePicker button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #b7c8dc;
+  border-radius: 6px;
+  background: var(--crm-next-surface, #fff);
+  color: var(--crm-next-ink, #182438);
+  cursor: pointer;
+}
+
+.testDriveVehicleModes button[aria-checked="true"] {
+  background: #245cc3;
+  border-color: #245cc3;
+  color: #fff;
+}
+
+.testDriveComparison {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #ccd6e3;
+  color: var(--crm-next-ink, #182438);
+}
+
+.testDriveComparison button[aria-pressed="true"] {
+  background: #245cc3;
+  border-color: #245cc3;
+  color: #fff;
+}
+
+.testDriveVehiclePicker button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.testDriveVehiclePicker select,
+.testDriveVehiclePicker input {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.testDriveReview .retailFieldGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:global(html[data-app-theme="dark"]) .testDriveCheckList button:hover,
+:global(html[data-app-theme="dark"]) .testDriveCheckList button[aria-expanded="true"] {
+  background: #253b4f;
+  color: #f0f5fa;
+}
+
+:global(html[data-app-theme="dark"]) .testDriveReviewError {
+  color: #ffc498;
+}
+
+@media (max-width: 640px) {
+  .testDriveCheckout header,
+  .testDriveCheckout footer,
+  .testDriveActive {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .testDriveCheckList button {
+    padding-inline: 8px;
+    gap: 6px;
+    font-size: 14px;
+  }
+
+  .testDriveReview .retailFieldGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .retailExecutionDesk {
   display: grid;
   gap: 14px;

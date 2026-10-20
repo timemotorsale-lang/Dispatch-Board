@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { ArrowRight, Eye } from "lucide-react";
+import styles from "./vehicle-registry-workspace.module.css";
 
 type VehicleListItem = {
   id: string;
@@ -220,8 +222,8 @@ function vehicleTitle(vehicle: Pick<VehicleListItem, "make" | "model" | "vehicle
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
 }
 
-function vehicleWorkbenchHref(vehicleId: string) {
-  return `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
+function vehicleDetailsHref(vehicleId: string) {
+  return `/vehicles/${encodeURIComponent(vehicleId)}/details`;
 }
 
 function isMutationDisabled(message: string) {
@@ -246,8 +248,6 @@ export function VehicleRegistryWorkspace({
   const [notice, setNotice] = useState("");
   const [registryLocked, setRegistryLocked] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [previewText, setPreviewText] = useState('[{"vehicleNumber":"TMS-1001","vin":"1HGCM82633A004352","stockNumber":"1001","year":2003,"make":"Honda","model":"Accord"}]');
-  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
 
   async function request(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
@@ -286,7 +286,7 @@ export function VehicleRegistryWorkspace({
       const body = await request(`/api/vehicles?query=${encodeURIComponent(search)}`) as RegistryList;
       setList(body);
       if (openSingleMatch && body.items.length === 1) {
-        window.location.assign(vehicleWorkbenchHref(body.items[0].id));
+        window.location.assign(vehicleDetailsHref(body.items[0].id));
       } else if (body.items.length === 1) {
         await load(body.items[0].id);
       } else if (!body.items.some((item) => item.id === selected?.id)) {
@@ -451,35 +451,18 @@ export function VehicleRegistryWorkspace({
     }
   }
 
-  async function runPreview() {
-    setBusy(true);
-    try {
-      const rows = JSON.parse(previewText);
-      setPreview(await request("/api/vehicles/import-preview", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows })
-      }));
-      setNotice("Import preview completed without writing vehicle records.");
-    } catch (error) {
-      handleError(error, "Import preview failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const duplicateCases = selected ? [...selected.duplicateCasesAsPrimary, ...selected.duplicateCasesAsCandidate].filter((item) => item.status === "OPEN") : [];
   const mutationNotice = registryLocked || isMutationDisabled(notice);
   const activeQuery = query.trim();
 
   return (
-    <section className="page-stack">
+    <section className={`page-stack ${styles.workspace}`}>
       <header className="page-copy">
         <span className="eyebrow">Vehicle Operations · Canonical registry</span>
         <h1>Find the vehicle and go straight to work</h1>
-        <p>Search once, inspect the canonical identity, then open Vehicle 360 or the execution workspace without detouring through extra landing pages.</p>
+        <p>Dealership inventory and linked vehicle records.</p>
         <div className="form-actions">
-          <Link className="pill pill-primary" href="/vehicles/registry">Find Vehicle / Open Workbench</Link>
+          <Link className="pill pill-primary" href="/vehicles/registry">Find Vehicle / Open Vehicle Details</Link>
           <Link className="pill pill-secondary" href="/vehicles/inventory">Inventory Lifecycle</Link>
           <Link className="pill pill-secondary" href="/vehicles/control-tower">Control Tower</Link>
           <Link className="pill pill-secondary" href="/settings/vehicle-operations">Rollout &amp; health</Link>
@@ -491,7 +474,7 @@ export function VehicleRegistryWorkspace({
           <p>{notice}</p>
           {mutationNotice && selected ? (
             <div className="form-actions">
-              <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+              <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
               <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
             </div>
           ) : null}
@@ -512,29 +495,24 @@ export function VehicleRegistryWorkspace({
         </p>
       </section>
 
-      <div className="settings-workspace">
-        <section className="panel-card">
+      <div className={styles.layout}>
+        <section className={styles.registry}>
           <div className="page-copy"><h2>Registry</h2></div>
-          <div className="page-stack">
-            {list.items.length ? list.items.map((item) => (
-              <article className="panel-card settings-callout-card inventory-vehicle-result-card" key={item.id}>
-                <Link className="inventory-vehicle-result-link" href={vehicleWorkbenchHref(item.id)}>
-                  <strong>{vehicleTitle(item)}</strong>
-                  <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {stockNumberForDisplay(item)}</span>
-                  {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
-                  <small>Click vehicle to open the Vehicle Workbench</small>
-                </Link>
-                <div className="form-actions">
-                  <Link className="button button-primary" href={vehicleWorkbenchHref(item.id)}>Open Vehicle Workbench</Link>
-                  <Link className="button button-secondary" href={`/vehicles/360/${item.id}`}>Open Vehicle 360</Link>
-                  <button className="button button-secondary" disabled={busy} onClick={() => void load(item.id)} type="button">Preview here</button>
-                </div>
-              </article>
-            )) : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
+          <div className={styles.table}>
+            {list.items.length ? <table><thead><tr><th>Vehicle</th><th>Stock</th><th>VIN</th><th>Plate</th><th>Status</th><th>Actions</th></tr></thead><tbody>{list.items.map(item => (
+              <tr key={item.id} aria-selected={selected?.id === item.id}>
+                <td><Link href={vehicleDetailsHref(item.id)}><strong>{vehicleTitle(item)}</strong></Link><small>{item.vehicleNumber}</small></td>
+                <td>{stockNumberForDisplay(item)}</td>
+                <td>{item.vin ?? item.vinState}</td>
+                <td>{item.licensePlate ?? "Not recorded"}</td>
+                <td>{item.status}{item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}</td>
+                <td><div className={styles.actions}><Link href={`/vehicles/${encodeURIComponent(item.id)}/sale`}>Prepare for Sale<ArrowRight size={16}/></Link><Link href={`/vehicles/${encodeURIComponent(item.id)}/sale?mode=as-is`}>Start As-Is Sale<ArrowRight size={16}/></Link><Link href={vehicleDetailsHref(item.id)} aria-label={`Open Vehicle Details for ${vehicleTitle(item)}`} title="Open Vehicle Details">Vehicle Details<ArrowRight size={16}/></Link><Link href={`/vehicles/360/${item.id}`} aria-label={`Open Vehicle 360 for ${vehicleTitle(item)}`} title="Open Vehicle 360">Vehicle 360<ArrowRight size={16}/></Link><button disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Preview ${vehicleTitle(item)}`} title="Preview here"><Eye size={18}/></button></div></td>
+              </tr>
+            ))}</tbody></table> : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
           </div>
         </section>
 
-        <section className="panel-card">
+        {selected ? <section className={styles.preview}>
           {selected ? (
             <div className="page-stack">
               <div className="page-copy">
@@ -550,7 +528,7 @@ export function VehicleRegistryWorkspace({
                 <div><dt>Latest odometer</dt><dd>{selected.odometerObservations[0] ? `${selected.odometerObservations[0].reading.toLocaleString()} ${selected.odometerObservations[0].unit}` : "No observation"}</dd></div>
               </dl>
               <div className="form-actions">
-                <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+                <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
                 <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
                 {registryLocked ? null : (
                   <>
@@ -582,7 +560,7 @@ export function VehicleRegistryWorkspace({
             <p>Search by VIN, stock number, plate, customer, or external ID. If there is one match, it opens here automatically and gives staff a direct Vehicle Workbench button.</p>
           </div>
           )}
-        </section>
+        </section> : null}
       </div>
 
       <div className="settings-overview-grid">
@@ -622,12 +600,7 @@ export function VehicleRegistryWorkspace({
           <button className="button button-primary" disabled={busy || registryLocked} type="submit">Validate and create</button>
         </form>
 
-        <section className="panel-card page-stack">
-          <div className="page-copy"><h2>Import preview</h2><p>Paste a JSON array. Preview validates and detects conflicts without writing.</p></div>
-          <textarea onChange={(event) => setPreviewText(event.target.value)} rows={10} value={previewText} />
-          <button className="button button-secondary" disabled={busy} onClick={runPreview} type="button">Preview import</button>
-          {preview ? <pre>{JSON.stringify(preview, null, 2)}</pre> : null}
-        </section>
+        <Link className="button button-secondary" href="/vehicles/import-export">Import / Export</Link>
       </div>
 
       {selected && registryLocked ? (
@@ -637,7 +610,7 @@ export function VehicleRegistryWorkspace({
             <p>Registry correction, mileage, and custody commands are locked for this rollout, so this page keeps the vehicle readable and sends staff directly to the workspaces that are available.</p>
           </div>
           <div className="form-actions">
-            <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+            <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
             <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
             <Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link>
           </div>
@@ -663,7 +636,7 @@ export function VehicleRegistryWorkspace({
           <div className="form-actions">
             <button className="button button-secondary" disabled={busy || registryLocked} onClick={correctIdentity} type="button">Validate and save correction</button>
             <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open observations in Vehicle 360</Link>
-            <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+            <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
           </div>
         </section>
       ) : null}

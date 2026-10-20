@@ -46,6 +46,7 @@ export type RegistryIdentity = {
 
 export type RegistryCreationDetails = {
   rejectDuplicateIdentity?: boolean;
+  vehicleId?: string;
   canonicalOrigins?: Record<string, unknown>;
   specificationSnapshot?: Record<string, unknown> | null;
   initialOdometer?: { reading: number; unit: "MILES" | "KILOMETERS"; observedAt: Date; sourceCode: string } | null;

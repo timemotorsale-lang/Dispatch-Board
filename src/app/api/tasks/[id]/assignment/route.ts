@@ -14,7 +14,7 @@ function getTaskAssignmentErrorStatus(message: string) {
     return 401;
   }
 
-  if (message === "Manager access required.") {
+  if (message === "Manager access required." || message === "Only the task owner or a manager can reassign this task.") {
     return 403;
   }
 

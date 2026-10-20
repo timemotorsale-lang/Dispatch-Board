@@ -19,6 +19,7 @@ type StoredTask = {
   title: string;
   boardDayId: string;
   assignedUserId: string;
+  ownerUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
   recommendationExplanation: string | null;
@@ -42,6 +43,7 @@ function createTask(overrides: Partial<StoredTask> = {}): StoredTask {
     title: "Review sales follow-up tasks",
     boardDayId: "board-day-1",
     assignedUserId: "user-jordan.sales@local.test",
+    ownerUserId: "user-jordan.sales@local.test",
     recommendedUserId: "user-jordan.sales@local.test",
     recommendationReasonCode: "DIRECT_DUTY_MATCH",
     recommendationExplanation:
@@ -93,6 +95,7 @@ function createTaskAssignmentRepository(
         return {
           ...task,
           assignedUser: userSummary(task.assignedUserId)!,
+          ownerUser: userSummary(task.ownerUserId)!,
           recommendedUser: userSummary(task.recommendedUserId)
         };
       },
@@ -134,6 +137,7 @@ function createTaskAssignmentRepository(
         return {
           ...updatedTask,
           assignedUser: userSummary(updatedTask.assignedUserId)!,
+          ownerUser: userSummary(updatedTask.ownerUserId)!,
           recommendedUser: userSummary(updatedTask.recommendedUserId)
         };
       },
@@ -162,6 +166,7 @@ describe("task assignment service", () => {
 
     expect(result).toEqual<TaskAssignmentResult>({
       id: "task-1",
+      ownerUser: { id: "user-jordan.sales@local.test", name: "Baraka Sales", email: "jordan.sales@local.test" },
       assignedUser: {
         id: "user-casey.mechanic@local.test",
         name: "Walter Mechanic",
@@ -185,10 +190,10 @@ describe("task assignment service", () => {
     });
   });
 
-  it("rejects staff users who try to reassign a task", async () => {
+  it("rejects an assignee who is not the accountable owner", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository } = createTaskAssignmentRepository();
+    const { repository } = createTaskAssignmentRepository([createTask({ ownerUserId: "another-owner" })]);
 
     await expect(
       updateTaskAssignment(
@@ -199,7 +204,20 @@ describe("task assignment service", () => {
         },
         repository
       )
-    ).rejects.toThrow("Manager access required.");
+    ).rejects.toThrow("Only the task owner or a manager can reassign this task.");
+  });
+
+  it("lets a staff owner delegate and retain ownership through later delegations", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const owner = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskAssignmentRepository();
+    const delegated = await updateTaskAssignment(owner, "task-1", { assignedUserId: "user-casey.mechanic@local.test" }, repository);
+    expect(delegated.ownerUser.id).toBe(owner?.id);
+    expect(delegated.assignedUser.id).toBe("user-casey.mechanic@local.test");
+    expect(readTask()?.ownerUserId).toBe(owner?.id);
+    const returned = await updateTaskAssignment(owner, "task-1", { assignedUserId: owner?.id }, repository);
+    expect(returned.ownerUser.id).toBe(owner?.id);
+    expect(returned.assignedUser.id).toBe(owner?.id);
   });
 
   it("rejects reassignments to inactive users", async () => {

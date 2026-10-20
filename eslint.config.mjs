@@ -13,6 +13,10 @@ const config = [{
     "test-results/**",
     ".worktrees/**"
   ]
-}, ...nextCoreWebVitals, ...nextTypeScript];
+}, ...nextCoreWebVitals, ...nextTypeScript, {
+  files: ["tools/next-eslint-glob/index.cjs"],
+  // Next ESLint loads this adapter synchronously through CommonJS.
+  rules: { "@typescript-eslint/no-require-imports": "off" }
+}];
 
 export default config;

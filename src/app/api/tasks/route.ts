@@ -21,7 +21,7 @@ function getTaskCreateErrorStatus(message: string) {
     message === "Assigned user not found." ||
     message === "Assigned user must be active." ||
     message === "Every collaborator must be an active staff member." ||
-    message === "The task owner cannot also be a collaborator." ||
+    message === "The task assignee cannot also be a collaborator." ||
     message === "Task collaborators cannot contain duplicates." ||
     message === "A task can have at most 25 collaborators." ||
     message === "Task creation requires a valid priority." ||

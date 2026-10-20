@@ -14,7 +14,7 @@ const collaboratorSelect = {
 } satisfies Prisma.TaskCollaboratorSelect;
 
 export type TaskCollaboratorRecord = Prisma.TaskCollaboratorGetPayload<{ select: typeof collaboratorSelect }>;
-export type TaskCollaboratorTaskRecord = { id: string; boardDayId: string; title: string; assignedUserId: string };
+export type TaskCollaboratorTaskRecord = { id: string; boardDayId: string; title: string; assignedUserId: string; ownerUserId?: string | null };
 
 export type TaskCollaboratorRepository = {
   findTaskById(taskId: string): Promise<TaskCollaboratorTaskRecord | null>;
@@ -26,7 +26,7 @@ export type TaskCollaboratorRepository = {
 export function createTaskCollaboratorRepository(database: TaskCollaboratorDatabase = prisma): TaskCollaboratorRepository {
   return {
     findTaskById(taskId) {
-      return database.task.findUnique({ where: { id: taskId }, select: { id: true, boardDayId: true, title: true, assignedUserId: true } });
+      return database.task.findUnique({ where: { id: taskId }, select: { id: true, boardDayId: true, title: true, assignedUserId: true, ownerUserId: true } });
     },
     findActiveUsersByIds(userIds) {
       return database.user.findMany({ where: { id: { in: userIds }, isActive: true }, select: { id: true, name: true } });

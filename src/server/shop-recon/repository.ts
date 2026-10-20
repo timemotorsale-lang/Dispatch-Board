@@ -78,7 +78,7 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         if (!order || !lifecycle) throw new Error("Save the current stage before publishing operational evidence.");
         const stageOrder = SHOP_RECON_STAGES.find(item => item.code === lifecycle.stage)?.order ?? 99;
         if (stageOrder > 16) throw new Error("The Shop stage is outside the governed 16-stage lifecycle.");
-        const authority = canCompleteShopReconStage(actor, lifecycle.stage);
+        const authority = canCompleteShopReconStage(actor, lifecycle.stage, workLane(order.origin));
         if (!authority.allowed) throw new Error(`${authority.authority} is required to publish this stage's operational evidence.`);
         const draft = await tx.shopReconStageDraft.findFirst({ where: { lifecycleId: lifecycle.id, stage: lifecycle.stage, scopeVersion: lifecycle.scopeVersion }, orderBy: { revision: "desc" } });
         if (!draft) throw new Error("Save the current stage before publishing operational evidence.");
