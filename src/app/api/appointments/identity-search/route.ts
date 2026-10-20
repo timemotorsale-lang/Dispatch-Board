@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       customers: options.customers
         .filter((customer) =>
+          customer.id.toLocaleLowerCase() === query ||
           includes(customer.displayName, query) ||
           includes(customer.customerNumber, query) ||
           includes(customer.phoneNumber, query) ||

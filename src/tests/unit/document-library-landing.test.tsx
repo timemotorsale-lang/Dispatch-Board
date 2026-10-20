@@ -19,6 +19,12 @@ async function renderLoadedLibrary() {
 }
 
 describe("document library landing", () => {
+  it("prefills the shared customer instead of requiring the same identity again", async () => {
+    const library = await getDocumentLibrary(manager);
+    const markup = renderToStaticMarkup(<DocumentLibraryLanding initialLibrary={library} initialOwnerId="customer-1" initialOwnerLabel="Review Customer" />);
+    expect(markup).toContain('value="customer-1"');
+    expect(markup).toContain('value="Review Customer"');
+  });
   beforeEach(() => {
     resetDocumentLibraryDemoState();
   });

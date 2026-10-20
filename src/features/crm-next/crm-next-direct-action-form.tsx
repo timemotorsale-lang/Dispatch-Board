@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -18,12 +18,10 @@ type DirectActionResult = {
   task?: { href?: string; title?: string };
 };
 
-type StagedActionFile = { id: string; name: string; previewUrl: string; size: number; type: string };
-
 function dateOffset(days: number) {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function dateTimeOffset(days: number, hour: number) {
@@ -49,7 +47,9 @@ function dateFieldValue(fields: DirectActionField[], values: string[], label: st
 }
 
 function dueDateToIso(value: string) {
-  const fallback = new Date(Date.now() + 24 * 60 * 60_000);
+  const fallback = new Date();
+  fallback.setHours(17, 0, 0, 0);
+  if (fallback.getTime() < Date.now()) fallback.setDate(fallback.getDate() + 1);
   if (!value) return fallback.toISOString();
   const parsed = new Date(`${value}T17:00:00`);
   if (Number.isNaN(parsed.getTime()) || parsed.getTime() < Date.now() - 60_000) return fallback.toISOString();
@@ -58,12 +58,6 @@ function dueDateToIso(value: string) {
 
 function makeIdempotencyKey(actionId: string, customerId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-next-${actionId}-${customerId}-${Date.now()}`;
-}
-
-function formatFileSize(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function CrmNextDirectActionForm({
@@ -91,49 +85,38 @@ export function CrmNextDirectActionForm({
 }) {
   const [values, setValues] = useState(() => fields.map(() => ""));
   const [dateValues, setDateValues] = useState(() => fields.map(() => ""));
-  const [selectedFiles, setSelectedFiles] = useState<StagedActionFile[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [savedHref, setSavedHref] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const requestRef = useRef<{ fingerprint: string; key: string; dueAt: string } | null>(null);
   const isDocumentUpload = actionId === "upload-document";
   const canSave = useMemo(
-    () => values.some((value) => value.trim().length > 2) || dateValues.some((value) => value.trim().length > 0) || (isDocumentUpload && selectedFiles.length > 0),
-    [dateValues, isDocumentUpload, selectedFiles.length, values]
+    () => values.some((value) => value.trim().length > 2) || dateValues.some((value) => value.trim().length > 0),
+    [dateValues, values]
   );
   const needsCustomerContext = disabled || !customerId;
 
-  function stageSelectedFiles(files: FileList | null) {
-    selectedFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl));
-    const nextFiles = Array.from(files ?? []).map((file) => ({
-      id: `${file.name}-${file.lastModified}-${file.size}`,
-      name: file.name,
-      previewUrl: URL.createObjectURL(file),
-      size: file.size,
-      type: file.type || "Unknown"
-    }));
-    setSelectedFiles(nextFiles);
-    setSavedMessage(null);
-    setSavedHref(null);
-  }
-
-  useEffect(() => () => {
-    selectedFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl));
-  }, [selectedFiles]);
-
   async function saveAction() {
+    if (isSaving) return;
     if (needsCustomerContext) {
+      setSaveFailed(true);
       setSavedMessage("This action needs a verified Customer 360 record before it can save. Open the customer record, then use Add Note from that customer.");
       return;
     }
     setIsSaving(true);
     setSavedMessage(null);
     setSavedHref(null);
+    setSaveFailed(false);
     try {
-      const idempotencyKey = makeIdempotencyKey(actionId, customerId);
+      const fingerprint = JSON.stringify({ actionId, customerId, values, dateValues });
+      if (requestRef.current?.fingerprint !== fingerprint) requestRef.current = { fingerprint, key: makeIdempotencyKey(actionId, customerId), dueAt: dueDateToIso(dateFieldValue(fields, dateValues, "Due")) };
+      const idempotencyKey = requestRef.current.key;
       let response: Response;
       if (actionId === "add-note") {
-        response = await fetch(`/api/crm/v1/customers/${encodeURIComponent(customerId)}/notes`, {
+        response = await fetch(`/api/crm-next/customers/${encodeURIComponent(customerId)}/actions`, {
           body: JSON.stringify({
+            action: "add-note",
             body: fieldValue(fields, values, "Note"),
             idempotencyKey,
             visibility: "INTERNAL"
@@ -143,10 +126,11 @@ export function CrmNextDirectActionForm({
         });
       } else if (actionId === "new-task") {
         const task = fieldValue(fields, values, "Task") || nextAction;
-        response = await fetch(`/api/crm/v1/customers/${encodeURIComponent(customerId)}/tasks`, {
+        response = await fetch(`/api/crm-next/customers/${encodeURIComponent(customerId)}/actions`, {
           body: JSON.stringify({
+            action: "new-task",
             brief: `${task}\n\nCustomer: ${customerName}\nSource: Customer Console action.`,
-            dueAt: dueDateToIso(dateFieldValue(fields, dateValues, "Due")),
+            dueAt: requestRef.current.dueAt,
             idempotencyKey,
             title: task
           }),
@@ -174,33 +158,15 @@ export function CrmNextDirectActionForm({
           headers: { "content-type": "application/json", "Idempotency-Key": idempotencyKey },
           method: "POST"
         });
-      } else if (actionId === "upload-document") {
-        const documentType = fieldValue(fields, values, "Document type") || "Customer document";
-        const notes = fieldValue(fields, values, "Notes");
-        const fileSummary = selectedFiles.length
-          ? selectedFiles.map((file) => `${file.name} (${formatFileSize(file.size)}, ${file.type})`).join("\n")
-          : "No file selected.";
-        response = await fetch(`/api/crm/v1/customers/${encodeURIComponent(customerId)}/notes`, {
-          body: JSON.stringify({
-            body: [
-              "Document intake recorded.",
-              `Document type: ${documentType}`,
-              `Selected file(s):\n${fileSummary}`,
-              notes ? `Staff note: ${notes}` : ""
-            ].filter(Boolean).join("\n\n"),
-            idempotencyKey,
-            visibility: "INTERNAL"
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST"
-        });
       } else {
+        setSaveFailed(true);
         setSavedMessage("This CRM action is not wired yet.");
         return;
       }
 
       const result = await response.json().catch(() => null) as DirectActionResult | null;
       if (!response.ok) {
+        setSaveFailed(true);
         setSavedMessage(result?.error ?? "This CRM action could not be saved right now.");
         return;
       }
@@ -211,9 +177,21 @@ export function CrmNextDirectActionForm({
           ? `${successMessage} Case ${result.concern.concernNumber} was created.`
           : successMessage
       );
+    } catch {
+      setSaveFailed(true);
+      setSavedMessage("Connection interrupted. Your text is still here. Try saving again; the same request will not create a duplicate.");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (isDocumentUpload) {
+    const query = new URLSearchParams({ ownerId: customerId ?? "", ownerLabel: customerName });
+    return <section className={styles.directActionForm} aria-label="Customer document upload">
+      <p>Upload and review files in Document Library with this customer already selected. Saving a note does not upload a file.</p>
+      {!needsCustomerContext ? <Link className={styles.primaryButton} href={`/documents?${query}`}>Open customer document upload</Link> : <p role="alert">Select a verified customer before uploading documents.</p>}
+      <Link href={cancelHref}>Back to customer</Link>
+    </section>;
   }
 
   return (
@@ -292,31 +270,10 @@ export function CrmNextDirectActionForm({
         </label>
       ))}
       {children}
-      {isDocumentUpload ? (
-        <div className={styles.directFileUpload} aria-label="Document file selection">
-          <label>
-            <span>Choose files</span>
-            <input accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt" multiple onChange={(event) => stageSelectedFiles(event.currentTarget.files)} type="file" />
-          </label>
-          {selectedFiles.length ? (
-            <ul>
-              {selectedFiles.map((file) => (
-                <li key={file.id}>
-                  <div>
-                    <strong>{file.name}</strong>
-                    <small>{formatFileSize(file.size)} · {file.type}</small>
-                  </div>
-                  <a href={file.previewUrl} rel="noreferrer" target="_blank">View file</a>
-                </li>
-              ))}
-            </ul>
-          ) : <small>No files selected yet.</small>}
-        </div>
-      ) : null}
       <div className={styles.directActionFooter}>
         <button
           data-success-message={successMessage}
-          disabled={!canSave || isSaving}
+          disabled={needsCustomerContext || !canSave || isSaving}
           onClick={() => void saveAction()}
           type="button"
         >
@@ -324,7 +281,7 @@ export function CrmNextDirectActionForm({
         </button>
         <Link href={cancelHref}>Cancel</Link>
       </div>
-      {savedMessage ? <p className={styles.directActionSaved} role="status">{savedMessage}{savedHref ? <> <Link href={savedHref}>Open task</Link></> : null}</p> : null}
+      {savedMessage ? <p className={saveFailed ? styles.inlineActionNotice : styles.directActionSaved} role={saveFailed ? "alert" : "status"}>{savedMessage}{savedHref ? <> <Link href={savedHref}>Open task</Link></> : !saveFailed ? <> <Link href={cancelHref}>Review customer record</Link></> : null}</p> : null}
     </div>
   );
 }

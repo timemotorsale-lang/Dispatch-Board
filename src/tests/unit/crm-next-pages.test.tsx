@@ -262,7 +262,7 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Inline CRM action composer");
     expect(work).toContain("Add CRM Task");
     expect(work).toContain("Add Note");
-    expect(work).toContain("Disposition");
+    expect(work).toContain("Record outcome note");
     expect(work).toContain('aria-pressed="true"');
     expect(work).toContain("<button");
     expect(work).toContain("Reviewed");
@@ -484,10 +484,10 @@ describe("CRM Next pages", () => {
     expect(caseAction).toContain("Manager review is triggered");
     expect(caseAction).toContain('data-success-message="Case prepared for Customer record unavailable');
     expect(uploadAction).toContain("Upload customer document");
-    expect(uploadAction).toContain("Choose files");
-    expect(uploadAction).toContain("Save Document Record");
-    expect(uploadAction).toContain("Document context saves to the customer timeline");
-    expect(uploadAction).toContain('data-success-message="Document record saved to Customer record unavailable');
+    expect(uploadAction).toContain("Document Library");
+    expect(uploadAction).toContain("Saving a note does not upload a file.");
+    expect(uploadAction).toContain("Select a verified customer before uploading documents.");
+    expect(uploadAction).not.toContain('type="file"');
   });
 
   it("renders the executable revenue desk without staff review workflow language", async () => {

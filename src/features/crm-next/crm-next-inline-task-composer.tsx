@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { CalendarDays, CheckCircle2, ClipboardCheck, FileText, Mail, MessageSquare, Phone } from "lucide-react";
-import { useMemo, useState } from "react";
-
+import { useState } from "react";
+import { CrmNextDirectActionForm } from "./crm-next-direct-action-form";
 import styles from "./crm-next-shell.module.css";
 
 const COMMUNICATION_ACTIONS = [
@@ -13,123 +13,57 @@ const COMMUNICATION_ACTIONS = [
 ] as const;
 
 const INLINE_ACTIONS = [
-  { id: "task", label: "Add CRM Task", icon: ClipboardCheck, prompt: "Type the task staff should complete for this customer.", defaultNote: "" },
-  { id: "note", label: "Add Note", icon: FileText, prompt: "Record a quick customer note.", defaultNote: "Customer note:" },
-  { id: "disposition", label: "Disposition", icon: CheckCircle2, prompt: "Record the customer outcome before moving the journey stage.", defaultNote: "Customer outcome:" }
+  { id: "task", label: "Add CRM Task", icon: ClipboardCheck },
+  { id: "note", label: "Add Note", icon: FileText },
+  { id: "disposition", label: "Record outcome note", icon: CheckCircle2 }
 ] as const;
 
 type InlineActionId = typeof INLINE_ACTIONS[number]["id"];
 
 export function CrmNextInlineTaskComposer({
-  appointmentHref,
-  customerName,
-  nextAction,
-  onProgressUpdate,
-  owner
+  appointmentHref, customerId, customerName, nextAction, owner
 }: {
   appointmentHref: string;
+  customerId?: string;
   customerName: string;
   nextAction: string;
-  onProgressUpdate?: (stage: string, summary: string) => void;
   owner: string;
 }) {
   const [activeAction, setActiveAction] = useState<InlineActionId | null>(null);
   const [heldAction, setHeldAction] = useState<string | null>(null);
-  const [taskNote, setTaskNote] = useState(nextAction);
-  const [dueWindow, setDueWindow] = useState("Today");
-  const [savedTask, setSavedTask] = useState<{ action: string; note: string } | null>(null);
-  const canSave = taskNote.trim().length > 2;
-  const action = INLINE_ACTIONS.find((item) => item.id === activeAction) ?? null;
-  const saveLabel = action?.id === "task" ? "CRM Task" : action?.label;
-
-  const savedSummary = useMemo(() => {
-    if (!savedTask) return null;
-    return `${savedTask.action}: ${savedTask.note} · ${dueWindow} · Owner: ${owner}`;
-  }, [dueWindow, owner, savedTask]);
-
-  function chooseAction(actionId: InlineActionId) {
-    const next = INLINE_ACTIONS.find((item) => item.id === actionId) ?? INLINE_ACTIONS[0];
-    setHeldAction(null);
-    setActiveAction((current) => current === actionId ? null : actionId);
-    setTaskNote(next.id === "task" ? nextAction : next.defaultNote);
-  }
-
+  const action = INLINE_ACTIONS.find((item) => item.id === activeAction);
+  const customerHref = customerId ? `/crm-next/customers/${encodeURIComponent(customerId)}` : "/crm-next/customers";
   return (
     <section className={styles.inlineTaskComposer} aria-label="Inline CRM action composer">
       <div className={styles.inlineActionBar} aria-label="CRM actions">
         {COMMUNICATION_ACTIONS.map((item) => {
           const Icon = item.icon;
-          return (
-            <button key={item.id} onClick={() => setHeldAction(item.label)} type="button">
-              <Icon size={16} />
-              {item.label}
-            </button>
-          );
+          return <button key={item.id} onClick={() => setHeldAction(item.label)} type="button"><Icon size={16} />{item.label}</button>;
         })}
-        <Link
-          className={styles.appointmentInlineAction}
-          href={appointmentHref}
-          onClick={() => onProgressUpdate?.("Appointment Scheduled", "Appointment scheduling opened from this workbench.")}
-        >
-          <CalendarDays size={16} />
-          Schedule Appt
-        </Link>
+        <Link className={styles.appointmentInlineAction} href={appointmentHref}><CalendarDays size={16} />Schedule Appt</Link>
         {INLINE_ACTIONS.map((item) => {
           const Icon = item.icon;
-          return (
-            <button aria-pressed={activeAction === item.id} key={item.id} onClick={() => chooseAction(item.id)} type="button">
-              <Icon size={16} />
-              {item.label}
-            </button>
-          );
+          return <button aria-pressed={activeAction === item.id} key={item.id} onClick={() => { setHeldAction(null); setActiveAction((current) => current === item.id ? null : item.id); }} type="button"><Icon size={16} />{item.label}</button>;
         })}
       </div>
-      {heldAction ? (
-        <p className={styles.inlineActionNotice}>{heldAction} is not wired yet. It will connect here once the live communication provider is ready.</p>
-      ) : null}
+      {heldAction ? <p className={styles.inlineActionNotice}>{heldAction} needs a configured communication provider. No message was sent. Use Add Note to record a call or follow-up made outside the app.</p> : null}
       {action ? (
         <div className={styles.inlineActionDrawer}>
-          <header>
-            <div>
-              <strong>{action.label}</strong>
-              <span>{action.prompt} Keep it on {customerName}&apos;s CRM record.</span>
-            </div>
-            <button onClick={() => setActiveAction(null)} type="button">Close</button>
-          </header>
-          <label>
-            <span>{action.id === "task" ? "Task" : "Note / outcome"}</span>
-            <textarea
-              onChange={(event) => setTaskNote(event.target.value)}
-              placeholder={action.prompt}
-              rows={3}
-              value={taskNote}
-            />
-          </label>
-          <div className={styles.inlineTaskComposerRow}>
-            <label>
-              <span>Due</span>
-              <select onChange={(event) => setDueWindow(event.target.value)} value={dueWindow}>
-                <option>Today</option>
-                <option>Tomorrow</option>
-                <option>This week</option>
-                <option>Next visit</option>
-              </select>
-            </label>
-            <button
-              disabled={!canSave}
-              onClick={() => {
-                const note = taskNote.trim();
-                setSavedTask({ action: action.label, note });
-                if (action.id === "disposition") onProgressUpdate?.("Visit Follow-up", note || "Customer outcome recorded.");
-              }}
-              type="button"
-            >
-              Save {saveLabel}
-            </button>
-          </div>
+          <header><div><strong>{action.label}</strong><span>{customerName} · Owner: {owner}</span></div><button onClick={() => setActiveAction(null)} type="button">Close</button></header>
+          <CrmNextDirectActionForm
+            key={action.id}
+            actionId={action.id === "task" ? "new-task" : "add-note"}
+            cancelHref={customerHref}
+            customerId={customerId}
+            customerName={customerName}
+            disabled={!customerId}
+            fields={action.id === "task" ? [{ label: "Task", placeholder: nextAction }, { label: "Due", placeholder: "Choose due date" }] : [{ label: "Note", placeholder: action.id === "disposition" ? "Record the customer outcome and next agreed step. This note does not change the lifecycle stage." : "Record a customer note." }]}
+            nextAction={nextAction}
+            saveLabel={action.id === "task" ? "Save CRM Task" : "Save Note"}
+            successMessage={action.id === "task" ? "CRM task saved to the customer timeline and your staff queue." : action.id === "disposition" ? "Outcome note saved. Customer lifecycle stage is unchanged." : "Note saved to the customer timeline."}
+          />
         </div>
       ) : null}
-      {savedSummary ? <p className={styles.inlineTaskSaved}>{savedSummary}</p> : null}
     </section>
   );
 }
