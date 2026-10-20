@@ -7,6 +7,10 @@ function titlesFor(query: string) {
 }
 
 describe("workflow finder registry", () => {
+  it("finds the money tool through staff spending language", () => {
+    expect(titlesFor("daily journal")).toContain("Money & Resources");
+    expect(searchWorkflowFinder("petty cash").find(result => result.title === "Money & Resources")?.href).toBe("/money-resources");
+  });
   it("finds inventory lifecycle even when staff misspell lifecycle", () => {
     expect(titlesFor("inventory lifcycle")).toContain("Inventory Lifecycle");
   });

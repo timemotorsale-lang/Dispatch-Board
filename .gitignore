@@ -34,4 +34,5 @@ blob-report/
 .dispatch-board-data/
 tmp/database-backups/
 tmp/deal-continuity/
+tmp/money-resources/
 deploy/docker/import-release-approval.json

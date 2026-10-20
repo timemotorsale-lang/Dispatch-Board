@@ -9,6 +9,16 @@ It is built for two kinds of users:
 
 This project is an internal operations tool. It is not a DealerCenter replacement, a CRM, an accounting system, or a full repair-order platform.
 
+## Money & Resources
+
+Open `/money-resources`, or Workbook → More Tools → Money & Resources. Staff can record spending without a receipt, attach evidence later, request funds, record unused funds returned, and account for assigned company cards. Vehicle cost and repair-order links retain the existing canonical context. Managers can review other staff's records, record actual fund handovers and reimbursements, import posted card CSVs, match approved records, and export/print a daily operational journal.
+
+Apply the additive `20261020010000_money_resources` migration after a verified backup. Financial audit events and cash review snapshots are append-only; original money facts are retained through corrections. Staff access is limited to their organization and own records. Receipt bytes use the existing private Document Library storage adapter and restricted document records. Production receipt storage must be configured separately.
+
+Managers can select any active company card in their organization when recording spending on behalf of its assigned cardholder. The cardholder remains responsible, the audit identifies the person who entered it, and a different manager must review the entry. Staff still see only their own authorized cards. Use **Add company card** beside the funding selector to save and select a new card without clearing the purchase form.
+
+This is an operational accountability tool, not a bank integration or posted general ledger. It does not move money, enforce issuer-side card limits, pay reimbursements, make payroll deductions, or automatically duplicate inventory costs. Statement CSV headers are `transaction_id,date,merchant,amount` (ISO dates, USD; purchases positive, credits/payments negative). Every import needs stable issuer transaction IDs. Spending links to an existing matching inventory cost when supplied; otherwise use the existing vehicle-cost workflow for accounting allocation. Customer collections remain in their existing receipt workflow.
+
 ## Core MVP workflow
 
 The MVP is centered on the daily dispatch workflow:

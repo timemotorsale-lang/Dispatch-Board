@@ -70,6 +70,7 @@ export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?:
   };
 
   return <section className={styles.workspace} id="manager-top">
+    <Link href="/money-resources?action=review">Money & Resources · Review spending and funds</Link>
     <header className={styles.hero}>
       <div><p>Manager Workspace</p><h1>{getTimeAwareGreeting(model.user.name)}</h1><span>One calm workspace for direction, operations, and hands-on execution.</span></div>
       <nav aria-label="Manager workspace modes">{modes.map(item => { const Icon = item.icon, disabled = item.id === "CEO" && !model.user.canUseCeo || item.id === "COO" && !model.user.canUseCoo; return <button aria-pressed={mode === item.id} disabled={disabled} key={item.id} onClick={() => selectMode(item.id)} type="button"><Icon /><span><strong>{item.label}</strong><small>{item.eyebrow}</small></span></button>; })}</nav>
