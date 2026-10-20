@@ -1,0 +1,51 @@
+import { readFileSync } from "node:fs";
+import { test, expect } from "@playwright/test";
+
+test.skip(process.env.RUN_COMPLIANCE_BROWSER !== "1", "Requires a disposable compliance database and manager session.");
+test("compact lease entry, reconciliation, worksheet export and filing handoff", async ({ browser, baseURL }) => {
+  test.setTimeout(120000);
+  const fixture = JSON.parse(readFileSync("tmp/compliance/browser-fixture.json", "utf8"));
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "dispatch-board-session", value: fixture.token, url: baseURL! }]);
+  const page = await context.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  try {
+    await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: { error: "Outside tax review" } }));
+    await page.goto(`${baseURL}/compliance`);
+    await expect(page.getByRole("heading", { name: "Compliance · Lease tax", exact: true })).toBeVisible();
+    await expect(page.getByText("Loading tax records…", { exact: true })).toBeHidden();
+    await page.getByLabel("Reporting month").fill("2026-07");
+    await expect(page.getByText("Loading tax records…", { exact: true })).toBeHidden();
+    await page.getByLabel("Contract / deal reference").fill(`BROWSER-${Date.now()}`);
+    await page.getByLabel("Lease execution / tax-event date").fill("2026-07-01");
+    await page.getByLabel("Customer name", { exact: true }).fill("Browser review customer");
+    await page.getByLabel("Vehicle / VIN / stock number").fill("Browser review vehicle");
+    await page.getByLabel("Agreed vehicle value ($)", { exact: true }).fill("10000");
+    await page.getByLabel("Signed contract tax ($)").fill("687.50");
+    await page.getByLabel("Principal garaging address").fill("Verified Minnesota address");
+    await page.getByLabel("I verified local codes/rates", { exact: false }).check();
+    await page.getByLabel("Reviewed as an eligible upfront-tax lease", { exact: false }).check();
+    await expect(page.getByText("Taxable lease price $10,000.00 · Total upfront tax $687.50", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Save contract", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("Contract recorded");
+    await expect(page.getByText("1 leases · 0 vehicle sales (excluded) · 0 leases need review")).toBeVisible();
+    await page.getByRole("button", { name: "Review saved contract" }).click();
+    await expect(page.getByText("Browser review customer", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Close details", exact: true }).click();
+    const download = page.waitForEvent("download"); await page.getByRole("button", { name: "Download CSV" }).click();
+    expect((await download).suggestedFilename()).toBe("lease-tax-2026-07.csv");
+    const print = await context.newPage(); await print.goto(`${baseURL}/compliance/tax/print?month=2026-07`);
+    await expect(print.getByRole("heading", { name: "Total lease tax $687.50", exact: true })).toBeVisible(); await print.close();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole("button", { name: "Record filing confirmation & lock worksheet" })).toBeVisible();
+    expect(await page.locator("main").last().evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await page.getByLabel("Actual filing date").fill("2026-08-01");
+    await page.getByLabel("e-Services confirmation reference").fill("ISOLATED-NOT-A-REAL-FILING");
+    await page.getByLabel("I reviewed the contracts, local lines and period").check();
+    await page.getByRole("button", { name: "Record filing confirmation & lock worksheet" }).click();
+    await expect(page.getByRole("status")).toContainText("worksheet is now locked");
+    await expect(page.getByLabel("Payment confirmation reference")).toBeVisible();
+    await page.screenshot({ path: "tmp/compliance/mobile-review.png", fullPage: true });
+    expect(errors).toEqual([]);
+  } finally { await context.close(); }
+});

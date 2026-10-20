@@ -471,6 +471,14 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       dispatchBoardNavigationItem,
       {
+        href: "/compliance",
+        title: "Compliance",
+        description: "Prepare upfront lease tax, review monthly worksheets, and record filing evidence.",
+        icon: ShieldCheck,
+        badge: "Review",
+        isVisible: (user) => isManager(user)
+      },
+      {
         href: "/time-attendance",
         title: "Time & Attendance",
         description: "Time cards, corrections, review, and payroll handoff.",
@@ -500,14 +508,6 @@ export const navigationGroups: NavigationGroup[] = [
         title: "People & HR",
         description: "Employee operations and controlled HR records.",
         icon: Users,
-        badge: "Planned",
-        disabled: true
-      },
-      {
-        href: "/compliance",
-        title: "Compliance",
-        description: "Licenses, permits, renewals, and evidence.",
-        icon: ShieldCheck,
         badge: "Planned",
         disabled: true
       },

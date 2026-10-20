@@ -1257,3 +1257,6 @@ Update this snapshot whenever:
 - An Enterprise Appointment milestone passes.
 - Production deployment or release evidence changes.
 - A placeholder surface becomes a live production workflow.
+## 2026-10-20 — Compliance upfront lease-tax tool (review implementation)
+
+`/compliance` provides manager-only, organization-scoped manual lease entry, canonical customer/vehicle search, server-side upfront tax calculation, individual verified local tax lines, contract-tax reconciliation flags, a separate vehicle-sales register, monthly CSV/print worksheets, immutable external filing/payment confirmations and append-only audit history. New customer installment payments do not repeat the original lease-tax event. See `COMPLIANCE_UPFRONT_LEASE_TAX.md` for scope, setup and limitations. This is lease-only preparation under an explicitly selected upfront-tax assumption, not complete-return preparation, legal approval, automatic filing or payment. Production remains unchanged. Licenses, permits, use-tax purchases, renewal/rental exceptions, amendments and automatic deal import are not implemented by this slice.
