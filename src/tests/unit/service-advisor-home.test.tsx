@@ -1014,7 +1014,9 @@ describe("ServiceAdvisorHome", () => {
     expect(focusCompassHtml).toContain("Year");
     expect(moreToolsHtml).toContain("Service Advisor Workbook More Tools");
     expect(moreToolsHtml).toContain("Each tool opens a real workbook area");
-    expect(moreToolsHtml).toContain("14 tools");
+    expect(moreToolsHtml).toContain("15 tools");
+    expect(moreToolsHtml).toContain("Compliance · Lease tax");
+    expect(moreToolsHtml).toContain('href="/compliance"');
     expect(moreToolsHtml).toContain("Money &amp; Resources");
     expect(moreToolsHtml).toContain('href="/money-resources"');
     expect(moreToolsHtml).toContain("Focus Compass");
