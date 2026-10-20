@@ -41,12 +41,19 @@ describe("enterprise shell navigation", () => {
 
     expect(planned.map((item) => item.title)).toEqual([
       "People & HR",
-      "Compliance",
       "Legal & Accounting",
       "Library & Training",
       "Insights"
     ]);
     expect(planned.every((item) => item.badge === "Planned")).toBe(true);
+  });
+
+  it("opens compliance review for managers while hiding the tax tool from staff navigation", () => {
+    expect(linksFor(user()).find((item) => item.href === "/compliance")).toBeUndefined();
+    const compliance = linksFor(user({ roles: ["General Manager"] })).find((item) => item.href === "/compliance");
+    expect(compliance).toMatchObject({ title: "Compliance", badge: "Review" });
+    expect(compliance?.disabled).not.toBe(true);
+    expect(linksFor(user({ duties: { direct: [], roleDefaults: [], all: ["Delegated manager capabilities"] } })).some((item) => item.href === "/compliance")).toBe(true);
   });
 
   it("exposes administration and settings navigation only to managers", () => {

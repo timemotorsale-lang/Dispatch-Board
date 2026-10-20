@@ -3,6 +3,52 @@ generator client {
   binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
+model ComplianceTaxRecord {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  reference String
+  kind String
+  month String
+  snapshot Json
+  status String @default("ACTIVE")
+  version Int @default(1)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, reference, kind])
+  @@index([organizationId, month])
+}
+
+model ComplianceTaxPeriod {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  month String
+  status String @default("DRAFT")
+  snapshot Json?
+  filingReference String?
+  filedAt String?
+  paymentReference String?
+  paidAt String?
+  paidCents Int?
+  version Int @default(1)
+  @@unique([organizationId, month])
+}
+
+model ComplianceTaxAudit {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorId String
+  month String
+  recordId String?
+  action String
+  details Json
+  createdAt DateTime @default(now())
+  @@index([organizationId, month, createdAt])
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -2435,6 +2481,9 @@ model MoneyDailyClose {
 }
 
 model Organization {
+  complianceTaxRecords ComplianceTaxRecord[]
+  complianceTaxPeriods ComplianceTaxPeriod[]
+  complianceTaxAudits ComplianceTaxAudit[]
   purchasingAuthorizations MoneyPurchasingAuthorization[]
   purchaseApprovals MoneyPurchaseApproval[]
   moneyAccounts MoneyAccount[]
