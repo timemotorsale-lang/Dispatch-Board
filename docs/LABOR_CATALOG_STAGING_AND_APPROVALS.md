@@ -49,6 +49,8 @@ Once the reviewed workflow is available on the repository's default branch, run 
 
 The workflow uses a disposable PostgreSQL 17 service. It applies the deployed baseline's migrations, then candidate migrations and the isolated tests. It takes a database backup, restores it into a second disposable database, and compares every table's row counts and ordered row-content checksums, including customer/vehicle/RO/estimate/decision/job/clock/QC/audit tables. The workflow uploads `labor-staging-proof-<revision>` even after a failure when logs exist. No production connection or secret is used.
 
+The restore manifest serializes explicit composite rows, including tables with JSON columns named `snapshot` or matching the SQL alias. Regression tests cover alias collisions, non-JSON field changes, restored values and empty tables. A failed comparison or verifier error keeps recovery evidence on HOLD; do not substitute an unverified PASS. `RUN_RESTORE_MANIFEST_DB_TESTS=1` runs the database regression only against a disposable loopback `compliance_review_` database.
+
 This workflow is implemented but must be run on GitHub for the committed candidate. A local fresh-schema run is not an upgrade from the deployed revision. Disposable synthetic-data restoration does not establish production-scale recovery time, external document/evidence file restoration or application/schema rollback compatibility. Those remain separate recorded operator rehearsals.
 
 ## 4. Complete the remaining acceptance proof
