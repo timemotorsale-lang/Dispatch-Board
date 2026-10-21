@@ -3,6 +3,30 @@ import { describe, expect, it } from "vitest";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 
 describe.skipIf(process.env.RUN_LABOR_STAGING_INTEGRATION !== "1")("isolated labor catalog PostgreSQL proof", () => {
+  it("repairs missing staff company membership without granting schedule or manager powers", async () => {
+    if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Explicit isolated staging confirmation is required.");
+    assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
+    const { prisma } = await import("@/server/db/client");
+    const { assignStaffCompanyAccess, staffCompanyAccess } = await import("@/server/money-resources/staff-access");
+    const { moneyAccess } = await import("@/server/money-resources/service");
+    const prefix = `staff-scope-${randomUUID()}`, organizationId = `${prefix}-org`;
+    const manager = { id: `${prefix}-manager`, name: "Synthetic access manager", email: `${prefix}-manager@example.test`, isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
+    const worker = { ...manager, id: `${prefix}-worker`, email: `${prefix}-worker@example.test`, roles: ["Mechanic"] };
+    await prisma.organization.create({ data: { id: organizationId, code: prefix, name: "Synthetic staff access proof" } });
+    const location = await prisma.location.create({ data: { organizationId, code: prefix, name: prefix, city: "Review", region: "MN", timezone: "America/Chicago" } });
+    for (const actor of [manager, worker]) await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "synthetic-disabled-login" } });
+    await prisma.userLocationAccess.create({ data: { userId: manager.id, locationId: location.id, validFrom: new Date("2020-01-01") } });
+    expect((await staffCompanyAccess(manager, worker.id)).status).toBe("MISSING");
+    await expect(moneyAccess(worker)).rejects.toThrow("not assigned");
+    const request = { userId: worker.id, locationId: location.id, reason: "Synthetic approved employee company assignment." };
+    await expect(assignStaffCompanyAccess(worker, request)).rejects.toThrow("Only the General Manager");
+    await assignStaffCompanyAccess(manager, request);
+    expect(await moneyAccess(worker)).toMatchObject({ organizationId, manager: false });
+    expect(await prisma.userLocationAccess.findUniqueOrThrow({ where: { userId_locationId: { userId: worker.id, locationId: location.id } } })).toMatchObject({ canViewSchedule: false, canParticipate: false, canOwnAppointments: false, canManageAppointments: false, canViewLimitedData: false });
+    await assignStaffCompanyAccess(manager, request);
+    expect(await prisma.enterpriseAuditEvent.count({ where: { organizationId, eventType: "STAFF_COMPANY_ACCESS_GRANTED", subjectId: worker.id } })).toBe(1);
+  }, 30_000);
+
   it("initializes missing rollout controls only on authorized changes and audits concurrent configuration", async () => {
     if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Explicit isolated staging confirmation is required.");
     assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
