@@ -32482,6 +32482,64 @@ html[data-app-theme="dark"] .app-content :where(
   height: 16px;
 }
 
+.calendar-detail-dialog {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: min(600px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #bfd0e5;
+  border-radius: 12px;
+  background: var(--surface-strong, #fff);
+  color: var(--ink, #172c46);
+  box-shadow: 0 24px 60px rgb(18 38 68 / 25%);
+}
+
+.calendar-detail-dialog::backdrop { background: rgb(12 23 41 / 35%); }
+.calendar-detail-dialog-form { padding: 14px; }
+.calendar-detail-dialog-form > header {
+  position: sticky;
+  top: -14px;
+  z-index: 2;
+  background: var(--surface-strong, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #d7e1ee;
+}
+.calendar-detail-dialog-form button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid #bfd0e5;
+  border-radius: 7px;
+  background: #fff;
+  color: #172c46;
+  font: inherit;
+  cursor: pointer;
+}
+.calendar-detail-dialog-form .primary { background: #075ed8; color: #fff; }
+.calendar-detail-dialog-form .calendar-enterprise-draft-form { gap: 10px; }
+.calendar-detail-dialog-form .calendar-enterprise-draft-form input,
+.calendar-detail-dialog-form .calendar-enterprise-draft-form select,
+.calendar-detail-dialog-form .calendar-enterprise-draft-form textarea { min-width: 0; box-sizing: border-box; font-size: 14px; }
+.calendar-detail-dialog-form .calendar-enterprise-draft-form footer {
+  position: sticky;
+  bottom: -14px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  background: var(--surface-strong, #fff);
+}
+@media (max-width: 480px) {
+  .calendar-detail-dialog .calendar-enterprise-draft-row { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Scoped to the optional compact task review. */
 .task-status-badge { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 8px; border: 1px solid #d6e0ea; border-radius: 5px; background: #f3f6fa; color: #35465b; font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .task-status-badge:disabled { cursor: default; opacity: 1; }

@@ -1870,6 +1870,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     { description: latestReportDraft ? `Saved ${dateLabel(latestReportDraft.generatedAt)}` : "No draft saved yet", href: "/vehicles/coo-workbook/drafts", icon: Clock3, title: "Drafts" }
   ];
   const moreToolCards: MoreToolCard[] = [
+    { description: "Prepare upfront lease tax and review monthly state/local tax lines.", href: "/compliance", icon: ShieldCheck, outcome: "One saved contract record, lease-only worksheet and external filing/payment evidence.", title: "Compliance · Lease tax", whenToUse: "Authorized managers preparing monthly lease-tax reporting; confirm contract eligibility and local rates first." },
+    { description: "Record spending and receipts, account for issued funds, and review company-card transactions.", href: "/money-resources", icon: FileText, outcome: "One saved money record with a responsible person, evidence and next action.", title: "Money & Resources", whenToUse: "Whenever staff spend company money, need funds, return a balance, or management needs a daily journal." },
     { description: "One simple compass for Now, Next, Risk, Reset, and Alignment across today, week, month, quarter, and year.", href: "/vehicles/coo-workbook/focus-compass", icon: Gauge, outcome: "Staff see what matters most without learning five different tools.", title: "Focus Compass", whenToUse: "Use at the start of the day, weekly planning, month review, or when the team is scattered." },
     { description: "Search prior unfinished work and restore the right item to today’s focus, checklist, or action plan without duplicating it.", href: "/vehicles/coo-workbook/bring-forward", icon: ClipboardList, outcome: "Older work keeps its source trail while becoming visible in Today’s Work again.", title: "Bring Forward Work", whenToUse: "Use during Start The Day or anytime an older customer, vehicle, or task resurfaces." },
     { description: "Capture VIN, mileage, condition, seller, price, and document proof before TAI makes a purchase or appraisal recommendation.", href: "/vehicles/coo-workbook/purchase-appraisal-capture", icon: CarFront, outcome: "TAI receives a clean review packet without changing inventory, customer, quote, invoice, or appraisal records.", title: "Purchase / Appraisal Capture", whenToUse: "Use before auction bids, outside purchases, trade-in appraisals, wholesale reviews, or manager buy decisions." },
@@ -4364,6 +4366,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <span>A simple daily workspace for planning, execution, accountability, and reporting.</span>
       </div>
       <div className="advisor-coo-header-actions">
+        <Link href="/money-resources"><FileText /> Record spending</Link>
         <Link href={scopedWorkbookHref("/vehicles/coo-workbook/effectiveness-pilot#start-the-day")}><ClipboardCheck /> Start The Day</Link>
         <Link href={scopedWorkbookHref("/vehicles/coo-workbook/bring-forward")}><ClipboardList /> Bring Forward</Link>
         <Link href={scopedWorkbookHref("/vehicles/coo-workbook/quick-update")}><MessageSquareText /> Quick Update</Link>

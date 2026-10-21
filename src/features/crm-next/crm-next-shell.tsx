@@ -119,7 +119,7 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
         { label: "Task", placeholder: nextAction },
         { label: "Due", placeholder: "Today" }
       ],
-      status: `This creates a CRM task on ${customerName}'s record. It does not become a dispatch task unless staff hand it off.`,
+      status: `Save a follow-up linked to ${customerName}'s record and assigned to you in the shared staff task queue.`,
       title: "Create CRM task"
     };
   }
@@ -157,7 +157,7 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
         { label: "Document type", placeholder: "Insurance, ID, title, proof, or other customer document" },
         { label: "Notes", placeholder: "What is this file proving or supporting?" }
       ],
-      status: "Choose the file, classify it, and save the document record to the customer timeline.",
+      status: "Open Document Library with this customer selected to upload, classify, and review the actual file.",
       title: "Upload customer document"
     };
   }
@@ -3079,6 +3079,7 @@ export function CrmNextWorkCustomerView({
             />
 
             <CrmNextInlineTaskComposer
+              customerId={item.customerId}
               appointmentHref={crmNextCustomerAppointmentHref({
                 customerId: item.customerId,
                 customerName: item.customerName,
@@ -3087,7 +3088,6 @@ export function CrmNextWorkCustomerView({
               })}
               customerName={item.customerName}
               nextAction={item.nextAction}
-              onProgressUpdate={updateJourneyStage}
               owner={item.owner}
             />
           </section>

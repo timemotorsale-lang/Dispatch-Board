@@ -1,3 +1,5 @@
+import { persistDealContext } from "@/server/deal-continuity/service";
+import { dealCustomer } from "@/server/deal-continuity/identities";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -55,17 +57,25 @@ export async function saveDealDeskDraft(actor: AuthenticatedUser | null, raw: Re
   const snapshot = sanitizeDealDraftSnapshot(JSON.parse(serialized)) as Prisma.InputJsonValue;
   const data = { snapshot, pathway, customerId: text(raw.customerId) || null, customerName: text(raw.customerName) || "Customer not selected", vehicleReference: text(raw.vehicleReference) };
   return prisma.$transaction(async (db) => {
+    const identity = (snapshot as Record<string, unknown>)["desk:identity"] as Record<string, unknown> | undefined;
+    if (identity?.customerId && data.customerId) data.customerName = (await dealCustomer(actor, data.customerId, db)).name;
     const current = await db.dealDeskDraft.findUnique({ where: { id } });
     const status = raw.status === undefined ? current?.status ?? "IN_PROGRESS" : raw.status as string;
     const history = Array.isArray(current?.statusHistory) ? current.statusHistory : [];
     const statusData = { status, ...(!current || current.status !== status ? { statusHistory: [...history, { from: current?.status ?? null, to: status, actorId: access.ownerUserId, at: new Date().toISOString() }] as Prisma.InputJsonValue } : {}) };
     if (!current) {
       if (raw.revision !== 0) throw new SalesDocumentsError("Saved draft was not found. Refresh before continuing.", 409);
-      return db.dealDeskDraft.create({ data: { id, ...access, ...data, ...statusData } });
+      const created = await db.dealDeskDraft.create({ data: { id, ...access, ...data, ...statusData } });
+      await persistDealContext(actor, db, id, data.customerId, snapshot as Record<string, unknown>);
+      return created;
     }
     if (current.organizationId !== access.organizationId || current.ownerUserId !== access.ownerUserId) throw new SalesDocumentsError("Saved deal draft was not found.", 404);
+    const previousIdentity = current.snapshot && typeof current.snapshot === "object" && !Array.isArray(current.snapshot) ? current.snapshot["desk:identity"] : null;
+    if (previousIdentity && typeof previousIdentity === "object" && !Array.isArray(previousIdentity) && previousIdentity.customerId && !identity?.customerId) throw new SalesDocumentsError("Keep the shared customer link when saving this deal. Use the selector to change customer through a separate deal.");
+    if (current.pathway !== pathway && await db.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before changing its deal path.", 409);
     const updated = await db.dealDeskDraft.updateMany({ where: { id, ...access, revision: Number(raw.revision) }, data: { ...data, ...statusData, revision: { increment: 1 } } });
     if (updated.count !== 1) throw new SalesDocumentsError("This draft was changed in another window. Reopen the saved draft before continuing; your current entries have not been replaced.", 409);
+    await persistDealContext(actor, db, id, data.customerId, snapshot as Record<string, unknown>);
     return db.dealDeskDraft.findUniqueOrThrow({ where: { id } });
   });
 }

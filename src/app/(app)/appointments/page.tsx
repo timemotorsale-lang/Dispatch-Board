@@ -23,6 +23,7 @@ type AppointmentsPageProps = {
     managerMode?: string;
     launch?: string;
     customerReference?: string;
+    crmCustomerId?: string;
     vehicleReference?: string;
     reason?: string;
     title?: string;
@@ -74,6 +75,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     return (
       <AppointmentConsoleNewAppointment
         initialContext={{
+          crmCustomerId: focusParams?.crmCustomerId,
           customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
           localDate: focusParams?.localDate ?? "",
           reason: focusParams?.reason ?? sourceTask?.description ?? "",

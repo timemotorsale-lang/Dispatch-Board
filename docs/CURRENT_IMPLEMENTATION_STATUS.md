@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-10-20 — Inventory simplification reconciliation for release
+
+The owner has explicitly authorized merging current `main` into this branch, resolving conflicts, validating the combined implementation and deploying through a pull request. This supersedes the earlier instruction not to merge/deploy this checkpoint; it does not represent automatic design adoption or permission to weaken financial, authorization, QC or other in-app safeguards. Preserve newer CRM, purchasing, compliance and deployment changes from `main`, including removal of the global Labor Pilot evidence gate. Earlier dated checkpoint and release-hold entries below describe their historical state, not a new global deployment prerequisite. Production promotion remains subject to successful current CI, backup/restore, migration and health checks.
+
 ## 2026-10-18 - Unapproved Repair Workflow Checkpoint
 
 The user does not approve the current workbench design. This branch is a work-in-progress checkpoint for later refinement, not an adopted workflow or production release candidate. Preserve the existing default experience. Do not merge, deploy or treat completed automated checks as design acceptance.
@@ -152,6 +156,9 @@ The two additive migrations were rehearsed only in isolated local schemas. No or
 The audit in `docs/LABOR_GUIDE_DOCUMENT_WORKFLOW_AUDIT.md` distinguishes the completed catalog/controls from enterprise customer-service readiness. Existing canonical ROs, printable official estimates, authorization, jobs/clocks/QC, invoice-ready handoff and reporting foundations should be reused. Fourteen findings identify commercial calculation/reconciliation, portal money/scope/freshness, location-read authorization, response-loss retry, delivery evidence, historical document, billing-authority and reporting/acceptance gaps. Eight isolated mocked scenarios reproduced undesirable current behavior; 68 existing focused tests across 13 files still passed. These reproductions are audit evidence, not newly passing release acceptance or proof of live customer impact.
 
 The audit changed documentation only. No application/schema changes, production access, customer decisions, communications, policy activations, deployment, commit or push were performed. Full enterprise customer approval/invoice/report release remains HOLD until the applicable findings and native-versus-external billing decision are resolved and genuine staged acceptance/recovery evidence exists. This does not require approval of every possible vehicle configuration or rebuilding the catalog.
+## 2026-10-20 — Remove global Labor Pilot release-evidence gate
+
+At the owner's explicit request, the twelve-gate Labor Pilot readiness checker, its evidence template/helpers/workflow and the mandatory production evidence-run input have been removed. General manual deployment still requires `main`, explicit confirmation, successful exact-revision CI, production preflight, verified backup/restore, migrations and health/revision checks. Optional isolated staging and its corrected restore verifier remain. In-app labor authorization, catalog policy approvals, qualifications, QC, billing and tax controls are unchanged. Earlier entries describing mandatory Labor Pilot evidence are historical and no longer describe the current workflow. This source change alone does not commit, merge or deploy anything, and does not rewrite previously shared Git commits.
 
 ## 2026-10-17 - Expanded Catalog Execution Controls and Release Evidence
 
@@ -1410,3 +1417,6 @@ Update this snapshot whenever:
 - An Enterprise Appointment milestone passes.
 - Production deployment or release evidence changes.
 - A placeholder surface becomes a live production workflow.
+## 2026-10-20 — Compliance upfront lease-tax tool (review implementation)
+
+`/compliance` provides manager-only, organization-scoped manual lease entry, canonical customer/vehicle search, server-side upfront tax calculation, individual verified local tax lines, contract-tax reconciliation flags, a separate vehicle-sales register, monthly CSV/print worksheets, immutable external filing/payment confirmations and append-only audit history. New customer installment payments do not repeat the original lease-tax event. See `COMPLIANCE_UPFRONT_LEASE_TAX.md` for scope, setup and limitations. This is lease-only preparation under an explicitly selected upfront-tax assumption, not complete-return preparation, legal approval, automatic filing or payment. Production remains unchanged. Licenses, permits, use-tax purchases, renewal/rental exceptions, amendments and automatic deal import are not implemented by this slice.

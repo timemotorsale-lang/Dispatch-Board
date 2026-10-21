@@ -1530,6 +1530,7 @@ export function RepairOrderEnterpriseWorkbench({
             <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button>
             <Link href={vehicle360PhotosHref}><Camera /> 360 Photos</Link>
             <Link href={partsWorkspaceHref}><PackageCheck /> Parts</Link>
+            <Link href={`/money-resources?${new URLSearchParams({ vehicleId: order.vehicle.id, repairOrderId: order.id })}`}><FileText /> Record spending</Link>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
             <button aria-expanded={closePanelOpen} aria-controls="repair-order-close-panel" onClick={() => { setClosePanelMessage(""); setClosePanelOpen((open) => !open); }} type="button"><XCircle /> Close RO</button>

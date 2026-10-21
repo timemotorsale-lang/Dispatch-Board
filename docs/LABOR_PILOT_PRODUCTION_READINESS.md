@@ -1,6 +1,8 @@
 # Connected labor pilot: production readiness
 
-## Status: HOLD — review implementation, not a deployment approval
+## Status: feature-specific review notes, not a global deployment gate
+
+The twelve-gate readiness checker and mandatory Labor Release Evidence workflow have been removed at the owner's request. These labor review notes do not block unrelated production releases. Deployment still requires explicit manual confirmation on `main`, successful CI for that revision, production preflight, a verified database backup/restore, migration success and health/revision checks. Existing in-app customer authorization, QC, qualification and catalog-policy approvals remain unchanged.
 
 The approved brake and steering/suspension baselines now have an opt-in connected explorer. The existing guide stays the default. No deployment, production migration, rollout activation, customer approval, shop policy activation or labor-standard publication was performed.
 
@@ -28,30 +30,13 @@ No schema migration or second timer was added. Saved quotes retain their recorde
 ## Verification available in this change
 
 - Isolated browser fixture exercises the real console and canonical catalog through brake/steering selection, required parts pricing, staff reviews, persisted-draft request and estimate presentation. It checks narrow-screen behavior, browser errors and accessibility in the explorer region. HTTP is mocked: this is **not** proof of real database persistence, customer delivery or staging execution.
-- Focused tests cover canonical/scoped identity, authorization, clock chronology, evidence exclusions, manager/technician boundaries, safe completion shortcut and fail-closed release evidence.
+- Focused tests cover canonical/scoped identity, authorization, clock chronology, evidence exclusions, manager/technician boundaries and the safe completion shortcut.
 - The 2026-10-17 expanded-controls final regression run passed 4,670 tests with 32 conditional skips; the earlier task-reassignment failure was cleared by intervening branch fixes. A heavily parallel local run timed out in an unrelated claims-route test; a limited-parallelism full run passed without modifying that test. Additional catalog containment/resource tests and isolated PostgreSQL/authenticated-browser evidence cover the new controls, but do not supply complete business acceptance or operator signoff.
 - Local typecheck, schema validation and the isolated production build passed; dependency audit reported zero vulnerabilities. Windows Prisma regeneration encountered the active development engine lock and continued using the existing generated client. Regenerate successfully in a clean staging/release environment before signoff. Type/build results must be attached for the exact committed release revision; a local check never substitutes for staging and recovery proof.
-- CI runs both isolated browser fixtures as a required job. Manual production promotion now also requires a successful exact-revision main-branch **Labor Release Evidence** review artifact and reruns the evidence checker before contacting production. The existing successful-main-CI gate and protected manual deployment remain. These checks do not supply customer authorization or replace release-owner approval.
+- CI runs both isolated browser fixtures as a required job. Manual production promotion requires successful exact-revision main CI, not a separate Labor Pilot manifest, twelve-gate checker or independent-review evidence run. Deployment checks do not supply customer authorization or activate catalog policies.
 
-## Required operator proof before a pilot release
+## Feature-specific acceptance guidance
 
-Copy `docs/labor-pilot-release-evidence.example.json` to an operator-owned evidence location. Do not overwrite the template with secrets or pretend evidence. Record the exact clean committed revision, distinct staging/production origins, current UTC timestamp and independently reviewed artifacts. Run `npm run check:labor-pilot-release -- <evidence.json>` from the repository. The command verifies bounded in-bundle artifact paths, hashes, revision, freshness, all twelve gates and clean worktree; it never deploys. Reviewer names are human attestations, not cryptographic identity verification. The release owner must verify the reviewers and artifact content. The manual production workflow now invokes this checker on an artifact from **Labor Release Evidence** for the same main revision. Configure independent reviewers/prevent self-review on the `labor-pilot-release-review` environment before relying on it. See `LABOR_CATALOG_STAGING_AND_APPROVALS.md` for the isolated rehearsal and evidence publishing/promotion sequence.
+When changing labor workflows, review the affected intake, estimate, authorization, dispatch, clock, parts, QC and closeout paths with the relevant staff. Verify role/location boundaries and preserve historical amounts. Use isolated staging and recovery rehearsals where useful; retain honest results without inventing reviewer approvals or treating synthetic tests as real customer decisions.
 
-For each gate record the evidence file, SHA-256, reviewer and PASS only after the proof actually exists:
-
-| Gate | Required proof |
-| --- | --- |
-| production-build | Clean install and production build of the exact candidate revision. |
-| full-tests | Green full regression run for the exact clean candidate, including all new regression checks and disposition of conditional integration skips. |
-| browser-workflow | Real isolated staging users, new/existing customer and vehicle intake, refresh/session persistence, estimate revisions, concurrent edits and error/retry behavior; also desktop/mobile checks. |
-| authorization-and-qc | Partial approval, refusal, revocation, new estimate revision, attempted stale job/dispatch/start, authorized execution, paused/resumed clocks, parts holds, failed/rework/passed QC and release refusal until requirements pass. Verify persisted records and audit history, not screenshots alone. |
-| permissions | Advisor, technician, manager and denied user; cross-technician attempts, qualification expiry, role/location boundaries and direct API refusal. |
-| rate-policy | Administrator approves the versioned $125/hour starting policy through existing settings. Ordinary staff inherit it; historical estimates remain unchanged. Do not activate a policy as part of this code change. |
-| parts-and-tax-policy | Owner/accountant verifies actual applicable tax jurisdiction, taxable categories, fees, parts markup and rounding. The requested 7% is a shop input, not a verified legal tax determination. |
-| staging-upgrade | Disposable, nonproduction database/files/environment. Record migration status and upgrade from the deployed version; do not confuse fresh CI migrations with an upgrade rehearsal. This change adds no migration. |
-| backup-restore | Restore a verified backup into a separate isolated target. Reconcile customers, vehicles, ROs, estimates, decisions, jobs, clocks, QC, audit records and document/evidence file storage. Existing file-focused restore checks alone are insufficient. Record counts/checksums and recovery time. Never restore over live data. |
-| rollback | Rehearse previous application revision plus compatible schema/data. New catalog-linked records must remain readable; switching back to legacy UI alone does not undo safety service changes. Document forward repair for any incompatible future migration. |
-| monitoring-alerts | Prove alerts for failed saves/authorization, dispatch/clock errors, background services, storage and backup failures; name an on-call owner and escalation path. |
-| operator-training | Owner-approved scope, advisor/technician/QC walkthrough, provisional-time labeling, correction/rework handling, fallback and support instructions. |
-
-Start with a manager-controlled brake/steering pilot, not all systems at once. Expand only after genuine workload evidence and staff signoff. Complete independent shop reviews of the ten implemented expansion baselines using the six-group coverage matrix, configuration/safety/overlap/parts/diagnostic reviews and tests before enabling them in the connected selector. A failed or missing gate means **HOLD**.
+Catalog enablement remains a separate business decision through existing in-app policies. Deployment does not validate provisional labor hours, approve tax treatment or enable all systems. Prefer a manager-controlled brake/steering pilot and review scope, personnel, equipment and procedures before enabling expanded systems. See `LABOR_CATALOG_STAGING_AND_APPROVALS.md` for optional staging and the general manual deployment sequence.

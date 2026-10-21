@@ -32,4 +32,7 @@ blob-report/
 .worktrees/
 .codex-runtime/unified-crm-*.log
 .dispatch-board-data/
+tmp/database-backups/
+tmp/deal-continuity/
+tmp/money-resources/
 deploy/docker/import-release-approval.json

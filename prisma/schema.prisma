@@ -3,6 +3,52 @@ generator client {
   binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
+model ComplianceTaxRecord {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  reference String
+  kind String
+  month String
+  snapshot Json
+  status String @default("ACTIVE")
+  version Int @default(1)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, reference, kind])
+  @@index([organizationId, month])
+}
+
+model ComplianceTaxPeriod {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  month String
+  status String @default("DRAFT")
+  snapshot Json?
+  filingReference String?
+  filedAt String?
+  paymentReference String?
+  paidAt String?
+  paidCents Int?
+  version Int @default(1)
+  @@unique([organizationId, month])
+}
+
+model ComplianceTaxAudit {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorId String
+  month String
+  recordId String?
+  action String
+  details Json
+  createdAt DateTime @default(now())
+  @@index([organizationId, month, createdAt])
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -1968,6 +2014,14 @@ model DiagnosticWorkspaceDraft {
 }
 
 model User {
+  purchasingAuthorizations MoneyPurchasingAuthorization[] @relation("AuthorizedPurchaser")
+  issuedPurchasingAuthorizations MoneyPurchasingAuthorization[] @relation("AuthorizationIssuer")
+  purchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseRequester")
+  recordedPurchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseRecorder")
+  reviewedPurchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseReviewer")
+  moneyAccounts MoneyAccount[]
+  moneyEntries MoneyEntry[]
+  moneyAudits MoneyAudit[]
   reportingSeries                              ReportingSeries[]
   reportingViews                               ReportingSavedView[]
   reportingSchedules                           ReportingSchedule[]
@@ -2318,7 +2372,193 @@ model AppSetting {
   updatedAt           DateTime      @updatedAt
 }
 
+model MoneyPurchasingAuthorization {
+  id String @id @default(cuid())
+  organizationId String
+  employeeId String
+  vendorId String
+  accountId String
+  purposeScope String
+  categories String[]
+  perPurchaseLimitCents Int
+  requiresPriorApproval Boolean @default(false)
+  startsOn String
+  expiresOn String
+  createdByUserId String
+  revokedAt DateTime?
+  revocationReason String?
+  createdAt DateTime @default(now())
+  version Int @default(1)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  employee User @relation("AuthorizedPurchaser", fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy User @relation("AuthorizationIssuer", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  account MoneyAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  approvals MoneyPurchaseApproval[]
+  entries MoneyEntry[]
+  @@index([organizationId, employeeId, startsOn, expiresOn], map: "MoneyPurchasingAuthorization_org_employee_dates_idx")
+}
+
+model MoneyPurchaseApproval {
+  id String @id @default(cuid())
+  organizationId String
+  authorizationId String
+  employeeId String
+  amountCents Int
+  purpose String
+  category String
+  businessDate String
+  status String @default("PENDING")
+  createdByUserId String
+  reviewedByUserId String?
+  reviewNote String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  version Int @default(1)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  authorization MoneyPurchasingAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
+  employee User @relation("PurchaseRequester", fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy User @relation("PurchaseRecorder", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  reviewedBy User? @relation("PurchaseReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  entry MoneyEntry?
+  @@index([organizationId, employeeId, status, businessDate], map: "MoneyPurchaseApproval_org_employee_status_date_idx")
+}
+
+model MoneyAccount {
+  purchasingAuthorizations MoneyPurchasingAuthorization[]
+  id String @id @default(cuid())
+  organizationId String
+  label String
+  kind String
+  lastFour String?
+  assignedUserId String?
+  limitCents Int?
+  openingBalanceCents Int @default(0)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  assignedUser User? @relation(fields: [assignedUserId], references: [id], onDelete: Restrict)
+  entries MoneyEntry[]
+  charges MoneyCardCharge[]
+  closes MoneyDailyClose[]
+  @@index([organizationId, assignedUserId, active])
+}
+
+model MoneyEntry {
+  purchasingAuthorizationId String?
+  purchaseApprovalId String? @unique
+  purchasingSnapshot Json?
+  purchasingAuthorization MoneyPurchasingAuthorization? @relation(fields: [purchasingAuthorizationId], references: [id], onDelete: Restrict)
+  purchaseApproval MoneyPurchaseApproval? @relation(fields: [purchaseApprovalId], references: [id], onDelete: Restrict)
+  id String @id @default(cuid())
+  organizationId String
+  employeeId String
+  kind String
+  amountCents Int
+  currency String @default("USD")
+  businessDate String
+  merchant String
+  purpose String
+  category String
+  paymentMethod String
+  accountId String?
+  parentId String?
+  vehicleId String?
+  inventoryUnitId String?
+  repairOrderId String?
+  vendorId String?
+  inventoryCostId String? @unique
+  receiptDocumentId String?
+  receiptExplanation String?
+  reference String?
+  approvalStatus String @default("PENDING")
+  reviewedById String?
+  reconciledAt DateTime?
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  employee User @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  account MoneyAccount? @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  parent MoneyEntry? @relation("MoneyEntryParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children MoneyEntry[] @relation("MoneyEntryParent")
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  inventoryUnit InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  repairOrder RepairOrder? @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  vendor Vendor? @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  inventoryCost InventoryUnitCost? @relation(fields: [inventoryCostId], references: [id], onDelete: Restrict)
+  receiptDocument DocumentLibraryDocument? @relation(fields: [receiptDocumentId], references: [id], onDelete: Restrict)
+  matchedCharge MoneyCardCharge?
+  @@index([organizationId, employeeId, businessDate])
+  @@index([organizationId, accountId, businessDate])
+  @@index([organizationId, parentId])
+}
+
+model MoneyCardCharge {
+  id String @id @default(cuid())
+  organizationId String
+  accountId String
+  externalId String
+  businessDate String
+  merchant String
+  amountCents Int
+  matchedEntryId String? @unique
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account MoneyAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  matchedEntry MoneyEntry? @relation(fields: [matchedEntryId], references: [id], onDelete: Restrict)
+  @@unique([accountId, externalId])
+  @@index([organizationId, accountId, businessDate])
+}
+
+model MoneyAudit {
+  id String @id @default(cuid())
+  organizationId String
+  actorUserId String
+  action String
+  subjectId String
+  idempotencyKey String
+  requestHash String
+  details Json
+  result Json
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, subjectId, createdAt])
+}
+
+model MoneyDailyClose {
+  id String @id @default(cuid())
+  organizationId String
+  accountId String
+  businessDate String
+  expectedCents Int
+  countedCents Int
+  differenceCents Int
+  unresolvedCount Int
+  note String
+  actorUserId String
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account MoneyAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  @@index([organizationId, accountId, businessDate])
+}
+
 model Organization {
+  complianceTaxRecords ComplianceTaxRecord[]
+  complianceTaxPeriods ComplianceTaxPeriod[]
+  complianceTaxAudits ComplianceTaxAudit[]
+  purchasingAuthorizations MoneyPurchasingAuthorization[]
+  purchaseApprovals MoneyPurchaseApproval[]
+  moneyAccounts MoneyAccount[]
+  moneyEntries MoneyEntry[]
+  moneyCharges MoneyCardCharge[]
+  moneyAudits MoneyAudit[]
+  moneyCloses MoneyDailyClose[]
+  dealWorkflowContexts DealWorkflowContext[]
+  vehicleUseBookings VehicleUseBooking[]
+  dealContinuityEvents DealContinuityEvent[]
   id                                    String                                 @id @default(cuid())
   code                                  String                                 @unique
   name                                  String
@@ -2847,6 +3087,7 @@ model UserLocationAccess {
 }
 
 model Customer {
+  dealWorkflowContexts DealWorkflowContext[]
   id                              String                           @id @default(cuid())
   organizationId                  String
   customerNumber                  String
@@ -2985,6 +3226,8 @@ model CustomerDocumentRequirement {
 }
 
 model Vendor {
+  purchasingAuthorizations MoneyPurchasingAuthorization[]
+  moneyEntries MoneyEntry[]
   id                  String             @id @default(cuid())
   organizationId      String
   vendorNumber        String
@@ -3118,6 +3361,7 @@ model VendorDocument {
 }
 
 model DocumentLibraryDocument {
+  moneyReceipts MoneyEntry[]
   id                     String                             @id @default(cuid())
   organizationId         String
   locationId             String?
@@ -3238,6 +3482,8 @@ model DocumentLibraryPacket {
 }
 
 model DealDeskDraft {
+  continuity DealWorkflowContext? @relation("ContextDraft")
+  relatedDealContexts DealWorkflowContext[] @relation("SourceDealDraft")
   id                 String @id
   organizationId     String
   ownerUserId        String
@@ -3258,6 +3504,8 @@ model DealDeskDraft {
 }
 
 model SalesDocumentJacket {
+  relatedDealContexts DealWorkflowContext[] @relation("SourceDealJacket")
+  vehicleUseBookings VehicleUseBooking[]
   id                 String @id @default(cuid())
   organizationId     String
   packetId           String @unique
@@ -3876,6 +4124,10 @@ model UnifiedCrmForecastSnapshot {
 }
 
 model Vehicle {
+  moneyEntries MoneyEntry[]
+  dealWorkflowContexts DealWorkflowContext[] @relation("DealVehicle")
+  sourceDealContexts DealWorkflowContext[] @relation("SourceDealVehicle")
+  vehicleUseBookings VehicleUseBooking[]
   id                              String                           @id @default(cuid())
   organizationId                  String
   vehicleNumber                   String
@@ -3941,6 +4193,8 @@ model Vehicle {
 }
 
 model InventoryUnit {
+  moneyEntries MoneyEntry[]
+  dealWorkflowContexts DealWorkflowContext[]
   id                     String                           @id @default(cuid())
   organizationId         String
   vehicleId              String
@@ -4286,6 +4540,7 @@ model InventoryPricingProposal {
 
 /// Immutable financial observations supporting inventory exposure and gross-per-day reporting.
 model InventoryUnitCost {
+  moneyEntry MoneyEntry?
   id              String        @id @default(cuid())
   organizationId  String
   inventoryUnitId String
@@ -4592,6 +4847,7 @@ model ServiceIntakeReadinessSnapshot {
 }
 
 model RepairOrder {
+  moneyEntries MoneyEntry[]
   id                           String                              @id @default(cuid())
   organizationId               String
   locationId                   String
@@ -10469,4 +10725,75 @@ model GrowthPolicyAuditEvent {
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, eventType, occurredAt])
   @@index([policyVersionId, occurredAt])
+}
+
+model DealWorkflowContext {
+  id String @id
+  organizationId String
+  draftId String @unique
+  customerId String
+  vehicleId String?
+  inventoryUnitId String?
+  sourceDraftId String?
+  sourceJacketId String?
+  sourceVehicleId String?
+  createdByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  draft DealDeskDraft @relation("ContextDraft", fields: [draftId], references: [id], onDelete: Restrict)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle Vehicle? @relation("DealVehicle", fields: [vehicleId], references: [id], onDelete: Restrict)
+  inventoryUnit InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  sourceDraft DealDeskDraft? @relation("SourceDealDraft", fields: [sourceDraftId], references: [id], onDelete: Restrict)
+  sourceJacket SalesDocumentJacket? @relation("SourceDealJacket", fields: [sourceJacketId], references: [id], onDelete: Restrict)
+  sourceVehicle Vehicle? @relation("SourceDealVehicle", fields: [sourceVehicleId], references: [id], onDelete: Restrict)
+  bookings VehicleUseBooking[]
+  events DealContinuityEvent[]
+  @@index([organizationId, customerId])
+}
+
+model VehicleUseBooking {
+  id String @id
+  organizationId String
+  contextId String
+  vehicleId String
+  agreementJacketId String?
+  status String @default("RESERVED")
+  startsAt DateTime
+  expectedReturnAt DateTime
+  checkedOutAt DateTime?
+  returnedAt DateTime?
+  version Int @default(1)
+  reason String
+  departureSnapshot Json?
+  returnSnapshot Json?
+  createdByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  context DealWorkflowContext @relation(fields: [contextId], references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  agreementJacket SalesDocumentJacket? @relation(fields: [agreementJacketId], references: [id], onDelete: Restrict)
+  events DealContinuityEvent[]
+  @@index([organizationId, vehicleId, status, startsAt])
+  @@index([contextId, createdAt])
+}
+
+model DealContinuityEvent {
+  id String @id
+  organizationId String
+  contextId String
+  bookingId String?
+  operationKey String
+  requestHash String
+  action String
+  actorUserId String
+  result Json
+  occurredAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  context DealWorkflowContext @relation(fields: [contextId], references: [id], onDelete: Restrict)
+  booking VehicleUseBooking? @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  @@unique([organizationId, operationKey])
+  @@index([contextId, occurredAt])
 }

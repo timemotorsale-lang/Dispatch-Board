@@ -27,6 +27,7 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("New appointment");
     expect(markup).toContain("Back to Appointment Console");
     expect(markup).toContain("Appointment Setup");
+    expect(markup).toContain("Open full calendar");
     expect(markup).not.toContain("Expand calendar");
     expect(markup).toContain("Customer search");
     expect(markup).toContain("Vehicle search");

@@ -2,8 +2,10 @@ import { DocumentLibraryLanding } from "@/features/document-library/document-lib
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getDocumentLibrary } from "@/server/document-library/service";
 
-export default async function DocumentsPage({ searchParams }: { searchParams?: Promise<{ ownerId?: string }> }) {
-  const ownerId = (searchParams ? await searchParams : {}).ownerId?.slice(0, 120);
+export default async function DocumentsPage({ searchParams }: { searchParams?: Promise<{ ownerId?: string; ownerLabel?: string }> }) {
+  const params = searchParams ? await searchParams : {};
+  const ownerId = params.ownerId?.slice(0, 120);
+  const ownerLabel = params.ownerLabel?.slice(0, 200);
   let library = null;
   let errorMessage: string | null = null;
 
@@ -13,5 +15,5 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: P
     errorMessage = error instanceof Error ? error.message : "Document Library is temporarily unavailable.";
   }
 
-  return <DocumentLibraryLanding error={errorMessage} initialLibrary={library} initialOwnerId={ownerId} />;
+  return <DocumentLibraryLanding error={errorMessage} initialLibrary={library} initialOwnerId={ownerId} initialOwnerLabel={ownerLabel} />;
 }

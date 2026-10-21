@@ -250,6 +250,7 @@ export function TodayActionCenter({
           </header>
           <div>
             <Link href="/my-tasks"><ListChecks size={18} />Update task</Link>
+            <Link href="/money-resources"><ListChecks size={18} />Record spending</Link>
             <Link href="/vehicles/coo-workbook/effectiveness-pilot"><CheckCircle2 size={18} />Daily focus</Link>
             <Link href="/appointments"><CalendarDays size={18} />Appointment</Link>
             <Link href="/vehicles/workflows"><CarFront size={18} />Inventory workflow</Link>
