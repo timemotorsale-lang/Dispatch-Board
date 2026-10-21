@@ -3,6 +3,35 @@ import { describe, expect, it } from "vitest";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 
 describe.skipIf(process.env.RUN_LABOR_STAGING_INTEGRATION !== "1")("isolated labor catalog PostgreSQL proof", () => {
+  it("initializes missing rollout controls only on authorized changes and audits concurrent configuration", async () => {
+    if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Explicit isolated staging confirmation is required.");
+    assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
+    const { prisma } = await import("@/server/db/client");
+    const { getVehicleOperationsFoundation, updateVehicleOperationsFeature, evaluateVehicleOperationsFeature } = await import("@/server/enterprise-command/service");
+    const prefix = `rollout-proof-${randomUUID()}`, organizationId = `${prefix}-org`;
+    const actor = { id: `${prefix}-manager`, name: "Synthetic rollout manager", email: `${prefix}@example.test`, isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
+    await prisma.organization.create({ data: { id: organizationId, code: prefix, name: "Synthetic missing rollout proof" } });
+    await prisma.user.create({ data: { id: actor.id, name: actor.name, email: actor.email, passwordHash: "synthetic-disabled-login" } });
+    const context = { organizationId };
+    const model = await getVehicleOperationsFoundation(actor, context);
+    expect(model.flags.find(flag => flag.code === "VEHICLE_REGISTRY")).toMatchObject({ version: 0, mode: "OFF" });
+    expect(await prisma.vehicleOperationsFeatureFlag.count({ where: { organizationId } })).toBe(0);
+    const request = { code: "VEHICLE_REGISTRY", mode: "GENERAL", rolloutPercent: 100, expectedVersion: 0, reason: "Synthetic authorized missing rollout recovery." };
+    const results = await Promise.allSettled([updateVehicleOperationsFeature(actor, request, context), updateVehicleOperationsFeature(actor, request, context)]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect(await prisma.vehicleOperationsRolloutEvent.count({ where: { organizationId, action: "FEATURE_FLAG_CREATED" } })).toBe(1);
+    let flags = await prisma.vehicleOperationsFeatureFlag.findMany({ where: { organizationId } });
+    expect(evaluateVehicleOperationsFeature(flags, "VEHICLE_REGISTRY", actor.id, null).reason).toBe("MASTER_DISABLED");
+    await updateVehicleOperationsFeature(actor, { ...request, code: "VEHICLE_OPERATIONS_MASTER" }, context);
+    flags = await prisma.vehicleOperationsFeatureFlag.findMany({ where: { organizationId } });
+    expect(evaluateVehicleOperationsFeature(flags, "VEHICLE_REGISTRY", actor.id, null).executable).toBe(true);
+    expect(flags).toHaveLength(2);
+    await updateVehicleOperationsFeature(actor, { ...request, mode: "OFF", rolloutPercent: 0, expectedVersion: 1 }, context);
+    await expect(updateVehicleOperationsFeature(actor, { ...request, expectedVersion: 1 }, context)).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+    expect(await prisma.vehicleOperationsRolloutEvent.count({ where: { organizationId } })).toBe(3);
+  }, 30_000);
+
   it("persists independent approval, idempotency, scoped activation and a superseding hold with audit history", async () => {
     if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Explicit isolated staging confirmation is required.");
     assertLaborStagingTarget(process.env.DATABASE_URL ?? "");

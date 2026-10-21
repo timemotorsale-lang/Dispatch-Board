@@ -12,7 +12,7 @@ export function VehicleOperationsFoundationPanel({ initialModel }: { initialMode
   async function changeFlag(flag: Foundation["flags"][number], mode: Foundation["flags"][number]["mode"], rolloutPercent = mode === "GENERAL" ? 100 : 0) {
     setSaving(flag.code); setNotice("");
     const targetDate = targetDates[flag.id];
-    const response = await fetch("/api/settings/vehicle-operations", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: flag.code, mode, rolloutPercent, allowedUserIds: [], expectedVersion: flag.version, reason: `Manager changed ${flag.code} to ${mode} with a reviewed rollout target.`, targetAt: targetDate ? `${targetDate}T12:00:00.000Z` : null }) });
+    const response = await fetch("/api/settings/vehicle-operations", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: flag.code, locationId: flag.locationId, mode, rolloutPercent, allowedUserIds: flag.allowedUserIds, expectedVersion: flag.version, reason: `Manager changed ${flag.code} to ${mode} with a reviewed rollout target.`, targetAt: targetDate ? `${targetDate}T12:00:00.000Z` : null }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 409) {
@@ -25,6 +25,7 @@ export function VehicleOperationsFoundationPanel({ initialModel }: { initialMode
     setSaving("");
   }
   return <div className="page-stack">
+    {model.flags.some(flag => flag.version === 0) ? <p className="notice">Some controls have not been configured. They remain OFF until an authorized manager selects a rollout mode. Version 0 means no setting has been saved yet.</p> : null}
     <section className="settings-overview-grid">
       <article className="panel-card settings-callout-card"><strong>Foundation state</strong><h2>{model.state}</h2><p>Evaluated {new Date(model.evaluatedAt).toLocaleString()}.</p></article>
       <article className="panel-card settings-callout-card"><strong>Commands (24h)</strong><h2>{model.health.commands24h}</h2><p>{model.health.failedCommands24h} failed commands.</p></article>

@@ -71,6 +71,21 @@ describe("enterprise command foundation", () => {
     expect(result).toMatchObject({ mode: "GENERAL", rolloutPercent: 100, targetAt: "2026-07-22T12:00:00.000Z", version: 3 });
   });
 
+  it("exposes missing controls as disabled without persisting or changing existing rollout", async () => {
+    const model = await getVehicleOperationsFoundation(manager, { organizationId: "org-1", repository: repository() });
+    expect(model.flags.find(item => item.code === "VEHICLE_REGISTRY")).toMatchObject({ locationId: null, mode: "OFF", version: 0, rolloutPercent: 0 });
+    expect(model.flags.find(item => item.code === "VEHICLE_OPERATIONS_MASTER")).toMatchObject({ mode: "GENERAL", version: 1 });
+    expect(evaluateVehicleOperationsFeature(model.flags.map(item => ({ ...item, targetAt: null, updatedAt: new Date(item.updatedAt) })), "VEHICLE_REGISTRY", manager.id, null).executable).toBe(false);
+  });
+
+  it("allows authorized initialization but rejects staff and invalid versions", async () => {
+    const value = { code: "VEHICLE_REGISTRY", mode: "GENERAL", rolloutPercent: 100, expectedVersion: 0, reason: "Configure missing registry control." };
+    expect(await updateVehicleOperationsFeature(manager, value, { organizationId: "org-1", repository: repository() })).toMatchObject({ version: 1, mode: "GENERAL" });
+    await expect(updateVehicleOperationsFeature(staff, value, { organizationId: "org-1", repository: repository() })).rejects.toThrow("Vehicle capability required");
+    await expect(updateVehicleOperationsFeature(manager, { ...value, expectedVersion: -1 }, { repository: repository() })).rejects.toThrow("Expected feature version");
+    await expect(updateVehicleOperationsFeature(manager, { ...value, expectedVersion: undefined }, { repository: repository() })).rejects.toThrow("Expected feature version");
+  });
+
   it("exposes typed command conflicts", () => {
     expect(new EnterpriseCommandConflictError("stale", "VERSION_CONFLICT").code).toBe("VERSION_CONFLICT");
   });
