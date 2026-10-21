@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
+import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
 
 test.setTimeout(120_000);
 test.use({ actionTimeout: 15_000 });
@@ -13,8 +14,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   const billingUrl = `/api/repair-orders/${fixture.repairOrderId}/billing`;
   expect((await request.get(billingUrl)).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
-  const rhythm = await (await page.request.get("/api/coo-workbook/rhythm")).json();
-  expect((await page.request.post("/api/coo-workbook/rhythm", {data:{workbookId:rhythm.workbookId,action:"START_DELAY_EXPLAINED",reason:"Isolated synthetic billing verification; not starting a real operational workday.",sourcePath:"/vehicles/service-billing"}})).ok()).toBe(true);
+  await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Isolated synthetic billing verification; not starting a real operational workday.");
   await page.goto(`/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Service Billing", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review final invoice", exact: true })).toBeVisible();

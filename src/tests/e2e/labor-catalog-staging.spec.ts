@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
+import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
 
 test.setTimeout(120_000);
 test.use({ actionTimeout: 15_000 });
@@ -17,8 +18,7 @@ test("real authentication, manager-only approval settings and the expanded revie
   expect((await request.get("/api/settings/labor-catalog")).status()).toBe(401);
   const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
   expect(login.ok()).toBe(true);
-  const rhythm = await (await page.request.get("/api/coo-workbook/rhythm")).json();
-  expect((await page.request.post("/api/coo-workbook/rhythm", { data: { workbookId: rhythm.workbookId, action: "START_DELAY_EXPLAINED", reason: "Isolated synthetic estimate transfer verification; not starting a real workday.", sourcePath: "/diagnostics/labor-guide" } })).ok()).toBe(true);
+  await explainSyntheticWorkdayDelay(page, "/diagnostics/labor-guide", "Isolated synthetic estimate transfer verification; not starting a real workday.");
   const intakeFixture = JSON.parse(readFileSync("test-results/labor-staging/billing-browser-fixture.json", "utf8")) as { intakeVehicleId: string };
   const intakeHref = `/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${intakeFixture.intakeVehicleId}`;
   await page.goto(intakeHref);

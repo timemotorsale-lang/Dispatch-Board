@@ -6,8 +6,16 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
+const nextFixture = {
+  name: "next-fixtures",
+  setup(builder) {
+    builder.onResolve({ filter: /^next\/navigation$/ }, args => ({ path: args.path, namespace: "next-fixture" }));
+    builder.onLoad({ filter: /.*/, namespace: "next-fixture" }, () => ({ loader: "js", contents: 'export function useRouter(){return {push(href){window.location.assign(href)},refresh(){window.location.reload()}}}' }));
+  }
+};
+
 const root = process.cwd();
-const bundle = await build({ absWorkingDir: root, stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import "./src/app/globals.css"; import {RepairExplorer} from "./src/features/prototype/repair-explorer/repair-explorer"; import {RepairCoverageReview} from "./src/features/prototype/repair-explorer/repair-coverage-review"; const params=new URLSearchParams(location.search); createRoot(document.getElementById("root")).render(location.pathname.endsWith("repair-coverage") ? <RepairCoverageReview/> : <RepairExplorer storageKey="catalog-expansion-fixture" initialSystemId={params.get("system")} initialGroupId={params.get("group")}/>);`, resolveDir: root, loader: "tsx" }, bundle: true, write: false, outdir: path.join(root, "test-results", "catalog-expansion-bundle"), jsx: "automatic", define: { "process.env.NODE_ENV": '"development"' }, plugins: [{ name: "local-assets", setup(builder) { builder.onResolve({ filter: /^\// }, args => ({ path: args.path, external: true })); } }] });
+const bundle = await build({ absWorkingDir: root, stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import "./src/app/globals.css"; import {RepairExplorer} from "./src/features/prototype/repair-explorer/repair-explorer"; import {RepairCoverageReview} from "./src/features/prototype/repair-explorer/repair-coverage-review"; const params=new URLSearchParams(location.search); createRoot(document.getElementById("root")).render(location.pathname.endsWith("repair-coverage") ? <RepairCoverageReview/> : <RepairExplorer storageKey="catalog-expansion-fixture" initialSystemId={params.get("system")} initialGroupId={params.get("group")}/>);`, resolveDir: root, loader: "tsx" }, bundle: true, write: false, outdir: path.join(root, "test-results", "catalog-expansion-bundle"), jsx: "automatic", define: { "process.env.NODE_ENV": '"development"' }, plugins: [nextFixture, { name: "local-assets", setup(builder) { builder.onResolve({ filter: /^\// }, args => ({ path: args.path, external: true })); } }] });
 const server = http.createServer((request, response) => {
   const suffix = request.url === "/bundle.js" ? ".js" : request.url === "/bundle.css" ? ".css" : null;
   if (suffix) { response.setHeader("Content-Type", suffix === ".js" ? "text/javascript" : "text/css"); response.end(bundle.outputFiles.find(file => file.path.endsWith(suffix)).text); }

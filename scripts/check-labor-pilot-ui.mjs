@@ -37,6 +37,7 @@ try {
   const errors = []; page.on("pageerror", error => { errors.push(error.message); console.error("Browser runtime error:", error.message); });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.getByRole("button", { name: "Labor lookup", exact: true }).click();
+  await page.getByRole("button", { name: "Add work / parts", exact: true }).click();
   const explorer = page.getByRole("region", { name: "Connected Repair Explorer", exact: true });
   await expect(explorer).toContainText("Selected fixture vehicle");
   await explorer.getByRole("navigation", { name: "Connected vehicle systems" }).getByRole("button", { name: "Pads, rotors & calipers", exact: true }).click();
@@ -46,24 +47,22 @@ try {
   await explorer.getByRole("button", { name: "Add Replace front left complete loaded strut to workspace", exact: true }).click();
   await expect(explorer.getByRole("complementary", { name: "Selected connected work" })).toContainText("2 lines");
   await expect(explorer.getByRole("button", { name: "Engine · approval pending", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Present estimate", exact: true }).click();
+  await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
   await expect(page.getByText("Enter or confirm part pricing before presenting this estimate.", { exact: true })).toBeVisible();
-  for (let index = 0; index < 3; index++) {
-    const edit = page.getByRole("button", { name: /^Edit .* price and quantity$/ }).nth(index);
-    await edit.click();
-    await page.getByLabel(/^Retail unit price for /).fill("100");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
-  }
-  await page.getByRole("button", { name: "Present estimate", exact: true }).click();
+  const prices = page.getByRole("region", { name: "Guided estimate", exact: true }).locator('input[aria-label$="unit price"]');
+  await expect(prices).toHaveCount(3);
+  for (const input of await prices.all()) await input.fill("100");
+  await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
   await page.getByLabel("Engine / powertrain", { exact: true }).fill("Fixture powertrain");
   await page.getByLabel("Configuration / relevant options", { exact: true }).fill("Fixture VIN and exact selected units");
   await page.getByLabel("Labor-hour and applicability source", { exact: true }).fill("Reviewed fixture procedure; internal unvalidated allowance");
   await page.getByRole("button", { name: "Mark manually reviewed", exact: true }).click();
+  await page.getByRole("button", { name: "Review pricing, fitment & safety", exact: true }).click();
   for (const name of ["Brake configuration, unit, axle/side & shop capability", "Vehicle-specific procedure reference & labor basis", "Verification plan & conditional materials", "Steering/suspension configuration, axle/side & capability", "Steering/suspension procedure reference & labor basis", "Steering/suspension verification & calibration plan", "Alignment decision reason & reference", "Tax jurisdiction, source and effective date"]) await page.getByLabel(name, { exact: true }).fill("Isolated fixture review reference; no real work or approval implied");
   await page.getByLabel("Alignment decision", { exact: true }).selectOption("NOT_REQUIRED");
   for (const input of await page.getByLabel(/^Fitment & price reference/).all()) await input.fill("Fixture supplier and VIN/price verification");
   await page.getByRole("checkbox", { name: /I confirmed pricing/ }).check();
-  await page.getByRole("button", { name: "Present estimate", exact: true }).click();
+  await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
   await expect.poll(() => writes.filter(item => item.body.action === "PRESENT_ESTIMATE").length).toBe(1);
   const presentation = writes.find(item => item.body.action === "PRESENT_ESTIMATE").body;
   assert.equal(presentation.lineItems.filter(line => line.type === "LABOR").length, 2);
