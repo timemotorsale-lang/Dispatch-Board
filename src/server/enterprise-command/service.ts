@@ -74,6 +74,9 @@ export async function getVehicleOperationsFoundation(actor: AuthenticatedUser | 
   const [flags, health] = await Promise.all([deps.repository.listFeatureFlags(deps.organizationId), deps.repository.readHealth(deps.organizationId, deps.now())]);
   const oldestAgeSeconds = health.oldestPendingAt ? Math.max(0, Math.round((deps.now().getTime() - health.oldestPendingAt.getTime()) / 1000)) : 0;
   const state = health.deadLetters > 0 || health.projectionFailures > 0 ? "CRITICAL" : oldestAgeSeconds > 60 || health.maxProjectionLagSeconds > 60 ? "DEGRADED" : "HEALTHY";
+  for (const code of ENTERPRISE_FEATURES) {
+    if (!flags.some(flag => flag.code === code && flag.locationId === null)) flags.push({ id: `unconfigured:${code}`, organizationId: deps.organizationId, locationId: null, code, mode: "OFF", rolloutPercent: 0, allowedUserIds: [], targetAt: null, version: 0, updatedAt: deps.now() });
+  }
   return { evaluatedAt: deps.now().toISOString(), state, health: { ...health, oldestPendingAt: health.oldestPendingAt?.toISOString() ?? null, oldestPendingAgeSeconds: oldestAgeSeconds }, flags: flags.map((flag) => ({ ...flag, allowedUserIds: users(flag.allowedUserIds), targetAt: flag.targetAt?.toISOString() ?? null, updatedAt: flag.updatedAt.toISOString() })) };
 }
 
@@ -91,7 +94,7 @@ export async function updateVehicleOperationsFeature(actor: AuthenticatedUser | 
   const targetAt = typeof raw.targetAt === "string" && raw.targetAt.trim() ? new Date(raw.targetAt) : null;
   if (!(ENTERPRISE_FEATURES as readonly string[]).includes(code)) throw new Error("Enterprise feature code is invalid.");
   if (!(["OFF", "SHADOW", "PILOT", "GENERAL"] as string[]).includes(mode)) throw new Error("Vehicle Operations rollout mode is invalid.");
-  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected feature version is required.");
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Expected feature version is required.");
   if (!Number.isInteger(rolloutPercent) || rolloutPercent < 0 || rolloutPercent > 100) throw new Error("Rollout percent must be from 0 through 100.");
   if (reason.length < 10) throw new Error("Rollout changes require a reason of at least 10 characters.");
   if (targetAt && Number.isNaN(targetAt.getTime())) throw new Error("Rollout target date is invalid.");

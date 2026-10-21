@@ -85,10 +85,21 @@ export function createEnterpriseCommandRepository(database: PrismaClient = prism
     updateFeatureFlag(input) {
       return database.$transaction(async (tx) => {
         const prior = await tx.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId: input.organizationId, locationId: input.locationId, code: input.code } });
-        if (!prior) throw new Error("Vehicle Operations feature flag was not found.");
-        if (prior.version !== input.expectedVersion) throw new EnterpriseCommandConflictError(`Expected feature version ${input.expectedVersion}, but current version is ${prior.version}.`, "VERSION_CONFLICT");
-        const next = await tx.vehicleOperationsFeatureFlag.update({ where: { id: prior.id }, data: { mode: input.mode, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds, targetAt: input.targetAt, version: { increment: 1 }, updatedByUserId: input.actorUserId }, select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, targetAt: true, version: true, updatedAt: true } });
-        await tx.vehicleOperationsRolloutEvent.create({ data: { organizationId: input.organizationId, actorUserId: input.actorUserId, action: "FEATURE_FLAG_UPDATED", reason: input.reason, priorState: json(prior), nextState: json(next), correlationId: input.correlationId } });
+        if ((prior?.version ?? 0) !== input.expectedVersion) throw new EnterpriseCommandConflictError("This rollout control changed elsewhere. Reload settings and try again.", "VERSION_CONFLICT");
+        if (input.locationId) {
+          const location = await tx.location.findFirst({ where: { id: input.locationId, organizationId: input.organizationId }, select: { id: true } });
+          if (!location) throw new Error("Location does not belong to the rollout organization.");
+        }
+        const values = { mode: input.mode, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds, targetAt: input.targetAt, updatedByUserId: input.actorUserId };
+        if (prior) {
+          const updated = await tx.vehicleOperationsFeatureFlag.updateMany({ where: { id: prior.id, version: input.expectedVersion }, data: { ...values, version: { increment: 1 } } });
+          if (updated.count !== 1) throw new EnterpriseCommandConflictError("This rollout control changed elsewhere. Reload settings and try again.", "VERSION_CONFLICT");
+        } else {
+          const created = await tx.vehicleOperationsFeatureFlag.createMany({ data: { ...values, organizationId: input.organizationId, locationId: input.locationId, code: input.code, version: 1 }, skipDuplicates: true });
+          if (created.count !== 1) throw new EnterpriseCommandConflictError("This rollout control was configured elsewhere. Reload settings and try again.", "VERSION_CONFLICT");
+        }
+        const next = await tx.vehicleOperationsFeatureFlag.findFirstOrThrow({ where: { organizationId: input.organizationId, locationId: input.locationId, code: input.code }, select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, targetAt: true, version: true, updatedAt: true } });
+        await tx.vehicleOperationsRolloutEvent.create({ data: { organizationId: input.organizationId, actorUserId: input.actorUserId, action: prior ? "FEATURE_FLAG_UPDATED" : "FEATURE_FLAG_CREATED", reason: input.reason, priorState: prior ? json(prior) : Prisma.JsonNull, nextState: json(next), correlationId: input.correlationId } });
         return next;
       });
     },
