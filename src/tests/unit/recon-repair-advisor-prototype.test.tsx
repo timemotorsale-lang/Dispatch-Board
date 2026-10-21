@@ -76,7 +76,11 @@ describe("ReconRepairAdvisorPrototype", () => {
 
     expect(html).toContain("Recon/Repair Service Advisor");
     expect(html).toContain("Prototype · live advisor data");
-    expect(html).toContain("Current Service Advisor is untouched");
+    expect(html).toContain("Find the vehicle. Plan the work.");
+    expect(html).toContain('action="/vehicles/recon-repair-advisor/find-work"');
+    expect(html).not.toContain('action="/vehicles/repair-orders"');
+    expect(html).toContain("Supporting tools");
+    expect(html).toContain("<details");
     expect(html).toContain("Move now");
     expect(html).toContain("Waiting on others");
     expect(html).toContain("At risk");

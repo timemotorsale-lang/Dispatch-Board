@@ -14,7 +14,7 @@ function safeSearch(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 120) : "";
 }
 
-export default async function RepairOrderCorePage({ searchParams }: { searchParams?: Promise<{ concernSummary?: string; intakeSource?: string; repairOrderId?: string; returnTo?: string; search?: string; source?: string; vehicleId?: string }> }) {
+export default async function RepairOrderCorePage({ searchParams }: { searchParams?: Promise<{ reviewWorkbench?: string; concernSummary?: string; intakeSource?: string; repairOrderId?: string; returnTo?: string; search?: string; source?: string; vehicleId?: string }> }) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
   if (params.repairOrderId) {
@@ -32,7 +32,7 @@ export default async function RepairOrderCorePage({ searchParams }: { searchPara
   const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
   const serializedOptions = JSON.parse(JSON.stringify(options));
   const requestedIntakeSource = params.intakeSource ?? params.source;
-  if (requestedIntakeSource === "WALK_IN" || requestedIntakeSource === "INVENTORY_RECON") return <ServiceIntakeWorkspace currentUserId={user.id} initialArrivalQuery={params.search?.slice(0, 120)} initialConcernSummary={params.concernSummary?.slice(0, 500)} initialTimestamp={new Date().toISOString()} initialVehicleId={params.vehicleId} initialVehicleRelationship={requestedIntakeSource === "INVENTORY_RECON" ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE"} options={serializedOptions} returnTo={safeReturnTo(params.returnTo)} showAdvisorReturn={showAdvisorReturn} />;
+  if (requestedIntakeSource === "WALK_IN" || requestedIntakeSource === "INVENTORY_RECON") return <ServiceIntakeWorkspace reviewWorkbench={params.reviewWorkbench === "1"} currentUserId={user.id} initialArrivalQuery={params.search?.slice(0, 120)} initialConcernSummary={params.concernSummary?.slice(0, 500)} initialTimestamp={new Date().toISOString()} initialVehicleId={params.vehicleId} initialVehicleRelationship={requestedIntakeSource === "INVENTORY_RECON" ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE"} options={serializedOptions} returnTo={safeReturnTo(params.returnTo)} showAdvisorReturn={showAdvisorReturn} />;
   const intakeSource = requestedIntakeSource === "WALK_IN" || requestedIntakeSource === "INVENTORY_RECON" ? requestedIntakeSource : "";
   return <RepairOrderCoreWorkspace initial={JSON.parse(JSON.stringify(initial))} initialDraft={{ concernSummary: params.concernSummary?.slice(0, 500) ?? "", intakeSource, vehicleId: params.vehicleId ?? "" }} initialSearch={search} options={serializedOptions} />;
 }

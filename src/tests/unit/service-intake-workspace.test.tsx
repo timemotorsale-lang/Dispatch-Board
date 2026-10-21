@@ -16,15 +16,52 @@ const options = {
 };
 
 describe("enterprise service intake workspace", () => {
-  it("allows verified dealership repair intake without acquisition forms or an inventory unit", () => {
-    const repairOptions = { ...options, vehicles: [{ ...options.vehicles[0], registryRelationships: [{ relationshipType: "DEALERSHIP_OWNED" }] }] };
+  it.each(["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"])("requires canonical inventory even when %s is recorded", (relationshipType) => {
+    const repairOptions = { ...options, vehicles: [{ ...options.vehicles[0], registryRelationships: [{ relationshipType }] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={repairOptions} />);
-    expect(html).toContain("Ready for internal repair intake");
+    expect(html).toContain("Inventory unit required for internal recon");
+    expect(html).toContain("Continue to Inventory Establishment");
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain('disabled="" type="button">Establish Inventory Unit');
+    expect(html).toContain('type="button">Establish Inventory Unit');
+    expect(html).not.toContain("Optional for internal repairs");
+    expect(html).not.toContain("No purchase details or inventory unit are required");
+    expect(html).not.toContain("Ready for internal repair intake");
     expect(html).not.toContain("Financial acquisition");
     expect(html).not.toContain("Create &amp; Link Inventory Unit");
     expect(html).not.toContain("Next: Add / Select Customer");
     const unconfirmed = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
-    expect(unconfirmed).toContain("Confirm Dealership Ownership");
+    expect(unconfirmed).toContain("Inventory unit required for internal recon");
+    expect(unconfirmed).not.toContain("Confirm Dealership Ownership");
+  });
+
+  it("links inventory establishment and acquisition review to the existing canonical vehicle", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
+    expect(html).toContain('href="/vehicles/acquisition-appraisal?vehicleId=vehicle-1&amp;returnTo=%2Fvehicles%2Frepair-orders%3FintakeSource%3DINVENTORY_RECON%26vehicleId%3Dvehicle-1"');
+    expect(html).toContain('href="/vehicles/inventory/units?vehicleId=vehicle-1&amp;returnTo=%2Fvehicles%2Frepair-orders%3FintakeSource%3DINVENTORY_RECON%26vehicleId%3Dvehicle-1"');
+    expect(html).toContain("open its canonical inventory cycle and confirm acquisition");
+    expect(html).toContain("Use this existing vehicle; do not add a duplicate.");
+    expect(html).toContain("An existing inventory unit for this vehicle is required.");
+  });
+
+  it("does not accept another vehicle's inventory unit for recon readiness", () => {
+    const otherVehicle = { ...options.vehicles[0], id: "vehicle-2" };
+    const inventoryOptions = { ...options, inventoryUnits: [{ id: "inventory-other", inventoryNumber: "INV-OTHER", locationId: "location-1", vehicle: otherVehicle }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
+    expect(html).not.toContain('disabled="" type="button">Establish Inventory Unit');
+    expect(html).toContain('type="button">Establish Inventory Unit');
+    expect(html).not.toContain("INV-OTHER linked");
+    expect(html).not.toContain("sic-live-readiness ready");
+  });
+
+  it("keeps an existing matching RO available without creating recon when inventory is missing", () => {
+    const concernSummary = "Complete inventory safety inspection.";
+    const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: null, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary }, stage: "INTAKE", vehicle: options.vehicles[0], version: 1 }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary={concernSummary} initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={matchingOptions} />);
+    expect(html).toContain("Duplicate RO blocked");
+    expect(html).toContain('type="button">Use Existing Repair Order');
+    expect(html).not.toContain('disabled="" type="button">Use Existing Repair Order');
+    expect(html).not.toContain("Complete Check-In &amp; Create Repair Order");
   });
   it("renders a guided advisor check-in with spacious concern capture and governance cues", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" options={options} />);
@@ -142,6 +179,8 @@ describe("enterprise service intake workspace", () => {
 
     expect(html).toContain('noValidate=""');
     expect(html).toContain('type="button">Complete Check-In &amp; Create Repair Order');
+    expect(html).not.toContain('disabled="" type="button">Complete Check-In &amp; Create Repair Order');
+    expect(html).toContain("8/8 complete");
   });
 
   it("shows open RO history without auto-matching a stale incoming concern", () => {

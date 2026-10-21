@@ -6,6 +6,11 @@ describe("inventory unit foundation domain", () => {
   it("normalizes a financially acquired inventory unit", () => {
     expect(normalizeInventoryUnitCreate({ financialAcquiredAt: "2026-07-14T08:00:00Z", idempotencyKey: "create-1", inventoryNumber: " inv-1 ", locationId: "loc-1", nextAction: "Confirm receipt plan", ownerUserId: "owner-1", reason: "Create dealership inventory unit.", targetAt: "2026-07-17T08:00:00Z", vehicleId: "vehicle-1" }, now)).toMatchObject({ inventoryNumber: "INV-1", lifecycleStage: "PURCHASED_OR_TRADE_IN", operatingState: "ACTIVE", stateReason: null });
   });
+  it.each([undefined, null, "", "   "])("automatically assigns a number when the override is %s", inventoryNumber => {
+    const input = { financialAcquiredAt: "2026-07-14T08:00:00Z", idempotencyKey: "auto", inventoryNumber, locationId: "loc", nextAction: "Plan receipt", ownerUserId: "owner", reason: "Create automatic numbered inventory.", targetAt: "2026-07-17T08:00:00Z", vehicleId: "vehicle" };
+    expect(normalizeInventoryUnitCreate(input, now).inventoryNumber).toBeNull();
+    expect(() => normalizeInventoryUnitCreate({ ...input, inventoryNumber: "bad number!" }, now)).toThrow(/inventory number/i);
+  });
   it("requires attributable waiting and blocker reasons", () => {
     expect(() => normalizeInventoryUnitControlUpdate({ expectedVersion: 1, idempotencyKey: "one", locationId: "loc", nextAction: "Call carrier", operatingState: "BLOCKED", ownerUserId: "owner", reason: "Update the blocked control state.", stateReason: "short", targetAt: "2026-07-17T08:00:00Z" })).toThrow("at least 10");
     expect(() => normalizeInventoryUnitControlUpdate({ expectedVersion: 1, idempotencyKey: "one", locationId: "loc", nextAction: "Close", operatingState: "CLOSED", ownerUserId: "owner", reason: "Attempt premature close state.", stateReason: "Unit is delivered", targetAt: "2026-07-17T08:00:00Z" })).toThrow("invalid for the foundation");

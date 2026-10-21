@@ -28,7 +28,7 @@ function capability(action: string, approve = false): VehicleCapability {
 }
 
 const subjectTypes: Record<string, string> = {
-  UPSERT_SERVICE_PROMISE: "CUSTOMER_SERVICE_PROMISE", RECORD_COMMUNICATION_PREFERENCE: "CUSTOMER_COMMUNICATION_PREFERENCE", CREATE_ESTIMATE_APPROVAL: "CUSTOMER_ESTIMATE_APPROVAL", PUBLISH_SERVICE_STATUS: "CUSTOMER_SERVICE_STATUS",
+  UPSERT_SERVICE_PROMISE: "CUSTOMER_SERVICE_PROMISE", RECORD_COMMUNICATION_PREFERENCE: "CUSTOMER_COMMUNICATION_PREFERENCE", CREATE_ESTIMATE_APPROVAL: "CUSTOMER_ESTIMATE_APPROVAL", RECORD_ESTIMATE_DELIVERY: "CUSTOMER_ESTIMATE_APPROVAL", PUBLISH_SERVICE_STATUS: "CUSTOMER_SERVICE_STATUS",
   CREATE_WARRANTY_COVERAGE: "WARRANTY_COVERAGE", CREATE_WARRANTY_CLAIM: "WARRANTY_CLAIM", TRANSITION_WARRANTY_CLAIM: "WARRANTY_CLAIM", RECONCILE_SERVICE_INVOICE: "SERVICE_INVOICE_PACKAGE",
   CREATE_COMMERCIAL_HANDOFF: "COMMERCIAL_HANDOFF", TRANSITION_COMMERCIAL_HANDOFF: "COMMERCIAL_HANDOFF", CREATE_PORTAL_GRANT: "VEHICLE_PORTAL_GRANT", REVOKE_PORTAL_GRANT: "VEHICLE_PORTAL_GRANT",
   CREATE_POLICY_DRAFT: "VEHICLE_POLICY", SIMULATE_POLICY: "VEHICLE_POLICY", APPROVE_POLICY: "VEHICLE_POLICY", ACTIVATE_POLICY: "VEHICLE_POLICY", ROLLBACK_POLICY: "VEHICLE_POLICY",
@@ -40,13 +40,23 @@ export async function getCustomerLifecycleWorkspace(actor: AuthenticatedUser | n
 
 export async function executeCustomerLifecycleCommand(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
   const context = dependencies(input), normalized = normalizeLifecycleCommand(value, context.now()), action = normalized.action, user = await authorize(actor, capability(action, action === "APPROVE_POLICY"), context, true), raw = payload(normalized);
-  const receipt = action.includes("POLICY") ? await context.repository.policyCommandReceipt?.(context.organizationId, action, normalized.idempotencyKey) : null;
+  let locationId: string | null = null;
+  if(["CREATE_ESTIMATE_APPROVAL","RECORD_ESTIMATE_DELIVERY","RECONCILE_SERVICE_INVOICE"].includes(action)) {
+    const scope=await context.repository.serviceCommandLocation(context.organizationId,action,raw);
+    if(!scope)throw new Error("Scoped repair order was not found.");
+    locationId=scope.locationId;
+    const grants=await context.foundationRepository.listCapabilityGrants(user.id,context.organizationId);
+    for(const permission of ["REPAIR_ORDER_VIEW",action==="RECONCILE_SERVICE_INVOICE"?"SERVICE_BILLING_MANAGE":"REPAIR_ORDER_MANAGE"] as const)assertVehicleCapability({actor:user,capability:permission,grants,locationId,now:context.now()});
+  }
+  const receipt = await context.repository.policyCommandReceipt?.(context.organizationId, action, normalized.idempotencyKey);
+  const original = receipt && "domainEvents" in receipt ? (receipt.domainEvents[0]?.payload as Record<string,unknown> | undefined) : undefined;
+  for(const field of ["effectiveAt","effectiveFrom","publishedAt","occurredAt","reconciledAt"])if((value as Record<string,unknown>)[field]==null&&original?.[field]!==undefined)raw[field]=original[field];
   const id = creates.has(action) ? receipt?.subjectId ?? randomUUID() : required(normalized.subjectId, "Subject ID", 100), subjectType = subjectTypes[action];
   let rawToken: string | null = null;
-  if (action === "CREATE_ESTIMATE_APPROVAL" || action === "CREATE_PORTAL_GRANT") { rawToken = randomBytes(32).toString("base64url"); raw.tokenHashSha256 = hashAccessToken(rawToken); }
+  if (action === "CREATE_ESTIMATE_APPROVAL" || action === "CREATE_PORTAL_GRANT") { if (receipt) { raw.tokenHashSha256 = await context.repository.accessTokenHash(context.organizationId, action, receipt.subjectId); } else { rawToken = randomBytes(32).toString("base64url"); raw.tokenHashSha256 = hashAccessToken(rawToken); } }
   if (action === "CREATE_ESTIMATE_APPROVAL") raw.destinationMasked = maskDestination(String(raw.destination));
   const expectedVersion = receipt?.expectedVersion ?? (creates.has(action) ? 0 : await context.repository.aggregateVersion(context.organizationId, subjectType, id));
-  const command = normalizeEnterpriseCommand({ actorUserId: user.id, commandType: action, domain: "CUSTOMER_LIFECYCLE", expectedVersion, idempotencyKey: normalized.idempotencyKey, locationId: null, organizationId: context.organizationId, payload: raw, reason: normalized.reason, subjectId: id, subjectType });
+  const command = normalizeEnterpriseCommand({ actorUserId: user.id, commandType: action, domain: "CUSTOMER_LIFECYCLE", expectedVersion, idempotencyKey: normalized.idempotencyKey, locationId, organizationId: context.organizationId, payload: raw, reason: normalized.reason, subjectId: id, subjectType });
   const result = await context.repository.execute(command, raw);
   if (!rawToken) return result;
   return { ...result, accessUrl: action === "CREATE_PORTAL_GRANT" ? `/portal/vehicle/${rawToken}` : `/portal/estimate/${rawToken}`, accessToken: rawToken };

@@ -14,7 +14,7 @@ export type EstimateLine = {
   position?: "front-left" | "front-right";
 };
 
-export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[] };
+export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[]; repairOrderId?: string; vehicleId?: string };
 
 export function isValidAmount(value: unknown, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= maximum;
@@ -36,6 +36,9 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
   try {
     const draft = JSON.parse(raw) as PreviewDraft;
     if (!draft || draft.version !== 1 || !isValidAmount(draft.rate, 1000) || !Array.isArray(draft.lines) || draft.lines.length > 100) return null;
+    if (draft.repairOrderId !== undefined || draft.vehicleId !== undefined) {
+      if (typeof draft.repairOrderId !== "string" || !draft.repairOrderId || draft.repairOrderId.length > 200 || typeof draft.vehicleId !== "string" || !draft.vehicleId || draft.vehicleId.length > 200) return null;
+    }
     const identifiers = new Set<string>();
     const conflicts = new Set<string>();
     for (const line of draft.lines) {

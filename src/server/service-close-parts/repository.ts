@@ -1,3 +1,5 @@
+import { serviceInvoiceBalance } from "@/lib/service-billing";
+import { serviceInvoiceCandidate, assertCurrentInvoicePackage } from "./invoice-candidate";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
@@ -48,6 +50,9 @@ function total(lines: PurchaseLine[]) {
 
 export function createServiceClosePartsRepository(database: PrismaClient = prisma) {
   return {
+    commandReceipt(organizationId: string, commandType: string, idempotencyKey: string) {
+      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType, idempotencyKey } }, select: { expectedVersion: true } });
+    },
     async aggregateVersion(organizationId: string, domain: "SHOP_OPERATIONS" | "PARTS_OPERATIONS", subjectType: string, subjectId: string) {
       const row = await database.enterpriseAggregateVersion.findUnique({ where: { organizationId_domain_subjectType_subjectId: { domain, organizationId, subjectId, subjectType } }, select: { version: true } });
       return row?.version ?? 0;
@@ -155,20 +160,17 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     generateInvoice(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; generatedAt: Date; reason: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.shop", async (tx, aggregateVersion) => {
-        const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: { repairJobs: { where: { status: { not: "CANCELLED" } }, include: { laborEvents: true, partCustodyEvents: { where: { type: "INSTALL" } } } }, invoicePackages: { orderBy: { version: "desc" }, take: 1 } } });
+        const candidate = await serviceInvoiceCandidate(tx, command.organizationId, command.subjectId);
+        const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: { invoicePackages: { orderBy: { version: "desc" }, take: 1 } } });
         if (!order) throw new Error("Open repair order was not found.");
-        if (!order.repairJobs.length) throw new Error("Invoice-ready package requires at least one active repair job.");
-        const lineItems = order.repairJobs.map((job) => ({ authorizedAmountCents: job.authorizedAmountCents, authorizedLineKey: job.authorizedLineKey, description: job.description, jobId: job.id, jobNumber: job.jobNumber, laborGuideMinutes: job.laborGuideMinutes, status: job.status }));
-        const authorizedTotalCents = order.repairJobs.reduce((sum, job) => sum + job.authorizedAmountCents, 0);
-        const installedPartsCostCents = order.repairJobs.flatMap((job) => job.partCustodyEvents).reduce((sum, event) => sum + event.quantity * event.unitCostCents, 0);
-        const clockedLaborMinutes = order.repairJobs.flatMap((job) => job.laborEvents).reduce((sum, event) => sum + (event.eventType === "CORRECTION" ? event.correctionMinutes ?? 0 : 0), 0) + order.repairJobs.reduce((sum, job) => sum + (job.status === "QC_PASSED" ? job.laborGuideMinutes : 0), 0);
-        const mismatchCodes = [...(order.repairJobs.some((job) => job.status !== "QC_PASSED") ? ["INVOICE_JOB_QC_INCOMPLETE"] : []), ...(order.repairJobs.some((job) => job.partsRequired && !job.partCustodyEvents.length) ? ["INVOICE_INSTALL_EVIDENCE_MISSING"] : [])];
+        const lineItems = candidate.ledger.lines, authorizedTotalCents = candidate.ledger.totalCents;
+        const { installedPartsCostCents, clockedLaborMinutes, mismatchCodes } = candidate;
         const packageVersion = (order.invoicePackages[0]?.version ?? 0) + 1;
-        const record = await tx.serviceInvoicePackage.create({ data: { authorizedTotalCents, clockedLaborMinutes: Math.max(0, clockedLaborMinutes), createdByUserId: data.createdByUserId, generatedAt: data.generatedAt, installedPartsCostCents, lineItems: toJson(lineItems), mismatchCodes: toJson(mismatchCodes), organizationId: command.organizationId, reason: data.reason, repairOrderId: order.id, sourceSnapshot: toJson({ aggregateVersion, jobIds: order.repairJobs.map((job) => job.id), generatedAt: data.generatedAt }), status: "READY", version: packageVersion } });
+        const record = await tx.serviceInvoicePackage.create({ data: { authorizedTotalCents, clockedLaborMinutes: Math.max(0, clockedLaborMinutes), createdByUserId: data.createdByUserId, generatedAt: data.generatedAt, installedPartsCostCents, lineItems: toJson(lineItems), mismatchCodes: toJson(mismatchCodes), organizationId: command.organizationId, reason: data.reason, repairOrderId: order.id, sourceSnapshot: toJson({ aggregateVersion, fingerprint: candidate.fingerprint, commercial: candidate.ledger, identity: candidate.identity, estimateId: candidate.estimate.id, authorizationId: candidate.authorization.id, generatedAt: data.generatedAt, billingMode: order.origin === "CUSTOMER_REPAIR" ? "NATIVE" : "INTERNAL_COST" }), status: "READY", version: packageVersion } });
         await tx.repairOrder.update({
           where: { id: order.id },
           data: {
-            nextAction: mismatchCodes.length ? "Resolve invoice-ready mismatches" : "Submit invoice-ready package or complete handoff",
+            nextAction: mismatchCodes.length ? "Resolve invoice-ready mismatches" : order.origin === "CUSTOMER_REPAIR" ? "Post the native invoice, record verified settlement, then complete handoff" : "Review internal cost package and complete operational handoff",
             operatingState: mismatchCodes.length ? "BLOCKED" : "ACTIVE",
             stateReason: mismatchCodes.length ? mismatchCodes.join(", ") : null,
             version: aggregateVersion,
@@ -182,6 +184,8 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.shop", async (tx, version) => {
         const record = await tx.serviceInvoicePackage.findFirst({ where: { id: packageId, organizationId: command.organizationId } });
         if (!record) throw new Error("Invoice-ready package was not found.");
+        await assertCurrentInvoicePackage(tx, command.organizationId, record);
+        if(data.status === "ACCEPTED") throw new Error("Invoice acceptance must use reconciled component totals or native invoice posting.");
         const allowed: Record<string, string[]> = { READY: ["SUBMITTED"], SUBMITTED: ["ACCEPTED", "REJECTED"], REJECTED: ["SUBMITTED"], ACCEPTED: [] };
         if (!allowed[record.status]?.includes(data.status)) throw new Error(`Invoice package cannot transition from ${record.status} to ${data.status}.`);
         const next = await tx.serviceInvoicePackage.update({ where: { id: record.id }, data: { externalReference: data.externalReference ?? record.externalReference, externalSystemCode: data.externalSystemCode ?? record.externalSystemCode, reconciledAt: ["ACCEPTED", "REJECTED"].includes(data.status) ? data.occurredAt : null, status: data.status, submittedAt: data.status === "SUBMITTED" ? data.occurredAt : record.submittedAt } });
@@ -197,6 +201,16 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         if (!readiness || readiness.disposition !== "READY") throw new Error("Repair order close requires current delivery readiness.");
         if (!order.releaseAuthorization) throw new Error("Repair order close requires release authorization.");
         if (!invoice || !["READY", "ACCEPTED"].includes(invoice.status) || (invoice.mismatchCodes as string[]).length) throw new Error("Repair order close requires a reconciled invoice-ready package without mismatches.");
+        const current = await assertCurrentInvoicePackage(tx, command.organizationId, invoice);
+        const posted = await tx.serviceInvoice.findFirst({ where: { organizationId: command.organizationId, repairOrderId: order.id, packageId: invoice.id, status: "POSTED" } });
+        if (readiness.releaseAuthorizationId !== order.releaseAuthorization.id || readiness.evaluatedAt < order.releaseAuthorization.authorizedAt || readiness.evaluatedAt < invoice.generatedAt || current.order.repairJobs.some(job => job.updatedAt > readiness.evaluatedAt)) throw new Error("Refresh delivery readiness after the latest release, invoice and repair work.");
+        if (order.origin === "CUSTOMER_REPAIR") {
+          if (!posted || posted.sourceFingerprint !== current.fingerprint) throw new Error("Repair order close requires the current native posted invoice.");
+          const entries = await tx.serviceInvoiceEntry.findMany({ where: { organizationId: command.organizationId, invoiceId: posted.id } });
+          if (data.occurredAt < posted.issuedAt || entries.some(entry => entry.occurredAt > data.occurredAt)) throw new Error("Closeout cannot predate invoice posting or its verified financial activity.");
+          if (serviceInvoiceBalance(posted, entries).balanceCents !== 0) throw new Error("Repair order close requires a fully settled native invoice.");
+        } else if ((invoice.sourceSnapshot as {billingMode?:string}).billingMode !== "INTERNAL_COST") throw new Error("Internal repair close requires an internal cost package, not a fabricated customer invoice.");
+        if (data.occurredAt < readiness.evaluatedAt || data.occurredAt.getTime() > Date.now() + 60_000) throw new Error("Closeout time must follow current readiness and not be in the future.");
         if (!data.keysVerified) throw new Error("Repair order close requires verified keys.");
         await tx.repairOrder.update({ where: { id: order.id }, data: { closedAt: data.occurredAt, nextAction: "Service visit closed", operatingState: "CLOSED", stage: "CLOSED", stageStartedAt: data.occurredAt, stateReason: null, version } });
         await tx.repairOrderStateEvent.create({ data: { actorUserId: command.actorUserId, correlationId: command.correlationId, fromOperatingState: order.operatingState, fromStage: order.stage, locationId: order.locationId, nextAction: "Service visit closed", organizationId: command.organizationId, ownerUserId: order.ownerUserId, reason: command.reason, repairOrderId: order.id, targetAt: order.targetAt, toOperatingState: "CLOSED", toStage: "CLOSED", version } });

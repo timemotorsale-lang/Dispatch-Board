@@ -139,6 +139,7 @@
 .primary { border: 1px solid #155bd7; background: #155bd7; color: white; width: 100%; }
 .primary:hover:not(:disabled) { background: #104bb5; }
 .secondary { border: 1px solid #bdcadd; background: #fff; color: #155bd7; }
+.estimate > .secondary { width: 100%; margin-bottom: 10px; }
 .draftActions { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 12px; }
 .draftActions button { border: 0; background: transparent; color: #155bd7; font-size: 11px; padding: 6px 0; min-height: 32px; text-decoration: underline; }
 .status { padding: 12px; margin-top: 14px !important; background: #f2f6fb; border-radius: 6px; color: #4b607b; font-size: 11px; overflow-wrap: anywhere; }

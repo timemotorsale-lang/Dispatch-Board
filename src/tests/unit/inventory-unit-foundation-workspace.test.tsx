@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { InventoryUnitFoundationWorkspace } from "@/features/inventory/inventory-unit-foundation-workspace";
 describe("inventory unit foundation workspace", () => {
+  it("offers a direct return to the same vehicle check-in but not external destinations", () => {
+    const props = { initial: { items: [], page: 1, pageSize: 25, total: 0, totalPages: 1 }, options: { locations: [], users: [], vehicles: [] } };
+    const returnTo = "/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=vehicle-1";
+    const html = renderToStaticMarkup(<InventoryUnitFoundationWorkspace {...props} returnTo={returnTo} />);
+    expect(html).toContain("Return to vehicle check-in");
+    expect(html).toContain('href="/vehicles/repair-orders?intakeSource=INVENTORY_RECON&amp;vehicleId=vehicle-1"');
+    expect(renderToStaticMarkup(<InventoryUnitFoundationWorkspace {...props} returnTo="https://example.test" />)).not.toContain("Return to vehicle check-in");
+  });
   it("renders search, ownership boundary, creation, and honest lifecycle scope", () => {
     const html = renderToStaticMarkup(<InventoryUnitFoundationWorkspace initial={{ items: [], page: 1, pageSize: 25, total: 0, totalPages: 1 }} options={{ locations: [], users: [], vehicles: [] }} />);
     expect(html).toContain("Inventory unit worklist"); expect(html).toContain("Search inventory, vehicle, VIN"); expect(html).toContain("Create inventory unit"); expect(html).toContain("No eligible vehicles");

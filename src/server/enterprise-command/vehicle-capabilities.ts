@@ -20,6 +20,8 @@ export const VEHICLE_CAPABILITIES = [
   "INVENTORY_RELEASE_MANAGE",
   "INVENTORY_COST_VIEW",
   "INVENTORY_PRICING_MANAGE",
+  "SERVICE_BILLING_VIEW",
+  "SERVICE_BILLING_MANAGE",
   "REPAIR_ORDER_VIEW",
   "REPAIR_ORDER_MANAGE",
   "PARTS_VIEW",
@@ -157,7 +159,7 @@ export function evaluateVehicleCapability(input: {
   }
   if (["DIAGNOSTIC_CONCLUSION_CONFIRM", "DIAGNOSTIC_HIGH_RISK_CONFIRM", "DIAGNOSTIC_CONCLUSION_REVIEW"].includes(input.capability)) return matching.some((grant) => grant.effect === "ALLOW") ? { allowed: true, reason: "EXPLICIT_GRANT" } as const : { allowed: false, reason: "EXPLICIT_TECHNICAL_GRANT_REQUIRED" } as const;
   if (isGeneralManager(input.actor)) return { allowed: true, reason: "GENERAL_MANAGER" } as const;
-  if (input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE" || input.capability === "VEHICLE_DUPLICATE_RESOLVE" || input.capability === "VEHICLE_EVIDENCE_RESTRICTED_VIEW" || input.capability === "VEHICLE_OUTPUT_RESTRICTED" || input.capability === "VEHICLE_PORTAL_MANAGE" || input.capability === "VEHICLE_POLICY_APPROVE") {
+  if (input.capability === "SERVICE_BILLING_VIEW" || input.capability === "SERVICE_BILLING_MANAGE" || input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE" || input.capability === "VEHICLE_DUPLICATE_RESOLVE" || input.capability === "VEHICLE_EVIDENCE_RESTRICTED_VIEW" || input.capability === "VEHICLE_OUTPUT_RESTRICTED" || input.capability === "VEHICLE_PORTAL_MANAGE" || input.capability === "VEHICLE_POLICY_APPROVE") {
     return matching.some((grant) => grant.effect === "ALLOW")
       ? { allowed: true, reason: "EXPLICIT_GRANT" } as const
       : { allowed: false, reason: "GENERAL_MANAGER_OR_GRANT_REQUIRED" } as const;

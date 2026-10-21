@@ -96,13 +96,13 @@ export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicle
       } else if (data.details.purchaseCents !== null) {
         if (!data.details.acquiredOn) throw new Error("Acquisition date is required to record purchase cost.");
         assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: unit.locationId, now: c.now, amountCents: data.details.purchaseCents });
-        const duplicate = await tx.inventoryUnitCost.findFirst({ where: { organizationId: c.organizationId, inventoryUnitId: unit.id, reference: { equals: data.details.reference, mode: "insensitive" }, status: { in: ["ESTIMATED", "INCURRED"] } } });
+        const duplicate = data.details.reference ? await tx.inventoryUnitCost.findFirst({ where: { organizationId: c.organizationId, inventoryUnitId: unit.id, reference: { equals: data.details.reference, mode: "insensitive" }, status: { in: ["ESTIMATED", "INCURRED"] } } }) : null;
         if (duplicate) throw new Error("This purchase reference already has an active cost record. Review Costs & Investment.");
         const key = { organizationId_domain_subjectType_subjectId: { organizationId: c.organizationId, domain: "RETAIL_INVENTORY", subjectType: "INVENTORY_UNIT", subjectId: unit.id } };
         const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: key });
         if (!aggregate || aggregate.version !== unit.version) throw new EnterpriseCommandConflictError("Inventory version is inconsistent; reload before saving.", "VERSION_CONFLICT");
         const observedAt = new Date(data.details.acquiredOn + "T00:00:00Z");
-        const cost = await tx.inventoryUnitCost.create({ data: { organizationId: c.organizationId, inventoryUnitId: unit.id, category: "ACQUISITION", status: data.details.priceStatus, amountCents: data.details.purchaseCents, currency: "USD", reference: data.details.reference, notes: `${data.details.source}: ${data.details.seller}. ${data.reason}`, source: "MANUAL_STAFF_REPORT", confidence: "MEDIUM", observedAt, incurredAt: data.details.priceStatus === "INCURRED" ? observedAt : null, createdByUserId: c.user.id } });
+        const cost = await tx.inventoryUnitCost.create({ data: { organizationId: c.organizationId, inventoryUnitId: unit.id, category: "ACQUISITION", status: data.details.priceStatus, amountCents: data.details.purchaseCents, currency: "USD", reference: data.details.reference || null, notes: `${data.details.source}: ${data.details.seller}. ${data.reason}`, source: "MANUAL_STAFF_REPORT", confidence: "MEDIUM", observedAt, incurredAt: data.details.priceStatus === "INCURRED" ? observedAt : null, createdByUserId: c.user.id } });
         costRecordIds.push(cost.id);
         const unitVersion = unit.version + 1;
         await tx.inventoryUnit.update({ where: { id: unit.id }, data: { version: unitVersion } });

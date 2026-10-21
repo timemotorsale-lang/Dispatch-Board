@@ -1,5 +1,6 @@
 import { InventoryUnitLifecycleStage, Prisma, type InventoryUnitOperatingState, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
+import { allocateInventoryNumber } from "./number-allocation";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import type { normalizeCostRecord } from "./cost-domain";
@@ -39,7 +40,7 @@ export async function executeInventoryMutation(database: PrismaClient, input: En
   });
 }
 
-export type InventoryUnitCreateRecord = { acquisitionSource: "AUCTION" | "TRADE" | "DIRECT_PURCHASE" | "DEALER_TRANSFER" | "CONSIGNMENT" | "OTHER"; actorUserId: string; financialAcquiredAt: Date; inventoryNumber: string; locationId: string; nextAction: string; operatingState: "ACTIVE" | "WAITING" | "BLOCKED"; ownerUserId: string; stateReason: string | null; targetAt: Date; vehicleId: string; intakeDraftRequired?: boolean };
+export type InventoryUnitCreateRecord = { acquisitionSource: "AUCTION" | "TRADE" | "DIRECT_PURCHASE" | "DEALER_TRANSFER" | "CONSIGNMENT" | "OTHER"; actorUserId: string; financialAcquiredAt: Date; inventoryNumber: string | null; locationId: string; nextAction: string; operatingState: "ACTIVE" | "WAITING" | "BLOCKED"; ownerUserId: string; stateReason: string | null; targetAt: Date; vehicleId: string; intakeDraftRequired?: boolean };
 export type InventoryUnitControlRecord = Omit<InventoryUnitCreateRecord, "acquisitionSource" | "financialAcquiredAt" | "inventoryNumber" | "vehicleId">;
 
 const detailInclude = { vehicle: { select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, stockNumber: true, year: true, make: true, model: true, color: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
@@ -131,7 +132,7 @@ export function createInventoryUnitRepository(database: PrismaClient = prisma) {
       return executeInventoryMutation(database, command, async (tx, version) => {
         const vehicleScope = JSON.stringify([command.organizationId, "OPEN_INVENTORY_UNIT", data.vehicleId]);
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${vehicleScope}))`;
-        const vehicle = await tx.vehicle.findFirst({ where: { id: data.vehicleId, organizationId: command.organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, select: { id: true, registryRelationships: { where: { relationshipType: { in: ["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"] }, effectiveFrom: { lte: data.financialAcquiredAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: data.financialAcquiredAt } }] }, select: { id: true } } } });
+        const vehicle = await tx.vehicle.findFirst({ where: { id: data.vehicleId, organizationId: command.organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, select: { id: true, vin: true, registryRelationships: { where: { relationshipType: { in: ["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"] }, effectiveFrom: { lte: data.financialAcquiredAt }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: data.financialAcquiredAt } }] }, select: { id: true } } } });
         if (!vehicle) throw new Error("Inventory vehicle must be active in the canonical registry.");
         if (data.intakeDraftRequired) {
           const intake = await tx.inventoryIntakeRevision.findFirst({ where: { organizationId: command.organizationId, vehicleId: data.vehicleId }, orderBy: { version: "desc" }, select: { status: true, inventoryUnitId: true } });
@@ -139,11 +140,12 @@ export function createInventoryUnitRepository(database: PrismaClient = prisma) {
         }
         const [location, owner, openUnit] = await Promise.all([tx.location.findFirst({ where: { id: data.locationId, organizationId: command.organizationId }, select: { id: true } }), tx.user.findFirst({ where: { id: data.ownerUserId, isActive: true }, select: { id: true } }), tx.inventoryUnit.findFirst({ where: { organizationId: command.organizationId, vehicleId: data.vehicleId, closedAt: null }, select: { id: true } })]);
         if (!location) throw new Error("Inventory location does not belong to the organization."); if (!owner) throw new Error("Inventory owner must be an active user."); if (openUnit) throw new Error("Vehicle already has an open inventory unit.");
+        const inventoryNumber = await allocateInventoryNumber(tx, command.organizationId, vehicle, data.inventoryNumber);
         if (!vehicle.registryRelationships.length) {
           const relationshipType = data.acquisitionSource === "TRADE" ? "TRADE_IN" : data.acquisitionSource === "CONSIGNMENT" ? "CONSIGNMENT" : "DEALERSHIP_OWNED";
-          await tx.vehicleRelationship.create({ data: { effectiveFrom: data.financialAcquiredAt, notes: `Created from staff inventory recon intake for ${data.inventoryNumber}.`, organizationId: command.organizationId, relationshipType, sourceCode: "INVENTORY_INTAKE", sourceReference: data.acquisitionSource, vehicleId: data.vehicleId } });
+          await tx.vehicleRelationship.create({ data: { effectiveFrom: data.financialAcquiredAt, notes: `Created from staff inventory recon intake for ${inventoryNumber}.`, organizationId: command.organizationId, relationshipType, sourceCode: "INVENTORY_INTAKE", sourceReference: data.acquisitionSource, vehicleId: data.vehicleId } });
         }
-        const unit = await tx.inventoryUnit.create({ data: { id: command.subjectId, organizationId: command.organizationId, vehicleId: data.vehicleId, inventoryNumber: data.inventoryNumber, lifecycleStage: "PURCHASED_OR_TRADE_IN", operatingState: data.operatingState, financialAcquiredAt: data.financialAcquiredAt, stageStartedAt: data.financialAcquiredAt, ownerUserId: data.ownerUserId, locationId: data.locationId, targetAt: data.targetAt, nextAction: data.nextAction, stateReason: data.stateReason, version } });
+        const unit = await tx.inventoryUnit.create({ data: { id: command.subjectId, organizationId: command.organizationId, vehicleId: data.vehicleId, inventoryNumber, lifecycleStage: "PURCHASED_OR_TRADE_IN", operatingState: data.operatingState, financialAcquiredAt: data.financialAcquiredAt, stageStartedAt: data.financialAcquiredAt, ownerUserId: data.ownerUserId, locationId: data.locationId, targetAt: data.targetAt, nextAction: data.nextAction, stateReason: data.stateReason, version } });
         await tx.inventoryUnitStateEvent.create({ data: { organizationId: command.organizationId, inventoryUnitId: unit.id, version, fromStage: null, toStage: unit.lifecycleStage, fromOperatingState: null, toOperatingState: unit.operatingState, ownerUserId: unit.ownerUserId, locationId: unit.locationId, targetAt: unit.targetAt, nextAction: unit.nextAction, reason: command.reason, source: "USER", actorUserId: data.actorUserId, correlationId: command.correlationId, occurredAt: data.financialAcquiredAt } });
         return { result: { id: unit.id, inventoryNumber: unit.inventoryNumber, lifecycleStage: unit.lifecycleStage, operatingState: unit.operatingState, version } };
       });

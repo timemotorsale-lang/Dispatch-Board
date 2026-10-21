@@ -2,9 +2,12 @@ import { OfficialRepairEstimateDocument } from "@/features/diagnostics/official-
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { getRepairOrderDetail } from "@/server/repair-order/service";
+import { getRepairDocuments } from "@/server/repair-order/document-service";
+import { ServiceDocument } from "@/features/inventory/service-document";
 import { notFound } from "next/navigation";
 
 type SearchParams = Promise<{
+  workflow?: string | string[];
   estimateId?: string | string[];
   concern?: string | string[];
   createdAt?: string | string[];
@@ -84,11 +87,13 @@ export default async function OfficialRepairEstimatePage({ searchParams }: { sea
     const ro = await getShopPlanningDetail(user, roId);
     const estimate = ro.estimateVersions.find(item => item.id === estimateId);
     if (!estimate) notFound();
+    const frozen = (await getRepairDocuments(user, ro.id)).documents.find(document => document.kind === "ESTIMATE" && document.sourceId === estimate.id);
+    if (frozen) return <ServiceDocument reviewWorkflow={first(params.workflow) === "review"} repairOrderId={ro.id} content={frozen.content} sha256={frozen.sha256} templateVersion={frozen.templateVersion} />;
     const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
     const persistedLines = estimate.lineItems as Array<{ description: string; quantity: number; unitPriceCents: number; type: string }>;
     return <OfficialRepairEstimateDocument
       isDraft={false}
-      reviewNotes={estimate.assumptions}
+      reviewNotes={`Legacy document: identity is current, not frozen at issue. Reissue a reviewed estimate before new authorization. ${estimate.assumptions ?? ""}`}
       concern={ro.serviceVisit.concernSummary}
       createdAt={estimate.presentedAt?.toISOString() ?? estimate.createdAt.toISOString()}
       customer={ro.customer?.displayName ?? "Internal vehicle"}

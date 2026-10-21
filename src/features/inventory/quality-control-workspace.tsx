@@ -17,6 +17,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
+import { notifyRepairReviewSaved, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type User = { id: string; name: string };
@@ -216,7 +217,7 @@ function scorecardRows(jobs: Array<{ order: Order; job: Job }>) {
   return [...byTech.entries()].map(([name, row]) => ({ name, ...row }));
 }
 
-export function QualityControlWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo }: { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string }) {
+export function QualityControlWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo, reviewOrderId }: { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string; reviewOrderId?: string }) {
   const initialOrder = initial.repairOrders.find((order) => order.id === initialRepairOrderId) ?? initial.repairOrders[0];
   const [model, setModel] = useState(initial);
   const [orderId, setOrderId] = useState(initialOrder?.id ?? "");
@@ -322,7 +323,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   async function refresh() {
-    const next = await request("/api/quality-control") as Model;
+    const next = scopedRepairOrders(await request("/api/quality-control") as Model, reviewOrderId);
     setModel(next);
   }
 
@@ -335,6 +336,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
       setNotice(success);
       await refresh();
+      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
       return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Quality-control request failed.");

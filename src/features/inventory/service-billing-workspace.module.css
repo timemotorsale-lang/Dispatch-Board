@@ -1,0 +1,13 @@
+.workspace { max-width: 1100px; margin: 24px auto; padding: 24px; }
+.workspace form { margin: 20px 0; display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.workspace fieldset { width: 100%; display: grid; gap: 16px; padding: 20px; border: 1px solid #b5c4d5; border-radius: 10px; }
+.workspace label { display: grid; gap: 6px; font-weight: 600; }
+.workspace input, .workspace select, .workspace textarea { min-width: 0; width: 100%; padding: 10px; border: 1px solid #93a7bf; border-radius: 6px; font: inherit; }
+.workspace textarea { min-height: 80px; }
+.workspace button { padding: 10px 16px; cursor: pointer; }
+.workspace article { border: 1px solid #b5c4d5; padding: 16px; border-radius: 10px; margin: 16px 0; overflow-wrap: anywhere; }
+.workspace [role="alert"] { color: #9b1c1c; }
+.workspace [role="status"] { color: #17612e; }
+@media (max-width: 600px) { .workspace { padding: 12px; margin: 0; } .workspace fieldset { padding: 12px; } }
+.workspace summary{cursor:pointer;font-weight:650;padding:10px 0}.workspace fieldset{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.workspace fieldset>legend,.workspace fieldset>p,.workspace fieldset>fieldset,.workspace fieldset>button{grid-column:1/-1}.workspace form button:last-child{background:#075fd4;border:1px solid #075fd4;border-radius:6px;color:white;font-weight:700}.workspace article a,.workspace article>button{margin-right:12px}.workspace article details{margin-top:8px}@media(max-width:600px){.workspace fieldset{grid-template-columns:1fr}}
+.invoicePreview table{width:100%;border-collapse:collapse}.invoicePreview td,.invoicePreview th{text-align:left;padding:8px;border-bottom:1px solid #dce3ec}.invoicePreview dl{display:grid;grid-template-columns:1fr auto;gap:6px;max-width:340px;margin-left:auto}.invoicePreview dd{margin:0}

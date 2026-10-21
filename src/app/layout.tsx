@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 
 import { APP_NAME } from "./config";
@@ -21,8 +22,10 @@ type RootLayoutProps = {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: appearanceInitializationScript }} /></head>
-      <body>{children}</body>
+      <body>
+        <Script id="app-appearance-initialization" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: appearanceInitializationScript }} />
+        {children}
+      </body>
     </html>
   );
 }

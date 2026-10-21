@@ -90,4 +90,71 @@ describe.skipIf(process.env.RUN_LABOR_STAGING_INTEGRATION !== "1")("isolated lab
     expect(await prisma.vehiclePolicyVersion.findUnique({ where: { id: subjectId }, select: { status: true } })).toEqual({ status: "SUPERSEDED" });
     expect(await prisma.vehiclePolicyEvent.count({ where: { organizationId } })).toBe(8);
   }, 30_000);
+
+  it("binds governed inventory recon to one inventory unit and vehicle without duplicate intake writes", async () => {
+    if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Explicit isolated staging confirmation is required.");
+    assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
+    const { prisma } = await import("@/server/db/client");
+    const { createInventoryUnit } = await import("@/server/inventory-unit/service");
+    const { createRepairOrder } = await import("@/server/repair-order/service");
+    const { createRepairOrderRepository } = await import("@/server/repair-order/repository");
+    const { normalizeRepairOrderCreate } = await import("@/server/repair-order/domain");
+    const { normalizeEnterpriseCommand } = await import("@/server/enterprise-command/domain");
+    const prefix = `recon-proof-${randomUUID()}`, organizationId = `${prefix}-org`;
+    const actor = { id: `${prefix}-actor`, name: "Synthetic inventory recon actor", email: `${prefix}@example.test`, isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
+    const now = new Date(), arrivedAt = new Date(now.getTime() - 60_000), targetAt = new Date(now.getTime() + 3_600_000);
+    await prisma.organization.create({ data: { id: organizationId, code: prefix, name: "Isolated synthetic inventory recon proof" } });
+    await prisma.user.create({ data: { id: actor.id, email: actor.email, name: actor.name, passwordHash: "synthetic-disabled-login" } });
+    const location = await prisma.location.create({ data: { organizationId, code: prefix, name: "Synthetic inventory recon location", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } });
+    const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: prefix, vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic isolated recon fixture", vinValidationSource: "SYNTHETIC" } });
+    await prisma.vehicleRelationship.create({ data: { organizationId, vehicleId: vehicle.id, relationshipType: "DEALERSHIP_OWNED", effectiveFrom: arrivedAt, sourceCode: "SYNTHETIC_ISOLATED_PROOF", sourceReference: prefix, notes: "Synthetic effective ownership for isolated inventory eligibility proof only" } });
+    const context = { organizationId, enforceRollout: false, now: () => now };
+    const intake = { intakeSource: "INVENTORY_RECON", vehicleId: vehicle.id, arrivedAt: arrivedAt.toISOString(), targetAt: targetAt.toISOString(), consentStatus: "NOT_REQUIRED", concernSummary: "Synthetic inventory brake inspection, not actual repair work", idempotencyKey: `${prefix}-intake`, locationId: location.id, nextAction: "Synthetic recon intake proof only", ownerUserId: actor.id, reason: "Isolated synthetic inventory recon proof", transportMode: "INTERNAL_TRANSPORT" };
+    async function counts() {
+      const where = { organizationId };
+      return Promise.all([
+        prisma.inventoryUnit.count({ where }), prisma.serviceVisit.count({ where }), prisma.repairOrder.count({ where }),
+        prisma.enterpriseCommandLedger.count({ where }), prisma.enterpriseDomainEvent.count({ where }),
+        prisma.enterpriseAuditEvent.count({ where }), prisma.enterpriseOutboxMessage.count({ where }),
+        prisma.serviceDocument.count({ where }), prisma.repairOrderStateEvent.count({ where }),
+      ]);
+    }
+    const empty = await counts();
+    expect(empty).toEqual(Array(9).fill(0));
+    for (const inventoryUnitId of [undefined, null, "", "   "]) {
+      await expect(createRepairOrder(actor, { ...intake, inventoryUnitId }, context)).rejects.toThrow("Inventory unit ID is required.");
+      expect(await counts()).toEqual(empty);
+    }
+    const acquisition = { acquisitionSource: "DIRECT_PURCHASE", financialAcquiredAt: arrivedAt.toISOString(), idempotencyKey: `${prefix}-inventory`, inventoryNumber: `${prefix}-inventory`, locationId: location.id, nextAction: "Synthetic recon intake proof only", ownerUserId: actor.id, reason: "Explicit synthetic inventory acquisition for isolated proof", targetAt: targetAt.toISOString(), vehicleId: vehicle.id };
+    const createdUnit = await createInventoryUnit(actor, acquisition, context);
+    const inventoryUnitId = (createdUnit.result as { id: string }).id;
+    expect(createdUnit.duplicate).toBe(false);
+    expect(await createInventoryUnit(actor, acquisition, context)).toMatchObject({ duplicate: true, result: { id: inventoryUnitId } });
+    expect(await prisma.inventoryUnit.findUnique({ where: { id: inventoryUnitId } })).toMatchObject({ organizationId, vehicleId: vehicle.id, locationId: location.id, closedAt: null });
+
+    const acquired = await counts();
+    const repository = createRepairOrderRepository(prisma);
+    const normalized = normalizeRepairOrderCreate({ ...intake, inventoryUnitId }, now);
+    const directCommand = normalizeEnterpriseCommand({ actorUserId: actor.id, commandType: "CREATE_REPAIR_ORDER", domain: "SHOP_OPERATIONS", expectedVersion: 0, idempotencyKey: `${prefix}-direct-missing-unit`, locationId: location.id, organizationId, payload: {}, reason: intake.reason, subjectId: `${prefix}-rejected-ro`, subjectType: "REPAIR_ORDER" });
+    await expect(repository.create(directCommand, { ...normalized, inventoryUnitId: null, actorUserId: actor.id, repairOrderNumber: `${prefix}-rejected-ro` })).rejects.toThrow("Inventory unit ID is required.");
+    expect(await counts()).toEqual(acquired);
+
+    const request = { ...intake, inventoryUnitId, vehicleId: undefined };
+    const created = await createRepairOrder(actor, request, context);
+    const repairOrderId = (created.result as { id: string }).id;
+    expect(created.duplicate).toBe(false);
+    const order = await prisma.repairOrder.findUniqueOrThrow({ where: { id: repairOrderId }, include: { serviceVisit: true } });
+    expect(order).toMatchObject({ organizationId, vehicleId: vehicle.id, inventoryUnitId, locationId: location.id, origin: "INVENTORY_RECON", intakeSource: "INVENTORY_RECON", customerId: null });
+    expect(order.serviceVisit).toMatchObject({ organizationId, vehicleId: vehicle.id, inventoryUnitId, locationId: location.id, origin: "INVENTORY_RECON", intakeSource: "INVENTORY_RECON", customerId: null });
+    const persisted = await counts();
+    expect(persisted.slice(0, 3)).toEqual([1, 1, 1]);
+    expect(await createRepairOrder(actor, request, context)).toMatchObject({ duplicate: true, result: { id: repairOrderId } });
+    expect(await createRepairOrder(actor, { ...request, idempotencyKey: `${prefix}-same-concern` }, context)).toMatchObject({ duplicate: true, result: { id: repairOrderId, duplicateReason: "OPEN_VEHICLE_CONCERN_MATCH" } });
+    expect(await createRepairOrder(actor, { ...request, vehicleId: vehicle.id, idempotencyKey: `${prefix}-different-concern`, concernSummary: "Synthetic check engine light inspection" }, context)).toMatchObject({ duplicate: true, result: { id: repairOrderId, duplicateReason: "OPEN_VEHICLE_REPAIR_ORDER" } });
+    await expect(createRepairOrder(actor, { ...intake, idempotencyKey: `${prefix}-missing-after-create` }, context)).rejects.toThrow("Inventory unit ID is required.");
+    expect(await counts()).toEqual(persisted);
+    expect(await prisma.inventoryUnit.count({ where: { organizationId, vehicleId: vehicle.id } })).toBe(1);
+    expect(await prisma.serviceVisit.count({ where: { organizationId, vehicleId: vehicle.id } })).toBe(1);
+    expect(await prisma.repairOrder.count({ where: { organizationId, vehicleId: vehicle.id } })).toBe(1);
+  }, 30_000);
 });

@@ -31,13 +31,22 @@ function acquisitionSource(value: unknown): InventoryUnitAcquisitionSource {
   return INVENTORY_UNIT_ACQUISITION_SOURCES.includes(result) ? result : "OTHER";
 }
 
+function inventoryNumber(value: unknown) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") throw new Error("Inventory number is invalid.");
+  const result = value.trim().toUpperCase();
+  if (!result) return null;
+  if (!/^[A-Z0-9][A-Z0-9-]{0,99}$/.test(result)) throw new Error("Inventory number must contain only letters, digits or hyphens, up to 100 characters.");
+  return result;
+}
+
 export function normalizeInventoryUnitCreate(value: unknown, now = new Date()) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Inventory unit create request must be an object.");
   const raw = value as Record<string, unknown>; const financialAcquiredAt = timestamp(raw.financialAcquiredAt, "Financial acquisition time"); const targetAt = timestamp(raw.targetAt, "Stage target");
   if (financialAcquiredAt.getTime() > now.getTime() + 5 * 60_000) throw new Error("Financial acquisition time cannot be in the future.");
   if (targetAt < financialAcquiredAt) throw new Error("Stage target cannot be before financial acquisition.");
   const operatingState = state(raw.operatingState);
-  return { acquisitionSource: acquisitionSource(raw.acquisitionSource), financialAcquiredAt, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), inventoryNumber: required(raw.inventoryNumber, "Inventory number", 100).toUpperCase(), lifecycleStage: INVENTORY_UNIT_FOUNDATION_STAGE, locationId: required(raw.locationId, "Location ID", 100), nextAction: required(raw.nextAction, "Next action", 500), operatingState, ownerUserId: required(raw.ownerUserId, "Owner user ID", 100), reason: required(raw.reason, "Business reason", 500), stateReason: stateReason(operatingState, raw.stateReason), targetAt, vehicleId: required(raw.vehicleId, "Vehicle ID", 100) };
+  return { acquisitionSource: acquisitionSource(raw.acquisitionSource), financialAcquiredAt, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), inventoryNumber: inventoryNumber(raw.inventoryNumber), lifecycleStage: INVENTORY_UNIT_FOUNDATION_STAGE, locationId: required(raw.locationId, "Location ID", 100), nextAction: required(raw.nextAction, "Next action", 500), operatingState, ownerUserId: required(raw.ownerUserId, "Owner user ID", 100), reason: required(raw.reason, "Business reason", 500), stateReason: stateReason(operatingState, raw.stateReason), targetAt, vehicleId: required(raw.vehicleId, "Vehicle ID", 100) };
 }
 
 export function normalizeInventoryUnitControlUpdate(value: unknown) {

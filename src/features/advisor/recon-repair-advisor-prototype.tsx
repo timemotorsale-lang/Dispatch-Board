@@ -148,19 +148,13 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
   }));
   const currentFocus = cards[0] ?? null;
 
-  return <section className="rra-prototype">
-    <header className="rra-hero">
-      <div>
-        <span>Prototype · live advisor data</span>
-        <h1>Recon/Repair Service Advisor</h1>
-        <p>One calm cockpit for customer repair and inventory recon: know the vehicle, know the blocker, click the next action, and move the work forward.</p>
-      </div>
-      <aside>
-        <small>Prototype safety</small>
-        <strong>Current Service Advisor is untouched</strong>
-        <span>Use this page to compare the Rapid Recon-inspired flow before adoption.</span>
-      </aside>
-    </header>
+  return <section className="rra-prototype rra-execution">
+    <header className="rra-execution-header"><div><small>Prototype · live advisor data</small><h1>Recon/Repair Service Advisor</h1><p>Find the vehicle. Plan the work. Keep it moving.</p></div><nav><Link href="/prototype/repair-workflow">Try complete repair workflow · Review</Link>{" · "}<Link href="/appointments">Compare current Service Advisor</Link></nav></header>
+    <form action="/vehicles/recon-repair-advisor/find-work" className="rra-search" method="get">
+      <Search /><label><strong>VIN, stock number, vehicle or RO</strong><input name="search" placeholder="Scan or enter a VIN / stock number" type="search" required maxLength={120} /></label>
+      <button type="submit">Find work <ArrowRight /></button>
+    </form>
+    <details className="rra-tools"><summary>Work summary · {model.counts.activeRepairOrders} open · {model.counts.inboxNeedsResponse} messages</summary>
 
     <section className="rra-command-strip rra-command-strip-six" aria-label="Recon repair advisor operating snapshot">
       <article><Gauge /><span>Advisor</span><strong>{firstName}</strong><small>Execution cockpit</small></article>
@@ -171,6 +165,8 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
       <article><PackageCheck /><span>Parts</span><strong>{bottlenecks.find((item) => item.label === "Parts")?.count ?? 0}</strong><small>Blocking demand</small></article>
     </section>
 
+    </details>
+
     {currentFocus ? <section className={`rra-next-best ${currentFocus.status.tone}`}>
       <div>
         <span>Recommended next action</span>
@@ -179,15 +175,6 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
       </div>
       <Link href={primaryAction(currentFocus.item).href}>{primaryAction(currentFocus.item).label} <ArrowRight /></Link>
     </section> : null}
-
-    <form action="/vehicles/repair-orders" className="rra-search" method="get">
-      <Search />
-      <label>
-        <strong>Find vehicle, RO, VIN, stock, customer, or vendor update</strong>
-        <input name="search" placeholder="Search the vehicle story and continue the right operation..." type="search" />
-      </label>
-      <button type="submit">Find work <ArrowRight /></button>
-    </form>
 
     <section className="rra-layout">
       <main className="rra-main">
@@ -232,7 +219,7 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
         </div>
       </main>
 
-      <aside className="rra-side">
+      <details className="rra-tools"><summary>Supporting tools · inbox, parts, vendors and history</summary><aside className="rra-side">
         <section className="rra-bottlenecks">
           <header><TimerReset /><div><strong>Bottleneck board</strong><span>Why vehicles are not moving right now.</span></div></header>
           <div>
@@ -296,7 +283,7 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
             <li>Current Service Advisor remains the fallback until approved.</li>
           </ul>
         </section>
-      </aside>
+      </aside></details>
     </section>
   </section>;
 }
