@@ -22,6 +22,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
       </div>
 
       <div className="settings-rail-group">
+        <Link className="settings-rail-link" href="/settings/team/company-access"><span>Staff company access</span><small>Review company assignments for staff spending and scoped work.</small></Link>
         <p className="settings-rail-label">Settings</p>
         <Link className={active === "labor-catalog" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} href="/settings/labor-catalog"><span>Catalog approvals</span><small>Scope review, capability requirements and controlled activation.</small></Link>
         <Link className={active === "labor-rate" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} href="/settings/labor-rate"><span>Labor rate</span><small>Shop estimating default, reviewed changes and activation.</small></Link>

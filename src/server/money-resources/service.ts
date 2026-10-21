@@ -12,7 +12,8 @@ export async function moneyAccess(actor: AuthenticatedUser | null, database: Dat
   const now = new Date();
   const grants = await database.userLocationAccess.findMany({ where: { userId: actor.id, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gte: now } }] }, select: { location: { select: { organizationId: true } } } });
   const organizations = [...new Set(grants.map(grant => grant.location.organizationId))];
-  if (organizations.length !== 1) throw new MoneyError("Select one authorized organization before recording money.", 403);
+  if (organizations.length === 0) throw new MoneyError("Your staff account is not assigned to a company location. Ask the General Manager to review Staff company access in Settings. Your spending has not been recorded.", 403);
+  if (organizations.length > 1) throw new MoneyError("Your staff account has access to multiple companies. Ask the General Manager to review your company assignments before using this money tool. Your spending has not been recorded.", 403);
   return { actor, organizationId: organizations[0], manager: isManager(actor) };
 }
 type Access = Awaited<ReturnType<typeof moneyAccess>>;
