@@ -23,6 +23,7 @@ import { getAppBreadcrumb } from "./app-topbar-breadcrumbs";
 import { getNavigationGroups, getNavigationItemsForPath, isDispatchConsolePath } from "./navigation";
 import { isAppointmentConsolePath, isInventoryConsolePath } from "./console-navigation";
 import { useAppearance } from "./appearance";
+import crmHeaderStyles from "./crm-topbar.module.css";
 
 type AppTopbarProps = {
   commandCenterHome: boolean;
@@ -237,7 +238,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   }, [isSearchOpen, pathname, searchParams, searchText]);
 
   return (
-    <header className="app-topbar ccc-topbar">
+    <header className={`app-topbar ccc-topbar${showCrmModeSwitch ? ` ${crmHeaderStyles.header}` : ""}`}>
       {showNavigationMenu ? (
         <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button">
           <Menu size={20} />
@@ -294,7 +295,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         )})}
       </nav>
 
-      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : pathname.startsWith("/crm/opportunities") ? "Opportunity review active" : pathname === "/crm" && crmView === "pipeline" ? "Opportunity workspace active" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
+      {!showCrmModeSwitch ? <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span> : null}
 
       {showCrmModeSwitch ? <CrmModeSwitch /> : null}
 

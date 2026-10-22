@@ -1,0 +1,65 @@
+.header:global(.ccc-topbar) {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 10px;
+}
+
+.header > :global(.ccc-topbar-brand),
+.header > :global(.ccc-home-link),
+.header > :global(.workspace-switcher) {
+  flex: 0 0 auto;
+  margin-right: 0;
+}
+
+.header > :global(.crm-mode-switch) {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.header > :global(.topbar-actions) {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .header > :global(.ccc-breadcrumb) {
+    display: none;
+  }
+
+  .header :global(.topbar-popover) {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: auto;
+    right: 0;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (max-width: 640px) {
+  .header > :global(.crm-mode-switch) {
+    order: 2;
+    flex-basis: 100%;
+    justify-content: space-between;
+    border-radius: 12px;
+  }
+
+  .header > :global(.crm-mode-switch) > span {
+    display: none;
+  }
+
+  .header > :global(.crm-mode-switch) details {
+    display: block;
+  }
+
+  .header > :global(.crm-mode-switch) > a,
+  .header > :global(.crm-mode-switch) summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 8px 12px;
+  }
+}
