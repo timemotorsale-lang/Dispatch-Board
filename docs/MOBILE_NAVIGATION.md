@@ -8,6 +8,8 @@ The scanner screen has its own **Mobile home** link and a separate **Back** link
 
 The icon launcher includes direct **Scan Document** and **Scan ID** cards plus **Scan & Capture** for the complete tool set. The header camera shortcut opens the capture tools instead of displaying an inert menu button. Capture shortcuts select the intended tool and destination without bypassing camera consent, ID confirmation or existing record-access checks.
 
+**My Day → My Workbook** opens `/vehicles/coo-workbook` with `workbookScope=MY`, including for managers, and a return link to the mobile icon home. It reuses the signed-in staff member's workbook and its existing Quick Update, Record spending / Money & Resources, and daily tools; it does not select another staff member or grant team-workbook access.
+
 The toolbar does not replace desktop navigation, override landing-page preferences, or redirect users away from a feature they are working in. It provides a consistent escape from any remembered workspace. Print/public portal routes are not mobile workspaces and do not acquire this toolbar.
 # Mobile creation refinements
 

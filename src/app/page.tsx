@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   Activity,
   Bell,
+  BookOpen,
   BriefcaseBusiness,
   CalendarDays,
   Camera,
@@ -59,6 +60,7 @@ const sections: MobileSection[] = [
     title: "My Day",
     cards: [
       { accent: "blue", count: "Open", description: "Assigned work and next actions.", href: "/my-tasks", icon: ClipboardCheck, label: "My Tasks" },
+      { accent: "green", description: "Your workbook, quick updates, expenses, and daily tools.", href: `/vehicles/coo-workbook?${new URLSearchParams({ workbookScope: "MY", returnTo: MOBILE_HOME_HREF })}`, icon: BookOpen, label: "My Workbook" },
       { accent: "gold", count: "Today", description: "Appointments and promises due today.", href: "/appointments", icon: CalendarDays, label: "Appointments" },
       { accent: "red", count: "Live", description: "Active board work and operating pressure.", href: "/board", icon: Gauge, label: "Today's Board" },
       { accent: "violet", count: "Open", description: "Photos, barcodes, IDs, and documents.", href: captureToolHref(null, MOBILE_HOME_HREF), icon: Camera, label: "Scan & Capture" },
