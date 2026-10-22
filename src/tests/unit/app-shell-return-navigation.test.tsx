@@ -24,6 +24,13 @@ const testUser: AuthenticatedUser = {
 };
 
 describe("application shell Sales Console return navigation", () => {
+  it("does not advertise CRM activation from an unrelated generic header badge", () => {
+    currentPathname = "/crm-next";
+    currentSearchParams = new URLSearchParams();
+    const markup = renderToStaticMarkup(<AppShell user={testUser}><section>CRM access is determined by the page</section></AppShell>);
+    expect(markup).toContain('aria-label="Default CRM and fallback tools"');
+    expect(markup).not.toContain("Console active");
+  });
   it.each(["/manager-workspace", "/sales", "/appointments", "/tasks", "/vehicles"])("keeps mobile home and all capture tools reachable from %s", (pathname) => {
     currentPathname = pathname;
     currentSearchParams = new URLSearchParams("mode=coo");

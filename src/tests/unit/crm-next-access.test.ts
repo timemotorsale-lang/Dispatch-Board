@@ -33,6 +33,13 @@ describe("CRM Next access and safe bridge", () => {
     expect(resolveCrmNextMode({ flag: "DOGFOOD" })).toBe("DOGFOOD");
   });
 
+  it.each(["DOGFOODnpm runn dev", "REVIEW npm run dev", "DOGFOOD; npm run dev", "unknown"])("fails closed for malformed configuration: %s", (flag) => {
+    const access = resolveCrmNextAccess(user(["General Manager"]), { flag });
+    expect(access.allowed).toBe(false);
+    expect(access.mode).toBe("OFF");
+    expect(access.reason).toBe("CRM_NEXT_OFF");
+  });
+
   it("allows an enabled manager without granting live task writes", () => {
     const access = resolveCrmNextAccess(user(["General Manager"]), { flag: "CRM_NEXT" });
     expect(access.allowed).toBe(false);

@@ -7148,7 +7148,7 @@
   .workShell,
   .intakeHero,
   .intakeLayout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .frame {
@@ -7185,11 +7185,11 @@
     box-shadow: 0 8px 22px rgb(15 42 84 / 5%);
     display: grid;
     gap: 12px;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     height: auto;
     min-height: auto;
     padding: 12px 16px;
-    position: sticky;
+    position: static;
   }
 
   .brand {
@@ -7203,14 +7203,18 @@
     border: 1px solid rgb(147 197 253 / 26%);
     border-radius: 16px;
     display: flex;
+    grid-column: 1 / -1;
     gap: 3px;
+    min-width: 0;
     overflow-x: auto;
     padding: 4px;
   }
 
   .nav a {
     color: #eaf3ff;
+    flex-shrink: 0;
     font-weight: 850;
+    min-height: 44px;
   }
 
   .nav a[aria-current="page"],
@@ -7223,16 +7227,13 @@
     display: none;
   }
 
+  .navGroup,
   .navChildren {
-    background: rgb(7 26 53 / 74%);
-    border: 1px solid rgb(147 197 253 / 22%);
-    border-radius: 12px;
-    box-shadow: none;
-    left: auto;
-    margin-left: 20px;
-    min-width: 0;
+    display: contents;
+  }
+
+  .navChildren {
     opacity: 1;
-    padding: 4px;
     pointer-events: auto;
     position: static;
     transform: none;
