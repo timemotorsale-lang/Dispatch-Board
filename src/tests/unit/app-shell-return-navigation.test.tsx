@@ -24,6 +24,20 @@ const testUser: AuthenticatedUser = {
 };
 
 describe("application shell Sales Console return navigation", () => {
+  it.each(["/manager-workspace", "/sales", "/appointments", "/tasks", "/vehicles"])("keeps mobile home and all capture tools reachable from %s", (pathname) => {
+    currentPathname = pathname;
+    currentSearchParams = new URLSearchParams("mode=coo");
+    const markup = renderToStaticMarkup(<AppShell user={testUser}><section>Workspace</section></AppShell>);
+    expect(markup).toContain('aria-label="Mobile home and capture tools"');
+    expect(markup).toContain('href="/?view=mobile"');
+    for (const label of ["Scan &amp; capture", "Take a photo", "ID front / back", "ID barcode", "Scan a document"]) expect(markup).toContain(label);
+    expect(markup).toContain(encodeURIComponent(`${pathname}?mode=coo`));
+  });
+  it("does not stack the global launcher over the capture screen", () => {
+    currentPathname = "/capture";
+    const markup = renderToStaticMarkup(<AppShell user={testUser}><section>Capture tools</section></AppShell>);
+    expect(markup).not.toContain('aria-label="Mobile home and capture tools"');
+  });
   it("renders the Inventory sidebar submenu with direct import and export links", () => {
     currentPathname = "/vehicles/import-export";
     currentSearchParams = new URLSearchParams("mode=import");

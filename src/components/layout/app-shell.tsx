@@ -10,6 +10,7 @@ import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
+import { MobileToolsNavigation } from "./mobile-tools-navigation";
 import { ConsoleSidebar } from "./console-sidebar";
 import { getConsoleNavigation, isAppointmentConsolePath, isInventoryConsolePath, isOperationsCoordinatorConsolePath, isSalesConsolePath } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
@@ -177,6 +178,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
+        <MobileToolsNavigation key={`${pathname}?${searchParams}`} />
         <OperatingRhythmReminder />
         {salesConsole ? null : (
           <AppTopbar commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />

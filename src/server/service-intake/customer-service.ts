@@ -4,7 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 
 type CustomerInput = {
@@ -61,6 +61,17 @@ export function normalizeServiceIntakePhoneNumber(value: string | null) {
   }
 
   return phoneNumber;
+}
+
+export async function getServiceIntakeCustomerOptions(actor: AuthenticatedUser | null) {
+  const user = assertAuthenticatedUser(actor);
+  const organizationId = INITIAL_ORGANIZATION.id;
+  const [grants, locations] = await Promise.all([
+    createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId),
+    prisma.location.findMany({ where: { organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+  ]);
+  const now = new Date();
+  return { locations: locations.filter((location) => evaluateVehicleCapability({ actor: user, capability: "CUSTOMER_INTAKE_CREATE", grants, locationId: location.id, now }).allowed) };
 }
 
 export async function createServiceIntakeCustomer(actor: AuthenticatedUser | null, value: CustomerInput, options: { organizationId?: string; source?: string } = {}) {

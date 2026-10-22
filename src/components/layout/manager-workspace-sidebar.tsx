@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { captureToolHref, MOBILE_HOME_HREF } from "@/features/mobile-capture/capture-navigation";
 
 type ManagerMode = "CEO" | "COO" | "WORK";
 type Props = { isOpen: boolean; onClose(): void; user: AuthenticatedUser };
@@ -65,6 +66,7 @@ export function ManagerWorkspaceSidebar({ isOpen, onClose, user }: Props) {
       </div>
 
       <div className="sidebar-navigation">
+        <section className="sidebar-group"><p className="sidebar-group-label">Mobile tools</p><nav aria-label="Mobile tools"><Link className="sidebar-link" href={MOBILE_HOME_HREF} onClick={onClose}><Route aria-hidden="true" size={18} /><span>Mobile home · navigation icons</span></Link><Link className="sidebar-link" href={captureToolHref(null, `/manager-workspace?mode=${modeQuery}`)} onClick={onClose}><Search aria-hidden="true" size={18} /><span>Scan &amp; capture</span></Link></nav></section>
         <section className="sidebar-group">
           <p className="sidebar-group-label">Workspace views</p>
           <nav aria-label="Manager workspace views">

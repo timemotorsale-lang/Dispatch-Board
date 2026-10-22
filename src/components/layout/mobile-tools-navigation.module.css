@@ -1,0 +1,18 @@
+.toolbar { display: none; }
+@media (max-width: 900px) {
+  .toolbar { box-sizing: border-box; position: sticky; top: 0; z-index: 42; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: calc(60px + env(safe-area-inset-top)); padding: calc(6px + env(safe-area-inset-top)) 12px 6px; border-bottom: 1px solid #ccd9ea; background: #f7faff; color: #142944; }
+  .toolbar ~ header { top: calc(60px + env(safe-area-inset-top)); }
+  .toolbar a, .toolbar summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border-radius: 9px; color: inherit; font: inherit; font-size: 14px; font-weight: 750; text-decoration: none; cursor: pointer; }
+  .home { background: #fff; border: 1px solid #cbd9ec; }
+  .launcher { min-width: 0; }
+  .launcher summary { list-style: none; background: #165fd4; color: #fff; }
+  .launcher summary::-webkit-details-marker { display: none; }
+  .panel { box-sizing: border-box; position: absolute; right: 10px; top: calc(100% + 5px); width: min(360px, calc(100vw - 20px)); max-height: calc(100dvh - 90px); overflow: auto; padding: 14px; border: 1px solid #cbd9ec; border-radius: 14px; background: #fff; box-shadow: 0 18px 48px #10233f35; }
+  .panel > strong { display: block; font-size: 17px; }
+  .panel > span { display: block; margin: 4px 0 12px; color: #52627a; font-size: 13px; }
+  .panel a { margin-top: 5px; padding: 10px; border: 1px solid #dce5f1; background: #f8fbff; }
+  .panel a span { display: grid; gap: 3px; }
+  .panel a small { color: #52627a; font-size: 12px; font-weight: 450; }
+  .toolbar a:focus-visible, .toolbar summary:focus-visible { outline: 3px solid #6fa7ff; outline-offset: 2px; }
+}
+@media print { .toolbar { display: none; } }
