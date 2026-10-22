@@ -8,12 +8,15 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("mobile capture tool", () => {
-  it("starts with clear photo and barcode capture launch actions", () => {
+  it("offers photo, barcode, document and front/back ID capture without a pilot gate", () => {
     const html = renderToStaticMarkup(<MobileCaptureTool />);
 
-    expect(html).toContain("Capture and send");
+    expect(html).toContain("Scan or capture");
     expect(html).toContain("Photo");
-    expect(html).toContain("Barcode Scan");
+    expect(html).toContain("Scan barcode / QR");
+    expect(html).toContain("Scan ID barcode");
+    expect(html).toContain("Capture ID front / back");
+    expect(html).toContain("Scan document");
     expect(html).toContain("Choose Photo or Barcode Scan to start capture.");
   });
 });

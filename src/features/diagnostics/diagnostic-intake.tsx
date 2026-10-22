@@ -7,6 +7,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState } from "react";
+import { BarcodeScanner } from "@/features/mobile-capture/barcode-scanner";
 
 import styles from "./diagnostic-intake.module.css";
 import layoutStyles from "./diagnostic-intake-layout.module.css";
@@ -166,10 +167,10 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
   }
 
   function scanVin() {
-    setQuery("");
-    searchRef.current?.focus();
-    setNotice("VIN capture is ready. Scan with the connected reader or type the 17-character VIN.");
+    setScannerOpen(true);
   }
+
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   async function createVehicle() {
     setBusy(true);
@@ -326,6 +327,7 @@ export function DiagnosticIntake({ options, permissions, rollout, viewer }: {
   }
 
   return <form className={`${styles.intake} ${layoutStyles.layout}`} onSubmit={submit}>
+    {scannerOpen ? <BarcodeScanner vinOnly onClose={() => setScannerOpen(false)} onConfirm={(scan) => { setQuery(scan.value); setScannerOpen(false); setNotice("VIN captured. Select the matching vehicle or repair order below."); }} /> : null}
     <header className={styles.header}>
       <div><span>Diagnostics / New Diagnostic Case</span><h1>New Diagnostic Case</h1><p>Establish the vehicle, concern, authorization, and safety context before diagnosis begins.</p></div>
       <div><b>Draft <i>•</i> Not yet created</b><Link href="/diagnostics"><ArrowLeft />Return to Command Center</Link></div>

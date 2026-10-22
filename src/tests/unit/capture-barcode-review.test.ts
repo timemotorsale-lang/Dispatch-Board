@@ -11,4 +11,14 @@ describe("capture barcode review", () => {
     const id = idFromBarcode("@\nANSI 636000080002DLDAQD1234567\nDCSPARKER\nDACJAMIE\nDAJMN\n");
     expect(id).toEqual({ name: "JAMIE PARKER", number: "D1234567", state: "MN" });
   });
+
+  it("supports ID subfiles and record separators", () => {
+    expect(idFromBarcode("@\rANSI 636000080002IDDAQTEST9876\x1eDCSEXAMPLE\x1eDCTTAYLOR\x1eDAJIL\r")).toEqual({ name: "TAYLOR EXAMPLE", number: "TEST9876", state: "IL" });
+  });
+
+  it("does not treat unrelated or incomplete barcode text as an ID", () => {
+    expect(idFromBarcode("product DAQ123\nDACITEM\nDCSLABEL")).toBeNull();
+    expect(idFromBarcode("@\nANSI 636000080002DLDAQ\nDCSNAME")).toBeNull();
+    expect(idFromBarcode("@\nANSI 636000080002DLDAQ123\nDCSNAME\nDAJINVALID")).toBeNull();
+  });
 });
