@@ -28,6 +28,9 @@ import { cameraErrorMessage, createCameraSession } from "./scanner-camera";
 import { DocumentScanner } from "./document-scanner";
 import { IdFrontCapture } from "./id-front-capture";
 import type { FrontIdFields } from "./id-capture-fields";
+import { captureToolFromQuery, MOBILE_HOME_HREF } from "./capture-navigation";
+import { MobileCustomerIntake } from "./mobile-customer-intake";
+import { customerFieldsFromBarcode } from "./mobile-intake-utils";
 
 type CaptureDestinationKey = "CUSTOMER" | "VEHICLE" | "CLAIM" | "REPAIR_ORDER" | "TASK" | "VENDOR" | "GENERAL" | "QUICK_UPDATE";
 type CaptureKindKey = "AUTO" | "PHOTO" | "ID" | "BUSINESS_CARD" | "ESTIMATE" | "DOCUMENT";
@@ -164,9 +167,13 @@ function slug(value: string) {
 }
 
 export function MobileCaptureTool() {
+  const [customerDraft, setCustomerDraft] = useState<FrontIdFields | null>(null);
+  const [customerIntakeOpen, setCustomerIntakeOpen] = useState(false);
+  const [idMismatch, setIdMismatch] = useState(false);
   const searchParams = useSearchParams();
   const requestedDestination = searchParams.get("destination");
   const requestedKind = searchParams.get("kind");
+  const requestedTool = searchParams.get("tool");
   const [destinationKey, setDestinationKey] = useState<CaptureDestinationKey>(() => destinations.some((item) => item.key === requestedDestination) ? requestedDestination as CaptureDestinationKey : "GENERAL");
   const [captureKind, setCaptureKind] = useState<CaptureKindKey>(() => captureKinds.some((item) => item.key === requestedKind) ? requestedKind as CaptureKindKey : "AUTO");
   const [reference, setReference] = useState(() => searchParams.get("reference")?.slice(0, 120) ?? "");
@@ -194,6 +201,20 @@ export function MobileCaptureTool() {
   const cameraSessionRef = useRef<ReturnType<typeof createCameraSession> | null>(null);
   const returnTo = searchParams.get("returnTo");
   const requestedOwnerId = searchParams.get("ownerId");
+
+  useEffect(() => {
+    const tool = captureToolFromQuery(requestedTool);
+    if (!tool) return;
+    const timer = window.setTimeout(() => {
+      setCaptureKind(tool.kind);
+      if (tool.key === "document") { setActiveIntent("DOCUMENT"); setDocumentScannerOpen(true); }
+      else if (tool.key === "id-front") { setActiveIntent("DOCUMENT"); setFrontScannerOpen(true); }
+      else if (tool.key === "barcode" || tool.key === "id-barcode") { setActiveIntent("BARCODE"); setScannerOpen(true); }
+      else if (window.isSecureContext && typeof navigator.mediaDevices?.getUserMedia === "function") { setActiveIntent("PHOTO"); setStartingCamera(true); setMode("CAMERA"); }
+      else setNotice("Tap Photo to use your phone camera, or upload a photo.");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [requestedTool]);
 
   const destination = useMemo(
     () => destinations.find((item) => item.key === destinationKey) ?? destinations[0],
@@ -241,6 +262,7 @@ export function MobileCaptureTool() {
   }
 
   function resetCapturedImage() {
+    setIdMismatch(false);
     setReviewedIdFields(null);
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl);
     setCapturedImageUrl("");
@@ -457,11 +479,13 @@ export function MobileCaptureTool() {
 
   const DestinationIcon = destination.icon;
 
+  if (customerIntakeOpen) return <MobileCustomerIntake initialFields={customerDraft ?? undefined} onSaved={() => setCustomerDraft(null)} onCancel={() => { if (window.confirm("Leave customer entry and return to capture? Any unsaved details will be discarded.")) { setCustomerDraft(null); setCustomerIntakeOpen(false); } }} />;
+
   return (
     <main className={styles.page} aria-labelledby="mobile-capture-title">
       <header className={styles.header}>
         <Link href={returnTo?.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") ? returnTo : "/"}>Back</Link>
-        <span>Mobile tool</span>
+        <Link href={MOBILE_HOME_HREF}>Mobile home</Link>
       </header>
 
       <section className={styles.hero}>
@@ -539,6 +563,7 @@ export function MobileCaptureTool() {
 
       {frontScannerOpen ? <IdFrontCapture onClose={() => setFrontScannerOpen(false)} onComplete={(file, fields, mismatch) => {
         resetCapturedImage();
+        setIdMismatch(mismatch);
         setReviewedIdFields(fields);
         setCapturedFile(file);
         setCapturedImageUrl(URL.createObjectURL(file));
@@ -594,7 +619,9 @@ export function MobileCaptureTool() {
             {capturedFile?.type === "application/pdf" ? <a href={capturedImageUrl} target="_blank" rel="noreferrer">Open PDF preview</a> : <button disabled={!capturedFile || readingBarcode || busy} onClick={() => void readBarcode()} type="button">{readingBarcode ? "Reading..." : activeIntent === "BARCODE" ? "Read again" : "Read barcode"}</button>}
             {barcodeNotice ? <p>{barcodeNotice}</p> : null}
             {reviewedIdFields ? <><p>Reviewed ID: {reviewedIdFields.fullName || "Name not entered"} · {reviewedIdFields.issuingState || "State not entered"} · ID ending {reviewedIdFields.licenseNumber.slice(-4) || "not entered"}</p><button onClick={async () => { try { await navigator.clipboard.writeText(JSON.stringify(reviewedIdFields, null, 2)); setBarcodeNotice("Reviewed fields copied. Paste only into the intended customer intake form."); } catch { setBarcodeNotice("Copy is unavailable in this browser."); } }} type="button">Copy reviewed ID fields</button></> : null}
-            {scannedVin ? <Link href={`/vehicles/workflows/add-vehicle?vin=${encodeURIComponent(scannedVin)}`}>Use VIN {scannedVin}</Link> : null}
+            {scannedVin ? <Link href={`/capture/vehicle?vin=${encodeURIComponent(scannedVin)}`}>Decode &amp; add vehicle · {scannedVin}</Link> : null}
+            {reviewedIdFields || idFields ? <button disabled={idMismatch} type="button" onClick={() => { const draft = reviewedIdFields ?? (barcode ? customerFieldsFromBarcode(barcode.value) : null); if (draft) { setCustomerDraft(draft); setCustomerIntakeOpen(true); resetCapturedImage(); setMode("READY"); } }}>Add customer · enter phone &amp; email</button> : null}
+            {idMismatch ? <p>Resolve the front/back mismatch before creating a customer from this capture. Retake the ID or use manual customer entry.</p> : null}
             {idFields?.number ? <p>ID: {idFields.name || "Name unavailable"} · {idFields.state || "State unavailable"} · ending {idFields.number.slice(-4)}</p> : null}
             {idFields?.number ? <button onClick={() => void copyIdNumber()} type="button">Copy ID number</button> : null}
             {barcode && !scannedVin && !idFields?.number && barcode.format !== "PDF_417" ? <><p>{barcode.format}: {barcode.value.slice(0, 80)}</p><button onClick={() => void copyBarcode()} type="button">Copy barcode</button></> : null}

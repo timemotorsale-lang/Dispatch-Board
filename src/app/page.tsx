@@ -12,7 +12,6 @@ import {
   ContactRound,
   FileText,
   Gauge,
-  Menu,
   MessageSquare,
   PackageCheck,
   Search,
@@ -28,6 +27,7 @@ import { CRM_NEXT_CUSTOMERS_HREF, LEGACY_CUSTOMER_ARCHIVE_HREF } from "@/feature
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey, type WorkspaceKey } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
+import { captureToolHref, MOBILE_HOME_HREF } from "@/features/mobile-capture/capture-navigation";
 
 import { APP_NAME } from "./config";
 import styles from "./home.module.css";
@@ -61,7 +61,11 @@ const sections: MobileSection[] = [
       { accent: "blue", count: "Open", description: "Assigned work and next actions.", href: "/my-tasks", icon: ClipboardCheck, label: "My Tasks" },
       { accent: "gold", count: "Today", description: "Appointments and promises due today.", href: "/appointments", icon: CalendarDays, label: "Appointments" },
       { accent: "red", count: "Live", description: "Active board work and operating pressure.", href: "/board", icon: Gauge, label: "Today's Board" },
-      { accent: "violet", count: "Scan", description: "Open camera capture for photos, IDs, cards, and documents.", href: "/capture", icon: Camera, label: "Photos" },
+      { accent: "violet", count: "Open", description: "Photos, barcodes, IDs, and documents.", href: captureToolHref(null, MOBILE_HOME_HREF), icon: Camera, label: "Scan & Capture" },
+      { accent: "blue", description: "Crop pages and create a PDF.", href: captureToolHref("document", MOBILE_HOME_HREF), icon: FileText, label: "Scan Document" },
+      { accent: "violet", description: "Capture and review ID details.", href: captureToolHref("id-front", MOBILE_HOME_HREF), icon: ContactRound, label: "Scan ID" },
+      { accent: "green", description: "Scan VIN, decode, and add inventory.", href: "/capture/vehicle", icon: CarFront, label: "Add Vehicle" },
+      { accent: "blue", description: "Scan ID, add phone / email, and save.", href: "/capture/customer", icon: UserPlus, label: "Add Customer" },
       { accent: "green", description: "Log a quick update or route a new action.", href: "/tasks/intake", icon: ClipboardList, label: "Quick Ops Log" },
       { accent: "violet", description: "Signals, updates, and recent movement.", href: "/activity", icon: Activity, label: "Activity" },
       { accent: "slate", description: "Approvals and stuck work needing help.", href: "/manager-review", icon: ShieldCheck, label: "Manager Review", managerOnly: true }
@@ -86,7 +90,7 @@ const sections: MobileSection[] = [
     title: "Inventory",
     cards: [
       { accent: "blue", description: "Inventory operating home.", href: "/vehicles", icon: CarFront, label: "Inventory", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SALES"] },
-      { accent: "green", description: "Start vehicle intake and custody.", href: "/vehicles/workflows/add-vehicle", icon: UserPlus, label: "Vehicle Intake", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "OPERATIONS_COORDINATOR"] },
+      { accent: "green", description: "Scan VIN and add inventory.", href: "/capture/vehicle", icon: UserPlus, label: "Vehicle Intake", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "OPERATIONS_COORDINATOR"] },
       { accent: "gold", description: "One repair and recon advisor workspace.", href: "/vehicles/recon-repair-advisor", icon: Wrench, label: "Recon / Repair", permissions: ["INVENTORY", "SERVICE", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
       { accent: "violet", description: "Photos, listing, and sale readiness.", href: "/tasks?department=ADVERTISING", icon: Sparkles, label: "Photos / Listings", permissions: ["INVENTORY", "MARKETING", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] }
     ]
@@ -132,7 +136,8 @@ function canShowCard(card: MobileCard, workspace: WorkspaceKey | null, permitted
   return card.permissions.some((permission) => permittedWorkspaces.includes(permission));
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams?: Promise<{ view?: string }> } = {}) {
+  const forceMobile = (await searchParams)?.view === "mobile";
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login?reason=entry");
@@ -149,13 +154,13 @@ export default async function HomePage() {
     .filter((section) => section.cards.length > 0);
 
   return (
-    <main aria-labelledby="home-launcher-title" className={styles.page}>
+    <main aria-labelledby="home-launcher-title" className={styles.page} data-mobile-home={forceMobile ? "true" : undefined}>
       <section className={styles.mobileShell} aria-label="Mobile operational launcher">
         <header className={styles.mobileTopbar}>
-          <button aria-label="Open navigation" type="button"><Menu size={21} /></button>
+          <Link aria-label="Open scan and capture tools" href={captureToolHref(null, MOBILE_HOME_HREF)}><Camera size={21} /></Link>
           <div>
             <strong>{APP_NAME}</strong>
-            <span>{displayName} workspace</span>
+            <span>Mobile home · {displayName}</span>
           </div>
           <Link aria-label="Search" href="/crm-next/search"><Search size={21} /></Link>
         </header>

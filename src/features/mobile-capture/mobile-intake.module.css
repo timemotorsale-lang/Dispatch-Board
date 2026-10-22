@@ -1,0 +1,26 @@
+.workspace { max-width: 680px; margin: 0 auto; padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); color: #14263e; }
+.nav { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.nav a { padding: 10px 0; font-weight: 650; color: #2355a1; }
+.workspace h1 { font-size: clamp(26px, 5vw, 34px); margin: 6px 0 10px; letter-spacing: -.025em; }
+.workspace h2 { font-size: 21px; margin: 4px 0 12px; }
+.workspace p { line-height: 1.5; }
+.steps { color: #47617f; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.card { background: #fff; border: 1px solid #d7e0eb; border-radius: 18px; padding: 20px; margin-top: 18px; box-shadow: 0 6px 24px #16345608; }
+.workspace fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.workspace label { display: grid; gap: 7px; margin: 15px 0; font-weight: 600; }
+.workspace input:not([type=checkbox]), .workspace select, .workspace textarea { width: 100%; box-sizing: border-box; min-height: 48px; border: 1px solid #b9c7d8; border-radius: 10px; background: #fff; color: #14263e; padding: 12px; font: inherit; font-size: 16px; }
+.workspace input:focus-visible, .workspace select:focus-visible, .workspace textarea:focus-visible, .workspace button:focus-visible, .workspace a:focus-visible, .workspace summary:focus-visible { outline: 3px solid #87b8ff; outline-offset: 3px; }
+.workspace button, .primary { min-height: 48px; padding: 12px 17px; border: 1px solid #c0cede; border-radius: 11px; font: inherit; font-weight: 700; background: #f4f7fc; color: #193b69; cursor: pointer; }
+.workspace .primary { display: block; box-sizing: border-box; width: 100%; background: #174fa2; border-color: #174fa2; color: #fff; text-align: center; text-decoration: none; margin-top: 16px; }
+.workspace button:disabled { opacity: .55; cursor: wait; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.actions > * { flex: 1; }
+.workspace .check { display: flex; align-items: flex-start; gap: 12px; line-height: 1.5; font-weight: 500; }
+.check input { width: 22px; height: 22px; flex-shrink: 0; }
+.hint { color: #51647c; font-size: 14px; }
+.error { padding: 14px; background: #fff1f0; color: #9c231b; border-radius: 10px; }
+.notice { padding: 14px; background: #eaf4ff; border-radius: 10px; }
+.workspace summary { padding: 14px 0; cursor: pointer; font-weight: 650; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 380px) { .pair { grid-template-columns: 1fr; gap: 0; } .card { padding: 16px; } }
+@media (prefers-reduced-motion: no-preference) { .workspace button { transition: background .15s; } }
