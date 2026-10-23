@@ -7,6 +7,12 @@ test("approved shell works at desktop and mobile widths without horizontal overf
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Find your next vehicle." })).toBeVisible();
     await expect(page.getByRole("button", { name: "Shop vehicles" })).toBeVisible();
+    const headerLogo = page.locator(".site-header").getByRole("img", { name: "Time Motor Sales", exact: true });
+    await expect(headerLogo).toBeVisible();
+    await expect(headerLogo).toHaveAttribute("src", "/brand/time-motor-sales-horizontal.png");
+    expect(await headerLogo.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect(page.locator(".site-footer").getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();
+    expect(await page.locator(".brand-logo").evaluateAll(images => images.every(image => Math.abs(image.getBoundingClientRect().width / image.getBoundingClientRect().height - 1200 / 225) < .05))).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (width === 390) await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
     await page.screenshot({ path: `test-results/home-${width}.png`, fullPage: true });

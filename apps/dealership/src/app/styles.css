@@ -43,8 +43,8 @@ svg { flex-shrink: 0; stroke-width: 1.65; }
 .environment-banner { text-align: center; background: #eef0f4; color: #525c6d; font-size: .68rem; letter-spacing: .05em; padding: 7px 20px; }
 .environment-banner.preview { color: #66491e; background: #fff4dd; }
 .site-header { padding: 0 4%; height: 86px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 24px; background: rgba(250,250,248,.98); }
-.wordmark { white-space: nowrap; font-size: clamp(.95rem, 1.45vw, 1.3rem); font-weight: 800; letter-spacing: -.035em; position: relative; }
-.wordmark span { display: block; width: 24px; height: 2px; background: #d32f2f; margin-top: 4px; }
+.brand-home { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; }
+.brand-logo { display: block; width: 240px; max-width: 100%; height: auto; }
 .desktop-nav { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 2vw, 34px); font-size: .82rem; }
 .desktop-nav a { padding: 9px 0; white-space: nowrap; }
 .desktop-nav a.current { color: var(--blue); box-shadow: 0 2px var(--blue); }
@@ -165,7 +165,7 @@ details[open] > label, details[open] > p, details[open] > dl { margin-top: 16px;
   h2 { font-size: 1.45rem; }
   .lead { font-size: 1.1rem; }
   .site-header { height: 72px; padding: 0 20px; }
-  .wordmark { font-size: 1.02rem; }
+  .brand-logo { width: min(200px, 60vw); }
   .header-tools .desktop-service, .header-tools .desktop-garage { display: none; }
   .mobile-only { display: inline-flex; }
   .mobile-menu { display: flex; flex-direction: column; padding: 12px 20px 24px; border-bottom: 1px solid var(--line); background: #fff; }

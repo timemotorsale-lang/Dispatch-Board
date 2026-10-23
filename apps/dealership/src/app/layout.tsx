@@ -5,7 +5,11 @@ import "./styles.css";
 export const metadata: Metadata = {
   title: { default: "Time Motor Sales | Your next vehicle", template: "%s | Time Motor Sales" },
   description: "Simple shopping. Real people. Explore Time Motor Sales vehicles and prepare your next steps.",
-  robots: { index: false, follow: false }
+  robots: { index: false, follow: false },
+  icons: {
+    icon: [{ url: "/brand/favicon-64.png", type: "image/png", sizes: "64x64" }],
+    apple: [{ url: "/brand/apple-touch-icon.png" }]
+  }
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
