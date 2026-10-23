@@ -40,6 +40,33 @@ ENV DATABASE_URL=${BUILD_DATABASE_URL}
 
 RUN npm run db:generate
 
+FROM dependencies AS website-review-builder
+COPY package.json package-lock.json ./
+COPY apps/dealership ./apps/dealership
+ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
+RUN npm --prefix apps/dealership run build
+
+FROM node:24-bookworm-slim AS website-review-runner
+WORKDIR /app
+ARG RELEASE_SHA=unversioned
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
+ENV APP_RELEASE_SHA=${RELEASE_SHA}
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
+COPY package.json package-lock.json ./
+COPY tools/next-eslint-glob ./tools/next-eslint-glob
+RUN npm ci --omit=dev
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/.next ./apps/dealership/.next
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/public ./apps/dealership/public
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/package.json ./apps/dealership/package.json
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/next.config.ts ./apps/dealership/next.config.ts
+RUN mkdir -p /app/apps/dealership/.data && chown -R node:node /app/apps/dealership
+USER node
+WORKDIR /app/apps/dealership
+EXPOSE 3100
+CMD ["node", "/app/node_modules/next/dist/bin/next", "start", ".", "-H", "0.0.0.0", "-p", "3100"]
+
 FROM node:24-bookworm-slim AS runner
 
 WORKDIR /app
@@ -73,30 +100,3 @@ USER node
 EXPOSE 3000
 
 CMD ["npm", "run", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
-
-FROM dependencies AS website-review-builder
-COPY package.json package-lock.json ./
-COPY apps/dealership ./apps/dealership
-ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
-RUN npm --prefix apps/dealership run build
-
-FROM node:24-bookworm-slim AS website-review-runner
-WORKDIR /app
-ARG RELEASE_SHA=unversioned
-LABEL org.opencontainers.image.revision=${RELEASE_SHA}
-ENV APP_RELEASE_SHA=${RELEASE_SHA}
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
-COPY package.json package-lock.json ./
-COPY tools/next-eslint-glob ./tools/next-eslint-glob
-RUN npm ci --omit=dev
-COPY --from=website-review-builder --chown=node:node /app/apps/dealership/.next ./apps/dealership/.next
-COPY --from=website-review-builder --chown=node:node /app/apps/dealership/public ./apps/dealership/public
-COPY --from=website-review-builder --chown=node:node /app/apps/dealership/package.json ./apps/dealership/package.json
-COPY --from=website-review-builder --chown=node:node /app/apps/dealership/next.config.ts ./apps/dealership/next.config.ts
-RUN mkdir -p /app/apps/dealership/.data && chown -R node:node /app/apps/dealership
-USER node
-WORKDIR /app/apps/dealership
-EXPOSE 3100
-CMD ["node", "/app/node_modules/next/dist/bin/next", "start", ".", "-H", "0.0.0.0", "-p", "3100"]
