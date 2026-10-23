@@ -24,6 +24,6 @@ export function getWebsiteDestinations(env: Record<string, string | undefined>):
   const previewOrigin = env.DEALERSHIP_PREVIEW_URL?.trim() || (env.NODE_ENV === "development" ? "http://127.0.0.1:3100" : undefined);
   return {
     publicUrl,
-    previewUrl: previewDisabled ? null : originOnly(previewOrigin, true)
+    previewUrl: publicUrl || env.DEALERSHIP_PREVIEW_ENABLED === "false" ? null : env.DEALERSHIP_HOSTED_REVIEW_ENABLED === "true" ? "/website-review" : previewDisabled ? null : originOnly(previewOrigin, true)
   };
 }

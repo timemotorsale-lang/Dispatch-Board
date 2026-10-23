@@ -20,3 +20,7 @@ blob-report
 *.tsbuildinfo
 docs
 public/mockups
+**/.next
+**/.data
+apps/dealership/test-results
+deploy/docker/website-review.env

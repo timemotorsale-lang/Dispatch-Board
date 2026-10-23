@@ -11,6 +11,8 @@ const config = [{
     ".next-review/**",
     ".next-runtime/**",
     "test-results/**",
+    "apps/dealership/.next/**",
+    "apps/dealership/test-results/**",
     ".worktrees/**"
   ]
 }, ...nextCoreWebVitals, ...nextTypeScript, {

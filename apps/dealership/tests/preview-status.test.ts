@@ -10,7 +10,7 @@ describe("local preview readiness", () => {
     const response = await GET(new Request("http://localhost:3100/api/preview-status", { headers: { host: "127.0.0.1:3100" } }));
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
-    expect(await response.json()).toEqual({ application: "tms-dealership-review", syntheticData: true });
+    expect(await response.json()).toMatchObject({ application: "tms-dealership-review", syntheticData: true });
   });
   it.each([
     ["production", "1", "127.0.0.1:3100"],

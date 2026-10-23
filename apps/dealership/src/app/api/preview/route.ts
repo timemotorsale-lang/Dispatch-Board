@@ -1,3 +1,4 @@
+import { basePath } from "../../../lib/paths";
 import { NextRequest, NextResponse } from "next/server";
 import { allowPreviewRequest } from "../../../server/preview-security";
 import { getListings } from "../../../server/listings";
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     const current = session(store(), request.cookies.get("tms-preview")?.value);
     const result = execute(store(), current.identifier, command);
     const output = response({ ...result, preview: true, message: "Saved in this private preview. Not delivered to staff." });
-    if (current.created) output.cookies.set("tms-preview", current.token, { httpOnly: true, sameSite: "strict", path: "/", maxAge: 86400, secure: request.nextUrl.protocol === "https:" });
+    if (current.created) output.cookies.set("tms-preview", current.token, { httpOnly: true, sameSite: "strict", path: basePath || "/", maxAge: 86400, secure: process.env.DEALERSHIP_HOSTED_REVIEW === "1" || request.nextUrl.protocol === "https:" });
     return output;
   } catch (error) {
     return response({ error: error instanceof Error && !/SQLITE|database|constraint/i.test(error.message) ? error.message : "We could not save this request. Your form has been kept." }, 400);
@@ -48,6 +49,6 @@ export async function DELETE(request: NextRequest) {
   const identifier = existingSession(store(), request.cookies.get("tms-preview")?.value);
   if (identifier) store().prepare("UPDATE sessions SET expires_at = 0 WHERE token_hash = ?").run(identifier);
   const output = response({ signedOut: true });
-  output.cookies.delete("tms-preview");
+  output.cookies.set("tms-preview", "", { path: basePath || "/", httpOnly: true, sameSite: "strict", maxAge: 0, secure: process.env.DEALERSHIP_HOSTED_REVIEW === "1" || request.nextUrl.protocol === "https:" });
   return output;
 }

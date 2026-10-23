@@ -1,12 +1,14 @@
 "use client";
 
+import { publicPath } from "../lib/paths";
+
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Camera, Check, FileText } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Listing, RequestKind } from "../lib/domain";
 
 export async function command(operation: string, value: unknown, key = crypto.randomUUID()) {
-  const response = await fetch("/api/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operation, value, key }) });
+  const response = await fetch(publicPath("/api/preview"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operation, value, key }) });
   const output = await response.json();
   if (!response.ok) throw new Error(output.error || "We could not confirm the result. Your details have been kept.");
   return output as { reference: string; message: string };

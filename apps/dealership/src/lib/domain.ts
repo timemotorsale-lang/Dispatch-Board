@@ -111,7 +111,7 @@ export function mayStartPurchase(listing: Listing, now = new Date()) {
 }
 
 export function previewEnabled(environment: Record<string, string | undefined>) {
-  return environment.NODE_ENV !== "production" && environment.DEALERSHIP_PREVIEW_DATA === "1";
+  return environment.DEALERSHIP_PREVIEW_DATA === "1" && (environment.NODE_ENV !== "production" || (environment.DEALERSHIP_HOSTED_REVIEW === "1" && (environment.DEALERSHIP_REVIEW_KEY?.length ?? 0) >= 32));
 }
 
 export const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
