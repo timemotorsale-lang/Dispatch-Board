@@ -145,6 +145,48 @@ jobs:
           path: test-results/labor-pilot-ui/
           if-no-files-found: warn
 
+  dealership-review:
+    name: Private dealership preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix apps/dealership run test
+      - run: npm --prefix apps/dealership run typecheck
+      - run: npm --prefix apps/dealership run build
+        env:
+          NEXT_PUBLIC_REVIEW_BASE_PATH: /website-review
+      - name: Build isolated hosted preview image
+        run: docker build -f deploy/docker/Dockerfile --target website-review-runner --build-arg RELEASE_SHA="${{ github.sha }}" -t tms-website-review-ci .
+      - name: Validate private preview Compose configuration
+        run: docker compose --profile website-review -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml config --quiet
+        env:
+          POSTGRES_DB: fixture
+          POSTGRES_USER: fixture
+          POSTGRES_PASSWORD: fixture
+          DEALERSHIP_REVIEW_KEY: ci-synthetic-review-key-not-production-123456789
+          DEALERSHIP_REVIEW_ORIGIN: https://staff.example.test
+      - name: Verify hosted preview isolation
+        run: |
+          set -euo pipefail
+          docker run -d --name website-review-ci --network none -e DEALERSHIP_HOSTED_REVIEW=1 -e DEALERSHIP_PREVIEW_DATA=1 -e DEALERSHIP_REVIEW_KEY=ci-synthetic-review-key-not-production-123456789 -e DEALERSHIP_REVIEW_ORIGIN=https://staff.example.test tms-website-review-ci
+          for attempt in {1..60}; do
+            if docker exec website-review-ci node -e "fetch('http://127.0.0.1:3100/website-review/api/preview-status',{headers:{'x-tms-review-key':process.env.DEALERSHIP_REVIEW_KEY}}).then(async r=>{const data=await r.json();if(!r.ok||data.revision!==process.env.APP_RELEASE_SHA)process.exit(1)}).catch(()=>process.exit(1))"; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              docker logs website-review-ci
+              exit 1
+            fi
+            sleep 2
+          done
+          docker exec website-review-ci node -e "fetch('http://127.0.0.1:3100/website-review/').then(r=>{if(r.status!==403)process.exit(1)})"
+          docker rm -f website-review-ci
+
   build:
     name: Build
     runs-on: ubuntu-latest

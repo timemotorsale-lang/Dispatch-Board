@@ -1,0 +1,6 @@
+.next/
+.data/
+.env.local
+*.tsbuildinfo
+playwright-report/
+test-results/
