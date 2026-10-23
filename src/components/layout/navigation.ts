@@ -15,6 +15,7 @@ import {
   ContactRound,
   FolderKanban,
   Gauge,
+  Globe,
   House,
   Landmark,
   ListChecks,
@@ -41,6 +42,7 @@ import {
   type WorkspaceKey
 } from "@/server/auth/navigation";
 import { canManageSettings, isManager } from "@/server/policies/access";
+import { canOpenWebsiteConsole } from "@/features/website-console/policy";
 
 export type NavigationItem = {
   activePaths?: string[];
@@ -470,6 +472,14 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Operations",
     items: [
       dispatchBoardNavigationItem,
+      {
+        href: "/website-console",
+        title: "Website Console",
+        description: "Public website readiness, inventory, content, and customer handoffs.",
+        icon: Globe,
+        badge: "Foundation",
+        isVisible: canOpenWebsiteConsole
+      },
       {
         href: "/compliance",
         title: "Compliance",
