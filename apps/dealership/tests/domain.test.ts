@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterListings, mayStartPurchase, previewEnabled, projectSnapshot, validateRequest } from "../src/lib/domain";
+import { filterListings, mayStartPurchase, previewEnabled, projectSnapshot, replaceListingFilters, validateRequest } from "../src/lib/domain";
 
 const source = () => ({ schemaVersion: 1, listings: [{
   publication: "APPROVED", id: "vehicle-one", year: 2021, make: "Toyota", model: "RAV4", trim: "XLE", mileage: 78000, price: 19000,
@@ -76,5 +76,77 @@ describe("guest and preview boundaries", () => {
     expect(previewEnabled({ NODE_ENV: "production", DEALERSHIP_PREVIEW_DATA: "1" })).toBe(false);
     expect(previewEnabled({ NODE_ENV: "development", DEALERSHIP_PREVIEW_DATA: "1" })).toBe(true);
     expect(previewEnabled({ NODE_ENV: "development" })).toBe(false);
+  });
+});
+
+describe("expanded discovery filters", () => {
+  const inventory = () => {
+    const input = source();
+    Object.assign(input.listings[0], { features: ["Apple CarPlay", "Heated seats"], exteriorColor: "Blue", interiorColor: "Black", mpgCombined: 29, seatingCapacity: 5, cylinders: 4, previousPrice: 20000 });
+    const first = projectSnapshot(input, now)[0];
+    return [first, { ...first, id: "vehicle-two", make: "Honda", model: "Pilot", body: "SUV", exteriorColor: "White", mpgCombined: 22, seatingCapacity: 8, cylinders: 6, features: ["Apple CarPlay"], previousPrice: undefined }];
+  };
+
+  it("allows only explicit optional public specifications", () => {
+    const [vehicle] = inventory();
+    expect(vehicle.features).toEqual(["Apple CarPlay", "Heated seats"]);
+    expect(vehicle.mpgCombined).toBe(29);
+    expect(vehicle.seatingCapacity).toBe(5);
+    expect(vehicle).not.toHaveProperty("customerName");
+    expect(vehicle).not.toHaveProperty("cost");
+  });
+
+  it("combines different facet groups and permits alternatives within a group", () => {
+    expect(filterListings(inventory(), new URLSearchParams("make=Toyota&make=Honda&exterior=Blue&exterior=White"))).toHaveLength(2);
+    expect(filterListings(inventory(), new URLSearchParams("make=Honda&cylinders=6&seats=7&transmission=Automatic")).map(vehicle => vehicle.id)).toEqual(["vehicle-two"]);
+    expect(filterListings(inventory(), new URLSearchParams("exterior=Blue&interior=Black&cylinders=4"))).toHaveLength(1);
+  });
+
+  it("matches every selected feature rather than any selected feature", () => {
+    expect(filterListings(inventory(), new URLSearchParams("feature=Apple+CarPlay&feature=Heated+seats"))).toHaveLength(1);
+    expect(filterListings(inventory(), new URLSearchParams("feature=Sunroof"))).toHaveLength(0);
+    expect(filterListings(inventory(), new URLSearchParams("q=Blue+heated"))).toHaveLength(1);
+  });
+
+  it("applies year and mileage bounds without silently expanding a search", () => {
+    expect(filterListings(inventory(), new URLSearchParams("year=2020&yearMax=2022&mileageMin=70000&mileage=80000"))).toHaveLength(2);
+    expect(filterListings(inventory(), new URLSearchParams("year=2023&yearMax=2020"))).toHaveLength(0);
+    expect(filterListings(inventory(), new URLSearchParams("mileageMin=90000&mileage=80000"))).toHaveLength(0);
+  });
+
+  it("does not treat unknown optional facts as matching numeric or feature filters", () => {
+    const unknown = projectSnapshot(source(), now);
+    for (const query of ["mpg=25", "seats=5", "cylinders=4", "feature=Apple+CarPlay", "exterior=Blue", "interior=Black", "priceDrop=1"]) {
+      expect(filterListings(unknown, new URLSearchParams(query))).toEqual([]);
+    }
+    expect(filterListings(unknown, new URLSearchParams())).toHaveLength(1);
+  });
+
+  it("filters published MPG and previous prices without inferring delivery offers", () => {
+    expect(filterListings(inventory(), new URLSearchParams("mpg=25&priceDrop=1"))).toHaveLength(1);
+    expect(filterListings(inventory(), new URLSearchParams("mpg=35"))).toHaveLength(0);
+    expect(inventory()[0]).not.toHaveProperty("freeShipping");
+  });
+  it("matches industry punctuation and case without widening invalid criteria", () => {
+    expect(filterListings(inventory(), new URLSearchParams("make=TOYOTA&model=RAV-4"))).toHaveLength(1);
+    expect(filterListings(inventory(), new URLSearchParams("fuel=---"))).toHaveLength(0);
+  });
+
+  it("preserves repeated filters, keywords and sorting during form application", () => {
+    const params = replaceListingFilters(new URLSearchParams("q=AWD&sort=price-low&make=Old&feature=Old"), [["make", "Toyota"], ["make", "Honda"], ["feature", "Heated seats"], ["mpg", ""], ["privateNotes", "PRIVATE"]]);
+    expect(params.getAll("make")).toEqual(["Toyota", "Honda"]);
+    expect(params.getAll("feature")).toEqual(["Heated seats"]);
+    expect(params.get("q")).toBe("AWD");
+    expect(params.get("sort")).toBe("price-low");
+    expect(params.has("mpg")).toBe(false);
+    expect(params.has("privateNotes")).toBe(false);
+  });
+
+  it("rejects malformed optional specifications and oversized features", () => {
+    for (const fields of [{ features: [123] }, { features: Array(101).fill("Feature") }, { mpgCombined: -1 }, { seatingCapacity: 100 }, { cylinders: 4.5 }, { previousPrice: -1 }]) {
+      const input = source();
+      Object.assign(input.listings[0], fields);
+      expect(() => projectSnapshot(input, now)).toThrow();
+    }
   });
 });

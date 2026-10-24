@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CarFront, ChevronDown, Heart, Search, Settings2, ShieldCheck, Truck, X, Zap } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { CarFront, Heart, Search, Settings2, ShieldCheck, Truck, X, Zap } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { filterListings, money, type Listing, type PublicSnapshot } from "../lib/domain";
+import { publicPath } from "../lib/paths";
+import { InventoryFilters } from "./inventory-filters";
 
 const styles = [
   { label: "SUVs", field: "body", value: "SUV", icon: CarFront },
@@ -16,7 +18,7 @@ const styles = [
   { label: "Hatchbacks", field: "body", value: "Hatchback", icon: CarFront },
   { label: "Vans", field: "body", value: "Van", icon: Truck }
 ];
-const labels: Record<string, string> = { q: "Search", min: "Min price", max: "Max price", body: "Body type", make: "Make", model: "Model", year: "Year from", mileage: "Max miles", drive: "Drivetrain", fuel: "Fuel", transmission: "Transmission", available: "Available now" };
+const labels: Record<string, string> = { q: "Search", min: "Min price", max: "Max price", body: "Body type", make: "Make", model: "Model", year: "Year from", yearMax: "Year to", mileage: "Max miles", mileageMin: "Min miles", drive: "Drivetrain", fuel: "Fuel", transmission: "Transmission", available: "Available now", mpg: "Min MPG", feature: "Feature", exterior: "Exterior", interior: "Interior", seats: "Min seats", cylinders: "Cylinders", priceDrop: "Price drops" };
 
 export function InventorySearch({ snapshot, renderCard }: { snapshot: PublicSnapshot; renderCard: (listing: Listing) => ReactNode }) {
   const search = useSearchParams();
@@ -60,13 +62,10 @@ export function InventorySearch({ snapshot, renderCard }: { snapshot: PublicSnap
     setFiltersOpen(false);
     router.push(destination);
   };
-  const apply = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
-    const next = new URLSearchParams(search.toString());
-    for (const field of ["min", "max", "body", "make", "model", "year", "mileage", "drive", "fuel", "transmission", "available"]) next.delete(field);
-    for (const [field, value] of values) if (String(value)) next.set(field, String(value));
-    navigate(`/shop?${next}`);
+  const updateFilters = (params: URLSearchParams) => {
+    if (params.toString() === search.toString()) return;
+    sessionStorage.removeItem("tms:inventory-position");
+    window.history.pushState(null, "", publicPath(`/shop${params.size ? `?${params}` : ""}`));
   };
   const searchForm = () => <form className="discovery-search" key={search.get("q")} onSubmit={event => {
     event.preventDefault();
@@ -80,16 +79,7 @@ export function InventorySearch({ snapshot, renderCard }: { snapshot: PublicSnap
   }} /></label><button className="button primary" type="submit" aria-expanded={searchOpen} aria-controls="vehicle-search-options" onClick={event => {
     if (!searchOpen) { event.preventDefault(); setSearchOpen(true); searchInput.current?.focus(); }
   }}>Search</button></form>;
-  const filterForm = (mobile = false) => <form onSubmit={apply} key={`${search}-${mobile}`} className="discovery-filter-form">
-    <div className="filter-heading"><h2 id={mobile ? "mobile-filters-heading" : undefined}>Refine your search</h2>{mobile && <button className="icon-button" type="button" aria-label="Close filters" onClick={() => filtersDialog.current?.close()}><X /></button>}</div>
-    <label className="availability-toggle"><span>Available now<small>Hide reserved and coming soon</small></span><input name="available" type="checkbox" value="1" defaultChecked={search.get("available") === "1"} /></label>
-    <details open><summary>Price <ChevronDown size={17} /></summary><div className="form-grid"><label>Minimum<input name="min" type="number" min="0" placeholder="$ Min" defaultValue={search.get("min") || ""} /></label><label>Maximum<input name="max" type="number" min="0" placeholder="$ Max" defaultValue={search.get("max") || ""} /></label></div><p className="small muted">Cash prices. No financing approval implied.</p></details>
-    <details open={Boolean(search.get("make") || search.get("model"))}><summary>Make & model <ChevronDown size={17} /></summary><label>Make<select name="make" defaultValue={search.get("make") || ""}><option value="">Any make</option>{options("make").map(value => <option key={value}>{value}</option>)}</select></label><label>Model<select name="model" defaultValue={search.get("model") || ""}><option value="">Any model</option>{options("model").map(value => <option key={value}>{value}</option>)}</select></label></details>
-    <details open={Boolean(search.get("body"))}><summary>Body type <ChevronDown size={17} /></summary><label>Vehicle type<select name="body" defaultValue={search.get("body") || ""}><option value="">Any type</option>{Array.from(new Set([...options("body"), search.get("body") || ""])).filter(Boolean).map(value => <option key={value}>{value}</option>)}</select></label></details>
-    <details open={Boolean(search.get("year") || search.get("mileage"))}><summary>Year & mileage <ChevronDown size={17} /></summary><label>Minimum year<input name="year" type="number" min="1886" max={new Date().getFullYear() + 2} placeholder="Any year" defaultValue={search.get("year") || ""} /></label><label>Maximum mileage<input name="mileage" type="number" min="0" placeholder="Any mileage" defaultValue={search.get("mileage") || ""} /></label></details>
-    <details open={Boolean(search.get("drive") || search.get("fuel") || search.get("transmission"))}><summary>Fuel & drivetrain <ChevronDown size={17} /></summary>{([["drive", "Drivetrain", "drivetrain"], ["fuel", "Fuel type", "fuel"], ["transmission", "Transmission", "transmission"]] as const).map(([field, label, source]) => <label key={field}>{label}<select name={field} defaultValue={search.get(field) || ""}><option value="">Any {label.toLowerCase()}</option>{Array.from(new Set([...options(source), search.get(field) || ""])).filter(Boolean).map(value => <option key={value}>{value}</option>)}</select></label>)}</details>
-    <div className="filter-actions"><button className="button primary" type="submit">Apply filters</button><button className="text-link" type="button" onClick={() => navigate("/shop")}>Clear all filters</button></div>
-  </form>;
+  const filterForm = (mobile = false) => <InventoryFilters key={String(mobile)} listings={snapshot.listings} search={search.toString()} mobile={mobile} onUpdate={updateFilters} onClear={() => updateFilters(new URLSearchParams())} onClose={() => filtersDialog.current?.close()} />;
 
   return <section className="container inventory-discovery section">
     <div className="discovery-heading"><div><p className="eyebrow">A better fit starts here</p><h1>Find your next vehicle.</h1><p className="muted">{snapshot.source === "PREVIEW" ? "Explore sample vehicles in our private design preview." : "Browse at your pace. We’re here when you need us."}</p></div><Link className="button" href="/garage/saved"><Heart size={18} />Saved vehicles</Link></div>
@@ -110,7 +100,7 @@ export function InventorySearch({ snapshot, renderCard }: { snapshot: PublicSnap
       </div>
       <div className="quick-searches" aria-label="Quick searches">{[{ label: "Under $20,000", changes: { max: "20000" } }, { label: "Under 50,000 miles", changes: { mileage: "50000" } }, { label: "2020 or newer", changes: { year: "2020" } }, { label: "AWD", changes: { drive: "AWD" } }].map(item => <button key={item.label} className="quick-search" onClick={() => navigate(href(item.changes))}>{item.label}</button>)}</div>
       <div className="discovery-toolbar"><p role="status">{snapshot.source === "UNAVAILABLE" ? "Inventory unavailable" : `${results.length} ${snapshot.source === "PREVIEW" ? "sample " : ""}${results.length === 1 ? "vehicle" : "vehicles"}`}</p><button className="button show-filters" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => { setFiltersOpen(true); filtersDialog.current?.showModal(); }}><Settings2 size={18} />Filters{criteria.length ? ` (${criteria.length})` : ""}</button><label className="sort">Sort by<select value={search.get("sort") || "newest"} onChange={event => navigate(href({ sort: event.target.value }))}><option value="newest">Newest listed</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="mileage">Lowest mileage</option></select></label></div>
-      {criteria.length > 0 && <div className="active-criteria" aria-label="Active search filters">{criteria.map(([field, value]) => <button className="chip" key={field} aria-label={`Remove ${labels[field]}: ${value}`} onClick={() => navigate(href({ [field]: null }))}>{labels[field]}: {["min", "max"].includes(field) ? money(Number(value)) : field === "available" ? "Yes" : value}<X size={14} /></button>)}<button className="text-link" onClick={() => navigate("/shop")}>Clear all</button></div>}
+      {criteria.length > 0 && <div className="active-criteria" aria-label="Active search filters">{criteria.map(([field, value]) => { const remaining = new URLSearchParams(search.toString()); remaining.delete(field, value); return <button className="chip" key={`${field}:${value}`} aria-label={`Remove ${labels[field]}: ${value}`} onClick={() => navigate(`/shop?${remaining}`)}>{labels[field]}: {["min", "max"].includes(field) ? money(Number(value)) : ["available", "priceDrop"].includes(field) ? "Yes" : value}<X size={14} /></button>; })}<button className="text-link" onClick={() => navigate("/shop")}>Clear all</button></div>}
       <div className="shopping-reassurance"><ShieldCheck size={21} /><div><strong>Your search. Your pace.</strong><span>Browse without an account. Vehicle details and availability stay clear.</span></div><Link className="text-link" href="/budget">Explore your budget</Link></div>
       {snapshot.error ? <div className="notice" role="alert">{snapshot.error}<button className="text-link" onClick={() => router.refresh()}>Retry loading</button></div> : results.length ? <div className="vehicle-grid">{results.map(renderCard)}</div> : <div className="empty panel"><CarFront size={40} /><h2>{snapshot.source === "UNCONFIGURED" ? "No published feed is connected" : "No matching vehicles"}</h2><p>Your search has not been changed. Try removing a filter, or browse all vehicles.</p><button className="button primary" onClick={() => navigate("/shop")}>Browse all vehicles</button><Link className="text-link" href="/contact">Ask sales for help</Link></div>}
     </div></div>

@@ -246,6 +246,38 @@ details[open] > label, details[open] > p, details[open] > dl { margin-top: 16px;
 .discovery-filter-form .small { font-size: .72rem; margin: 10px 0 0; }
 .filter-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; border-top: 1px solid var(--line); padding-block: 18px; }
 .filter-actions .text-link { justify-content: center; min-height: 44px; font-size: .82rem; }
+.expanded-filter-form { padding: 0; }
+.expanded-filter-form .filter-heading { background: #fff; padding: 22px; border-bottom: 1px solid var(--line); }
+.expanded-filter-form .filter-heading p { color: var(--muted); font-weight: 400; font-size: .75rem; margin: 5px 0 0; }
+.expanded-filter-form .availability-toggle { padding: 22px; margin: 0; border-top: 0; }
+.expanded-filter-form .availability-toggle input { appearance: none; position: relative; width: 42px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 20px; background: #8795a9; }
+.expanded-filter-form .availability-toggle input::before { content: ""; display: block; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; }
+.expanded-filter-form .availability-toggle input:checked { background: #2264c7; }
+.expanded-filter-form .availability-toggle input:checked::before { transform: translateX(18px); }
+.expanded-filter-form .facet-section { padding: 0; }
+.expanded-filter-form .facet-section > summary { padding: 21px 22px; min-height: 72px; gap: 10px; font-size: .9rem; }
+.facet-section > summary > svg { margin-left: auto; }
+.facet-selected { background: #e5eefc; color: #2058a2; border-radius: 20px; padding: 1px 7px; font-size: .71rem; font-weight: 600; }
+.facet-content { padding: 0 22px 22px; }
+.facet-content h3 { font-size: .78rem; color: #64738a; margin: 14px 0 10px; letter-spacing: 0; }
+.facet-content .form-grid + .form-grid { margin-top: 12px; }
+.facet-options { max-height: none; overflow: visible; }
+.facet-option-search { margin-bottom: 10px; font-weight: 400; color: #64738a; }
+.facet-option-search input { margin-top: 3px; }
+.expanded-filter-form .facet-option[hidden] { display: none; }
+.expanded-filter-form .facet-option { display: flex; flex-direction: row; align-items: center; gap: 10px; min-height: 44px; font-size: .84rem; font-weight: 400; cursor: pointer; padding-block: 7px; }
+.facet-option > input { width: 18px; height: 18px; min-height: 18px; flex-shrink: 0; margin: 0; accent-color: #2264c7; }
+.facet-option > span { min-width: 0; overflow-wrap: anywhere; }
+.facet-option small { font-size: .68rem; line-height: 1.4; margin-top: 4px; }
+.facet-count { margin-left: auto; font-size: .73rem; color: #62738a; }
+.facet-note, .facet-empty { font-size: .75rem; font-weight: 400; line-height: 1.6; color: #63718a; margin: 12px 0 0; }
+.facet-empty { margin-top: 0; }
+.facet-unconnected { background: #f3f5f8; border-radius: 8px; padding: 12px; margin-top: 14px; }
+.facet-unconnected strong { font-size: .77rem; }
+.facet-unconnected p { font-size: .72rem; color: #63718a; margin: 6px 0 0; }
+.facet-reset { font-size: .75rem; margin-top: 10px; min-height: 36px; }
+.filter-clear-all { min-height: 36px; font-size: .78rem; margin-top: 6px; }
+.filter-match-count { font-size: .78rem; color: #465d7a; margin: 0; }
 .discovery-results { min-width: 0; }
 .discovery-search-surface { position: relative; border-radius: 16px; background: #eaf1fc; padding: 20px 22px 12px; }
 .discovery-search-surface.search-is-open { z-index: 10; }
@@ -296,6 +328,8 @@ details[open] > label, details[open] > p, details[open] > dl { margin-top: 16px;
 .vehicle-style strong { font-size: .95rem; margin-top: 6px; }
 .vehicle-style span { font-size: .72rem; color: #63738a; }
 .filters-dialog { width: min(520px, calc(100% - 32px)); padding: 0; }
+.filters-dialog .filter-heading { position: sticky; top: 0; z-index: 3; }
+.filters-dialog .filter-heading p:not(.filter-match-count) { display: none; }
 body:has(.filters-dialog[open]) { overflow: hidden; }
 @media (min-width: 1500px) {
   .inventory-discovery .vehicle-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

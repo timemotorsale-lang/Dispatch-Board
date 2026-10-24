@@ -1,3 +1,5 @@
+import { catalogValue } from "./industry-options";
+
 export type Availability = "AVAILABLE" | "COMING_SOON" | "RESERVED" | "SOLD";
 export type Listing = {
   id: string;
@@ -17,6 +19,13 @@ export type Listing = {
   priceVersion: number;
   observedAt: string;
   validUntil: string;
+  features?: string[];
+  exteriorColor?: string;
+  interiorColor?: string;
+  mpgCombined?: number;
+  seatingCapacity?: number;
+  cylinders?: number;
+  previousPrice?: number;
 };
 
 export type PublicSnapshot = { listings: Listing[]; source: "PREVIEW" | "PUBLISHED" | "UNCONFIGURED" | "UNAVAILABLE"; error?: string };
@@ -81,11 +90,24 @@ export function projectSnapshot(value: unknown, now = new Date()): Listing[] {
     identifiers.add(id);
     const photo = item.photo === null ? null : bounded(item.photo, 500);
     if (photo && !/^\/listing-media\/[a-zA-Z0-9/_-]+\.(?:png|jpg|jpeg|webp)$/.test(photo)) throw new Error("Only approved public media paths are supported.");
+    const specifications: Partial<Listing> = {};
+    for (const field of ["exteriorColor", "interiorColor"] as const) {
+      if (item[field] != null) specifications[field] = bounded(item[field], 60);
+    }
+    if (item.features != null) {
+      if (!Array.isArray(item.features) || item.features.length > 100) throw new Error("Invalid published features.");
+      specifications.features = Array.from(new Set(item.features.map((feature: unknown) => bounded(feature, 100)).filter(Boolean)));
+    }
+    for (const [field, maximum] of [["mpgCombined", 300], ["seatingCapacity", 30], ["cylinders", 24], ["previousPrice", Number.MAX_SAFE_INTEGER]] as const) {
+      if (item[field] == null) continue;
+      if (typeof item[field] !== "number" || !Number.isFinite(item[field]) || item[field] < 0 || item[field] > maximum || (field !== "mpgCombined" && !Number.isSafeInteger(item[field]))) throw new Error("Invalid published specifications.");
+      specifications[field] = item[field];
+    }
     projected.push({
       id, year: item.year, make: bounded(item.make, 60), model: bounded(item.model, 80), trim: bounded(item.trim, 100),
       mileage: item.mileage, price: item.price, body: bounded(item.body, 40), drivetrain: bounded(item.drivetrain, 40),
       transmission: bounded(item.transmission, 40), fuel: bounded(item.fuel, 40), availability: item.availability,
-      photo, sourceVersion: item.sourceVersion, priceVersion: item.priceVersion, observedAt: item.observedAt, validUntil: item.validUntil
+      photo, sourceVersion: item.sourceVersion, priceVersion: item.priceVersion, observedAt: item.observedAt, validUntil: item.validUntil, ...specifications
     });
   }
   return projected;
@@ -98,17 +120,32 @@ export function filterListings(listings: Listing[], filters: URLSearchParams) {
   const max = Number(filters.get("max") || Number.MAX_SAFE_INTEGER);
   const mileage = Number(filters.get("mileage") || Number.MAX_SAFE_INTEGER);
   const year = Number(filters.get("year") || 0);
+  const any = (field: string, value: string | number | undefined, partial = false) => {
+    const selected = filters.getAll(field).filter(Boolean);
+    return selected.length === 0 || value !== undefined && selected.some(choice => Boolean(catalogValue(choice)) && (partial ? catalogValue(String(value)).includes(catalogValue(choice)) : catalogValue(String(value)) === catalogValue(choice)));
+  };
   const results = listings.filter(vehicle => vehicle.availability !== "SOLD" &&
-    terms.every(term => `${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.trim} ${vehicle.body} ${vehicle.drivetrain} ${vehicle.fuel} ${vehicle.transmission}`.toLowerCase().includes(term)) &&
+    terms.every(term => `${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.trim} ${vehicle.body} ${vehicle.drivetrain} ${vehicle.fuel} ${vehicle.transmission} ${vehicle.exteriorColor || ""} ${vehicle.interiorColor || ""} ${(vehicle.features || []).join(" ")}`.toLowerCase().includes(term)) &&
     vehicle.price >= min && vehicle.price <= max && vehicle.mileage <= mileage && vehicle.year >= year &&
-    (!filters.get("body") || filters.get("body") === vehicle.body) &&
-    (!filters.get("make") || filters.get("make") === vehicle.make) &&
-    (!filters.get("model") || filters.get("model") === vehicle.model) &&
-    (!filters.get("fuel") || vehicle.fuel.toLowerCase().includes(filters.get("fuel")!.toLowerCase())) &&
-    (!filters.get("transmission") || filters.get("transmission") === vehicle.transmission) &&
-    (filters.get("available") !== "1" || vehicle.availability === "AVAILABLE") &&
-    (!filters.get("drive") || filters.get("drive") === vehicle.drivetrain));
+    vehicle.year <= Number(filters.get("yearMax") || Number.MAX_SAFE_INTEGER) && vehicle.mileage >= Number(filters.get("mileageMin") || 0) &&
+    any("body", vehicle.body) && any("make", vehicle.make) && any("model", vehicle.model) &&
+    any("fuel", vehicle.fuel, true) && any("transmission", vehicle.transmission) && any("drive", vehicle.drivetrain) &&
+    any("exterior", vehicle.exteriorColor) && any("interior", vehicle.interiorColor) && any("cylinders", vehicle.cylinders) &&
+    filters.getAll("feature").filter(Boolean).every(feature => vehicle.features?.some(value => catalogValue(value) === catalogValue(feature))) &&
+    (!filters.get("mpg") || vehicle.mpgCombined !== undefined && vehicle.mpgCombined >= Number(filters.get("mpg"))) &&
+    (!filters.get("seats") || vehicle.seatingCapacity !== undefined && vehicle.seatingCapacity >= Number(filters.get("seats"))) &&
+    (filters.get("priceDrop") !== "1" || vehicle.previousPrice !== undefined && vehicle.previousPrice > vehicle.price) &&
+    (filters.get("available") !== "1" || vehicle.availability === "AVAILABLE"));
   return results.sort((first, second) => filters.get("sort") === "price-low" ? first.price - second.price : filters.get("sort") === "price-high" ? second.price - first.price : filters.get("sort") === "mileage" ? first.mileage - second.mileage : Date.parse(second.observedAt) - Date.parse(first.observedAt));
+}
+
+export const listingFilterFields = ["min", "max", "body", "make", "model", "year", "yearMax", "mileage", "mileageMin", "drive", "fuel", "transmission", "available", "mpg", "feature", "exterior", "interior", "seats", "cylinders", "priceDrop"];
+
+export function replaceListingFilters(current: URLSearchParams, entries: Iterable<[string, string]>) {
+  const next = new URLSearchParams(current.toString());
+  for (const field of listingFilterFields) next.delete(field);
+  for (const [field, value] of entries) if (value && listingFilterFields.includes(field)) next.append(field, value);
+  return next;
 }
 
 export function mayStartPurchase(listing: Listing, now = new Date()) {
