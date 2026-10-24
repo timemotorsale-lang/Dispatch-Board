@@ -14,8 +14,8 @@ describe("permanent Website Console provider directory", () => {
     expect(markup).toContain('href="/website-console?section=providers"');
   });
   it("retains every capability and only points to safe official external resources", () => {
-    expect(providerRegisterVersion).toBe("1.0");
-    expect(providerRegister).toHaveLength(21);
+    expect(providerRegisterVersion).toBe("1.1");
+    expect(providerRegister).toHaveLength(22);
     const ids = providerRegister.map(entry => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of providerRegister) {

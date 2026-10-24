@@ -1,6 +1,7 @@
 import { catalogValue } from "./industry-options";
 import { appraisalDetailKeys, validateAppraisal } from "./appraisal";
 import { paymentPaths, tradeChoices } from "./buying-plan";
+import { serviceDetailKeys, validateService } from "./service-intake";
 import { samplePolicy } from "../../config/sample-policy.mjs";
 
 export type Availability = "AVAILABLE" | "COMING_SOON" | "RESERVED" | "SOLD";
@@ -64,7 +65,7 @@ export function validateRequest(value: unknown): CustomerRequest {
   const details: Record<string, string> = {};
   if (!input.details || typeof input.details !== "object" || Array.isArray(input.details)) throw new Error("Invalid vehicle details.");
   for (const [key, item] of Object.entries(input.details)) {
-    if (allowedDetails.has(key) || input.kind === "SELL" && appraisalDetailKeys.includes(key)) details[key] = bounded(item, 1000);
+    if (allowedDetails.has(key) || input.kind === "SELL" && appraisalDetailKeys.includes(key) || input.kind === "SERVICE" && serviceDetailKeys.includes(key)) details[key] = bounded(item, 1000);
   }
   if (input.kind === "SELL" && details.appraisalVersion) {
     validateAppraisal(details);
@@ -74,6 +75,11 @@ export function validateRequest(value: unknown): CustomerRequest {
     if (typeof input.vehicleId !== "string" || !/^[a-z0-9][a-z0-9-]{0,99}$/.test(input.vehicleId)) throw new Error("Choose a published vehicle before preparing a purchase request.");
     if (details.paymentPath !== undefined && !(paymentPaths as readonly string[]).includes(details.paymentPath)) throw new Error("Choose a supported payment approach.");
     if (details.trade !== undefined && !(tradeChoices as readonly string[]).includes(details.trade)) throw new Error("Choose a supported trade preference.");
+  }
+  if (input.kind === "SERVICE" && details.serviceVersion) {
+    validateService(details);
+    if (details.contactMethod === "Email" && !email || details.contactMethod === "Phone call" && !phone) throw new Error("Provide the contact detail for your preferred response method.");
+    for (const field of ["paymentPath", "trade", "intent", "loan", "condition"]) delete details[field];
   }
   return {
     kind: input.kind as RequestKind, vehicleId: bounded(input.vehicleId, 100), name: bounded(input.name, 150),

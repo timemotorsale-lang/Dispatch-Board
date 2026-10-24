@@ -8,9 +8,9 @@ test("provider directory supports review, filtering, safe links and complete che
   test.skip(!reviewUrl, "Requires the isolated provider-component review harness; server authorization is covered by unit tests.");
   await page.goto(reviewUrl!);
   await expect(page.getByRole("heading", { name: "Provider & Integration Directory", exact: true })).toBeVisible();
-  await expect(page.getByText("21 of 21 capabilities shown.", { exact: false })).toBeVisible();
+  await expect(page.getByText("22 of 22 capabilities shown.", { exact: false })).toBeVisible();
   await page.getByLabel("Find a provider or capability", { exact: true }).fill("Stripe");
-  await expect(page.getByText("1 of 21 capabilities shown.", { exact: false })).toBeVisible();
+  await expect(page.getByText("1 of 22 capabilities shown.", { exact: false })).toBeVisible();
   await page.getByText("Why we need it & how to configure it", { exact: true }).click();
   await expect(page.getByText("ACH is delayed and can fail or be disputed.", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: /Review Stripe ACH/ })).toHaveAttribute("target", "_blank");
@@ -18,7 +18,7 @@ test("provider directory supports review, filtering, safe links and complete che
   await page.getByLabel("Requirement", { exact: true }).selectOption("Foundation");
   await expect(page.getByRole("heading", { name: "No matching capabilities", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Show all capabilities", exact: true }).click();
-  await expect(page.getByText("21 of 21 capabilities shown.", { exact: false })).toBeVisible();
+  await expect(page.getByText("22 of 22 capabilities shown.", { exact: false })).toBeVisible();
   await page.getByLabel("Requirement", { exact: true }).selectOption("Deferred");
   await expect(page.getByRole("heading", { name: "AI agents & advanced automation", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Reset filters", exact: true }).click();

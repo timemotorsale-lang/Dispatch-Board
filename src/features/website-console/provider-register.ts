@@ -14,7 +14,7 @@ export type ProviderEntry = {
   links: { label: string; href: string }[];
 };
 
-export const providerRegisterVersion = "1.0";
+export const providerRegisterVersion = "1.1";
 export const providerReferencesReviewed = "October 24, 2026";
 
 export const providerRegister: ProviderEntry[] = [
@@ -144,6 +144,15 @@ export const providerRegister: ProviderEntry[] = [
     direction: "Reuse the existing calendar where suitable. Staff-confirmed appointment requests do not require a separate booking subscription.", owner: "Sales team + service team",
     dependencies: ["staff-bridge", "email"], setup: ["Approve separate sales and service hours, staffing, buffers and booking rules.", "Confirm the calendar's integration permissions and resource ownership.", "Implement conflict checks, staff confirmation, rescheduling/cancellation and reminders."],
     acceptance: "Unavailable slots cannot be double-booked and customers can distinguish requested from confirmed appointments.", links: []
+  },
+  {
+    id: "service-operations", title: "Service operations & repair authorization", requirement: "Conditional", status: "Preview only",
+    why: "A saved service request is not an advisor-reviewed appointment, diagnosis, estimate or authorization for paid repairs.",
+    unlocks: "Accountable service intake, confirmed visits and customer-approved work when the actual service operations system is connected.",
+    direction: "Assess the dealership's existing service/repair-order system first. No new service-management vendor is selected; a calendar subscription alone does not complete this workflow.", owner: "Service manager + owner + application/security lead",
+    dependencies: ["staff-bridge", "scheduling", "accounts", "email", "storage", "monitoring"],
+    setup: ["Approve supported service work, service hours, advisor ownership, capacity and scheduling conflict rules.", "Connect a durable advisor queue with deduplication, acknowledged delivery, failure alerts and authorized customer status updates.", "Review diagnostic charges, written estimates, separate repair authorization and the record of who approved each scope change.", "Define rescheduling/cancellation, retention, customer access, collection/release and any approved transport arrangements.", "Verify that driving concerns do not silently book a drive-in visit or dispatch towing; publish an approved escalation process."],
+    acceptance: "An end-to-end test proves advisor receipt, conflict-safe confirmation, separately recorded repair consent, access isolation, recovery from failed delivery and no false live status.", links: []
   },
   {
     id: "transport", title: "Delivery, pickup & transport partners", requirement: "Conditional", status: "Decision required",

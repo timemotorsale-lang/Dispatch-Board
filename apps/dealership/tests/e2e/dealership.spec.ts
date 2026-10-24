@@ -39,6 +39,7 @@ test("phone-only service request saves once locally, with no false staff receipt
   await page.getByRole("textbox", { name: "Model", exact: true }).fill("Test vehicle");
   await page.getByRole("button", { name: "Review vehicle" }).click();
   await page.getByRole("textbox", { name: "Describe what you notice" }).fill("Synthetic local test only.");
+  await page.getByRole("button", { name: "Continue to visit preferences", exact: true }).click();
   await page.getByRole("button", { name: "Review request" }).click();
   await expect(page.locator("dl")).not.toContainText("paymentPath");
   await expect(page.locator("dl")).not.toContainText("intent");

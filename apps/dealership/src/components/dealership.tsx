@@ -11,6 +11,7 @@ import { command, RequestFlow, SavedPurchaseRequest, UnavailableStep, VehicleEnt
 import { InventorySearch } from "./inventory-search";
 import { AppraisalFlow, SavedAppraisal } from "./appraisal-flow";
 import { BuyingGuide } from "./buying-guide";
+import { ServiceFlow, SavedServiceRequest } from "./service-flow";
 import { buyingLink, readBuyingPlan } from "../lib/buying-plan";
 
 type AccountRecord = { id: string; kind: string; data: Record<string, unknown>; createdAt: string };
@@ -106,8 +107,10 @@ export function Dealership({ route, snapshot, paymentPreview }: { route: string;
   } else if (route === "sell") {
     content = <AppraisalFlow key={`appraisal:${knownVehicle?.id || ""}:${fromBuyingGuide ? buyingPlan.trade : ""}`} initialVehicle={initialVehicle} initialIntent={fromBuyingGuide && buyingPlan.trade === "yes" ? "Trade toward a purchase" : undefined} preview={preview} onSaved={refresh} />;
     if (buyingReturn) content = <><div className="container section stack">{buyingReturn}<p className="notice">This appraisal is for your current vehicle, not the vehicle you are considering buying. No approved trade value or purchase link is created by these preparation choices.</p></div>{content}</>;
-  } else if (route === "service" || route === "purchase" && listing) {
-    const kind: RequestKind = route === "service" ? "SERVICE" : search.get("kind") === "QUESTION" ? "QUESTION" : search.get("kind") === "TEST_DRIVE" ? "TEST_DRIVE" : "PURCHASE";
+  } else if (route === "service") {
+    content = <ServiceFlow key={`service:${knownVehicle?.id || ""}`} initialVehicle={initialVehicle} preview={preview} onSaved={refresh} />;
+  } else if (route === "purchase" && listing) {
+    const kind: RequestKind = search.get("kind") === "QUESTION" ? "QUESTION" : search.get("kind") === "TEST_DRIVE" ? "TEST_DRIVE" : "PURCHASE";
     content = <RequestFlow key={`${route}:${kind}:${listing?.id || ""}:${knownVehicle?.id || ""}:${fromBuyingGuide ? `${buyingPlan.paymentPath}:${buyingPlan.trade}` : ""}`} kind={kind} listing={route === "purchase" ? listing : undefined} initialVehicle={initialVehicle} initialBuyingPlan={fromBuyingGuide ? buyingPlan : undefined} preview={preview} onSaved={refresh} />;
   } else if (route === "garage/add") {
     content = accountGuard(<section className="container narrow stack"><Link href="/garage" className="text-link"><ArrowLeft size={17} />My Garage</Link><h1>Add a vehicle.</h1><VehicleEntry onReview={async details => { try { await command("VEHICLE", details); refresh(); router.push("/garage"); } catch (problem) { setFeedback(problem instanceof Error ? problem.message : "Could not save the vehicle."); } }} /></section>);
@@ -119,6 +122,7 @@ export function Dealership({ route, snapshot, paymentPreview }: { route: string;
     const request = requests.find(record => record.id === search.get("reference"));
     content = accountGuard(<section className="container narrow stack"><Link href="/garage" className="text-link"><ArrowLeft size={17} />My Garage</Link><h1>{request ? "Your request." : "My Purchase."}</h1>{request ? <><div className="notice"><strong>Saved in private preview</strong><p>Not delivered to staff. No verified appointment, hold, finance or sale state exists.</p></div><div className="panel"><strong>Reference</strong><p className="break">{request.id}</p><p>Intended team: {String(request.data.team)}</p></div></> : <p>Select a public vehicle to begin, or open an existing request in My Garage.</p>}<UnavailableStep title="Documents, holds and deposit" description="Secure uploads, record linking, staff approvals, payment amount/refund rules and provider reconciliation must be connected before this step can operate. No files or money are collected." /><UnavailableStep title="Signing & handoff" description="Verified signing support, funding/title/safety checks, approved delivery arrangements and authorized release are required. No sale is marked complete." />{request && <MessageForm reference={request.id} onSaved={refresh} preview={preview} />}<Link className="button" href="/shop">Return to vehicles</Link></section>);
     if (request?.data.kind === "SELL") content = accountGuard(<SavedAppraisal reference={request.id} details={(request.data.details || {}) as Record<string, unknown>} />);
+    if (request?.data.kind === "SERVICE") content = accountGuard(<><SavedServiceRequest reference={request.id} details={(request.data.details || {}) as Record<string, unknown>} /><div className="container narrow section"><MessageForm reference={request.id} onSaved={refresh} preview={preview} /></div></>);
     if (request?.data.kind === "PURCHASE") content = accountGuard(<><SavedPurchaseRequest reference={request.id} vehicleId={typeof request.data.vehicleId === "string" ? request.data.vehicleId : ""} details={(request.data.details || {}) as Record<string, unknown>} /><div className="container narrow section"><MessageForm reference={request.id} onSaved={refresh} preview={preview} /></div></>);
   } else if (route.startsWith("garage/")) {
     const name = quickLinks.find(item => item.href === `/${route}`)?.label ?? "Account tools";

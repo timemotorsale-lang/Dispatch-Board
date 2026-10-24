@@ -31,5 +31,5 @@ export function VinCamera({ onCapture, onClose }: { onCapture: (vin: string) => 
       if (stream instanceof MediaStream) stream.getTracks().forEach(track => track.stop());
     };
   }, []);
-  return <div className="camera"><p>Align the VIN barcode. This reads barcodes, not printed VIN text. Camera access needs HTTPS or localhost.</p><video ref={video} autoPlay playsInline muted aria-label="Appraisal VIN barcode camera" /><p role="status">{error}</p><button type="button" className="button" onClick={onClose}>Close camera and type instead</button></div>;
+  return <div className="camera"><p>Align the VIN barcode. This reads barcodes, not printed VIN text. Camera access needs HTTPS or localhost.</p><video ref={video} autoPlay playsInline muted aria-label="Vehicle VIN barcode camera" /><p role="status">{error}</p><button type="button" className="button" onClick={onClose}>Close camera and type instead</button></div>;
 }

@@ -1,0 +1,63 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, ShieldCheck, Wrench } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { drivabilityChoices, serviceCategories, serviceLabels, serviceStepError, serviceToday } from "../lib/service-intake";
+import { command, VehicleEntry } from "./request-flow";
+import styles from "./service-flow.module.css";
+
+function ServiceAnswers({ details }: { details: Record<string, unknown> }) {
+  return <dl className="review-list">{Object.entries(serviceLabels).filter(([field]) => typeof details[field] === "string" && details[field]).map(([field, label]) => <div key={field}><dt>{label}</dt><dd>{field === "vin" ? `•••••••••••${String(details[field]).slice(-6)}` : field === "flexible" ? details[field] === "yes" ? "Contact me to discuss timing" : "Preferred date requested" : String(details[field]).split("|").join(", ")}</dd></div>)}</dl>;
+}
+
+export function SavedServiceRequest({ reference, details }: { reference: string; details: Record<string, unknown> }) {
+  return <section className="container narrow section stack"><Link className="text-link" href="/garage"><ArrowLeft size={18} />My Garage</Link><h1>Your service request.</h1><div className="notice"><strong>Saved privately—not delivered to staff.</strong><p>No appointment, diagnosis, estimate, paid work or repair order is authorized.</p></div><div className="panel"><h2>Submitted details</h2><ServiceAnswers details={details} /></div><h2>What still needs confirmation</h2><ul><li>Service advisor review and supported work.</li><li>Actual appointment availability and transportation arrangements.</li><li>Any diagnostic charge, written estimate and separate repair authorization.</li></ul><p>Live updates are not connected. This is not a real-time repair tracker.</p><p>Reference: <code className="break">{reference}</code></p><Link className="button" href="/service">Prepare another request</Link></section>;
+}
+
+export function ServiceFlow({ preview, initialVehicle, onSaved }: { preview: boolean; initialVehicle?: Record<string, string>; onSaved: () => void }) {
+  const [stage, setStage] = useState(initialVehicle ? 1 : 0);
+  const [details, setDetails] = useState<Record<string, string>>({ serviceVersion: "1", categories: "", service: "", drivability: "Not sure", flexible: "yes", date: "", window: "", contactMethod: "Either", ...initialVehicle });
+  const [contact, setContact] = useState({ name: "", email: "", phone: "", notes: "" });
+  const [consent, setConsent] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<{ reference: string; message: string } | null>(null);
+  const submissionKey = useRef("");
+  const pending = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const previousStep = useRef({ stage, receipt });
+  useEffect(() => {
+    if (previousStep.current.stage !== stage || previousStep.current.receipt !== receipt) heading.current?.focus();
+    previousStep.current = { stage, receipt };
+  }, [stage, receipt]);
+  const dirty = () => { submissionKey.current = ""; setError(""); };
+  const update = (field: string, value: string) => { setDetails(current => ({ ...current, [field]: value })); dirty(); };
+  const title = [details.year, details.make, details.model].filter(Boolean).join(" ") || "Your vehicle";
+  const concern = details.drivability === "Concerned about driving" || details.drivability === "Not drivable";
+  function advance(event: FormEvent) {
+    event.preventDefault();
+    const problem = serviceStepError(details, stage);
+    if (problem) { setError(problem); return; }
+    setError(""); setStage(stage + 1);
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (pending.current || !preview || !consent) return;
+    for (const step of [0, 1, 2]) { const problem = serviceStepError(details, step); if (problem) { setError(problem); setStage(step); return; } }
+    if (!contact.email.trim() && !contact.phone.trim()) { setError("Provide an email address or phone number. One is enough."); return; }
+    if (details.contactMethod === "Email" && !contact.email.trim() || details.contactMethod === "Phone call" && !contact.phone.trim()) { setError("Provide the contact detail for your preferred response method."); return; }
+    pending.current = true; setBusy(true); setError(""); submissionKey.current ||= crypto.randomUUID();
+    try { const result = await command("REQUEST", { kind: "SERVICE", vehicleId: "", ...contact, details }, submissionKey.current); setReceipt(result); onSaved(); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : "Could not save. Your answers are kept in this tab."); }
+    finally { pending.current = false; setBusy(false); }
+  }
+  if (receipt) return <section className="container narrow section stack"><h1 tabIndex={-1} ref={heading}>Request saved.</h1><div className="notice"><strong>{receipt.message}</strong><p>Not a confirmed appointment, diagnosis, estimate or authorization for paid work.</p></div><div className="panel"><h2>{title}</h2><ServiceAnswers details={details} /><code className="break">{receipt.reference}</code></div><p>Use My Garage in this browser session to review the saved request. Cross-device accounts and live staff updates are not connected.</p><Link className="button primary" href="/garage">View preview Garage<ArrowRight size={18} /></Link></section>;
+  return <section className={`container section ${styles.page}`}><Link className="text-link" href="/"><ArrowLeft size={18} />Home</Link><header className={styles.hero}><div><p className="eyebrow">Your vehicle. A clearer next step.</p><h1>Request service</h1><p className="lead">Tell us what you notice. Keep your vehicle, concerns and visit preferences together.</p></div><div className={styles.assurance}><ShieldCheck size={30} aria-hidden="true" /><h2>Clarity before commitment.</h2><p>No account or ownership upload to begin. No automatic booking, diagnosis or paid repair authorization.</p></div></header><p className={styles.status}>{preview ? "Private preview: use sample details only. Requests save locally and are not delivered to staff." : "Service intake preview only. Live submissions, scheduling and staff delivery are not configured."}</p><ol className={styles.steps} aria-label="Service request steps">{["Vehicle", "Your concerns", "Visit preferences", "Review & contact"].map((label, index) => <li key={label} aria-current={stage === index ? "step" : undefined}>{index + 1}. {label}</li>)}</ol><div className={styles.layout}><div className={`${styles.panel} stack`}><h2 tabIndex={-1} ref={heading}>{["Your vehicle", "What can we help you describe?", "Plan a visit request", "Review your request"][stage]}</h2>
+    {stage > 0 && <button type="button" className="text-link" onClick={() => { setStage(stage - 1); setError(""); }}><ArrowLeft size={17} />Back</button>}
+    {stage === 0 && <VehicleEntry key={`${details.year}:${details.make}:${details.model}`} initialDetails={details} vinLookup={preview} onReview={vehicle => { const next = { ...details, ...vehicle }; const problem = serviceStepError(next, 0); if (problem) { setError(problem); return; } setDetails(next); dirty(); setStage(1); }} />}
+    {stage === 1 && <form className="stack" onSubmit={advance}><fieldset><legend>What would you like checked?</legend><p>These describe requested help, not a published service menu or promise of availability.</p><div className={styles.choices}>{serviceCategories.map(category => <label className={styles.choice} key={category}><input type="checkbox" checked={(details.categories || "").split("|").includes(category)} onChange={() => { const current = (details.categories || "").split("|").filter(Boolean); update("categories", (current.includes(category) ? current.filter(value => value !== category) : [...current, category]).join("|")); }} />{category}</label>)}</div></fieldset><label>Describe what you notice<textarea maxLength={1000} value={details.service} onChange={event => update("service", event.target.value)} placeholder="When does it happen? What do you hear, see or feel? Not sure is okay." /></label><label>Any concern about driving?<select value={details.drivability} onChange={event => update("drivability", event.target.value)}>{drivabilityChoices.map(value => <option key={value}>{value}</option>)}</select></label><p className={styles.warning}>{concern ? "Do not drive a vehicle you believe is unsafe. Arrange appropriate assistance independently; this form does not dispatch towing or emergency help." : "This form is not monitored for emergencies and cannot establish whether a vehicle is safe to drive."}</p><button className="button primary" type="submit">Continue to visit preferences<ArrowRight size={18} /></button></form>}
+    {stage === 2 && <form className="stack" onSubmit={advance}><label className={styles.choice}><input type="checkbox" checked={details.flexible === "yes"} onChange={event => { setDetails(current => ({ ...current, flexible: event.target.checked ? "yes" : "no", date: "", window: "" })); dirty(); }} />I&apos;m flexible — contact me</label>{details.flexible === "no" && <><label>Preferred date<input type="date" required min={serviceToday()} value={details.date} onChange={event => update("date", event.target.value)} /></label><label>Preferred time or alternative<input maxLength={200} value={details.window} onChange={event => update("window", event.target.value)} placeholder="Preference only—not an available slot" /></label></>}<label>Preferred response method<select value={details.contactMethod} onChange={event => update("contactMethod", event.target.value)}>{["Either", "Email", "Phone call"].map(value => <option key={value}>{value}</option>)}</select></label><div className={styles.warning}>Service hours, advisor capacity, supported work and appointment availability are not connected. A preferred date is not a confirmed visit. Loaners, shuttle service, towing and pickup are not promised.</div><button className="button primary" type="submit">Review request<ArrowRight size={18} /></button></form>}
+    {stage === 3 && <form className="stack" onSubmit={submit}><ServiceAnswers details={details} /><button className="text-link" type="button" onClick={() => setStage(0)}>Edit vehicle</button>{Object.entries({ name: "Name (optional)", email: "Email address", phone: "Phone number" }).map(([field, label]) => <label key={field}>{label}<input type={field === "email" ? "email" : field === "phone" ? "tel" : "text"} autoComplete={field === "phone" ? "tel" : field} maxLength={field === "email" ? 254 : field === "phone" ? 40 : 150} value={contact[field as keyof typeof contact]} onChange={event => { setContact(current => ({ ...current, [field]: event.target.value })); dirty(); }} /></label>)}<p>Email or phone—one is enough, matching your chosen response method. A phone number does not grant permission for texts or marketing.</p><label>Additional notes (optional)<textarea maxLength={2500} value={contact.notes} onChange={event => { setContact(current => ({ ...current, notes: event.target.value })); dirty(); }} /></label><p>Do not include identity documents, card, bank or insurance details. Drafts stay in memory; leaving or reloading clears unsent answers.</p>{preview && <label className={styles.choice}><input type="checkbox" required checked={consent} onChange={event => setConsent(event.target.checked)} />I understand this is a private preview and will use sample information.</label>}<button type="submit" className="button primary" disabled={!preview || !consent || busy}>{busy ? "Saving preview request…" : "Save preview request"}<ArrowRight size={18} /></button></form>}
+    <p className="error-text" role="alert">{error}</p></div><aside className={styles.summary} aria-label="Service request summary"><Wrench size={28} aria-hidden="true" /><h2>{title}</h2><p>{details.mileage ? `${Number(details.mileage).toLocaleString()} miles` : "Mileage not provided"}</p><p>{details.vin ? `VIN •••••••••••${details.vin.slice(-6)}` : "Manual vehicle details supported"}</p><h3>Your requested help</h3><p>{details.categories?.split("|").join(", ") || "Describe your concerns in your own words."}</p><p>{details.drivability}</p><h3>Before a real visit</h3><ul><li>Advisor confirms supported work and time.</li><li>Any diagnostic charge and estimate need review.</li><li>Paid repairs need separate authorization.</li></ul><p><strong>Appointment: not booked.</strong><br />Staff delivery: not connected.</p><Link className="text-link" href="/garage">My Garage<ArrowRight size={17} /></Link></aside></div></section>;
+}
