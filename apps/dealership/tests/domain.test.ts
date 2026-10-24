@@ -41,6 +41,21 @@ describe("public inventory boundary", () => {
     listing.availability = "RESERVED"; expect(mayStartPurchase(listing, now)).toBe(false);
     listing.availability = "AVAILABLE"; expect(mayStartPurchase(listing, new Date("2026-10-26"))).toBe(false);
   });
+  it("searches unordered keywords across verified vehicle facts", () => {
+    const listings = projectSnapshot(source(), now);
+    expect(filterListings(listings, new URLSearchParams("q=AWD Toyota automatic"))).toHaveLength(1);
+    expect(filterListings(listings, new URLSearchParams("q=Toyota electric"))).toEqual([]);
+    expect(filterListings(listings, new URLSearchParams("q=PRIVATE"))).toEqual([]);
+  });
+  it("combines model, fuel, transmission and availability without widening criteria", () => {
+    const listings = projectSnapshot(source(), now);
+    expect(filterListings(listings, new URLSearchParams("model=RAV4&fuel=gasoline&transmission=Automatic&available=1"))).toHaveLength(1);
+    expect(filterListings(listings, new URLSearchParams("model=Camry"))).toEqual([]);
+    expect(filterListings(listings, new URLSearchParams("fuel=Electric"))).toEqual([]);
+    listings[0].availability = "COMING_SOON";
+    expect(filterListings(listings, new URLSearchParams("available=1"))).toEqual([]);
+    expect(filterListings(listings, new URLSearchParams())).toHaveLength(1);
+  });
 });
 
 describe("guest and preview boundaries", () => {

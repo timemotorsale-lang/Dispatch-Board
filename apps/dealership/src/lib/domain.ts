@@ -93,15 +93,20 @@ export function projectSnapshot(value: unknown, now = new Date()): Listing[] {
 
 export function filterListings(listings: Listing[], filters: URLSearchParams) {
   const query = (filters.get("q") ?? "").trim().toLowerCase();
+  const terms = query.split(/\s+/).filter(Boolean);
   const min = Number(filters.get("min") || 0);
   const max = Number(filters.get("max") || Number.MAX_SAFE_INTEGER);
   const mileage = Number(filters.get("mileage") || Number.MAX_SAFE_INTEGER);
   const year = Number(filters.get("year") || 0);
   const results = listings.filter(vehicle => vehicle.availability !== "SOLD" &&
-    `${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.trim} ${vehicle.body} ${vehicle.drivetrain}`.toLowerCase().includes(query) &&
+    terms.every(term => `${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.trim} ${vehicle.body} ${vehicle.drivetrain} ${vehicle.fuel} ${vehicle.transmission}`.toLowerCase().includes(term)) &&
     vehicle.price >= min && vehicle.price <= max && vehicle.mileage <= mileage && vehicle.year >= year &&
     (!filters.get("body") || filters.get("body") === vehicle.body) &&
     (!filters.get("make") || filters.get("make") === vehicle.make) &&
+    (!filters.get("model") || filters.get("model") === vehicle.model) &&
+    (!filters.get("fuel") || vehicle.fuel.toLowerCase().includes(filters.get("fuel")!.toLowerCase())) &&
+    (!filters.get("transmission") || filters.get("transmission") === vehicle.transmission) &&
+    (filters.get("available") !== "1" || vehicle.availability === "AVAILABLE") &&
     (!filters.get("drive") || filters.get("drive") === vehicle.drivetrain));
   return results.sort((first, second) => filters.get("sort") === "price-low" ? first.price - second.price : filters.get("sort") === "price-high" ? second.price - first.price : filters.get("sort") === "mileage" ? first.mileage - second.mileage : Date.parse(second.observedAt) - Date.parse(first.observedAt));
 }
