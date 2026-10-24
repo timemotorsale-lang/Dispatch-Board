@@ -39,6 +39,14 @@ The supported webpack mode is explicit: the initial Turbopack configuration atte
 - Explicit local-only preview persistence with SQLite, hashed anonymous preview session credentials, isolated records, idempotent submissions, saved vehicles, personally entered vehicles and context-bound messages.
 - Honest unavailable states for live accounts, record linking, document uploads, financial/signing providers, holds, staff delivery, published contact/hours, AI and budget estimates. No mock live approvals, charges, bookings or completion.
 
+## Private Shop by Payment review
+
+`/finance` and `/budget` now render the split-panel estimate calculator only for a server-confirmed PREVIEW snapshot in the protected sample environment. Vehicle imagery is illustrative and uses the guarded sample-media route. Public or unavailable snapshots retain the original funding-options or not-configured state; a query parameter cannot enable the draft calculator.
+
+The calculator has budget and vehicle-price modes, using the draft 8% annual-interest assumption (not lender-confirmed APR), 24/36/48/66/72 months, capped $350 documentation fee and referenced Minnesota transfer/tax assumptions. Additional vehicle-specific charges require an explicit checked amount; unknown fees are not zero. No trade-in calculation, credit check, application or approval is offered. Results are not saved. Budget matching applies only a cash-price filter to sample vehicles.
+
+Staff review: **Website Console → Payment Estimates**. Public activation, recorded dual approvals and production fee/eligibility/disclosure validation are not implemented. See `packages/payment-estimates/README.md` for official references, rounding assumptions and the release boundary. Both customer Docker builder targets explicitly copy this neutral shared module; no staff data or provider code is imported.
+
 ## Public feed contract
 
 `DEALERSHIP_LISTINGS_PATH` may point to a separately approved public JSON projection. `schemaVersion` must be `1`; each visible row needs `publication: APPROVED`, safe identity/photo fields, integer source/price versions, observed timestamp and future valid-until timestamp. Do not point this at raw staff/customer exports. The loader projects an explicit safe field set, skips non-approved rows and rejects invalid/stale snapshots. The private operations publishing worker and canonical commitment handshake are not implemented yet.

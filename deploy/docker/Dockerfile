@@ -43,6 +43,7 @@ RUN npm run db:generate
 FROM dependencies AS website-review-builder
 COPY package.json package-lock.json ./
 COPY apps/dealership ./apps/dealership
+COPY packages/payment-estimates ./packages/payment-estimates
 ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
 ENV DEALERSHIP_ENVIRONMENT=private-review
 ENV DEALERSHIP_HOSTED_REVIEW=1
@@ -75,6 +76,7 @@ CMD ["node", "/app/node_modules/next/dist/bin/next", "start", ".", "-H", "0.0.0.
 
 FROM dependencies AS website-production-builder
 COPY apps/dealership ./apps/dealership
+COPY packages/payment-estimates ./packages/payment-estimates
 ENV DEALERSHIP_ENVIRONMENT=public-production
 ENV DEALERSHIP_PREVIEW_DATA=0
 RUN rm -rf apps/dealership/fixtures && npm --prefix apps/dealership run build && rm -rf apps/dealership/.next/cache

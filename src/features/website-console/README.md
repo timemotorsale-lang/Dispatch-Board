@@ -22,6 +22,12 @@ Signature Showroom and Simple Hybrid share a six-slide vehicle showcase (SUV, se
 
 The snapshot is server-imported and passed only to the Design Studio section. It needs no local preview server, public domain, Codex conversation runtime, external asset host, customer records, or new provider. The iframe allows scripts only, not same-origin access, popups, forms, or top navigation. Its internal content policy blocks network connections and permits only embedded images/styles/scripts. The parent offers optional full-screen review with a fallback message when unavailable. The public/customer homepage is not modified. This section becomes available on another staff host only after the staff app is deployed there.
 
+## Payment Estimates
+
+Permanent review: `/website-console?section=payment-estimates`. Existing manager/delegated-manager authorization applies. This section displays draft business assumptions, official Minnesota references, blocked release gates and an interactive estimate-only calculator. It does not save settings or approvals, grant a finance role, publish estimates or connect a lender.
+
+The shared module in `packages/payment-estimates` uses 8% annual interest (not quoted APR), 24/36/48/66/72 months and the capped $350 documentation fee. Additional registration/plate/local charges and the standard Minnesota retail scenario must be explicitly confirmed. Both owner and designated finance-manager approval of the same final version, full fee coverage and disclosure review remain release prerequisites, not recorded approvals. The private customer preview is available at its configured `/budget` address; public mode remains unavailable. See the shared module README for sources and arithmetic limits.
+
 ## Website destinations
 
 Set these in the **staff app's** server environment, not the public app:
