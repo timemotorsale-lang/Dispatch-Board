@@ -1,4 +1,5 @@
 import { catalogValue } from "./industry-options";
+import { appraisalDetailKeys, validateAppraisal } from "./appraisal";
 import { samplePolicy } from "../../config/sample-policy.mjs";
 
 export type Availability = "AVAILABLE" | "COMING_SOON" | "RESERVED" | "SOLD";
@@ -62,7 +63,11 @@ export function validateRequest(value: unknown): CustomerRequest {
   const details: Record<string, string> = {};
   if (!input.details || typeof input.details !== "object" || Array.isArray(input.details)) throw new Error("Invalid vehicle details.");
   for (const [key, item] of Object.entries(input.details)) {
-    if (allowedDetails.has(key)) details[key] = bounded(item, 1000);
+    if (allowedDetails.has(key) || input.kind === "SELL" && appraisalDetailKeys.includes(key)) details[key] = bounded(item, 1000);
+  }
+  if (input.kind === "SELL" && details.appraisalVersion) {
+    validateAppraisal(details);
+    if (details.contactMethod === "Email" && !email || details.contactMethod === "Phone call" && !phone) throw new Error("Provide the contact detail for your preferred response method.");
   }
   return {
     kind: input.kind as RequestKind, vehicleId: bounded(input.vehicleId, 100), name: bounded(input.name, 150),
