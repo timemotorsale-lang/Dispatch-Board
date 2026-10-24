@@ -11,6 +11,8 @@ import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/
 import { SALES_DOCUMENT_PATHWAYS, isSalesDocumentPathway, salesDocumentRequirements, normalizeSalesDocumentType, type PacketPhase, type SalesDocumentRequirement } from "@/lib/sales-document-pathways";
 import type { UnifiedCrmContractPacketInput, UnifiedCrmContractPacketResult } from "@/server/unified-crm/contract-packet-contract";
 import { closingChecklist, SalesDocumentsError, type JacketDocument } from "./domain";
+import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } from "@/lib/deal-closing";
+import { prepareClosingReview } from "./closing-review";
 
 const include = {
   packet: { include: { documents: { include: { document: { include: { versions: true } } } }, auditEvents: { orderBy: { occurredAt: "desc" as const }, take: 30 } } },
@@ -42,11 +44,13 @@ function view(jacket: Jacket) {
   const phase: PacketPhase = ["daily-rental", "vehicle-loaner", "test-drive"].includes(jacket.pathway) ? (jacket.versions.some((version) => version.phase === "CHECKOUT") ? "RETURN" : "CHECKOUT") : "CLOSING";
   const docs = documents(jacket);
   const checklist = closingChecklist(requirements(jacket), docs, phase);
+  const closingReview = (jacket.closingReview ?? null) as ClosingReview | null;
   return {
     id: jacket.id, packetId: jacket.packetId, dealNumber: jacket.dealNumber, pathway: jacket.pathway,
     pathwayLabel: SALES_DOCUMENT_PATHWAYS[jacket.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS],
     customerId: jacket.customerId, customerName: jacket.customerName, vehicleReference: jacket.vehicleReference, vin: jacket.vin, stockNumber: jacket.stockNumber,
     state: jacket.state, revision: jacket.revision, phase, requirements: requirements(jacket), checklist,
+    closingReview, closingReadiness: closingReviewSummary(closingReview, jacket.revision),
     documents: docs, updatedAt: jacket.updatedAt.toISOString(),
     versions: jacket.versions.map((item) => ({ id: item.id, version: item.version, phase: item.phase, disposition: item.disposition, finalizedAt: item.finalizedAt.toISOString(), finalizedBy: text(metadata(item.snapshot).finalizedByName) || item.finalizedByUserId })),
     history: jacket.packet.auditEvents.map((event) => ({ id: event.id, action: event.action, note: event.note, actorId: text(metadata(event.metadata).actorName) || event.actorUserId, at: event.occurredAt.toISOString() }))
@@ -60,8 +64,8 @@ async function findJacket(id: string, db: Transaction = prisma) {
   return jacket;
 }
 
-async function audit(db: Transaction, jacket: Pick<Jacket, "id" | "packetId" | "organizationId">, actor: AuthenticatedUser, action: string, note: string) {
-  await db.documentLibraryAuditEvent.create({ data: { organizationId: jacket.organizationId, packetId: jacket.packetId, subjectType: "PACKET", subjectId: jacket.packetId, action, note, actorUserId: actor.id, metadata: { actorName: actor.name }, idempotencyKey: randomUUID() } });
+async function audit(db: Transaction, jacket: Pick<Jacket, "id" | "packetId" | "organizationId">, actor: AuthenticatedUser, action: string, note: string, extra: Record<string, unknown> = {}) {
+  await db.documentLibraryAuditEvent.create({ data: { organizationId: jacket.organizationId, packetId: jacket.packetId, subjectType: "PACKET", subjectId: jacket.packetId, action, note, actorUserId: actor.id, metadata: json({ ...extra, actorName: actor.name }), idempotencyKey: randomUUID() } });
 }
 
 async function lock(db: Transaction, jacket: Jacket, expectedRevision: unknown) {
@@ -150,12 +154,17 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
 }
 
 export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>) {
-  const user = requireSalesDocumentsUser(actor, raw.action === "WAIVE");
+  const user = requireSalesDocumentsUser(actor, raw.action === "WAIVE" || raw.action === "CLOSING_REVIEW");
   return prisma.$transaction(async (db) => {
     const jacket = await findJacket(id, db);
     await lock(db, jacket, raw.revision);
     const note = text(raw.note, 1000);
-    if (raw.action === "NOTE") {
+    if (raw.action === "CLOSING_REVIEW") {
+      if (!suggestedClosingPathway(jacket.pathway)) throw new SalesDocumentsError("Purchase closing reviews are not supported for this jacket's operational pathway.");
+      const review = { ...prepareClosingReview(raw, user.id, jacket.revision + 1), savedByName: user.name };
+      await db.salesDocumentJacket.update({ where: { id }, data: { closingReview: json(review) } });
+      await audit(db, jacket, user, "CLOSING_REVIEW_SAVED", `Saved preparation review for ${review.pathway}. Not a signing, funding or release authorization.`, { closingReview: review });
+    } else if (raw.action === "NOTE") {
       if (!note) throw new SalesDocumentsError("Enter an update before saving.");
       await audit(db, jacket, user, "STAFF_UPDATE", note);
     } else if (raw.action === "ADDENDUM") {

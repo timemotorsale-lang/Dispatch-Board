@@ -1,5 +1,25 @@
 # Current Implementation Status
 
+## 2026-10-24 — Deal Closing Preparation Foundation
+
+Added Website Console → Paperwork & Delivery with eight distinct preparation
+pathways and the approved blueprint's customer reveal, storage and staged rollout
+boundaries. Canonical Sales Documents jackets support saved, evidence-referenced
+internal closing reviews, elevated document authorization, revision locking,
+server-attributed audit snapshots and conservative invalidation after jacket changes.
+Migration `20261024010000_deal_closing_review` is additive and required before use.
+This is the preparation slice only: no live customer paperwork portal, signatures,
+funding integration, vehicle release, custody transfer or legal approval is claimed.
+See `docs/sales-documents-foundation.md` for the evidence boundary and next slices.
+
+Verification: 80 focused unit/database tests and the authenticated desktop/mobile
+browser journey passed, including evidence validation, rejected-save retention,
+reload, stale-review detection and scoped accessibility checks. Scoped typecheck
+and edited-file lint passed. The local migration is applied after a verified backup
+archive; production deployment and restore testing are not performed. Repository-wide
+typechecking exceeded the default Node heap limit, and the existing framework
+security-upgrade warning remains unresolved.
+
 ## 2026-10-20 — Inventory simplification reconciliation for release
 
 The owner has explicitly authorized merging current `main` into this branch, resolving conflicts, validating the combined implementation and deploying through a pull request. This supersedes the earlier instruction not to merge/deploy this checkpoint; it does not represent automatic design adoption or permission to weaken financial, authorization, QC or other in-app safeguards. Preserve newer CRM, purchasing, compliance and deployment changes from `main`, including removal of the global Labor Pilot evidence gate. Earlier dated checkpoint and release-hold entries below describe their historical state, not a new global deployment prerequisite. Production promotion remains subject to successful current CI, backup/restore, migration and health checks.

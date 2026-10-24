@@ -5,6 +5,7 @@ import { WebsiteLaunchLinks } from "./launch-links";
 import { DesignStudio } from "./design-studio/design-studio";
 import { PaymentEstimates } from "./payment-estimates";
 import { ProviderSetup } from "./provider-setup";
+import { PaperworkSetup } from "./paperwork";
 import { websiteConsoleNavigationItems, websiteSections, type WebsiteSection } from "./navigation";
 import styles from "./website-console.module.css";
 
@@ -70,6 +71,7 @@ export function WebsiteConsole({ section, destinations }: { section: WebsiteSect
       {section === "payment-estimates" ? <PaymentEstimates previewUrl={destinations.previewUrl} /> : null}
 
       {section === "providers" ? <ProviderSetup /> : null}
+      {section === "paperwork" ? <PaperworkSetup /> : null}
 
       {section === "readiness" ? <div className={styles.summary}><h3>Keep provider decisions in one place</h3><p>The permanent directory explains required capabilities, candidate services, dependencies and the evidence needed before activation.</p><Link className={styles.toolLink} href="/website-console?section=providers">Open Providers &amp; Setup<ArrowRight size={16} aria-hidden="true" /></Link></div> : null}
 

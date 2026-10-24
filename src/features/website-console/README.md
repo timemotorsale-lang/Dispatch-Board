@@ -10,7 +10,16 @@ Active General Managers and staff with the existing delegated-manager capability
 
 ## Navigation
 
-The console has Overview, Inventory, Design Studio, Payment Estimates, Providers & Setup, Content & Media, Customer Requests, and Launch Readiness sections. Its console navigation takes precedence over an incidental contained-workspace query. It includes its own CCC Home return link. Existing inventory, frontline, Growth, Document Library, Sales, Advisor, and Integrations links open their canonical tools; their existing authorization still applies.
+The console has Overview, Inventory, Design Studio, Payment Estimates, Providers & Setup, Paperwork & Delivery, Content & Media, Customer Requests, and Launch Readiness sections. Its console navigation takes precedence over an incidental contained-workspace query. It includes its own CCC Home return link. Existing inventory, frontline, Growth, Document Library, Sales, Advisor, and Integrations links open their canonical tools; their existing authorization still applies.
+
+## Paperwork & Delivery
+
+Permanent guide: `/website-console?section=paperwork`. Eight deal preparation
+pathways, customer reveal/storage boundaries, operating roles and remaining
+implementation gates link into canonical Sales Documents. The console does not
+store customer files or approve forms, sign contracts or release vehicles. Saved
+internal reviews live on the existing private deal jackets; see
+`docs/sales-documents-foundation.md` for migration, permissions and limitations.
 
 ## Design Studio — Homepage templates
 
