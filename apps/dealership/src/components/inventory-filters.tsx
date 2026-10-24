@@ -4,6 +4,7 @@ import { ChevronDown, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { filterListings, replaceListingFilters, type Listing } from "../lib/domain";
 import { catalogValue, industryOptions } from "../lib/industry-options";
+import { vehicleColorSwatch } from "../lib/vehicle-colors";
 import { useIndustryCatalog } from "./use-industry-catalog";
 
 type Props = {
@@ -89,7 +90,9 @@ export function InventoryFilters({ listings, search, mobile = false, onUpdate, o
         return field === "fuel" ? catalogValue(String(fact ?? "")).includes(catalogValue(value)) : catalogValue(String(fact ?? "")) === catalogValue(value);
       }).length;
       const supportsValue = inventory.some(vehicle => Array.isArray(vehicle[source]) ? (vehicle[source] as string[]).some(item => catalogValue(item) === catalogValue(value)) : catalogValue(String(vehicle[source] ?? "")) === catalogValue(value));
-      return <label hidden={!value.toLowerCase().includes((optionSearch[field] || "").toLowerCase())} className="facet-option" key={value}><input type="checkbox" name={field} value={value} defaultChecked={current.getAll(field).some(selected => catalogValue(selected) === catalogValue(value))} /><span>{value}{!supportsValue && <small>No matching stock</small>}</span><span className="facet-count" aria-label={`${count} matching vehicles`}>{count}</span></label>;
+      const isColor = source === "exteriorColor" || source === "interiorColor";
+      const swatch = isColor ? vehicleColorSwatch(value) : null;
+      return <label hidden={!value.toLowerCase().includes((optionSearch[field] || "").toLowerCase())} className="facet-option" key={value}><input type="checkbox" name={field} value={value} defaultChecked={current.getAll(field).some(selected => catalogValue(selected) === catalogValue(value))} /><span>{value}{!supportsValue && <small>No matching stock</small>}</span><span className="facet-count" aria-label={`${count} matching vehicles`}>{count}</span>{isColor && <span className={`facet-color-swatch${swatch ? "" : " unavailable"}`} style={swatch ? { backgroundColor: swatch } : undefined} aria-hidden="true" title={swatch ? `${value} color sample` : "Color sample unavailable"} />}</label>;
     })}</div>{!available.some(value => value.toLowerCase().includes((optionSearch[field] || "").toLowerCase())) && <p className="facet-empty">No options match this text.</p>}</>;
   };
   const numberInput = (field: string, title: string, placeholder: string, min = 0, max?: number) => <label>{title}<input name={field} aria-label={title} type="number" min={min} max={max} placeholder={placeholder} defaultValue={current.get(field) || ""} /></label>;
@@ -112,8 +115,8 @@ export function InventoryFilters({ listings, search, mobile = false, onUpdate, o
     {section("Fuel type", ["fuel"], choices("fuel", values("fuel"), "fuel", "Fuel types have not been published yet."))}
     {section("MPG", ["mpg"], <>{numberInput("mpg", "Minimum combined MPG", "Any MPG", 0, 300)}<p className="facet-note">Uses published combined MPG, not an estimate or MPGe. Vehicles without a rating do not match.</p></>)}
     {section("Features", ["feature"], <>{choices("feature", values("features"), "features", "No feature options available.")}<p className="facet-note">Matches all selected features. A choice here does not imply a vehicle has that feature; only published specifications match.</p></>)}
-    {section("Exterior color", ["exterior"], choices("exterior", values("exteriorColor"), "exteriorColor", "Exterior colors have not been published yet."))}
-    {section("Interior color", ["interior"], choices("interior", values("interiorColor"), "interiorColor", "Interior colors have not been published yet."))}
+    {section("Exterior color", ["exterior"], <>{choices("exterior", values("exteriorColor"), "exteriorColor", "Exterior colors have not been published yet.")}<p className="facet-note">Color samples illustrate color families, not exact manufacturer paint finishes.</p></>)}
+    {section("Interior color", ["interior"], <>{choices("interior", values("interiorColor"), "interiorColor", "Interior colors have not been published yet.")}<p className="facet-note">Color samples illustrate color families, not exact upholstery shades.</p></>)}
     {section("Seating capacity", ["seats"], <>{numberInput("seats", "Minimum seats", "Any capacity", 1, 30)}<p className="facet-note">Uses published seating capacity only.</p></>)}
     {section("Drivetrain", ["drive"], choices("drive", values("drivetrain"), "drivetrain", "Drivetrains have not been published yet."))}
     {section("Transmission", ["transmission"], choices("transmission", values("transmission"), "transmission", "Transmissions have not been published yet."))}

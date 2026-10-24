@@ -3,6 +3,20 @@ import { test, expect } from "@playwright/test";
 const publicUrl = process.env.DEALERSHIP_PUBLIC_TEST_URL;
 const privateUrl = process.env.DEALERSHIP_PRIVATE_TEST_URL;
 
+test("expanded development pack supplies useful filters without enabling unavailable purchases", async ({ page }) => {
+  test.skip(!privateUrl, "Requires local sample preview.");
+  await page.goto(`${privateUrl}/shop`);
+  await expect(page.getByRole("link", { name: "View vehicle", exact: true })).toHaveCount(23);
+  await page.goto(`${privateUrl}/shop?exterior=Blue`);
+  await expect(page.getByRole("link", { name: "View vehicle", exact: true })).toHaveCount(2);
+  await page.goto(`${privateUrl}/shop?body=Truck`);
+  await expect(page.getByRole("link", { name: "View vehicle", exact: true })).toHaveCount(2);
+  await page.goto(`${privateUrl}/vehicles/sample-x3`);
+  await expect(page.getByRole("link", { name: "Start purchase", exact: true })).toHaveCount(0);
+  await page.goto(`${privateUrl}/vehicles/sample-leaf`);
+  await expect(page.getByRole("link", { name: "Start purchase", exact: true })).toHaveCount(0);
+});
+
 test("public customer runtime has no sample vehicles, photos or preview persistence", async ({ page, request }) => {
   test.skip(!publicUrl, "Requires an isolated sample-free public build.");
   await page.goto(publicUrl!);

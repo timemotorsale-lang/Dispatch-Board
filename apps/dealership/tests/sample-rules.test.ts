@@ -67,7 +67,10 @@ describe("published feed provenance and no sample fallback", () => {
     expect(existsSync("public/listing-media/sample-rav4.png")).toBe(false);
     expect(existsSync("fixtures/media/sample-rav4.png")).toBe(true);
     environment({ NODE_ENV: "development", DEALERSHIP_ENVIRONMENT: "development", DEALERSHIP_PREVIEW_DATA: "1" });
-    expect(await getListings()).toMatchObject({ source: "PREVIEW", listings: [{ id: "sample-rav4" }, { id: "sample-coming-soon" }] });
+    const snapshot = await getListings();
+    expect(snapshot.source).toBe("PREVIEW");
+    expect(snapshot.listings).toHaveLength(24);
+    expect(snapshot.listings).toEqual(expect.arrayContaining([expect.objectContaining({ id: "sample-rav4" }), expect.objectContaining({ id: "sample-coming-soon" })]));
   });
 });
 

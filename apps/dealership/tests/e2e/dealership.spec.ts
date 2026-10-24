@@ -55,6 +55,9 @@ test("phone-only service request saves once locally, with no false staff receipt
 test("saved listing persists, and an unrelated browser session cannot read account records", async ({ page, browser }) => {
   await page.goto("/shop");
   await page.getByRole("button", { name: "Save 2021 Toyota RAV4", exact: true }).first().click();
+  await page.getByRole("textbox", { name: "Sample email address", exact: true }).fill("sample@example.com");
+  await page.getByRole("button", { name: "Continue — save in this browser", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.goto("/garage/saved");
   await expect(page.getByRole("heading", { name: "2021 Toyota RAV4", exact: true })).toBeVisible();
   const otherContext = await browser.newContext();
@@ -267,5 +270,5 @@ test("clear all cancels a pending numeric update even when the URL is already un
   await page.clock.fastForward(600);
   await expect(maximum).toHaveValue("");
   expect(new URL(page.url()).searchParams.has("max")).toBe(false);
-  await expect(page.getByRole("link", { name: "View vehicle", exact: true })).toHaveCount(2);
+  await expect(page.getByRole("link", { name: "View vehicle", exact: true })).toHaveCount(23);
 });

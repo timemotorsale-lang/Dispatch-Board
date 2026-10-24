@@ -2,6 +2,7 @@ import { catalogValue } from "./industry-options";
 import { appraisalDetailKeys, validateAppraisal } from "./appraisal";
 import { paymentPaths, tradeChoices } from "./buying-plan";
 import { serviceDetailKeys, validateService } from "./service-intake";
+import { isSamplePhoto } from "./sample-media";
 import { samplePolicy } from "../../config/sample-policy.mjs";
 
 export type Availability = "AVAILABLE" | "COMING_SOON" | "RESERVED" | "SOLD";
@@ -111,7 +112,7 @@ export function projectSnapshot(value: unknown, now = new Date(), options: { all
     if (!/^[a-z0-9][a-z0-9-]{0,99}$/.test(id) || identifiers.has(id)) throw new Error("Invalid listing identity.");
     identifiers.add(id);
     const photo = item.photo === null ? null : bounded(item.photo, 500);
-    if (photo && !/^\/listing-media\/[a-zA-Z0-9/_-]+\.(?:png|jpg|jpeg|webp)$/.test(photo) && !(options.allowSamples && photo === "/api/sample-media/rav4")) throw new Error("Only approved public media paths are supported.");
+    if (photo && !/^\/listing-media\/[a-zA-Z0-9/_-]+\.(?:png|jpg|jpeg|webp)$/.test(photo) && !(options.allowSamples && isSamplePhoto(photo))) throw new Error("Only approved public media paths are supported.");
     const specifications: Partial<Listing> = {};
     for (const field of ["exteriorColor", "interiorColor"] as const) {
       if (item[field] != null) specifications[field] = bounded(item[field], 60);
