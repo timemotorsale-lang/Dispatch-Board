@@ -16,6 +16,8 @@ These are references, not a complete DVS fee engine or legal signoff. Additional
 
 ## Arithmetic and boundaries
 
+The **Cash purchase** mode uses the same vehicle tax/documentation/transfer calculation as financing, without adding a loan lien, interest, loan term or down-payment input. It shows the full estimated out-the-door total and an expandable fee breakdown. Deposits, trade credits and prior payments are not deducted. The result is explicitly an estimate, not a final purchase agreement; unknown variable charges still block it. Cash estimates have the same private-preview and release gates as financing estimates.
+
 Money inputs use integer cents, bounded at $1 million for this planning tool. The fixed-rate monthly annuity uses annual interest divided by 12. Regular payments round up to cents; a final payoff rounds to cents. Intermediate balances retain precision; this is not a lender-specific daily-simple-interest or contract schedule. Full payment produces no lien or interest. Output includes cash price, fees, amount financed, final payment, interest and total cost.
 
 Budget mode searches the highest cash price whose regular and final payments fit the budget, including the entered down payment and charges. Its inventory link applies only a cash-price ceiling, not lending eligibility or availability. Changes recalculate or remove previous results. Inputs remain local component state and are lost on reload.

@@ -1,10 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { affordablePrice, estimatePayment, parseMoney } from "../../../packages/payment-estimates/engine";
+import { affordablePrice, estimateCashPurchase, estimatePayment, parseMoney } from "../../../packages/payment-estimates/engine";
 import { paymentActivationStatus, proposedPaymentPolicy } from "../../../packages/payment-estimates/policy";
 
 const example = { priceCents: 2_000_000, downPaymentCents: 250_000, termMonths: 36, additionalFeesCents: 20_000, additionalFeesConfirmed: true, standardScenarioConfirmed: true };
 
 describe("private estimate-only payment engine", () => {
+  it("calculates a cash out-the-door total without a loan term, down payment, interest or lien", () => {
+    const result = estimateCashPurchase(proposedPaymentPolicy, example);
+    expect(result).toEqual({ policyVersion: proposedPaymentPolicy.version, priceCents: 2000000, salesTaxCents: 137500, documentationFeeCents: 35000, baseFeesCents: 3600, additionalFeesCents: 20000, totalDueCents: 2196100 });
+    const financed = estimatePayment(proposedPaymentPolicy, example);
+    expect(result.totalDueCents).toBe(financed.purchaseTotalCents - financed.lienFeeCents);
+    expect(result).not.toHaveProperty("monthlyPaymentCents");
+    expect(result).not.toHaveProperty("totalInterestCents");
+    expect(result).not.toHaveProperty("lienFeeCents");
+    expect(estimateCashPurchase({ ...proposedPaymentPolicy, annualInterestBasisPoints: 1500, terms: [] }, example)).toEqual(result);
+  });
+  it("requires known cash charges, confirms the scenario and enforces price and fee caps", () => {
+    expect(() => estimateCashPurchase(proposedPaymentPolicy, { ...example, additionalFeesCents: null })).toThrow("Unknown fees");
+    expect(() => estimateCashPurchase(proposedPaymentPolicy, { ...example, additionalFeesConfirmed: false })).toThrow("Unknown fees");
+    expect(() => estimateCashPurchase(proposedPaymentPolicy, { ...example, standardScenarioConfirmed: false })).toThrow("standard Minnesota");
+    for (const priceCents of [0, -1, NaN, Infinity, 1.5, 100000001]) expect(() => estimateCashPurchase(proposedPaymentPolicy, { ...example, priceCents })).toThrow();
+    expect(estimateCashPurchase(proposedPaymentPolicy, { ...example, additionalFeesCents: 0 }).totalDueCents).toBe(2176100);
+    const lowPrice = estimateCashPurchase(proposedPaymentPolicy, { ...example, priceCents: 100001, additionalFeesCents: 0 });
+    expect(lowPrice.documentationFeeCents).toBe(10000);
+    expect(lowPrice.totalDueCents).toBe(lowPrice.priceCents + lowPrice.salesTaxCents + lowPrice.documentationFeeCents + lowPrice.baseFeesCents);
+  });
   it("preserves the exact business choices without inventing an APR or public approval", () => {
     expect(proposedPaymentPolicy.terms).toEqual([24, 36, 48, 66, 72]);
     expect(proposedPaymentPolicy.annualInterestBasisPoints).toBe(800);

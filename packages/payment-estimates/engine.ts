@@ -9,6 +9,18 @@ export type EstimateInputs = {
   standardScenarioConfirmed: boolean;
 };
 
+export type CashEstimateInputs = Pick<EstimateInputs, "priceCents" | "additionalFeesCents" | "additionalFeesConfirmed" | "standardScenarioConfirmed">;
+
+export type CashEstimate = {
+  policyVersion: string;
+  priceCents: number;
+  salesTaxCents: number;
+  documentationFeeCents: number;
+  baseFeesCents: number;
+  additionalFeesCents: number;
+  totalDueCents: number;
+};
+
 export type PaymentEstimate = {
   policyVersion: string;
   priceCents: number;
@@ -43,25 +55,38 @@ export function parseMoney(value: string, label: string) {
   return cents(Number(whole) * 100 + Number(fraction.padEnd(2, "0")), label);
 }
 
-function validate(policy: PaymentPolicy, input: Omit<EstimateInputs, "priceCents">) {
+function validateCharges(policy: PaymentPolicy, input: Omit<CashEstimateInputs, "priceCents">) {
   if (policy.status !== "DRAFT" || !policy.version || !Number.isInteger(policy.annualInterestBasisPoints) || policy.annualInterestBasisPoints < 0 || policy.annualInterestBasisPoints > 10000 || !Number.isInteger(policy.salesTaxPartsPerMillion) || policy.salesTaxPartsPerMillion < 0 || policy.salesTaxPartsPerMillion > 1000000) throw new Error("The estimate policy is invalid.");
-  if (!policy.terms.includes(input.termMonths) || !Number.isInteger(input.termMonths) || input.termMonths < 1 || input.termMonths > 120) throw new Error("Choose an available loan term.");
   cents(policy.documentationFeeCents, "Documentation fee");
   cents(policy.lienFeeCents, "Lien fee");
   for (const fee of policy.baseFees) cents(fee.cents, "Transfer fee");
-  cents(input.downPaymentCents, "Down payment");
   if (input.additionalFeesCents === null || !input.additionalFeesConfirmed) throw new Error("Enter and confirm all additional registration, plate and local charges for this example. Unknown fees cannot be treated as zero.");
   cents(input.additionalFeesCents, "Additional fees");
   if (!input.standardScenarioConfirmed) throw new Error("Confirm the standard Minnesota retail transfer scenario. Exceptions require staff review.");
 }
 
-export function estimatePayment(policy: PaymentPolicy, input: EstimateInputs): PaymentEstimate {
-  validate(policy, input);
+function validate(policy: PaymentPolicy, input: Omit<EstimateInputs, "priceCents">) {
+  validateCharges(policy, input);
+  if (!policy.terms.includes(input.termMonths) || !Number.isInteger(input.termMonths) || input.termMonths < 1 || input.termMonths > 120) throw new Error("Choose an available loan term.");
+  cents(input.downPaymentCents, "Down payment");
+}
+
+export function estimateCashPurchase(policy: PaymentPolicy, input: CashEstimateInputs): CashEstimate {
+  validateCharges(policy, input);
   cents(input.priceCents, "Vehicle price", 1);
   const documentationFeeCents = Math.min(policy.documentationFeeCents, Math.floor(input.priceCents / 10), 35000);
   const salesTaxCents = Math.round(input.priceCents * policy.salesTaxPartsPerMillion / 1000000);
   const baseFeesCents = policy.baseFees.reduce((total, fee) => total + fee.cents, 0);
-  const beforeLien = input.priceCents + salesTaxCents + documentationFeeCents + baseFeesCents + input.additionalFeesCents!;
+  return {
+    policyVersion: policy.version, priceCents: input.priceCents, salesTaxCents, documentationFeeCents, baseFeesCents,
+    additionalFeesCents: input.additionalFeesCents!,
+    totalDueCents: input.priceCents + salesTaxCents + documentationFeeCents + baseFeesCents + input.additionalFeesCents!
+  };
+}
+
+export function estimatePayment(policy: PaymentPolicy, input: EstimateInputs): PaymentEstimate {
+  validate(policy, input);
+  const { salesTaxCents, documentationFeeCents, baseFeesCents, totalDueCents: beforeLien } = estimateCashPurchase(policy, input);
   if (input.downPaymentCents > beforeLien) throw new Error("Down payment exceeds the estimated purchase total before a loan lien. Reduce it or choose another vehicle price.");
   const lienFeeCents = input.downPaymentCents < beforeLien ? policy.lienFeeCents : 0;
   const purchaseTotalCents = beforeLien + lienFeeCents;

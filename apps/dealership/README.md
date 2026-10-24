@@ -45,6 +45,8 @@ The supported webpack mode is explicit: the initial Turbopack configuration atte
 
 The calculator has budget and vehicle-price modes, using the draft 8% annual-interest assumption (not lender-confirmed APR), 24/36/48/66/72 months, capped $350 documentation fee and referenced Minnesota transfer/tax assumptions. Additional vehicle-specific charges require an explicit checked amount; unknown fees are not zero. No trade-in calculation, credit check, application or approval is offered. Results are not saved. Budget matching applies only a cash-price filter to sample vehicles.
 
+Select **Cash purchase** in the calculator for the estimated out-the-door total and expandable breakdown. It requires the vehicle price and confirmed charges, not a down payment or loan term. No loan interest or financing-only lien fee is added; deposits/trade credits/prior payments are not deducted. Unknown charges block the estimate, and editing inputs updates or removes the previous total. This remains a private estimate, not a final purchase agreement.
+
 Staff review: **Website Console → Payment Estimates**. Public activation, recorded dual approvals and production fee/eligibility/disclosure validation are not implemented. See `packages/payment-estimates/README.md` for official references, rounding assumptions and the release boundary. Both customer Docker builder targets explicitly copy this neutral shared module; no staff data or provider code is imported.
 
 ## Public feed contract
