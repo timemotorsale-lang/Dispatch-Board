@@ -1,7 +1,14 @@
 name: dispatch-board
 
+x-bounded-logs: &bounded-logs
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *bounded-logs
     image: postgres:17-bookworm
     restart: unless-stopped
     environment:
@@ -27,6 +34,7 @@ services:
       - no-new-privileges:true
 
   migrate:
+    logging: *bounded-logs
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:
       context: ../..
@@ -57,6 +65,7 @@ services:
       - no-new-privileges:true
 
   app:
+    logging: *bounded-logs
     image: dispatch-board-app:${APP_VERSION:-local}
     build:
       context: ../..
@@ -118,6 +127,7 @@ services:
       - no-new-privileges:true
 
   website-preview:
+    logging: *bounded-logs
     profiles: ["website-review"]
     image: dispatch-board-website-review:${APP_VERSION:-local}
     build:
@@ -151,6 +161,7 @@ services:
       - no-new-privileges:true
 
   signatures:
+    logging: *bounded-logs
     image: dispatch-board-tooling:${APP_VERSION:-local}
     restart: unless-stopped
     command: ["freshclam", "--daemon", "--foreground", "--checks=12"]
@@ -162,6 +173,7 @@ services:
       - no-new-privileges:true
 
   scheduler:
+    logging: *bounded-logs
     image: dispatch-board-app:${APP_VERSION:-local}
     restart: unless-stopped
     init: true
@@ -182,6 +194,7 @@ services:
       - no-new-privileges:true
 
   backup:
+    logging: *bounded-logs
     image: postgres:17-bookworm
     restart: unless-stopped
     environment:
@@ -207,6 +220,7 @@ services:
       - no-new-privileges:true
 
   caddy:
+    logging: *bounded-logs
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
@@ -228,6 +242,7 @@ services:
       - no-new-privileges:true
 
   seed:
+    logging: *bounded-logs
     profiles: ["tools"]
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:

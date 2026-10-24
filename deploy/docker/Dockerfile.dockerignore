@@ -1,4 +1,10 @@
 .git
+.worktrees
+.agents
+.codex-runtime
+.dispatch-board-data
+.next*
+tmp
 .github
 .next
 .next-e2e
@@ -21,6 +27,9 @@ blob-report
 docs
 public/mockups
 **/.next
+**/.next*
+**/node_modules
 **/.data
 apps/dealership/test-results
 deploy/docker/website-review.env
+deploy/docker/.deployment-storage.lock
