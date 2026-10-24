@@ -24,6 +24,13 @@ env:
   CRON_SECRET: ci-build-placeholder
 
 jobs:
+  storage-guardrails:
+    name: Deployment storage safeguards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s deploy/docker/tests -p 'test_*.py' -v
+
   security:
     name: Dependency Security Gate
     runs-on: ubuntu-latest

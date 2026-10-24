@@ -12,7 +12,7 @@ RUN apt-get update \
 
 COPY package.json package-lock.json ./
 COPY tools/next-eslint-glob ./tools/next-eslint-glob
-RUN npm ci
+RUN npm ci && npm cache clean --force
 
 FROM dependencies AS builder
 
@@ -27,7 +27,7 @@ ENV DATABASE_URL=${BUILD_DATABASE_URL}
 ENV NODE_OPTIONS=--max-old-space-size=4096
 
 RUN node -e "const fs=require('fs');const p='next-env.d.ts';if(fs.existsSync(p)){const s=fs.readFileSync(p,'utf8');fs.writeFileSync(p,s.split(/\\r?\\n/).filter((line)=>!line.includes('routes.d.ts')).join('\\n'));}"
-RUN npm run build
+RUN npm run build && rm -rf .next/cache
 
 FROM dependencies AS tooling
 
@@ -44,19 +44,19 @@ FROM dependencies AS website-review-builder
 COPY package.json package-lock.json ./
 COPY apps/dealership ./apps/dealership
 ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
-RUN npm --prefix apps/dealership run build
+RUN npm --prefix apps/dealership run build && rm -rf apps/dealership/.next/cache
 
 FROM node:24-bookworm-slim AS website-review-runner
 WORKDIR /app
-ARG RELEASE_SHA=unversioned
-LABEL org.opencontainers.image.revision=${RELEASE_SHA}
-ENV APP_RELEASE_SHA=${RELEASE_SHA}
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
 COPY package.json package-lock.json ./
 COPY tools/next-eslint-glob ./tools/next-eslint-glob
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
+ARG RELEASE_SHA=unversioned
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
+ENV APP_RELEASE_SHA=${RELEASE_SHA}
 COPY --from=website-review-builder --chown=node:node /app/apps/dealership/.next ./apps/dealership/.next
 COPY --from=website-review-builder --chown=node:node /app/apps/dealership/public ./apps/dealership/public
 COPY --from=website-review-builder --chown=node:node /app/apps/dealership/package.json ./apps/dealership/package.json
@@ -71,9 +71,6 @@ FROM node:24-bookworm-slim AS runner
 
 WORKDIR /app
 
-ARG RELEASE_SHA=unversioned
-LABEL org.opencontainers.image.revision=${RELEASE_SHA}
-ENV APP_RELEASE_SHA=${RELEASE_SHA}
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -83,7 +80,11 @@ RUN apt-get update \
 
 COPY package.json package-lock.json ./
 COPY tools/next-eslint-glob ./tools/next-eslint-glob
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
+
+ARG RELEASE_SHA=unversioned
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
+ENV APP_RELEASE_SHA=${RELEASE_SHA}
 
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
