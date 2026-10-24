@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Globe, House } from "lucide-react";
 import type { WebsiteDestinations } from "./destinations";
 import { WebsiteLaunchLinks } from "./launch-links";
+import { DesignStudio } from "./design-studio/design-studio";
 import { websiteConsoleNavigationItems, websiteSections, type WebsiteSection } from "./navigation";
 import styles from "./website-console.module.css";
 
@@ -61,6 +62,8 @@ export function WebsiteConsole({ section, destinations }: { section: WebsiteSect
       </section> : null}
 
       {section === "inventory" ? <section aria-labelledby="website-inventory"><h2 id="website-inventory">Inventory & publication</h2><p className={styles.intro}>Prepare inventory in the existing operating system; publish only an approved public projection.</p><ToolCards tools={inventoryTools} /><div className={styles.summary}><h3>Publication bridge: not connected</h3><p>No public listing counts or publication-success claims are available. Publishing, withdrawal, sold-unit updates, freshness monitoring, and reconciliation must be connected and verified before launch. Opening the frontline workflow does not publish a vehicle.</p></div></section> : null}
+
+      {section === "design-studio" ? <DesignStudio /> : null}
 
       {section === "content" ? <section aria-labelledby="website-content"><h2 id="website-content">Content & media</h2><p className={styles.intro}>Coordinate brand content without exposing private staff documents or customer information.</p><ToolCards tools={contentTools} /><div className={styles.summary}><h3>Website editor: not connected</h3><p>The customer website currently uses the reviewed implementation content. A dedicated draft, approval, preview, and publication workflow still needs implementation. This console does not offer a fake Save or Publish button.</p><ul><li>Sales and service hours remain separate and require approved values.</li><li>Only approved photos and claims may be published.</li><li>Public BHPH, rentals, and license-plate lookup remain deferred.</li></ul></div></section> : null}
 
