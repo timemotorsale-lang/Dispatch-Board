@@ -18,10 +18,10 @@ export function SavedAppraisal({ reference, details }: { reference: string; deta
   return <section className="container narrow stack"><Link href="/garage" className="text-link"><ArrowLeft size={18} />My Garage</Link><h1>Your appraisal preview.</h1><div className="notice"><strong>Saved privately—not delivered to staff.</strong><p>No appraisal, offer, appointment or payment has been approved. Live staff updates and cross-device accounts are not connected.</p></div><div className="panel"><h2>Submitted vehicle answers</h2><dl className="review-list">{fields.filter(field => typeof details[field] === "string" && details[field]).map(field => <div key={field}><dt>{field.replace(/([A-Z])/g, " $1")}</dt><dd>{field === "vin" ? `•••••••••••${String(details[field]).slice(-6)}` : String(details[field]).split("|").join(", ")}</dd></div>)}</dl></div><p>Selected photos were not uploaded or saved.</p><p>Preview reference: <code className="break">{reference}</code></p><Link className="button primary" href="/sell">Start another appraisal</Link></section>;
 }
 
-export function AppraisalFlow({ preview, onSaved, initialVehicle }: { preview: boolean; onSaved: () => void; initialVehicle?: Record<string, string> }) {
+export function AppraisalFlow({ preview, onSaved, initialVehicle, initialIntent }: { preview: boolean; onSaved: () => void; initialVehicle?: Record<string, string>; initialIntent?: "Trade toward a purchase" }) {
   const [started, setStarted] = useState(Boolean(initialVehicle));
   const [stage, setStage] = useState(0);
-  const [details, setDetails] = useState<Record<string, string>>({ appraisalVersion: "1", vin: "", year: "", make: "", model: "", vehicleSource: "Customer entered", ...initialVehicle });
+  const [details, setDetails] = useState<Record<string, string>>({ appraisalVersion: "1", vin: "", year: "", make: "", model: "", vehicleSource: "Customer entered", ...(initialIntent ? { intent: initialIntent } : {}), ...initialVehicle });
   const [vehicleConfirmed, setVehicleConfirmed] = useState(false);
   const [camera, setCamera] = useState(false);
   const [lookupBusy, setLookupBusy] = useState(false);

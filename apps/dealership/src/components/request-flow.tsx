@@ -5,7 +5,8 @@ import { publicPath } from "../lib/paths";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Camera, Check, FileText } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { Listing, RequestKind } from "../lib/domain";
+import { mayStartPurchase, type Listing, type RequestKind } from "../lib/domain";
+import { buyingLink, paymentLabels, readBuyingPlan, tradeLabels, type BuyingPlan } from "../lib/buying-plan";
 
 export async function command(operation: string, value: unknown, key = crypto.randomUUID()) {
   const response = await fetch(publicPath("/api/preview"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operation, value, key }) });
@@ -67,9 +68,14 @@ export function VehicleEntry({ onReview }: { onReview: (details: Record<string, 
 
 const requestTitles: Record<RequestKind, string> = { PURCHASE: "Start your purchase", QUESTION: "Ask about this vehicle", TEST_DRIVE: "Request a test drive", SELL: "Sell or trade your vehicle", SERVICE: "Request service" };
 
-export function RequestFlow({ kind, listing, initialVehicle, preview, onSaved }: { kind: RequestKind; listing?: Listing; initialVehicle?: Record<string, string>; preview: boolean; onSaved: () => void }) {
+export function SavedPurchaseRequest({ reference, vehicleId, details }: { reference: string; vehicleId: string; details: Record<string, unknown> }) {
+  const plan = readBuyingPlan(new URLSearchParams({ vehicle: vehicleId, paymentPath: typeof details.paymentPath === "string" ? details.paymentPath : "", trade: typeof details.trade === "string" ? details.trade : "" }));
+  return <section className="container narrow stack"><Link href="/garage" className="text-link"><ArrowLeft size={17} />My Garage</Link><h1>Your purchase preparation.</h1><div className="notice"><strong>Saved privately—not delivered to staff.</strong><p>No order, quote, approval, hold, appointment, payment or signed contract has been created.</p></div><div className="panel"><h2>Your recorded preferences</h2><dl className="review-list"><div><dt>Payment approach</dt><dd>{paymentLabels[plan.paymentPath]}</dd></div><div><dt>Trade-in</dt><dd>{tradeLabels[plan.trade]}</dd></div></dl><p>Vehicle availability and pricing must be checked again before proceeding. These preferences are not financing eligibility or a final purchase agreement.</p></div><Link className="button primary" href={buyingLink("/how-it-works", plan)}>Review my buying plan<ArrowRight size={17} /></Link><p>Preview reference: <code className="break">{reference}</code></p></section>;
+}
+
+export function RequestFlow({ kind, listing, initialVehicle, initialBuyingPlan, preview, onSaved }: { kind: RequestKind; listing?: Listing; initialVehicle?: Record<string, string>; initialBuyingPlan?: BuyingPlan; preview: boolean; onSaved: () => void }) {
   const [stage, setStage] = useState(listing || initialVehicle || ["QUESTION", "TEST_DRIVE"].includes(kind) ? 1 : 0);
-  const [details, setDetails] = useState<Record<string, string>>({ ...(kind === "PURCHASE" ? { paymentPath: "unsure", trade: "not-now" } : {}), ...(kind === "SELL" ? { intent: "sell", condition: "Not sure", loan: "Not sure" } : {}), ...(["SERVICE", "TEST_DRIVE"].includes(kind) ? { flexible: "yes", window: "", date: "" } : {}), ...initialVehicle });
+  const [details, setDetails] = useState<Record<string, string>>({ ...(kind === "PURCHASE" ? { paymentPath: initialBuyingPlan?.paymentPath || "unsure", trade: initialBuyingPlan?.trade || "not-now" } : {}), ...(kind === "SELL" ? { intent: "sell", condition: "Not sure", loan: "Not sure" } : {}), ...(["SERVICE", "TEST_DRIVE"].includes(kind) ? { flexible: "yes", window: "", date: "" } : {}), ...initialVehicle });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -82,9 +88,12 @@ export function RequestFlow({ kind, listing, initialVehicle, preview, onSaved }:
   const dirty = () => { key.current = ""; setError(""); };
   const update = (field: string, value: string) => { setDetails(current => ({ ...current, [field]: value })); dirty(); };
   const vehicleTitle = listing ? `${listing.year} ${listing.make} ${listing.model}` : `${details.year || ""} ${details.make || ""} ${details.model || ""}`.trim();
+  const returnPlan = readBuyingPlan(new URLSearchParams({ vehicle: listing?.id || initialBuyingPlan?.vehicleId || "", paymentPath: details.paymentPath || initialBuyingPlan?.paymentPath || "unsure", trade: details.trade || initialBuyingPlan?.trade || "not-now" }));
+  const guideReturn = initialBuyingPlan ? <Link className="text-link" href={buyingLink("/how-it-works", returnPlan)}>Back to my buying plan<ArrowLeft size={17} /></Link> : null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (kind === "PURCHASE" && (!listing || !mayStartPurchase(listing))) { setError("Availability changed. Return to the buying guide and choose an available vehicle."); return; }
     if (!email.trim() && !phone.trim()) { setError("Provide an email address or phone number. One is enough."); return; }
     setBusy(true); setError("");
     key.current ||= crypto.randomUUID();
@@ -95,10 +104,13 @@ export function RequestFlow({ kind, listing, initialVehicle, preview, onSaved }:
     finally { setBusy(false); }
   }
 
-  if (receipt) return <section className="container narrow stack"><div className="success-icon"><Check /></div><p className="eyebrow">Private preview receipt</p><h1>Request saved.</h1><div className="notice"><strong>{receipt.message}</strong><p>No appointment, reservation, offer, payment or repair has been authorized.</p></div><div className="panel"><strong>{vehicleTitle}</strong><p>Sample reference</p><code className="break">{receipt.reference}</code></div><p>Your entry is stored for this browser&apos;s local preview session. Cross-device email account access and staff delivery are not connected.</p><Link href="/garage" className="button primary">View preview Garage<ArrowRight size={18} /></Link><Link className="text-link" href="/">Back to Home</Link></section>;
+  if (receipt) return <section className="container narrow stack"><div className="success-icon"><Check /></div><p className="eyebrow">Private preview receipt</p><h1>Request saved.</h1><div className="notice"><strong>{receipt.message}</strong><p>No appointment, reservation, offer, payment or repair has been authorized.</p></div><div className="panel"><strong>{vehicleTitle}</strong><p>Sample reference</p><code className="break">{receipt.reference}</code></div><p>Your entry is stored for this browser&apos;s local preview session. Cross-device email account access and staff delivery are not connected.</p><Link href="/garage" className="button primary">View preview Garage<ArrowRight size={18} /></Link>{guideReturn}<Link className="text-link" href="/">Back to Home</Link></section>;
+
+  if (kind === "PURCHASE" && listing && !mayStartPurchase(listing)) return <section className="container narrow stack"><h1>Purchase preparation is unavailable.</h1><p>This vehicle is missing, unavailable or no longer current. A request cannot reserve or purchase it.</p>{guideReturn}<Link href="/shop" className="button primary">Choose another vehicle</Link></section>;
 
   return <section className="container narrow stack"><Link href={listing ? `/vehicles/${listing.id}` : "/"} className="text-link"><ArrowLeft size={17} />{listing ? "Back to vehicle" : "Home"}</Link><p className="eyebrow">Simple steps. Human support.</p><h1>{requestTitles[kind]}</h1><p className="lead">{kind === "SELL" ? "Sell outright or trade. Start with what you know." : kind === "SERVICE" ? "Tell us what you notice. Our service team confirms the visit." : "Prepare your next step. No charge or reservation."}</p><div className="step-line" aria-label={`Step ${stage + 1} of 3`}><span className={stage === 0 ? "active" : ""}>Vehicle</span><span className={stage === 1 ? "active" : ""}>Your preferences</span><span className={stage === 2 ? "active" : ""}>Review & contact</span></div>
     {listing && <div className="vehicle-summary"><strong>{vehicleTitle}</strong><span>{listing.trim} · {listing.mileage.toLocaleString()} miles</span></div>}
+    {guideReturn}
     {stage === 0 && <VehicleEntry onReview={value => { setDetails(current => ({ ...current, ...value })); setStage(1); dirty(); }} />}
     {stage === 1 && <form className="stack" onSubmit={event => { event.preventDefault(); setStage(2); }}>
       {!listing && <div className="panel row between"><strong>{vehicleTitle}</strong><button type="button" className="text-link" onClick={() => setStage(0)}>Edit vehicle</button></div>}

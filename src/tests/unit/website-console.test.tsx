@@ -72,6 +72,7 @@ describe("Website Console access and navigation", () => {
     await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "requests" }) })).rejects.toThrow("NOT_FOUND");
     await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "design-studio" }) })).rejects.toThrow("NOT_FOUND");
     await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "payment-estimates" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "providers" }) })).rejects.toThrow("NOT_FOUND");
   });
   it("requires authentication before rendering the console", async () => {
     requireUser.mockRejectedValue(new Error("LOGIN_REQUIRED"));

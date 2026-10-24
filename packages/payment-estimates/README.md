@@ -22,6 +22,10 @@ Money inputs use integer cents, bounded at $1 million for this planning tool. Th
 
 Budget mode searches the highest cash price whose regular and final payments fit the budget, including the entered down payment and charges. Its inventory link applies only a cash-price ceiling, not lending eligibility or availability. Changes recalculate or remove previous results. Inputs remain local component state and are lost on reload.
 
+## Buying-guide prefills
+
+The private customer buying guide can supply an initial cash or vehicle-payment selection. Its server route resolves a fresh available listing and passes integer price cents from that approved projection; query-supplied prices, totals and approval flags are ignored. The calculator validates the initial amount again. No price is trusted from the browser URL, and prefill does not calculate or approve an estimate: all fee and scenario confirmations remain required. Ordinary calculator visits retain the existing budget-mode default. Returning to the guide retains only vehicle/payment/trade preferences, not calculator inputs or a financial quote.
+
 ## Release boundary
 
 `paymentActivationStatus()` always returns disabled. Final owner and designated finance-manager approvals must cover the same version, validated vehicle-specific fees and reviewed disclosures. Audited approval storage, role-specific approval actions, eligibility rules and public activation remain unimplemented. Do not replace these gates with browser flags or fabricated approvals. Estimate wording does not replace required advertising/compliance review.

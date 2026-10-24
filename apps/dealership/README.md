@@ -39,6 +39,18 @@ The supported webpack mode is explicit: the initial Turbopack configuration atte
 - Explicit local-only preview persistence with SQLite, hashed anonymous preview session credentials, isolated records, idempotent submissions, saved vehicles, personally entered vehicles and context-bound messages.
 - Honest unavailable states for live accounts, record linking, document uploads, financial/signing providers, holds, staff delivery, published contact/hours, AI and budget estimates. No mock live approvals, charges, bookings or completion.
 
+## Interactive buying preparation
+
+`/how-it-works` provides a four-step guide, an editable buying plan, vehicle summary, contextual next actions and FAQs. Choose a fresh available listing, cash/partner/own-bank/undecided payment approach, and optional trade. Only allowlisted vehicle/payment/trade choices enter the URL; contact details, prices, approval flags and arbitrary return destinations are not used. Changes apply immediately, reload restores those preferences, and reset clears them. This is preparation, not an order or reservation.
+
+Private preview actions connect to purchase preparation, vehicle questions, test-drive requests, payment estimates, Sell / Trade and My Garage. Purchase forms inherit the choices and return with edited preferences. Saved purchase requests expose those preferences and a safe resume link only within their existing anonymous preview session; existing context-bound preview messaging remains available. No cross-device identity, live staff receipt or audited purchase/trade association is implied.
+
+The estimate calculator can prefill a selected vehicle's price from the server-validated listing, never a query-supplied amount. Cash selections open cash mode; other selections open vehicle-payment mode. All existing private-environment, unknown-fee confirmation and disclosure gates remain. A trade appraisal starts with the customer's separate vehicle and trade intent, never the vehicle being purchased; no trade value, payoff or tax credit is inferred.
+
+Missing, reserved, sold, coming-soon or expired listings cannot unlock purchase preparation. The preview API reloads and rechecks current availability/freshness before saving a purchase request. Public mode does not substitute sample inventory or enable the private calculators, preview API, live checkout or staff delivery. Provider decisions and their onboarding requirements remain in **Website Console → Providers & Setup**; selecting preferences does not activate any integration.
+
+Tests: `tests/buying-plan.test.ts`, `tests/purchase-intake.test.ts` and `tests/e2e/buying-guide.spec.ts` cover safe context, availability revalidation, preference handoffs, preview receipts/resume, separate trade entry, calculator prefills, responsive/accessibility checks and public isolation. Production financing, payments, signing, confirmed appointments, inventory commitments, secure accounts, staff exchange and authorized handoff remain release requirements, not completed operations.
+
 ## Guided Sell / Trade appraisal review
 
 `/sell` uses the Time Motor Sales-branded, six-step appraisal review: vehicle confirmation, condition, history, optional local photo, plans, and contact/review. A persistent summary masks the VIN and shows actual provided specifications, not invented equipment or a stock photo presented as the customer's car. Desktop uses a side summary; mobile places a compact summary before the questions. Large cards have native checkbox/radio semantics, None known/Not sure are exclusive with issues, zero keys is supported, back/edit preserve answers, and non-drivable answers advise against driving an unsafe vehicle. No default answers imply a clean condition. No ownership upload is required to begin.

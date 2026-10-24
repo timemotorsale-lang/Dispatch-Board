@@ -4,6 +4,7 @@ import type { WebsiteDestinations } from "./destinations";
 import { WebsiteLaunchLinks } from "./launch-links";
 import { DesignStudio } from "./design-studio/design-studio";
 import { PaymentEstimates } from "./payment-estimates";
+import { ProviderSetup } from "./provider-setup";
 import { websiteConsoleNavigationItems, websiteSections, type WebsiteSection } from "./navigation";
 import styles from "./website-console.module.css";
 
@@ -67,6 +68,10 @@ export function WebsiteConsole({ section, destinations }: { section: WebsiteSect
       {section === "design-studio" ? <DesignStudio /> : null}
 
       {section === "payment-estimates" ? <PaymentEstimates previewUrl={destinations.previewUrl} /> : null}
+
+      {section === "providers" ? <ProviderSetup /> : null}
+
+      {section === "readiness" ? <div className={styles.summary}><h3>Keep provider decisions in one place</h3><p>The permanent directory explains required capabilities, candidate services, dependencies and the evidence needed before activation.</p><Link className={styles.toolLink} href="/website-console?section=providers">Open Providers &amp; Setup<ArrowRight size={16} aria-hidden="true" /></Link></div> : null}
 
       {section === "content" ? <section aria-labelledby="website-content"><h2 id="website-content">Content & media</h2><p className={styles.intro}>Coordinate brand content without exposing private staff documents or customer information.</p><ToolCards tools={contentTools} /><div className={styles.summary}><h3>Website editor: not connected</h3><p>The customer website currently uses the reviewed implementation content. A dedicated draft, approval, preview, and publication workflow still needs implementation. This console does not offer a fake Save or Publish button.</p><ul><li>Sales and service hours remain separate and require approved values.</li><li>Only approved photos and claims may be published.</li><li>Public BHPH, rentals, and license-plate lookup remain deferred.</li></ul></div></section> : null}
 

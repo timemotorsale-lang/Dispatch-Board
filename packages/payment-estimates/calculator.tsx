@@ -9,10 +9,11 @@ import styles from "./calculator.module.css";
 
 const dollars = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 
-export function PaymentCalculator({ policy, imageSrc, inventoryHref }: { policy: PaymentPolicy; imageSrc?: string; inventoryHref?: string }) {
+export function PaymentCalculator({ policy, imageSrc, inventoryHref, initialSelection }: { policy: PaymentPolicy; imageSrc?: string; inventoryHref?: string; initialSelection?: { priceCents: number; mode: "cash" | "vehicle" } }) {
   const identifier = useId();
-  const [mode, setMode] = useState<"budget" | "vehicle" | "cash">("budget");
-  const [amount, setAmount] = useState("");
+  const validSelection = initialSelection && Number.isSafeInteger(initialSelection.priceCents) && initialSelection.priceCents > 0 && initialSelection.priceCents <= 100000000 && ["cash", "vehicle"].includes(initialSelection.mode) ? initialSelection : undefined;
+  const [mode, setMode] = useState<"budget" | "vehicle" | "cash">(validSelection?.mode || "budget");
+  const [amount, setAmount] = useState(validSelection ? (validSelection.priceCents / 100).toFixed(2) : "");
   const [down, setDown] = useState("");
   const [term, setTerm] = useState("");
   const [additional, setAdditional] = useState("");

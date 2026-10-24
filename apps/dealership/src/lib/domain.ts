@@ -1,5 +1,6 @@
 import { catalogValue } from "./industry-options";
 import { appraisalDetailKeys, validateAppraisal } from "./appraisal";
+import { paymentPaths, tradeChoices } from "./buying-plan";
 import { samplePolicy } from "../../config/sample-policy.mjs";
 
 export type Availability = "AVAILABLE" | "COMING_SOON" | "RESERVED" | "SOLD";
@@ -68,6 +69,11 @@ export function validateRequest(value: unknown): CustomerRequest {
   if (input.kind === "SELL" && details.appraisalVersion) {
     validateAppraisal(details);
     if (details.contactMethod === "Email" && !email || details.contactMethod === "Phone call" && !phone) throw new Error("Provide the contact detail for your preferred response method.");
+  }
+  if (input.kind === "PURCHASE") {
+    if (typeof input.vehicleId !== "string" || !/^[a-z0-9][a-z0-9-]{0,99}$/.test(input.vehicleId)) throw new Error("Choose a published vehicle before preparing a purchase request.");
+    if (details.paymentPath !== undefined && !(paymentPaths as readonly string[]).includes(details.paymentPath)) throw new Error("Choose a supported payment approach.");
+    if (details.trade !== undefined && !(tradeChoices as readonly string[]).includes(details.trade)) throw new Error("Choose a supported trade preference.");
   }
   return {
     kind: input.kind as RequestKind, vehicleId: bounded(input.vehicleId, 100), name: bounded(input.name, 150),
