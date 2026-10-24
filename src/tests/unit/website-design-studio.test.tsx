@@ -30,7 +30,7 @@ describe("Website Console Design Studio", () => {
   });
 
   it("keeps all concepts, states and scorecard self-contained and network-disabled", () => {
-    expect(review.version).toBe("1.1");
+    expect(review.version).toBe("1.2");
     for (const concept of ["Search First", "Premium Showroom", "Guided Shopping", "Signature Showroom", "Simple Hybrid"]) {
       expect(review.document).toContain(`data-variant="${concept}"`);
     }
@@ -44,6 +44,8 @@ describe("Website Console Design Studio", () => {
     expect(review.document).toContain("form-action 'none'");
     expect(review.document).toContain("img-src data:");
     expect(review.document).toContain("prefers-reduced-motion: reduce");
+    expect(review.document).toContain("heroSlides.length");
+    expect(review.document).toContain("SUV · 1 of 6");
     expect(review.document).toContain("Illustrative concept vehicles · not dealership inventory");
     expect(review.document).not.toMatch(/window\.openai|globalThis\.Tweak|localhost|127\.0\.0\.1|fetch\(|localStorage|sessionStorage/);
     expect(review.document).not.toMatch(/<script[^>]+src=|<img[^>]+src="https?:/);

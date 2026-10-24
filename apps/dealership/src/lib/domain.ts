@@ -1,4 +1,5 @@
 import { catalogValue } from "./industry-options";
+import { samplePolicy } from "../../config/sample-policy.mjs";
 
 export type Availability = "AVAILABLE" | "COMING_SOON" | "RESERVED" | "SOLD";
 export type Listing = {
@@ -69,13 +70,17 @@ export function validateRequest(value: unknown): CustomerRequest {
   };
 }
 
-export function projectSnapshot(value: unknown, now = new Date()): Listing[] {
+export function projectSnapshot(value: unknown, now = new Date(), options: { allowSamples?: boolean; requireLive?: boolean } = {}): Listing[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid listing snapshot.");
   const snapshot = value as Record<string, unknown>;
+  if (options.requireLive && snapshot.dataMode !== "LIVE") throw new Error("Published inventory requires explicit LIVE provenance.");
+  if (snapshot.dataMode !== undefined && !["LIVE", "SAMPLE"].includes(String(snapshot.dataMode))) throw new Error("Invalid inventory provenance.");
+  if (!options.allowSamples && snapshot.dataMode === "SAMPLE") throw new Error("Sample inventory cannot be published.");
   if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.listings) || snapshot.listings.length > 5000) throw new Error("Unsupported listing snapshot.");
   const identifiers = new Set<string>();
   const projected: Listing[] = [];
   for (const item of snapshot.listings) {
+    if (!options.allowSamples && item && (item.sample === true || item.isSample === true || item.dataMode === "SAMPLE" || /^(sample|demo|fixture)-/i.test(String(item.id)) || /\/(?:sample|demo|fixture)[-_/]/i.test(String(item.photo)) || String(item.photo).startsWith("/api/sample-media/"))) throw new Error("Sample inventory cannot be published.");
     if (!item || typeof item !== "object" || item.publication !== "APPROVED") continue;
     if (!statuses.has(item.availability)) throw new Error("Invalid availability.");
     const observed = Date.parse(item.observedAt);
@@ -89,7 +94,7 @@ export function projectSnapshot(value: unknown, now = new Date()): Listing[] {
     if (!/^[a-z0-9][a-z0-9-]{0,99}$/.test(id) || identifiers.has(id)) throw new Error("Invalid listing identity.");
     identifiers.add(id);
     const photo = item.photo === null ? null : bounded(item.photo, 500);
-    if (photo && !/^\/listing-media\/[a-zA-Z0-9/_-]+\.(?:png|jpg|jpeg|webp)$/.test(photo)) throw new Error("Only approved public media paths are supported.");
+    if (photo && !/^\/listing-media\/[a-zA-Z0-9/_-]+\.(?:png|jpg|jpeg|webp)$/.test(photo) && !(options.allowSamples && photo === "/api/sample-media/rav4")) throw new Error("Only approved public media paths are supported.");
     const specifications: Partial<Listing> = {};
     for (const field of ["exteriorColor", "interiorColor"] as const) {
       if (item[field] != null) specifications[field] = bounded(item[field], 60);
@@ -153,7 +158,7 @@ export function mayStartPurchase(listing: Listing, now = new Date()) {
 }
 
 export function previewEnabled(environment: Record<string, string | undefined>) {
-  return environment.DEALERSHIP_PREVIEW_DATA === "1" && (environment.NODE_ENV !== "production" || (environment.DEALERSHIP_HOSTED_REVIEW === "1" && (environment.DEALERSHIP_REVIEW_KEY?.length ?? 0) >= 32));
+  return samplePolicy(environment).enabled;
 }
 
 export const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);

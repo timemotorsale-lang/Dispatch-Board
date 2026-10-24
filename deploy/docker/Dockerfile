@@ -44,10 +44,14 @@ FROM dependencies AS website-review-builder
 COPY package.json package-lock.json ./
 COPY apps/dealership ./apps/dealership
 ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
+ENV DEALERSHIP_ENVIRONMENT=private-review
+ENV DEALERSHIP_HOSTED_REVIEW=1
 RUN npm --prefix apps/dealership run build && rm -rf apps/dealership/.next/cache
 
 FROM node:24-bookworm-slim AS website-review-runner
 WORKDIR /app
+ENV DEALERSHIP_ENVIRONMENT=private-review
+ENV DEALERSHIP_HOSTED_REVIEW=1
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_REVIEW_BASE_PATH=/website-review
@@ -60,8 +64,38 @@ ENV APP_RELEASE_SHA=${RELEASE_SHA}
 COPY --from=website-review-builder --chown=node:node /app/apps/dealership/.next ./apps/dealership/.next
 COPY --from=website-review-builder --chown=node:node /app/apps/dealership/public ./apps/dealership/public
 COPY --from=website-review-builder --chown=node:node /app/apps/dealership/package.json ./apps/dealership/package.json
-COPY --from=website-review-builder --chown=node:node /app/apps/dealership/next.config.ts ./apps/dealership/next.config.ts
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/next.config.mjs ./apps/dealership/next.config.mjs
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/config ./apps/dealership/config
+COPY --from=website-review-builder --chown=node:node /app/apps/dealership/fixtures ./apps/dealership/fixtures
 RUN mkdir -p /app/apps/dealership/.data && chown -R node:node /app/apps/dealership
+USER node
+WORKDIR /app/apps/dealership
+EXPOSE 3100
+CMD ["node", "/app/node_modules/next/dist/bin/next", "start", ".", "-H", "0.0.0.0", "-p", "3100"]
+
+FROM dependencies AS website-production-builder
+COPY apps/dealership ./apps/dealership
+ENV DEALERSHIP_ENVIRONMENT=public-production
+ENV DEALERSHIP_PREVIEW_DATA=0
+RUN rm -rf apps/dealership/fixtures && npm --prefix apps/dealership run build && rm -rf apps/dealership/.next/cache
+
+FROM node:24-bookworm-slim AS website-production-runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV DEALERSHIP_ENVIRONMENT=public-production
+ENV DEALERSHIP_PREVIEW_DATA=0
+COPY package.json package-lock.json ./
+COPY tools/next-eslint-glob ./tools/next-eslint-glob
+RUN npm ci --omit=dev && npm cache clean --force
+ARG RELEASE_SHA=unversioned
+ENV APP_RELEASE_SHA=${RELEASE_SHA}
+LABEL org.opencontainers.image.revision=${RELEASE_SHA}
+COPY --from=website-production-builder --chown=node:node /app/apps/dealership/.next ./apps/dealership/.next
+COPY --from=website-production-builder --chown=node:node /app/apps/dealership/public ./apps/dealership/public
+COPY --from=website-production-builder --chown=node:node /app/apps/dealership/package.json ./apps/dealership/package.json
+COPY --from=website-production-builder --chown=node:node /app/apps/dealership/next.config.mjs ./apps/dealership/next.config.mjs
+COPY --from=website-production-builder --chown=node:node /app/apps/dealership/config ./apps/dealership/config
 USER node
 WORKDIR /app/apps/dealership
 EXPOSE 3100

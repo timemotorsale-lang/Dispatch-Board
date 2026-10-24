@@ -91,8 +91,23 @@ for (const concept of ["Signature Showroom", "Simple Hybrid"]) {
     await active.getByRole("button", { name: "Next", exact: true }).click();
     await expect(image).toHaveAttribute("data-slide-index", "2");
     await expect(image).toHaveAttribute("alt", /blue pickup/);
+    const sources = new Set([originalSource, await image.getAttribute("src")]);
+    for (const [index, label] of [[3, "Coupe"], [4, "Minivan"], [5, "Electric crossover"]] as const) {
+      await active.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(image).toHaveAttribute("data-slide-index", String(index));
+      await expect(active.locator("[data-slide-caption]")).toHaveText(`${label} · ${index + 1} of 6`);
+      await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).complete && (element as HTMLImageElement).naturalWidth > 0)).toBe(true);
+      sources.add(await image.getAttribute("src"));
+    }
+    await active.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(image).toHaveAttribute("data-slide-index", "0");
     await active.getByRole("button", { name: "Previous", exact: true }).click();
+    await expect(image).toHaveAttribute("data-slide-index", "5");
+    await active.getByRole("button", { name: "Next", exact: true }).click();
+    await active.getByRole("button", { name: "Next", exact: true }).click();
     await expect(image).toHaveAttribute("data-slide-index", "1");
+    sources.add(await image.getAttribute("src"));
+    expect(sources.size).toBe(6);
     await active.getByRole("button", { name: "Play slideshow", exact: true }).click();
     await active.locator("input").focus();
     await page.mouse.move(0, 0);

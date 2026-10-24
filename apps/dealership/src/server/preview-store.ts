@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { validateRequest } from "../lib/domain";
+import { previewEnabled, validateRequest } from "../lib/domain";
 
 type StoredRecord = { id: string; kind: string; data: Record<string, unknown>; createdAt: string };
 export type PreviewCommand = { operation: "REQUEST" | "SAVE" | "UNSAVE" | "VEHICLE" | "MESSAGE"; key: string; value: unknown };
@@ -10,6 +10,7 @@ const hash = (value: string) => createHash("sha256").update(value).digest("hex")
 let connection: DatabaseSync | undefined;
 
 export function openStore(location = path.join(process.cwd(), ".data", "preview.sqlite")) {
+  if (location !== ":memory:" && !previewEnabled(process.env)) throw new Error("Sample storage is disabled in this environment.");
   if (location !== ":memory:") mkdirSync(path.dirname(location), { recursive: true });
   const database = new DatabaseSync(location);
   database.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
@@ -23,6 +24,7 @@ export function openStore(location = path.join(process.cwd(), ".data", "preview.
 }
 
 export function store() {
+  if (!previewEnabled(process.env)) throw new Error("Sample storage is disabled in this environment.");
   connection ??= openStore();
   return connection;
 }
