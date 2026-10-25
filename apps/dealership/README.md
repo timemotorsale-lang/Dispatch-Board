@@ -15,6 +15,21 @@ node ../../node_modules/next/dist/bin/next build . --webpack
 
 Set `DEALERSHIP_ENVIRONMENT=development` and `DEALERSHIP_PREVIEW_DATA=1` explicitly for local sample review. Use fictitious contact information only. Bind development preview to loopback; do not publish or forward it. Samples are prohibited in public production, even if a preview flag or gateway key is accidentally present. A private hosted review can use a production build only with its separate explicit environment and staff gateway. No dependency installation or upgrade is necessary in the current checkout.
 
+### Appointment calendar preview
+
+`/appointments`, also linked from My Garage → Appointments, shows an isolated calendar
+simulator only for a permitted `PREVIEW` snapshot. The sample week/people/time slots
+are invented; simulated confirmations, reschedules and cancellations never call an
+API, reach CRM, populate request forms or create My Garage bookings. Reload/navigation
+resets the example. Non-preview mode shows unavailable scheduling and no sample cards.
+Service/test-drive requests remain the existing private preview workflow, not live intake.
+
+Staff can review the same demo and an authorized native calendar read in Website
+Console → Appointments. That private API is not imported or called by the customer
+app. See `docs/appointments/WEBSITE_APPOINTMENTS_PREVIEW.md` in the parent repository
+for the future secure intake bridge and production gates. `NEXT_DIST_DIR` can select
+a separate Next.js cache directory for isolated review servers; it defaults to `.next`.
+
 ## Sample isolation and adoption rules
 
 `config/sample-policy.mjs` is shared by build configuration, inventory loading, sample APIs and request guards. `DEALERSHIP_ENVIRONMENT` accepts only `development`, `private-review`, or `public-production`. Without an explicit value, Node development/test defaults to development; other runtimes default to public production, samples off. Production runtime cannot declare itself development. Invalid configuration fails the Next build and returns an unavailable response if introduced at runtime; it never silently falls back to samples.

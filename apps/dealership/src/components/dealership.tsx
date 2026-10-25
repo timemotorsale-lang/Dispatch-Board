@@ -12,6 +12,7 @@ import { InventorySearch } from "./inventory-search";
 import { AppraisalFlow, SavedAppraisal } from "./appraisal-flow";
 import { BuyingGuide } from "./buying-guide";
 import { ServiceFlow, SavedServiceRequest } from "./service-flow";
+import { CustomerAppointmentPreview } from "./appointment-preview";
 import { FavoritesDialog } from "./favorites-dialog";
 import { buyingLink, readBuyingPlan } from "../lib/buying-plan";
 
@@ -109,6 +110,8 @@ export function Dealership({ route, snapshot, paymentPreview }: { route: string;
   } else if (route === "sell") {
     content = <AppraisalFlow key={`appraisal:${knownVehicle?.id || ""}:${fromBuyingGuide ? buyingPlan.trade : ""}`} initialVehicle={initialVehicle} initialIntent={fromBuyingGuide && buyingPlan.trade === "yes" ? "Trade toward a purchase" : undefined} preview={preview} onSaved={refresh} />;
     if (buyingReturn) content = <><div className="container section stack">{buyingReturn}<p className="notice">This appraisal is for your current vehicle, not the vehicle you are considering buying. No approved trade value or purchase link is created by these preparation choices.</p></div>{content}</>;
+  } else if (route === "appointments") {
+    content = <CustomerAppointmentPreview preview={preview} />;
   } else if (route === "service") {
     content = <ServiceFlow key={`service:${knownVehicle?.id || ""}`} initialVehicle={initialVehicle} preview={preview} onSaved={refresh} />;
   } else if (route === "purchase" && listing) {
@@ -126,6 +129,8 @@ export function Dealership({ route, snapshot, paymentPreview }: { route: string;
     if (request?.data.kind === "SELL") content = accountGuard(<SavedAppraisal reference={request.id} details={(request.data.details || {}) as Record<string, unknown>} />);
     if (request?.data.kind === "SERVICE") content = accountGuard(<><SavedServiceRequest reference={request.id} details={(request.data.details || {}) as Record<string, unknown>} /><div className="container narrow section"><MessageForm reference={request.id} onSaved={refresh} preview={preview} /></div></>);
     if (request?.data.kind === "PURCHASE") content = accountGuard(<><SavedPurchaseRequest reference={request.id} vehicleId={typeof request.data.vehicleId === "string" ? request.data.vehicleId : ""} details={(request.data.details || {}) as Record<string, unknown>} /><div className="container narrow section"><MessageForm reference={request.id} onSaved={refresh} preview={preview} /></div></>);
+  } else if (route === "garage/appointments") {
+    content = accountGuard(<section className="container narrow stack"><Link href="/garage" className="text-link"><ArrowLeft size={17} />My Garage</Link><h1>Appointments.</h1><UnavailableStep title="Your appointments are not connected" description="Verified customer access, accepted requests and staff confirmations are required before real appointment records can appear here. Saved preview requests are not bookings." /><Link className="button" href="/appointments">Explore the isolated calendar demo</Link><Link className="text-link" href="/service">Prepare a service preview request</Link></section>);
   } else if (route.startsWith("garage/")) {
     const name = quickLinks.find(item => item.href === `/${route}`)?.label ?? "Account tools";
     const messages = account.filter(record => record.kind === "MESSAGE");

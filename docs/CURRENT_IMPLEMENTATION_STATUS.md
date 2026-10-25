@@ -1,5 +1,25 @@
 # Current Implementation Status
 
+## 2026-10-24 — Website Appointments Preview and Shared Read
+
+Website Console → Appointments now separates an isolated fictitious calendar demo,
+the connection/launch plan and a read-only native staff schedule. The private API
+reuses existing appointment authorization and DST-aware date boundaries, projects
+limited fields and distinguishes empty/error states from availability. The customer
+`/appointments` route uses the same simulator only for an approved preview projection;
+non-preview mode contains no sample bookings. No new calendar database, public intake,
+CRM delivery, real confirmation or notification is implemented. Native Appointment
+Board remains the operating writer. See
+`docs/appointments/WEBSITE_APPOINTMENTS_PREVIEW.md` for exact limits and next gates.
+
+Verification: 56 focused unit/API tests and all 118 customer-preview tests passed;
+two staff browser checks and one customer browser check passed with scoped
+accessibility and desktop/mobile overflow assertions. The staff test read the native
+backend with a real authorized session. Demo actions created no appointment writes.
+Scoped staff typecheck, dealership typecheck and edited-file lint passed. No migration,
+production activation, new provider, commit or deployment was performed. The existing
+framework security warning remains unresolved.
+
 ## 2026-10-24 — Deal Closing Preparation Foundation
 
 Added Website Console → Paperwork & Delivery with eight distinct preparation

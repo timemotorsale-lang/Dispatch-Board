@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ path?: string[] }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const segments = (await params).path ?? [];
   const route = segments.join("/");
-  if (route && !["shop", "garage", "garage/add", "garage/saved", "garage/messages", "garage/documents", "garage/appointments", "garage/history", "purchase", "sell", "service", "finance", "budget", "how-it-works", "contact", "more"].includes(route) && !/^vehicles\/[a-z0-9-]+$/.test(route)) notFound();
+  if (route && !["shop", "garage", "garage/add", "garage/saved", "garage/messages", "garage/documents", "garage/appointments", "garage/history", "purchase", "sell", "service", "appointments", "finance", "budget", "how-it-works", "contact", "more"].includes(route) && !/^vehicles\/[a-z0-9-]+$/.test(route)) notFound();
   const snapshot = await getListings();
   if (segments[0] === "vehicles" && !snapshot.listings.some(vehicle => vehicle.id === segments[1])) notFound();
   const query = new URLSearchParams();

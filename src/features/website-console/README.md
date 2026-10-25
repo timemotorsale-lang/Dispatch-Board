@@ -10,7 +10,17 @@ Active General Managers and staff with the existing delegated-manager capability
 
 ## Navigation
 
-The console has Overview, Inventory, Design Studio, Payment Estimates, Providers & Setup, Paperwork & Delivery, Content & Media, Customer Requests, and Launch Readiness sections. Its console navigation takes precedence over an incidental contained-workspace query. It includes its own CCC Home return link. Existing inventory, frontline, Growth, Document Library, Sales, Advisor, and Integrations links open their canonical tools; their existing authorization still applies.
+The console has Overview, Inventory, Design Studio, Payment Estimates, Providers & Setup, Paperwork & Delivery, Appointments, Content & Media, Customer Requests, and Launch Readiness sections. Its console navigation takes precedence over an incidental contained-workspace query. It includes its own CCC Home return link. Existing inventory, frontline, Growth, Document Library, Sales, Advisor, and Integrations links open their canonical tools; their existing authorization still applies.
+
+## Appointments
+
+Permanent staff entry: `/website-console?section=appointments`. The connection plan,
+isolated calendar simulator and read-only shared staff schedule remain distinct. The
+private `GET /api/website-console/appointments` reuses native appointment permissions
+and DST-aware date boundaries, limits its projection and never mutates a calendar.
+Sample actions stay in component state; live website intake, CRM delivery, customer
+confirmation and notifications are not connected. See
+`docs/appointments/WEBSITE_APPOINTMENTS_PREVIEW.md` for the exact boundary and tests.
 
 ## Paperwork & Delivery
 

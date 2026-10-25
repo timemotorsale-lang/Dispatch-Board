@@ -7,6 +7,12 @@
 
 ## Purpose
 
+**Website preview/read foundation:**
+[`WEBSITE_APPOINTMENTS_PREVIEW.md`](WEBSITE_APPOINTMENTS_PREVIEW.md) documents the
+permanent Website Console workspace, isolated customer/staff calendar simulator and
+private native-calendar read API. It does not implement or activate public intake,
+CRM delivery, customer confirmation or notification workflows.
+
 This directory is the planning source of truth for the enterprise Appointment Command Center. It turns the approved E0 business direction into specifications, implementation milestones, governance rules, and acceptance scenarios.
 
 The Appointment Command Center is not a standalone calendar. It is the scheduling and coordination layer that connects time, people, customers, vehicles, resources, tasks, outcomes, follow-up, activity history, and reporting.

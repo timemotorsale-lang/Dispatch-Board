@@ -1,0 +1,27 @@
+.preview { display: grid; gap: 20px; min-width: 0; color: #17243a; font-family: inherit; line-height: 1.6; }
+.preview *, .preview *::before, .preview *::after { box-sizing: border-box; min-width: 0; }
+.preview h2 { margin: 4px 0 8px; font-size: clamp(24px, 4vw, 34px); line-height: 1.2; }
+.preview h3 { margin: 0 0 10px; font-size: 17px; }
+.preview p { margin: 6px 0; overflow-wrap: anywhere; }
+.eyebrow { color: #325079; font-weight: 750; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.notice { padding: 16px; border: 1px solid #dfc58c; border-radius: 10px; background: #fff8e9; color: #634719; }
+.calendar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.day { padding: 12px; background: #f1f5fa; border: 1px solid #d0dbe8; border-radius: 10px; }
+.day > p { font-size: 13px; color: #475a72; }
+.preview button { min-height: 44px; border: 1px solid #7187a4; border-radius: 8px; background: #fff; color: #17385f; padding: 10px 14px; font: inherit; font-weight: 650; cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
+.preview .event { display: grid; gap: 4px; padding: 12px; width: 100%; margin-bottom: 10px; text-align: left; font-size: 13px; line-height: 1.5; }
+.event span { font-weight: 400; }
+.preview button[aria-pressed="true"] { background: #e4eefc; border: 2px solid #2154ab; padding: 11px; }
+.preview button:hover { background: #eaf1fb; }
+.detail { border: 1px solid #bdcfe3; border-radius: 12px; padding: 22px; background: #fff; display: grid; gap: 14px; }
+.form { display: grid; gap: 14px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form label { display: grid; gap: 7px; font-size: 14px; font-weight: 650; }
+.form select, .form input { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #8296b0; border-radius: 7px; background: #fff; color: #17243a; font: inherit; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.actions p { color: #475a72; font-size: 13px; }
+.preview summary { cursor: pointer; font-weight: 650; }
+.error { padding: 12px; background: #fff0eb; color: #8d2b1b; border-left: 3px solid #a83923; }
+.preview :focus-visible { outline: 3px solid #245fd3; outline-offset: 3px; }
+@media (max-width: 850px) { .calendar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .calendar, .fields { grid-template-columns: minmax(0, 1fr); } .detail { padding: 16px; } .actions button { width: 100%; } }
