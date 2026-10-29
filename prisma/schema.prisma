@@ -3520,6 +3520,7 @@ model SalesDocumentJacket {
   state              String @default("WORKING")
   revision           Int @default(1)
   requirements       Json
+  closingReview      Json?
   createdByUserId     String
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

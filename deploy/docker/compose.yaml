@@ -1,7 +1,14 @@
 name: dispatch-board
 
+x-bounded-logs: &bounded-logs
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *bounded-logs
     image: postgres:17-bookworm
     restart: unless-stopped
     environment:
@@ -27,6 +34,7 @@ services:
       - no-new-privileges:true
 
   migrate:
+    logging: *bounded-logs
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:
       context: ../..
@@ -57,6 +65,7 @@ services:
       - no-new-privileges:true
 
   app:
+    logging: *bounded-logs
     image: dispatch-board-app:${APP_VERSION:-local}
     build:
       context: ../..
@@ -70,6 +79,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
       CRM_NEXT: ${CRM_NEXT_DOCKER_MODE:-REVIEW}
+      DEALERSHIP_HOSTED_REVIEW_ENABLED: ${DEALERSHIP_HOSTED_REVIEW_ENABLED:-false}
+      DEALERSHIP_PUBLIC_URL: ${DEALERSHIP_PUBLIC_URL:-}
+      DEALERSHIP_PREVIEW_ENABLED: ${DEALERSHIP_PREVIEW_ENABLED:-true}
+      DEALERSHIP_REVIEW_KEY: ${DEALERSHIP_REVIEW_KEY:-}
+      DEALERSHIP_REVIEW_ORIGIN: ${DEALERSHIP_REVIEW_ORIGIN:-}
       DOCUMENT_LIBRARY_DURABLE_REPOSITORY_ENABLED: "true"
       DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT: /app/data/document-library
       DOCUMENT_LIBRARY_ORGANIZATION_ID: ${DOCUMENT_LIBRARY_ORGANIZATION_ID:-org-time-motor-sales}
@@ -94,6 +108,7 @@ services:
     networks:
       - frontend
       - backend
+      - website_review
     healthcheck:
       test:
         [
@@ -111,7 +126,43 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  website-preview:
+    logging: *bounded-logs
+    profiles: ["website-review"]
+    image: dispatch-board-website-review:${APP_VERSION:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: website-review-runner
+      args:
+        RELEASE_SHA: ${RELEASE_SHA:-unversioned}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      DEALERSHIP_HOSTED_REVIEW: "1"
+      DEALERSHIP_ENVIRONMENT: private-review
+      DEALERSHIP_PREVIEW_DATA: "1"
+      DEALERSHIP_REVIEW_KEY: ${DEALERSHIP_REVIEW_KEY:-}
+      DEALERSHIP_REVIEW_ORIGIN: ${DEALERSHIP_REVIEW_ORIGIN:-}
+      NEXT_PUBLIC_REVIEW_BASE_PATH: /website-review
+    volumes:
+      - website_review_data:/app/apps/dealership/.data
+    networks:
+      - website_review
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/website-review/api/preview-status',{headers:{'x-tms-review-key':process.env.DEALERSHIP_REVIEW_KEY}}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   signatures:
+    logging: *bounded-logs
     image: dispatch-board-tooling:${APP_VERSION:-local}
     restart: unless-stopped
     command: ["freshclam", "--daemon", "--foreground", "--checks=12"]
@@ -123,6 +174,7 @@ services:
       - no-new-privileges:true
 
   scheduler:
+    logging: *bounded-logs
     image: dispatch-board-app:${APP_VERSION:-local}
     restart: unless-stopped
     init: true
@@ -143,6 +195,7 @@ services:
       - no-new-privileges:true
 
   backup:
+    logging: *bounded-logs
     image: postgres:17-bookworm
     restart: unless-stopped
     environment:
@@ -168,6 +221,7 @@ services:
       - no-new-privileges:true
 
   caddy:
+    logging: *bounded-logs
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
@@ -189,6 +243,7 @@ services:
       - no-new-privileges:true
 
   seed:
+    logging: *bounded-logs
     profiles: ["tools"]
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:
@@ -210,6 +265,7 @@ services:
       - no-new-privileges:true
 
 volumes:
+  website_review_data:
   clamav_signatures:
   document_library_data:
   postgres_data:
@@ -218,6 +274,8 @@ volumes:
   caddy_config:
 
 networks:
+  website_review:
+    internal: true
   frontend:
   backend:
     internal: true

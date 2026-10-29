@@ -28,3 +28,4 @@ DO $$ BEGIN
 END $$;
 SQL
 printf '{"restorePassed":true,"backup":"%s","sourceCount":%s}\n' "$backup" "$restored_count"
+find "$backup_directory" -type f -name 'import-pre-release-*.dump' -mtime +14 -delete

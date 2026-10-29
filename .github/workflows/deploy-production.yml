@@ -121,6 +121,10 @@ jobs:
 
           require_command curl
           require_command jq
+          require_command python3
+          require_command flock
+          exec 9>"$DEPLOY_PATH/deploy/docker/.deployment-storage.lock"
+          flock -n 9 || fail_preflight "another deployment holds the storage lock."
           require_file deploy/docker/.env "production environment file"
 
           purchase_import_release_enabled=false
@@ -135,14 +139,18 @@ jobs:
 
           compose() {
             if docker info >/dev/null 2>&1; then
-              docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
+              docker compose --profile website-review --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
             else
-              sudo -n docker compose --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
+              sudo -n docker compose --profile website-review --env-file deploy/docker/.env -f deploy/docker/compose.yaml -f deploy/docker/compose.tailscale.yaml "$@"
             fi
           }
 
           git fetch --prune origin "$RELEASE_REF"
           git checkout --detach "$RELEASE_SHA"
+
+          python3 deploy/docker/scripts/storage-guard.py check
+
+          . deploy/docker/scripts/configure-website-review.sh
 
           previous_revision="$(curl -fsS http://127.0.0.1:3000/api/health | jq -er '.revision | select(test("^[a-f0-9]{40}$"))')"
           previous_container="$(compose ps -q app)"
@@ -155,6 +163,7 @@ jobs:
           fi
           echo "Retained rollback image: dispatch-board-app:$previous_revision"
           compose build
+          python3 deploy/docker/scripts/storage-guard.py check --minimum-free-gib 10 --max-used-percent 90
           # Retain and verify a recoverable database snapshot before migrations.
           compose run --rm -T --no-deps backup /bin/sh /opt/dispatch/verify-postgres-restore.sh </dev/null
           # Compose must not consume the remaining SSH here-document from stdin.
@@ -169,9 +178,31 @@ jobs:
           fi
           compose up -d --remove-orphans
           compose ps
+          review_container="$(compose ps -q website-preview)"
+          test -n "$review_container" || fail_preflight "private website preview container is missing."
+          for attempt in {1..30}; do
+            if compose exec -T app node -e "fetch('http://website-preview:3100/website-review/api/preview-status',{headers:{'x-tms-review-key':process.env.DEALERSHIP_REVIEW_KEY}}).then(async r=>{const data=await r.json();if(!r.ok||data.revision!==process.env.APP_RELEASE_SHA)process.exit(1)}).catch(()=>process.exit(1))" </dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              fail_preflight "private website preview did not become healthy on the selected release."
+            fi
+            sleep 3
+          done
 
           curl -fsS http://127.0.0.1:3000/api/health >/dev/null
           bash deploy/docker/scripts/verify-tailscale-serve.sh
+          for attempt in {1..10}; do
+            if curl -fsS --max-time 10 https://dispatch-board.tail0d2437.ts.net/api/health |
+              jq -e --arg revision "$RELEASE_SHA" '.status == "ok" and .revision == $revision' >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 10 ]; then
+              fail_preflight "public health verification failed; image retention was not changed."
+            fi
+            sleep 3
+          done
+          python3 deploy/docker/scripts/storage-guard.py maintain --revision "$RELEASE_SHA" --previous-revision "$previous_revision" --minimum-free-gib 10 --max-used-percent 90
           REMOTE
 
           for attempt in {1..10}; do

@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { Search, Plus, X, Download, Eye, Check, RefreshCw, FileText, FolderOpen } from "lucide-react";
 import { SALES_DOCUMENT_PATHWAYS, type SalesDocumentPathway } from "@/lib/sales-document-pathways";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
+import { ClosingReviewPanel } from "./closing-review-panel";
 import styles from "./sales-documents-workspace.module.css";
 
 const stateLabel = (state: string) => ({ WORKING: "Working", CHECKED_OUT: "Checked out", CLOSED: "Closed", DELIVERED_FUNDING_PENDING: "Funding pending" }[state] ?? state);
@@ -97,6 +98,7 @@ export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initi
       <section className={styles.detail} aria-label="Selected deal jacket">
         {!selected ? <div className={styles.empty}><FileText size={28} /><h2>Deal jacket</h2><p>No jacket selected</p></div> : <>
           <header className={styles.detailHeader}><div><h2>{selected.customerName}</h2><p>{selected.dealNumber} · {selected.pathwayLabel}</p><small>{selected.vehicleReference}{selected.vin ? ` · ${selected.vin}` : ""}</small></div><span className={styles.badge}>{stateLabel(selected.state)}</span></header>
+          <ClosingReviewPanel key={`${selected.id}-${selected.revision}`} jacket={selected} canReview={canWaive} busy={busy} onSave={update} />
           <nav className={styles.tabs} aria-label="Packet views"><button aria-pressed={tab === "working"} onClick={() => setTab("working")}>Working Documents</button><button aria-pressed={tab === "final"} onClick={() => setTab("final")}>Final Packets ({selected.versions.length})</button></nav>
           {tab === "final" ? <section className={styles.versions}>
             {!selected.versions.length ? <p>No finalized packet yet.</p> : selected.versions.map((version) => <article key={version.id}><div><strong>Version {version.version} · {version.phase.toLowerCase()}</strong><p>{stateLabel(version.disposition)} · {new Date(version.finalizedAt).toLocaleString()}</p><small>Finalized by {version.finalizedBy}</small></div><div className={styles.actions}><a title="Download combined PDF" href={`/api/sales-documents/${selected.id}/export?version=${version.version}&format=pdf`}><FileText size={16} /> PDF</a><a title="Download original documents" href={`/api/sales-documents/${selected.id}/export?version=${version.version}&format=zip`}><Download size={16} /> Originals</a></div></article>)}

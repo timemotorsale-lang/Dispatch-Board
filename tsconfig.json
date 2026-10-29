@@ -49,6 +49,7 @@
     ".next-local*",
     ".next-runtime",
     ".worktrees",
+    "apps/dealership",
     "node_modules",
     "src/tests/**/*",
     "src/features/activity/**/*",

@@ -173,6 +173,8 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/today", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/board", workspaces: DISPATCH_BOARD_WORKSPACES },
   { prefix: "/command-center", workspaces: ["MANAGEMENT"] },
+  { prefix: "/website-console", workspaces: ["MANAGEMENT"] },
+  { prefix: "/website-review", workspaces: ["MANAGEMENT"] },
   { prefix: "/vehicles/coo-workbook", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/vehicles/parts", workspaces: ["PARTS", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },

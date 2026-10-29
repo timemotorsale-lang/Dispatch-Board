@@ -6,6 +6,8 @@ import { getNavigationGroups } from "@/components/layout/navigation";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getDefaultLandingRoute, getPermittedWorkspaces } from "@/server/auth/navigation";
+import { WebsiteLaunchLinks } from "@/features/website-console/launch-links";
+import { getWebsiteDestinations } from "@/features/website-console/destinations";
 
 export default async function CommandCenterHomePage() {
   const user = await requireCurrentUser();
@@ -22,7 +24,10 @@ export default async function CommandCenterHomePage() {
           <h1>Command Control Center</h1>
           <p>Select an operational console. Each console opens as a focused command center with its own navigation and a persistent path back here.</p>
         </div>
-        <span className="ccc-home-status"><i aria-hidden="true" />Enterprise shell active</span>
+        <div>
+          <span className="ccc-home-status"><i aria-hidden="true" />Enterprise shell active</span>
+          <WebsiteLaunchLinks destinations={getWebsiteDestinations(process.env)} />
+        </div>
       </header>
 
       {groups.map((group) => (

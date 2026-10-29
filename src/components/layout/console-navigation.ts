@@ -11,6 +11,8 @@ import {
   type WorkspaceKey
 } from "@/server/auth/navigation";
 import { canManageSettings } from "@/server/policies/access";
+import { canOpenWebsiteConsole } from "@/features/website-console/policy";
+import { websiteConsoleNavigationItems } from "@/features/website-console/navigation";
 
 import { appointmentConsoleNavigationItems, getDispatchNavigationItems, isDispatchConsolePath, type NavigationItem } from "./navigation";
 
@@ -328,6 +330,17 @@ export function getConsoleNavigation(
   preferredWorkspace?: WorkspaceKey | null,
   contextWorkspace?: WorkspaceKey | null
 ): ConsoleNavigationDefinition | null {
+  if (pathname === "/website-console" || pathname.startsWith("/website-console/")) {
+    if (!canOpenWebsiteConsole(user)) return null;
+    return {
+      badge: "Foundation",
+      homeHref: "/website-console",
+      items: websiteConsoleNavigationItems,
+      subtitle: "Digital Dealership",
+      title: "Website Console"
+    };
+  }
+
   if (contextWorkspace) {
     const definition = getWorkspaceDefinition(contextWorkspace);
     return {
