@@ -14,13 +14,15 @@ describe("manual labor review", () => {
     const repository = { get: vi.fn().mockResolvedValue({ id: "ro-1", version: 1, locationId: "loc-1", vehicle: { id: "vehicle-1" } }), estimate } as unknown as ShopPlanningRepository;
     const foundationRepository = { listCapabilityGrants: vi.fn().mockResolvedValue([]) } as unknown as EnterpriseCommandRepository;
     const deps = { repository, foundationRepository, enforceRollout: false, now: () => new Date("2026-09-03T15:00:00Z") };
-    const body = { estimateWorkflow: "STAFF_QUOTE", estimateControls: { version: 1, pricing: { ...initialEstimatePricing, laborRate: 129 }, fitment: {}, overlapResolution: "", reviewedScope: "" }, lineItems: lines, idempotencyKey: "quote-test", expectedVersion: 1, presentedAt: "2026-09-03T15:00:00Z", expiresAt: "2026-09-10T15:00:00Z", presentationChannel: "INTERNAL", taxBoundary: "Configured policy", reason: "Generate staff quote." };
+    const body = { estimateWorkflow: "STAFF_QUOTE", estimateControls: { version: 1, pricing: { ...initialEstimatePricing, laborRate: 129 }, fitment: {}, overlapResolution: "", reviewedScope: "" }, lineItems: [...lines, { key: "fee-shop-supplies", type: "FEE", description: "Shop supplies", quantity: 1, unitPriceCents: 645, taxable: false }], idempotencyKey: "quote-test", expectedVersion: 1, presentedAt: "2026-09-03T15:00:00Z", expiresAt: "2026-09-10T15:00:00Z", presentationChannel: "INTERNAL", taxBoundary: "Configured policy", reason: "Generate staff quote." };
     await presentRepairEstimate(user, "ro-1", body, deps);
     expect(estimate.mock.calls[0][1].assumptions).toContain("Staff quote by Manager");
     expect(estimate.mock.calls[0][1].estimateWorkflow).toBe("STAFF_QUOTE");
     expect(estimate.mock.calls[0][0].payload.estimateWorkflow).toBe("STAFF_QUOTE");
     expect(estimate.mock.calls[0][1].assumptions).not.toContain("Manual review");
-    await expect(presentRepairEstimate(user, "ro-1", { ...body, lineItems: [{ ...lines[0], unitPriceCents: 1 }] }, deps)).rejects.toThrow("hours and rate");
+    await presentRepairEstimate(user, "ro-1", { ...body, idempotencyKey: "quote-with-discount", discountCents: 1000, taxCents: 670, lineItems: [...body.lineItems, { key: "part-actual", type: "PART", description: "Actual part", quantity: 1, unitPriceCents: 10000, taxable: true }] }, deps);
+    expect(estimate.mock.calls[1][1]).toMatchObject({ discountCents: 1000, taxCents: 670, feeSubtotalCents: 645, totalCents: 23215 });
+    await expect(presentRepairEstimate(user, "ro-1", { ...body, lineItems: [{ ...lines[0], unitPriceCents: 1 }, { ...body.lineItems[1], unitPriceCents: 0 }] }, deps)).rejects.toThrow("hours and rate");
   });
   it("invalidates a review when vehicle, hours or price changes", () => {
     const scope = estimateReviewScope("vehicle-1", lines);

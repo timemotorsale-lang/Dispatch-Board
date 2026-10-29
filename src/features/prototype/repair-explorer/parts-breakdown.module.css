@@ -1,0 +1,7 @@
+.breakdown { margin-top: 12px; border-top: 1px solid #dce4ee; padding-top: 12px; }
+.row { display: grid; grid-template-columns: minmax(120px, 2fr) minmax(90px, 1fr) 65px 100px auto auto; align-items: end; gap: 10px; margin-bottom: 12px; }
+.row label { display: grid; gap: 5px; font-size: 12px; }
+.row input { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid #c5d2e4; border-radius: 5px; font: inherit; }
+.row span { align-self: center; font-size: 12px; }
+.breakdown footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; }
+@media(max-width: 1000px) { .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }

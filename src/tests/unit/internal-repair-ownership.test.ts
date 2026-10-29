@@ -17,8 +17,8 @@ function fixture(owned: boolean) {
     vehicleRelationship: { findFirst: vi.fn().mockResolvedValue(owned ? { id: "ownership-1", relationshipType: "DEALERSHIP_OWNED" } : null) },
     vehicle: { findFirst: vi.fn().mockResolvedValue({ id: "vehicle-1" }) },
     location: { findFirst: vi.fn().mockResolvedValue({ id: "loc-1" }) }, user: { findFirst: vi.fn().mockResolvedValue({ id: "advisor-1" }) },
-    serviceDocument: { create: create() },
-    serviceVisit: { create: create() }, repairOrder: { findFirst: vi.fn().mockResolvedValue({ repairOrderNumber: "RO-1", customer: null, vehicle: { year: 2020, make: "Synthetic", model: "Fixture", vehicleNumber: "V-1" }, serviceVisit: { concernSummary: "Synthetic concern" }, location: { name: "Test site", timezone: "America/Chicago" }, organization: { name: "Synthetic organization" } }), create: vi.fn().mockResolvedValue({ id: "ro-1", repairOrderNumber: "RO-1", stage: "INTAKE", operatingState: "ACTIVE", version: 1 }) },
+    serviceDocument: { create: create(), findFirst: vi.fn().mockResolvedValue(null) },
+    serviceVisit: { create: create() }, repairOrder: { findFirst: vi.fn().mockResolvedValue({ repairOrderNumber: "RO-1", customer: null, vehicle: { year: 2020, make: "Synthetic", model: "Fixture", vehicleNumber: "V-1", odometerObservations: [] }, serviceVisit: { concernSummary: "Synthetic concern" }, location: { name: "Test site", timezone: "America/Chicago" }, organization: { name: "Synthetic organization" } }), create: vi.fn().mockResolvedValue({ id: "ro-1", repairOrderNumber: "RO-1", stage: "INTAKE", operatingState: "ACTIVE", version: 1 }) },
     repairOrderStateEvent: { create: create() }, inventoryUnit: { create: create(), findFirst: vi.fn().mockResolvedValue(null) },
   };
   const database = { $transaction: async (action: (value: typeof tx) => Promise<unknown>) => action(tx) } as unknown as PrismaClient;

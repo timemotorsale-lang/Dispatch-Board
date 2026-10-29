@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 
 import { createShopPlanningRepository } from "@/server/shop-planning/repository";
 
@@ -41,11 +42,12 @@ function database(vendorBasis: unknown, stage = "AUTHORIZATION", aggregateVersio
     enterpriseCommandLedger: { create: vi.fn().mockResolvedValue({ id: "command-1" }), findUnique: vi.fn().mockResolvedValue(null) },
     enterpriseDomainEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
     enterpriseOutboxMessage: { create: vi.fn() },
-    serviceDocument: { create: vi.fn().mockResolvedValue({ id: "document-1" }) },
+    serviceDocument: { create: vi.fn().mockResolvedValue({ id: "document-1" }), findFirst: vi.fn().mockResolvedValue(null) },
+    serviceInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
     repairDiagnosisVersion: { create: vi.fn().mockResolvedValue({ id: "diagnosis-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
     repairEstimateVersion: { create: vi.fn().mockResolvedValue({ ...estimateData, id: "estimate-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
     repairOrder: {
-      findFirst: vi.fn().mockResolvedValue({ version: repairOrderVersion, repairOrderNumber: "RO-1", customer: null, vehicle: { year: 2020, make: "Synthetic", model: "Fixture", vehicleNumber: "V-1" }, serviceVisit: { concernSummary: "Synthetic concern" }, location: { name: "Test site", timezone: "America/Chicago" }, organization: { name: "Synthetic organization" } }),
+      findFirst: vi.fn().mockResolvedValue({ version: repairOrderVersion, repairOrderNumber: "RO-1", customer: null, vehicle: { year: 2020, make: "Synthetic", model: "Fixture", vehicleNumber: "V-1", odometerObservations: [] }, serviceVisit: { concernSummary: "Synthetic concern" }, location: { name: "Test site", timezone: "America/Chicago" }, organization: { name: "Synthetic organization" } }),
       findFirstOrThrow: vi.fn().mockResolvedValue({ closedAt: null, id: "ro-1", locationId: "location-1", nextAction: "Present estimate.", operatingState: "ACTIVE", organizationId: "org-1", ownerUserId: "manager-1", stage, stageStartedAt: new Date("2026-08-25T11:00:00Z"), targetAt: null }),
       update: vi.fn().mockResolvedValue({ id: "ro-1", locationId: "location-1", nextAction: "Capture decision.", operatingState: "ACTIVE", ownerUserId: "manager-1", stage: "ESTIMATE", targetAt: null, version: repairOrderVersion + 1 }),
     },
@@ -57,6 +59,33 @@ function database(vendorBasis: unknown, stage = "AUTHORIZATION", aggregateVersio
 }
 
 describe("shop planning vendor estimate gate", () => {
+  it("saves customer details and a financial revision together and refuses a stale document before writing", async () => {
+    const { db, tx } = database(null, "INTAKE");
+    tx.repairEstimateVersion.findFirst.mockResolvedValue({ id: "current-estimate", version: 1 });
+    const content = { title: "Estimate", notes: [], identity: { customer: "Old customer" } };
+    const document = { id: "current-doc", templateVersion: "v3", content, sha256: hashEnterpriseCommand({ templateVersion: "v3", content }) };
+    const customer = { name: "Updated Customer", phone: "612-555-0100", email: "customer@example.test", address: "123 Example St" };
+    const data = { ...estimateData, estimateWorkflow: "STAFF_QUOTE" as const, chargeRevisionFrom: "current-estimate", documentReview: { documentId: document.id, documentHash: document.sha256, customer } };
+    tx.serviceDocument.findFirst.mockResolvedValueOnce({ ...document, id: "newer-doc" });
+    await expect(createShopPlanningRepository(db as never).estimate(command, data)).rejects.toThrow("document changed");
+    expect(tx.repairEstimateVersion.create).not.toHaveBeenCalled();
+    tx.serviceDocument.findFirst.mockResolvedValueOnce(document).mockResolvedValueOnce(null);
+    await createShopPlanningRepository(db as never).estimate(command, data);
+    expect(tx.repairEstimateVersion.create).toHaveBeenCalledTimes(1);
+    expect(tx.serviceDocument.create.mock.calls[0][0].data.content).toMatchObject({ customerDetailsEdited: true, identity: { customer: customer.name, customerContact: { phone: customer.phone, email: customer.email, address: customer.address } }, totals: { totalCents: estimateData.totalCents } });
+    expect(content.identity.customer).toBe("Old customer");
+  });
+
+  it("refuses a stale charge revision and changes to already-issued invoice charges", async () => {
+    const { db, tx } = database(null, "INTAKE");
+    tx.repairEstimateVersion.findFirst.mockResolvedValue({ id: "newer-estimate" });
+    await expect(createShopPlanningRepository(db as never).estimate(command, { ...estimateData, estimateWorkflow: "STAFF_QUOTE", chargeRevisionFrom: "older-estimate" })).rejects.toThrow("newer estimate");
+    expect(tx.repairEstimateVersion.create).not.toHaveBeenCalled();
+    tx.repairEstimateVersion.findFirst.mockResolvedValue({ id: "current-estimate" });
+    tx.serviceInvoice.findFirst.mockResolvedValue({ id: "posted-invoice" });
+    await expect(createShopPlanningRepository(db as never).estimate(command, { ...estimateData, estimateWorkflow: "STAFF_QUOTE", chargeRevisionFrom: "current-estimate" })).rejects.toThrow("issued invoice");
+    expect(tx.repairEstimateVersion.create).not.toHaveBeenCalled();
+  });
   it("generates a frozen staff quote from intake without a diagnosis or vendor workflow", async () => {
     const { db, tx } = database(null, "INTAKE");
     const repository = createShopPlanningRepository(db as never);

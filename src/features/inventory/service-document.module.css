@@ -22,9 +22,37 @@
 .metadata strong { color: #1c3551; font-size: 12px; overflow-wrap: anywhere; }
 .metadata small { color: #526477; font-size: 11px; margin-top: 2px; }
 .document footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: #526477; }
+.identitySection { margin-bottom: 20px; }
+.identitySection p { margin: 0; }
+.identitySection .vehicleDetails { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 5px; color: #526477; font-size: 11px; }
+.vehicleDetails span { overflow-wrap: anywhere; }
+.identitySection .concern { margin-top: 10px; font-size: 12px; }
+.identitySection .customerContact { font-size: 12px; color: #526477; margin-top: 4px; overflow-wrap: anywhere; }
+.charges { margin-top: 16px; }
+.charges h2 { font-size: 13px; margin: 0 0 6px; }
+.charges > div { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid #e0e7ef; padding: 6px 0; font-size: 12px; }
 @media(max-width: 720px) { .header { grid-template-columns: 1fr; gap: 20px; } .documentIdentity h1 { font-size: 22px; } }
 @media print { .header { break-inside: avoid; padding: 16px 0; gap: 24px; } .documentIdentity { border: 1px solid #cad6e5; background: white; } .contact a { color: #172334; } }
 @media (max-width: 600px) { .document { padding: 12px; margin: 0; font-size: 12px; } .document th, .document td { padding: 4px; } }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px 0; }
 .actions p { flex-basis: 100%; margin: 0; }
 @media print { .actions, .print { display: none; } .document { max-width: none; margin: 0; padding: 0; font-size: 10pt; } .document thead { display: table-header-group; } .document tr, .document section { break-inside: avoid; } }
+.tableWrap { width: 100%; overflow-x: auto; }
+.tableCaption { text-align: left; font-size: 12px; font-weight: 700; color: #526477; margin-bottom: 8px; }
+.document table th:first-child { width: 55%; }
+.document table th:not(:first-child), .document table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.laborDetail { display: block; color: #526477; font-size: 11px; margin-top: 4px; }
+.totals { padding: 14px 0; border-top: 1px solid #cbd5e1; break-inside: avoid; }
+.totals dt:last-of-type, .totals dd:last-of-type { font-size: 18px; font-weight: 700; border-top: 1px solid #cbd5e1; margin-top: 8px; padding-top: 8px; }
+.receipt { border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin: 20px 0; }
+.receipt h2 { font-size: 18px; margin-top: 0; }
+.receipt dl { max-width: none; gap: 12px 20px; }
+.receipt dd { overflow-wrap: anywhere; }
+@media print {
+  .tableWrap { overflow: visible; }
+  .document .charges { break-inside: auto; }
+  .charges > div, .receipt, .totals, .document footer { break-inside: avoid; }
+  .document h2, .tableCaption { break-after: avoid; }
+  .document table { font-size: 9pt; }
+  .document th, .document td { padding: 7px 5px; }
+}

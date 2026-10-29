@@ -1,11 +1,13 @@
 import { brakeScopeConflict } from "@/lib/brake-baseline";
 import { steeringScopeConflict } from "@/lib/steering-baseline";
 
+export type EstimatePartItem = { id: string; name: string; number: string; quantity: number; unitPrice: number | null };
 export type EstimateLine = {
   id: string;
   label: string;
   hours: number | null;
   parts: number | null;
+  partItems?: EstimatePartItem[];
   conflictGroup?: string;
   laborBasis?: "PLANNING" | "MANUAL" | "REPORTED_MEDIAN";
   laborConfiguration?: string;
@@ -18,6 +20,11 @@ export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[]; re
 
 export function isValidAmount(value: unknown, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= maximum;
+}
+
+export function itemizedPartsTotal(items: EstimatePartItem[]): number | null {
+  if (items.some(item => item.unitPrice === null)) return null;
+  return items.reduce((sum, item) => sum + item.quantity * Math.round(item.unitPrice! * 100), 0) / 100;
 }
 
 export function estimateTotals(lines: EstimateLine[], rate: number) {
@@ -41,7 +48,19 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
     }
     const identifiers = new Set<string>();
     const conflicts = new Set<string>();
+    let partCount = 0;
     for (const line of draft.lines) {
+      if (line.partItems !== undefined) {
+        if (!Array.isArray(line.partItems) || line.partItems.length > 100) return null;
+        partCount += line.partItems.length;
+        if (partCount > 200) return null;
+        const partIds = new Set<string>();
+        for (const item of line.partItems) {
+          if (!item || typeof item.id !== "string" || !item.id || item.id.length > 200 || partIds.has(item.id) || typeof item.name !== "string" || item.name.length > 200 || typeof item.number !== "string" || item.number.length > 100 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10000 || (item.unitPrice !== null && !isValidAmount(item.unitPrice, 100000))) return null;
+          partIds.add(item.id);
+        }
+        if (line.parts !== itemizedPartsTotal(line.partItems)) return null;
+      }
       if (!line || typeof line.id !== "string" || !line.id || line.id.length > 200 || identifiers.has(line.id)
         || typeof line.label !== "string" || !line.label.trim() || line.label.length > 200
         || (line.hours !== null && !isValidAmount(line.hours, 100)) || (line.parts !== null && !isValidAmount(line.parts, 100000))

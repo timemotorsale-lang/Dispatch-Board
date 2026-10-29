@@ -6,7 +6,8 @@ import { useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Search, Trash2, Wrench } from "lucide-react";
 
 import { CATALOG_COUNTS, REPAIR_SYSTEMS, searchRepairs, type RepairOperation } from "./catalog";
-import { estimateTotals, isValidAmount, parsePreviewDraft, type EstimateLine } from "./estimate";
+import { estimateTotals, isValidAmount, itemizedPartsTotal, parsePreviewDraft, type EstimateLine, type EstimatePartItem } from "./estimate";
+import { PartsBreakdown } from "./parts-breakdown";
 import { LaborEvidence } from "./labor-evidence";
 import { VisualRepairFinder } from "./visual-repair-finder";
 import { visualAreaForSystem } from "./visual-catalog";
@@ -107,8 +108,13 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
     }
   }
 
+  function updateParts(id: string, partItems: EstimatePartItem[]) {
+    setLines(current => current.map(line => line.id === id ? { ...line, partItems, parts: itemizedPartsTotal(partItems) } : line));
+  }
+
   function generateEstimate() {
     if (!lines.length || scopeConflict) { setStatus("Add work and resolve scope conflicts before generating an estimate."); return; }
+    if (lines.some(line => line.partItems?.some(item => !item.name.trim() || item.unitPrice === null))) { setReview(true); setStatus("Enter a description and unit price for each part."); return; }
     try {
       const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId });
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
@@ -212,7 +218,8 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
               {!lines.length ? <div className={styles.empty}>No repairs remain. Return to Find repair to add work.</div> : lines.map((line) => <article className={styles.reviewLine} key={line.id}>
                 <div className={styles.row}><h3>{line.label}</h3><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label}`} onClick={() => removeLine(line.id)}><Trash2 size={17} /></button></div>
                 <p className={styles.laborBasis}>{line.laborBasis === "PLANNING" ? "Provisional planning allowance · no measured job evidence" : line.laborBasis === "REPORTED_MEDIAN" ? `Technician-reported median · ${line.reportedJobCount} jobs · ${line.laborConfiguration}` : "Manually entered hours · not source-verified"}</p>
-                <div className={styles.lineFields}><label>Labor hours<input aria-label={`Labor hours for ${line.label}`} type="number" min="0" max="100" step="0.1" placeholder="Enter hours" value={line.hours ?? ""} onChange={(event) => updateLine(line.id, "hours", event.target.value)} /></label><label>Parts total ($)<input aria-label={`Parts total for ${line.label}`} type="number" min="0" max="100000" step="0.01" placeholder="Enter parts total" value={line.parts ?? ""} onChange={(event) => updateLine(line.id, "parts", event.target.value)} /></label><strong>{line.hours === null || line.parts === null ? "Needs pricing" : money(estimateTotals([line], rate).subtotal)}</strong></div>
+                <div className={styles.lineFields}><label>Labor hours<input aria-label={`Labor hours for ${line.label}`} type="number" min="0" max="100" step="0.1" placeholder="Enter hours" value={line.hours ?? ""} onChange={(event) => updateLine(line.id, "hours", event.target.value)} /></label>{line.partItems === undefined && <label>Parts total ($)<input aria-label={`Parts total for ${line.label}`} type="number" min="0" max="100000" step="0.01" placeholder="Enter parts total" value={line.parts ?? ""} onChange={(event) => updateLine(line.id, "parts", event.target.value)} /></label>}<strong>{line.hours === null || line.parts === null ? "Needs pricing" : money(estimateTotals([line], rate).subtotal)}</strong></div>
+                {line.partItems === undefined ? <button type="button" className={styles.secondary} onClick={() => updateParts(line.id, [{ id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Itemize parts for {line.label}</button> : <PartsBreakdown items={line.partItems} onChange={items => updateParts(line.id, items)} />}
               </article>)}
               <div className={styles.note}><CircleHelp size={19} /><p>Ready for a customer estimate? Choose Generate / Print Estimate, select the actual repair order, then review labor, itemized parts and taxes. Printing is available after the official estimate is issued. Customer approval and final invoicing remain separate steps.</p></div>
               <button type="button" className={styles.secondary} onClick={() => { setReview(false); focusContent(); }}><ArrowLeft size={16} /> Keep adding work</button>

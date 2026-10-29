@@ -12,8 +12,10 @@ export async function getRepairDocuments(actor: AuthenticatedUser | null, repair
   try { await billingAccess(actor, order.locationId); financialAccess = true; }
   catch (error) { if (!(error instanceof Error) || !error.message.startsWith("Vehicle capability required:")) throw error; }
   const documents = await prisma.serviceDocument.findMany({ where: { organizationId: INITIAL_ORGANIZATION.id, repairOrderId, ...(!financialAccess ? { kind: { in: ["RO", "ESTIMATE", "AUTHORIZATION"] } } : {}) }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+  const authors = documents.length ? await prisma.user.findMany({ where: { id: { in: [...new Set(documents.map(document => document.createdByUserId))] } }, select: { id: true, name: true } }) : [];
+  const authorNames = new Map(authors.map(author => [author.id, author.name]));
   return { order, documents: documents.map(document => {
     if (hashEnterpriseCommand({ templateVersion: document.templateVersion, content: document.content }) !== document.sha256) throw new Error("Document integrity verification failed. Do not issue this document.");
-    return { ...document, content: document.content as unknown as ServiceDocumentContent };
+    return { ...document, createdByName: authorNames.get(document.createdByUserId) ?? "Staff", content: document.content as unknown as ServiceDocumentContent };
   }) };
 }

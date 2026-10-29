@@ -1,4 +1,6 @@
 import { assertRepairLocationRead } from "@/server/repair-order/read-access";
+import { normalizeDocumentCustomer } from "@/lib/service-document-review";
+import { SERVICE_CHARGES_POLICY, validateShopSupplies } from "@/lib/service-charges";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { estimateReviewScope, manualReviewComplete, validateManualReview } from "@/lib/estimate-review";
 import { checkEstimateControls, checkStaffQuotePricing, validateEstimateControls } from "@/lib/labor-guide-controls";
@@ -34,6 +36,7 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   const context=deps(input),data=normalizeEstimate(value,context.now()),{ro,user}=await mutationContext(actor,repairOrderId,context);
   const reviewValue=(value as Record<string,unknown>).manualLaborReview;
   const staffQuote=(value as Record<string,unknown>).estimateWorkflow==="STAFF_QUOTE";
+  if (staffQuote || (value as Record<string,unknown>).chargesPolicy === SERVICE_CHARGES_POLICY) validateShopSupplies(data.lineItems);
   if(!staffQuote && (reviewValue!==undefined || data.lineItems.some(line=>line.type==="LABOR"))){
     const review=validateManualReview(reviewValue);
     if(!manualReviewComplete(review,estimateReviewScope(ro.vehicle.id,data.lineItems)))throw new Error("Manual labor review is incomplete or the vehicle/work changed. Review again before presenting.");
@@ -46,7 +49,7 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   });
   const controlValue=(value as Record<string,unknown>).estimateControls;
   if(staffQuote || selectedCatalog.length || controlValue!==undefined){
-    const controls=staffQuote ? checkStaffQuotePricing(data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents) : checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
+    const controls=staffQuote ? checkStaffQuotePricing(data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents,data.discountCents) : checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
     const activeRate=await getActiveLaborRate(user);
     if(controls.pricing.laborRate!==activeRate.laborRate){
       if(!canManageSettings(user))throw new Error("Only an administrator may override the active shop labor rate. Use the current shop rate and repeat review.");
@@ -59,7 +62,17 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   if(suppliedVersion!==undefined&&(!Number.isInteger(suppliedVersion)||Number(suppliedVersion)<0))throw new Error("Expected version must be a non-negative integer.");
   const receipt=await context.repository.commandReceipt?.(context.organizationId,"PRESENT_ESTIMATE_VERSION",data.idempotencyKey);
   const expectedVersion=suppliedVersion===undefined?(receipt?.expectedVersion??ro.version):Number(suppliedVersion);
-  const estimateData={...data,...(staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{})};
+  const chargeRevisionFrom=(value as Record<string,unknown>).chargeRevisionFrom;
+  if(chargeRevisionFrom!==undefined&&(typeof chargeRevisionFrom!=="string"||!chargeRevisionFrom||chargeRevisionFrom.length>200))throw new Error("Invalid charge revision source.");
+  const documentReviewRaw=(value as Record<string,unknown>).documentReview;
+  let documentReview: { documentId: string; documentHash: string; customer?: ReturnType<typeof normalizeDocumentCustomer> } | undefined;
+  if(documentReviewRaw !== undefined) {
+    if(!documentReviewRaw || typeof documentReviewRaw !== "object" || Array.isArray(documentReviewRaw)) throw new Error("Invalid document review source.");
+    const review=documentReviewRaw as Record<string,unknown>;
+    if(typeof review.documentId !== "string" || !review.documentId || typeof review.documentHash !== "string" || !review.documentHash || !chargeRevisionFrom) throw new Error("Invalid document review source.");
+    documentReview={documentId:review.documentId,documentHash:review.documentHash,...(review.customer === undefined ? {} : {customer:normalizeDocumentCustomer(review.customer)})};
+  }
+  const estimateData={...data,...(documentReview?{documentReview}:{}),...(staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{})};
   return context.repository.estimate(command({actorUserId:user.id,commandType:"PRESENT_ESTIMATE_VERSION",expectedVersion,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(estimateData),reason:data.reason,subjectId:ro.id}),estimateData);
 }
 export async function decideRepairAuthorization(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAuthorization(value),{ro,user}=await mutationContext(actor,repairOrderId,context);const receipt=await context.repository.commandReceipt?.(context.organizationId,"DECIDE_ESTIMATE_AUTHORIZATION",data.idempotencyKey);return context.repository.authorization(command({actorUserId:user.id,commandType:"DECIDE_ESTIMATE_AUTHORIZATION",expectedVersion:receipt?.expectedVersion??ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}

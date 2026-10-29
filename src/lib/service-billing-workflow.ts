@@ -4,6 +4,12 @@ type BillingContext = {
   invoices: readonly { id: string; status: string }[];
 };
 
+export function invoicePackageMismatchCodes(codes: unknown, snapshot: unknown, currentFingerprint?: string) {
+  const result = Array.isArray(codes) ? codes.filter((code): code is string => typeof code === "string") : [];
+  const prior = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? (snapshot as { fingerprint?: unknown }).fingerprint : undefined;
+  return currentFingerprint && prior !== currentFingerprint ? [...new Set([...result, "INVOICE_SOURCE_CHANGED"])] : result;
+}
+
 export function nextBillingTask(billing: BillingContext) {
   const posted = billing.invoices.find(invoice => invoice.status === "POSTED");
   if (posted) return { action: "PAYMENT", subjectId: posted.id };
@@ -16,6 +22,7 @@ export function nextBillingTask(billing: BillingContext) {
 export function invoiceHoldLabel(code: string) {
   const labels: Record<string, string> = {
     INVOICE_AUTHORIZATION_REQUIRED: "Record customer approval of the current estimate before invoicing.",
+    INVOICE_SOURCE_CHANGED: "Document details changed. Prepare a fresh invoice package.",
     INVOICE_JOB_QC_INCOMPLETE: "Record completed repair work and a passed quality check.",
     INVOICE_PART_IDENTITY_MISSING: "Add the actual part number to the estimate, then obtain approval for the updated version.",
     INVOICE_INSTALL_QUANTITY_MISMATCH: "Match installed part quantities to the approved estimate.",
