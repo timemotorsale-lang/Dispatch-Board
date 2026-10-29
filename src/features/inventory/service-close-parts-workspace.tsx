@@ -1,6 +1,7 @@
 "use client";
 
-import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
+import { formatMoneyCents } from "@/lib/recon-budget";
+import { partsProcurementType, recordedPartsPurchaseTotal, recordedReconBudget } from "@/lib/parts-procurement";
 import { ArrowLeft, ArrowRight, Building2, ClipboardCheck, ListChecks, PackagePlus, RotateCcw, ShoppingCart, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
 import { notifyRepairReviewSaved, scopedRepairOrders } from "@/lib/repair-workflow-review";
@@ -9,7 +10,7 @@ import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
 type Named = { id: string; name?: string; code?: string; part?: { partNumber: string }; partNumber?: string; description?: string; status?: string; type?: string; locationId?: string; standardCostCents?: number; orderedTotalCents?: number; quantity?: number; unitCostCents?: number };
 type VendorWork = { approvalStatus: string; approvedAmountCents: number | null; currentLocation: string; directFromSource: boolean; estimateAmountCents: number | null; expectedReturnAt: string | null; id: string; keysCustodian: string; lastUpdateSummary?: string | null; nextAction?: string | null; nextFollowUpAt: string | null; scope: string; sentFrom: string; status: string; supplementalAmountCents: number | null; transportMethod: string | null; vendorName: string };
-type RepairOrder = Named & { closedAt: string | null; inventoryUnit?: { acquisitionAppraisals?: Array<{ estimatedReconCents?: number | null; estimatedRetailCents?: number | null }>; acquisitionCase?: { appraisalSnapshot?: unknown } | null; id: string; inventoryNumber?: string | null } | null; locationId: string; nextAction?: string | null; repairOrderNumber: string; stage: string; vehicle: { color?: string | null; make?: string | null; model?: string | null; stockNumber?: string | null; vehicleNumber: string; vin?: string | null; year?: number | null }; customer: { displayName: string } | null; invoicePackages: Array<{ id: string; mismatchCodes: string[]; repairOrderId: string; status: string; version: number }>; repairJobs?: Array<{ id: string; jobNumber: string }>; vendorWorks?: VendorWork[] };
+type RepairOrder = Named & { origin?: string; closedAt: string | null; inventoryUnit?: { acquisitionAppraisals?: Array<{ decisionStatus?: string; estimatedReconCents?: number | null; estimatedRetailCents?: number | null }>; acquisitionCase?: { appraisalSnapshot?: unknown } | null; id: string; inventoryNumber?: string | null } | null; locationId: string; nextAction?: string | null; repairOrderNumber: string; stage: string; vehicle: { color?: string | null; make?: string | null; model?: string | null; stockNumber?: string | null; vehicleNumber: string; vin?: string | null; year?: number | null }; customer: { displayName: string } | null; invoicePackages: Array<{ id: string; mismatchCodes: string[]; repairOrderId: string; status: string; version: number }>; repairJobs?: Array<{ id: string; jobNumber: string }>; vendorWorks?: VendorWork[] };
 type Demand = Named & { notes?: string | null; partId: string; quantityRequired: number; quantityReserved: number; requiredAt: string; part: { partNumber: string; description?: string }; repairOrder: { repairOrderNumber: string } };
 type Offer = Named & { partId: string; unitCostCents: number; vendorId: string; vendor: { name: string }; part: { partNumber: string; description?: string } };
 type Requisition = Named & { requiredAt?: string; selectedOfferId: string | null; demand: { part: { partNumber: string; description?: string }; repairOrder: { repairOrderNumber: string } }; selectedOffer?: { vendor: { name: string } } | null };
@@ -68,20 +69,6 @@ function initialDeskMode(model: Model, repairOrderId: string): DeskMode {
     !["CLOSED", "CANCELLED"].includes(item.status ?? "")
   );
   return hasActiveVendor && (hasOpenPurchaseOrder || hasReturnOrQcVendor) ? "vendor" : "need";
-}
-
-function reconBudgetFor(order?: RepairOrder | null) {
-  const vehicle = order?.vehicle;
-  const currentYear = new Date().getFullYear();
-  const age = vehicle?.year ? Math.max(0, currentYear - vehicle.year) : 5;
-  const premium = /toyota|honda|lexus|acura/i.test(vehicle?.make ?? "") ? 1.08 : /bmw|mercedes|audi/i.test(vehicle?.make ?? "") ? 1.18 : 1;
-  const utility = /rav4|cr-v|pilot|highlander|tacoma|truck|suv/i.test(`${vehicle?.make ?? ""} ${vehicle?.model ?? ""}`) ? 1.1 : 1;
-  const estimatedRetailCents = Math.round(Math.max(900000, (3000000 - age * 165000) * premium * utility));
-  const totalAcquisitionInvestmentCents = Math.round(estimatedRetailCents * 0.76);
-  const targetGrossCents = Math.round(Math.max(250000, estimatedRetailCents * 0.12));
-  const safetyReserveCents = Math.round(Math.max(50000, estimatedRetailCents * 0.025));
-  const maxReconBudgetCents = Math.max(0, estimatedRetailCents - totalAcquisitionInvestmentCents - targetGrossCents - safetyReserveCents);
-  return { estimatedRetailCents, maxReconBudgetCents, safetyReserveCents, targetGrossCents, totalAcquisitionInvestmentCents };
 }
 
 function initialRepairProgressState() {
@@ -181,11 +168,11 @@ async function createPartFromDescription(description: string) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      categoryCode: "RECON",
+      categoryCode: null,
       description,
       idempotencyKey: crypto.randomUUID(),
       partNumber: partNumberFrom(description),
-      reason: "Create needed recon part from simple parts entry.",
+      reason: "Create needed repair part from simple parts entry.",
       standardCostCents: 0,
       unitOfMeasure: "EACH",
     }),
@@ -276,21 +263,19 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const scopedCustodyEvents = model.custodyEvents.filter((item) => item.repairJob?.repairOrder?.repairOrderNumber === selectedNumber);
   const openRecoveries = model.recoveries.filter((item) => item.sourceReference?.includes(`RO:${selectedOrder?.id}|`) && !["CREDITED", "WRITTEN_OFF"].includes(item.status ?? ""));
   const activeInvoice = selectedOrder?.invoicePackages[0] ?? null;
-  const fallbackBudget = reconBudgetFor(selectedOrder);
-  const appraisalBudget = buildReconBudgetSummary(selectedOrder?.inventoryUnit ? {
-    acquisitionAppraisals: selectedOrder.inventoryUnit.acquisitionAppraisals ?? [],
-    acquisitionCase: selectedOrder.inventoryUnit.acquisitionCase ?? null,
-  } : {});
-  const partsCommittedCents = openPurchaseOrders.reduce((sum, item) => sum + (item.orderedTotalCents ?? 0), 0);
-  const maxReconBudgetCents = appraisalBudget?.estimatedReconBudgetCents ?? fallbackBudget.maxReconBudgetCents;
-  const expectedRetailCents = appraisalBudget?.expectedRetailCents ?? fallbackBudget.estimatedRetailCents;
-  const remainingReconBudgetCents = maxReconBudgetCents - partsCommittedCents;
+  const isInternalRecon = partsProcurementType(selectedOrder) === "INVENTORY_RECON";
+  const appraisalBudget = recordedReconBudget(selectedOrder);
+  const partsCommittedCents = recordedPartsPurchaseTotal(scopedPurchaseOrders);
+  const maxReconBudgetCents = appraisalBudget?.estimatedReconBudgetCents ?? null;
+  const expectedRetailCents = appraisalBudget?.expectedRetailCents;
+  const hasReconBudget = isInternalRecon && maxReconBudgetCents != null;
+  const remainingReconBudgetCents = hasReconBudget ? maxReconBudgetCents - partsCommittedCents : 0;
   const overBudgetCents = Math.max(0, -remainingReconBudgetCents);
-  const budgetRatio = maxReconBudgetCents ? partsCommittedCents / maxReconBudgetCents : 1;
-  const budgetTone = remainingReconBudgetCents < 0 ? "danger" : budgetRatio >= 0.8 ? "warning" : "success";
-  const budgetDecision = remainingReconBudgetCents < 0 ? "Manager approval required" : budgetRatio >= 0.8 ? "Review before more spend" : "Spend room available";
-  const budgetSourceLabel = appraisalBudget?.source === "TAI" ? "TAI recon budget guardrail" : appraisalBudget?.source === "APPRAISAL" ? "Approved recon budget guardrail" : "TAI recon budget guardrail";
-  const canRaiseBudget = Boolean(selectedOrder?.inventoryUnit?.id);
+  const budgetRatio = maxReconBudgetCents ? partsCommittedCents / maxReconBudgetCents : hasReconBudget ? 1 : 0;
+  const budgetTone = remainingReconBudgetCents < 0 ? "danger" : !hasReconBudget || budgetRatio >= 0.8 ? "warning" : "success";
+  const budgetDecision = !hasReconBudget ? "Recon budget not set" : remainingReconBudgetCents < 0 ? "Manager approval required" : budgetRatio >= 0.8 ? "Review before more spend" : "Spend room available";
+  const budgetSourceLabel = appraisalBudget?.source === "TAI" ? "TAI recon budget guardrail" : "Recorded recon budget";
+  const canRaiseBudget = isInternalRecon && Boolean(selectedOrder?.inventoryUnit?.id);
 
   function changeRepairOrder(nextOrderId: string) {
     setOrderId(nextOrderId);
@@ -385,10 +370,6 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     .split(/\s+(?:request[\s_-]*quote|quote|phone|contact)\b/i)[0]
     .replace(/[^a-z0-9]/gi, "")
     .toUpperCase();
-
-  function noteTotalCents(lines: string[]) {
-    return lines.reduce((sum, line) => sum + amountFrom(line) * quantityFrom(line), 0);
-  }
 
   function partLabel(partId?: string) {
     const part = model.parts.find((item) => item.id === partId);
@@ -512,10 +493,6 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       }
     }
     if (target === "order") {
-      const proposedSpendCents = noteTotalCents(lines);
-      if (proposedSpendCents > 0 && partsCommittedCents + proposedSpendCents > maxReconBudgetCents) {
-        throw new Error(`Recon budget guardrail: this note would move the unit over its recommended max recon budget by ${money(partsCommittedCents + proposedSpendCents - maxReconBudgetCents)}. Manager approval is required before buying more parts.`);
-      }
       for (const [index, line] of lines.entries()) {
         const description = descriptionFrom(line), partId = await ensurePart(description), vendorName = vendorFrom(line), vendorId = await ensureVendor(vendorName);
         const existingDemand = scopedDemands.find((item) => item.partId === partId && !["RELEASED", "CANCELLED"].includes(item.status ?? ""));
@@ -769,12 +746,11 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
 
   async function approveBudgetException() {
     if (!selectedOrder) throw new Error("Repair order is required.");
-    if (!selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget cannot be raised here.");
+    if (!isInternalRecon || !selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget cannot be raised here.");
     const dollars = Number(budgetIncreaseDollars);
     if (!Number.isFinite(dollars) || dollars <= 0) throw new Error("Enter a budget increase amount greater than 0.");
     await request({
       action: "APPROVE_RECON_BUDGET_EXCEPTION",
-      currentMaxReconBudgetCents: maxReconBudgetCents,
       idempotencyKey: crypto.randomUUID(),
       increaseByCents: Math.round(dollars * 100),
       reason: budgetReason.trim() || "Approve additional recon spend.",
@@ -785,13 +761,12 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
 
   async function requestBudgetApproval() {
     if (!selectedOrder) throw new Error("Repair order is required.");
-    if (!selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget request cannot be recorded here.");
+    if (!isInternalRecon || !selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget request cannot be recorded here.");
     const dollars = Number(budgetIncreaseDollars);
     if (!Number.isFinite(dollars) || dollars <= 0) throw new Error("Enter a requested budget increase greater than 0.");
     if (!budgetReason.trim()) throw new Error("Add the reason the extra recon spend is needed before sending it to the General Manager.");
     await request({
       action: "REQUEST_RECON_BUDGET_EXCEPTION",
-      currentMaxReconBudgetCents: maxReconBudgetCents,
       idempotencyKey: crypto.randomUUID(),
       increaseByCents: Math.round(dollars * 100),
       reason: budgetReason.trim(),
@@ -803,13 +778,12 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
 
   async function denyBudgetException() {
     if (!selectedOrder) throw new Error("Repair order is required.");
-    if (!selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget decision cannot be recorded here.");
+    if (!isInternalRecon || !selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget decision cannot be recorded here.");
     const dollars = Number(budgetIncreaseDollars);
     if (!Number.isFinite(dollars) || dollars <= 0) throw new Error("Enter the denied budget increase amount.");
     const reason = budgetDecisionNote.trim() || "Revise the parts plan before buying more parts.";
     await request({
       action: "DENY_RECON_BUDGET_EXCEPTION",
-      currentMaxReconBudgetCents: maxReconBudgetCents,
       idempotencyKey: crypto.randomUUID(),
       increaseByCents: Math.round(dollars * 100),
       reason,
@@ -826,6 +800,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     { id: "use", icon: Wrench, label: "Finished", sub: "Used, installed, or unused" },
   ];
   const extraLanes: Array<{ id: DeskMode; icon: React.ElementType; label: string }> = [
+    ...(isInternalRecon ? [{ id: "budget" as const, icon: ClipboardCheck, label: hasReconBudget ? "Review recon budget" : "Set recon budget" }] : []),
     { id: "source", icon: ClipboardCheck, label: "Add sourcing details" },
     { id: "vendor", icon: Building2, label: "Pickup & delivery" },
     { id: "return", icon: RotateCcw, label: "Return or recover credit" },
@@ -849,7 +824,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       ? `Source or buy ${openNeededParts.length} needed part${openNeededParts.length === 1 ? "" : "s"} before the vendor can continue.`
       : "No needed parts are blocking this repair order."
     : mode === "order"
-      ? remainingReconBudgetCents < 0 ? "Stop: manager approval is required before more buying." : nextPurchaseOrder ? `Coordinate pickup from ${pickupSupplierName} and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"}.` : "Record the bought part so its movement can be coordinated."
+      ? remainingReconBudgetCents < 0 ? "Record purchase details, then review the recon budget before approving more spend." : nextPurchaseOrder ? `Coordinate pickup from ${pickupSupplierName} and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"}.` : "Record the bought part so its movement can be coordinated."
       : mode === "budget"
         ? remainingReconBudgetCents < 0
           ? `General Manager decision required: this RO is ${money(overBudgetCents)} over the recommended recon budget.`
@@ -870,7 +845,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
                 ? "Open credit, warranty, core, or vendor-return tickets."
                 : "Record sourcing quotes and availability.";
   const workflowStep: { detail: string; label: string; mode: DeskMode; title: string } = remainingReconBudgetCents < 0
-    ? { detail: `The purchase is ${money(overBudgetCents)} over the recon limit. Resolve the exception before committing more money.`, label: "Review budget exception", mode: "budget", title: "Resolve the recon budget exception" }
+    ? { detail: `Recorded purchases are ${money(overBudgetCents)} over the recon budget. Review the exception before approving more spend.`, label: "Review budget exception", mode: "budget", title: "Resolve the recon budget exception" }
     : nextPurchaseOrder
       ? activeVendorWork
         ? { detail: `Arrange movement from ${pickupSupplierName} to ${activeVendorWork.vendorName} so repairs can continue.`, label: "Plan pickup & delivery", mode: "vendor", title: `Coordinate delivery to ${activeVendorWork.vendorName}` }
@@ -1044,7 +1019,9 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     <section className="scp-context">
       <Field label="Repair order">
         <select value={orderId} onChange={(event) => changeRepairOrder(event.target.value)}>
-          {model.repairOrders.map((item) => <option key={item.id} value={item.id}>{item.repairOrderNumber} - {vehicleLabelFor(item)} - {item.vehicle.stockNumber ?? item.vehicle.vehicleNumber} - {format(item.stage)}</option>)}
+          {(["CUSTOMER_REPAIR", "INVENTORY_RECON"] as const).map((type) => <optgroup key={type} label={type === "CUSTOMER_REPAIR" ? "Customer vehicles" : "Internal recon inventory"}>
+            {model.repairOrders.filter((item) => partsProcurementType(item) === type).map((item) => <option key={item.id} value={item.id}>{item.repairOrderNumber} - {vehicleLabelFor(item)} - {item.vehicle.stockNumber ?? item.vehicle.vehicleNumber} - {format(item.stage)}</option>)}
+          </optgroup>)}
         </select>
       </Field>
       <div className="scp-vehicle-context"><span>Vehicle</span><strong>{selectedVehicleLabel}</strong><small>{selectedVehicleMeta.join(" · ")}</small></div>
@@ -1054,23 +1031,27 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       <div><span>Returns</span><strong>{laneCounts.return}</strong></div>
     </section>
 
-    <section className={`scp-budget ${budgetTone}`} aria-label="Recon budget guardrail">
+    {isInternalRecon ? <section className={`scp-budget ${budgetTone}`} aria-label="Recon budget guardrail">
       <div>
-        <span>{budgetSourceLabel}</span>
+        <span>Internal recon inventory · {budgetSourceLabel}</span>
         <strong>{budgetDecision}</strong>
-        <small>{appraisalBudget?.estimatedReconBudgetCents != null ? `Expected retail ${formatMoneyCents(expectedRetailCents)} · approved recon ceiling ${formatMoneyCents(appraisalBudget.estimatedReconBudgetCents)}` : `Estimated retail ${money(fallbackBudget.estimatedRetailCents)} · TAI ${money(fallbackBudget.totalAcquisitionInvestmentCents)} · target gross ${money(fallbackBudget.targetGrossCents)} · reserve ${money(fallbackBudget.safetyReserveCents)}`}</small>
+        <small>{hasReconBudget ? `Expected retail ${formatMoneyCents(expectedRetailCents)} · recorded recon budget ${formatMoneyCents(maxReconBudgetCents)}` : "Record purchases now. Set the recon budget before approving additional spend."}</small>
       </div>
       <div><span>Max recon budget</span><strong>{formatMoneyCents(maxReconBudgetCents)}</strong></div>
-      <div><span>Committed parts spend</span><strong>{money(partsCommittedCents)}</strong></div>
-      <div><span>Remaining</span><strong>{money(remainingReconBudgetCents)}</strong></div>
-      {remainingReconBudgetCents < 0 ? <div className="scp-budget-approval">
+      <div><span>Recorded parts purchases</span><strong>{money(partsCommittedCents)}</strong></div>
+      <div><span>Remaining</span><strong>{hasReconBudget ? money(remainingReconBudgetCents) : "Not set"}</strong></div>
+      {remainingReconBudgetCents < 0 || !hasReconBudget ? <div className="scp-budget-approval">
         <div>
           <span>Manager exception</span>
-          <strong>This vehicle needs approval for {money(overBudgetCents)} before another purchase.</strong>
+          <strong>{hasReconBudget ? `This vehicle needs approval for ${money(overBudgetCents)} before another purchase.` : "Set the internal recon allowance."}</strong>
         </div>
-        <button disabled={!canRaiseBudget} onClick={openBudgetApproval} type="button">Review this overage</button>
+        <button disabled={!canRaiseBudget} onClick={openBudgetApproval} type="button">{hasReconBudget ? "Review this overage" : "Set recon budget"}</button>
       </div> : null}
-    </section>
+    </section> : <section className="scp-budget success" aria-label="Customer vehicle parts purchases">
+      <div><span>Customer vehicle</span><strong>{selectedOrder?.customer?.displayName ?? "Customer repair"}</strong><small>Supplier costs are recorded against this repair order. Customer pricing stays on the approved estimate.</small></div>
+      <div><span>Recorded parts purchases</span><strong>{money(partsCommittedCents)}</strong></div>
+      <div><span>Purchase approvals</span><strong>{purchaseOrdersNeedingApproval.length} pending</strong></div>
+    </section>}
 
     <nav className="scp-lanes" aria-label="Parts process">
       {lanes.map(({ id, icon: Icon, label, sub }) => <button aria-current={mode === id ? "step" : undefined} className={mode === id ? "active" : ""} key={id} onClick={() => setMode(id)} type="button"><Icon size={18} /><span>{label}<small>{sub}</small></span><b>{laneCounts[id]}</b></button>)}
@@ -1116,7 +1097,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         </section>
         {mode === "budget" ? (
           <section className="scp-budget-workflow" aria-label="General Manager budget approval workspace">
-            <header><span>Budget approval workspace</span><h2>Request, approve, or deny extra recon spend</h2><small>Staff asks for the exception here. The General Manager makes the final decision before more parts are bought.</small></header>
+            <header><span>Budget approval workspace</span><h2>Request, approve, or deny extra recon spend</h2><small>Record the purchase details first. Request approval here when the internal recon budget needs to change.</small></header>
             <div className="scp-budget-summary">
               <article><span>Current ceiling</span><strong>{formatMoneyCents(maxReconBudgetCents)}</strong></article>
               <article><span>Committed spend</span><strong>{money(partsCommittedCents)}</strong></article>
@@ -1136,7 +1117,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
                 <button className="scp-primary-button" disabled={busy || !selectedOrder} type="submit">Send approval request</button>
               </form>
               <section className="scp-manager-decision">
-                <header><span>General Manager decision</span><h2>Approve or deny</h2><small>Approval raises the governed recon budget. Denial keeps buying blocked and tells staff what to do next.</small></header>
+                <header><span>General Manager decision</span><h2>Approve or deny</h2><small>Approval updates the internal recon budget. Purchase records and customer prices stay unchanged.</small></header>
                 <label className="scp-field scp-textarea-field">
                   <span>Decision note</span>
                   <textarea onChange={(event) => setBudgetDecisionNote(event.target.value)} value={budgetDecisionNote} />

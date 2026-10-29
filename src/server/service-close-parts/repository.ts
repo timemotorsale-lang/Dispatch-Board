@@ -1,3 +1,4 @@
+import { checkReconPurchaseApproval } from "./procurement-budget";
 import { serviceInvoiceBalance } from "@/lib/service-billing";
 import { serviceInvoiceCandidate, assertCurrentInvoicePackage } from "./invoice-candidate";
 import type { PrismaClient } from "@prisma/client";
@@ -74,7 +75,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
                 acquisitionAppraisals: {
                   orderBy: { version: "desc" },
                   take: 1,
-                  select: { estimatedReconCents: true, estimatedRetailCents: true }
+                  select: { decisionStatus: true, estimatedReconCents: true, estimatedRetailCents: true }
                 },
                 acquisitionCase: {
                   select: { appraisalSnapshot: true }
@@ -336,8 +337,12 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId } });
         if (!record) throw new Error("Purchase order was not found.");
         if (data.toStatus === "APPROVED") assertIndependentPartsApproval("PURCHASE_APPROVAL", record.createdByUserId, command.actorUserId, { allowFinalAuthoritySelfApproval: data.allowFinalAuthoritySelfApproval === true });
+        const procurementBudget = data.toStatus === "APPROVED" ? await checkReconPurchaseApproval(tx, {
+          organizationId: command.organizationId, purchaseOrderId: record.id,
+          requisitionId: record.requisitionId, managerAuthority: data.allowFinalAuthoritySelfApproval === true,
+        }) : null;
         const next = await tx.partPurchaseOrder.update({ where: { id: record.id }, data: { acknowledgedAt: data.toStatus === "ACKNOWLEDGED" ? data.occurredAt : record.acknowledgedAt, closedAt: ["CLOSED", "CANCELLED"].includes(data.toStatus) ? data.occurredAt : record.closedAt, issuedAt: data.toStatus === "ISSUED" ? data.occurredAt : record.issuedAt, status: data.toStatus as never, version } });
-        return { previous: record, result: { id: next.id, status: next.status, version } };
+        return { previous: record, result: { id: next.id, status: next.status, version, procurementBudget } };
       });
     },
 
