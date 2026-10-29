@@ -68,6 +68,45 @@ Answers persist between steps in component memory, not localStorage or query par
 
 Tests: `tests/service-intake.test.ts` and `tests/e2e/service.spec.ts` cover validation, Minnesota dates, contact matching, idempotency, isolation, request/receipt handoffs, manual VIN fallback, edits, accessibility and public denial. Physical-phone camera reliability still needs device testing.
 
+### Structured service-intake review (version 2)
+
+The four-step customer service preview now supports manual-first vehicle entry,
+optional VIN scanning/lookup, session-owned Garage vehicles, odometer units and
+unknown mileage. Driving concerns are collected before visit planning. Unknown
+or concerning driving answers require advisor discussion and prevent selecting
+a waiting visit; this is not a safety assessment or an emergency/towing service.
+
+Customers can describe up to five separate concerns, select exactly one main
+concern, and optionally record onset, frequency, operating conditions, dashboard
+messages and related previous repairs. Visit preferences include alternate dates,
+arrival method, requester role, coverage review, transportation discussion and
+communication/access needs. Preferences do not establish coverage, authority,
+capacity or confirmed availability.
+
+The server validates version 2, strips unrecognized nested concern fields,
+derives summary fields and handoff review flags, and retains version-1 receipt
+compatibility. The preview API caps request bodies at 48 KB to accommodate
+bounded multi-language concern details; per-field and five-concern limits still
+apply. Session isolation and retry deduplication remain in the existing
+preview store. Receipt, appointment and authorization states stay distinct.
+An expandable advisor handoff preview explicitly shows delivery unconnected and
+ownership unassigned; it creates no staff task or repair order.
+
+This is the customer-facing review slice, not a live service-intake deployment.
+Still required before activation: an authenticated staff delivery/outbox and
+acknowledgment bridge, advisor ownership/escalation, verified approval authority,
+real scheduling capacity, separate diagnostic/repair approvals, secure attachment
+storage/scanning/retention, authenticated draft recovery, approved notifications,
+and operational metrics. No SMS permission is inferred from a phone number.
+Unsent answers stay in memory and clear on reload; no browser-persisted contact
+draft, file upload, provider subscription or production migration is introduced.
+
+Review with an isolated development server bound to loopback. Browser tests can
+set `DEALERSHIP_PRIVATE_TEST_URL` and `DEALERSHIP_PUBLIC_TEST_URL` to separate
+private/public runtimes; Playwright uses the private URL as its base when set.
+Regression coverage lives in `tests/service-intake.test.ts` and
+`tests/e2e/service.spec.ts`.
+
 ## Interactive buying preparation
 
 `/how-it-works` provides a four-step guide, an editable buying plan, vehicle summary, contextual next actions and FAQs. Choose a fresh available listing, cash/partner/own-bank/undecided payment approach, and optional trade. Only allowlisted vehicle/payment/trade choices enter the URL; contact details, prices, approval flags and arbitrary return destinations are not used. Changes apply immediately, reload restores those preferences, and reset clears them. This is preparation, not an order or reservation.

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!allowPreviewRequest(request, process.env)) return response({ error: "Live submissions are not connected. No request has been sent." }, 503);
   if (!allowPreviewRequest(request, process.env, true) || !request.headers.get("content-type")?.startsWith("application/json")) return response({ error: "Use this site's form to submit a request." }, 403);
   const body = await request.text();
-  if (Buffer.byteLength(body) > 16_000) return response({ error: "This request is too large." }, 413);
+  if (Buffer.byteLength(body) > 48_000) return response({ error: "This request is too large." }, 413);
   try {
     const command = JSON.parse(body) as PreviewCommand;
     if (["SAVE", "UNSAVE"].includes(command.operation)) {

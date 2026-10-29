@@ -1,7 +1,7 @@
 import { catalogValue } from "./industry-options";
 import { appraisalDetailKeys, validateAppraisal } from "./appraisal";
 import { paymentPaths, tradeChoices } from "./buying-plan";
-import { serviceDetailKeys, validateService } from "./service-intake";
+import { readServiceConcerns, serviceDetailKeys, validateService } from "./service-intake";
 import { isSamplePhoto } from "./sample-media";
 import { samplePolicy } from "../../config/sample-policy.mjs";
 
@@ -66,7 +66,7 @@ export function validateRequest(value: unknown): CustomerRequest {
   const details: Record<string, string> = {};
   if (!input.details || typeof input.details !== "object" || Array.isArray(input.details)) throw new Error("Invalid vehicle details.");
   for (const [key, item] of Object.entries(input.details)) {
-    if (allowedDetails.has(key) || input.kind === "SELL" && appraisalDetailKeys.includes(key) || input.kind === "SERVICE" && serviceDetailKeys.includes(key)) details[key] = bounded(item, 1000);
+    if (allowedDetails.has(key) || input.kind === "SELL" && appraisalDetailKeys.includes(key) || input.kind === "SERVICE" && serviceDetailKeys.includes(key)) details[key] = bounded(item, input.kind === "SERVICE" && key === "concerns" ? 8000 : 1000);
   }
   if (input.kind === "SELL" && details.appraisalVersion) {
     validateAppraisal(details);
@@ -79,6 +79,12 @@ export function validateRequest(value: unknown): CustomerRequest {
   }
   if (input.kind === "SERVICE" && details.serviceVersion) {
     validateService(details);
+    if (details.serviceVersion === "2") {
+      const concerns = readServiceConcerns(details.concerns);
+      details.concerns = JSON.stringify(concerns);
+      details.categories = [...new Set(concerns.map(concern => concern.category).filter(Boolean))].join("|");
+      details.service = concerns.find(concern => concern.primary)!.description;
+    }
     if (details.contactMethod === "Email" && !email || details.contactMethod === "Phone call" && !phone) throw new Error("Provide the contact detail for your preferred response method.");
     for (const field of ["paymentPath", "trade", "intent", "loan", "condition"]) delete details[field];
   }

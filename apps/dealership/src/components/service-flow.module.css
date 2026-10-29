@@ -5,7 +5,7 @@
 .assurance { background: #203c63; color: #fff; border-radius: 18px; padding: 26px; }
 .assurance p { color: #e5edfa; margin-bottom: 0; font-size: 14px; }
 .steps { display: flex; gap: 10px; padding: 0; list-style: none; flex-wrap: wrap; }
-.steps li { flex: 1; min-width: 120px; padding: 14px; border-bottom: 3px solid #d4dfed; font-size: 14px; }
+.steps li { flex: 1; min-width: 120px; padding: 14px; border-bottom: 3px solid #d4dfed; font-size: 14px; display: flex; align-items: center; gap: 10px; }
 .steps li[aria-current="step"] { border-color: #315bc0; font-weight: 700; color: #254a9c; }
 .layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, .6fr); gap: 28px; align-items: start; }
 .panel, .summary { min-width: 0; border: 1px solid #d7e0ed; border-radius: 16px; background: #fff; padding: 28px; }
@@ -23,5 +23,40 @@
 .warning { padding: 18px; border: 1px solid #e4cda5; background: #fff7e8; color: #654619; border-radius: 12px; }
 .status { padding: 16px; border-radius: 12px; background: #edf3fc; color: #27476e; }
 .page :is(input, select, textarea, button, a):focus-visible { outline: 3px solid #175dd3; outline-offset: 3px; }
-@media(max-width: 760px) { .hero, .layout { grid-template-columns: minmax(0, 1fr); } .summary { position: static; } .panel, .summary { padding: 20px; } }
-@media(max-width: 420px) { .choices { grid-template-columns: minmax(0, 1fr); } }
+.page :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+.stepNumber { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; height: 28px; border: 1px solid #bccce2; border-radius: 50%; font-weight: 700; }
+.steps li[aria-current="step"] .stepNumber { color: #fff; background: #254a9c; border-color: #254a9c; }
+.stepHeader { display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.drivingPanel { padding: 20px; background: #f0f5fb; border: 1px solid #cedced; border-radius: 12px; }
+.drivingPanel p { font-size: 13px; line-height: 1.6; margin-bottom: 0; color: #43566f; }
+.page .concernCard { display: grid; gap: 18px; padding: 20px; border: 1px solid #cad7e9; border-radius: 14px; background: #fbfcfe; }
+.concernCard legend { padding: 0 8px; font-size: 17px; color: #203c63; }
+.concernActions, .editLinks { display: flex; gap: 18px; flex-wrap: wrap; }
+.concernActions:empty { display: none; }
+.contextDetails, .handoff { border-top: 1px solid #d7e0ed; padding-top: 16px; min-width: 0; }
+.contextDetails summary, .handoff summary { cursor: pointer; font-weight: 600; color: #254a9c; padding: 8px 0; line-height: 1.6; }
+.contextDetails[open] summary, .handoff[open] summary { margin-bottom: 16px; }
+.attachmentNotice { border: 1px dashed #bccce2; border-radius: 12px; padding: 18px; }
+.attachmentNotice p { font-size: 13px; color: #43566f; margin-bottom: 0; }
+.summaryIcon, .receiptIcon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; background: #edf3fc; color: #254a9c; margin-bottom: 18px; }
+.summary { overflow-wrap: anywhere; }
+.summary h3 { margin-top: 26px; font-size: 16px; }
+.concernList { padding-left: 20px; }
+.concernList li { margin-bottom: 16px; }
+.concernList p { margin: 6px 0; white-space: pre-wrap; }
+.primaryBadge { display: inline-block; font-size: 11px; line-height: 1.5; background: #eaf2ff; color: #254a9c; padding: 3px 8px; border-radius: 12px; margin-left: 6px; }
+.summaryDivider { border-top: 1px solid #e0e7f0; margin-top: 20px; }
+.statusList { display: grid; gap: 10px; padding: 18px 0; border-top: 1px solid #e0e7f0; border-bottom: 1px solid #e0e7f0; font-size: 13px; }
+.statusList span { display: flex; justify-content: space-between; gap: 14px; }
+.statusList strong { color: #43566f; }
+.concernReview { border: 1px solid #d7e0ed; border-radius: 12px; padding: 18px; overflow-wrap: anywhere; }
+.concernReview h3 { font-size: 17px; margin-top: 0; }
+.customerWords { white-space: pre-wrap; }
+.permissionPanel { display: flex; align-items: start; gap: 14px; background: #edf3fc; border-radius: 12px; padding: 20px; }
+.permissionPanel svg { flex-shrink: 0; }
+.permissionPanel p { font-size: 13px; line-height: 1.7; margin-bottom: 0; color: #43566f; }
+.receiptSteps { display: grid; gap: 10px; border-left: 2px solid #cad7e9; padding-left: 28px; }
+.errorSummary { padding: 16px; background: #fff1ed; border: 1px solid #a94124; border-radius: 12px; color: #85331b; }
+.errorSummary p { margin-bottom: 0; }
+@media(max-width: 760px) { .hero, .layout { grid-template-columns: minmax(0, 1fr); } .hero { gap: 16px; } .hero h1 { margin: 8px 0 14px; } .assurance { padding: 18px; } .assurance h2 { font-size: 19px; margin: 8px 0; } .assurance p { font-size: 13px; } .summary { position: static; } .panel, .summary { padding: 20px; } }
+@media(max-width: 420px) { .choices, .page :global(.form-grid) { grid-template-columns: minmax(0, 1fr); } .steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .steps li { min-width: 0; padding: 10px 4px; font-size: 12px; gap: 6px; } .page .concernCard { padding: 14px; } .hero h1 { font-size: 36px; } }
