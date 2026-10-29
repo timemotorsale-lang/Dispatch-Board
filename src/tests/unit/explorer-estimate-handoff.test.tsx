@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
-import { explorerEstimateIssues, explorerEstimateSeed, unresolvedExplorerAllowance } from "@/lib/explorer-estimate-handoff";
+import { explorerEstimateIssues, explorerEstimateSeed, unresolvedExplorerAllowance, prepareExplorerQuote } from "@/lib/explorer-estimate-handoff";
 import { EstimateHandoffReview } from "@/features/diagnostics/labor-guide-entry";
 import { EstimateWorkflowNextStep } from "@/features/inventory/estimate-workflow-next-step";
 import { LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
@@ -14,6 +14,20 @@ const raw = (lines: unknown[], rate = 150) => JSON.stringify({ version: 1, rate,
 const selected = { id: "front-pads-rotors", label: "Replace front pads & rotors", hours: 2.1, parts: 120 };
 
 describe("Explorer to official estimate handoff", () => {
+  it("opens held work as an editable quote without a labor-basis questionnaire", () => {
+    const held = { id: "door-glass", label: "Replace door glass", hours: 2, parts: 90 };
+    const draft = raw([held]);
+    expect(() => explorerEstimateSeed(draft, catalog, ["brakes"])).toThrow("connected catalog audit");
+    const result = prepareExplorerQuote(draft, catalog, ["brakes"], () => "11111111-2222-4333-8444-555555555555");
+    expect(result.seed.labor[0]).toMatchObject({ title: "Replace door glass", hours: 2, system: "Staff-reviewed custom work" });
+    expect(result.seed.parts[0].unitPrice).toBe(90);
+    expect(result.seed.reviewNote).toContain("door-glass");
+    expect(result.seed.reviewNote).not.toContain("reviewed");
+    expect(result.seed.parts[0]).toMatchObject({ name: "Parts for Replace door glass", pricingStatus: "ESTIMATED" });
+    expect(() => explorerEstimateSeed(draft, catalog, ["brakes"])).toThrow();
+    expect(() => prepareExplorerQuote(raw([{ ...held, hours: null }]), catalog, [], () => "unused")).toThrow("missing hours");
+    expect(prepareExplorerQuote(raw([{ ...held, parts: null }]), catalog, [], () => "11111111-2222-4333-8444-555555555555").seed.parts[0].pricingStatus).toBe("PRICE_PENDING");
+  });
   it("identifies blocked operations without converting them to custom work or dropping selections", () => {
     const draft = raw([selected, { ...selected, id: "unknown", label: "Unapproved repair" }]);
     expect(explorerEstimateIssues(draft, catalog, ["brakes"])).toEqual([{ id: "unknown", label: "Unapproved repair", message: expect.stringContaining("connected catalog audit") }]);
@@ -21,10 +35,8 @@ describe("Explorer to official estimate handoff", () => {
     expect(JSON.parse(draft).lines).toHaveLength(2);
     const html = renderToStaticMarkup(<EstimateHandoffReview error="Catalog review required" issues={explorerEstimateIssues(draft, catalog, ["brakes"])} repairOrder={{ id: "ro/1", repairOrderNumber: "RO-1" }} />);
     expect(html).toContain("Unapproved repair");
-    expect(html).toContain("browser draft is retained");
-    expect(html).toContain("has not saved an estimate or authorized repairs");
-    expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro%2F1");
-    expect(html).toContain("Open existing guide for staff review");
+    expect(html).toContain("Return to saved work");
+    expect(html).not.toContain("Open existing guide for staff review");
   });
   it("keeps saved estimate printing and next-step review scoped to the same RO", () => {
     const html = renderToStaticMarkup(<EstimateWorkflowNextStep repairOrderId="ro/1" estimateId="est/2" />);
@@ -74,6 +86,7 @@ describe("issued document continuation", () => {
   it("offers staff printing, authorization and guarded invoicing for the same RO", () => {
     const html = renderToStaticMarkup(<ServiceDocument content={content} sha256="proof" templateVersion="v1" repairOrderId="ro/1" />);
     expect(html).toContain("Print / save PDF");
+    expect(html).toContain('alt="Time Motor Sales"');
     expect(html).toContain("View Documents &amp; Approvals");
     expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro%2F1");
     expect(html).toContain("/vehicles/service-billing?repairOrderId=ro%2F1");

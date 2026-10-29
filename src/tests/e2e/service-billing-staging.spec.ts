@@ -43,6 +43,15 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   await page.getByLabel("Detailed business reason").fill("Synthetic browser payment receipt verification");
   await page.getByRole("button", { name: "Record payment", exact: true }).click();
   await expect(page.getByText(/Open balance \$0.00 · SETTLED/)).toBeVisible();
+  await page.getByRole("link", { name: "Open / Print Receipt", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Service payment receipt", exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print / save PDF", exact: true })).toBeVisible();
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByRole("navigation", { name: "Continue repair order" })).toBeHidden();
+  await expect(page.getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();
+  await page.pdf({ path: "test-results/labor-staging/payment-receipt.pdf", format: "Letter", printBackground: true });
+  await page.emulateMedia({ media: "screen" });
   const documentsResponse = await page.request.get(billingUrl);
   expect(documentsResponse.headers()["cache-control"]).toContain("no-store");
   const planningBefore = await (await page.request.get(`/api/repair-orders/${fixture.repairOrderId}/planning`)).json();

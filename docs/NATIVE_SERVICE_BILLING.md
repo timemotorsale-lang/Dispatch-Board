@@ -4,6 +4,34 @@ Implementation: 2026-10-18. This follows the historical findings in `LABOR_GUIDE
 
 ## Review routes
 
+### Branded documents and invoice feedback
+
+The document workspace includes an always-visible **Open QC** action for the current RO. Opening invoice conversion reads current invoice requirements, even before a package exists. A missing passed QC record produces a highlighted **Passed QC record missing** notice and an **Open QC** link directly to that RO's QC step. A stale ready package cannot override current readiness; invoice posting still revalidates the transaction's operational and financial conditions.
+
+The shared estimate/invoice/receipt header uses the Time Motor Sales logo, service-department identity, store address, timemotorsale@gmail.com and timemotors.net, plus document reference, issue date/time and RO. Times retain the store's timezone for calculation without displaying the timezone identifier. The printed footer uses the readable document number instead of the internal hash; server-side frozen-document integrity verification is unchanged.
+
+The invoice action focuses the action panel even when it is already open. Preparation feedback is brought into view, and unresolved requirements have readable labels and direct links to their relevant repair steps. Rechecking does not claim an invoice was issued. Existing QC, part identity, authorization and financial controls remain enforced.
+
+### Single-guide cutover — 2026-10-28
+
+Staff quote generation propagates `STAFF_QUOTE` into the audited estimate command and transaction. It can issue the saved estimate and frozen printable document directly from intake, without first creating a diagnosis or outside-vendor record. This does not create a diagnosis, customer approval, repair job, invoice or payment. Draft backup is attempted but its failure does not block the durable estimate transaction. Generation failures appear in the worksheet beside the action rather than above the workspace.
+
+The active staff flow is Labor Guide → Estimate → Approval → Print, followed by invoice/payment when needed. The legacy `/diagnostics/labor-guide` entry redirects to the current guide, preserving RO and return context; explicit draft imports retain the estimate worksheet destination. Legacy view flags no longer select another worksheet, and the Legacy/New switch is removed. Existing estimates, authorizations, invoices, receipts, API permissions, and stored drafts are not deleted or migrated. The unused legacy component remains in source history for rollback and can be removed after rollout validation.
+
+Staff quotes no longer require labor-source explanations, manual-review checkboxes, procedure references, fitment narratives, or a catalog-activation review before generation. Known quote prices transfer directly; missing amounts still need entry. Staff-entered proposals are recorded as quotes, without fabricating a completed technical review or changing catalog policy. The server continues to check access, the actual RO, numerical totals, shop-rate authority, duplicate scope, and exact-version customer decisions. This section supersedes the earlier staff-assessment UI descriptions below.
+
+### Generate and print from the Labor Guide prototype
+
+The prototype now uses a single document workspace (`workspace=1`) for issued estimates and service documents: visible branded preview, print/PDF, one primary next action, and collapsed history. Customer approval is recorded beside the exact latest estimate with representative, method, decision time and evidence. Invoice review stays beside the document; successful invoice or payment commands open their exact saved document in the same workspace. Payment defaults to the open balance, supports a changed partial amount, and requires verified receipt evidence and confirmation. Refunds and credits remain in optional billing tools. Uncertain requests retain their retry identity and lock navigation until resolved.
+
+Held Explorer operations can be explicitly assessed in place as manual proposals, with a recorded labor basis and original-operation references. This does not activate a catalog system, skip parts/fitment/tax checks, authorize work, complete repairs, pass QC, or mark an invoice paid. Invalid scope and overlapping work remain blocked. The original browser draft is retained.
+
+After the reviewed worksheet issues an estimate, it opens that exact saved estimate at `/repair-estimate` for printing or saving as PDF. Continue from the document to authorization or Service Billing. Final invoicing still requires the approved revision, completed work and QC; printing never approves work or records a payment.
+
+Service Billing exposes the issued invoice and each saved financial receipt directly. Recording a verified payment creates its frozen receipt; use **Open / Print Receipt** to print it, including partial-payment receipts. Reopening or reprinting a document does not issue another invoice or payment. The RO-linked Repair Explorer also provides access to saved documents and billing, while the unlinked sample draft does not expose live document actions.
+
+The shared frozen-document viewer includes the existing Time Motor Sales logo, the store name and address captured at issue, document number and issue date. The header remains visible when printed; staff navigation and print controls are hidden.
+
 - `/vehicles/service-billing?repairOrderId=<id>`: load an RO, prepare its current commercial package, post a native customer invoice, and record verified payments/refunds/credits/voids.
 - `/service-documents?repairOrderId=<id>`: frozen intake, estimates, authorization decisions, invoices and financial receipts. Select an issued document to print or save PDF.
 - `/repair-estimate?repairOrderId=<id>&estimateId=<id>`: uses the issued frozen estimate when available. URL prices/customer names cannot override it.

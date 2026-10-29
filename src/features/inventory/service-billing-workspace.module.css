@@ -11,3 +11,7 @@
 @media (max-width: 600px) { .workspace { padding: 12px; margin: 0; } .workspace fieldset { padding: 12px; } }
 .workspace summary{cursor:pointer;font-weight:650;padding:10px 0}.workspace fieldset{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.workspace fieldset>legend,.workspace fieldset>p,.workspace fieldset>fieldset,.workspace fieldset>button{grid-column:1/-1}.workspace form button:last-child{background:#075fd4;border:1px solid #075fd4;border-radius:6px;color:white;font-weight:700}.workspace article a,.workspace article>button{margin-right:12px}.workspace article details{margin-top:8px}@media(max-width:600px){.workspace fieldset{grid-template-columns:1fr}}
 .invoicePreview table{width:100%;border-collapse:collapse}.invoicePreview td,.invoicePreview th{text-align:left;padding:8px;border-bottom:1px solid #dce3ec}.invoicePreview dl{display:grid;grid-template-columns:1fr auto;gap:6px;max-width:340px;margin-left:auto}.invoicePreview dd{margin:0}
+.workspace .requirements { border: 1px solid #e5ae4b; border-left: 4px solid #bc730c; border-radius: 10px; background: #fff8e9; padding: 18px; margin: 16px 0; color: #593c12; scroll-margin-top: 24px; }
+.requirements h3 { margin: 0 0 8px; }
+.workspace .qcButton { display: inline-flex; padding: 11px 18px; border-radius: 8px; background: #244f87; color: white; text-decoration: none; font-weight: 700; margin: 6px 0; }
+.requirements a:focus-visible { outline: 3px solid #244f87; outline-offset: 3px; }

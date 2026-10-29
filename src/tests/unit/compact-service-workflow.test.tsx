@@ -17,6 +17,19 @@ describe("compact enterprise execution", () => {
     expect(html).not.toContain("1. Vehicle");
     expect(html).toContain('data-ready="false"');
   });
+  it("lets prototype staff generate the estimate without labor-source explanations or review confirmations", () => {
+    const html = renderToStaticMarkup(<GuidedEstimate {...props} simplified checksReady />);
+    expect(html).toContain('data-ready="true"');
+    expect(html).not.toContain("Labor basis");
+    expect(html).not.toContain("Mark manually reviewed");
+    expect(html).not.toContain("Review pricing, fitment");
+    expect(html).toContain("Generate / Print Estimate");
+  });
+  it("shows a generation error next to the worksheet action", () => {
+    const html = renderToStaticMarkup(<GuidedEstimate {...props} simplified checksReady feedback="Unable to generate the estimate. Try again." />);
+    expect(html).toContain('<p role="alert">Unable to generate the estimate. Try again.</p>');
+    expect(html).toContain("Generate / Print Estimate");
+  });
   it("does not call an estimate ready merely because its labor basis was checked", () => {
     const reviewed = { engine: "Actual engine", configuration: "Actual configuration", source: "Reviewed source", limitations: "", scope: props.scope };
     expect(renderToStaticMarkup(<GuidedEstimate {...props} review={reviewed} checksReady={false} />)).toContain('data-ready="false"');
@@ -42,9 +55,12 @@ describe("next billing action", () => {
   it("selects the current eligible package, not a manual internal ID", () => {
     expect(nextBillingTask({ packages: [ready], invoices: [] })).toEqual({ action: "POST_INVOICE", subjectId: "current" });
   });
+  it("does not offer posting from a stale ready package when current QC is missing", () => {
+    expect(nextBillingTask({ packages: [ready], invoices: [], readiness: { mismatchCodes: ["INVOICE_JOB_QC_INCOMPLETE"] } })).toEqual({ action: "PREPARE_INVOICE", subjectId: "" });
+  });
   it("never substitutes an older ready package for a newer held package", () => {
     expect(nextBillingTask({ packages: [{ ...ready, id: "held", mismatchCodes: ["INVOICE_JOB_QC_INCOMPLETE"] }, ready], invoices: [] })).toEqual({ action: "PREPARE_INVOICE", subjectId: "" });
-    expect(invoiceHoldLabel("INVOICE_JOB_QC_INCOMPLETE")).toBe("job qc incomplete");
+    expect(invoiceHoldLabel("INVOICE_JOB_QC_INCOMPLETE")).toBe("Record completed repair work and a passed quality check.");
   });
   it("holds internal and empty packages instead of assuming a customer invoice", () => {
     expect(nextBillingTask({ packages: [{ ...ready, billingMode: "INTERNAL_COST" }], invoices: [] }).action).toBe("PREPARE_INVOICE");

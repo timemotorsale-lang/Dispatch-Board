@@ -48,23 +48,16 @@ try {
   await expect(explorer.getByRole("complementary", { name: "Selected connected work" })).toContainText("2 lines");
   await expect(explorer.getByRole("button", { name: "Engine · approval pending", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
-  await expect(page.getByText("Enter or confirm part pricing before presenting this estimate.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Enter the missing part prices.", { exact: true })).toBeVisible();
   const prices = page.getByRole("region", { name: "Guided estimate", exact: true }).locator('input[aria-label$="unit price"]');
   await expect(prices).toHaveCount(3);
   for (const input of await prices.all()) await input.fill("100");
   await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
-  await page.getByLabel("Engine / powertrain", { exact: true }).fill("Fixture powertrain");
-  await page.getByLabel("Configuration / relevant options", { exact: true }).fill("Fixture VIN and exact selected units");
-  await page.getByLabel("Labor-hour and applicability source", { exact: true }).fill("Reviewed fixture procedure; internal unvalidated allowance");
-  await page.getByRole("button", { name: "Mark manually reviewed", exact: true }).click();
-  await page.getByRole("button", { name: "Review pricing, fitment & safety", exact: true }).click();
-  for (const name of ["Brake configuration, unit, axle/side & shop capability", "Vehicle-specific procedure reference & labor basis", "Verification plan & conditional materials", "Steering/suspension configuration, axle/side & capability", "Steering/suspension procedure reference & labor basis", "Steering/suspension verification & calibration plan", "Alignment decision reason & reference", "Tax jurisdiction, source and effective date"]) await page.getByLabel(name, { exact: true }).fill("Isolated fixture review reference; no real work or approval implied");
-  await page.getByLabel("Alignment decision", { exact: true }).selectOption("NOT_REQUIRED");
-  for (const input of await page.getByLabel(/^Fitment & price reference/).all()) await input.fill("Fixture supplier and VIN/price verification");
-  await page.getByRole("checkbox", { name: /I confirmed pricing/ }).check();
-  await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
   await expect.poll(() => writes.filter(item => item.body.action === "PRESENT_ESTIMATE").length).toBe(1);
+  await expect(page.getByText("Estimate saved. Opening the issued estimate for printing.", { exact: true })).toBeVisible();
   const presentation = writes.find(item => item.body.action === "PRESENT_ESTIMATE").body;
+  assert.equal(presentation.estimateWorkflow, "STAFF_QUOTE");
+  assert.equal("manualLaborReview" in presentation, false);
   assert.equal(presentation.lineItems.filter(line => line.type === "LABOR").length, 2);
   assert.equal(presentation.lineItems.some(line => line.key === "labor-front-brake-pads-rotors"), true);
   assert.equal(presentation.estimateControls.pricing.laborRate, 125);
@@ -78,5 +71,5 @@ try {
   const artifacts = process.env.LABOR_PILOT_ARTIFACT_DIR || path.join(root, "test-results", "labor-pilot-ui");
   await mkdir(artifacts, { recursive: true });
   await page.screenshot({ path: path.join(artifacts, "connected-pilot-mobile.png"), fullPage: true });
-  console.log("PASS: connected brake/steering selection, canonical persisted draft payload, inherited pricing, source/fitment reviews, estimate-only presentation, responsive/accessibility checks. Fixture HTTP only; not staging/database proof.");
+  console.log("PASS: connected brake/steering selection, canonical persisted draft payload, inherited pricing, required part prices, direct staff-quote presentation without questionnaires, estimate-only presentation, responsive/accessibility checks. Fixture HTTP only; not staging/database proof.");
 } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }

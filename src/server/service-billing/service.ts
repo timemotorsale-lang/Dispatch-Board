@@ -9,7 +9,7 @@ import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-cap
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { executeAggregateMutation, toJson } from "@/server/enterprise-command/aggregate-mutation";
-import { assertCurrentInvoicePackage } from "@/server/service-close-parts/invoice-candidate";
+import { assertCurrentInvoicePackage, serviceInvoiceCandidate } from "@/server/service-close-parts/invoice-candidate";
 import { recordServiceDocument, type ServiceDocumentContent } from "@/server/repair-order/service-documents";
 import { serviceInvoiceBalance, validateBillingEntry } from "@/lib/service-billing";
 import { createServiceClosePartsRepository } from "@/server/service-close-parts/repository";
@@ -37,7 +37,13 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   const invoices = await prisma.serviceInvoice.findMany({ where: { organizationId, repairOrderId }, orderBy: { issuedAt: "desc" } });
   const entries = await prisma.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
   const packages = await prisma.serviceInvoicePackage.findMany({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, take: 20 });
-  return { order, packages: packages.map(item => ({ id: item.id, version: item.version, mismatchCodes: item.mismatchCodes, billingMode: (item.sourceSnapshot as {billingMode?:string}).billingMode ?? "LEGACY_REVIEW_REQUIRED", preview: (item.sourceSnapshot as {commercial?:unknown}).commercial ?? null, identity: (item.sourceSnapshot as {identity?:unknown}).identity ?? null })), invoices: invoices.map(invoice => ({ ...invoice, entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
+  let readiness: { mismatchCodes: string[] };
+  try { readiness = { mismatchCodes: (await serviceInvoiceCandidate(prisma, organizationId, repairOrderId)).mismatchCodes }; }
+  catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("Invoice requires current exact-version authorization")) throw error;
+    readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"] };
+  }
+  return { order, readiness, packages: packages.map(item => ({ id: item.id, version: item.version, mismatchCodes: item.mismatchCodes, billingMode: (item.sourceSnapshot as {billingMode?:string}).billingMode ?? "LEGACY_REVIEW_REQUIRED", preview: (item.sourceSnapshot as {commercial?:unknown}).commercial ?? null, identity: (item.sourceSnapshot as {identity?:unknown}).identity ?? null })), invoices: invoices.map(invoice => ({ ...invoice, entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
 }
 export async function executeServiceBilling(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, options: { organizationId?: string; enforceRollout?: boolean } = {}) {
   assertAuthenticatedUser(actor);

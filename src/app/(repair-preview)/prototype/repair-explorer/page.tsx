@@ -4,7 +4,7 @@ import { getRepairOrderDetail } from "@/server/repair-order/service";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { repairExplorerStorageKey, type RepairExplorerContext } from "@/lib/repair-explorer-context";
 
-export const metadata = { title: "Repair Explorer Preview | Dispatch Board" };
+export const metadata = { title: "Labor Guide | Dispatch Board" };
 
 export default async function RepairExplorerPreviewPage({ searchParams }: { searchParams?: Promise<{ workflow?: string; system?: string; group?: string; repairOrderId?: string | string[] }> } = {}) {
   const params = searchParams ? await searchParams : {};
