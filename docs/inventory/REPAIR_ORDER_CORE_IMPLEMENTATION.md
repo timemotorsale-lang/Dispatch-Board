@@ -19,3 +19,9 @@ Milestone 4A does not implement DVI, diagnosis, estimates, approvals, repair job
 ## Verification
 
 Run database client generation, lint, unit and acceptance tests, and a production build. The migration is checked into source control but is not deployed by implementation work.
+
+## Graceful administrative closure follow-up
+
+The workbench Close RO action accepts a closure reason and ends remaining job assignments within the same serializable RO transaction. It pauses running labor clocks with an audited PAUSE event, releases active dispatch assignments and unused part reservations through the stock ledger, and ends open part demands. QC-passed jobs, recorded labor, consumed parts, procurement records and inspection evidence remain unchanged. Administrative no-further-work closure retains the existing CANCELLED stage/CLOSED operating-state semantics; it does not certify repair completion, QC or delivery readiness.
+
+Issued invoices continue through native invoice/handoff closeout. Open outside-vendor records and inconsistent stock balances return an explicit reason and a scoped link to the relevant record. Closure requests preserve their original request key, version and time for retry, including task synchronization after a successful RO close. Existing location capability and rollout checks remain enforced. No schema migration is needed.

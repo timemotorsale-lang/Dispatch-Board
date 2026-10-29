@@ -19,3 +19,27 @@ describe("repair-order core service",()=>{
   it("closes a repair order when no further work will be pursued",async()=>{const closeNoWork=vi.fn().mockResolvedValue({duplicate:false,result:{id:"ro-1",stage:"CANCELLED",operatingState:"CLOSED",version:4},version:4});const getCloseContext=vi.fn().mockResolvedValue({closedAt:null,id:"ro-1",locationId:"loc-1",stage:"DIAGNOSIS",vehicleId:"vehicle-1",version:3});const result=await closeRepairOrderNoFurtherWork(manager,"ro-1",{expectedVersion:3,idempotencyKey:"close-ro-1",reason:"Customer declined further diagnosis and no more work will be pursued."},{organizationId:"org-1",now:()=>new Date("2026-07-14T12:00:00Z"),repository:{closeNoWork,getCloseContext} as unknown as RepairOrderRepository,foundationRepository:foundation(),enforceRollout:false});expect(result).toMatchObject({result:{stage:"CANCELLED",operatingState:"CLOSED"}});expect(closeNoWork).toHaveBeenCalledWith(expect.objectContaining({commandType:"CLOSE_REPAIR_ORDER_NO_FURTHER_WORK",expectedVersion:3,subjectId:"ro-1"}),expect.objectContaining({reason:"Customer declined further diagnosis and no more work will be pursued."}));});
   it("normalizes presentation language without collapsing different problems",()=>{expect(repairOrderConcernFingerprint("CHECK engine lights on the dash")).toBe(repairOrderConcernFingerprint("Check engine light."));expect(isSameRepairOrderConcern("Check engine light", "Highway-speed vibration")).toBe(false);});
 });
+
+describe("repair-order close recovery", () => {
+  it("recovers a closed RO and retries task synchronization with the original command", async () => {
+    let now = new Date("2026-10-29T15:00:00Z");
+    const getCloseContext = vi.fn().mockResolvedValue({ closedAt: null, id: "ro-1", locationId: "loc-1", version: 3 });
+    const getCloseReceipt = vi.fn().mockResolvedValue(null);
+    const closeNoWork = vi.fn().mockResolvedValue({ result: { id: "ro-1", closedAt: now.toISOString(), version: 4 }, version: 4 });
+    const close = vi.fn().mockRejectedValueOnce(new Error("Task connection unavailable")).mockResolvedValue(null);
+    const dependencies = { organizationId: "org-1", now: () => now, repository: { getCloseContext, getCloseReceipt, closeNoWork } as unknown as RepairOrderRepository, foundationRepository: foundation(), enforceRollout: false, taskBridge: { close, reconcileOwner: vi.fn() } };
+    const request = { expectedVersion: 3, idempotencyKey: "same-close-request", reason: "Vehicle fixed and delivered." };
+    await expect(closeRepairOrderNoFurtherWork(manager, "ro-1", request, dependencies)).rejects.toThrow("task list is still synchronizing");
+    getCloseContext.mockResolvedValue({ closedAt: now, id: "ro-1", locationId: "loc-1", version: 4 });
+    getCloseReceipt.mockResolvedValue({ subjectId: "ro-1", resultSnapshot: { closedAt: now.toISOString() } });
+    now = new Date("2026-10-29T15:10:00Z");
+    await expect(closeRepairOrderNoFurtherWork(manager, "ro-1", request, dependencies)).resolves.toMatchObject({ version: 4 });
+    expect(closeNoWork.mock.calls[1][0].requestHash).toBe(closeNoWork.mock.calls[0][0].requestHash);
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+  it("denies staff without RO management permission before ending work", async () => {
+    const closeNoWork = vi.fn();
+    await expect(closeRepairOrderNoFurtherWork(mechanic, "ro-1", { expectedVersion: 1, idempotencyKey: "close", reason: "Vehicle fixed and delivered." }, { repository: { getCloseContext: vi.fn().mockResolvedValue({ id: "ro-1", closedAt: null, locationId: "loc-1" }), closeNoWork } as unknown as RepairOrderRepository, foundationRepository: foundation(), enforceRollout: false })).rejects.toThrow("Vehicle capability required");
+    expect(closeNoWork).not.toHaveBeenCalled();
+  });
+});

@@ -1,3 +1,5 @@
+import { RepairOrderCloseSyncPendingError } from "./close-outstanding-work";
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import { randomUUID } from "node:crypto";
 import { assertRepairLocationRead } from "./read-access";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -72,9 +74,13 @@ export async function closeRepairOrderNoFurtherWork(actor: AuthenticatedUser | n
   const normalized = normalizeRepairOrderNoWorkClose(value);
   const closeContext = await context.repository.getCloseContext(context.organizationId, id);
   if (!closeContext) throw new Error("Repair order was not found.");
-  if (closeContext.closedAt) throw new Error("Repair order is already closed.");
   const user = await authorize(actor, "REPAIR_ORDER_MANAGE", closeContext.locationId, context, true);
-  const occurredAt = context.now();
+  const receipt = await context.repository.getCloseReceipt?.(context.organizationId, normalized.idempotencyKey);
+  if (receipt && receipt.subjectId !== id) throw new EnterpriseCommandConflictError("This close request key belongs to another repair order.", "IDEMPOTENCY_KEY_REUSED");
+  if (closeContext.closedAt && !receipt) throw new Error("Repair order is already closed.");
+  const savedResult = receipt?.resultSnapshot as { closedAt?: string } | undefined;
+  const occurredAt = normalized.occurredAt ?? (savedResult?.closedAt ? new Date(savedResult.closedAt) : context.now());
+  if (!Number.isFinite(occurredAt.getTime()) || occurredAt.getTime() > context.now().getTime() + 60000) throw new Error("Closure time must be valid and cannot be in the future.");
   const result = await context.repository.closeNoWork(command({
     actorUserId: user.id,
     commandType: "CLOSE_REPAIR_ORDER_NO_FURTHER_WORK",
@@ -86,6 +92,7 @@ export async function closeRepairOrderNoFurtherWork(actor: AuthenticatedUser | n
     reason: normalized.reason,
     subjectId: id,
   }), { actorUserId: user.id, occurredAt, reason: normalized.reason });
-  await context.taskBridge.close(context.organizationId, id, user.id, normalized.reason);
+  try { await context.taskBridge.close(context.organizationId, id, user.id, normalized.reason); }
+  catch (error) { throw new RepairOrderCloseSyncPendingError(error); }
   return result;
 }

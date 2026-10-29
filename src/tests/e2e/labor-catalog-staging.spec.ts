@@ -40,9 +40,9 @@ test("one authenticated guide opens a quote without labor-basis paperwork and re
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/repair-estimate?repairOrderId=${fixture.repairOrderId}&estimateId=${fixture.estimateId}&workspace=1`);
-  await expect(page.getByRole("button", { name: "Print / Save PDF", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Official repair estimate — not an authorization", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Repair Estimate", exact: true })).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("navigation", { name: "Document progress", exact: true })).toBeHidden();
   await expect(page.getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();

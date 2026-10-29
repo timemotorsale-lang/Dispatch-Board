@@ -56,3 +56,5 @@
   .document table { font-size: 9pt; }
   .document th, .document td { padding: 7px 5px; }
 }
+.printControls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+@media print { .printControls { display: none; } }

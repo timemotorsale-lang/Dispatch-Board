@@ -9,8 +9,11 @@ describe("single document workflow", () => {
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[estimate]} selectedId={estimate.id} />);
     expect(html).toContain("Repair Estimate");
     expect(html).toContain("Time Motor Sales");
-    expect(html).toContain("Print / Save PDF");
+    expect(html).toContain(">Print</button>");
+    expect(html).toContain(">Save PDF</a>");
+    expect(html).not.toContain("Print / Save PDF");
     expect(html).toContain("Record customer approval");
+    expect(html).toContain('href="/api/repair-orders/ro%2F1/documents/doc-1/pdf"');
     expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
     expect(html).toContain(">Open QC</a>");
     expect(html).not.toContain("Continue recon / shop workflow");
@@ -38,6 +41,8 @@ describe("single document workflow", () => {
     const receipt = { ...estimate, kind: "PAYMENT" };
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[receipt]} selectedId={receipt.id} />);
     expect(html).not.toContain(">Record payment<");
-    expect(html).toContain("Print / Save PDF");
+    expect(html).toContain(">Print</button>");
+    expect(html).toContain(">Save PDF</a>");
+    expect(html).not.toContain("Print / Save PDF");
   });
 });

@@ -48,10 +48,13 @@ export function normalizeRepairOrderNoWorkClose(value: unknown) {
   const raw = value as Record<string, unknown>;
   const expectedVersion = Number(raw.expectedVersion);
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected repair-order version must be a positive whole number.");
+  const reason = required(raw.reason, "Closure reason", 500);
+  if (reason.length < 10) throw new Error("Add a clear closure reason of at least 10 characters.");
   return {
     expectedVersion,
+    occurredAt: timestamp(raw.occurredAt, "Closure time", true),
     idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200),
-    reason: required(raw.reason, "Closure reason", 500),
+    reason,
   };
 }
 

@@ -28,7 +28,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   const invoice = invoices.invoices[0];
   await page.getByRole("link", { name: "Open / Print Final Invoice", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Final service invoice", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Print / save PDF", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("navigation", { name: "Continue repair order" })).toBeHidden();
   await page.pdf({ path: "test-results/labor-staging/final-invoice.pdf", format: "Letter", printBackground: true });
@@ -46,7 +46,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   await page.getByRole("link", { name: "Open / Print Receipt", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Service payment receipt", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Print / save PDF", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("navigation", { name: "Continue repair order" })).toBeHidden();
   await expect(page.getByRole("img", { name: "Time Motor Sales", exact: true })).toBeVisible();
@@ -64,7 +64,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   expect(planningAfter.estimateVersions.map((estimate: { authorizations: unknown[] }) => estimate.authorizations)).toEqual(planningBefore.estimateVersions.map((estimate: { authorizations: unknown[] }) => estimate.authorizations));
   expect(planningAfter.repairJobs).toEqual(planningBefore.repairJobs);
   await page.getByRole("link", { name: "View / Print saved estimate", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Official repair estimate — not an authorization" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Repair Estimate" })).toBeVisible();
   await expect(page.getByText("Original frozen synthetic customer", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create / Print Final Invoice", exact: true })).toHaveAttribute("href", `/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
   await expect(page.getByRole("cell", { name: "$50.00", exact: true })).toBeVisible();
