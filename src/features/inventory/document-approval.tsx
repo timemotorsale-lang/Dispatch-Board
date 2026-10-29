@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 type Estimate = { id: string; version: number; expiresAt: string; lineItems: { key: string; description: string }[]; authorizations: { id: string; disposition: string }[] };
 type Planning = { estimateVersions: Estimate[] };
 
-export function DocumentApproval({ repairOrderId, estimateId, onApproved, onLockChange }: { repairOrderId: string; estimateId: string; onApproved: () => void; onLockChange?: (locked: boolean) => void }) {
+export function DocumentApproval({ repairOrderId, estimateId, customerName = "", onApproved, onLockChange }: { repairOrderId: string; estimateId: string; customerName?: string; onApproved: () => void; onLockChange?: (locked: boolean) => void }) {
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [error, setError] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(customerName);
   const [reference, setReference] = useState("");
   const [channel, setChannel] = useState("IN_PERSON");
   const [confirmed, setConfirmed] = useState(false);
@@ -23,7 +23,7 @@ export function DocumentApproval({ repairOrderId, estimateId, onApproved, onLock
       if (!response.ok) throw new Error(data.error ?? "Approval details could not load.");
       const latest = (data as Planning).estimateVersions[0];
       if (!latest || latest.id !== estimateId) throw new Error("A newer estimate exists. Open the latest estimate before recording approval.");
-      if (!controller.signal.aborted) setEstimate(latest);
+      if (!controller.signal.aborted) { setEstimate(latest); const now = new Date(); setDecidedAt(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)); }
     }).catch(failure => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Approval details could not load."); });
     return () => controller.abort();
   }, [repairOrderId, estimateId]);

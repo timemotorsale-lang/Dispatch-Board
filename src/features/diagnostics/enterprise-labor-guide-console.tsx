@@ -747,7 +747,7 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
       workTypeCode: item.operation.toUpperCase().replaceAll(" ", "_").replaceAll("/", "_"),
     })),
     ...estimateParts.map((part) => ({
-      description: `${part.name} (${part.number})`,
+      description: part.number.trim() ? `${part.name} (${part.number.trim()})` : part.name,
       key: lineKey("part", part.id),
       laborGuideMinutes: 0,
       plannedCorrection: `Supply ${part.name}`,

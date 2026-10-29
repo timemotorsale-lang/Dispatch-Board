@@ -7,7 +7,7 @@ const estimate: WorkflowDocument = { id: "doc-1", sourceId: "estimate-1", kind: 
 describe("single document workflow", () => {
   it("opens the branded estimate with print and one next action", () => {
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[estimate]} selectedId={estimate.id} />);
-    expect(html).toContain("Official repair estimate");
+    expect(html).toContain("Repair Estimate");
     expect(html).toContain("Time Motor Sales");
     expect(html).toContain("Print / Save PDF");
     expect(html).toContain("Record customer approval");
@@ -15,6 +15,13 @@ describe("single document workflow", () => {
     expect(html).toContain(">Open QC</a>");
     expect(html).not.toContain("Continue recon / shop workflow");
     expect(html).not.toContain("/vehicles/shop-planning");
+  });
+  it("identifies customer revisions with staff name and actual save time", () => {
+    const revision = { ...estimate, createdAt: "2026-10-29T15:30:00Z", createdByName: "Service Advisor", content: { ...estimate.content, revisionLabel: "Customer details updated" } };
+    const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[revision]} selectedId={revision.id} />);
+    expect(html).toContain("Customer details updated");
+    expect(html).toContain("Service Advisor");
+    expect(html).toContain("Oct 29, 2026");
   });
   it("offers invoice conversion only after a matching accepted approval", () => {
     const approval: WorkflowDocument = { ...estimate, id: "decision-1", sourceId: "approval-1", kind: "AUTHORIZATION", content: { ...estimate.content, decision: { disposition: "ACCEPTED", actor: "Customer", channel: "IN_PERSON", approvedLineKeys: [], declinedLineKeys: [], undecidedLineKeys: [] }, notes: ["Source estimate estimate-1, version 1;"] } };

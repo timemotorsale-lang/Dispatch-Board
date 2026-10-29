@@ -1,4 +1,5 @@
 import { assertRepairLocationRead } from "@/server/repair-order/read-access";
+import { normalizeDocumentCustomer } from "@/lib/service-document-review";
 import { SERVICE_CHARGES_POLICY, validateShopSupplies } from "@/lib/service-charges";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { estimateReviewScope, manualReviewComplete, validateManualReview } from "@/lib/estimate-review";
@@ -63,7 +64,15 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   const expectedVersion=suppliedVersion===undefined?(receipt?.expectedVersion??ro.version):Number(suppliedVersion);
   const chargeRevisionFrom=(value as Record<string,unknown>).chargeRevisionFrom;
   if(chargeRevisionFrom!==undefined&&(typeof chargeRevisionFrom!=="string"||!chargeRevisionFrom||chargeRevisionFrom.length>200))throw new Error("Invalid charge revision source.");
-  const estimateData={...data,...(staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{})};
+  const documentReviewRaw=(value as Record<string,unknown>).documentReview;
+  let documentReview: { documentId: string; documentHash: string; customer?: ReturnType<typeof normalizeDocumentCustomer> } | undefined;
+  if(documentReviewRaw !== undefined) {
+    if(!documentReviewRaw || typeof documentReviewRaw !== "object" || Array.isArray(documentReviewRaw)) throw new Error("Invalid document review source.");
+    const review=documentReviewRaw as Record<string,unknown>;
+    if(typeof review.documentId !== "string" || !review.documentId || typeof review.documentHash !== "string" || !review.documentHash || !chargeRevisionFrom) throw new Error("Invalid document review source.");
+    documentReview={documentId:review.documentId,documentHash:review.documentHash,...(review.customer === undefined ? {} : {customer:normalizeDocumentCustomer(review.customer)})};
+  }
+  const estimateData={...data,...(documentReview?{documentReview}:{}),...(staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{})};
   return context.repository.estimate(command({actorUserId:user.id,commandType:"PRESENT_ESTIMATE_VERSION",expectedVersion,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(estimateData),reason:data.reason,subjectId:ro.id}),estimateData);
 }
 export async function decideRepairAuthorization(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAuthorization(value),{ro,user}=await mutationContext(actor,repairOrderId,context);const receipt=await context.repository.commandReceipt?.(context.organizationId,"DECIDE_ESTIMATE_AUTHORIZATION",data.idempotencyKey);return context.repository.authorization(command({actorUserId:user.id,commandType:"DECIDE_ESTIMATE_AUTHORIZATION",expectedVersion:receipt?.expectedVersion??ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}

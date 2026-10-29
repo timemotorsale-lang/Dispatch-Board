@@ -67,10 +67,11 @@ describe("document customer and charge review", () => {
     await expect(getServiceDocumentReview(actor, "ro-1", source.id)).rejects.toThrow("integrity");
   });
   it("saves additional charges and discount as a new estimate, preserving labor scope", async () => {
-    await reviseServiceDocumentCharges(actor, "ro-1", { documentId: source.id, estimateId: "estimate-1", expectedVersion: 4, charges: [{ id: "tow", description: "Towing", amountCents: 10000, taxable: false }], suppliesTaxable: true, taxRatePercent: 7, discountCents: 1000, idempotencyKey: "revise-charges", presentedAt: "2026-10-29T12:00:00Z", expiresAt: "2026-11-05T12:00:00Z" });
+    await reviseServiceDocumentCharges(actor, "ro-1", { documentId: source.id, estimateId: "estimate-1", expectedVersion: 4, charges: [{ id: "tow", description: "Towing", amountCents: 10000, taxable: false }], suppliesTaxable: true, taxRatePercent: 7, discountCents: 1000, customer, documentHash: source.sha256, idempotencyKey: "revise-charges", presentedAt: "2026-10-29T12:00:00Z", expiresAt: "2026-11-05T12:00:00Z" });
     const command = mocks.present.mock.calls[0][2];
     expect(command.chargeRevisionFrom).toBe("estimate-1");
     expect(command.discountCents).toBe(1000);
+    expect(command.documentReview).toEqual({ documentId: source.id, documentHash: source.sha256, customer: normalizeDocumentCustomer(customer) });
     expect(command.lineItems[0]).toMatchObject({ key: "work", description: "Repair", unitPriceCents: 25000, laborGuideMinutes: 120 });
     expect(command.lineItems.slice(1).map((line: { unitPriceCents: number }) => line.unitPriceCents)).toEqual([1250, 10000]);
     expect(command.taxCents).toBe(85);

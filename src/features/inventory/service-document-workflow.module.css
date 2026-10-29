@@ -42,3 +42,16 @@
 @media(max-width: 1050px) { .withPanel { grid-template-columns: 1fr; } .panel { position: static; max-height: none; grid-row: 1; } }
 @media(max-width: 640px) { .workspace { padding: 16px 12px 32px; } .steps span { padding: 10px 4px; font-size: 12px; gap: 4px; } .steps b { width: 22px; height: 22px; } .panel { padding: 16px; } .buttons { width: 100%; } .buttons button { flex: 1; } }
 @media print { .workspace { max-width: none; padding: 0; margin: 0; } .toolbar, .steps, .controls, .panel { display: none; } .content { display: block; } .paper { border: 0; box-shadow: none; border-radius: 0; overflow: visible; } }
+.controls li small { display: block; font-size: 11px; color: #526477; margin-top: 4px; }
+.draftNotice { margin: 0; padding: 12px 24px; background: #fff5d8; color: #674900; font-weight: 700; border-bottom: 1px solid #ecd58e; }
+.qcLink[aria-disabled] { opacity: .55; cursor: not-allowed; }
+.panel dl { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; margin: 0; }
+.panel dd { margin: 0; text-align: right; }
+.panel section[aria-label="Updated totals"] { padding: 16px; border: 1px solid #c4d5e9; border-radius: 8px; background: #f1f5fa; }
+.panel section[aria-label="Updated totals"] h3 { margin: 0 0 12px; }
+@media print { .withPanel .paper article { padding: 0; font-size: 10pt; } }
+
+@media(max-width: 640px) {
+  .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .buttons .primary { grid-column: 1 / -1; }
+}
