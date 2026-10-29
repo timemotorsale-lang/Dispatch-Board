@@ -36,11 +36,12 @@ describe("complete repair workflow review", () => {
     expect(scopedRepairOrders(model, "missing").repairOrders).toEqual([]);
     expect(scopedRepairOrders(model)).toBe(model);
   });
-  it("preserves opt-in review through both labor guides without changing default URLs", () => {
+  it("preserves opt-in review while routing both guide entry points to the current guide", () => {
     expect(repairReviewHref("RO & 1", "estimate")).toBe("/prototype/repair-workbench?repairOrderId=RO+%26+1&step=estimate");
     expect(repairExplorerHandoffHref("ro", true)).toContain("workflow=review");
     expect(laborGuideHref("new", "ro", true)).toContain("workflow=review");
-    expect(laborGuideHref("legacy", "ro")).toBe("/diagnostics/labor-guide?repairOrderId=ro");
+    expect(laborGuideHref("legacy", "ro")).toBe("/prototype/repair-explorer?repairOrderId=ro");
+    expect(laborGuideHref("legacy", "ro", true)).toBe(laborGuideHref("new", "ro", true));
   });
   it("requires actual handoff evidence and never prechecks verification or marks a sale ready", () => {
     const html = renderToStaticMarkup(<RepairHandoffTool repairOrderId="ro" vehicleId="vehicle" internal closed={false} />);
