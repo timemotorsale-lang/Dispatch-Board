@@ -16,14 +16,16 @@ export async function command(operation: string, value: unknown, key = crypto.ra
   return output as { reference: string; message: string };
 }
 
-export function VehicleEntry({ onReview, initialDetails, vinLookup = false }: { onReview: (details: Record<string, string>) => void; initialDetails?: Record<string, string>; vinLookup?: boolean }) {
-  const [details, setDetails] = useState(() => ({ vin: initialDetails?.vin || "", year: initialDetails?.year || "", make: initialDetails?.make || "", model: initialDetails?.model || "", mileage: initialDetails?.mileage || "" }));
+export function VehicleEntry({ onReview, initialDetails, vinLookup = false, serviceEntry = false, onDraftChange }: { onReview: (details: Record<string, string>) => void; initialDetails?: Record<string, string>; vinLookup?: boolean; serviceEntry?: boolean; onDraftChange?: (details: Record<string, string>) => void }) {
+  const [details, setDetails] = useState(() => ({ vin: initialDetails?.vin || "", year: initialDetails?.year || "", make: initialDetails?.make || "", model: initialDetails?.model || "", mileage: initialDetails?.mileage || "", ...(serviceEntry ? { mileageUnit: initialDetails?.mileageUnit || "miles" } : {}) }));
+  const [entryMode, setEntryMode] = useState("manual");
+  const [mileageUnknown, setMileageUnknown] = useState(false);
   const [camera, setCamera] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [lookupBusy, setLookupBusy] = useState(false);
   const lookupController = useRef<AbortController | null>(null);
   const video = useRef<HTMLVideoElement>(null);
-  const update = (field: string, value: string) => { lookupController.current?.abort(); setLookupBusy(false); setDetails(current => ({ ...current, [field]: value })); };
+  const update = (field: string, value: string) => { lookupController.current?.abort(); setLookupBusy(false); const next = { ...details, [field]: value }; setDetails(next); onDraftChange?.(next); };
   useEffect(() => () => lookupController.current?.abort(), []);
   async function lookup() {
     lookupController.current?.abort();
@@ -75,14 +77,16 @@ export function VehicleEntry({ onReview, initialDetails, vinLookup = false }: { 
 
   return <form onSubmit={submit} className="stack">
     <div className="notice">No account or ownership upload is required to start. VIN scanning does not unlock dealership records.</div>
-    <button className="button primary" type="button" onClick={() => { setCamera(true); setFeedback("Align the VIN barcode in the camera. You can cancel and type it instead."); }}><Camera size={20} />Scan VIN with camera</button>
+    {serviceEntry && <fieldset><legend>How would you like to identify your vehicle?</legend><div className="form-grid"><label className="choice"><input type="radio" name="vehicle-entry" checked={entryMode === "manual"} onChange={() => { setCamera(false); setEntryMode("manual"); update("vin", ""); setFeedback(""); }} />Enter vehicle details</label><label className="choice"><input type="radio" name="vehicle-entry" checked={entryMode === "vin"} onChange={() => setEntryMode("vin")} />Scan or enter VIN</label></div><p className="small muted">Already added a vehicle? <Link href="/garage">Choose from My Garage</Link>. Only this preview session&apos;s vehicles are available.</p></fieldset>}
+    {(!serviceEntry || entryMode === "vin") && <button className="button primary" type="button" onClick={() => { setCamera(true); setFeedback("Align the VIN barcode in the camera. You can cancel and type it instead."); }}><Camera size={20} />Scan VIN with camera</button>}
     {camera && (vinLookup ? <VinCamera onCapture={vin => { update("vin", vin); setCamera(false); setFeedback("VIN captured. Choose Look up VIN to request basic specifications, or enter details manually."); }} onClose={() => setCamera(false)} /> : <div className="camera"><video ref={video} autoPlay playsInline muted aria-label="VIN barcode camera" /><button className="button" type="button" onClick={() => setCamera(false)}>Stop camera and enter instead</button></div>)}
-    <p className="muted small" role="status">{feedback || (vinLookup ? "Optional VIN lookup sends the VIN to NHTSA for basic specifications. Manual entry is always available." : "Enter a VIN or use manual details. VIN lookup is unavailable in this entry mode.")}</p>
-    <label>VIN <span className="muted">(optional for manual entry)</span><input name="vin" value={details.vin} onChange={event => update("vin", event.target.value.toUpperCase())} maxLength={17} autoComplete="off" placeholder="17-character VIN" /></label>
-    {vinLookup && <button className="button" type="button" disabled={lookupBusy} onClick={() => void lookup()}>{lookupBusy ? "Looking up VIN…" : "Look up VIN"}</button>}
+    <p className="muted small" role="status">{feedback || (serviceEntry && entryMode === "manual" ? "Start with what you know. VIN and mileage are optional." : vinLookup ? "Optional VIN lookup sends the VIN to NHTSA for basic specifications. Manual entry is always available." : "Enter a VIN or use manual details. VIN lookup is unavailable in this entry mode.")}</p>
+    {(!serviceEntry || entryMode === "vin") && <><p className="small muted">Find the VIN at the base of the windshield or on the driver-door label. Review returned details; lookup does not establish ownership or repair history.</p><label>VIN <span className="muted">(optional for manual entry)</span><input name="vin" value={details.vin} onChange={event => update("vin", event.target.value.toUpperCase())} maxLength={17} autoComplete="off" placeholder="17-character VIN" /></label>
+    {vinLookup && <button className="button" type="button" disabled={lookupBusy} onClick={() => void lookup()}>{lookupBusy ? "Looking up VIN…" : "Look up VIN"}</button>}</>}
     <div className="form-grid"><label>Year<input name="year" required type="number" min="1886" max={new Date().getFullYear() + 2} value={details.year} onChange={event => update("year", event.target.value)} /></label><label>Make<input name="make" required maxLength={60} value={details.make} onChange={event => update("make", event.target.value)} /></label></div>
     <label>Model<input name="model" required maxLength={80} value={details.model} onChange={event => update("model", event.target.value)} /></label>
-    <label>Current mileage <span className="muted">(optional)</span><input name="mileage" type="number" min="0" value={details.mileage} onChange={event => update("mileage", event.target.value)} /></label>
+    <label>Current mileage <span className="muted">(optional)</span><input name="mileage" type="number" min="0" max={serviceEntry ? "9999999" : undefined} disabled={mileageUnknown} value={details.mileage} onChange={event => update("mileage", event.target.value)} /></label>
+    {serviceEntry && <div className="form-grid"><label>Odometer units<select value={details.mileageUnit} onChange={event => update("mileageUnit", event.target.value)}><option value="miles">Miles</option><option value="kilometers">Kilometers</option></select></label><label className="choice"><input type="checkbox" checked={mileageUnknown} onChange={event => { setMileageUnknown(event.target.checked); if (event.target.checked) update("mileage", ""); }} />I don&apos;t know the mileage</label></div>}
     <button className="button primary" type="submit" disabled={lookupBusy}>Review vehicle<ArrowRight size={18} /></button>
   </form>;
 }

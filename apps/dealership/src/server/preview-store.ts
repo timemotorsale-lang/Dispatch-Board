@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { previewEnabled, validateRequest } from "../lib/domain";
+import { serviceHandoff } from "../lib/service-intake";
 
 type StoredRecord = { id: string; kind: string; data: Record<string, unknown>; createdAt: string };
 export type PreviewCommand = { operation: "REQUEST" | "SAVE" | "UNSAVE" | "VEHICLE" | "MESSAGE"; key: string; value: unknown };
@@ -67,7 +68,8 @@ export function execute(database: DatabaseSync, identifier: string, command: Pre
     let data: unknown;
     let kind: string;
     if (command.operation === "REQUEST") {
-      data = { ...validateRequest(command.value), status: "PREVIEW_RECEIVED", team: (command.value as { kind: string }).kind === "SERVICE" ? "SERVICE" : "SALES" };
+      const validated = validateRequest(command.value);
+      data = { ...validated, status: "PREVIEW_RECEIVED", team: validated.kind === "SERVICE" ? "SERVICE" : "SALES", ...(validated.kind === "SERVICE" && validated.details.serviceVersion ? { serviceHandoff: serviceHandoff(validated.details) } : {}) };
       kind = "REQUEST";
     } else if (command.operation === "SAVE" || command.operation === "UNSAVE") {
       if (typeof command.value !== "string" || !/^[a-z0-9-]{1,100}$/.test(command.value)) throw new Error("Invalid vehicle.");

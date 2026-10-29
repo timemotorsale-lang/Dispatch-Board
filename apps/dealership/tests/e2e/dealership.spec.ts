@@ -41,8 +41,8 @@ test("phone-only service request saves once locally, with no false staff receipt
   await page.getByRole("textbox", { name: "Describe what you notice" }).fill("Synthetic local test only.");
   await page.getByRole("button", { name: "Continue to visit preferences", exact: true }).click();
   await page.getByRole("button", { name: "Review request" }).click();
-  await expect(page.locator("dl")).not.toContainText("paymentPath");
-  await expect(page.locator("dl")).not.toContainText("intent");
+  await expect(page.locator("main")).not.toContainText("paymentPath");
+  await expect(page.locator("main")).not.toContainText("intent");
   await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("612-555-0142");
   await page.getByRole("checkbox", { name: /private preview/ }).check();
   await page.getByRole("button", { name: "Save preview request" }).click();
@@ -62,7 +62,7 @@ test("saved listing persists, and an unrelated browser session cannot read accou
   await expect(page.getByRole("heading", { name: "2021 Toyota RAV4", exact: true })).toBeVisible();
   const otherContext = await browser.newContext();
   const otherPage = await otherContext.newPage();
-  await otherPage.goto("http://127.0.0.1:3100/garage/saved");
+  await otherPage.goto(new URL("/garage/saved", page.url()).href);
   await expect(otherPage.getByRole("heading", { name: "No saved vehicles yet" })).toBeVisible();
   await otherContext.close();
 });
@@ -75,6 +75,7 @@ test("personal vehicle carries into service without a new scan and grants no his
   await page.getByRole("button", { name: "Review vehicle" }).click();
   await expect(page.getByText("Entered by you · No dealership records linked")).toBeVisible();
   await page.getByRole("link", { name: "Request Service", exact: true }).click();
+  await page.getByRole("button", { name: "Review vehicle", exact: true }).click();
   await expect(page.getByText("2020 Example Owned vehicle", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Describe what you notice" })).toBeVisible();
 });
