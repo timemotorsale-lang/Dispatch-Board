@@ -4,9 +4,11 @@ import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { getRepairOrderDetail } from "@/server/repair-order/service";
 import { getRepairDocuments } from "@/server/repair-order/document-service";
 import { ServiceDocument } from "@/features/inventory/service-document";
+import { ServiceDocumentWorkflow } from "@/features/inventory/service-document-workflow";
 import { notFound } from "next/navigation";
 
 type SearchParams = Promise<{
+  workspace?: string | string[];
   workflow?: string | string[];
   estimateId?: string | string[];
   concern?: string | string[];
@@ -87,7 +89,9 @@ export default async function OfficialRepairEstimatePage({ searchParams }: { sea
     const ro = await getShopPlanningDetail(user, roId);
     const estimate = ro.estimateVersions.find(item => item.id === estimateId);
     if (!estimate) notFound();
-    const frozen = (await getRepairDocuments(user, ro.id)).documents.find(document => document.kind === "ESTIMATE" && document.sourceId === estimate.id);
+    const documents = (await getRepairDocuments(user, ro.id)).documents;
+    const frozen = documents.find(document => document.kind === "ESTIMATE" && document.sourceId === estimate.id);
+    if (frozen && first(params.workspace) === "1") return <ServiceDocumentWorkflow key={frozen.id} repairOrderId={ro.id} selectedId={frozen.id} documents={documents.map(({ id, sourceId, kind, content, sha256, templateVersion }) => ({ id, sourceId, kind, content, sha256, templateVersion }))} />;
     if (frozen) return <ServiceDocument reviewWorkflow={first(params.workflow) === "review"} repairOrderId={ro.id} content={frozen.content} sha256={frozen.sha256} templateVersion={frozen.templateVersion} />;
     const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
     const persistedLines = estimate.lineItems as Array<{ description: string; quantity: number; unitPriceCents: number; type: string }>;

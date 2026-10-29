@@ -21,10 +21,11 @@ describe("Repair Explorer preview", () => {
 
   it("renders a clearly isolated preview with an empty estimate and a return link", () => {
     const html = renderToStaticMarkup(<RepairExplorer storageKey="test-preview" />);
-    expect(html).toContain("Review preview");
+    expect(html).toContain("Labor Guide");
     expect(html).toContain("Your estimate starts here");
-    expect(html).toContain('href="/diagnostics/labor-guide"');
-    expect(html).toContain("no live repair orders, customer records or approvals are changed");
+    expect(html).toContain('href="/my-tasks"');
+    expect(html).toContain("Sample estimate");
+    expect(html).not.toContain('aria-label="Saved documents and billing"');
   });
 
   it("opens the exact simplified guide with authorized RO, inventory and vehicle identity", async () => {
@@ -35,11 +36,13 @@ describe("Repair Explorer preview", () => {
     expect(page.props.context.inventoryUnitId).toBe("unit-1");
     const html = renderToStaticMarkup(page);
     expect(html).toContain("Find the work. Build the estimate.");
-    expect(html).toContain('href="/diagnostics/labor-guide?repairOrderId=ro%2F1"');
-    expect(html).toContain('href="/prototype/repair-explorer?repairOrderId=ro%2F1"');
+    expect(html).not.toContain('href="/diagnostics/labor-guide?repairOrderId=ro%2F1"');
+    expect(html).not.toContain("Legacy guide");
     expect(html).toContain("2017 FORD Fusion");
     expect(html).toContain("INV-017");
     expect(html).toContain("RO-017");
+    expect(html).toContain('href="/service-documents?repairOrderId=ro%2F1&amp;workspace=1"');
+    expect(html).not.toContain(">Create invoice / Record payment<");
     expect(html).toContain("Right fender damage");
     expect(html).not.toContain("Reference vehicle: 2019 Ford F-150");
     expect(html).toContain("Your estimate starts here");

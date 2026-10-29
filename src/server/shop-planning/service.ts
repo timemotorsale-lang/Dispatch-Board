@@ -1,7 +1,7 @@
 import { assertRepairLocationRead } from "@/server/repair-order/read-access";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { estimateReviewScope, manualReviewComplete, validateManualReview } from "@/lib/estimate-review";
-import { checkEstimateControls, validateEstimateControls } from "@/lib/labor-guide-controls";
+import { checkEstimateControls, checkStaffQuotePricing, validateEstimateControls } from "@/lib/labor-guide-controls";
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
@@ -33,7 +33,8 @@ export async function recordDirectRepairScope(actor:AuthenticatedUser|null,repai
 export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){
   const context=deps(input),data=normalizeEstimate(value,context.now()),{ro,user}=await mutationContext(actor,repairOrderId,context);
   const reviewValue=(value as Record<string,unknown>).manualLaborReview;
-  if(reviewValue!==undefined || data.lineItems.some(line=>line.type==="LABOR")){
+  const staffQuote=(value as Record<string,unknown>).estimateWorkflow==="STAFF_QUOTE";
+  if(!staffQuote && (reviewValue!==undefined || data.lineItems.some(line=>line.type==="LABOR"))){
     const review=validateManualReview(reviewValue);
     if(!manualReviewComplete(review,estimateReviewScope(ro.vehicle.id,data.lineItems)))throw new Error("Manual labor review is incomplete or the vehicle/work changed. Review again before presenting.");
     data.assumptions=[data.assumptions,`Manual review (not OEM verified). Engine: ${review.engine}. Configuration: ${review.configuration}. Source: ${review.source}. Limitations: ${review.limitations || "None stated"}. Presenter: ${user.name} (${user.id}). Recorded: ${data.presentedAt.toISOString()}.`].filter(Boolean).join("\n");
@@ -44,21 +45,22 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
     return operation ? [{ ...operation, hours: line.laborGuideMinutes / 60 }] : [];
   });
   const controlValue=(value as Record<string,unknown>).estimateControls;
-  if(selectedCatalog.length || controlValue!==undefined){
-    const controls=checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
+  if(staffQuote || selectedCatalog.length || controlValue!==undefined){
+    const controls=staffQuote ? checkStaffQuotePricing(data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents) : checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
     const activeRate=await getActiveLaborRate(user);
     if(controls.pricing.laborRate!==activeRate.laborRate){
       if(!canManageSettings(user))throw new Error("Only an administrator may override the active shop labor rate. Use the current shop rate and repeat review.");
       if(!controls.pricing.overrideReason?.trim())throw new Error("An administrator rate override reason is required.");
     }
-    data.assumptions=[data.assumptions,`Estimate controls v1 (staff reviewed, not independently verified): ${JSON.stringify(controls)}`,`Labor provenance: ${JSON.stringify(selectedCatalog.map(operation=>{const baseline=repairBaselineForId(operation.id);return{operationId:operation.id,source:"INTERNAL_AUTHORED",version:baseline?.version??"labor-taxonomy-v1",validatedStandard:false,proposedMinutes:Math.round(operation.hours*60),...(baseline?{scope:baseline.operation}:{})};}))}`].filter(Boolean).join("\n");
+    data.assumptions=[data.assumptions,staffQuote ? `Staff quote by ${user.name} (${user.id}). Pricing: ${JSON.stringify(controls.pricing)}.` : `Estimate controls v1 (staff reviewed, not independently verified): ${JSON.stringify(controls)}`,`Labor provenance: ${JSON.stringify(selectedCatalog.map(operation=>{const baseline=repairBaselineForId(operation.id);return{operationId:operation.id,source:"INTERNAL_AUTHORED",version:baseline?.version??"labor-taxonomy-v1",validatedStandard:false,proposedMinutes:Math.round(operation.hours*60),...(baseline?{scope:baseline.operation}:{})};}))}`].filter(Boolean).join("\n");
   }
   // Keep the original version on retries so the command ledger can replay the same result.
   const suppliedVersion=(value as Record<string,unknown>).expectedVersion;
   if(suppliedVersion!==undefined&&(!Number.isInteger(suppliedVersion)||Number(suppliedVersion)<0))throw new Error("Expected version must be a non-negative integer.");
   const receipt=await context.repository.commandReceipt?.(context.organizationId,"PRESENT_ESTIMATE_VERSION",data.idempotencyKey);
   const expectedVersion=suppliedVersion===undefined?(receipt?.expectedVersion??ro.version):Number(suppliedVersion);
-  return context.repository.estimate(command({actorUserId:user.id,commandType:"PRESENT_ESTIMATE_VERSION",expectedVersion,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);
+  const estimateData={...data,...(staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{})};
+  return context.repository.estimate(command({actorUserId:user.id,commandType:"PRESENT_ESTIMATE_VERSION",expectedVersion,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(estimateData),reason:data.reason,subjectId:ro.id}),estimateData);
 }
 export async function decideRepairAuthorization(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAuthorization(value),{ro,user}=await mutationContext(actor,repairOrderId,context);const receipt=await context.repository.commandReceipt?.(context.organizationId,"DECIDE_ESTIMATE_AUTHORIZATION",data.idempotencyKey);return context.repository.authorization(command({actorUserId:user.id,commandType:"DECIDE_ESTIMATE_AUTHORIZATION",expectedVersion:receipt?.expectedVersion??ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}
 export async function createAuthorizedRepairJob(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeJob(value),{ro,user}=await mutationContext(actor,repairOrderId,context),requirements=catalogJobRequirements(data.authorizedLineKey,data);return context.repository.job(command({actorUserId:user.id,commandType:"CREATE_AUTHORIZED_REPAIR_JOB",expectedVersion:ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),{...data,...requirements,workTypeCode:requirements.workTypeCode??data.workTypeCode,partsRequired:data.partsRequired||requirements.partsRequired,createdByUserId:user.id});}

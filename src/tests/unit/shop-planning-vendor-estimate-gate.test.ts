@@ -57,6 +57,18 @@ function database(vendorBasis: unknown, stage = "AUTHORIZATION", aggregateVersio
 }
 
 describe("shop planning vendor estimate gate", () => {
+  it("generates a frozen staff quote from intake without a diagnosis or vendor workflow", async () => {
+    const { db, tx } = database(null, "INTAKE");
+    const repository = createShopPlanningRepository(db as never);
+    const quote = { ...estimateData, estimateWorkflow: "STAFF_QUOTE" as const };
+    const result = await repository.estimate({ ...command, payload: quote }, quote);
+    expect(result.result).toMatchObject({ basis: "STAFF_QUOTE", id: "estimate-version-1", estimateVersion: 1, stage: "ESTIMATE" });
+    expect(tx.serviceDocument.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ kind: "ESTIMATE", sourceId: "estimate-version-1" }) }));
+    expect(tx.repairDiagnosisVersion.create).not.toHaveBeenCalled();
+    expect(tx.repairVendorWork.findFirst).not.toHaveBeenCalled();
+    expect(tx.repairOrder.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ stage: "ESTIMATE" }) }));
+  });
+
   it("allows estimate presentation from an approved outside-vendor workflow without forcing diagnosis", async () => {
     const { db, tx } = database({ approvalStatus: "APPROVED", id: "vendor-work-1", vendorName: "Simba Collision" });
     const repository = createShopPlanningRepository(db as never);

@@ -15,7 +15,6 @@ import { brakeOperationForId } from "@/lib/brake-baseline";
 import { repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { BrakeOperationScope } from "@/features/diagnostics/brake-operation-scope";
 import { SteeringOperationScope } from "@/features/diagnostics/steering-operation-scope";
-import { LaborGuideViewSwitch, laborGuideHref } from "@/features/diagnostics/labor-guide-view-switch";
 import { LightDutyOperationScope } from "@/features/diagnostics/light-duty-operation-scope";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -169,14 +168,9 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   return (
     <div className={styles.preview}>
       <header className={styles.topbar}>
-        <a href={laborGuideHref("legacy", repairOrderId, context?.reviewWorkflow)}><ArrowLeft size={16} /> Current Labor Guide</a>
-        <a href="/prototype/brake-workflow">Try the guided brakes workflow →</a>
-        <a href="/prototype/service-workspace">Customer estimates & RO preview →</a>
-        <a href="/prototype/repair-coverage">Review ten-system coverage →</a>
-        <strong>Dispatch Board <span>/ Repair Explorer</span></strong>
-        <span className={styles.badge}>Review preview</span>
+        <a href="/my-tasks"><ArrowLeft size={16} /> My work</a>
+        <strong>Dispatch Board <span>/ Labor Guide</span></strong>
       </header>
-      <LaborGuideViewSwitch reviewWorkflow={context?.reviewWorkflow} view="new" repairOrderId={repairOrderId} />
       <main className={styles.workspace}>
         <div className={styles.intro}>
           <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>{context ? <>{context.vehicleLabel} · {context.vin ?? "VIN not recorded"} · {context.repairOrderNumber}{context.inventoryNumber ? ` · ${context.inventoryNumber}` : ""}<span className={styles.dot}>•</span> Concern: {context.concern}</> : <>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</>}</p></div>
@@ -276,15 +270,16 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             {!lines.length ? <div className={styles.empty}><Wrench size={26} /><strong>Your estimate starts here</strong><p>Add a repair or diagnostic check. Totals update as you go.</p></div> : <ul className={styles.estimateLines}>{lines.map((line) => <li key={line.id}><div><strong>{line.label}</strong><small>{line.hours === null ? "Hours needed" : `${line.hours.toFixed(1)} hrs`} · {line.parts === null ? "parts needed" : `parts ${money(line.parts)}`}</small></div><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label} from estimate`} onClick={() => removeLine(line.id)}><Trash2 size={15} /></button></li>)}</ul>}
             <dl className={styles.totals}><div><dt>Labor · {totals.hours.toFixed(1)} hrs × {money(rate)}</dt><dd>{money(totals.labor)}</dd></div><div><dt>Parts</dt><dd>{money(totals.parts)}</dd></div><div className={styles.subtotal}><dt>{totals.unpricedLines ? "Priced subtotal" : "Estimated subtotal"}</dt><dd data-testid="estimate-subtotal">{money(totals.subtotal)}</dd></div></dl>
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
-            <p className={styles.priceNote}>Provisional labor hours require review. Excludes taxes and fees. Waiting time is not technician labor.</p>
+            <p className={styles.priceNote}>Excludes taxes and fees.</p>
             <button type="button" className={review ? styles.secondary : styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
             {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
             {review && <p className={styles.priceNote}>{context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>
+            {context && <nav className={styles.draftActions} aria-label="Saved documents and billing"><a href={`/service-documents?repairOrderId=${encodeURIComponent(context.repairOrderId)}&workspace=1`}>Open saved estimates, invoices & receipts</a></nav>}
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>
-        <footer className={styles.footer}><span>Browser draft only · no live repair orders, customer records or approvals are changed here. Generate / Print Estimate opens the governed live workflow.</span><a href={laborGuideHref("legacy", repairOrderId, context?.reviewWorkflow)}>Return to current Labor Guide <ArrowRight size={14} /></a></footer>
+        <footer className={styles.footer}><span>{context?.repairOrderNumber ?? "Sample estimate"}</span></footer>
       </main>
     </div>
   );

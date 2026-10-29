@@ -4,9 +4,28 @@ import { connectedLaborSelection } from "./labor-catalog-selection";
 import { repairScopeConflict } from "./repair-catalog-baselines";
 
 export type ExplorerEstimateSeed = {
+  reviewNote?: string;
   labor: Array<LaborRepairOperation & { rowId: string }>;
-  parts: Array<{ id: string; laborRowId: string; name: string; number: string; pricingStatus: "PRICE_PENDING"; quantity: number; source: "MANUAL"; unitPrice: number }>;
+  parts: Array<{ id: string; laborRowId: string; name: string; number: string; pricingStatus: "PRICE_PENDING" | "ESTIMATED"; quantity: number; source: "MANUAL"; unitPrice: number }>;
 };
+
+export function prepareExplorerQuote(raw: string, catalog: LaborRepairOperation[], allowedSystems: readonly string[], newId: () => string) {
+  const draft = parsePreviewDraft(raw);
+  if (!draft?.lines.length) throw new Error("The saved draft is unavailable. No work was replaced.");
+  if (draft.lines.some((line, index) => draft.lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)))) throw new Error("Remove overlapping work before continuing.");
+  const issues = explorerEstimateIssues(raw, catalog, allowedSystems);
+  const reviewable = issues.filter(issue => issue.message.startsWith("This system has not completed") || issue.message.startsWith("The approved operation is unavailable"));
+  if (reviewable.length !== issues.length) throw new Error("Enter missing hours and correct invalid work before continuing.");
+  const reviewedIds = new Set(reviewable.map(issue => issue.id));
+  const reviewed = { ...draft, lines: draft.lines.map(line => reviewedIds.has(line.id) ? {
+    id: `custom-${newId()}`, label: `${line.label}${line.position ? ` · ${line.position.replace("-", " ")}` : ""}`, hours: line.hours, parts: line.parts, laborBasis: "MANUAL" as const, ...(line.conflictGroup ? { conflictGroup: line.conflictGroup } : {}),
+  } : line) };
+  const transfer = explorerEstimateSeed(JSON.stringify(reviewed), catalog, allowedSystems);
+  transfer.seed.reviewNote = `Staff quote selections: ${reviewable.map(issue => `${issue.label} [${issue.id}]`).join("; ")}`.slice(0, 2000);
+  const partLines = reviewed.lines.filter(line => line.parts === null || line.parts > 0);
+  transfer.seed.parts = transfer.seed.parts.map((part, index) => ({ ...part, id: part.id.replace("explorer-allowance-", "explorer-quote-"), name: part.name.replace("Unitemized allowance:", "Parts for"), pricingStatus: partLines[index].parts === null ? "PRICE_PENDING" : "ESTIMATED" }));
+  return transfer;
+}
 
 export function assertExplorerDraftTarget(draft: PreviewDraft, target?: { id: string; vehicle: { id?: string } } | null) {
   if ((draft.repairOrderId ?? null) !== (target?.id ?? null) || (draft.vehicleId ?? null) !== (target?.vehicle.id ?? null)) {

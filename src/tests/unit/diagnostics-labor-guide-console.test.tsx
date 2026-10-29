@@ -12,7 +12,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain('<option value="steering-suspension" selected="">');
     expect(markup).toContain("Scope, parts &amp; safety checks");
   });
-  it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
+  it("renders the unified estimate worksheet with catalog tools and a live repair-order workbench link", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
     expect(markup).toContain("Diagnostic vehicle workspace");
@@ -55,27 +55,18 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Edit Replace front brake pads and rotors");
     expect(markup).toContain("Replace pads");
     expect(markup).toContain("Customer / Vehicle");
-    expect(markup).toContain("Estimate / RO Preview");
-    expect(markup).toContain("Live estimate preview");
+    expect(markup).toContain("Estimate worksheet");
+    expect(markup).toContain("Generate / Print Estimate");
     expect(markup).toContain("Active RO");
     expect(markup).toContain("Active RO RO-3411");
     expect(markup).toContain("Open simple findings entry");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
-    expect(markup).toContain("Present estimate");
-    expect(markup).toContain("Creates the official estimate document and opens print and repair-workbench actions.");
-    expect(markup).toContain("Parts needed for this repair");
-    expect(markup).toContain("Open Parts Ordering Workflow");
-    expect(markup).toContain("Sync parts demand to RO");
-    expect(markup).toContain("Preview preliminary quote");
-    expect(markup).toContain("not a confirmed diagnosis or repair authorization");
-    expect(markup).toContain("part lines");
-    expect(markup).toContain("/diagnostics/parts-ordering?");
-    expect(markup).toContain("/repair-estimate?");
-    expect(markup).toContain("repairOrderId=ro-id-3411");
-    expect(markup).toContain("repairOrderNumber=RO-3411");
-    expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide%3FrepairOrderId%3Dro-id-3411");
-    expect(markup).toContain("Advisor review");
-    expect(markup).toContain("Prior estimate lines are not carried into this RO");
+    expect(markup).toContain("Generate / Print Estimate");
+    expect(markup).not.toContain("Mark manually reviewed");
+    expect(markup).toContain("Front brake pad set");
+    expect(markup).toContain("Estimate total");
+    expect(markup).toContain("Estimate tax rate");
+    expect(markup).not.toContain("Legacy guide");
   });
 
   it("routes missing vehicle and repair-order context to intake before estimate creation", () => {
@@ -85,8 +76,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Customer not selected");
     expect(markup).toContain("Selected Work 0");
     expect(markup).toContain("Parts 0");
-    expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
-    expect(markup).toContain("No previous estimate is loaded");
+    expect(markup).toContain("<dt>Estimate total</dt><dd><strong>$0.00</strong></dd>");
+    expect(markup).toContain("No work selected");
     expect(markup).not.toContain("2010 Mazda 3");
     expect(markup).not.toContain("Leo James");
     expect(markup).not.toContain("#0678C112");
@@ -96,14 +87,11 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Add vehicle (new tab)");
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain("without leaving this estimate");
-    expect(markup).toContain("Present estimate");
-    expect(markup).toContain("Select the repair order shown in the customer and vehicle lookup before creating this estimate.");
+    expect(markup).toContain("Generate / Print Estimate");
+    expect(markup).toContain("Select a vehicle.");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");
-    expect(markup).toContain("Open Parts Ordering Workflow");
-    expect(markup).toContain("Preview preliminary quote");
-    expect(markup).toContain("/diagnostics/parts-ordering?");
-    expect(markup).toContain("/repair-estimate?");
+    expect(markup).not.toContain("Mark manually reviewed");
     expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide");
   });
 
@@ -123,7 +111,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Selected Work 0");
     expect(markup).toContain("Parts 0");
     expect(markup).toContain("<dt>Tax</dt><dd>$0.00</dd>");
-    expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
+    expect(markup).toContain("<dt>Estimate total</dt><dd><strong>$0.00</strong></dd>");
   });
 
   it("starts every repair order with a blank estimate", () => {
@@ -131,9 +119,9 @@ describe("enterprise labor guide console", () => {
 
     expect(markup).toContain("Selected Work 0");
     expect(markup).toContain("Parts 0");
-    expect(markup).toContain("<dt>Labor</dt><dd>0.0 hrs</dd>");
-    expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
-    expect(markup).toContain("Prior estimate lines are not carried into this RO");
+    expect(markup).toContain("<dt>Labor</dt><dd>$0.00</dd>");
+    expect(markup).toContain("<dt>Estimate total</dt><dd><strong>$0.00</strong></dd>");
+    expect(markup).not.toContain("Legacy guide");
     expect(markup).not.toContain("Replace front brake pads and rotors");
   });
 
@@ -147,8 +135,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Transmission assembly");
     expect(markup).not.toContain("OEM-TRANS-ASSEMBLY-VIN-REVIEW");
     expect(markup).toContain("confirm fitment before ordering");
-    expect(markup).toContain("MN taxable parts");
-    expect(markup).toContain("separately stated repair labor is not taxed");
+    expect(markup).toContain("Estimate tax rate");
+    expect(markup).toContain("<dt>Tax</dt>");
   });
 
   it("renders bodywork repair-area intelligence for door estimates", () => {
