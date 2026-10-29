@@ -2,8 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { authorizedCommercialLedger, commercialLines, type CommercialEstimate } from "@/lib/service-commercial-ledger";
 
-export const SERVICE_DOCUMENT_TEMPLATE = "service-document-v1";
-export type ServiceIdentity = { customer: string; vehicle: string; vin: string; vehicleNumber: string; concern: string; repairOrderNumber: string; store: string; address: string; timezone: string };
+export const SERVICE_DOCUMENT_TEMPLATE = "service-document-v2";
+export type ServiceIdentity = { customer: string; vehicle: string; vin: string; vehicleNumber: string; concern: string; repairOrderNumber: string; store: string; address: string; timezone: string; color?: string | null; stockNumber?: string | null; licensePlate?: string | null; licensePlateState?: string | null; odometer?: { reading: number; unit: "MILES" | "KILOMETERS"; observedAt: string } | null };
 export type ServiceDocumentContent = {
   title: string; number: string; issuedAt: string; identity: ServiceIdentity;
   lines: { key: string; description: string; quantity: number; unitPriceCents: number; totalCents: number; hours?: number; planningHourlyRateCents?: number }[];
@@ -11,10 +11,11 @@ export type ServiceDocumentContent = {
   decision?: { disposition: string; actor: string; channel: string; approvedLineKeys: string[]; declinedLineKeys: string[]; undecidedLineKeys: string[]; reference?: string | null };
   notes: string[];
 };
-export async function serviceIdentity(database: Prisma.TransactionClient, organizationId: string, repairOrderId: string): Promise<ServiceIdentity> {
-  const order = await database.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, include: { customer: true, vehicle: true, serviceVisit: true, location: true, organization: true } });
+export async function serviceIdentity(database: Prisma.TransactionClient, organizationId: string, repairOrderId: string, asOf = new Date()): Promise<ServiceIdentity> {
+  const order = await database.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, include: { customer: true, vehicle: { include: { odometerObservations: { where: { organizationId, status: "ACCEPTED", observedAt: { lte: asOf } }, orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: 1 } } }, serviceVisit: true, location: true, organization: true } });
   if (!order) throw new Error("Repair order was not found.");
-  return { customer: order.customer?.displayName ?? "Internal work", vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" "), vin: order.vehicle.vin ?? "Not recorded", vehicleNumber: order.vehicle.vehicleNumber, concern: order.serviceVisit.concernSummary, repairOrderNumber: order.repairOrderNumber, store: `${order.organization.name} · ${order.location.name}`, address: [order.location.addressLine1, order.location.addressLine2, order.location.city, order.location.region, order.location.postalCode].filter(Boolean).join(", "), timezone: order.location.timezone };
+  const odometer = order.vehicle.odometerObservations[0];
+  return { customer: order.customer?.displayName ?? "Internal work", vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" "), vin: order.vehicle.vin ?? "Not recorded", vehicleNumber: order.vehicle.vehicleNumber, color: order.vehicle.color, stockNumber: order.vehicle.stockNumber, licensePlate: order.vehicle.licensePlate, licensePlateState: order.vehicle.licensePlateState, odometer: odometer ? { reading: odometer.reading, unit: odometer.unit, observedAt: odometer.observedAt.toISOString() } : null, concern: order.serviceVisit.concernSummary, repairOrderNumber: order.repairOrderNumber, store: `${order.organization.name} · ${order.location.name}`, address: [order.location.addressLine1, order.location.addressLine2, order.location.city, order.location.region, order.location.postalCode].filter(Boolean).join(", "), timezone: order.location.timezone };
 }
 export async function recordServiceDocument(database: Prisma.TransactionClient, input: { organizationId: string; repairOrderId: string; kind: string; sourceId: string; sourceVersion: number; createdByUserId: string; content: ServiceDocumentContent }) {
   const content = JSON.parse(JSON.stringify(input.content)) as Prisma.InputJsonValue;
@@ -22,7 +23,7 @@ export async function recordServiceDocument(database: Prisma.TransactionClient, 
   return database.serviceDocument.create({ data: { ...input, content, templateVersion: SERVICE_DOCUMENT_TEMPLATE, sha256 } });
 }
 export async function recordEstimateDocument(database: Prisma.TransactionClient, organizationId: string, repairOrderId: string, estimate: CommercialEstimate & { id: string; version: number; presentedAt: Date; expiresAt: Date }, createdByUserId: string) {
-  const identity = await serviceIdentity(database, organizationId, repairOrderId);
+  const identity = await serviceIdentity(database, organizationId, repairOrderId, estimate.presentedAt);
   const ledger = authorizedCommercialLedger(estimate, commercialLines(estimate.lineItems).map(line => line.key));
   return recordServiceDocument(database, { organizationId, repairOrderId, kind: "ESTIMATE", sourceId: estimate.id, sourceVersion: estimate.version, createdByUserId, content: { title: "Official repair estimate — not an authorization", number: `${identity.repairOrderNumber} / v${estimate.version}`, issuedAt: estimate.presentedAt.toISOString(), identity, lines: ledger.lines.map(line => ({ ...line, ...(line.type === "LABOR" && line.laborGuideMinutes ? { hours: line.laborGuideMinutes / 60, planningHourlyRateCents: Math.round(line.unitPriceCents * 60 / line.laborGuideMinutes) } : {}) })), totals: ledger, notes: [`Valid until ${estimate.expiresAt.toISOString()}.`, "Labor hours are provisional planning allowances, not validated vehicle-specific standards.", "Only separately recorded exact-version customer authorization permits repair execution."] } });
 }

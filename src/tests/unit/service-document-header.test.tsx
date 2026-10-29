@@ -18,4 +18,20 @@ describe("branded service document header", () => {
     expect(html).not.toContain("SHA-256");
     expect(html).not.toContain("internal-checksum-must-not-be-displayed");
   });
+  it.each(["Official repair estimate", "Final service invoice", "Service payment receipt"])("includes saved vehicle details on %s", title => {
+    const identity = { ...content.identity, color: "Blue", stockNumber: "TMS-204", licensePlate: "ABC 123", licensePlateState: "MN", odometer: { reading: 125430, unit: "MILES" as const, observedAt: "2026-10-28T15:00:00Z" } };
+    const html = renderToStaticMarkup(<ServiceDocument content={{ ...content, title, identity }} sha256="proof" templateVersion="service-document-v2" />);
+    for (const detail of ["125,430 mi", "ABC 123 · MN", "Blue", "TMS-204", "VIN"]) expect(html).toContain(detail);
+  });
+  it.each([[0, "MILES", "0 mi"], [87200, "KILOMETERS", "87,200 km"]] as const)("preserves a %s %s odometer reading", (reading, unit, expected) => {
+    const identity = { ...content.identity, odometer: { reading, unit, observedAt: content.issuedAt } };
+    expect(renderToStaticMarkup(<ServiceDocument content={{ ...content, identity }} sha256="proof" templateVersion="service-document-v2" />)).toContain(expected);
+  });
+  it("keeps legacy documents readable without inventing missing vehicle details", () => {
+    const original = JSON.stringify(content);
+    const html = renderToStaticMarkup(<ServiceDocument content={content} sha256="proof" templateVersion="service-document-v1" />);
+    expect(html).toContain("Not recorded");
+    expect(html).not.toContain("0 mi");
+    expect(JSON.stringify(content)).toBe(original);
+  });
 });

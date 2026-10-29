@@ -29,7 +29,7 @@ import { ConnectedRepairCatalog } from "./connected-repair-catalog";
 import { connectedLaborSelection, LABOR_PILOT_SYSTEMS } from "@/lib/labor-catalog-selection";
 import type { RepairOperation } from "@/features/prototype/repair-explorer/catalog";
 import { repairBaselineForId, repairScopeConflict } from "@/lib/repair-catalog-baselines";
-import { unresolvedExplorerAllowance, type ExplorerEstimateSeed } from "@/lib/explorer-estimate-handoff";
+import { isExplorerPartsAllowance, replaceExplorerPartsAllowance, unresolvedExplorerAllowance, type ExplorerEstimateSeed } from "@/lib/explorer-estimate-handoff";
 import { checkEstimateControls, checkStaffQuotePricing, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
 
 type ActiveRepairOrder = {
@@ -501,6 +501,13 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
     setWorkTab("parts");
   }
 
+  function addWorksheetPart(replaceId?: string) {
+    const prior = estimateParts.find(part => part.id === replaceId);
+    const part: SelectedPart = { id: `manual-part-${crypto.randomUUID()}`, laborRowId: prior?.laborRowId ?? selectedLabor[0]?.rowId ?? "manual", name: "New part", number: "", pricingStatus: "PRICE_PENDING", quantity: 1, source: "MANUAL", unitPrice: 0 };
+    setSelectedParts(current => replaceExplorerPartsAllowance(current, part));
+    setEstimateError("");
+  }
+
   function addRepairAreaPart(part: RepairAreaPartRule) {
     setSelectedParts((current) => {
       const id = `area-${part.oemPartNumber.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -938,8 +945,8 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
       {connectedExplorer && <label>Tax rate (%) <input aria-label="Estimate tax rate" type="number" min="0" max="30" step="0.001" value={estimateControls.pricing.taxRatePercent ?? ""} onChange={event => setEstimateControls(current => ({ ...current, pricing: { ...current.pricing, taxRatePercent: event.target.value === "" ? null : Number(event.target.value) } }))} /></label>}
       <EstimateWorksheet feedback={estimateError} simplified={connectedExplorer} vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
         ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, removable: selectedLabor.some(row => row.rowId === item.rowId), editable: selectedLabor.some(row => row.rowId === item.rowId) })),
-        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, number: item.number, pending: item.pricingStatus === "PRICE_PENDING" || unresolvedExplorerAllowance(item), removable: item.source !== "POLICY_REQUIRED", editable: true })),
-      ]} checksReady={controlsReady && pricingAvailable && !unresolvedAllowances} onReviewChecks={revealChecks} summary={[{ label: "Labor", value: money(laborTotal) }, { label: "Parts", value: money(partsTotal) }, { label: "Tax", value: money(taxAndSupplies) }]} onRemove={line => { if (line.kind === "Labor") deleteLabor(line.id); else deletePart(line.id); }} onPartChange={(line, field, value) => { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, [field]: value }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onFindVehicle={() => setDetailsOpen(true)} onAddWork={() => revealWorkTools("labor")} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
+        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, number: item.number, allowance: isExplorerPartsAllowance(item), pending: item.pricingStatus === "PRICE_PENDING" || unresolvedExplorerAllowance(item), removable: item.source !== "POLICY_REQUIRED", editable: true })),
+      ]} onAddPart={connectedExplorer ? () => addWorksheetPart() : undefined} onItemizePart={connectedExplorer ? line => addWorksheetPart(line.id) : undefined} checksReady={controlsReady && pricingAvailable && !unresolvedAllowances} onReviewChecks={revealChecks} summary={[{ label: "Labor", value: money(laborTotal) }, { label: "Parts", value: money(partsTotal) }, { label: "Tax", value: money(taxAndSupplies) }]} onRemove={line => { if (line.kind === "Labor") deleteLabor(line.id); else deletePart(line.id); }} onPartChange={(line, field, value) => { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, [field]: value }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onFindVehicle={() => setDetailsOpen(true)} onAddWork={() => revealWorkTools("labor")} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
         if (line.kind === "Labor") setSelectedLabor(rows => rows.map(row => row.rowId === line.id ? { ...row, hours: value } : row));
         else { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }
       }} />

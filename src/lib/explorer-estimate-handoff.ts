@@ -9,21 +9,35 @@ export type ExplorerEstimateSeed = {
   parts: Array<{ id: string; laborRowId: string; name: string; number: string; pricingStatus: "PRICE_PENDING" | "ESTIMATED"; quantity: number; source: "MANUAL"; unitPrice: number }>;
 };
 
+export function isExplorerPartsAllowance(part: { id: string; name: string }) {
+  return /^(explorer-allowance-|explorer-quote-)/.test(part.id) && /^(Unitemized allowance:|Parts for)/i.test(part.name);
+}
+
+export function replaceExplorerPartsAllowance<T extends { id: string; name: string; laborRowId: string }>(parts: T[], replacement: T) {
+  return [...parts.filter(part => part.laborRowId !== replacement.laborRowId || !isExplorerPartsAllowance(part)), replacement];
+}
+
 export function prepareExplorerQuote(raw: string, catalog: LaborRepairOperation[], allowedSystems: readonly string[], newId: () => string) {
   const draft = parsePreviewDraft(raw);
   if (!draft?.lines.length) throw new Error("The saved draft is unavailable. No work was replaced.");
+  if (draft.lines.some(line => line.partItems?.some(item => !item.name.trim()))) throw new Error("Enter a description for each itemized part.");
   if (draft.lines.some((line, index) => draft.lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)))) throw new Error("Remove overlapping work before continuing.");
   const issues = explorerEstimateIssues(raw, catalog, allowedSystems);
   const reviewable = issues.filter(issue => issue.message.startsWith("This system has not completed") || issue.message.startsWith("The approved operation is unavailable"));
   if (reviewable.length !== issues.length) throw new Error("Enter missing hours and correct invalid work before continuing.");
   const reviewedIds = new Set(reviewable.map(issue => issue.id));
   const reviewed = { ...draft, lines: draft.lines.map(line => reviewedIds.has(line.id) ? {
-    id: `custom-${newId()}`, label: `${line.label}${line.position ? ` · ${line.position.replace("-", " ")}` : ""}`, hours: line.hours, parts: line.parts, laborBasis: "MANUAL" as const, ...(line.conflictGroup ? { conflictGroup: line.conflictGroup } : {}),
+    id: `custom-${newId()}`, label: `${line.label}${line.position ? ` · ${line.position.replace("-", " ")}` : ""}`, hours: line.hours, parts: line.parts, ...(line.partItems !== undefined ? { partItems: line.partItems } : {}), laborBasis: "MANUAL" as const, ...(line.conflictGroup ? { conflictGroup: line.conflictGroup } : {}),
   } : line) };
   const transfer = explorerEstimateSeed(JSON.stringify(reviewed), catalog, allowedSystems);
   transfer.seed.reviewNote = `Staff quote selections: ${reviewable.map(issue => `${issue.label} [${issue.id}]`).join("; ")}`.slice(0, 2000);
-  const partLines = reviewed.lines.filter(line => line.parts === null || line.parts > 0);
-  transfer.seed.parts = transfer.seed.parts.map((part, index) => ({ ...part, id: part.id.replace("explorer-allowance-", "explorer-quote-"), name: part.name.replace("Unitemized allowance:", "Parts for"), pricingStatus: partLines[index].parts === null ? "PRICE_PENDING" : "ESTIMATED" }));
+  const partLines = reviewed.lines.filter(line => line.partItems === undefined && (line.parts === null || line.parts > 0));
+  let allowanceIndex = 0;
+  transfer.seed.parts = transfer.seed.parts.map(part => {
+    if (!part.id.startsWith("explorer-allowance-")) return part;
+    const line = partLines[allowanceIndex++];
+    return { ...part, id: part.id.replace("explorer-allowance-", "explorer-quote-"), name: part.name.replace("Unitemized allowance:", "Parts for"), pricingStatus: line.parts === null ? "PRICE_PENDING" : "ESTIMATED" };
+  });
   return transfer;
 }
 
@@ -48,7 +62,10 @@ export function explorerEstimateSeed(raw: string, catalog: LaborRepairOperation[
     if (identities.has(operation.id)) throw new Error("The same catalog work appears more than once. Remove duplicate work before continuing.");
     identities.add(operation.id);
     seed.labor.push({ ...operation, hours: line.hours, rowId: operation.id });
-    if (line.parts === null || line.parts > 0) seed.parts.push({ id: `explorer-allowance-${seed.parts.length}`, laborRowId: operation.id, name: `Unitemized allowance: ${line.label}`, number: "", pricingStatus: "PRICE_PENDING", quantity: 1, source: "MANUAL", unitPrice: line.parts ?? 0 });
+    if (line.partItems !== undefined) {
+      if (line.partItems.some(item => !item.name.trim())) throw new Error("Enter a description for each itemized part.");
+      for (const item of line.partItems) seed.parts.push({ id: `explorer-item-${seed.parts.length}-${item.id}`, laborRowId: operation.id, name: item.name.trim(), number: item.number.trim(), pricingStatus: item.unitPrice === null ? "PRICE_PENDING" : "ESTIMATED", quantity: item.quantity, source: "MANUAL", unitPrice: item.unitPrice ?? 0 });
+    } else if (line.parts === null || line.parts > 0) seed.parts.push({ id: `explorer-allowance-${seed.parts.length}`, laborRowId: operation.id, name: `Unitemized allowance: ${line.label}`, number: "", pricingStatus: "PRICE_PENDING", quantity: 1, source: "MANUAL", unitPrice: line.parts ?? 0 });
   }
   return { draft, seed };
 }
