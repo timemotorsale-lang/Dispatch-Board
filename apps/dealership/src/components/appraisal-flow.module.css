@@ -1,0 +1,47 @@
+.landing { padding-top: 24px; }
+.hero { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 60px; background: #203c63; color: #fff; padding: 64px max(24px, calc((100vw - 1224px) / 2)); }
+.hero h1 { font-size: clamp(36px, 4.3vw, 60px); letter-spacing: -.035em; }
+.hero p { max-width: 570px; }
+.hero :global(.eyebrow) { color: #d3e5ff; }
+.startCard { display: grid; gap: 18px; border-radius: 20px; padding: 32px; background: #fff; color: #172b45; }
+.startCard h2, .startCard p { margin: 0; }
+.caption { font-size: 13px; line-height: 1.7; color: #53657c; }
+.hero > div:not(.startCard) > .caption { color: #e4edfa; }
+.how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin: 30px 0; }
+.how article { border: 1px solid #d8e0eb; border-radius: 14px; padding: 24px; background: #fff; }
+.how article > span { display: inline-flex; background: #e9f1ff; padding: 4px 14px; border-radius: 50%; color: #254f91; margin-bottom: 16px; }
+.flow { color: #172b45; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 30px; flex-wrap: wrap; }
+.toolbar span { font-size: 13px; color: #53657c; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr); gap: 56px; align-items: start; }
+.questions { min-width: 0; }
+.questions h1 { font-size: clamp(30px, 3.5vw, 44px); scroll-margin-top: 30px; }
+.questions form { gap: 20px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.fields input { min-width: 0; }
+.group { margin: 0; border: 0; padding: 12px 0; min-width: 0; }
+.group legend { font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.choice, .confirm { display: flex; flex-direction: row; align-items: center; gap: 12px; font-size: 15px; }
+.choice { padding: 16px; min-height: 64px; border: 1px solid #becce0; background: #fff; border-radius: 12px; cursor: pointer; }
+.choice:has(input:checked) { background: #eaf2ff; border-color: #315bc0; }
+.choice input, .confirm input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; padding: 0; accent-color: #315bc0; }
+.confirm { font-weight: 400; min-height: 48px; }
+.summary { position: sticky; top: 24px; border: 1px solid #d9e2ee; border-radius: 18px; padding: 26px; background: #fff; min-width: 0; }
+.summary h2 { font-size: 22px; margin-bottom: 6px; }
+.summary > p { font-size: 13px; color: #53657c; }
+.silhouette { min-height: 160px; background: #f1f5fa; border-radius: 10px; color: #526b8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font-size: 13px; margin: 18px 0; }
+.photo { width: 100%; height: auto; max-height: 240px; object-fit: contain; border-radius: 10px; }
+.summary dl > div, .review dl > div { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid #e3e9f2; padding: 10px 0; font-size: 13px; }
+.summary dd, .review dd { margin: 0; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.summary dt, .review dt { color: #53657c; }
+.progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; list-style: none; padding: 0; margin: 22px 0; }
+.progress li { border-top: 4px solid #d7e0ee; padding-top: 8px; font-size: 12px; color: #53657c; }
+.progress li.current { border-color: #315bc0; color: #254a90; }
+.progress span { display: block; }
+.review { border: 1px solid #d9e2ee; border-radius: 12px; background: #fff; padding: 16px; }
+.review summary { min-height: 44px; cursor: pointer; font-weight: 600; }
+.flow :is(button, summary, input, textarea, a):focus-visible { outline: 3px solid #175dd3; outline-offset: 4px; }
+@media (max-width: 900px) { .hero { gap: 26px; padding: 40px 24px; } .layout { gap: 28px; grid-template-columns: minmax(0, 1fr) minmax(0, .7fr); } .summary { padding: 18px; } }
+@media (max-width: 760px) { .hero, .layout { grid-template-columns: minmax(0, 1fr); } .hero { padding: 32px 24px; } .startCard { padding: 24px; } .how { grid-template-columns: 1fr; } .summary { position: static; grid-row: 1; } .summary dl { display: none; } .silhouette { min-height: 85px; margin: 8px 0; } .silhouette svg { width: 48px; height: 48px; } .photo { max-height: 130px; } .progress { margin: 12px 0 0; } .summary h2 { font-size: 19px; } .summary p { margin-bottom: 10px; } }
+@media (max-width: 420px) { .choices, .fields { grid-template-columns: 1fr; } .choice { min-height: 56px; } }

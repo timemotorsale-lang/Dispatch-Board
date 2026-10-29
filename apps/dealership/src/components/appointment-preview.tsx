@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { AppointmentCalendarPreview } from "../../../../packages/appointment-preview/calendar";
+
+export function CustomerAppointmentPreview({ preview }: { preview: boolean }) {
+  return <section className="container section stack"><p className="eyebrow">Visits, made clearer</p><h1>Appointment experience.</h1>{preview ? <><p className="lead">Explore how a visit request could move from preference to staff confirmation.</p><AppointmentCalendarPreview /><div className="panel stack"><h2>Prepare a private preview request</h2><p>The calendar above is an isolated example. Choosing or confirming a sample event does not populate these forms, send a request, reserve a vehicle or create a real appointment.</p><Link href="/service" className="button primary">Prepare a service preview request</Link><Link href="/shop" className="text-link">Choose a vehicle for a test-drive preview</Link></div></> : <div className="panel stack"><h2>Online scheduling is not connected yet</h2><p>No live appointment requests, available slots or confirmations are provided on this page. Customer scheduling needs the verified intake connection and staff confirmation workflow before launch.</p><Link href="/contact" className="button primary">View contact information</Link></div>}</section>;
+}

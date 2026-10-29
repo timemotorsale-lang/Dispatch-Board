@@ -1,5 +1,67 @@
 # Sales Documents Foundation
 
+## Deal Closing Blueprint — Preparation Slice (2026-10-24)
+
+Website Console → Paperwork & Delivery (`/website-console?section=paperwork`)
+contains the permanent implementation guide and eight distinct preparation paths:
+cash, outside-bank, dealer-arranged credit, dealer-retained credit, closed-end lease,
+open-end lease, lease-purchase proposal and lease buyout. These are not newly approved
+public offerings or a legally complete forms inventory. Closed-end leasing is not
+automatically lease-to-own; legal classification and document-specific signing
+acceptance remain external approval gates.
+
+Sales Documents → selected jacket → Paperwork & delivery preparation lets staff
+read a saved review. Only actors with the existing elevated document permission can
+save one. Each complete review records classification facts, check states, controlled
+evidence references or follow-up reasons, server-attributed reviewer/time and the
+resulting jacket revision. Checks cannot be omitted or duplicated. Non-pending
+states require evidence; only explicitly conditional checks allow non-applicability.
+The proposed path does not rewrite the legacy Deal Desk pathway or generate contracts.
+
+Persistence uses the same organization-scoped `SalesDocumentJacket.closingReview`
+with an append-only `CLOSING_REVIEW_SAVED` audit snapshot in the existing private
+document audit store. Saving uses the existing revision lock and transaction; a
+concurrent save fails with 409. A later jacket mutation conservatively invalidates
+the review, including a staff note. Old snapshots remain in the audit store; the UI's
+recent-history limit does not delete them. Re-review requires explicit re-attestation
+of every state. A review may be recorded after packet finalization without changing
+the preserved document versions or the legal effect of any existing contract.
+
+Apply additive migration `20261024010000_deal_closing_review` and regenerate Prisma
+before using this slice. Existing jackets default to no review. Back up the database
+and private byte store before deployment; do not apply a partially migrated release.
+There is no new public endpoint, customer disclosure of internal reviews, customer
+identity store or duplicate document repository.
+
+**Not implemented:** production customer/deal authorization and portal, customer
+uploads, approved jurisdiction/form/deadline rules, live e-signatures, reliable copy
+delivery receipts, authoritative funds checks, independent release authorization,
+custody transfer, assigned post-sale tasks and retention/hold administration. The
+review summary always returns `signingAllowed: false` and `releaseAllowed: false`,
+even when every item is reviewed. Legacy packet finalization remains document
+archiving, not proof of funding, vehicle delivery or permission to release. No legal
+requirement is waived by this review; evidence notes are not provider verification.
+
+Next slices: approved rules/form register → verified participant access and secure
+uploads → accepted signing and copy delivery → independent release and handoff →
+post-sale obligations/recovery. Pilot one complete approved cash pathway first;
+do not enable partial online transaction completion.
+
+Verification: `src/tests/unit/deal-closing.test.tsx`, existing document/console
+access tests, and closing-review persistence/permission tests. These verify software
+behavior, not legal approval, real funding, completed signatures or a live handoff.
+
+Local verification: 80 focused unit/database tests passed. The opt-in PostgreSQL
+proof checks save/reload, revision conflicts, denied mutations, rollback of invalid
+reviews, stale evidence and retained audit snapshots, then removes only its synthetic
+fixture. The authenticated browser proof covers the console guide, pathway-specific
+checks, rejected-save draft retention, saved review retrieval, accessibility and desktop/mobile overflow. Its
+fixture is also removed. The local additive migration was applied after creating
+and archive-checking a database backup; archive validation is not a restore test.
+Scoped TypeScript and edited-file lint checks are separate from the repository-wide
+typecheck, which exceeded the default Node heap limit during this run. The installed
+Next.js security-upgrade warning remains a launch blocker, not resolved by this slice.
+
 ## Staff Workflow
 
 Sales Documents stores one deal jacket per deal reference and pathway. Access it

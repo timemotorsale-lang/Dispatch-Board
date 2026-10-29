@@ -3,7 +3,7 @@ import { allowPreviewRequest } from "../src/server/preview-security";
 import { previewEnabled } from "../src/lib/domain";
 
 afterEach(() => vi.unstubAllEnvs());
-const environment = { NODE_ENV: "production", DEALERSHIP_HOSTED_REVIEW: "1", DEALERSHIP_PREVIEW_DATA: "1", DEALERSHIP_REVIEW_KEY: "a".repeat(64), DEALERSHIP_REVIEW_ORIGIN: "https://staff.example.test" };
+const environment = { NODE_ENV: "production", DEALERSHIP_ENVIRONMENT: "private-review", DEALERSHIP_HOSTED_REVIEW: "1", DEALERSHIP_PREVIEW_DATA: "1", DEALERSHIP_REVIEW_KEY: "a".repeat(64), DEALERSHIP_REVIEW_ORIGIN: "https://staff.example.test" };
 
 describe("hosted synthetic review", () => {
   it("keeps ordinary production preview disabled", () => {

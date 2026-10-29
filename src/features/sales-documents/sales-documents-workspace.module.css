@@ -56,6 +56,12 @@
 .history { margin-top: 20px; border-top: 1px solid #d8dddf; padding-top: 12px; font-size: 13px; }
 .history summary { cursor: pointer; }.history p { padding: 10px 0; border-bottom: 1px solid #e2e6e8; }
 .empty { padding: 40px 20px; color: #59636c; text-align: center; }
+.closingPanel { margin-top: 18px; padding: 16px; border: 1px solid #c6d5e5; border-radius: 8px; background: #f7faff; font-size: 13px; line-height: 1.6; }
+.closingPanel summary { cursor: pointer; font-weight: 700; }
+.closingPanel a { color: #17459c; text-decoration: underline; }
+.closingChecks { display: grid; gap: 16px; }
+.closingChecks fieldset { display: grid; gap: 10px; border: 1px solid #c6cdd2; border-radius: 6px; padding: 14px; background: #fff; }
+.closingChecks legend { font-weight: 700; padding: 0 6px; }
 .backdrop { position: fixed; inset: 0; background: #0006; z-index: 100; display: grid; place-items: center; padding: 16px; }
 .dialog { width: min(520px,100%); max-height: 90vh; overflow: auto; background: #fff; border-radius: 8px; padding: 20px; }
 @media(max-width: 900px) { .layout { grid-template-columns: 1fr; }.detail { border-left: 0; border-top: 1px solid #d8dddf; }.workspace { padding: 16px; } }

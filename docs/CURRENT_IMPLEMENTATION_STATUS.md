@@ -1,5 +1,45 @@
 # Current Implementation Status
 
+## 2026-10-24 — Website Appointments Preview and Shared Read
+
+Website Console → Appointments now separates an isolated fictitious calendar demo,
+the connection/launch plan and a read-only native staff schedule. The private API
+reuses existing appointment authorization and DST-aware date boundaries, projects
+limited fields and distinguishes empty/error states from availability. The customer
+`/appointments` route uses the same simulator only for an approved preview projection;
+non-preview mode contains no sample bookings. No new calendar database, public intake,
+CRM delivery, real confirmation or notification is implemented. Native Appointment
+Board remains the operating writer. See
+`docs/appointments/WEBSITE_APPOINTMENTS_PREVIEW.md` for exact limits and next gates.
+
+Verification: 56 focused unit/API tests and all 118 customer-preview tests passed;
+two staff browser checks and one customer browser check passed with scoped
+accessibility and desktop/mobile overflow assertions. The staff test read the native
+backend with a real authorized session. Demo actions created no appointment writes.
+Scoped staff typecheck, dealership typecheck and edited-file lint passed. No migration,
+production activation, new provider, commit or deployment was performed. The existing
+framework security warning remains unresolved.
+
+## 2026-10-24 — Deal Closing Preparation Foundation
+
+Added Website Console → Paperwork & Delivery with eight distinct preparation
+pathways and the approved blueprint's customer reveal, storage and staged rollout
+boundaries. Canonical Sales Documents jackets support saved, evidence-referenced
+internal closing reviews, elevated document authorization, revision locking,
+server-attributed audit snapshots and conservative invalidation after jacket changes.
+Migration `20261024010000_deal_closing_review` is additive and required before use.
+This is the preparation slice only: no live customer paperwork portal, signatures,
+funding integration, vehicle release, custody transfer or legal approval is claimed.
+See `docs/sales-documents-foundation.md` for the evidence boundary and next slices.
+
+Verification: 80 focused unit/database tests and the authenticated desktop/mobile
+browser journey passed, including evidence validation, rejected-save retention,
+reload, stale-review detection and scoped accessibility checks. Scoped typecheck
+and edited-file lint passed. The local migration is applied after a verified backup
+archive; production deployment and restore testing are not performed. Repository-wide
+typechecking exceeded the default Node heap limit, and the existing framework
+security-upgrade warning remains unresolved.
+
 ## 2026-10-20 — Inventory simplification reconciliation for release
 
 The owner has explicitly authorized merging current `main` into this branch, resolving conflicts, validating the combined implementation and deploying through a pull request. This supersedes the earlier instruction not to merge/deploy this checkpoint; it does not represent automatic design adoption or permission to weaken financial, authorization, QC or other in-app safeguards. Preserve newer CRM, purchasing, compliance and deployment changes from `main`, including removal of the global Labor Pilot evidence gate. Earlier dated checkpoint and release-hold entries below describe their historical state, not a new global deployment prerequisite. Production promotion remains subject to successful current CI, backup/restore, migration and health checks.

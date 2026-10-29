@@ -48,7 +48,7 @@ export async function openReview() {
     cwd: appRoot,
     windowsHide: true,
     stdio: "inherit",
-    env: { ...process.env, NODE_ENV: "development", DEALERSHIP_PREVIEW_DATA: "1" }
+    env: { ...process.env, NODE_ENV: "development", DEALERSHIP_ENVIRONMENT: "development", DEALERSHIP_PREVIEW_DATA: "1" }
   });
   let exited = false;
   child.once("error", () => { exited = true; });

@@ -2,6 +2,7 @@ import { basePath } from "../../../lib/paths";
 import { NextRequest, NextResponse } from "next/server";
 import { allowPreviewRequest } from "../../../server/preview-security";
 import { getListings } from "../../../server/listings";
+import { mayStartPurchase } from "../../../lib/domain";
 import { execute, existingSession, records, session, store, type PreviewCommand } from "../../../server/preview-store";
 
 export const runtime = "nodejs";
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       const snapshot = await getListings();
       const value = command.value as { vehicleId: string; kind: string };
       const vehicle = snapshot.listings.find(listing => listing.id === value.vehicleId);
-      if (!vehicle || (value.kind === "PURCHASE" && vehicle.availability !== "AVAILABLE")) return response({ error: "Availability changed. Review the vehicle before continuing." }, 409);
+      if (!vehicle || (value.kind === "PURCHASE" && !mayStartPurchase(vehicle))) return response({ error: "Availability changed. Review the vehicle before continuing." }, 409);
     }
     const current = session(store(), request.cookies.get("tms-preview")?.value);
     const result = execute(store(), current.identifier, command);

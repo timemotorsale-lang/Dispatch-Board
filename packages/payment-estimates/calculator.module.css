@@ -1,0 +1,45 @@
+.calculator { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 24px; color: #142239; font: 16px/1.6 Arial, Helvetica, sans-serif; width: 100%; min-width: 0; }
+.calculator * { box-sizing: border-box; }
+.visual { background: linear-gradient(145deg, #284e86, #101e33); color: #fff; padding: 30px; border-radius: 18px; align-self: start; min-width: 0; }
+.visual h2 { margin: 18px 0; color: #fff; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.13; letter-spacing: -.03em; }
+.visual p { color: #e1eaf7; margin: 12px 0; }
+.badge { display: inline-flex; padding: 6px 10px; border: 1px solid #9fb6db; border-radius: 20px; font-size: 12px; color: #fff; }
+.image { display: block; width: 100%; height: auto; aspect-ratio: 1.5; object-fit: cover; border-radius: 12px; margin: 20px 0; }
+.vehicleIllustration { display: flex; align-items: center; flex-direction: column; justify-content: center; padding: 30px 12px; min-height: 190px; border-bottom: 1px solid #829aba; text-align: center; }
+.vehicleIllustration p { font-size: 13px; }
+.payment { display: grid; gap: 8px; padding: 22px 0; }
+.payment strong { font-size: clamp(24px, 3vw, 38px); line-height: 1.2; overflow-wrap: anywhere; }
+.payment small { font-size: 16px; font-weight: 400; }
+.visual .disclaimer { font-size: 12px; line-height: 1.7; }
+.workspace { background: #fff; border: 1px solid #dbe3ee; border-radius: 18px; padding: 28px; min-width: 0; }
+.workspace h3 { margin: 16px 0 6px; font-size: 23px; line-height: 1.25; color: #142239; }
+.workspace p { margin: 10px 0; }
+.muted { color: #536174; font-size: 13px; }
+.mode { display: flex; gap: 8px; flex-wrap: wrap; }
+.calculator button { font: inherit; cursor: pointer; }
+.mode button { min-height: 44px; padding: 9px 12px; border: 1px solid #c9d5e5; border-radius: 22px; background: #fff; color: #294b7a; font-size: 13px; }
+.mode button[aria-pressed="true"] { background: #eaf1ff; border-color: #315dba; color: #183f91; }
+.workspace label { display: block; font-size: 14px; font-weight: 600; color: #142239; margin: 14px 0 6px; }
+.calculator input:not([type="checkbox"]), .calculator select { display: block; width: 100%; max-width: 100%; min-height: 48px; border: 1px solid #bfcde0; border-radius: 8px; background: #fff; padding: 10px 12px; font: inherit; color: #142239; }
+.twoColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.assumption { color: #344b6c; font-size: 12px; padding: 12px; background: #edf3ff; border-radius: 8px; }
+.assumptions { padding: 14px; background: #f5f7fa; border: 1px solid #dbe3ee; border-radius: 10px; margin: 16px 0; font-size: 13px; }
+.calculator summary { cursor: pointer; min-height: 44px; color: #193e75; font-weight: 600; }
+.assumptions ul { padding-left: 20px; }
+.workspace label.check { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font-size: 13px; font-weight: 400; padding: 8px 0; }
+.check input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; margin-top: 2px; padding: 0; accent-color: #315bc0; }
+.primary { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 12px 16px; color: #fff; background: #315bc0; border: 1px solid #315bc0; border-radius: 24px; font-weight: 600; text-decoration: none; text-align: center; }
+.primary:hover { background: #254b9f; }
+.calculator :is(button, input, select, summary, a):focus-visible { outline: 3px solid #175dd3; outline-offset: 4px; }
+.error { padding: 12px; background: #fff0ef; border: 1px solid #ddaaa6; color: #8b221c; border-radius: 8px; }
+.results { margin-top: 24px; padding-top: 16px; border-top: 1px solid #dbe3ee; }
+.results dl { margin: 14px 0; }
+.results dl > div { display: flex; justify-content: space-between; gap: 18px; padding: 8px 0; border-bottom: 1px solid #edf0f5; font-size: 13px; }
+.results dt { color: #43536b; }
+.results dd { margin: 0; color: #142239; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.results details { margin-block: 18px; }
+.results details p { font-size: 12px; color: #536174; }
+.safety { display: flex; align-items: flex-start; gap: 8px; color: #536174; font-size: 12px; padding-top: 16px; }
+.safety svg { flex-shrink: 0; margin-top: 3px; }
+@media (max-width: 760px) { .calculator { grid-template-columns: minmax(0, 1fr); gap: 16px; } .workspace, .visual { padding: 20px; } .workspace { order: -1; } .visual h2 { font-size: 32px; } }
+@media (max-width: 360px) { .twoColumns { grid-template-columns: 1fr; gap: 0; } .workspace, .visual { padding: 16px; } }

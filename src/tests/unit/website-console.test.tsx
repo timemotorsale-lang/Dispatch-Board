@@ -70,6 +70,11 @@ describe("Website Console access and navigation", () => {
   it("rejects unauthorized direct page access on the server", async () => {
     requireUser.mockResolvedValue(actor(["Staff"]));
     await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "requests" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "design-studio" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "payment-estimates" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "providers" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "paperwork" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(WebsiteConsolePage({ searchParams: Promise.resolve({ section: "appointments" }) })).rejects.toThrow("NOT_FOUND");
   });
   it("requires authentication before rendering the console", async () => {
     requireUser.mockRejectedValue(new Error("LOGIN_REQUIRED"));
@@ -92,7 +97,7 @@ describe("Website Console truthful states", () => {
     expect(markup).toContain("View Website — domain not configured");
     expect(markup).toContain("Local preview requests stay local");
     expect(markup).not.toContain("http://localhost");
-    expect(markup).not.toContain("<form");
+    if (section !== "payment-estimates") expect(markup).not.toContain("<form");
   });
   it("keeps public and preview destinations separate and protects new tabs", () => {
     const markup = renderToStaticMarkup(<WebsiteConsole section="overview" destinations={{ publicUrl: "https://cars.example.com", previewUrl: "http://127.0.0.1:3100" }} />);

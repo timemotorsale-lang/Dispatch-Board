@@ -10,7 +10,52 @@ Active General Managers and staff with the existing delegated-manager capability
 
 ## Navigation
 
-The console has Overview, Inventory, Content & Media, Customer Requests, and Launch Readiness sections. Its console navigation takes precedence over an incidental contained-workspace query. It includes its own CCC Home return link. Existing inventory, frontline, Growth, Document Library, Sales, Advisor, and Integrations links open their canonical tools; their existing authorization still applies.
+The console has Overview, Inventory, Design Studio, Payment Estimates, Providers & Setup, Paperwork & Delivery, Appointments, Content & Media, Customer Requests, and Launch Readiness sections. Its console navigation takes precedence over an incidental contained-workspace query. It includes its own CCC Home return link. Existing inventory, frontline, Growth, Document Library, Sales, Advisor, and Integrations links open their canonical tools; their existing authorization still applies.
+
+## Appointments
+
+Permanent staff entry: `/website-console?section=appointments`. The connection plan,
+isolated calendar simulator and read-only shared staff schedule remain distinct. The
+private `GET /api/website-console/appointments` reuses native appointment permissions
+and DST-aware date boundaries, limits its projection and never mutates a calendar.
+Sample actions stay in component state; live website intake, CRM delivery, customer
+confirmation and notifications are not connected. See
+`docs/appointments/WEBSITE_APPOINTMENTS_PREVIEW.md` for the exact boundary and tests.
+
+## Paperwork & Delivery
+
+Permanent guide: `/website-console?section=paperwork`. Eight deal preparation
+pathways, customer reveal/storage boundaries, operating roles and remaining
+implementation gates link into canonical Sales Documents. The console does not
+store customer files or approve forms, sign contracts or release vehicles. Saved
+internal reviews live on the existing private deal jackets; see
+`docs/sales-documents-foundation.md` for migration, permissions and limitations.
+
+## Design Studio — Homepage templates
+
+Permanent staff review: `/website-console?section=design-studio`. Open **Website Console → Design Studio → Homepage templates**, or use the overview tile. Existing active-manager/delegated-manager access applies; no new permissions are granted.
+
+The versioned review snapshot in `design-studio/homepage-review.json` contains five review concepts: Search First, Premium Showroom, Guided Shopping, Signature Showroom, and Simple Hybrid. The last two incorporate the supplied current-dealership screenshot's local identity/showroom/action ribbon and simpler search-led discovery, without copying competitor branding or promises. All five include desktop/mobile controls, six experience states, shared component specifications, and qualitative comparison scorecards. The selection controls are local demonstrations, not live search, accounts, AI, approval, or publishing. Reloading restores the initial review state. Future revisions should update this curated snapshot, not accept arbitrary HTML from user input.
+
+Signature Showroom and Simple Hybrid share a six-slide vehicle showcase (SUV, sedan, truck, coupe, minivan, electric crossover), advancing every six seconds only while the showcase is visible, its concept is selected, the page is visible, and the user has not paused, hovered, or focused within it. Reduced-motion preference disables autoplay; previous/next still work. Copy, search input, and actions remain stable when photos change. No 360-degree vehicle viewer is implied. The generated sedan/truck/coupe/minivan/electric crossover are clearly illustrative and are never connected to sample prices or presented as dealership stock. Asset provenance and generation prompts are in `design-studio/assets/README.md`. Public BHPH remains deferred. Staff template review is not a public template selector or publishing action.
+
+The snapshot is server-imported and passed only to the Design Studio section. It needs no local preview server, public domain, Codex conversation runtime, external asset host, customer records, or new provider. The iframe allows scripts only, not same-origin access, popups, forms, or top navigation. Its internal content policy blocks network connections and permits only embedded images/styles/scripts. The parent offers optional full-screen review with a fallback message when unavailable. The public/customer homepage is not modified. This section becomes available on another staff host only after the staff app is deployed there.
+
+## Providers & Setup
+
+Permanent staff location: `/website-console?section=providers`, also available from the Website Console section bar and overview tile. Existing active-manager/delegated-manager authorization and the CCC return apply. The public customer website does not import this staff directory.
+
+`provider-register.ts` is the version-controlled source for 22 capability records: hosting/recovery, accounts, email, SMS, private storage, staff intake, financing, signing, online payments, bank/funding/payoffs, identity, Minnesota registration, internal purchase controls, VIN decoding, licensed images, valuation, history reports, scheduling, service operations/repair authorization, transport, monitoring/security and deferred AI. Each states why it matters, what it unlocks, proposed responsible roles, dependencies, setup checklist, readiness evidence and reviewed official candidate links where applicable. Candidate links are not vendor selections or confirmation of existing entitlements. The directory distinguishes foundational capabilities from conditional, optional and deferred services; foundational does not mean a new paid subscription.
+
+Search and requirement filters are client-only and reset on reload. Native expandable cards retain the full reference in the app, independent of this conversation. The full text checklist downloads in the browser; external notes do not sync back. There are no saved vendor-selection controls, credential fields, subscription purchases, approvals, live connection checks or activation endpoints. All candidates remain unselected and unverified for dealership use. Staff should use the existing Integrations tool and approved secret management for actual configuration, never paste credentials into this checklist.
+
+Source review date and register version are explicit. Update the curated register after contract/API/pricing review; do not infer compatibility or quote prices without vendor confirmation. Deployment of the staff app is required for this section to appear on another host. Current production transaction gates remain unchanged.
+
+## Payment Estimates calculator
+
+Permanent review: `/website-console?section=payment-estimates`. Existing manager/delegated-manager authorization applies. This section displays draft business assumptions, official Minnesota references, blocked release gates and an interactive estimate-only calculator. It does not save settings or approvals, grant a finance role, publish estimates or connect a lender.
+
+The shared module in `packages/payment-estimates` uses 8% annual interest (not quoted APR), 24/36/48/66/72 months and the capped $350 documentation fee. Additional registration/plate/local charges and the standard Minnesota retail scenario must be explicitly confirmed. Both owner and designated finance-manager approval of the same final version, full fee coverage and disclosure review remain release prerequisites, not recorded approvals. The private customer preview is available at its configured `/budget` address; public mode remains unavailable. See the shared module README for sources and arithmetic limits.
 
 ## Website destinations
 

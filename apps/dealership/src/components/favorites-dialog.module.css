@@ -1,0 +1,14 @@
+.dialog { padding: 0; border: 1px solid #d7dfec; border-radius: 16px; width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); color: #203653; box-shadow: 0 20px 70px #15294340; }
+.dialog::backdrop { background: #15294388; }
+.header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #e0e6ef; background: #fff; position: sticky; top: 0; z-index: 1; }
+.header span { display: flex; gap: 10px; align-items: center; font-size: 17px; font-weight: 700; }
+.content { display: grid; gap: 18px; padding: 28px 40px; }
+.content h2 { font-size: 28px; margin: 0; }
+.content > p { color: #53657c; margin: 0; line-height: 1.65; }
+.vehicle { display: flex; gap: 16px; align-items: center; padding: 14px; border: 1px solid #d7dfec; border-radius: 12px; }
+.vehicle img { width: 100px; height: 70px; object-fit: cover; border-radius: 8px; }
+.vehicle small { display: block; color: #53657c; margin-top: 6px; }
+.caption { font-size: 12px; line-height: 1.6; color: #53657c; }
+.divider { text-align: center; color: #53657c; border-top: 1px solid #d7dfec; padding-top: 18px; font-size: 13px; }
+.dialog :is(input, button):focus-visible { outline: 3px solid #175dd3; outline-offset: 3px; }
+@media(max-width: 480px) { .content { padding: 24px 20px; } .content h2 { font-size: 24px; } .vehicle { padding: 10px; gap: 10px; } .vehicle img { width: 80px; } }

@@ -1,6 +1,9 @@
-import type { NextConfig } from "next";
+import { assertSamplePolicy } from "./config/sample-policy.mjs";
 
-const config: NextConfig = {
+assertSamplePolicy(process.env);
+
+const config = {
+  distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
   basePath: process.env.NEXT_PUBLIC_REVIEW_BASE_PATH === "/website-review" ? "/website-review" : "",
   images: { unoptimized: process.env.NEXT_PUBLIC_REVIEW_BASE_PATH === "/website-review" },
   devIndicators: false,
