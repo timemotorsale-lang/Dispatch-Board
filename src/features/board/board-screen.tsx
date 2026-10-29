@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
+import { TeamNow } from "./team/team-now";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadLookupResult, BoardReadModel, BoardReadSchedulerHealth } from "@/server/services/board-read";
@@ -188,7 +189,7 @@ export function BoardScreen({
       try {
         const response = await fetch(endpoint(selectedBoardDate, todayBoardDate), {
           cache: "no-store",
-          signal: controller.signal
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)])
         });
         const payload = (await response.json().catch(() => null)) as BoardApiPayload | null;
 
@@ -282,22 +283,11 @@ export function BoardScreen({
   const isFiltered = hasActiveBoardFilters(filters);
 
   function requestBoardReload(mode: "blocking" | "silent" = "silent") {
-    let shouldReload = false;
+    if (loadStateRef.current.status === "loading") return;
     refreshModeRef.current = mode;
-
-    setLoadState((currentState) => {
-      if (currentState.status === "loading") {
-        return currentState;
-      }
-
-      shouldReload = true;
-      return mode === "blocking" ? { status: "loading", date: selectedBoardDate } : currentState;
-    });
-
-    if (shouldReload) {
-      setIsRefreshing(mode === "silent");
-      setReloadCount((count) => count + 1);
-    }
+    if (mode === "blocking") setLoadState({ status: "loading", date: selectedBoardDate });
+    setIsRefreshing(mode === "silent");
+    setReloadCount(count => count + 1);
   }
 
   function setFilter<Key extends keyof BoardFilters>(key: Key, value: BoardFilters[Key]) {
@@ -395,6 +385,15 @@ export function BoardScreen({
   useLiveRefresh(() => {
     requestBoardReload();
   });
+  const refreshOperations = useEffectEvent(() => {
+    if (!isRefreshing && document.visibilityState === "visible" && navigator.onLine) requestBoardReload();
+  });
+  useEffect(() => {
+    if (initialView !== "live" || selectedBoardDate !== todayBoardDate) return;
+    const timer = window.setInterval(refreshOperations, 15000);
+    return () => window.clearInterval(timer);
+  }, [initialView, selectedBoardDate, todayBoardDate]);
+
 
   return (
     <section className="dispatch-board-page">
@@ -402,12 +401,13 @@ export function BoardScreen({
         boardDate={loadState.date}
         generationStatus={board?.generationStatus}
         latestGeneration={board?.latestGeneration}
+        informational={initialView === "live"}
         toolbar={
           <>
             <span className={getLiveStatusTone(isRefreshing)}>
               {isRefreshing ? "Updating..." : "Live"}
             </span>
-            {isManager && schedulerHealth ? (
+            {initialView !== "live" && isManager && schedulerHealth ? (
               <ManagerHealthPanelToggle
                 isOpen={isHealthPanelOpen}
                 onToggle={() => setIsHealthPanelOpen((current) => !current)}
@@ -441,7 +441,7 @@ export function BoardScreen({
 
       {initialDateError ? <div className="board-notice board-notice-danger">{initialDateError}</div> : null}
 
-      {isManager && schedulerHealth && isHealthPanelOpen ? (
+      {initialView !== "live" && isManager && schedulerHealth && isHealthPanelOpen ? (
         <SchedulerHealthPanel
           boardDate={loadState.date}
           schedulerHealth={schedulerHealth}
@@ -457,6 +457,8 @@ export function BoardScreen({
         />
       ) : null}
 
+      {initialView === "live" ? <TeamNow date={loadState.date} manager={isManager} onPerson={handleAssigneeSelect} /> : null}
+
       {loadState.status === "loading" ? (
         <LoadingStateCard
           eyebrow="Loading board"
@@ -468,7 +470,7 @@ export function BoardScreen({
       {loadState.status === "empty" ? (
         <EmptyStateCard
           eyebrow="No board yet"
-          message={`${loadState.message} ${isManager ? "Generate the board or create a manual task to begin the day." : "A manager can generate it when the team is ready."}`}
+          message={initialView === "live" ? "No task board is recorded for this date. Team activity and workbook focuses are shown independently above." : `${loadState.message} ${isManager ? "Generate the board or create a manual task to begin the day." : "A manager can generate it when the team is ready."}`}
           title={`No board for ${formatBoardDate(loadState.date)}`}
         />
       ) : null}
@@ -500,6 +502,7 @@ export function BoardScreen({
                 onGroupChange={setGroupMode}
               />
               <TaskBoard
+                readOnly={initialView === "live"}
                 boardDate={loadState.date}
                 generationStatus={board.generationStatus}
                 latestGeneration={board.latestGeneration}

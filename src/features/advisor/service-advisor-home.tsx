@@ -5094,8 +5094,8 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   }
 
   async function confirmStartDay() {
-    if (!dailyFocus.length) {
-      setNotice("Choose at least one outcome before starting the day.");
+    if (new Set(dailyFocus.map(item => item.outcome.trim().replace(/\s+/g, " ").toLocaleLowerCase()).filter(Boolean)).size < 3) {
+      setNotice("Add at least 3 distinct daily focuses before submitting your morning plan.");
       return;
     }
     if (capacityState === "SUPPORT_NEEDED" && !supportNeeded.trim()) {
@@ -5195,7 +5195,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
               <button disabled={saving || isPilotClosed} onClick={() => beginFocusEdit(item)} title="Edit the outcome and refine its scope." type="button"><Pencil /> Edit outcome</button>
             </div>
           </article>;
-          }) : <p className="advisor-start-day-empty"><CheckCircle2 /> Add at least one meaningful outcome. Three is recommended when the day requires it.</p>}
+          }) : <p className="advisor-start-day-empty"><CheckCircle2 /> Add at least 3 distinct daily focuses before submitting your morning plan.</p>}
         </div>
         {editingFocus ? <section className="advisor-start-day-focus-editor" aria-label="Edit or replace chosen outcome">
           <header><div><strong>Edit outcome {dailyFocus.findIndex((item) => item.id === editingFocus.id) + 1}</strong><small>Clarify the result that must be achieved. Saving records the revised scope.</small></div><button onClick={() => setEditingFocus(null)} type="button">Cancel</button></header>
@@ -5209,7 +5209,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         <details className="advisor-start-day-manual">
           <summary>Design an outcome manually</summary>
           <div>
-            <input aria-label="Daily Focus outcome" onChange={(event) => setFocusOutcome(event.target.value)} placeholder="Outcome that matters today…" value={focusOutcome} />
+            <input aria-label="Daily Focus outcome" onChange={(event) => setFocusOutcome(event.target.value)} placeholder="Add one of at least 3 daily focuses" value={focusOutcome} />
             <select aria-label="Priority" onChange={(event) => setFocusPriority(event.target.value as DailyFocusPriority)} value={focusPriority}>{focusPriorities.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
             <label><input checked={focusMustClose} onChange={(event) => setFocusMustClose(event.target.checked)} type="checkbox" /> Must close today</label>
             <button disabled={saving || isPilotClosed || !focusOutcome.trim()} onClick={chooseManualOutcome} type="button"><Plus /> Add outcome</button>
@@ -5254,7 +5254,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         <div><span>4</span><div><h2 id="start-confirm-title">Review and start</h2><p>{dailyFocus.length} committed outcome{dailyFocus.length === 1 ? "" : "s"} · {mustCloseCount} must close · {activeCarryovers.length} carryover · {capacityState === "ON_TRACK" ? "capacity on track" : capacityState === "AT_RISK" ? "capacity at risk" : "support requested"}</p><small><CheckCircle2 /> Approved plans remain editable. Any revision requires a fresh review and approval.</small></div></div>
         {startConfirmed ? <Link href={scopedWorkbookHref("/vehicles/coo-workbook")}>Open Work The Day →</Link> : <div className="advisor-start-day-confirm-actions">
           {reviewingStartDay ? <button className="secondary" onClick={() => setReviewingStartDay(false)} type="button">Back to edit</button> : null}
-          <button disabled={saving || isPilotClosed || !dailyFocus.length || reviewingStartDay && unapprovedFocusCount > 0} onClick={() => reviewingStartDay ? void confirmStartDay() : setReviewingStartDay(true)} type="button">{saving ? "Saving…" : reviewingStartDay ? planChangedAfterConfirmation || localPlanRevision ? "Approve Updated Plan" : "Approve & Start My Day" : "Review Start Day"}</button>
+          <button disabled={saving || isPilotClosed || dailyFocus.length < 3 || reviewingStartDay && unapprovedFocusCount > 0} onClick={() => reviewingStartDay ? void confirmStartDay() : setReviewingStartDay(true)} type="button">{saving ? "Saving…" : reviewingStartDay ? planChangedAfterConfirmation || localPlanRevision ? "Approve Updated Plan" : "Approve & Start My Day" : "Review Start Day"}</button>
         </div>}
       </section>
     </main>

@@ -12,11 +12,13 @@ const mocks = vi.hoisted(() => ({
   signals: vi.fn(),
   drafts: vi.fn(),
   expectation: vi.fn(),
+  events: vi.fn(), focuses: vi.fn(),
   tasks: vi.fn()
 }));
 
 vi.mock("@/server/db/client", () => ({
   prisma: {
+    activityEvent: { findMany: mocks.events }, workdayDailyFocusItem: { findMany: mocks.focuses },
     user: { findUniqueOrThrow: mocks.user },
     staffDay: { findMany: mocks.staffDays },
     reportingSeries: { findUnique: mocks.series },
@@ -42,7 +44,7 @@ describe("period report preparation", () => {
     mocks.signals.mockResolvedValue([]);
     mocks.drafts.mockResolvedValue([]);
     mocks.expectation.mockResolvedValue(null);
-    mocks.tasks.mockResolvedValue([]);
+    mocks.tasks.mockResolvedValue([]); mocks.events.mockResolvedValue([]); mocks.focuses.mockResolvedValue([]);
   });
 
   it("includes Start Day confirmation and saved deal drafts as daily report activity", async () => {

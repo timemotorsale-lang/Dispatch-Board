@@ -63,6 +63,7 @@ function assertCanManageTaskAssignments(user: AuthenticatedUser | null, task: Ta
     throw new Error("Only the task owner or a manager can reassign this task.");
   }
 
+  if (!canManageAssignments(user)) throw new Error("Use Hand off work so the receiving person can accept ownership.");
   return user;
 }
 
@@ -150,6 +151,7 @@ export async function updateTaskAssignment(
     }
   }
 
+  if (!normalizedInput.reason) throw new Error("Task reassignment requires a short reason.");
   const updatedTask = await repository.updateTaskAssignment(task.id, normalizedInput.assignedUserId);
 
   if (repository.supportsActivityEvents) {
@@ -166,6 +168,7 @@ export async function updateTaskAssignment(
         task.recommendedUser?.name ?? null
       ),
       metadata: {
+        reason: normalizedInput.reason,
         previousAssignedUserId: task.assignedUser.id,
         previousAssignedUserName: task.assignedUser.name,
         nextAssignedUserId: updatedTask.assignedUser.id,

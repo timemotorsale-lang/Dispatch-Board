@@ -2014,6 +2014,9 @@ model DiagnosticWorkspaceDraft {
 }
 
 model User {
+  dispatchPresence DispatchPresence?
+  dispatchSentHandoffs DispatchHandoff[] @relation("DispatchSender")
+  dispatchReceivedHandoffs DispatchHandoff[] @relation("DispatchReceiver")
   purchasingAuthorizations MoneyPurchasingAuthorization[] @relation("AuthorizedPurchaser")
   issuedPurchasingAuthorizations MoneyPurchasingAuthorization[] @relation("AuthorizationIssuer")
   purchaseApprovals MoneyPurchaseApproval[] @relation("PurchaseRequester")
@@ -7908,6 +7911,7 @@ model WorkdayChecklistItem {
 }
 
 model WorkdayDailyFocusItem {
+  dispatchPresences DispatchPresence[]
   id                     String                  @id @default(cuid())
   workbookId             String
   outcome                String
@@ -8003,6 +8007,7 @@ model WorkdayReportDraft {
 
   @@unique([workbookId, version])
   @@index([workbookId, cadence, status, generatedAt])
+  @@index([periodStart, cadence, workbookId, version(sort: Desc)], map: "WorkdayReportDraft_period_lookup_idx")
 }
 
 model WorkdayCarryover {
@@ -8172,6 +8177,7 @@ model ReportingSeries {
 }
 
 model ReportingRevision {
+  correctionReason   String?
   id                 String @id @default(cuid())
   seriesId           String
   version            Int
@@ -8619,6 +8625,8 @@ model UnifiedCrmSavedView {
 }
 
 model Task {
+  dispatchPresences DispatchPresence[]
+  dispatchHandoffs DispatchHandoff[]
   id                         String                          @id @default(cuid())
   boardDayId                 String
   title                      String
@@ -10797,4 +10805,43 @@ model DealContinuityEvent {
   booking VehicleUseBooking? @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   @@unique([organizationId, operationKey])
   @@index([contextId, occurredAt])
+}
+
+model DispatchPresence {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String @unique
+  businessDate   String
+  state          String @default("UNKNOWN")
+  primaryTaskId  String?
+  primaryFocusId String?
+  nextAction     String @default("")
+  startedAt      DateTime?
+  updatedAt      DateTime @updatedAt
+  version        Int @default(0)
+  user           User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  primaryTask    Task? @relation(fields: [primaryTaskId], references: [id], onDelete: SetNull)
+  primaryFocus   WorkdayDailyFocusItem? @relation(fields: [primaryFocusId], references: [id], onDelete: SetNull)
+  @@index([organizationId, businessDate])
+}
+
+model DispatchHandoff {
+  id                 String @id @default(cuid())
+  organizationId     String
+  taskId             String
+  senderUserId       String
+  receiverUserId     String
+  previousAssignedUserId String
+  nextAction         String
+  status             String @default("PENDING")
+  decisionReason     String?
+  createdAt          DateTime @default(now())
+  decidedAt          DateTime?
+  version            Int @default(0)
+  task               Task @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  sender             User @relation("DispatchSender", fields: [senderUserId], references: [id], onDelete: Restrict)
+  receiver           User @relation("DispatchReceiver", fields: [receiverUserId], references: [id], onDelete: Restrict)
+  @@index([organizationId, status, createdAt])
+  @@index([receiverUserId, status])
+  @@index([taskId, status])
 }

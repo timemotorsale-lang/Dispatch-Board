@@ -231,7 +231,7 @@ export function BoardToolbar({
   const [taskFormState, setTaskFormState] = useState<TaskFormState>(() =>
     createInitialTaskFormState(assignableUsers)
   );
-  const generationHealth = getGenerationHealthMessage(generationStatus, latestGeneration, isManager);
+  const generationHealth = boardView === "live" ? null : getGenerationHealthMessage(generationStatus, latestGeneration, isManager);
 
   function handleDateChange(nextBoardDate: string) {
     if (!nextBoardDate) {
@@ -415,7 +415,7 @@ export function BoardToolbar({
             Refresh
           </button>
 
-          {isManager ? (
+          {isManager && boardView !== "live" ? (
             <>
               <Link
                 className="pill pill-secondary"
@@ -458,7 +458,7 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {generationFeedback ? (
+      {boardView !== "live" && generationFeedback ? (
         <div
           className={
             generationFeedback.tone === "error"
@@ -474,7 +474,7 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {!generationFeedback && isGeneratePending ? (
+      {boardView !== "live" && !generationFeedback && isGeneratePending ? (
         <div className="notice board-feedback" role="status">
           <p>
             <strong>Generating board...</strong> This can take a moment. Repeated clicks are disabled until the run finishes.
@@ -482,7 +482,7 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {taskFeedback ? (
+      {boardView !== "live" && taskFeedback ? (
         <div
           className={
             taskFeedback.tone === "error"
@@ -498,7 +498,7 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {!taskFeedback && isTaskPending ? (
+      {boardView !== "live" && !taskFeedback && isTaskPending ? (
         <div className="notice board-feedback" role="status">
           <p>
             <strong>Creating task...</strong> Your task is being saved to the selected board date.
@@ -506,7 +506,7 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {isManager && isGenerationPreviewOpen ? (
+      {boardView !== "live" && isManager && isGenerationPreviewOpen ? (
         <div className="board-intake-backdrop" role="presentation">
           <section
             aria-labelledby="board-intake-title"
@@ -648,7 +648,7 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {isManager && isCreateTaskOpen ? (
+      {boardView !== "live" && isManager && isCreateTaskOpen ? (
         <div className="board-modal-backdrop" role="presentation">
           <section
             aria-labelledby="create-task-title"

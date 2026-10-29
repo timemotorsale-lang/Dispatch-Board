@@ -159,7 +159,7 @@ describe("task assignment service", () => {
       managerUser,
       "task-1",
       {
-        assignedUserId: "user-casey.mechanic@local.test"
+        assignedUserId: "user-casey.mechanic@local.test", reason: "Cover the afternoon shift."
       },
       repository
     );
@@ -207,17 +207,12 @@ describe("task assignment service", () => {
     ).rejects.toThrow("Only the task owner or a manager can reassign this task.");
   });
 
-  it("lets a staff owner delegate and retain ownership through later delegations", async () => {
+  it("requires the staff owner to use an accepted handoff rather than changing another person's assignment directly", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const owner = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository, readTask } = createTaskAssignmentRepository();
-    const delegated = await updateTaskAssignment(owner, "task-1", { assignedUserId: "user-casey.mechanic@local.test" }, repository);
-    expect(delegated.ownerUser.id).toBe(owner?.id);
-    expect(delegated.assignedUser.id).toBe("user-casey.mechanic@local.test");
-    expect(readTask()?.ownerUserId).toBe(owner?.id);
-    const returned = await updateTaskAssignment(owner, "task-1", { assignedUserId: owner?.id }, repository);
-    expect(returned.ownerUser.id).toBe(owner?.id);
-    expect(returned.assignedUser.id).toBe(owner?.id);
+    await expect(updateTaskAssignment(owner, "task-1", { assignedUserId: "user-casey.mechanic@local.test" }, repository)).rejects.toThrow("receiving person can accept ownership");
+    expect(readTask()?.assignedUserId).toBe(owner?.id);
   });
 
   it("rejects reassignments to inactive users", async () => {

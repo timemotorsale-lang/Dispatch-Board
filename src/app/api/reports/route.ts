@@ -1,3 +1,4 @@
+import { addReportDays, resolveReportPeriod } from "@/lib/reporting/calendar";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getCurrentUser } from "@/server/auth/current-user";
@@ -47,16 +48,30 @@ export async function GET(request: Request) {
     if (view === "prepare") return response(await preparePeriodReport(user, date, frequency, p.get("subject") ?? undefined));
     if (view === "coverage") return response(await reportingManagementCoverage(user, date, frequency, p.get("subject") ?? undefined));
     if (view === "history") {
-      const from = p.get("from") ? validReportDate(p.get("from")!) : undefined, to = p.get("to") ? validReportDate(p.get("to")!) : undefined;
+      const selectedPeriod = p.get("rangeMode") === "day" ? resolveReportPeriod(date, frequency, await loadReportingCalendar()) : null;
+      const from = selectedPeriod?.startDate ?? (p.get("from") ? validReportDate(p.get("from")!) : undefined), to = selectedPeriod ? addReportDays(selectedPeriod.endDate, -1) : p.get("to") ? validReportDate(p.get("to")!) : undefined;
       if (from && to && from > to) throw new Error("Report range is invalid.");
-      return response(await reportingHistory(user, { subjectUserId: p.get("subject") ?? undefined, cadence: p.has("cadence") ? frequency : undefined, from, to, team: p.get("team") === "true", cursor: p.get("cursor") ?? undefined }));
+      return response(await reportingHistory(user, { subjectUserId: p.get("subject") ?? undefined, cadence: p.has("cadence") ? frequency : undefined, from, to, reportStatus: p.get("reportStatus") ?? undefined, query: p.get("query") ?? undefined, team: p.get("team") === "true", cursor: p.get("cursor") ?? undefined }));
     }
     if (view === "revision") return response(await reportingRevision(user, text(p.get("id"), 200)));
     if (view === "library") return response({ ...await reportingLibrary(user), snapshots: await savedReportingSnapshots(user) });
-    if (view === "expectations") return response(await reportingExpectations(user, p.get("team") === "true"));
+    if (view === "expectations") {
+      const period = p.get("rangeMode") === "day" ? resolveReportPeriod(date, frequency, await loadReportingCalendar()) : null;
+      return response(await reportingExpectations(user, p.get("team") === "true", {
+        cadence: frequency, subjectUserId: p.get("subject") || undefined,
+        from: period?.startDate ?? (p.get("from") ? validReportDate(p.get("from")!) : undefined),
+        to: period ? addReportDays(period.endDate, -1) : p.get("to") ? validReportDate(p.get("to")!) : undefined,
+      }));
+    }
     if (view === "delivery") return response(await reportingDelivery(user, text(p.get("id"), 200)));
     if (view === "snapshot") return response(await reportingSnapshot(user, text(p.get("id"), 200)));
-    if (view === "settings") return response({ people: await reportingPeople(user), locations: await reportingLocations(user), calendar: reportingCalendarPreview(), calendarConfig: await loadReportingCalendar() });
+    if (view === "settings") {
+      const [people, locations, calendar] = await Promise.allSettled([reportingPeople(user), reportingLocations(user), loadReportingCalendar()]);
+      if (people.status === "rejected") throw new Error("The reporting person list could not be loaded. Retry the request.");
+      return response({ people: people.value, locations: locations.status === "fulfilled" ? locations.value : [],
+        calendar: reportingCalendarPreview(), ...(calendar.status === "fulfilled" ? { calendarConfig: calendar.value } : {}),
+        warnings: [...(locations.status === "rejected" ? ["Location filters are temporarily unavailable."] : []), ...(calendar.status === "rejected" ? ["The reporting calendar is temporarily unavailable."] : [])] });
+    }
     if (view !== "live") throw new Error("Report view is invalid.");
     return response(await readLiveReport(user, definition(p.get("definition") ?? "operations"), { locationId: p.get("location") || undefined, date, cadence: frequency }));
   } catch (error) { return failure(error); }
@@ -95,7 +110,7 @@ export async function POST(request: Request) {
     const date = validReportDate(text(raw.date ?? reportBusinessDate(new Date()), 10)), frequency = cadence(raw.cadence ?? "DAILY");
     if (action === "save" || action === "submit") {
       const input = { date, cadence: frequency, context: text(raw.context), priorities: text(raw.priorities, 5000), expectedVersion: version(raw.expectedVersion) };
-      return response(action === "save" ? await savePeriodDraft(user, input) : await submitPeriodReport(user, { ...input, accuracyConfirmed: raw.accuracyConfirmed === true, idempotencyKey: text(raw.idempotencyKey, 128) }));
+      return response(action === "save" ? await savePeriodDraft(user, input) : await submitPeriodReport(user, { ...input, accuracyConfirmed: raw.accuracyConfirmed === true, idempotencyKey: text(raw.idempotencyKey, 128), correctionReason: text(raw.correctionReason ?? "", 500) }));
     }
     const definitionId = definition(raw.definitionId);
     const filters = { query: raw.query === undefined ? "" : text(raw.query, 200), metric: raw.metric === undefined || raw.metric === null ? null : text(raw.metric, 200) };

@@ -14,6 +14,11 @@ describe("management reporting coverage", () => {
   it("does not turn absence of obligations into zero percent", () => {
     expect(summarizeReportingCoverage([row("optional", "OPTIONAL", true)]).submissionRate.value).toBeNull();
   });
+  it("does not label a draft or obligation missing before its due time", () => {
+    const now = new Date("2026-10-29T14:00:00Z");
+    const summary = summarizeReportingCoverage([{ ...row("draft"), draft: true, reportState: "DRAFT", dueAt: "2026-10-29T22:00:00Z" }, { ...row("due"), reportState: "NOT_YET_DUE" }, { ...row("late"), dueAt: "2026-10-29T13:00:00Z" }], now);
+    expect(summary.required).toBe(3); expect(summary.missing).toBe(1);
+  });
   it("rejects duplicate identities", () => {
     expect(() => summarizeReportingCoverage([row("staff"), row("staff")])).toThrow("invalid");
   });

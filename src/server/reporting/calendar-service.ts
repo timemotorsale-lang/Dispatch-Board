@@ -112,21 +112,34 @@ export async function generateReportingExpectations(actor: AuthenticatedUser | n
     return { created };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
 }
-export async function reportingExpectations(actor: AuthenticatedUser | null, team = false) {
+export async function reportingExpectations(actor: AuthenticatedUser | null, team = false, filter: { from?: string; to?: string; cadence?: ReportCadence; subjectUserId?: string } = {}) {
   const user = assertAuthenticatedUser(actor);
   if (team) manager(actor);
-  const items = await prisma.reportingExpectation.findMany({ where: { organizationId, ...(team ? {} : { subjectUserId: user.id }) }, orderBy: [{ dueAt: "desc" }, { id: "asc" }], take: 100 });
-  const people = await prisma.user.findMany({ where: { id: { in: [...new Set(items.map(item => item.subjectUserId))] } }, select: { id: true, name: true } });
-  const policies = await prisma.reportingCalendarPolicy.findMany({ where: { organizationId }, select: { config: true }, take: 100 });
+  if (filter.subjectUserId && filter.subjectUserId !== user.id && !team) throw new Error("You do not have permission to view these expectations.");
+  const items = await prisma.reportingExpectation.findMany({ where: { organizationId,
+    ...(!team || filter.subjectUserId ? { subjectUserId: filter.subjectUserId || user.id } : {}),
+    ...(filter.cadence ? { cadence: filter.cadence } : {}),
+    ...(filter.from || filter.to ? { periodStart: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } } : {}),
+  }, orderBy: [{ dueAt: "desc" }, { id: "asc" }], take: 501 });
+  if (items.length > 500) throw new Error("Choose a narrower reporting expectation period.");
+  if (!items.length) return [];
+  const [people, policies, series] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: [...new Set(items.map(item => item.subjectUserId))] } }, select: { id: true, name: true } }),
+    prisma.reportingCalendarPolicy.findMany({ where: { organizationId }, select: { config: true }, take: 100 }),
+    prisma.reportingSeries.findMany({ where: { organizationId, OR: items.map(item => ({ subjectUserId: item.subjectUserId, cadence: item.cadence, periodStart: item.periodStart })) },
+      include: { revisions: { orderBy: { version: "desc" }, take: 1, include: { reviews: { orderBy: { createdAt: "desc" }, take: 1 } } } } }),
+  ]);
   const calendars = [draftReportCalendar, ...policies.map(policy => parseReportingCalendar(policy.config))];
-  return Promise.all(items.map(async item => {
-    const series = await prisma.reportingSeries.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: { organizationId, subjectUserId: item.subjectUserId, cadence: item.cadence, periodStart: item.periodStart } }, include: { revisions: { orderBy: { version: "desc" }, take: 1, include: { reviews: { orderBy: { createdAt: "desc" }, take: 1 } } } } });
-    const calendar = calendars.find(calendar => calendar.version === item.calendarVersion);
+  const byPerson = new Map(people.map(person => [person.id, person.name]));
+  const byPeriod = new Map(series.map(item => [`${item.subjectUserId}:${item.cadence}:${item.periodStart}`, item]));
+  return items.map(item => {
+    const report = byPeriod.get(`${item.subjectUserId}:${item.cadence}:${item.periodStart}`);
+    const calendar = calendars.find(value => value.version === item.calendarVersion);
     const overdueAt = calendar ? new Date(item.dueAt.getTime() + calendar.graceMinutes * 60000) : null;
-    const latest = series?.revisions[0];
-    const status = item.disposition !== "REQUIRED" ? item.disposition : latest ? series?.acceptedRevisionId === latest.id ? "APPROVED" : latest.reviews[0]?.action === "RETURN" ? "NEEDS_REVISION" : "SUBMITTED" : !overdueAt ? "DEADLINE_UNAVAILABLE" : new Date() > overdueAt ? "OVERDUE" : "DUE";
-    return { id: item.id, subjectUserId: item.subjectUserId, subject: people.find(person => person.id === item.subjectUserId)?.name ?? "Former staff", cadence: item.cadence, periodStart: item.periodStart, dueAt: item.dueAt.toISOString(), status, reason: item.reason };
-  }));
+    const latest = report?.revisions[0];
+    const status = item.disposition !== "REQUIRED" ? item.disposition : latest ? report?.acceptedRevisionId === latest.id ? "APPROVED" : latest.reviews[0]?.action === "RETURN" ? "NEEDS_REVISION" : "SUBMITTED" : !overdueAt ? "DEADLINE_UNAVAILABLE" : new Date() > overdueAt ? "OVERDUE" : "DUE";
+    return { id: item.id, subjectUserId: item.subjectUserId, subject: byPerson.get(item.subjectUserId) ?? "Former staff", cadence: item.cadence, periodStart: item.periodStart, dueAt: item.dueAt.toISOString(), status, reason: item.reason };
+  });
 }
 export async function excuseReportingExpectation(actor: AuthenticatedUser | null, id: string, reason: string) {
   const user = manager(actor);

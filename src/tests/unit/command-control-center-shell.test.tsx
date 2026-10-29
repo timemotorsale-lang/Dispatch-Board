@@ -41,7 +41,7 @@ describe("Command Control Center shell", () => {
     );
 
     expect(markup).toContain("Live Board");
-    expect(markup).toContain("Operate and update today’s work");
+    expect(markup).toContain("See team activity and live operations");
     expect(markup).toContain('<a href="/command-center">CCC Home</a>');
     expect(markup).toContain('class="dispatch-console-root" href="/board">Dispatch Board');
     expect(markup).toContain('aria-current="page" class="active" href="/board?view=live"');

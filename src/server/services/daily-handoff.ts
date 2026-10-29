@@ -27,7 +27,9 @@ export async function buildDailyHandoffDraft(actor: AuthenticatedUser | null, bo
   const [tasks, activity, recommendations, latestReport] = await Promise.all([repository.listTasks(staffDay.boardDayId, targetUserId), repository.listActivity(staffDay.boardDayId, targetUserId), repository.listRecommendations(staffDay.id), repository.findLatestReport(staffDay.id)]);
   const completed = tasks.filter((task) => task.status === TaskStatus.COMPLETED);
   const unfinished = tasks.filter((task) => task.status !== TaskStatus.COMPLETED);
+  const dispatchEvidence = repository.loadDispatchEvidence ? await repository.loadDispatchEvidence(date, targetUserId, staffDay.user?.name ?? user.name, (dependencies.now ?? (() => new Date()))()) : null;
   const snapshot = {
+    ...(dispatchEvidence ? { plannedFocus: dispatchEvidence.plannedFocus, handoffs: dispatchEvidence.handoffs, recordedActivity: dispatchEvidence.activity, sourceCoverage: dispatchEvidence.sourceCoverage, sourceQuality: dispatchEvidence.sourceQuality } : {}),
     boardDate: date,
     totals: {
       assigned: tasks.length,
@@ -59,7 +61,7 @@ export async function submitDailyHandoff(actor: AuthenticatedUser | null, boardD
   const draft = await buildDailyHandoffDraft(user, boardDate, targetUserId, dependencies);
   const submittedAt = (dependencies.now ?? (() => new Date()))();
   const repository = dependencies.repository ?? createDailyHandoffRepository();
-  const report = await repository.submitReport({ staffDayId: draft.staffDayId, sourceSnapshot: draft.snapshot, accuracyConfirmed: true, additionalContext: typeof candidate.additionalContext === "string" && candidate.additionalContext.trim() ? candidate.additionalContext.trim() : null, tomorrowFollowUp: typeof candidate.tomorrowFollowUp === "string" && candidate.tomorrowFollowUp.trim() ? candidate.tomorrowFollowUp.trim() : null, submittedAt, submittedByUserId: user.id, submittedOnBehalfReason: onBehalfReason, ...(typeof candidate.idempotencyKey === "string" ? { idempotencyKey: candidate.idempotencyKey } : {}), ...(typeof candidate.expectedDraftVersion === "number" ? { expectedDraftVersion: candidate.expectedDraftVersion } : {}) });
+  const report = await repository.submitReport({ staffDayId: draft.staffDayId, sourceSnapshot: draft.snapshot, accuracyConfirmed: true, additionalContext: typeof candidate.additionalContext === "string" && candidate.additionalContext.trim() ? candidate.additionalContext.trim() : null, tomorrowFollowUp: typeof candidate.tomorrowFollowUp === "string" && candidate.tomorrowFollowUp.trim() ? candidate.tomorrowFollowUp.trim() : null, submittedAt, submittedByUserId: user.id, submittedOnBehalfReason: onBehalfReason, ...(typeof candidate.idempotencyKey === "string" ? { idempotencyKey: candidate.idempotencyKey } : {}), ...(typeof candidate.expectedDraftVersion === "number" ? { expectedDraftVersion: candidate.expectedDraftVersion } : {}), ...(typeof candidate.correctionReason === "string" && candidate.correctionReason.trim() ? { correctionReason: candidate.correctionReason.trim() } : {}) });
   if (!repository.recordsActivity) await (dependencies.recordActivity ?? recordBoardActivityEvent)({ actorUserId: user.id, boardDayId: (await repository.findStaffDay(draft.boardDate, targetUserId))!.boardDayId, eventType: "staff_day.handoff_submitted", message: `${user.name} submitted end-of-day handoff version ${report.version}.`, metadata: { reportId: report.id, version: report.version, onBehalf }, taskId: null });
   return { ...report, submittedAt: report.submittedAt.toISOString() };
 }

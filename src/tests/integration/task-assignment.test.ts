@@ -285,7 +285,7 @@ describe("task assignment integration", () => {
       managerUser,
       "task-1",
       {
-        assignedUserId: otherStaffUser.id
+        assignedUserId: otherStaffUser.id, reason: "Cover the afternoon assignment."
       },
       harness.assignmentRepository
     );
