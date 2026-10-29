@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { Prisma, type MoneyEntry } from "@prisma/client";
 import { prisma } from "@/server/db/client";
+import type { PrismaClient } from "@prisma/client";
+import { cardFundingException, fundingSnapshot, readFundingException } from "@/lib/money-funding";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 import { advanceBalance, businessDate, cashExpected, cents, MONEY_CATEGORIES, moneyToday, MoneyError, parseCardCsv, PAYMENT_METHODS, receiptPending, text } from "@/lib/money-resources";
@@ -97,13 +99,13 @@ export type MoneyResourcesModel = PurchasingData & {
   closes: Array<{ id: string; accountId: string; differenceCents: number; expectedCents: number; countedCents: number; unresolvedCount: number; note: string; account: { label: string } }>;
 };
 
-export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown) {
-  const access = await moneyAccess(actor);
+export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown, client: PrismaClient = prisma) {
+  const access = await moneyAccess(actor, client);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new MoneyError("Choose a money action.");
   const value = raw as Record<string, unknown>, action = text(value.action, 40), key = text(value.idempotencyKey, 150);
   if (!key) throw new MoneyError("A save reference is required. Refresh and try again.");
   const hash = createHash("sha256").update(JSON.stringify({ actor: access.actor.id, value })).digest("hex");
-  return prisma.$transaction(async database => {
+  return client.$transaction(async database => {
     await database.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`money:${access.organizationId}`}))`;
     const replay = await database.moneyAudit.findUnique({ where: { organizationId_idempotencyKey: { organizationId: access.organizationId, idempotencyKey: key } } });
     if (replay) { if (replay.requestHash !== hash || replay.actorUserId !== access.actor.id) throw new MoneyError("This save reference belongs to a different action.", 409); return replay.result; }
@@ -131,7 +133,7 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
       if (!policy && !issued && selected?.assignedUserId && selected.assignedUserId !== access.actor.id && !(access.manager && selected.kind === "CARD")) throw new MoneyError("Record spending against your own assigned card or funds.");
       if (value.employeeId && text(value.employeeId) !== employeeId) throw new MoneyError("The responsible employee must match the selected card or your own funds.");
       if (employeeId !== access.actor.id) await staff(database, access, employeeId);
-      if (paymentMethod === "CARD" && !selected) throw new MoneyError(access.manager ? "Select a company card or add it below the funding source." : "Select your assigned company card. Ask a manager to add or assign it if missing.");
+      const fundingException = action === "RECORD" ? cardFundingException(paymentMethod, selected?.id ?? null, value) : null;
       const linked = await links(database, access, value);
       let parentId: string | null = null;
       if (value.advanceId) {
@@ -142,8 +144,8 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
       const category = text(value.category) || "Other";
       if (!MONEY_CATEGORIES.includes(category as typeof MONEY_CATEGORIES[number])) throw new MoneyError("Choose a spending category.");
       const date = businessDate(value.businessDate || moneyToday());
-      const purchasing = action === "RECORD" && paymentMethod === "CARD" ? await purchaseSnapshot(database, access, value, { ...linked, employeeId, accountId: selected?.id ?? null, amountCents, category, purpose, businessDate: date }) : {};
-      result = await database.moneyEntry.create({ data: { ...linked, ...purchasing, organizationId: access.organizationId, employeeId, kind: action === "REQUEST" ? "FUNDS_REQUEST" : "EXPENSE", amountCents, businessDate: date, merchant: text(value.merchant, 200), purpose, category, paymentMethod, accountId: selected?.id ?? null, parentId, reference: text(value.reference, 150) || null } });
+      const purchasing = action === "RECORD" && paymentMethod === "CARD" ? await purchaseSnapshot(database, access, value, { ...linked, employeeId, accountId: selected?.id ?? null, amountCents, category, purpose, businessDate: date }) : { purchasingSnapshot: undefined };
+      result = await database.moneyEntry.create({ data: { ...linked, ...purchasing, ...(fundingException ? { purchasingSnapshot: json(fundingSnapshot(purchasing.purchasingSnapshot, fundingException)) } : {}), organizationId: access.organizationId, employeeId, kind: action === "REQUEST" ? "FUNDS_REQUEST" : "EXPENSE", amountCents, businessDate: date, merchant: text(value.merchant, 200), purpose, category, paymentMethod, accountId: selected?.id ?? null, parentId, reference: text(value.reference, 150) || null } });
     } else if (action === "IMPORT") {
       management(access); const selected = await account(database, access, value.accountId, true);
       if (selected.kind !== "CARD") throw new MoneyError("Choose an assigned company card for the statement.");
@@ -202,10 +204,11 @@ export async function moneyCommand(actor: AuthenticatedUser | null, raw: unknown
         const { id: _id, createdAt: _date, version: _version, ...copy } = original;
         void _id; void _date; void _version;
         const funding = value.accountId ? await account(database, access, value.accountId) : null;
-        if (funding && (funding.kind !== original.paymentMethod || (funding.assignedUserId && funding.assignedUserId !== original.employeeId))) throw new MoneyError("Use a matching funding source assigned to the original employee.");
+        const unidentifiedCard = original.paymentMethod === "CARD" && !original.accountId ? readFundingException(original.purchasingSnapshot) : null;
+        if (funding && (funding.kind !== original.paymentMethod || (funding.assignedUserId && funding.assignedUserId !== original.employeeId && !unidentifiedCard))) throw new MoneyError("Use a matching funding source assigned to the original employee.");
         const corrected = { ...original, accountId: funding?.id ?? copy.accountId, amountCents: cents(value.amount), purpose: `${original.purpose}\nCorrection: ${note}`.slice(0, 1000) };
         const purchasing = original.paymentMethod === "CARD" ? await purchaseSnapshot(database, access, { authorizationId: original.purchasingAuthorizationId }, corrected) : { purchasingAuthorizationId: null, purchaseApprovalId: null, purchasingSnapshot: Prisma.DbNull };
-        result = await database.moneyEntry.create({ data: { ...copy, ...purchasing, accountId: corrected.accountId, amountCents: corrected.amountCents, purpose: corrected.purpose, approvalStatus: "PENDING", reviewedById: null, reconciledAt: null, reference: `Correction of ${original.id}` } });
+        result = await database.moneyEntry.create({ data: { ...copy, ...purchasing, ...(!corrected.accountId && unidentifiedCard ? { purchasingSnapshot: json(fundingSnapshot(purchasing.purchasingSnapshot, unidentifiedCard)) } : {}), accountId: corrected.accountId, amountCents: corrected.amountCents, purpose: corrected.purpose, approvalStatus: "PENDING", reviewedById: null, reconciledAt: null, reference: `Correction of ${original.id}` } });
       } else if (action === "ISSUE") {
         management(access);
         if (original.kind !== "FUNDS_REQUEST" || original.approvalStatus !== "APPROVED" || original.employeeId === access.actor.id) throw new MoneyError("Issue funds against another staff member’s approved request.");
