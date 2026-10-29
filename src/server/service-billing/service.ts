@@ -1,4 +1,5 @@
 import { validateCreditComponents, type CreditComponents } from "@/lib/service-credit";
+import { invoicePackageMismatchCodes } from "@/lib/service-billing-workflow";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -10,7 +11,7 @@ import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/se
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { executeAggregateMutation, toJson } from "@/server/enterprise-command/aggregate-mutation";
 import { assertCurrentInvoicePackage, serviceInvoiceCandidate } from "@/server/service-close-parts/invoice-candidate";
-import { recordServiceDocument, type ServiceDocumentContent } from "@/server/repair-order/service-documents";
+import { invoiceReceiptIdentity, recordServiceDocument, type ServiceDocumentContent } from "@/server/repair-order/service-documents";
 import { serviceInvoiceBalance, validateBillingEntry } from "@/lib/service-billing";
 import { createServiceClosePartsRepository } from "@/server/service-close-parts/repository";
 
@@ -38,12 +39,13 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   const entries = await prisma.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
   const packages = await prisma.serviceInvoicePackage.findMany({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, take: 20 });
   let readiness: { mismatchCodes: string[] };
-  try { readiness = { mismatchCodes: (await serviceInvoiceCandidate(prisma, organizationId, repairOrderId)).mismatchCodes }; }
+  let currentFingerprint: string | undefined;
+  try { const candidate = await serviceInvoiceCandidate(prisma, organizationId, repairOrderId); readiness = { mismatchCodes: candidate.mismatchCodes }; currentFingerprint = candidate.fingerprint; }
   catch (error) {
     if (!(error instanceof Error) || !error.message.startsWith("Invoice requires current exact-version authorization")) throw error;
     readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"] };
   }
-  return { order, readiness, packages: packages.map(item => ({ id: item.id, version: item.version, mismatchCodes: item.mismatchCodes, billingMode: (item.sourceSnapshot as {billingMode?:string}).billingMode ?? "LEGACY_REVIEW_REQUIRED", preview: (item.sourceSnapshot as {commercial?:unknown}).commercial ?? null, identity: (item.sourceSnapshot as {identity?:unknown}).identity ?? null })), invoices: invoices.map(invoice => ({ ...invoice, entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
+  return { order, readiness, packages: packages.map(item => ({ id: item.id, version: item.version, mismatchCodes: invoicePackageMismatchCodes(item.mismatchCodes, item.sourceSnapshot, currentFingerprint), billingMode: (item.sourceSnapshot as {billingMode?:string}).billingMode ?? "LEGACY_REVIEW_REQUIRED", preview: (item.sourceSnapshot as {commercial?:unknown}).commercial ?? null, identity: (item.sourceSnapshot as {identity?:unknown}).identity ?? null })), invoices: invoices.map(invoice => ({ ...invoice, entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
 }
 export async function executeServiceBilling(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, options: { organizationId?: string; enforceRollout?: boolean } = {}) {
   assertAuthenticatedUser(actor);
@@ -113,7 +115,7 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
     const status = action === "VOID" ? "VOID" : invoice.status;
     await tx.serviceInvoice.update({ where: { id: invoice.id }, data: { status, version } });
     const balance = serviceInvoiceBalance({ ...invoice, status }, [...entries, entry]);
-    const identity = (invoice.ledger as unknown as { identity: ServiceDocumentContent["identity"] }).identity;
+    const identity = await invoiceReceiptIdentity(tx, organizationId, repairOrderId, invoice.id, (invoice.ledger as unknown as { identity: ServiceDocumentContent["identity"] }).identity);
     await recordServiceDocument(tx, { organizationId, repairOrderId, kind: action, sourceId: entry.id, sourceVersion: 1, createdByUserId: user.id, content: { title: `Service ${action.toLowerCase()} receipt`, number: `${invoice.invoiceNumber} / ${entry.id}`, issuedAt: occurredAt.toISOString(), identity, lines: [{ key: entry.id, description: `${action}: ${method ?? "Adjustment"}; reference ${reference}`, quantity: 1, unitPriceCents: amountCents, totalCents: amountCents }], ...(components ? { totals: { ...components, totalCents: amountCents } } : {}), notes: [`Original invoice ${invoice.invoiceNumber}; remaining balance ${balance.balanceCents} cents.`, `Recorded by ${user.name}. ${reason}`, "This is a record of verified financial activity, not a card-processing instruction."] } });
     return { previous: invoice, result: { id: invoice.id, entryId: entry.id, version, balance, status } };
   });

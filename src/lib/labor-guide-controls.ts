@@ -1,3 +1,4 @@
+import { serviceQuoteTax } from "./service-charges";
 import { estimateReviewScope, type ReviewLine } from "./estimate-review";
 import { brakeOperationForId, brakeScopeConflict } from "./brake-baseline";
 import { steeringOperationForId, steeringScopeConflict } from "./steering-baseline";
@@ -61,13 +62,14 @@ export function estimateControlsScope(vehicleId: string, lines: ReviewLine[], co
   return JSON.stringify({ work: estimateReviewScope(vehicleId, lines), taxability: lines.map(line => ({ key: line.key, taxable: (line as ReviewLine & { taxable?: boolean }).taxable === true })), pricing: validateEstimatePricing(controls.pricing), fitment: Object.entries(controls.fitment).sort(([left], [right]) => left.localeCompare(right)), overlapResolution: controls.overlapResolution, ...(controls.brakeReview ? { brakeReview: controls.brakeReview } : {}), ...(controls.steeringReview ? { steeringReview: controls.steeringReview } : {}), ...(controls.systemReviews ? { systemReviews: Object.fromEntries(Object.entries(controls.systemReviews).sort(([left], [right]) => left.localeCompare(right))) } : {}) });
 }
 
-export function checkStaffQuotePricing(lines: ReviewLine[], controls: EstimateControls, labor: LaborScope[], taxCents: number) {
+export function checkStaffQuotePricing(lines: ReviewLine[], controls: EstimateControls, labor: LaborScope[], taxCents: number, discountCents = 0) {
   const checked = validateEstimateControls(controls);
   const pricing = checked.pricing;
   if (pricing.taxRatePercent === null) throw new Error("Enter a tax rate.");
   if (labor.some((line, index) => labor.slice(index + 1).some(other => lightDutyScopeConflict(line.id, other.id) || steeringScopeConflict(line.id, other.id) || brakeScopeConflict(line.id, other.id)))) throw new Error("Remove duplicate or overlapping work.");
-  const taxable = lines.filter(line => line.type === "PART" && (line as ReviewLine & { taxable?: boolean }).taxable !== false).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
-  if (taxCents !== Math.round(taxable * pricing.taxRatePercent / 100)) throw new Error("Tax does not match the estimate.");
+  const taxable = lines.filter(line => line.type === "PART" ? (line as ReviewLine & { taxable?: boolean }).taxable !== false : line.type === "FEE" && (line as ReviewLine & { taxable?: boolean }).taxable === true).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
+  const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
+  if (taxCents !== serviceQuoteTax(subtotal, taxable, pricing.taxRatePercent, discountCents)) throw new Error("Tax does not match the estimate.");
   for (const line of lines.filter(item => item.type === "LABOR")) {
     if (line.quantity !== 1 || line.unitPriceCents !== Math.round(line.laborGuideMinutes / 60 * pricing.laborRate * 100)) throw new Error("Labor amount does not match the hours and rate.");
   }

@@ -29,7 +29,7 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
     if (quantity !== line.quantity) mismatchCodes.push("INVOICE_INSTALL_QUANTITY_MISMATCH");
   }
   for (const job of jobs) if (job.partsRequired && !job.partCustodyEvents.some(event => event.type === "INSTALL")) mismatchCodes.push("INVOICE_INSTALL_EVIDENCE_MISSING");
-  const sourceDocument = await database.serviceDocument.findFirst({ where: { organizationId, kind: "ESTIMATE", sourceId: estimate.id, sourceVersion: estimate.version } });
+  const sourceDocument = await database.serviceDocument.findFirst({ where: { organizationId, kind: "ESTIMATE", sourceId: estimate.id }, orderBy: { sourceVersion: "desc" } });
   if (!sourceDocument) mismatchCodes.push("INVOICE_FROZEN_ESTIMATE_DOCUMENT_MISSING");
   const identity = sourceDocument ? (sourceDocument.content as unknown as ServiceDocumentContent).identity : null;
   const clockedLaborMinutes = jobs.flatMap(job => job.laborClocks).reduce((total, clock) => total + clock.accumulatedMinutes, 0);

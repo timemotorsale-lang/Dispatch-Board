@@ -1,0 +1,11 @@
+.editor { border: 1px solid #dce4ee; border-radius: 8px; padding: 16px; margin: 14px 0; color: #172b40; background: #fff; }
+.supplies { display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; align-items: center; }
+.supplies small { display: block; color: #526477; margin-top: 3px; }
+.row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 12px; }
+.row label { display: grid; gap: 5px; flex: 1; min-width: 110px; }
+.editor label:has(input[type=checkbox]) { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
+.row input:not([type=checkbox]) { padding: 9px; border: 1px solid #bbcadd; border-radius: 5px; width: 100%; box-sizing: border-box; font: inherit; }
+.editor button { border: 1px solid #bbcadd; border-radius: 6px; padding: 9px 12px; background: #fff; color: #244f87; cursor: pointer; }
+.discount { display: grid; gap: 6px; max-width: 200px; margin-top: 16px; }
+.discount input { padding: 9px; border: 1px solid #bbcadd; border-radius: 5px; font: inherit; }
+@media print { .editor { display: none; } }

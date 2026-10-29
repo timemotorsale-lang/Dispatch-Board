@@ -4,6 +4,12 @@ Implementation: 2026-10-18. This follows the historical findings in `LABOR_GUIDE
 
 ## Review routes
 
+### Customer details, charges and discount
+
+Estimate and invoice reviews expose **Customer details & charges**. Staff with the existing repair-order/billing permissions can save name, phone, email and billing address for the repair order's documents. Corrections append a new hashed document version and an audited, idempotent command; previous documents and posted monetary records remain intact. They do not change the canonical CRM customer profile. Newly issued estimates and receipts inherit the saved contact details. A contact correction makes an older invoice package require fresh preparation.
+
+Current Labor Guide staff quotes include a **Shop supplies** fee equal to **5% of listed labor, capped at $50**. Other charges such as towing are individual FEE lines. Staff explicitly mark taxable charges and set a dollar discount; the discount is allocated proportionally across the subtotal before applying the configured tax rate to the taxable share. The server validates the supplies amount, tax, discount, pricing and revision source. Changes before invoice issue produce a new estimate requiring fresh customer approval. Issued invoices retain fixed monetary amounts and use the existing billing-adjustment workflow for corrections.
+
 ### Branded documents and invoice feedback
 
 The document workspace includes an always-visible **Open QC** action for the current RO. Opening invoice conversion reads current invoice requirements, even before a package exists. A missing passed QC record produces a highlighted **Passed QC record missing** notice and an **Open QC** link directly to that RO's QC step. A stale ready package cannot override current readiness; invoice posting still revalidates the transaction's operational and financial conditions.

@@ -24,6 +24,7 @@
 .panel label { display: grid; gap: 6px; }
 .panel label:has(input[type=checkbox]) { display: flex; align-items: flex-start; }
 .panel input:not([type=checkbox]), .panel select { padding: 10px; border: 1px solid #bbcadb; border-radius: 6px; font: inherit; width: 100%; box-sizing: border-box; }
+.panel textarea { padding: 10px; border: 1px solid #bbcadb; border-radius: 6px; font: inherit; width: 100%; min-height: 75px; box-sizing: border-box; }
 .panel [role=alert] { color: #9b1c1c; }
 .paper { border: 1px solid #d4dfeb; border-radius: 12px; background: white; box-shadow: 0 12px 35px #172b4010; overflow: hidden; }
 .paper article > button { display: none; }
