@@ -58,3 +58,7 @@ The header now has one **Vehicle diagrams & components** entry. It opens a compa
 ## Double-click a panel
 
 Click once to select/highlight; double-click to open only that panel and its component breakdown. For example, double-click a fender to see its outer panel, liner, brackets/fasteners, arch molding and seals. Select a subcomponent, then choose **Show selected component operations** to continue estimating. **Back to vehicle diagram** restores the exterior view. Keyboard and touch users can select a panel and use **Open selected panel components** instead. Drilling into a panel never adds or approves a repair line automatically.
+
+## Review recognizable part illustrations
+
+Double-click a door, then open **Interior trim & equipment**. The trim panel, switches, speaker and hardware now have distinct original physical-form illustrations. Choose the speaker or another individual part for an enlarged view. **Show part names** can hide printed captions for visual review; accessible names and selection remain available. Use the same component path and operations handoff as before. These remain generic identification illustrations requiring actual-vehicle fitment/serviceability review.
