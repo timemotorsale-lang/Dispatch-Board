@@ -18,6 +18,11 @@ describe("body group diagrams", () => {
       }
     });
   }
+  it("provides an expandable assembly for every exterior panel offered by every group", () => {
+    for (const group of VEHICLE_GROUPS) for (const view of GROUP_VIEWS) {
+      for (const id of groupComponents(group, view)) expect(ASSEMBLY_TREES[id]?.children?.length, `${group.id}/${view}/${id}`).toBeGreaterThan(0);
+    }
+  });
   it("keeps incompatible closure styles out of the exterior selection", () => {
     const pickup = VEHICLE_GROUPS.find(group => group.id === "pickup")!;
     const van = VEHICLE_GROUPS.find(group => group.id === "van")!;

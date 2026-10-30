@@ -17,7 +17,7 @@ function PartShape({ item }: { item: AssemblyItem }) {
   return <><path d="M18 21H111L140 52V92H16Z" /><path d="M29 30H103L123 51H28ZM31 65H122V80H31Z" /><path d="M43 90V96M114 90V96" /></>;
 }
 
-export function ComponentExplorer({ componentId, onSelect }: { componentId: string; onSelect: (id: string) => void }) {
+export function ComponentExplorer({ componentId, onSelect, forceOpen = false }: { componentId: string; onSelect: (id: string) => void; forceOpen?: boolean }) {
   const [query, setQuery] = useState(""), [expandAll, setExpandAll] = useState(false), [zoom, setZoom] = useState(1);
   const path = assemblyPath(componentId), root = ASSEMBLY_TREES[path[0]];
   if (!root) return <section className={styles.componentExplorer}><h3>Component breakdown</h3><p className={styles.generic}>A detailed breakdown for this selection is not cataloged yet. Use its current operation and record the actual parts and procedure references. Uncataloged parts are not assumed absent.</p></section>;
@@ -27,9 +27,10 @@ export function ComponentExplorer({ componentId, onSelect }: { componentId: stri
     if (!matches(node)) return null;
     return <li key={node.id}>{node.children?.length ? <details open={expandAll || path.includes(node.id)}><summary>{node.label} <small>({descendants(node).length - 1})</small></summary><button type="button" aria-pressed={componentId === node.id} onClick={() => onSelect(node.id)}>Select {node.label}</button><ul>{node.children.map(tree)}</ul></details> : <button type="button" aria-pressed={componentId === node.id} onClick={() => onSelect(node.id)}>{node.label}{node.assessment ? " · technical review" : ""}</button>}</li>;
   }
-  return <details className={styles.componentExplorer} aria-label="Assembly component explorer">
-    <summary>Explore {root.label.toLowerCase()} components ({nodes.length - 1})</summary>
-    <p className={styles.generic}>{nodes.length - 1} cataloged subcomponents. Expand the branches to reach hardware and electrical parts. Serviceable parts, equipment and quantities must be confirmed on the actual vehicle; this is not an exhaustive OEM parts list.</p>
+  const Container = forceOpen ? "section" : "details";
+  return <Container className={styles.componentExplorer} aria-label="Assembly component explorer">
+    {forceOpen ? <h3>{root.label} components ({nodes.length - 1})</h3> : <summary>Explore {root.label.toLowerCase()} components ({nodes.length - 1})</summary>}
+    <p className={styles.generic}>Select a part or expand a branch. Generic component map; confirm actual fitment and serviceability.</p>
     <nav className={styles.componentBreadcrumbs} aria-label="Component path">{path.map((id, index) => <button type="button" key={id} aria-current={id === componentId ? "location" : undefined} onClick={() => onSelect(id)}>{index ? "› " : ""}{nodes.find(node => node.id === id)?.label ?? componentFor(id)?.label}</button>)}</nav>
     <div className={styles.viewerControls}><button type="button" aria-label="Enlarge component breakdown" onClick={() => setZoom(value => Math.min(3, value + .25))}>+</button><span>{Math.round(zoom * 100)}%</span><button type="button" aria-label="Reduce component breakdown" onClick={() => setZoom(value => Math.max(.75, value - .25))}>−</button><button type="button" onClick={() => setZoom(1)}>Fit parts</button></div>
     <div className={styles.partsCanvas} tabIndex={0} role="region" aria-label="Scrollable component breakdown">
@@ -43,5 +44,5 @@ export function ComponentExplorer({ componentId, onSelect }: { componentId: stri
     <div className={styles.actions}><label>Find a component<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Motor, clip, glass, latch…" /></label><button type="button" onClick={() => setExpandAll(value => !value)}>{expandAll ? "Collapse branches" : "Expand all branches"}</button></div>
     {term && !matches(root) ? <p role="status">No cataloged component matches. Confirm the supplier parts list before concluding that a part is absent.</p> : <ul key={`${root.id}:${expandAll}`} className={styles.assemblyTree}>{root.children?.map(tree)}</ul>}
     <p className={styles.generic}>Selecting a component opens its operations below the diagram. It adds no charge automatically. Check included work before charging for both an assembly and its components.</p>
-  </details>;
+  </Container>;
 }

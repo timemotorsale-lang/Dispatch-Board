@@ -68,6 +68,9 @@ const templates: Record<string, Part[]> = {
   "right-quarter": [item("outer", "Outer quarter / joining assessment", "panel", undefined, true), item("inner", "Inner wheelhouse / adjoining structure", "rail", undefined, true), item("trim", "Wheel-arch trim / liner", "panel"), item("fuel", "Filler / access equipment", "sensor", undefined, true), item("seal", "Sealers / corrosion protection", "seal", undefined, true)],
   "left-rocker": [item("outer", "Outer rocker / joining assessment", "rail", undefined, true), item("reinforcement", "Inner reinforcement / structure", "rail", undefined, true), item("trim", "Sill molding / clips", "seal"), item("seal", "Sealers / drain / corrosion review", "seal", undefined, true)],
   "right-rocker": [item("outer", "Outer rocker / joining assessment", "rail", undefined, true), item("reinforcement", "Inner reinforcement / structure", "rail", undefined, true), item("trim", "Sill molding / clips", "seal"), item("seal", "Sealers / drain / corrosion review", "seal", undefined, true)],
+  "rear-panel": [item("outer", "Rear body panel / joining assessment", "panel", undefined, true), item("support", "Adjoining supports / structure", "rail", undefined, true), item("trim", "Access trim / fasteners", "panel"), item("seal", "Sealers / corrosion protection", "seal", undefined, true)],
+  "cargo-door": closure,
+  "door-skin": [item("outer", "Outer skin / serviceability review", "panel", undefined, true), item("hem", "Hem / joining method review", "rail", undefined, true), item("adhesive", "Adhesive / corrosion protection review", "seal", undefined, true)],
 };
 const extraRoots: Component[] = [
   ...["left", "right"].flatMap(side => [

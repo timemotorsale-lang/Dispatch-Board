@@ -2,7 +2,7 @@
 
 ## Implemented generic manual release
 
-The original release `tms-collision-navigation-2026.10.29-v1` introduced 84 components and 249 explicitly enumerated operations across all 15 blueprint families. The compatible assembly extension described below expands the current catalog to 619 components and 1,954 operations. All current operations bind to component views. The operation-family counts are exposed by `coverageManifest()` rather than maintained as a separate hard-coded catalog.
+The original release `tms-collision-navigation-2026.10.29-v1` introduced 84 components and 249 explicitly enumerated operations across all 15 blueprint families. The compatible assembly extension described below expands the current catalog to 636 components and 2,011 operations. All current operations bind to component views. The operation-family counts are exposed by `coverageManifest()` rather than maintained as a separate hard-coded catalog.
 
 The source is original Time Motor Sales generic navigation and estimator-entered scope. The drawings illustrate component relationships, not exact vehicle construction. No published commercial labor allowances, OEM procedures, exact-vehicle configuration approval, licensed vendor entitlement or qualified technical reviewer approval is claimed.
 
@@ -47,7 +47,7 @@ Assembly release `tms-collision-assemblies-2026.10.30-v1` adds generic component
 
 - 11 visual groupings: sedan, coupe/convertible, hatchback/wagon, crossover/compact SUV, midsize SUV, full-size SUV, minivan, cargo/passenger van, pickup, box/commercial truck and bus/shuttle.
 - Each grouping has five navigable views: vehicle left, vehicle right, front, rear and upper body. Closure candidates reflect the group: pickup tailgate/bed, minivan sliding doors, van cargo doors and bus entry/side sections. Actual cab, door, wheelbase, roof and equipment variants still require vehicle review.
-- 45 assembly roots provide 528 nested subcomponent records plus seven new body-group roots. Together with the original 84 records, the current catalog contains 619 components and 1,954 generic/manual operations.
+- 48 assembly roots provide 545 nested subcomponent records plus seven new body-group roots. Together with the original 84 records, the current catalog contains 636 components and 2,011 generic/manual operations.
 - Hinged doors include skin/shell, window/glass/regulator/motor, trim/clips/barrier, latch/actuator/cables/retainers, hinges/checks/seals and harness/connectors. Sliding doors add tracks, rollers and optional power-drive branches. Other covered assemblies include bumper covers, closures, mirrors, lamps, fenders, glass, roof, cargo bodies and selected adjoining panels.
 - Native expandable branches, search, ancestry navigation and zoomable/scrollable separated-part schematics lead to individual cataloged hardware. Selecting a part changes the available operations, not the estimate amount. A direct operations button closes the expanded viewer and moves focus to the selected component's operations.
 - An assembly/subcomponent overlap finding requires an explicit separate-scope explanation before quoting both assembly replacement/removal and child labor. No supplier inclusion rule, hardware quantity, part price or labor allowance is invented.
@@ -55,3 +55,9 @@ Assembly release `tms-collision-assemblies-2026.10.30-v1` adds generic component
 These are original generic navigation drawings and candidate component taxonomies, not licensed OEM diagrams, a complete vehicle bill of materials or validated mounting/repair instructions. Some selections have no detailed breakdown yet and say so. Small parts may be integral/non-serviceable or absent on a particular vehicle. The tool does not claim that every physical component is covered. Technical-review requirements and source/fitment checks remain in force. Default adoption remains pending.
 
 Review: `/prototype/autobody-estimate?illustration=vehicle-groups`, or the top-level **Vehicle diagrams & components** button. Select a group, select a door, open **Explore … components**, and drill down to a motor, cable or clip. Use **Show selected component operations** to continue estimating.
+
+## Panel gesture refinement
+
+Single-click selects/highlights a panel without adding work. Double-click opens an isolated panel-component view instead of leaving the whole vehicle on screen. The same action is available through **Open selected panel components** for keyboard/touch users; rapid same-panel touch taps also support drilldown. Drag/pinch gestures are excluded from tap selection. Cataloged nested components remain selectable, with **Show selected component operations** handing off to estimating and **Back to vehicle diagram** returning to the exterior context. Every exterior panel offered by the 11 vehicle-group diagrams now has a generic assembly breakdown. Uncataloged generic selections still explicitly identify missing detail, rather than inventing construction.
+
+Current totals after rear-panel/cargo-door/door-skin coverage: 48 assembly roots, 545 nested components, 636 total components and 2,011 generic/manual operations. Existing IDs and draft schema remain compatible. Browser checks covered fender single/double click, door double click, standalone component double click and fender-fastener handoff. The focused suite passed 107 checks. No technical approval, published allowance, automatic charge or default adoption is implied.

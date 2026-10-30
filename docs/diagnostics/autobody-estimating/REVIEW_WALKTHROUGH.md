@@ -54,3 +54,7 @@ For reversible adoption later, change the entry/default only after owner approva
 The illustrative catalog is not an exhaustive OEM parts list. Default adoption and licensed/qualified technical-content acceptance remain separate decisions.
 
 The header now has one **Vehicle diagrams & components** entry. It opens a compact dropdown grouped into passenger/light-duty and commercial vehicles. Choosing a group immediately opens that category without a separate confirmation. Within Sedan, **Sedan illustration** offers General sedan or the original 2025 Toyota Camry SE exterior study. The separate Camry header button has been removed. Selection does not replace the RO vehicle or alter saved estimate lines.
+
+## Double-click a panel
+
+Click once to select/highlight; double-click to open only that panel and its component breakdown. For example, double-click a fender to see its outer panel, liner, brackets/fasteners, arch molding and seals. Select a subcomponent, then choose **Show selected component operations** to continue estimating. **Back to vehicle diagram** restores the exterior view. Keyboard and touch users can select a panel and use **Open selected panel components** instead. Drilling into a panel never adds or approves a repair line automatically.
