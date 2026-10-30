@@ -1,4 +1,4 @@
-import { CATALOG_RELEASE, LABOR_CATEGORIES, operationFor, type LaborCategory } from "./catalog";
+import { CATALOG_RELEASE, LABOR_CATEGORIES, operationFor, assemblyPath, type LaborCategory } from "./catalog";
 
 export type BodyPart = { id: string; description: string; number: string; quantity: number; unitPriceCents: number | null; source: "OEM" | "AFTERMARKET" | "RECYCLED" | "OTHER"; fitment: string; taxable: boolean };
 export type BodyLine = { id: string; operationId: string; position: string; minutes: number | null; basis: string; applicability: string; procedure: string; category: LaborCategory; parts: BodyPart[]; materialsCents: number | null; materialsBasis: string; subletCents: number | null; subletReference: string; taxable: boolean; sharedAccess: { group: string; minutes: number; reason: string } | null; evidenceIds: string[]; note: string };
@@ -37,6 +37,11 @@ export function calculateBodyDraft(draft: BodyDraft) {
     if (line.minutes === null || (line.minutes > 0 && rate === null)) problems.push("Labor time or category rate is pending.");
     if (line.minutes !== null && operation.method !== "SUBLET" && (!line.basis || !line.applicability)) problems.push("Record the estimator allowance basis and vehicle applicability review.");
     if (operation.technicalReview && !line.procedure) problems.push("Record the applicable technical procedure / qualified review reference.");
+    const ancestors = assemblyPath(operation.componentId).slice(0, -1);
+    if (!["INSPECT", "SUBLET"].includes(operation.method) && ancestors.length && !line.note.trim()) {
+      const overlap = draft.lines.some(other => other.id !== line.id && ancestors.includes(operationFor(other.operationId)!.componentId) && ["REPLACE", "REMOVE_INSTALL"].includes(operationFor(other.operationId)!.method));
+      if (overlap) problems.push("Assembly and subcomponent work overlap. Explain the separate scope / included-work review in this line's scope notes before quoting both.");
+    }
     let deduction = 0;
     if (line.sharedAccess) { if (!line.sharedAccess.group || !line.sharedAccess.reason || line.sharedAccess.minutes > (line.minutes ?? 0)) problems.push("Shared access requires a group, explanation and time no greater than the line allowance."); else if (shared.has(line.sharedAccess.group)) deduction = line.sharedAccess.minutes; else shared.add(line.sharedAccess.group); }
     const netMinutes = line.minutes === null ? null : line.minutes - deduction;

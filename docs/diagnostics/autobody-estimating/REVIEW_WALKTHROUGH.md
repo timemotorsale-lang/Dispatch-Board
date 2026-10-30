@@ -42,3 +42,15 @@ Saved revision comparison names added, changed and removed operations and compar
 Owner review has not occurred and adoption has not been recorded. Exact-vehicle procedures, attachment/joining/measurement diagrams, commercial labor times, supplier entitlements and qualified content review require actual permitted sources and reviewer decisions. The release must not be represented as an OEM-verified catalog.
 
 For reversible adoption later, change the entry/default only after owner approval. Returning to the current console leaves durable drafts and official documents intact. Do not roll back the additive tables or delete evidence to hide the review entry.
+
+## Vehicle groups and nested components
+
+1. Open the estimating review and choose **Vehicle diagrams & components** at the top, or open `/prototype/autobody-estimate?illustration=vehicle-groups`.
+2. From the dropdown, choose a vehicle group to open its estimating category, then choose one of its five views. Select a visible panel; this does not add a charge or change the RO vehicle.
+3. Open **Explore [panel] components**. Use the branch summaries or separated-part cards to reach smaller components. For a door, try glass/window mechanism → regulator → motor; for a sliding door, try sliding mechanism → optional power drive → motor/cable.
+4. Use the component-path buttons to return to an assembly. Search for clips, seals or connectors; no-match means uncataloged, not absent.
+5. Choose **Show selected component operations**. Confirm the exact side, serviceability, applicable source and manual time before adding/quoting work. Review included scope if both the assembly and a child are quoted.
+
+The illustrative catalog is not an exhaustive OEM parts list. Default adoption and licensed/qualified technical-content acceptance remain separate decisions.
+
+The header now has one **Vehicle diagrams & components** entry. It opens a compact dropdown grouped into passenger/light-duty and commercial vehicles. Choosing a group immediately opens that category without a separate confirmation. Within Sedan, **Sedan illustration** offers General sedan or the original 2025 Toyota Camry SE exterior study. The separate Camry header button has been removed. Selection does not replace the RO vehicle or alter saved estimate lines.

@@ -67,3 +67,11 @@ Database/browser/regression/build runners enforce loopback and a restore-verifie
 ## Owner and external decisions
 
 Use the [review walkthrough](REVIEW_WALKTHROUGH.md). Exact-vehicle technical content, supplier rights and qualified technical review remain external dependencies. Owner adoption is a separate decision. Software tests do not certify a collision repair procedure or a universal commercial labor guide.
+
+## Vehicle-group / nested component refinement — October 30, 2026
+
+Camry visual preview and direct review access were committed as `b69aa282`. The subsequent review-only assembly extension adds 11 body groups / 55 exterior views, 45 expandable assembly roots and 528 subcomponents. Current catalog totals: 619 components and 1,954 manual operations. Original draft IDs/schema and original operation versions remain valid; new operations identify the assembly-release source version. No database migration or default adoption is required.
+
+The top-level **Vehicle diagrams & components** button opens the group selector directly. Nested component cards/tree branches, search, breadcrumbs and a direct operations handoff support door-to-motor/clip navigation. Assembly/child double charging requires an included-scope explanation. Unsupported detailed breakdowns are explicit and are not treated as proof that a part does not exist.
+
+Validation: 106 focused unit checks passed (55 group/view bindings, ancestry/identity, bounded saved-line keys, safety/overlap checks and existing estimating/Camry regressions). Source TypeScript check and changed-source lint passed. Local browser checks covered minivan sliding-door selection, nested power-drive and window-regulator/motor navigation, and handoff from the expanded viewer to the selected component's operations. These software checks do not certify technical content or an exhaustive parts list.
