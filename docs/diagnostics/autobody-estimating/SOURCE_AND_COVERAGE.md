@@ -28,3 +28,15 @@ Structural, restraint, calibration and high-voltage components offer assessment 
 Local database migration verification uses a recoverable backup, an actual restore into a newly created loopback verification database and before/after checksums of existing business tables. Synthetic financial/approval tests run only in that disposable database. Its fixtures are not real customer authorization or actual repair evidence.
 
 Generic coverage and software verification are distinct from exact-vehicle content acceptance. Owner review/adoption and qualified technical content review remain separate decisions.
+
+## Camry exterior visual study
+
+The review workspace includes an optional original 2025 Toyota Camry SE exterior illustration, selected through the Illustration control or `/prototype/autobody-estimate?illustration=camry-2025-se`. Front, rear, vehicle-left, vehicle-right and upper-panel views bind visible regions to the existing operation catalog. Expansion, keyboard selection, zoom and pan use the existing viewer. Panel highlighting changes the selected operation area; it does not create an estimate line or modify the canonical vehicle.
+
+Toyota public styling references informed the exterior study:
+- https://pressroom.toyota.com/toyota-unveils-the-powerful-and-purely-hybrid-next-generation-camry/
+- https://www.toyota.com/content/dam/toyota/brochures/pdf/2025/camry_ebrochure.pdf
+
+The SVG paths are original artwork, not reproduced OEM drawings. Exterior proportions and visible panel regions are approximate. No VIN/trim verification, part fitment, hidden construction, attachment, sectioning, measurement or labor-time accuracy is claimed. The detail inset and non-exterior components remain explicitly generic. Choosing this illustration is independent of the selected RO vehicle; source/profile selection is not a technical approval or default adoption. Exact-vehicle technical content approval remains zero/unclaimed.
+
+Validation: 46 focused unit checks passed, including all five views mapping every depicted region to an existing component and operation. Authenticated local browser review verified the Camry profile, expanded view, keyboard selection of the left front door and zoom. No business record was created during that review.
