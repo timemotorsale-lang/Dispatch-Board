@@ -30,7 +30,7 @@ export function calculateBodyDraft(draft: BodyDraft) {
   const issues: string[] = [], seen = new Map<string, string[]>(), shared = new Set<string>();
   if (!draft.lines.length) issues.push("Add at least one operation.");
   if (draft.taxBasisPoints === null || !draft.taxReference) issues.push("Confirm the applicable tax rate and its reference, including a zero-tax decision.");
-  const lines = [...draft.lines].sort((a, b) => a.id.localeCompare(b.id)).map(line => {
+  const lines = [...draft.lines].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).map(line => {
     const operation = operationFor(line.operationId)!;
     const problems: string[] = [], rate = draft.rates[line.category], scopeKey = `${operation.componentId}:${line.position}`;
     const selected = seen.get(scopeKey) ?? []; selected.push(operation.method); seen.set(scopeKey, selected);

@@ -80,11 +80,15 @@ describe.skipIf(process.env.RUN_AUTOBODY_DB !== "isolated")("isolated collision 
     expect(result.duplicate).toBe(true); expect(result.estimateId).toBe(before.estimateId);
     expect(await prisma.repairEstimateVersion.count({ where: { repairOrderId } })).toBe(2);
   });
+  it("does not let an ordinary quote claim collision provenance", async () => {
+    const { presentRepairEstimate } = await import("@/server/shop-planning/service"), { bodyEstimateLines, calculateBodyDraft } = await import("@/lib/autobody-estimating/domain");
+    await expect(presentRepairEstimate(actor, repairOrderId, { lineItems: bodyEstimateLines(content), taxCents: calculateBodyDraft(content).taxCents, discountCents: 0, taxBoundary: content.taxReference, optionGroups: [{ type: "AUTOBODY_PROVENANCE", snapshot: "forged" }], estimateWorkflow: "STAFF_QUOTE", presentedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), presentationChannel: "IN_PERSON", reason: "Synthetic invalid provenance boundary", idempotencyKey: randomUUID() })).rejects.toThrow("validated collision review");
+  });
   it("enforces location grants for active staff", async () => {
     const { prisma } = await import("@/server/db/client"), { readBodyWorkspace, saveBodyDraft } = await import("@/server/autobody-estimating/service"), { INITIAL_ORGANIZATION } = await import("@/server/appointments/location-foundation");
     const organizationId = INITIAL_ORGANIZATION.id, name = randomUUID();
     const staff = await prisma.user.create({ data: { email: `${name}@example.test`, name: "Synthetic location-scoped viewer", passwordHash: "Synthetic disabled login fixture" } });
-    await prisma.vehicleCapabilityGrant.create({ data: { organizationId, locationId, userId: staff.id, capability: "REPAIR_ORDER_VIEW", effect: "ALLOW", constraints: {} } });
+    await prisma.vehicleCapabilityGrant.create({ data: { organizationId, locationId, userId: staff.id, capability: "REPAIR_ORDER_VIEW", effect: "ALLOW", constraints: {}, validFrom: new Date(Date.now() - 86400000) } });
     const viewer = { ...actor, id: staff.id, roles: [] };
     expect("record" in await readBodyWorkspace(viewer, { id })).toBe(true);
     const otherLocation = await prisma.location.create({ data: { organizationId, code: `body-location-${name}`, name: "Synthetic other location", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } }), otherId = randomUUID();

@@ -16,7 +16,9 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
     const matches = order.repairJobs.filter(job => job.authorizedLineKey === line.key && job.authorizationId === authorization.id && job.estimateVersionId === estimate.id);
     if (matches.length !== 1 || matches[0].status !== "QC_PASSED" || matches[0].qualityInspections[0]?.disposition !== "PASSED" || !matches[0].qualityInspections[0]?.safetyChecksPassed) mismatchCodes.push("INVOICE_JOB_QC_INCOMPLETE");
   }
-  const vendorKeys = ledger.lines.filter(line => line.type === "FEE" && /^bf-.+-vendor$/.test(line.key)).map(line => line.key);
+  const groups = estimate.optionGroups as unknown as { type?: string }[] | null;
+  const collision = Array.isArray(groups) && groups.some(group => group?.type === "AUTOBODY_PROVENANCE");
+  const vendorKeys = (collision ? ledger.lines : []).filter(line => line.type === "FEE" && /^bf-.+-vendor$/.test(line.key)).map(line => line.key);
   const vendorReturns = await acceptedVendorReturns(database, organizationId, repairOrderId, estimate.id, authorization.id, vendorKeys);
   if (vendorKeys.some(key => vendorReturns.filter(item => item.lineKeys.includes(key)).length !== 1)) mismatchCodes.push("INVOICE_VENDOR_RETURN_REVIEW_REQUIRED");
   if (!ledger.lines.some(line => line.type === "LABOR") && (!vendorKeys.length || ledger.lines.some(line => !vendorKeys.includes(line.key)))) mismatchCodes.push("INVOICE_EXECUTABLE_SCOPE_MISSING");

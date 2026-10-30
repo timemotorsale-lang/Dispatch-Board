@@ -39,6 +39,7 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   const staffQuote=(value as Record<string,unknown>).estimateWorkflow==="STAFF_QUOTE";
   const collisionValue=(value as Record<string,unknown>).collisionReview;
   const collision=collisionValue === undefined ? null : normalizeBodyDraft(collisionValue);
+  if(!collision&&Array.isArray(data.optionGroups)&&data.optionGroups.some(group=>group&&typeof group==="object"&&"type" in group&&group.type==="AUTOBODY_PROVENANCE"))throw new Error("Collision provenance requires a validated collision review.");
   if(collision){
     const calculated=calculateBodyDraft(collision),lines=bodyEstimateLines(collision);
     if(collision.repairOrderId!==ro.id||collision.vehicleId!==ro.vehicle.id||!calculated.ready||calculated.taxCents!==data.taxCents||calculated.discountCents!==data.discountCents||hashEnterpriseCommand(lines)!==hashEnterpriseCommand(data.lineItems))throw new Error("Collision review no longer matches this vehicle, scope or calculation.");
