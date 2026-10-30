@@ -150,6 +150,11 @@ describe("enterprise service intake workspace", () => {
       shopDispatchHref: "/vehicles/shop-dispatch?repairOrderId=ro-123",
     });
   });
+  it("returns collision intake to its saved scope with exactly one current RO context", () => {
+    const links = buildServiceIntakeCompletionLinks("ro-new", "/prototype/autobody-estimate?repairOrderId=ro-old&draftId=scope-1");
+    expect(links.laborGuideHref).toBe("/prototype/autobody-estimate?repairOrderId=ro-new&draftId=scope-1");
+    expect(links.returnHref).toBe(links.laborGuideHref);
+  });
 
   it("restores a selected canonical vehicle without pre-filling the concern", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports brake vibration." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={options} />);

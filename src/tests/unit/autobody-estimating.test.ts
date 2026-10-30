@@ -4,6 +4,7 @@ import { bodyEstimateLines, calculateBodyDraft, compareBodyDrafts, emptyBodyDraf
 import { normalizeEstimate } from "@/server/shop-planning/domain";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { collisionCandidates, collisionExport } from "@/lib/autobody-estimating/interchange";
+import { autobodyIntakeHref, resumeBodyScope } from "@/lib/autobody-estimating/navigation";
 
 function fixture(): BodyDraft { const draft = emptyBodyDraft(15000), line = newBodyLine("body:front-cover:replace"); return { ...draft, vehicleId: "vehicle", repairOrderId: "ro", taxBasisPoints: 800, taxReference: "Synthetic policy", lines: [{ ...line, id: "line-a", minutes: 90, basis: "Synthetic estimator assessment", applicability: "Synthetic configuration reviewed", taxable: true }] }; }
 describe("collision catalog identity and coverage", () => {
@@ -45,6 +46,8 @@ describe("draft boundaries and official service handoff", () => {
 });
 
 describe("optional integration boundaries", () => {
+  it("opens canonical intake with saved scope and returns safely to the actual RO", () => { const draft = fixture(); draft.repairOrderId = null; const context = { repairOrderId: "new-ro", vehicleId: "vehicle", payer: "CUSTOMER" as const, estimates: [] }; expect(resumeBodyScope(draft, context)).toMatchObject({ fork: true, content: { repairOrderId: "new-ro", vehicleId: "vehicle" } }); expect(new URL(autobodyIntakeHref("vehicle", true, "/prototype/autobody-estimate?draftId=saved"), "http://local.invalid").searchParams.get("intakeSource")).toBe("INVENTORY_RECON"); expect(() => resumeBodyScope(draft, { ...context, vehicleId: "other" })).toThrow("different vehicle"); });
+  it("requires fresh applicability when a generic pre-intake draft gains a real vehicle", () => { const draft = fixture(); draft.vehicleId = null; draft.repairOrderId = null; expect(resumeBodyScope(draft, { repairOrderId: "ro", vehicleId: "v", payer: "INTERNAL", estimates: [] }).content.lines[0].applicability).toBe(""); });
   it("keeps manual estimating available with no supplier or failed supplier", async () => { expect((await collisionCandidates(null, { vehicleId: "v", componentId: "front-cover" })).status).toBe("UNCONFIGURED"); const failed = await collisionCandidates({ id: "synthetic", lookup: async () => { throw new Error("offline"); } }, { vehicleId: "v", componentId: "front-cover" }); expect(failed.status).toBe("UNAVAILABLE"); expect(failed.message).toContain("Manual quotes"); });
   it("exports an explicit internal review format with reproducible calculations", () => { const result = collisionExport(fixture(), { id: "draft", version: 1, estimateId: null }); expect(result.calculation.totalCents).toBe(calculateBodyDraft(fixture()).totalCents); expect(result.notice).toContain("Not an insurer submission"); });
 });

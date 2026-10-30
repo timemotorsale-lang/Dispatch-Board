@@ -10,10 +10,12 @@ const root = process.cwd(), revision = execFileSync("git", ["rev-parse", "HEAD"]
 let buildRoot;
 if (existsSync("tmp/autobody/build-result.json")) {
   const prior = JSON.parse(readFileSync("tmp/autobody/build-result.json", "utf8")), candidate = path.resolve(prior.buildRoot ?? "");
-  if (prior.revision === revision && candidate.startsWith(path.resolve("tmp/autobody") + path.sep + "build-") && existsSync(path.join(candidate, ".git"))) {
+  if (candidate.startsWith(path.resolve("tmp/autobody") + path.sep + "build-") && existsSync(path.join(candidate, ".git"))) {
     const current = execFileSync("git", ["-C", candidate, "rev-parse", "HEAD"], { encoding: "utf8", windowsHide: true }).trim();
     const edits = execFileSync("git", ["-C", candidate, "diff", "--name-only"], { encoding: "utf8", windowsHide: true }).trim().split(/\r?\n/).filter(Boolean);
-    if (current === revision && edits.every(file => ["next-env.d.ts", "tsconfig.json", "AGENTS.md"].includes(file))) buildRoot = candidate;
+    if (current === prior.revision && edits.every(file => ["next-env.d.ts", "tsconfig.json", "AGENTS.md"].includes(file))) {
+      try { if (current !== revision) execFileSync("git", ["-C", candidate, "switch", "--detach", revision], { stdio: "pipe", windowsHide: true }); buildRoot = candidate; } catch { }
+    }
   }
 }
 if (!buildRoot) {

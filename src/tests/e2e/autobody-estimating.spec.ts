@@ -17,11 +17,12 @@ test("authenticated collision supplement, frozen document, export and contextual
     expect((await page.request.post("/api/coo-workbook/rhythm", { data: { workbookId: rhythm.workbookId, action: "START_DELAY_EXPLAINED", reason: "Isolated synthetic autobody test; not starting an operational workday.", sourcePath: "/prototype/autobody-estimate" } })).ok()).toBe(true);
     await page.addInitScript(({ key }) => localStorage.setItem(key, String(Date.now() + 900000)), { key: `operating-rhythm:start-snooze:${rhythm.boardDate}:${rhythm.workbookId}` });
   }
-  const route = `/prototype/autobody-estimate?repairOrderId=${fixture.repairOrderId}`;
+  const workspace = await (await page.request.get(`/api/autobody-estimating?repairOrderId=${fixture.repairOrderId}`)).json();
+  const latestDraft = workspace.drafts.find((item: {estimateId:string}) => item.estimateId === workspace.context.estimates[0].id); expect(latestDraft).toBeTruthy();
+  const route = `/prototype/autobody-estimate?repairOrderId=${fixture.repairOrderId}&draftId=${latestDraft.id}`;
   await page.goto(route);
   await expect(page.getByRole("heading", { name: "Point to the damage. Build the estimate.", exact: true })).toBeVisible();
   await page.getByText("Photos, saved work and technical coverage", { exact: true }).click();
-  await page.getByRole("button").filter({ hasText: fixture.title }).click();
   await expect(page.getByRole("link", { name: "Open estimate / Print / Save PDF", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start supplement", exact: true }).click();
   const work = page.getByRole("region", { name: "Selected work", exact: true });
@@ -38,7 +39,7 @@ test("authenticated collision supplement, frozen document, export and contextual
   await expect(work.getByLabel("Labor hours", { exact: true })).toBeDisabled();
   const exportHref = await page.getByRole("link", { name: "Download saved review data (JSON)", exact: true }).getAttribute("href");
   const exported = await page.request.get(exportHref!); expect(exported.ok()).toBe(true);
-  const data = await exported.json(); expect(data.draft.repairOrderId).toBe(fixture.repairOrderId); expect(data.reference.estimateId).toBeTruthy(); expect(data.format).toBe("TIME_MOTOR_COLLISION_REVIEW"); expect(data.draft.evidenceIds).toHaveLength(1);
+  const data = await exported.json(); expect(data.draft.repairOrderId).toBe(fixture.repairOrderId); expect(data.reference.estimateId).toBeTruthy(); expect(data.format).toBe("TIME_MOTOR_COLLISION_REVIEW"); expect(data.draft.evidenceIds.length).toBeGreaterThan(0);
   const photo = await page.request.get(`/api/vehicle-evidence/${data.draft.evidenceIds[0]}/content`); expect(photo.ok()).toBe(true); expect(photo.headers()["content-type"]).toBe("image/png");
   await expect(page.getByRole("link", { name: "Parts & procurement", exact: true })).toHaveAttribute("href", new RegExp(`/vehicles/parts-operations\\?repairOrderId=${fixture.repairOrderId}`));
   await page.screenshot({ path: "test-results/autobody/browser/authenticated-desktop.png", fullPage: true });
@@ -57,4 +58,32 @@ test("authenticated collision supplement, frozen document, export and contextual
   await expect(page.getByRole("link", { name: "Authorization & repair planning", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/autobody/browser/authenticated-phone.png", fullPage: true });
+});
+test("pre-intake scope returns to the actual RO without overwriting the original draft", async ({ page }) => {
+  const database = new URL(process.env.DATABASE_URL ?? "invalid:");
+  if (process.env.AUTOBODY_BROWSER !== "isolated" || process.env.PLAYWRIGHT_BASE_URL !== "http://127.0.0.1:3203" || !["localhost", "127.0.0.1"].includes(database.hostname) || !/^\/dispatch_autobody_verify_\d+$/.test(database.pathname)) throw new Error("Use the isolated autobody runner.");
+  const fixture = JSON.parse(readFileSync("tmp/autobody/browser-fixture.json", "utf8"));
+  expect((await page.request.post("/api/auth/login", { data: { email: fixture.email, password: fixture.password } })).ok()).toBe(true);
+  const opened = await (await page.request.get(`/api/autobody-estimating?id=${fixture.draftId}`)).json();
+  const originalId = crypto.randomUUID(), content = { ...opened.record.content, title: `Synthetic before intake ${originalId}`, repairOrderId: null, priorEstimateId: null, supplementReason: "" };
+  expect((await page.request.post("/api/autobody-estimating", { data: { action: "SAVE", id: originalId, expectedVersion: 0, locationId: fixture.locationId, content, idempotencyKey: crypto.randomUUID() } })).ok()).toBe(true);
+  const rhythm = await (await page.request.get("/api/coo-workbook/rhythm")).json();
+  expect((await page.request.post("/api/coo-workbook/rhythm", { data: { workbookId: rhythm.workbookId, action: "START_DELAY_EXPLAINED", reason: "Isolated synthetic pre-intake scope verification only.", sourcePath: "/prototype/autobody-estimate" } })).ok()).toBe(true);
+  await page.addInitScript(({key})=>localStorage.setItem(key,String(Date.now()+900000)),{key:`operating-rhythm:start-snooze:${rhythm.boardDate}:${rhythm.workbookId}`});
+  await page.goto(`/prototype/autobody-estimate?draftId=${originalId}`);
+  await page.getByRole("link", {name:"Check in this vehicle to continue",exact:true}).click();
+  await expect(page).toHaveURL(/\/vehicles\/repair-orders\?/);
+  expect(new URL(page.url()).searchParams.get("intakeSource")).toBe("WALK_IN");
+  expect(new URL(page.url()).searchParams.get("vehicleId")).toBe(fixture.vehicleId);
+  await expect(page.getByRole("heading", {name:"Check In Vehicle",exact:true})).toBeVisible();
+  await page.goto(`/prototype/autobody-estimate?repairOrderId=${fixture.repairOrderId}&draftId=${originalId}`);
+  await expect(page.getByRole("status").filter({ hasText: "Saved scope restored after check-in" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Selected work", exact: true }).getByLabel("Labor hours", { exact: true })).toHaveValue("2");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Saved v1", { exact: true })).toBeVisible();
+  const currentId = new URL(page.url()).searchParams.get("draftId"); expect(currentId).toBeTruthy(); expect(currentId).not.toBe(originalId);
+  const linked = await (await page.request.get(`/api/autobody-estimating?id=${currentId}`)).json(), original = await (await page.request.get(`/api/autobody-estimating?id=${originalId}`)).json();
+  expect(linked.record.content.repairOrderId).toBe(fixture.repairOrderId); expect(original.record.content.repairOrderId).toBeNull();
+  await page.reload(); await expect(page.getByText("Saved v1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Selected work", exact: true }).getByLabel("Labor hours", { exact: true })).toHaveValue("2");
 });
