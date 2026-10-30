@@ -249,14 +249,17 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false, reviewWorkbench = false }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialCustomerId = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false, reviewWorkbench = false }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialCustomerId?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null);
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
   const vehicleAddSectionRef = useRef<HTMLElement>(null);
   const inventoryUnitSectionRef = useRef<HTMLElement>(null);
-  const [form, setForm] = useState<IntakeState>(() => ({ ...buildInitial(options, initialTimestamp, initialVehicleId, initialVehicleRelationship), concernSummary: initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? initialConcernSummary.trim().slice(0, 2000) : "" }));
+  const [form, setForm] = useState<IntakeState>(() => {
+    const customerId = initialVehicleRelationship === "CUSTOMER_VEHICLE" && options.customers.some(customer => customer.id === initialCustomerId) ? initialCustomerId : "";
+    return { ...buildInitial(options, initialTimestamp, initialVehicleId, initialVehicleRelationship), customerId, concernSummary: initialVehicleRelationship === "DEALERSHIP_INVENTORY" || customerId ? initialConcernSummary.trim().slice(0, 2000) : "" };
+  });
   const [arrivalQuery, setArrivalQuery] = useState(initialArrivalQuery);
   const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
   const [customerRecords, setCustomerRecords] = useState(options.customers);
@@ -460,18 +463,20 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           vehicleRecords: ServiceIntakeOptions["vehicles"];
         }>;
         const draftForm = draft.form;
+        if (initialCustomerId && (draftForm?.customerId !== initialCustomerId || draftForm?.vehicleId !== initialVehicleId)) return;
         if (draft.customerRecords) setCustomerRecords((records) => mergeById(records, draft.customerRecords));
         if (draft.vehicleRecords) setVehicleRecords((records) => mergeById(records, draft.vehicleRecords));
         if (draftForm) {
           setForm((current) => {
             const vehicleId = initialVehicleId && options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : draftForm.vehicleId || current.vehicleId;
-            const vehicleRelationship = initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship;
+            const vehicleRelationship = initialCustomerId ? "CUSTOMER_VEHICLE" : initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship;
             const inventoryUnitId = vehicleRelationship === "DEALERSHIP_INVENTORY"
               ? options.inventoryUnits.find((unit) => unit.vehicle.id === vehicleId)?.id ?? ""
               : "";
             return {
               ...current,
               ...draftForm,
+              customerId: initialCustomerId || draftForm.customerId,
               concernSummary: initialConcernSummary.trim() || (draftForm.vehicleId === vehicleId ? draftForm.concernSummary ?? current.concernSummary : current.concernSummary),
               inventoryUnitId,
               locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
@@ -488,7 +493,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialConcernSummary, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
+  }, [initialConcernSummary, initialCustomerId, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
 
   useEffect(() => {
     if (form.vehicleRelationship !== "DEALERSHIP_INVENTORY" || !form.vehicleId || form.inventoryUnitId) return;
@@ -1179,7 +1184,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
 
   return <form className="service-intake-shell sic-reference-v2" noValidate onSubmit={submit} ref={formRef}>
     <header className="sic-header">
-      <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/recon-repair-advisor"}>{returnTo ? "← Back to Labor Guide" : "← Back to Recon / Repair Advisor"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
+      <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/recon-repair-advisor"}>{returnTo?.startsWith("/crm-next/deals") ? "← Back to repair deal" : returnTo ? "← Back to Labor Guide" : "← Back to Recon / Repair Advisor"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
       <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>
     </header>
 

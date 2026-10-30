@@ -10,11 +10,26 @@ import { createRegistryVehicle } from "@/server/vehicle-registry/service";
 import { createVehicleRegistryRepository } from "@/server/vehicle-registry/repository";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import type { DealCustomerChoice, DealVehicleChoice } from "@/lib/deal-continuity";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
+import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 
-export const dealOrganization = () => resolveDocumentStorageRuntimeFromEnv().organizationId;
-export async function dealIdentityOptions(actor: AuthenticatedUser | null) {
-  requireSalesDocumentsUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
-  return { locations: await prisma.location.findMany({ where: { organizationId: dealOrganization() }, select: { id: true, name: true }, orderBy: { name: "asc" } }) };
+export const dealDocumentOrganization = () => resolveDocumentStorageRuntimeFromEnv().organizationId;
+export function dealOrganization() {
+  const configured = dealDocumentOrganization();
+  return configured === "default-org" && !process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID?.trim() ? INITIAL_ORGANIZATION.id : configured;
+}
+export async function dealIdentityOptions(actor: AuthenticatedUser | null, recordType: "customer" | "vehicle" = "customer") {
+  const user = requireSalesDocumentsUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  const organizationId = dealOrganization();
+  const [locations, grants] = await Promise.all([
+    prisma.location.findMany({ where: { organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId)
+  ]);
+  const now = new Date();
+  const allowed = locations.filter(location => evaluateVehicleCapability({ actor: user, capability: recordType === "vehicle" ? "VEHICLE_IDENTITY_CREATE" : "CUSTOMER_INTAKE_CREATE", grants, locationId: location.id, now }).allowed);
+  if (!allowed.length) throw new SalesDocumentsError(locations.length ? "No locations are available for this action under your permissions. Ask a manager to review your location access; your entries have been retained." : "No company locations are configured for this workflow. Ask a manager to check company settings; your entries have been retained.", locations.length ? 403 : 409);
+  return { locations: allowed };
 }
 export async function dealCustomer(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealCustomerChoice> {
   requireSalesDocumentsUser(actor);

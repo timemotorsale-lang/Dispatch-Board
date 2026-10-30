@@ -1,0 +1,21 @@
+.concern {
+  width: 100%;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid #b9c8df;
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+.concern:focus-visible {
+  outline: 2px solid #4059d9;
+  outline-offset: 2px;
+}
+
+.continueButton:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}

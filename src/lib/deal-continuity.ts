@@ -2,6 +2,12 @@ export type DealCustomerChoice = {
   id: string; name: string; customerNumber: string; phone: string; email: string;
   dealPrefill?: { address?: string; dateOfBirth?: string; idLast4?: string; idState?: string; idType?: string; ssnLast4?: string };
 };
+
+export function dealCustomerDisplayNumber(customer: { id: string; customerNumber?: string | null }) {
+  const value = customer.customerNumber?.trim() ?? "";
+  const opaque = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(value) || /^c[a-z\d]{24,}$/i.test(value);
+  return value && value !== customer.id && !opaque ? value : "";
+}
 export type DealVehicleChoice = {
   id: string; label: string; vin: string; stockNumber: string; inventoryUnitId: string | null;
   year: string; make: string; model: string; color: string; licensePlate: string; locationId: string | null;

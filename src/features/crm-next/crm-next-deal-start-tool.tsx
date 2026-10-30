@@ -9,7 +9,8 @@ import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedb
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
 import { VehicleUseTool } from "./vehicle-use-tool";
-import { emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
+import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
+import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
 import identityStyles from "./shared-deal-identities.module.css";
 import { TestDriveVehiclePicker } from "./test-drive-vehicle-picker";
 import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
@@ -179,7 +180,7 @@ const DEAL_WORKFLOWS: DealWorkflow[] = [
     required: ["Customer", "Vehicle", "Repair concern", "Authorization path"],
     sourceChecks: ["Customer 360", "Vehicle 360", "Service intake", "Estimate controls"],
     executionSteps: ["Capture concern", "Confirm vehicle", "Prepare estimate path", "Move to repair desk"],
-    nextWorkspace: "Repair revenue desk"
+    nextWorkspace: "Repair check-in & Labor Guide"
   },
   {
     id: "test-drive",
@@ -259,6 +260,7 @@ const DEAL_START_PRESETS: DealStartPreset[] = [
   { id: "retail-dealer-finance", label: "Retail Dealer Finance", helper: "Credit path, lender status, stipulations, and financed-sale forms.", workflowId: "finance" },
   { id: "bhph-payment-sale", label: "BHPH", helper: "In-house account setup, references, payment schedule, and servicing handoff.", workflowId: "bhph" },
   { id: "lease-to-own-payment", label: "Lease-to-Own", helper: "Lease calculator, source templates, references, and title authority.", workflowId: "lease-to-own" },
+  { id: "customer-repair", label: "Repairs", helper: "Customer, vehicle, concern, repair check-in and RO-linked Labor Guide.", workflowId: "repairs" },
   { id: "wholesale-release", label: "Wholesale", helper: "Buyer authority, funding, title release, and transport handoff.", workflowId: "wholesale" },
   { id: "courtesy-loaner", label: "Loaner", helper: "Rental-style checkout with courtesy waiver and return evidence.", workflowId: "vehicle-loaner" },
   { id: "daily-rental", label: "Daily Rental", helper: "Rental agreement, payment hold, checkout photos, and return evidence.", workflowId: "daily-rental" },
@@ -4445,7 +4447,9 @@ function DealStartDesk({
   const savedDeal = useDealDraft();
   const router = useRouter();
   const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? null;
-  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(model.customers.map(customer => ({ ...customer, customerNumber: customer.id })));
+  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(model.customers.map(customer => ({ ...customer, customerNumber: dealCustomerDisplayNumber(customer) })));
+  const repairCustomerRef = useRef<HTMLDivElement>(null);
+  const repairVehicleRef = useRef<HTMLDivElement>(null);
   const [identity, setIdentity] = useDealDraftState<DealIdentity>("identity", { ...emptyDealIdentity });
   const [relatedSource, setRelatedSource] = useState<{ customerName: string; sourceVehicleReference: string; sourceVehicleId: string } | null>(null);
   const [sourceError, setSourceError] = useState("");
@@ -4478,7 +4482,8 @@ function DealStartDesk({
   const testDriveWorkflow = workflow.id === "test-drive";
   const wholesaleWorkflow = workflow.id === "wholesale";
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
-  const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
+  const repairWorkflow = workflow.id === "repairs";
+  const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow || repairWorkflow;
   const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? customerChoices.find((customer) => customer.id === form.customerId) ?? null : null;
   const selectedCustomerId = selectedCustomer?.id ?? "";
   useEffect(() => {
@@ -4587,7 +4592,7 @@ function DealStartDesk({
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
   const effectiveAmount = nonRevenueWorkflow && !form.amount.trim() ? "$0.00" : form.amount;
   const effectiveEstimatedValueCents = nonRevenueWorkflow && !form.amount.trim() ? 0 : estimatedValueCents;
-  const completedCount = useMemo(() => [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
+  const completedCount = useMemo(() => (repairWorkflow ? [identity.customerId, identity.vehicleId, form.note] : [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount]).filter(value => value.trim()).length, [repairWorkflow, identity.customerId, identity.vehicleId, form.note, customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
   const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
@@ -4629,7 +4634,29 @@ function DealStartDesk({
     void savedDeal?.save();
   }
 
+  function focusRepairIdentity(field: "customer" | "vehicle") {
+    const container = field === "customer" ? repairCustomerRef.current : repairVehicleRef.current;
+    container?.scrollIntoView({ behavior: "smooth", block: "center" });
+    container?.querySelector<HTMLInputElement>("input:not([type=hidden])")?.focus({ preventScroll: true });
+  }
+
+  async function continueRepair() {
+    if (!identity.customerId || !identity.vehicleId || !form.note.trim()) {
+      setStatus({ kind: "error", message: "Select the shared customer and vehicle, then enter the repair concern." });
+      return;
+    }
+    setStatus({ kind: "saving", message: "Saving repair context…" });
+    if (!savedDeal || !await savedDeal.save()) {
+      setStatus({ kind: "error", message: "Resolve the draft save before opening repair check-in. Your selections remain here." });
+      return;
+    }
+    const href = repairDealIntakeHref(identity.customerId, identity.vehicleId, form.note, savedDeal.draftId());
+    if (href) router.push(href);
+    else setStatus({ kind: "error", message: "Save the repair draft before continuing to check-in." });
+  }
+
   async function startDeal(): Promise<boolean> {
+    if (repairWorkflow) { await continueRepair(); return false; }
     if (pendingDocumentUploads.current || documentArchiveError) {
       setStatus({ kind: "error", message: pendingDocumentUploads.current ? "Wait for the documents to finish saving." : "Resolve the document save error before completing this workflow." });
       return false;
@@ -4726,13 +4753,13 @@ function DealStartDesk({
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
       <div className={identityStyles.identityGrid}>
-        <SharedDealCustomerPicker selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} />
-        <SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} />
+        <div ref={repairCustomerRef}><SharedDealCustomerPicker selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
+        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
       </div>
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
       {(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}
-      <header hidden={reviewTestDrive && testDriveWorkflow && executionOpen} className={styles.dealStartHeader}>
+      <header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
         <div>
           <span className={styles.eyebrow}>Revenue execution desk</span>
           <h1>Work the revenue path</h1>
@@ -4777,7 +4804,7 @@ function DealStartDesk({
               <small>{workflow.nextWorkspace}</small>
             </div>
             <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-              {(financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+              {(repairWorkflow ? ["Customer", "Vehicle", "Check-in", "Labor Guide"] : financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
             </div>
             <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
             <button onClick={() => setExecutionOpen(true)} type="button">
@@ -4797,7 +4824,7 @@ function DealStartDesk({
             </div>
           </div>
           <div hidden={reviewTestDrive && testDriveWorkflow} className={styles.executionStatusChips} aria-label="Open execution checks">
-            {(financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+            {(repairWorkflow ? ["Customer", "Vehicle", "Check-in", "Labor Guide"] : financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
           </div>
           {!(reviewTestDrive && testDriveWorkflow) && <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>}
           <button type="button" onClick={() => setExecutionOpen(false)}>Change path</button>
@@ -4812,7 +4839,7 @@ function DealStartDesk({
         </div>
       </nav>}
 
-      {executionOpen && !(reviewTestDrive && testDriveWorkflow) ? (
+      {executionOpen && !repairWorkflow && !(reviewTestDrive && testDriveWorkflow) ? (
         <nav className={styles.retailSectionJumps} aria-label="Retail sale section jumps">
           {workflow.id === "lease-to-own" ? (
             <>
@@ -4917,7 +4944,9 @@ function DealStartDesk({
         </section>
       ) : (
       <DealDraftScope key={identity.vehicleId || "unlinked"} name={workflowId}><main className={styles.dealExecutionBody}>
-          {financeWorkflow ? (
+          {repairWorkflow ? (
+            <RepairDealHandoff customerId={identity.customerId} vehicleId={identity.vehicleId} concern={form.note} busy={status.kind === "saving"} onConcernChange={value => update("note", value)} onMissingIdentity={focusRepairIdentity} onContinue={() => void continueRepair()} />
+          ) : financeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
                 {renderCustomerSelector()}
@@ -5114,8 +5143,7 @@ function DealStartDesk({
               </div>
               <button type="button" onClick={() => setSummaryOpen(false)}>Close</button>
             </header>
-            <ExecutionSummary completedCount={completedCount} onStart={() => void startDeal()} ready={ready} statusKind={status.kind} workflow={workflow} />
-            <small>Opens a Unified CRM opportunity through the governed backend command with idempotency, audit, and source checks.</small>
+            {repairWorkflow ? <p>Continue through check-in to the RO-linked Labor Guide. Estimate review, authorization, invoicing and closeout remain in the repair workflow.</p> : <><ExecutionSummary completedCount={completedCount} onStart={() => void startDeal()} ready={ready} statusKind={status.kind} workflow={workflow} /><small>Opens a Unified CRM opportunity through the governed backend command with idempotency, audit, and source checks.</small></>}
           </aside>
         </div>
       ) : null}

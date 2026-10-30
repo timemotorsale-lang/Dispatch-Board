@@ -16,6 +16,19 @@ const options = {
 };
 
 describe("enterprise service intake workspace", () => {
+  it("prefills a verified CRM repair customer, vehicle and concern without duplicate entry", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialCustomerId="customer-1" initialVehicleId="vehicle-1" initialConcernSummary="CRM repair: inspect brake vibration." initialTimestamp="2026-10-29T12:00:00.000Z" options={options} />);
+    expect(html).toContain("Jordan Customer");
+    expect(html).toContain("2024 Ford F-150");
+    expect(html).toContain("CRM repair: inspect brake vibration.");
+    expect(html).not.toContain("Next: Add / Select Customer");
+  });
+
+  it("does not trust a customer ID outside the supplied authorized intake options", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialCustomerId="foreign-customer" initialVehicleId="vehicle-1" initialConcernSummary="Untrusted incoming concern" initialTimestamp="2026-10-29T12:00:00.000Z" options={options} />);
+    expect(html).not.toContain("Untrusted incoming concern");
+    expect(html).toContain("Select customer");
+  });
   it.each(["DEALERSHIP_OWNED", "TRADE_IN", "CONSIGNMENT"])("requires canonical inventory even when %s is recorded", (relationshipType) => {
     const repairOptions = { ...options, vehicles: [{ ...options.vehicles[0], registryRelationships: [{ relationshipType }] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={repairOptions} />);
