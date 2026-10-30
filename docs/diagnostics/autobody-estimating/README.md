@@ -1,7 +1,7 @@
 # Autobody Estimating Implementation Blueprint
 
 **Decision date:** 2026-10-29  
-**Status:** Official branch planning baseline adopted by the owner; implementation planned  
+**Status:** Official branch baseline; generic/manual implementation available for owner review
 **Working branch:** `codex/autobody-estimating`  
 **Branch starting revision:** `26d71041d24439a115c23dc9a2bd3adc36056a8a` from `main`  
 **Product owner:** Time Motor Sales  
@@ -9,7 +9,9 @@
 
 Build a diagram-driven estimating tool that lets staff select a vehicle, identify damaged components, choose the required operations and produce a reviewed estimate without re-entering customer, vehicle or repair-order information. Enterprise depth belongs in accurate catalogs, explainable calculations, reliable records and connected execution. The normal screen should remain brief and task-focused.
 
-The owner approved the compact layout and adopted this package as the official implementation reference for `codex/autobody-estimating`, including detailed operation-linked diagrams, full-screen expansion, zoom/pan, panel layers and supported detail views. This package defines the build; it does not record completed implementation, approve technical repair methods, purchase data subscriptions, or adopt the future console as the default experience. The completed implementation remains available for owner review before adoption.
+The owner approved the compact layout and adopted this package as the official implementation reference for `codex/autobody-estimating`, including detailed operation-linked diagrams, full-screen expansion, zoom/pan, panel layers and supported detail views. Actual delivery evidence is recorded in [Implementation status](IMPLEMENTATION_STATUS.md), with [source and coverage limits](SOURCE_AND_COVERAGE.md). This does not approve technical repair methods, purchase data subscriptions, or adopt the new console as the default experience. The implementation remains available for owner review before adoption.
+
+Open `http://localhost:3000/prototype/autobody-estimate`, or use **Open diagram-driven estimating · Review new experience** from the existing console. See the [owner review walkthrough](REVIEW_WALKTHROUGH.md).
 
 ## Official document authority
 
@@ -28,7 +30,7 @@ For autobody layout, interaction and delivery sequencing, this package takes pre
 
 This package supersedes the earlier autobody landing-page layout and build order where they conflict with the compact workflow. Existing vehicle, estimate, approval, procurement, execution, QC and billing authorities remain authoritative. Feature acceptance criteria here do not add a global deployment checker or change other consoles' deployment requirements.
 
-## Current implementation baseline
+## Original inspection baseline
 
 The code inspection baseline is the repository state reviewed on 2026-10-29, following the Live Board release represented by main revision `26d71041d24439a115c23dc9a2bd3adc36056a8a`.
 

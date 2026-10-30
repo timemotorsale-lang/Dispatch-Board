@@ -1,6 +1,6 @@
 # Autobody Estimating Implementation Roadmap
 
-**Status:** Official implementation roadmap for `codex/autobody-estimating`; milestones remain planned and none is marked implemented by this package.  
+**Status:** Official roadmap for `codex/autobody-estimating`; generic/manual delivery is available for owner review. [Implementation status](IMPLEMENTATION_STATUS.md) records actual evidence and remaining external content/owner decisions.
 **Approved direction:** [Compact blueprint](README.md)  
 **Dependencies:** [Architecture](ARCHITECTURE.md) and [catalog standard](CATALOG_AND_DIAGRAM_STANDARD.md)
 
@@ -109,6 +109,6 @@ Each completed milestone records actual changed paths, tests, representative con
 
 Measure task completion and friction: repeated identity entry, steps to add common work, blocked save attempts, missing controls, duplicate records and ability to reopen prior work. Compare observed baseline versus new workflow during staff review; do not invent a time-saving percentage. Product metrics must not turn the estimating screen into a staff-performance dashboard.
 
-## Immediate implementation backlog
+## Original implementation sequence
 
 Start with ABE-001: inventory the actual collision allowances and existing data entitlements; select representative bumper/fender configurations; identify technical reviewers; and establish the coverage manifest. Then complete stable IDs and durable context/drafts before wiring visual additions into real estimate services. New database changes require the existing safe migration process and environment-specific authorization; this blueprint alone applies none.

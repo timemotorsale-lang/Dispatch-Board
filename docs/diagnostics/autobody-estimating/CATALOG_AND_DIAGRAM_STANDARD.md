@@ -1,6 +1,6 @@
 # Autobody Catalog and Diagram Standard
 
-**Status:** Official catalog and diagram standard for `codex/autobody-estimating`, adopted under the [implementation blueprint](README.md). This specifies what must be authored, sourced and verified; it does not claim that the catalog or diagrams already exist.
+**Status:** Official catalog and diagram standard for `codex/autobody-estimating`, adopted under the [implementation blueprint](README.md). The current original generic release has 84 components and 249 operation bindings across all 15 families. This does not establish exact-vehicle technical coverage; see [Source and coverage](SOURCE_AND_COVERAGE.md).
 
 ## Catalog structure
 

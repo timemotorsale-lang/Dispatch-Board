@@ -1,6 +1,6 @@
 # Autobody Estimating Architecture
 
-**Status:** Official architecture baseline for `codex/autobody-estimating`, adopted under the [approved blueprint](README.md). Implementation is planned. Entity names and API paths below are proposed contracts, not implemented endpoints or migrations.
+**Status:** Official architecture baseline for `codex/autobody-estimating`, adopted under the [approved blueprint](README.md). The generic/manual implementation is available for review. The design contracts below remain the architectural baseline; actual paths, evidence and external content limits are recorded in [Implementation status](IMPLEMENTATION_STATUS.md).
 
 ## System boundary
 
