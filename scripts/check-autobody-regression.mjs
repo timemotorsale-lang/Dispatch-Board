@@ -1,0 +1,14 @@
+import { createRequire } from "node:module";
+import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+const require = createRequire(import.meta.url); require("@next/env").loadEnvConfig(process.cwd());
+const proof = JSON.parse(readFileSync("tmp/autobody/database-proof.json", "utf8")), url = new URL(process.env.DATABASE_URL ?? "invalid:");
+if (!proof.actualRestoreVerified || !/^dispatch_autobody_verify_\d+$/.test(proof.verificationDatabase) || !["localhost", "127.0.0.1"].includes(url.hostname)) throw new Error("Regression checks require the restored isolated database.");
+url.pathname = `/${proof.verificationDatabase}`;
+const paths = process.argv.slice(2);
+if (paths.some(path => !/^src\/tests\/unit(?:\/[-a-z0-9.]+)?$/.test(path))) throw new Error("Only repository unit test paths are supported.");
+const result = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "run", ...(paths.length ? paths : ["src/tests/unit"]), "--maxWorkers=2", "--reporter=json", "--outputFile=tmp/autobody/regression-results.json"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, DATABASE_URL: url.toString() } });
+writeFileSync("tmp/autobody/regression-log.txt", result.stdout + result.stderr);
+const report = JSON.parse(readFileSync("tmp/autobody/regression-results.json", "utf8"));
+console.log(JSON.stringify({ passed: report.numPassedTests, failed: report.numFailedTests, suites: report.numTotalTestSuites, failures: report.testResults.filter(item => item.status === "failed").map(item => ({ file: item.name.split(/[/\\]/).at(-1), tests: item.assertionResults.filter(test => test.status === "failed").map(test => ({ title: test.title, reason: test.failureMessages[0]?.slice(0, 350) })) })) }));
+process.exitCode = result.status ?? 1;

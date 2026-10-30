@@ -3,6 +3,7 @@ import { COMPONENTS, FAMILIES, LEGACY_OPERATION_MAP, OPERATIONS, coverageManifes
 import { bodyEstimateLines, calculateBodyDraft, compareBodyDrafts, emptyBodyDraft, newBodyLine, normalizeBodyDraft, type BodyDraft } from "@/lib/autobody-estimating/domain";
 import { normalizeEstimate } from "@/server/shop-planning/domain";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
+import { collisionCandidates, collisionExport } from "@/lib/autobody-estimating/interchange";
 
 function fixture(): BodyDraft { const draft = emptyBodyDraft(15000), line = newBodyLine("body:front-cover:replace"); return { ...draft, vehicleId: "vehicle", repairOrderId: "ro", taxBasisPoints: 800, taxReference: "Synthetic policy", lines: [{ ...line, id: "line-a", minutes: 90, basis: "Synthetic estimator assessment", applicability: "Synthetic configuration reviewed", taxable: true }] }; }
 describe("collision catalog identity and coverage", () => {
@@ -30,6 +31,9 @@ describe("deterministic collision calculations", () => {
   it("preserves category amounts without applying a generic multiplier", () => { const draft = fixture(); draft.rates.BODY = 12500; expect(calculateBodyDraft(draft).lines[0].laborCents).toBe(18750); });
 });
 describe("draft boundaries and official service handoff", () => {
+  it("rejects repeated part identities across operations", () => { const draft = fixture(), part = { id: "repeated", description: "Fixture", number: "P1", quantity: 1, unitPriceCents: 100, source: "OTHER" as const, fitment: "Fixture", taxable: false }; draft.lines[0].parts = [part]; draft.lines.push({ ...draft.lines[0], id: "line-b", operationId: "body:rear-cover:replace", parts: [part] }); expect(() => normalizeBodyDraft(draft)).toThrow("Part identity"); });
+  it("rejects line keys too long for downstream documents", () => { const draft = fixture(); draft.lines[0].id = "x".repeat(80); expect(() => normalizeBodyDraft(draft)).toThrow("line identities"); });
+  it("does not fabricate internal labor for a vendor-only operation", () => { const draft = fixture(); draft.lines = [{ ...newBodyLine("body:sublet-repair:sublet"), subletCents: 20000, subletReference: "Synthetic reviewed vendor quote" }]; expect(bodyEstimateLines(draft).every(line => line.type !== "LABOR")).toBe(true); });
   it("round-trips incomplete drafts without requiring prices or pictures", () => { expect(normalizeBodyDraft(emptyBodyDraft())).toEqual(emptyBodyDraft()); });
   it.each([NaN, Infinity, -1, 1.1, 1000000])("rejects invalid labor duration %s", minutes => { const draft = fixture(); draft.lines[0].minutes = minutes; expect(() => normalizeBodyDraft(draft)).toThrow(); });
   it("rejects unknown operations and mutated catalog versions", () => { const draft = fixture(); draft.lines[0].operationId = "fake"; expect(() => normalizeBodyDraft(draft)).toThrow(); draft.lines = []; draft.release = "fake"; expect(() => normalizeBodyDraft(draft)).toThrow(); });
@@ -37,4 +41,9 @@ describe("draft boundaries and official service handoff", () => {
   it("maps priced work into the existing estimate contract with identical totals", () => { const draft = fixture(); draft.lines[0].parts.push({ id: "part", description: "Fixture bracket", number: "P1", quantity: 2, unitPriceCents: 1000, source: "OTHER", fitment: "Fixture fitment", taxable: false }); const calculation = calculateBodyDraft(draft), lines = bodyEstimateLines(draft), normalized = normalizeEstimate({ lineItems: lines, idempotencyKey: "fixture", reason: "Synthetic collision estimate", presentedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), presentationChannel: "IN_PERSON", taxBoundary: draft.taxReference, taxCents: calculation.taxCents, discountCents: 0 }); expect(normalized.totalCents).toBe(calculation.totalCents); expect(hashEnterpriseCommand(normalized.lineItems)).toBe(hashEnterpriseCommand(lines)); });
   it("does not emit official lines from unresolved work", () => { const draft = fixture(); draft.lines[0].basis = ""; expect(() => bodyEstimateLines(draft)).toThrow(); });
   it("compares supplements without modifying the previous draft", () => { const old = fixture(), next = structuredClone(old); next.lines[0].minutes = 120; next.lines.push({ ...old.lines[0], id: "new" }); const diff = compareBodyDrafts(old, next); expect(diff).toEqual({ added: ["new"], changed: ["line-a"], removed: [] }); expect(old.lines[0].minutes).toBe(90); });
+});
+
+describe("optional integration boundaries", () => {
+  it("keeps manual estimating available with no supplier or failed supplier", async () => { expect((await collisionCandidates(null, { vehicleId: "v", componentId: "front-cover" })).status).toBe("UNCONFIGURED"); const failed = await collisionCandidates({ id: "synthetic", lookup: async () => { throw new Error("offline"); } }, { vehicleId: "v", componentId: "front-cover" }); expect(failed.status).toBe("UNAVAILABLE"); expect(failed.message).toContain("Manual quotes"); });
+  it("exports an explicit internal review format with reproducible calculations", () => { const result = collisionExport(fixture(), { id: "draft", version: 1, estimateId: null }); expect(result.calculation.totalCents).toBe(calculateBodyDraft(fixture()).totalCents); expect(result.notice).toContain("Not an insurer submission"); });
 });

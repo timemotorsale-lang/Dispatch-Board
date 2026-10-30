@@ -20,6 +20,7 @@ export function DiagnosticAutobodyEstimateConsole() {
         <div>
           <span className={styles.eyebrow}>Autobody estimate intelligence · DGN-048 planning carried into workflow</span>
           <h1>Autobody Estimate Console</h1>
+          <Link href="/prototype/autobody-estimate">Open diagram-driven estimating · Review new experience →</Link>
           <p>Insurance-quality bodywork draft workspace for photo intake, damage mapping, operation planning, refinish logic, supplement risk, and ADAS gates.</p>
         </div>
         <div className={styles.bodyStatus}>

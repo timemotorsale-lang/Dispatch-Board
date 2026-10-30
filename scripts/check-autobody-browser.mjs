@@ -1,0 +1,10 @@
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+const require = createRequire(import.meta.url); require("@next/env").loadEnvConfig(process.cwd());
+const proof = JSON.parse(readFileSync("tmp/autobody/database-proof.json", "utf8"));
+const url = new URL(process.env.DATABASE_URL ?? "invalid:");
+if (!proof.actualRestoreVerified || !/^dispatch_autobody_verify_\d+$/.test(proof.verificationDatabase) || !["localhost", "127.0.0.1"].includes(url.hostname)) throw new Error("Browser verification requires the restored disposable local database.");
+url.pathname = `/${proof.verificationDatabase}`;
+const result = spawnSync(process.execPath, ["scripts/run-e2e.mjs", "src/tests/e2e/autobody-estimating.spec.ts"], { stdio: "inherit", windowsHide: true, env: { ...process.env, E2E_DATABASE_URL: url.toString(), PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3203", E2E_NEXT_DIST_DIR: "tmp/autobody/next-e2e", AUTOBODY_BROWSER: "isolated" } });
+process.exitCode = result.status ?? 1;

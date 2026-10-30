@@ -8,7 +8,8 @@ require("@next/env").loadEnvConfig(process.cwd());
 const { PrismaClient } = require("@prisma/client");
 const url = new URL(process.env.DATABASE_URL ?? "invalid:");
 if (!["localhost", "127.0.0.1"].includes(url.hostname) || (url.searchParams.get("schema") ?? "public") !== "public") throw new Error("Only the identified loopback development public database is supported.");
-const migration = "20261030020000_autobody_estimating";
+const migration = process.argv[2] ?? "20261030020000_autobody_estimating";
+if (!["20261030020000_autobody_estimating", "20261030030000_collision_vendor_release"].includes(migration)) throw new Error("Only reviewed collision migrations are supported.");
 const bin = process.env.AUTOBODY_PG_BIN ?? (process.platform === "win32" ? "C:/Program Files/PostgreSQL/18/bin" : "");
 const executable = name => bin ? path.join(bin, name + (process.platform === "win32" ? ".exe" : "")) : name;
 const pgEnv = { ...process.env, PGHOST: url.hostname, PGPORT: url.port || "5432", PGUSER: decodeURIComponent(url.username), PGPASSWORD: decodeURIComponent(url.password), PGDATABASE: decodeURIComponent(url.pathname.slice(1)) };
@@ -36,7 +37,7 @@ try {
   restored = new PrismaClient({ datasources: { db: { url: restoredUrl.toString() } } });
   if (JSON.stringify(await manifest(restored)) !== JSON.stringify(before)) throw new Error("Actual restore did not match the business-record manifest; source schema untouched.");
   migrate(restoredUrl.toString());
-  const newTables = await restored.autobodyEstimateDraft.count();
+  const newTables = migration === "20261030020000_autobody_estimating" ? await restored.autobodyEstimateDraft.count() : 0;
   if (newTables !== 0 || JSON.stringify(await manifest(restored)) !== JSON.stringify(before)) throw new Error("Additive migration changed existing business records in verification.");
   let localApplied = false;
   if (process.env.AUTOBODY_APPLY_LOCAL === "after-verified-backup") {
@@ -45,7 +46,7 @@ try {
     localApplied = true;
   }
   const proof = { migration, backup, backupBytes: statSync(backup).size, backupSha256: createHash("sha256").update(readFileSync(backup)).digest("hex"), actualRestoreVerified: true, verificationDatabase, localApplied, businessManifestUnchanged: true, before };
-  mkdirSync("tmp/autobody", { recursive: true }); writeFileSync("tmp/autobody/database-proof.json", JSON.stringify(proof, null, 2));
+  mkdirSync("tmp/autobody", { recursive: true }); writeFileSync(`tmp/autobody/${migration}-proof.json`, JSON.stringify(proof, null, 2)); writeFileSync("tmp/autobody/database-proof.json", JSON.stringify(proof, null, 2));
   console.log(JSON.stringify({ actualRestoreVerified: true, localApplied, businessManifestUnchanged: true, verificationDatabase, backup }));
 } catch (error) { console.error(error instanceof Error ? error.message.replace(/postgres(?:ql)?:\/\/\S+/g, "[database connection redacted]") : "Local verification failed."); process.exitCode = 1; }
 finally { await restored?.$disconnect(); await source.$disconnect(); }

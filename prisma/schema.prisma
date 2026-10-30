@@ -6401,6 +6401,7 @@ model RepairOrderReleaseAuthorization {
   repairOrderId      String                   @unique
   destination        RepairHandoffDestination
   qcInspectionIds    Json
+  vendorReturnReviewIds Json @default("[]")
   releaseEvidence    Json
   keysVerified       Boolean
   openExceptions     Json

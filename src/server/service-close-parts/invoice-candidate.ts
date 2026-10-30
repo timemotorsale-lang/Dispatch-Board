@@ -1,3 +1,4 @@
+import { acceptedVendorReturns } from "@/server/quality-control/vendor-acceptance";
 import type { Prisma } from "@prisma/client";
 import { authorizedCommercialLedger, commercialLines } from "@/lib/service-commercial-ledger";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
@@ -15,7 +16,10 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
     const matches = order.repairJobs.filter(job => job.authorizedLineKey === line.key && job.authorizationId === authorization.id && job.estimateVersionId === estimate.id);
     if (matches.length !== 1 || matches[0].status !== "QC_PASSED" || matches[0].qualityInspections[0]?.disposition !== "PASSED" || !matches[0].qualityInspections[0]?.safetyChecksPassed) mismatchCodes.push("INVOICE_JOB_QC_INCOMPLETE");
   }
-  if (!ledger.lines.some(line => line.type === "LABOR")) mismatchCodes.push("INVOICE_EXECUTABLE_SCOPE_MISSING");
+  const vendorKeys = ledger.lines.filter(line => line.type === "FEE" && /^bf-.+-vendor$/.test(line.key)).map(line => line.key);
+  const vendorReturns = await acceptedVendorReturns(database, organizationId, repairOrderId, estimate.id, authorization.id, vendorKeys);
+  if (vendorKeys.some(key => vendorReturns.filter(item => item.lineKeys.includes(key)).length !== 1)) mismatchCodes.push("INVOICE_VENDOR_RETURN_REVIEW_REQUIRED");
+  if (!ledger.lines.some(line => line.type === "LABOR") && (!vendorKeys.length || ledger.lines.some(line => !vendorKeys.includes(line.key)))) mismatchCodes.push("INVOICE_EXECUTABLE_SCOPE_MISSING");
   const jobs = order.repairJobs.filter(job => job.authorizationId === authorization.id && ledger.lines.some(line => line.key === job.authorizedLineKey));
   if (jobs.some(job => job.qualityInspections[0] && ((job.qualityInspections[0].peerVerificationRequired && !job.qualityInspections[0].peerVerificationPassed) || (job.qualityInspections[0].roadTestRequired && job.qualityInspections[0].roadTestOutcome !== "PASSED") || job.laborClocks.some(clock => clock.finishedAt && clock.finishedAt > job.qualityInspections[0].inspectedAt)))) mismatchCodes.push("INVOICE_QC_EVIDENCE_INCOMPLETE");
   if (jobs.some(job => job.laborClocks.length === 0 || job.laborClocks.some(clock => clock.state !== "FINISHED" || !clock.finishedAt))) mismatchCodes.push("INVOICE_MEASURED_CLOCK_INCOMPLETE");
@@ -34,8 +38,8 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
   const identity = sourceDocument ? (sourceDocument.content as unknown as ServiceDocumentContent).identity : null;
   const clockedLaborMinutes = jobs.flatMap(job => job.laborClocks).reduce((total, clock) => total + clock.accumulatedMinutes, 0);
   const installedPartsCostCents = jobs.flatMap(job => job.partCustodyEvents).filter(event => event.type === "INSTALL").reduce((total, event) => total + event.quantity * event.unitCostCents, 0);
-  const fingerprint = hashEnterpriseCommand(JSON.parse(JSON.stringify({ estimateId: estimate.id, authorizationId: authorization.id, ledger, documentHash: sourceDocument?.sha256, jobs: jobs.map(job => ({ id: job.id, status: job.status, quality: job.qualityInspections.map(inspection => [inspection.id, inspection.version, inspection.disposition, inspection.safetyChecksPassed, inspection.peerVerificationPassed, inspection.roadTestOutcome, inspection.inspectedAt]), clocks: job.laborClocks.map(clock => [clock.id, clock.state, clock.accumulatedMinutes, clock.finishedAt]), installations: job.partCustodyEvents.map(event => [event.id, event.type, event.quantity, event.unitCostCents]) })) })));
-  return { order, estimate, authorization, ledger, identity, clockedLaborMinutes, installedPartsCostCents, mismatchCodes: [...new Set(mismatchCodes)], fingerprint, allLineKeys: commercialLines(estimate.lineItems).map(line => line.key) };
+  const fingerprint = hashEnterpriseCommand(JSON.parse(JSON.stringify({ estimateId: estimate.id, authorizationId: authorization.id, ledger, ...(vendorKeys.length ? { vendorReturns } : {}), documentHash: sourceDocument?.sha256, jobs: jobs.map(job => ({ id: job.id, status: job.status, quality: job.qualityInspections.map(inspection => [inspection.id, inspection.version, inspection.disposition, inspection.safetyChecksPassed, inspection.peerVerificationPassed, inspection.roadTestOutcome, inspection.inspectedAt]), clocks: job.laborClocks.map(clock => [clock.id, clock.state, clock.accumulatedMinutes, clock.finishedAt]), installations: job.partCustodyEvents.map(event => [event.id, event.type, event.quantity, event.unitCostCents]) })) })));
+  return { order, estimate, authorization, ledger, identity, vendorReturns, clockedLaborMinutes, installedPartsCostCents, mismatchCodes: [...new Set(mismatchCodes)], fingerprint, allLineKeys: commercialLines(estimate.lineItems).map(line => line.key) };
 }
 export async function assertCurrentInvoicePackage(database: Prisma.TransactionClient, organizationId: string, invoicePackage: { repairOrderId: string; mismatchCodes: unknown; sourceSnapshot: unknown }) {
   if (!Array.isArray(invoicePackage.mismatchCodes) || invoicePackage.mismatchCodes.length) throw new Error("Resolve all operational and financial invoice mismatches before finalization.");
