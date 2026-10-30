@@ -2,7 +2,7 @@ import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type BoardReadDatabase = Pick<PrismaClient, "boardDay" | "task">;
+type BoardReadDatabase = Pick<PrismaClient, "boardDay" | "task"> & Partial<Pick<PrismaClient, "$transaction">>;
 
 const boardDaySelect = {
   id: true,
@@ -76,7 +76,7 @@ export type BoardReadRepository = {
   findBoardDayByDate(boardDate: string): Promise<BoardReadBoardDayRecord | null>;
   listOpenPriorityTasks(): Promise<BoardReadTaskRecord[]>;
   listTasksForBoardDay(boardDayId: string): Promise<BoardReadTaskRecord[]>;
-  listTasksForOperationsConsole?(boardDayId: string | null): Promise<BoardReadTaskRecord[]>;
+  listTasksForOperationsConsole?(boardDayId: string | null, boardDate?: string): Promise<BoardReadTaskRecord[]>;
 };
 
 function toBoardDateValue(boardDate: string) {
@@ -104,9 +104,11 @@ export function createBoardReadRepository(database: BoardReadDatabase = prisma):
       });
     },
 
-    async listTasksForOperationsConsole(boardDayId) {
-      return database.task.findMany({
+    async listTasksForOperationsConsole(boardDayId, boardDate) {
+      const load = async (source: Pick<Prisma.TransactionClient, "task">) => {
+      const records = await source.task.findMany({
         where: {
+          ...(boardDate ? { boardDay: { date: { lte: toBoardDateValue(boardDate) } } } : {}),
           OR: [
             { status: { not: TaskStatus.COMPLETED } },
             ...(boardDayId ? [{ boardDayId, status: TaskStatus.COMPLETED }] : [])
@@ -115,6 +117,12 @@ export function createBoardReadRepository(database: BoardReadDatabase = prisma):
         select: boardTaskSelect,
         orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
       });
+      if (!records.length) return records;
+      const successors = await source.task.findMany({ where: { carryoverSourceTaskId: { in: records.map(item => item.id) }, ...(boardDate ? { boardDay: { date: { lte: toBoardDateValue(boardDate) } } } : {}) }, select: { carryoverSourceTaskId: true } });
+      const superseded = new Set(successors.map(item => item.carryoverSourceTaskId));
+      return records.filter(item => !superseded.has(item.id));
+      };
+      return database.$transaction ? database.$transaction(tx => load(tx), { isolationLevel: "RepeatableRead", timeout: 15000 }) : load(database);
     },
 
     async listOpenPriorityTasks() {

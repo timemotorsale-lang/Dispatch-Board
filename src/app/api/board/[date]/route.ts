@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getBoardReadModelForDate } from "@/server/services/board-read";
+import { getGenerationSettings } from "@/server/services/app-settings-service";
+import { getBoardDateInTimeZone } from "@/server/validation/board-date";
+import { getBoardReadModelForDate, getTaskOperationsReadModelForDate } from "@/server/services/board-read";
 
 import { createBoardNotFoundMessage, getBoardReadErrorStatus } from "../response";
 
@@ -16,7 +18,10 @@ export async function GET(_request: Request, context: RouteContext) {
   const { date } = await context.params;
 
   try {
-    const result = await getBoardReadModelForDate(user, date);
+    const operations = new URL(_request.url).searchParams.get("scope") === "operations";
+    if (operations && !user?.isActive) return NextResponse.json({ error: user ? "Active staff access required." : "Authentication required." }, { status: user ? 403 : 401 });
+    const today = operations ? getBoardDateInTimeZone(new Date(), (await getGenerationSettings()).timezone) : null;
+    const result = operations && date === today ? await getTaskOperationsReadModelForDate(user, date) : await getBoardReadModelForDate(user, date);
 
     if (!result.board) {
       return NextResponse.json(
