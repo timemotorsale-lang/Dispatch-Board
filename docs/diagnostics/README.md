@@ -1,5 +1,9 @@
 # Diagnostics Console Planning Package
 
+## Autobody estimating implementation blueprint
+
+The owner approved the compact diagram-driven autobody layout on 2026-10-29 and adopted its planning package as the official baseline for `codex/autobody-estimating`. The [Autobody Estimating Implementation Blueprint](autobody-estimating/README.md), [architecture](autobody-estimating/ARCHITECTURE.md), [catalog and diagram standard](autobody-estimating/CATALOG_AND_DIAGRAM_STANDARD.md), and [implementation roadmap](autobody-estimating/IMPLEMENTATION_ROADMAP.md) define its current delivery direction. This package supersedes the earlier autobody landing-page layout where they conflict, preserves existing domain authorities, and distinguishes planned work from implemented behavior. Completed implementation remains subject to owner review before adoption.
+
 ## Approved UI Source of Truth
 
 - [`DIAGNOSTICS_COMMAND_CENTER_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_COMMAND_CENTER_UI_SOURCE_OF_TRUTH.md) — approved Diagnostics landing-page visual, interaction, responsive, and backend contract.

@@ -16,6 +16,13 @@ const estimateLines = [
 export function DiagnosticAutobodyEstimateConsole() {
   return (
     <section className={styles.bodyConsole} aria-label="Autobody Estimate Intelligence Console">
+      <aside className={styles.autobodyReviewEntry} aria-label="Review interactive autobody estimating">
+        <div>
+          <strong>The new interactive estimating tool is ready to review.</strong>
+          <p>Choose panels on diagrams, add operations, build an estimate and review saved work. The planning overview is below.</p>
+        </div>
+        <Link href="/prototype/autobody-estimate">Open interactive estimating →</Link>
+      </aside>
       <header className={styles.bodyHero}>
         <div>
           <span className={styles.eyebrow}>Autobody estimate intelligence · DGN-048 planning carried into workflow</span>

@@ -1,5 +1,7 @@
 # DGN-039 — Autobody Estimate Capability Planning
 
+> **Current delivery direction as of 2026-10-29:** Use the approved [Autobody Estimating Implementation Blueprint](../autobody-estimating/README.md) and its linked architecture, catalog/diagram standard and roadmap. They supersede the default layout and implementation sequencing here where they conflict. This capability inventory remains background; advanced AI, structural visualization and external integrations are not prerequisites for the initial compact manual/diagram workflow. Existing authority boundaries remain in force.
+
 **Status:** Adopted planning only; no runtime implementation  
 **Branch:** `codex/diagnostics-dgn-039-autobody-estimate-capability-planning`  
 **Date:** 2026-07-21  

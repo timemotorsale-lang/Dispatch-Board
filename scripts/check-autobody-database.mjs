@@ -1,0 +1,11 @@
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+const require = createRequire(import.meta.url); require("@next/env").loadEnvConfig(process.cwd());
+const proof = JSON.parse(readFileSync("tmp/autobody/database-proof.json", "utf8"));
+if (!proof.actualRestoreVerified || !/^dispatch_autobody_verify_\d+$/.test(proof.verificationDatabase)) throw new Error("Run verified local backup/restore before the isolated integration checks.");
+const url = new URL(process.env.DATABASE_URL ?? "invalid:");
+if (!["localhost", "127.0.0.1"].includes(url.hostname)) throw new Error("Only the loopback verification database is allowed.");
+url.pathname = `/${proof.verificationDatabase}`;
+const result = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "run", "src/tests/integration/autobody-estimating.test.ts", "--maxWorkers=1"], { env: { ...process.env, DATABASE_URL: url.toString(), RUN_AUTOBODY_DB: "isolated" }, stdio: "inherit", windowsHide: true });
+process.exitCode = result.status ?? 1;

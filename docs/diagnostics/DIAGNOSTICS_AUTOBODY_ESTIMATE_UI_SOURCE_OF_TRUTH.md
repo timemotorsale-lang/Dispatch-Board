@@ -1,5 +1,7 @@
 # Autobody Estimate Intelligence Landing Page UI Source of Truth
 
+> **2026-10-29 update:** The owner approved the [compact diagram-driven estimating blueprint](autobody-estimating/README.md). Its Build/Review workspace supersedes the landing-page zones and default dashboard-style arrangement below. This document remains historical design context; existing domain authority, evidence and licensing boundaries continue. The new architecture coordinates official actions through their owning services rather than granting direct authority to the estimating screen. Implementation and final adoption are not recorded as complete.
+
 **Status:** Provisionally approved official mockup  
 **Date adopted:** 2026-07-21  
 **Branch:** `codex/diagnostics-dgn-039-autobody-estimate-capability-planning`  

@@ -1,5 +1,6 @@
 import { assertRepairLocationRead } from "@/server/repair-order/read-access";
 import { normalizeDocumentCustomer } from "@/lib/service-document-review";
+import { normalizeBodyDraft, calculateBodyDraft, bodyEstimateLines } from "@/lib/autobody-estimating/domain";
 import { SERVICE_CHARGES_POLICY, validateShopSupplies } from "@/lib/service-charges";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { estimateReviewScope, manualReviewComplete, validateManualReview } from "@/lib/estimate-review";
@@ -11,7 +12,7 @@ import { allocateApprovedJobParts, catalogJobRequirements } from "@/lib/catalog-
 import { repairBaselineForId } from "@/lib/repair-catalog-baselines";
 import { laborOperationForLineKey } from "@/lib/labor-catalog-selection";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
-import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
+import { normalizeEnterpriseCommand, hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository,type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
@@ -36,6 +37,19 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   const context=deps(input),data=normalizeEstimate(value,context.now()),{ro,user}=await mutationContext(actor,repairOrderId,context);
   const reviewValue=(value as Record<string,unknown>).manualLaborReview;
   const staffQuote=(value as Record<string,unknown>).estimateWorkflow==="STAFF_QUOTE";
+  const collisionValue=(value as Record<string,unknown>).collisionReview;
+  const collision=collisionValue === undefined ? null : normalizeBodyDraft(collisionValue);
+  if(!collision&&Array.isArray(data.optionGroups)&&data.optionGroups.some(group=>group&&typeof group==="object"&&"type" in group&&group.type==="AUTOBODY_PROVENANCE"))throw new Error("Collision provenance requires a validated collision review.");
+  if(collision){
+    const calculated=calculateBodyDraft(collision),lines=bodyEstimateLines(collision);
+    if(collision.repairOrderId!==ro.id||collision.vehicleId!==ro.vehicle.id||!calculated.ready||calculated.taxCents!==data.taxCents||calculated.discountCents!==data.discountCents||hashEnterpriseCommand(lines)!==hashEnterpriseCommand(data.lineItems))throw new Error("Collision review no longer matches this vehicle, scope or calculation.");
+    const rate=await getActiveLaborRate(user);
+    if(collision.lines.some(line=>line.minutes&&collision.rates[line.category]!==Math.round(rate.laborRate*100))&&(!canManageSettings(user)||!collision.rateReason.trim()))throw new Error("Changing a collision category rate requires an administrator and an override explanation.");
+    const internal=Boolean(ro.inventoryUnitId)&&!ro.customerId;
+    if((internal&&collision.payer!=="INTERNAL")||(!internal&&collision.payer==="INTERNAL"))throw new Error("Choose the payer matching this repair order; internal recon is separate from customer billing.");
+    data.optionGroups=[{type:"AUTOBODY_PROVENANCE",snapshot:collision,calculation:calculated,ratePolicy:{id:rate.policyId,version:rate.policyVersion,laborRate:rate.laborRate},reviewedBy:user.id,reviewedAt:data.presentedAt.toISOString()}];
+    data.assumptions=[data.assumptions,`Collision scope reviewed by ${user.name}. Source: ${collision.release}; estimator-entered manual allowances, not OEM verified. Applicable technical methods and fitment remain subject to recorded references.`].filter(Boolean).join("\n");
+  }
   if (staffQuote || (value as Record<string,unknown>).chargesPolicy === SERVICE_CHARGES_POLICY) validateShopSupplies(data.lineItems);
   if(!staffQuote && (reviewValue!==undefined || data.lineItems.some(line=>line.type==="LABOR"))){
     const review=validateManualReview(reviewValue);
@@ -72,7 +86,7 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
     if(typeof review.documentId !== "string" || !review.documentId || typeof review.documentHash !== "string" || !review.documentHash || !chargeRevisionFrom) throw new Error("Invalid document review source.");
     documentReview={documentId:review.documentId,documentHash:review.documentHash,...(review.customer === undefined ? {} : {customer:normalizeDocumentCustomer(review.customer)})};
   }
-  const estimateData={...data,...(documentReview?{documentReview}:{}),...(staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{})};
+  const estimateData={...data,...(documentReview?{documentReview}:{}),...(collision?{estimateWorkflow:"COLLISION_REVIEW" as const}:staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{})};
   return context.repository.estimate(command({actorUserId:user.id,commandType:"PRESENT_ESTIMATE_VERSION",expectedVersion,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(estimateData),reason:data.reason,subjectId:ro.id}),estimateData);
 }
 export async function decideRepairAuthorization(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAuthorization(value),{ro,user}=await mutationContext(actor,repairOrderId,context);const receipt=await context.repository.commandReceipt?.(context.organizationId,"DECIDE_ESTIMATE_AUTHORIZATION",data.idempotencyKey);return context.repository.authorization(command({actorUserId:user.id,commandType:"DECIDE_ESTIMATE_AUTHORIZATION",expectedVersion:receipt?.expectedVersion??ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}
