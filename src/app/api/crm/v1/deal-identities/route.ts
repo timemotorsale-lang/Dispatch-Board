@@ -11,7 +11,7 @@ export async function GET(request: Request) {
       case "customer": result = await dealCustomer(actor, params.get("id") ?? ""); break;
       case "vehicle": result = await dealVehicle(actor, params.get("id") ?? ""); break;
       case "vehicles": result = await searchDealVehicles(actor, params); break;
-      case "options": result = await dealIdentityOptions(actor); break;
+      case "options": result = await dealIdentityOptions(actor, params.get("recordType") === "vehicle" ? "vehicle" : "customer"); break;
       case "source": result = await resolveDealSource(actor, { sourceDraftId: params.get("sourceDraftId") ?? undefined, sourceJacketId: params.get("sourceJacketId") ?? undefined }); break;
       default: result = await searchDealCustomers(actor, params);
     }

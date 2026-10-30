@@ -3,7 +3,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { draftReportCalendar } from "@/lib/reporting/calendar";
 import { reportingManagementCoverage } from "@/server/reporting/management-service";
 const mocks = vi.hoisted(() => ({ calendar: vi.fn(), expectations: vi.fn(), series: vi.fn(), assignments: vi.fn(), people: vi.fn(), timeOff: vi.fn(), transaction: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ prisma: { reportingExpectation: { findMany: mocks.expectations }, reportingSeries: { findMany: mocks.series }, reportingAssignment: { findMany: mocks.assignments }, user: { findMany: mocks.people }, timeOffRequest: { findMany: mocks.timeOff }, $transaction: mocks.transaction } }));
+vi.mock("@/server/db/client", () => ({ prisma: { reportingExpectation: { findMany: mocks.expectations }, reportingSeries: { findMany: mocks.series }, workdayReportDraft: { findMany: vi.fn().mockResolvedValue([]) }, reportingAssignment: { findMany: mocks.assignments }, user: { findMany: mocks.people }, timeOffRequest: { findMany: mocks.timeOff }, $transaction: mocks.transaction } }));
 vi.mock("@/server/reporting/calendar-service", () => ({ loadReportingCalendar: mocks.calendar }));
 const manager: AuthenticatedUser = { id: "gm", name: "Manager", email: "gm@example.test", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
 describe("management coverage access and bounds", () => {

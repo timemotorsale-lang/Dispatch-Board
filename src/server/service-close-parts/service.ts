@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { partsProcurementType, recordedReconBudget } from "@/lib/parts-procurement";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
@@ -169,11 +170,12 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   if (action === "REQUEST_RECON_BUDGET_EXCEPTION" || action === "DENY_RECON_BUDGET_EXCEPTION" || action === "APPROVE_RECON_BUDGET_EXCEPTION") {
     const repairOrder = view.repairOrders.find((item) => item.id === subjectId);
     if (!repairOrder) throw new Error("Repair order was not found.");
+    if (partsProcurementType(repairOrder) !== "INVENTORY_RECON") throw new Error("Recon budget approvals apply only to internal inventory repairs. Customer purchases use the customer repair order.");
     if (!repairOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so a recon budget exception cannot be recorded here.");
     if (action !== "REQUEST_RECON_BUDGET_EXCEPTION" && !isManager(user)) throw new Error("A manager or authorized approver is required to decide a recon budget exception.");
 
     const increaseByCents = integer(raw.increaseByCents, "Increase amount");
-    const currentMaxReconBudgetCents = integer(raw.currentMaxReconBudgetCents, "Current max recon budget");
+    const currentMaxReconBudgetCents = recordedReconBudget(repairOrder)?.estimatedReconBudgetCents ?? 0;
     const exceptionReason = required(raw.reason, "Reason", 500);
     const nextBudgetCents = currentMaxReconBudgetCents + increaseByCents;
     const appraisalSnapshot = snapshot(repairOrder.inventoryUnit.acquisitionCase?.appraisalSnapshot);

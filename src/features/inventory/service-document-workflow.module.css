@@ -6,7 +6,7 @@
 .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
 .qcLink { display: inline-flex; margin-bottom: 16px; padding: 10px 18px; border: 1px solid #244f87; border-radius: 8px; color: #244f87; background: white; font-weight: 700; text-decoration: none; }
 @media print { .qcLink { display: none; } }
-.workspace button { cursor: pointer; border: 1px solid #bbcadb; border-radius: 8px; padding: 11px 16px; background: white; color: #173650; font: inherit; font-weight: 600; }
+.workspace button, .buttons a { cursor: pointer; border: 1px solid #bbcadb; border-radius: 8px; padding: 11px 16px; background: white; color: #173650; font: inherit; font-weight: 600; }
 .workspace button:focus-visible, .workspace a:focus-visible { outline: 3px solid #478ef0; outline-offset: 3px; }
 .workspace button:disabled { cursor: not-allowed; opacity: .55; }
 .workspace .primary { background: #175b9e; border-color: #175b9e; color: white; }
@@ -55,3 +55,5 @@
   .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .buttons .primary { grid-column: 1 / -1; }
 }
+.buttons a { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.buttons a[aria-disabled] { opacity: .55; cursor: not-allowed; }

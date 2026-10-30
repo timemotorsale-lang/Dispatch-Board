@@ -156,7 +156,7 @@ export const dispatchNavigationItems: NavigationItem[] = [
   {
     href: "/board?view=live",
     title: "Live Board",
-    description: "Operate and update today’s work.",
+    description: "See team activity and live operations.",
     icon: ListChecks,
     parentHref: "/board"
   },

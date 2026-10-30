@@ -1,14 +1,18 @@
 ﻿import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
+import { syncDispatchTaskStatus } from "@/server/dispatch/activity";
+import { getGenerationSettings } from "@/server/services/app-settings-service";
+import { getBoardDateInTimeZone } from "@/server/validation/board-date";
 import { prisma } from "@/server/db/client";
 
-type TaskStatusDatabase = Pick<PrismaClient, "task">;
+type TaskStatusDatabase = Pick<PrismaClient, "task"> & Partial<Pick<PrismaClient, "$transaction">>;
 
 const taskStatusSelect = {
   id: true,
   boardDayId: true,
   title: true,
   assignedUserId: true,
+  ownerUserId: true,
   requiresManagerApproval: true,
   status: true,
   workflowArea: true,
@@ -96,6 +100,7 @@ export type TaskStatusUpdateData = {
 };
 
 export type TaskStatusRepository = {
+  commitStatusChange?(taskId: string, data: TaskStatusUpdateData, context: { actorUserId: string; expectedUpdatedAt: Date; previousStatus: string; previousBlockerReason: string | null }): Promise<TaskStatusLookupRecord>;
   supportsActivityEvents?: boolean;
   findTaskById(taskId: string): Promise<TaskStatusLookupRecord | null>;
   updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusLookupRecord>;
@@ -104,6 +109,18 @@ export type TaskStatusRepository = {
 export function createTaskStatusRepository(database: TaskStatusDatabase = prisma): TaskStatusRepository {
   return {
     supportsActivityEvents: true,
+    commitStatusChange: database.$transaction ? async (taskId, data, context) => {
+      const settings = await getGenerationSettings(), now = new Date();
+      return database.$transaction!(async tx => {
+        const changed = await tx.task.updateMany({ where: { id: taskId, updatedAt: context.expectedUpdatedAt }, data });
+        if (changed.count !== 1) throw new Error("This task changed. Reload before updating its status.");
+        const result = await tx.task.findUniqueOrThrow({ where: { id: taskId }, select: taskStatusSelect });
+        if (context.previousStatus !== result.status || context.previousBlockerReason !== result.blockerReason) {
+          await syncDispatchTaskStatus(tx, result, context.actorUserId, getBoardDateInTimeZone(now, settings.timezone), context.previousStatus, now);
+        }
+        return result;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } : undefined,
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {

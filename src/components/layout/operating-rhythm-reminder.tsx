@@ -34,6 +34,11 @@ type OperatingRhythmModel = {
 };
 
 const criticalPrefixes = [
+  "/board",
+  "/tasks",
+  "/my-tasks",
+  "/reports",
+  "/vehicles/reports",
   "/appointments",
   "/diagnostics",
   "/vehicles/repair-workbench",

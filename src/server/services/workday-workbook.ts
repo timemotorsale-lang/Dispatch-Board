@@ -1,5 +1,6 @@
 import { normalizeChecklistReminderDate } from "@/lib/checklist-reminder-date";
 import { quickUpdateIdentityKey } from "@/lib/quick-update-identity";
+import { assertDailyFocusMinimum } from "@/lib/daily-focus-policy";
 import { externalActivityPurpose, WORKDAY_ACTIVITY_TIME_ZONE } from "@/lib/workday-activity";
 import {
   WorkdayActivityPurpose,
@@ -586,6 +587,15 @@ export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, bo
   const managementSeeds = reportSeeds.filter((seed) => seed.sourceId.startsWith("manual:") ? seed.sourceId.startsWith("manual:management:") : seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION && !seed.sourceId.startsWith("activity:"));
   const effectiveness = buildDailyEffectiveness(workbook);
   const sections = [
+    {
+      title: "Today's focus",
+      items: workbook.dailyFocusItems.map(item => ({
+        title: item.outcome, detail: item.progressUpdate, reviewNote: "", sourceId: item.id,
+        sourceHref: item.sourceHref ?? null, sourceLabel: "Daily focus",
+        status: item.status === WorkdayDailyFocusStatus.DONE ? WorkdayReportSeedStatus.INCLUDED : WorkdayReportSeedStatus.CANDIDATE,
+        tone: WorkdayReportSeedTone.BLUE,
+      })),
+    },
     draftSection("Completed / Closed Today", completedSeeds),
     draftSection("Blockers and Risks", riskSeeds),
     draftSection("Quick Updates / Unplanned Events", quickUpdateSeeds),
@@ -2133,7 +2143,7 @@ export async function recordWorkbookOperatingRhythmEvent(actor: AuthenticatedUse
     "";
   if (!eventType) throw new Error("Rhythm action is not supported.");
   if (action === "START_DELAY_EXPLAINED" && !reason) throw new Error("Delay reason is required.");
-  if (action === "START_CONFIRMED" && !workbook.dailyFocusItems.length) throw new Error("Choose at least one daily outcome before starting the day.");
+  if (action === "START_CONFIRMED") assertDailyFocusMinimum(workbook.dailyFocusItems);
   if (action === "START_CONFIRMED" && normalizeBoolean(payload.reviewedPlan, "reviewedPlan") !== true) throw new Error("Review Start The Day before approving and adopting the plan.");
   const approvedFocusIds = new Set(workbook.activitySignals
     .filter((signal) => signal.actionType === "workbook.daily_focus_approved")

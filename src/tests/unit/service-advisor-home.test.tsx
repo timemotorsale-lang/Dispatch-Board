@@ -1151,7 +1151,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("What needs your attention today?");
     expect(html).toContain("Call Maria about approval");
     expect(html).toContain("Design an outcome manually");
-    expect(html).toContain("Add at least one meaningful outcome");
+    expect(html).toContain("Add at least 3 distinct daily focuses before submitting your morning plan.");
   });
 
   it("lets staff approve or edit a selected Daily Focus item", () => {

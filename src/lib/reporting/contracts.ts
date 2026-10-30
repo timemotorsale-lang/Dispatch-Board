@@ -2,7 +2,7 @@ import type { ReportCadence } from "./calendar";
 export type ReportRow = { id: string; title: string; state: string; owner: string; href: string; occurredAt?: string; ageDays?: number; detail?: string };
 export type ReportMetric = { code: string; label: string; value: number | null; unit: "COUNT" | "DAYS" | "PERCENT"; rowIds: string[]; numerator?: number; denominator?: number };
 export type ReportResult = { definitionId: string; definitionVersion: string; generatedAt: string; quality: "COMPLETE" | "PARTIAL" | "UNAVAILABLE"; limitation: string | null; rows: ReportRow[]; metrics: ReportMetric[] };
-export type PeriodContent = { version: string; cadence: ReportCadence; startDate: string; endDate: string; cutoffAt: string; completed: ReportRow[]; carryover: ReportRow[]; reopened?: ReportRow[]; activity: ReportRow[]; sourceCoverage: string; context: string; priorities: string };
+export type PeriodContent = { version: string; cadence: ReportCadence; startDate: string; endDate: string; cutoffAt: string; completed: ReportRow[]; carryover: ReportRow[]; reopened?: ReportRow[]; plannedFocus?: ReportRow[]; handoffs?: ReportRow[]; sourceQuality?: "COMPLETE" | "PARTIAL" | "UNAVAILABLE"; activity: ReportRow[]; sourceCoverage: string; context: string; priorities: string };
 export function uniqueReportRows(rows: ReportRow[]) { return [...new Map(rows.map(row => [row.id, row])).values()].sort((a, b) => a.id.localeCompare(b.id)); }
 export function weightedReportRate(observations: { numerator: number; denominator: number }[]) {
   if (observations.some(row => !Number.isFinite(row.numerator) || !Number.isFinite(row.denominator) || row.numerator < 0 || row.denominator < row.numerator)) throw new Error("Invalid report numerator or denominator.");

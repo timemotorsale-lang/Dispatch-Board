@@ -6,6 +6,11 @@ describe("report archive cursor", () => {
     expect(decodeReportingHistoryCursor(encodeReportingHistoryCursor(cursor), cursor.scope)).toEqual(cursor);
     expect(decodeReportingHistoryCursor(undefined, cursor.scope)).toBeNull();
   });
+  it("preserves the independent workbook position without reopening finished archives", () => {
+    const value = { ...cursor, workbook: "workbook-draft-50", workbookDone: false, seriesDone: true, legacyDone: true };
+    expect(decodeReportingHistoryCursor(encodeReportingHistoryCursor(value), cursor.scope)).toEqual(value);
+    expect(() => decodeReportingHistoryCursor(encodeReportingHistoryCursor({ ...value, workbook: "../private" }), cursor.scope)).toThrow("invalid");
+  });
   it("rejects reused cursors after actor or filter changes", () => {
     expect(() => decodeReportingHistoryCursor(encodeReportingHistoryCursor(cursor), "other-scope")).toThrow("filters");
   });

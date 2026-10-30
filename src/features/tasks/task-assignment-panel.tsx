@@ -1,11 +1,13 @@
 "use client";
 
+import { TaskHandoffPanel } from "./task-handoff-panel";
 import { useState } from "react";
 
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import type { TaskReadModel } from "@/server/services/task-read";
 
 type TaskAssignmentPanelProps = {
+  actorIsManager?: boolean;
   assignableUsers: ActiveUserSummary[];
   task: TaskReadModel;
 };
@@ -33,7 +35,10 @@ type TaskAssignmentResponse =
     }
   | null;
 
-export function TaskAssignmentPanel({ assignableUsers, task }: TaskAssignmentPanelProps) {
+export function TaskAssignmentPanel({ assignableUsers, task, actorIsManager = false }: TaskAssignmentPanelProps) {
+  return <>{actorIsManager ? <ManagerAssignmentPanel assignableUsers={assignableUsers} task={task} /> : null}<TaskHandoffPanel task={task} people={assignableUsers} /></>;
+}
+function ManagerAssignmentPanel({ assignableUsers, task }: TaskAssignmentPanelProps) {
   const [currentAssignedUserId, setCurrentAssignedUserId] = useState(task.assignedUser.id);
   const [assignedUserId, setAssignedUserId] = useState(task.assignedUser.id);
   const [assignedUserName, setAssignedUserName] = useState(task.assignedUser.name);
@@ -44,10 +49,11 @@ export function TaskAssignmentPanel({ assignableUsers, task }: TaskAssignmentPan
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reason, setReason] = useState("");
 
   const hasRecommendationOverride =
     Boolean(recommendedUserName) && assignedUserName !== recommendedUserName;
-  const canSubmit = !isSubmitting && assignedUserId !== currentAssignedUserId;
+  const canSubmit = !isSubmitting && assignedUserId !== currentAssignedUserId && Boolean(reason.trim());
 
   async function submit() {
     setIsSubmitting(true);
@@ -61,7 +67,7 @@ export function TaskAssignmentPanel({ assignableUsers, task }: TaskAssignmentPan
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          assignedUserId
+          assignedUserId, reason
         })
       });
       const result = (await response.json().catch(() => null)) as TaskAssignmentResponse;
@@ -122,6 +128,7 @@ export function TaskAssignmentPanel({ assignableUsers, task }: TaskAssignmentPan
           <p className="task-comments-readonly-copy">No recommendation is stored for this task.</p>
         )}
 
+        <label className="field"><span>Reassignment reason</span><input required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} disabled={isSubmitting} /></label>
         <div className="my-task-actions">
           <button
             className="pill pill-primary"

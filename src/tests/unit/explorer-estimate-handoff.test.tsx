@@ -85,7 +85,7 @@ describe("issued document continuation", () => {
   const content = { title: "Official estimate", number: "EST-1", issuedAt: "2026-10-18T12:00:00Z", identity: { timezone: "America/Chicago" }, lines: [], notes: [] } as unknown as ServiceDocumentContent;
   it("offers staff printing, authorization and guarded invoicing for the same RO", () => {
     const html = renderToStaticMarkup(<ServiceDocument content={content} sha256="proof" templateVersion="v1" repairOrderId="ro/1" />);
-    expect(html).toContain("Print / save PDF");
+    expect(html).toContain(">Print</button>");
     expect(html).toContain('alt="Time Motor Sales"');
     expect(html).toContain("View Documents &amp; Approvals");
     expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro%2F1");

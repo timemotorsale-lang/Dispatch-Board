@@ -5,6 +5,10 @@ import type { EnterpriseCommandRepository } from "@/server/enterprise-command/re
 import { executeServiceClosePartsCommand } from "@/server/service-close-parts/service";
 import type { ServiceClosePartsRepository } from "@/server/service-close-parts/repository";
 
+vi.mock("@/server/inventory-lifecycle/acquisition", () => ({
+  recordAcquisitionAppraisal: vi.fn().mockResolvedValue({ id: "appraisal-2", version: 2 }),
+}));
+
 const manager: AuthenticatedUser = {
   duties: { all: [], direct: [], roleDefaults: [] },
   email: "manager@example.com",
@@ -28,6 +32,31 @@ function foundation(): EnterpriseCommandRepository {
 }
 
 describe("service close parts service", () => {
+  it("rejects a recon exception for customer work even with an inventory link", async () => {
+    const repository = { overview: vi.fn().mockResolvedValue({ repairOrders: [{
+      id: "ro-customer", origin: "CUSTOMER_REPAIR", inventoryUnit: { id: "inventory-1" },
+    }] }) } as unknown as ServiceClosePartsRepository;
+    await expect(executeServiceClosePartsCommand(manager, {
+      action: "APPROVE_RECON_BUDGET_EXCEPTION", subjectId: "ro-customer",
+      increaseByCents: 3500, reason: "Additional parts",
+    }, { enforceRollout: false, foundationRepository: foundation(), repository }))
+      .rejects.toThrow("only to internal inventory repairs");
+  });
+
+  it("uses the recorded recon allowance rather than a client-submitted ceiling", async () => {
+    const { recordAcquisitionAppraisal } = await import("@/server/inventory-lifecycle/acquisition");
+    const repository = { overview: vi.fn().mockResolvedValue({ repairOrders: [{
+      id: "ro-recon", origin: "INVENTORY_RECON", repairOrderNumber: "RO-RECON",
+      inventoryUnit: { id: "inventory-1", acquisitionAppraisals: [{ estimatedReconCents: 10000 }] },
+    }] }) } as unknown as ServiceClosePartsRepository;
+    await executeServiceClosePartsCommand(manager, {
+      action: "APPROVE_RECON_BUDGET_EXCEPTION", subjectId: "ro-recon",
+      currentMaxReconBudgetCents: 99999999, increaseByCents: 3500, reason: "Additional parts",
+    }, { enforceRollout: false, foundationRepository: foundation(), repository });
+    expect(recordAcquisitionAppraisal).toHaveBeenLastCalledWith(manager, "inventory-1",
+      expect.objectContaining({ estimatedReconCents: 13500 }));
+  });
+
   const overview = {
     custodyEvents: [],
     demands: [],

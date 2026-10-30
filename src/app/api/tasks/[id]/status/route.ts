@@ -14,6 +14,8 @@ function getTaskStatusErrorStatus(message: string) {
     return 401;
   }
 
+  if (message === "This task changed. Reload before updating its status.") return 409;
+
   if (message === "Task not found.") {
     return 404;
   }

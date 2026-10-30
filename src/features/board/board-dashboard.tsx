@@ -449,9 +449,11 @@ export function BoardHero({
   boardDate,
   generationStatus,
   latestGeneration,
-  toolbar
+  toolbar,
+  informational = false
 }: {
   boardDate: string;
+  informational?: boolean;
   generationStatus?: string;
   latestGeneration?: BoardReadModel["latestGeneration"];
   toolbar: ReactNode;
@@ -462,8 +464,8 @@ export function BoardHero({
 
   return (
     <section className="board-hero">
-      <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p className="board-generation-summary">{generationDetail}</p></div>
-      <div className="board-hero-actions"><span className="operating-status"><span />{getBoardStatusLabel(generationStatus, latestGeneration)}</span>{toolbar}</div>
+      <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p className="board-generation-summary">{informational ? "Team activity and workbook focuses, updated from your existing workspaces." : generationDetail}</p></div>
+      <div className="board-hero-actions"><span className="operating-status"><span />{informational ? "Live operations" : getBoardStatusLabel(generationStatus, latestGeneration)}</span>{toolbar}</div>
     </section>
   );
 }
@@ -601,10 +603,10 @@ export function BoardControls({ board, filters, groupMode, presentation, onFilte
   </section>;
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, readOnly = false }: { task: Task; readOnly?: boolean }) {
   const taskUrgency = urgency(task);
   const recommendationSummary = getRecommendationSummary(task);
-  return <article className="mobile-task-card"><header><div><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || formatBoardEnumLabel(task.workflowArea)}</span></div><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></header><dl><div><dt>Assigned</dt><dd>{task.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Due</dt><dd>{formatTime(task.dueAt)} · {timeLeft(task.dueAt)}</dd></div><div><dt>Urgency</dt><dd className={taskUrgency.className}>{taskUrgency.label}</dd></div></dl>{recommendationSummary ? <p className="blocker-inline"><CircleUserRound size={15} /> {recommendationSummary}</p> : null}{task.blockerReason ? <p className="blocker-inline"><AlertCircle size={15} /> {task.blockerReason}</p> : null}<Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : "Update"}</Link></article>;
+  return <article className="mobile-task-card"><header><div><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || formatBoardEnumLabel(task.workflowArea)}</span></div><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></header><dl><div><dt>Assigned</dt><dd>{task.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Due</dt><dd>{formatTime(task.dueAt)} · {timeLeft(task.dueAt)}</dd></div><div><dt>Urgency</dt><dd className={taskUrgency.className}>{taskUrgency.label}</dd></div></dl>{recommendationSummary ? <p className="blocker-inline"><CircleUserRound size={15} /> {recommendationSummary}</p> : null}{task.blockerReason ? <p className="blocker-inline"><AlertCircle size={15} /> {task.blockerReason}</p> : null}<Link className="row-action" href={`/tasks/${task.id}`}>{readOnly ? "View work record" : task.status === "READY_FOR_REVIEW" ? "Review" : "Update"}</Link></article>;
 }
 
 export function TaskBoard({
@@ -614,8 +616,10 @@ export function TaskBoard({
   isFiltered,
   isManager,
   presentation,
-  taskCount
+  taskCount,
+  readOnly = false
 }: {
+  readOnly?: boolean;
   boardDate: string;
   generationStatus: string;
   latestGeneration: BoardReadModel["latestGeneration"];
@@ -631,7 +635,7 @@ export function TaskBoard({
           <EmptyStateCard
             eyebrow="Board empty"
             message={
-              generationStatus === "FAILED"
+              readOnly ? "No task work is recorded for this date. Team activity and workbook focuses appear above." : generationStatus === "FAILED"
                 ? isManager
                   ? `Generation did not finish cleanly for this board. ${latestGeneration?.errorMessage ?? "Review the generation status above and retry the board to rebuild today's plan."}`
                   : "Generation did not finish cleanly for this board yet. A manager can retry it to rebuild today's plan."
@@ -661,8 +665,8 @@ export function TaskBoard({
   }
 
   return <section className="task-board" id="live-board"><header className="task-board-header"><div><span>Live Board</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
-    <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); const recommendationSummary = getRecommendationSummary(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span>{recommendationSummary ? <small>{recommendationSummary}</small> : null}</td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
-    <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} />)}</section>)}</div>
+    <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>{readOnly ? "Work record" : "Next Action"}</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); const recommendationSummary = getRecommendationSummary(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span>{recommendationSummary ? <small>{recommendationSummary}</small> : null}</td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{readOnly ? "View details" : task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
+    <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} readOnly={readOnly} />)}</section>)}</div>
     <footer className="task-board-footer"><span>Showing {presentation.filteredTasks.length} of {presentation.filteredTasks.length} items</span><div><button disabled type="button">‹</button><button className="active" type="button">1</button><button disabled type="button">›</button></div></footer>
   </section>;
 }

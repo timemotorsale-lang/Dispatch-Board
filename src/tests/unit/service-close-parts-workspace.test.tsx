@@ -14,6 +14,7 @@ const initial = {
   receipts: [],
   recoveries: [],
   repairOrders: [{
+    origin: "INVENTORY_RECON",
     closedAt: null,
     customer: null,
     id: "ro-1",
@@ -38,6 +39,44 @@ const initial = {
 };
 
 describe("ServiceClosePartsWorkspace", () => {
+  it("uses customer procurement even when a customer vehicle has a historic inventory link", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      repairOrders: [{ ...initial.repairOrders[0], origin: "CUSTOMER_REPAIR", customer: { displayName: "Amin Sadiki" } }],
+    }} initialRepairOrderId="ro-1" />);
+    expect(html).toContain('aria-label="Customer vehicle parts purchases"');
+    expect(html).toContain("Amin Sadiki");
+    expect(html).toContain("Customer pricing stays on the approved estimate.");
+    expect(html).toContain("$450.00");
+    expect(html).not.toContain('aria-label="Recon budget guardrail"');
+    expect(html).not.toContain("Review recon budget");
+    expect(html).not.toContain("Manager approval required");
+  });
+
+  it("does not invent a zero recon ceiling from the vehicle age or value", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      repairOrders: [{ ...initial.repairOrders[0], inventoryUnit: { id: "inv-1" } }],
+    }} initialRepairOrderId="ro-1" />);
+    expect(html).toContain("Recon budget not set");
+    expect(html).toContain("Set recon budget");
+    expect(html).toContain("Not set");
+    expect(html).not.toContain("target gross");
+    expect(html).not.toContain("Manager approval required");
+  });
+
+  it("retains closed purchase costs and excludes cancelled purchase orders", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      purchaseOrders: [
+        { ...initial.purchaseOrders[0], status: "CLOSED", orderedTotalCents: 180000 },
+        { ...initial.purchaseOrders[0], id: "cancelled", status: "CANCELLED", orderedTotalCents: 999999 },
+      ],
+    }} initialRepairOrderId="ro-1" />);
+    expect(html).toContain("$1800.00");
+    expect(html).toContain("This vehicle needs approval for $9.98");
+  });
+
   it("opens active outside-vendor parts work directly into delivery and repair-progress controls", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} initialRepairOrderId="ro-1" returnLabel="Return to RO-DB21B235" returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
 

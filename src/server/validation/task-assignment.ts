@@ -1,5 +1,6 @@
 ﻿export type NormalizedTaskAssignmentInput = {
   assignedUserId: string;
+  reason: string;
 };
 
 function normalizeRequiredText(value: unknown, message: string) {
@@ -22,14 +23,17 @@ export function normalizeTaskAssignmentInput(input: unknown): NormalizedTaskAssi
   }
 
   const candidate = input as Record<string, unknown>;
-  const allowedKeys = new Set(["assignedUserId"]);
+  const allowedKeys = new Set(["assignedUserId", "reason"]);
   const unknownKeys = Object.keys(candidate).filter((key) => !allowedKeys.has(key));
 
   if (unknownKeys.length > 0) {
     throw new Error(`Task assignment contains unsupported fields: ${unknownKeys.join(", ")}.`);
   }
 
+  const reason = candidate.reason == null ? "" : normalizeRequiredText(candidate.reason, "Task reassignment requires a short reason.");
+  if (reason.length > 500) throw new Error("Task reassignment reason must be 500 characters or fewer.");
   return {
+    reason,
     assignedUserId: normalizeRequiredText(
       candidate.assignedUserId,
       "Task reassignment requires an assigned user."

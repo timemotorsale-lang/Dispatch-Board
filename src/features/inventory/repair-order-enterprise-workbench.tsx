@@ -29,7 +29,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { RepairOrderCloseForm } from "./repair-order-close-form";
 
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { OutsideRepairWorkPanel, type OutsideWork } from "@/features/advisor/outside-repair-work-panel";
@@ -671,8 +672,10 @@ export function RepairOrderEnterpriseWorkbench({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [closePanelOpen, setClosePanelOpen] = useState(false);
-  const [closePanelMessage, setClosePanelMessage] = useState("");
-  const [closeReason, setCloseReason] = useState("");
+  const [closedLocally, setClosedLocally] = useState(false);
+  useEffect(() => {
+    try { if (sessionStorage.getItem(`repair-order-close:${order.id}`)) queueMicrotask(() => setClosePanelOpen(true)); } catch { /* Server-confirmed closure still remains visible. */ }
+  }, [order.id]);
   const [ownerUserId, setOwnerUserId] = useState(order.ownerUser.id);
   const [currentOwner, setCurrentOwner] = useState(order.ownerUser);
   const [currentVersion, setCurrentVersion] = useState(order.version);
@@ -1092,46 +1095,6 @@ export function RepairOrderEnterpriseWorkbench({
     }
   }
 
-  async function closeNoFurtherWork() {
-    const reason = closeReason.trim();
-    if (reason.length < 10) {
-      setClosePanelMessage("Add a clear closure reason before closing this repair order.");
-      return;
-    }
-    setBusy(true);
-    setClosePanelMessage("Closing repair order...");
-    setNotice("");
-    try {
-      const response = await fetch(`/api/repair-orders/${encodeURIComponent(order.id)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "CLOSE_NO_FURTHER_WORK",
-          expectedVersion: currentVersion,
-          idempotencyKey: crypto.randomUUID(),
-          reason,
-        }),
-      });
-      const body = await response.json().catch(() => ({})) as { error?: string; result?: { version?: number } };
-      if (!response.ok) throw new Error(body.error ?? "Repair order could not be closed.");
-      const savedVersion = Number(body.result?.version);
-      if (Number.isInteger(savedVersion) && savedVersion > currentVersion) setCurrentVersion(savedVersion);
-      setClosePanelOpen(false);
-      setClosePanelMessage("");
-      setCloseReason("");
-      setNotice("Repair order closed. No further work is planned.");
-      if (returnTo) {
-        router.push(returnToAfterRepairOrderClose(returnTo, order.id));
-      }
-      router.refresh();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Repair order could not be closed.";
-      setClosePanelMessage(message);
-      setNotice(message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
   const vehicleColorEditor = (
@@ -1533,7 +1496,7 @@ export function RepairOrderEnterpriseWorkbench({
             <Link href={`/money-resources?${new URLSearchParams({ vehicleId: order.vehicle.id, repairOrderId: order.id })}`}><FileText /> Record spending</Link>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
-            <button aria-expanded={closePanelOpen} aria-controls="repair-order-close-panel" onClick={() => { setClosePanelMessage(""); setClosePanelOpen((open) => !open); }} type="button"><XCircle /> Close RO</button>
+            <button disabled={busy || closedLocally || ["CLOSED", "CANCELLED"].includes(order.stage)} aria-expanded={closePanelOpen} aria-controls="repair-order-close-panel" onClick={() => setClosePanelOpen(open => !open)} type="button"><XCircle />{closedLocally || ["CLOSED", "CANCELLED"].includes(order.stage) ? "RO closed" : "Close RO"}</button>
           </div>
         </nav>
         <div className="rowb-summary-top">
@@ -1573,19 +1536,13 @@ export function RepairOrderEnterpriseWorkbench({
             </button>
           </div>
         </div>
-        {closePanelOpen ? (
-          <div className="rowb-close-panel" id="repair-order-close-panel">
-            <label>
-              <span>Closure reason</span>
-              <textarea onChange={(event) => setCloseReason(event.target.value)} placeholder="Example: Customer declined further diagnosis; no work will be pursued." value={closeReason} />
-            </label>
-            <div>
-              <button disabled={busy} onClick={() => { setClosePanelOpen(false); setClosePanelMessage(""); setCloseReason(""); }} type="button">Keep open</button>
-              <button disabled={busy || closeReason.trim().length < 10} onClick={() => void closeNoFurtherWork()} type="button">{busy ? "Closing..." : "Close with no further work"}</button>
-            </div>
-            {closePanelMessage ? <p role="status">{closePanelMessage}</p> : null}
-          </div>
-        ) : null}
+        {closePanelOpen && <RepairOrderCloseForm repairOrderId={order.id} expectedVersion={currentVersion} onLockChange={setBusy} onCancel={() => setClosePanelOpen(false)} onClosed={result => {
+          if (result.version && result.version > currentVersion) setCurrentVersion(result.version);
+          setClosedLocally(true); setClosePanelOpen(false);
+          setNotice(result.endedJobs?.length ? "Repair order closed. Outstanding assignments ended; history retained." : "Repair order closed.");
+          if (returnTo) router.push(returnToAfterRepairOrderClose(returnTo, order.id));
+          router.refresh();
+        }} />}
         {reconPathSelector}
         {reconReportOpen ? reconReportPanel : null}
         <dl className="rowb-summary-facts">

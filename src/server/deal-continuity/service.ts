@@ -5,7 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { requireSalesDocumentsUser } from "@/server/sales-documents/service";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { isManager } from "@/server/policies/access";
-import { dealCustomer, dealOrganization, dealVehicle } from "./identities";
+import { dealCustomer, dealDocumentOrganization, dealOrganization, dealVehicle } from "./identities";
 import { normalizeVehicleUseCommand, vehicleUseOverlaps } from "@/lib/deal-continuity";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
@@ -17,9 +17,10 @@ const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.Inp
 
 export async function resolveDealSource(actor: AuthenticatedUser | null, source: { sourceDraftId?: string; sourceJacketId?: string }, db: Tx = prisma) {
   const user = requireSalesDocumentsUser(actor), organizationId = dealOrganization();
+  const documentOrganizationId = dealDocumentOrganization();
   if (Boolean(source.sourceDraftId) === Boolean(source.sourceJacketId)) throw new SalesDocumentsError("Choose one original deal or agreement.");
-  const draft = source.sourceDraftId ? await db.dealDeskDraft.findFirst({ where: { id: source.sourceDraftId, organizationId, ...(isManager(user) ? {} : { ownerUserId: user.id }) }, include: { continuity: true } }) : null;
-  const jacket = source.sourceJacketId ? await db.salesDocumentJacket.findFirst({ where: { id: source.sourceJacketId, organizationId } }) : null;
+  const draft = source.sourceDraftId ? await db.dealDeskDraft.findFirst({ where: { id: source.sourceDraftId, organizationId: documentOrganizationId, ...(isManager(user) ? {} : { ownerUserId: user.id }) }, include: { continuity: true } }) : null;
+  const jacket = source.sourceJacketId ? await db.salesDocumentJacket.findFirst({ where: { id: source.sourceJacketId, organizationId: documentOrganizationId } }) : null;
   if (!draft && !jacket) throw new SalesDocumentsError("The original deal is unavailable or outside your access.", 404);
   const original = draft ?? jacket!;
   let vehicleId = draft?.continuity?.vehicleId ?? null;

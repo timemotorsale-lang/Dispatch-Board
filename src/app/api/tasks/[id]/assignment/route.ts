@@ -14,6 +14,7 @@ function getTaskAssignmentErrorStatus(message: string) {
     return 401;
   }
 
+  if (message.startsWith("Use Hand off work")) return 403;
   if (message === "Manager access required." || message === "Only the task owner or a manager can reassign this task.") {
     return 403;
   }
@@ -29,6 +30,8 @@ function getTaskAssignmentErrorStatus(message: string) {
     message === "Assigned user must be active." ||
     message === "Task assignment payload must be an object." ||
     message === "Task reassignment requires an assigned user." ||
+    message === "Task reassignment requires a short reason." ||
+    message === "Task reassignment reason must be 500 characters or fewer." ||
     message === "This generated task already exists for the selected user on the same board date." ||
     message.startsWith("Task assignment contains unsupported fields")
   ) {

@@ -1252,6 +1252,7 @@ describe("workday workbook service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
     const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.dailyFocusItems.push(...[2, 3].map(index => ({ ...harness.currentWorkbook.dailyFocusItems[0], id: `focus-${index}`, outcome: `Complete planned outcome ${index}` })));
     harness.currentWorkbook.activitySignals.push({
       actionType: "workbook.daily_focus_approved",
       actorUserId: user.id,
@@ -1270,6 +1271,8 @@ describe("workday workbook service", () => {
       workbookId: harness.currentWorkbook.id
     });
 
+    for (const index of [2, 3]) harness.currentWorkbook.activitySignals.push({ ...harness.currentWorkbook.activitySignals.at(-1)!, id: `approval-focus-${index}`, sourceId: `daily-focus:focus-${index}` });
+
     await recordWorkbookOperatingRhythmEvent(user, {
       action: "START_CONFIRMED",
       capacityState: "AT_RISK",
@@ -1286,7 +1289,7 @@ describe("workday workbook service", () => {
         actionType: "workbook.rhythm_start_confirmed",
         metadata: expect.objectContaining({
           capacityState: "AT_RISK",
-          focusSnapshot: [expect.objectContaining({ id: "focus-1", outcome: "Confirm roof repair path" })],
+          focusSnapshot: expect.arrayContaining([expect.objectContaining({ id: "focus-1", outcome: "Confirm roof repair path" }), expect.objectContaining({ id: "focus-2" }), expect.objectContaining({ id: "focus-3" })]),
           supportBy: "10:30",
           supportOwner: "Parts"
         }),
@@ -1299,6 +1302,7 @@ describe("workday workbook service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
     const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.dailyFocusItems.push(...[2, 3].map(index => ({ ...harness.currentWorkbook.dailyFocusItems[0], id: `focus-${index}`, outcome: `Complete planned outcome ${index}` })));
 
     await expect(recordWorkbookOperatingRhythmEvent(user, {
       action: "START_CONFIRMED",
@@ -1315,6 +1319,7 @@ describe("workday workbook service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
     const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.dailyFocusItems.push(...[2, 3].map(index => ({ ...harness.currentWorkbook.dailyFocusItems[0], id: `focus-${index}`, outcome: `Complete planned outcome ${index}` })));
 
     await expect(recordWorkbookOperatingRhythmEvent(user, {
       action: "START_CONFIRMED",
@@ -1355,6 +1360,7 @@ describe("workday workbook service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
     const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.dailyFocusItems.push(...[2, 3].map(index => ({ ...harness.currentWorkbook.dailyFocusItems[0], id: `focus-${index}`, outcome: `Complete planned outcome ${index}` })));
     harness.currentWorkbook.activitySignals.push({
       actionType: "workbook.daily_focus_approved",
       actorUserId: user.id,

@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient, TaskSourceType, TaskStatus, TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 
+import { syncDispatchTaskStatus } from "@/server/dispatch/activity";
 import { prisma } from "@/server/db/client";
 import { getDefaultAppSettings } from "@/server/validation/app-settings";
 import { getBoardDateInTimeZone } from "@/server/validation/board-date";
@@ -182,15 +183,20 @@ export async function setRepairOrderTaskStatus(
   });
   if (!link || link.task.status === TaskStatus.COMPLETED) return null;
   const now = new Date();
-  await tx.task.update({
+  const updatedTask = await tx.task.update({
     where: { id: link.taskId },
     data: {
       blockerReason: input.status === TaskStatus.BLOCKED ? input.blockerReason ?? "Repair work is paused." : null,
       completedAt: input.status === TaskStatus.COMPLETED ? now : null,
       readyForReviewAt: input.status === TaskStatus.READY_FOR_REVIEW ? now : null,
       status: input.status
-    }
+    },
+    select: { id: true, title: true, assignedUserId: true, ownerUserId: true, boardDayId: true, status: true, blockerReason: true },
   });
+  if (input.status !== link.task.status) {
+    const settings = await tx.appSetting.findUnique({ where: { id: getDefaultAppSettings().id }, select: { timezone: true } });
+    await syncDispatchTaskStatus(tx, updatedTask, input.actorUserId, getBoardDateInTimeZone(now, settings?.timezone ?? getDefaultAppSettings().timezone), link.task.status, now);
+  }
   await tx.activityEvent.create({
     data: {
       actorUserId: input.actorUserId,

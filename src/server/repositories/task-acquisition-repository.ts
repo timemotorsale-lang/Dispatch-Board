@@ -140,6 +140,7 @@ export function createTaskAcquisitionRepository(database: PrismaClient = prisma)
             acceptedAt: claimedAt,
             acceptedByUserId: userId,
             assignedUserId: userId,
+            ownerUserId: userId,
             isClaimable: false
           }
         });
@@ -198,6 +199,7 @@ export function createTaskAcquisitionRepository(database: PrismaClient = prisma)
               acceptedAt: input.decidedAt,
               acceptedByUserId: targetUserId,
               assignedUserId: targetUserId,
+              ownerUserId: targetUserId,
               isClaimable: false
             }
           });

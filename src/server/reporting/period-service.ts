@@ -1,3 +1,5 @@
+import { workbookReportHistory } from "./workbook-history";
+import { readDispatchEvidence } from "@/server/dispatch/evidence";
 import { Prisma } from "@prisma/client";
 import { draftReportCalendar, reportBusinessDate, resolveReportPeriod, type ReportCadence } from "@/lib/reporting/calendar";
 import { type PeriodContent } from "@/lib/reporting/contracts";
@@ -52,6 +54,7 @@ function reviewState(reviews: { action: string }[], accepted: boolean) {
 export async function preparePeriodReport(actor: AuthenticatedUser | null, date: string, cadence: ReportCadence, subjectUserId?: string, now = new Date()) {
   const { user, subject } = reportingSubject(actor, subjectUserId), { period, key } = await identity(subject, cadence, date);
   const person = await prisma.user.findUniqueOrThrow({ where: { id: subject }, select: { id: true, name: true } });
+  const dispatchEvidence = await readDispatchEvidence(prisma, { userId: subject, personName: person.name, ...period, cutoffAt: now });
   const [days, series, updates, workbookSignals, dealDrafts, expectation] = await Promise.all([
     prisma.staffDay.findMany({ where: { userId: subject, boardDay: { date: { gte: new Date(`${period.startDate}T00:00:00Z`), lt: new Date(`${period.endDate}T00:00:00Z`) } } }, include: { boardDay: { select: { date: true } }, dailyReports: { orderBy: { version: "desc" }, take: 1 } }, orderBy: { boardDay: { date: "asc" } } }),
     prisma.reportingSeries.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: key }, include: { revisions: { orderBy: { version: "desc" }, take: 1, include: { reviews: { orderBy: { createdAt: "desc" }, take: 1 } } } } }),
@@ -61,7 +64,7 @@ export async function preparePeriodReport(actor: AuthenticatedUser | null, date:
     prisma.reportingExpectation.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: key } })
   ]);
   if (workbookSignals.length > 500 || dealDrafts.length > 500) throw new Error("Report preparation requires a narrower period scope.");
-  const observations: TaskObservation[] = [];
+  const observations: TaskObservation[] = [...dispatchEvidence.observations];
   let coverage = 0;
   for (const day of days) {
     const report = day.dailyReports[0];
@@ -73,7 +76,7 @@ export async function preparePeriodReport(actor: AuthenticatedUser | null, date:
   const currentDate = reportBusinessDate(now, period.timezone);
   let currentTasksTruncated = false;
   if (period.startDate <= currentDate && period.endDate > currentDate) {
-    const tasks = await prisma.task.findMany({ where: { assignedUserId: subject, boardDay: { date: new Date(`${currentDate}T00:00:00Z`) } }, select: { id: true, title: true, status: true, blockerReason: true, carryoverSourceTaskId: true }, orderBy: { id: "asc" }, take: 1001 });
+    const tasks = await prisma.task.findMany({ where: { assignedUserId: subject, NOT: { status: "COMPLETED", activityEvents: { some: { eventType: "task.completed", metadata: { path: ["personId"], not: subject } } } }, boardDay: { date: new Date(`${currentDate}T00:00:00Z`) } }, select: { id: true, title: true, status: true, blockerReason: true, carryoverSourceTaskId: true }, orderBy: { id: "asc" }, take: 1001 });
     currentTasksTruncated = tasks.length > 1000;
     observations.push(...tasks.slice(0, 1000).map(task => ({ taskId: task.id, parentTaskId: task.carryoverSourceTaskId, boardDate: currentDate,
       row: { id: `task:${task.id}`, title: task.title, state: task.status, owner: person.name, href: `/tasks/${encodeURIComponent(task.id)}`, detail: task.blockerReason ?? undefined } })));
@@ -82,15 +85,16 @@ export async function preparePeriodReport(actor: AuthenticatedUser | null, date:
   const reconciled = reconcileReportTasks(observations);
   const content: PeriodContent = {
     version: "period-content/v2", cadence, startDate: period.startDate, endDate: period.endDate, cutoffAt: now.toISOString(),
-    completed: reconciled.completed, carryover: reconciled.carryover, reopened: reconciled.reopened,
-    activity: [...updates.map(update => ({ id: `update:${update.id}`, title: update.text, state: update.followUpNeeded ? "FOLLOW_UP" : "UPDATE", owner: person.name, href: `/vehicles/coo-workbook?date=${period.startDate}`, occurredAt: update.createdAt.toISOString() })),
+    completed: [...reconciled.completed, ...dispatchEvidence.manualCompleted], carryover: reconciled.carryover, reopened: reconciled.reopened,
+    plannedFocus: dispatchEvidence.plannedFocus, handoffs: dispatchEvidence.handoffs, sourceQuality: dispatchEvidence.sourceQuality,
+    activity: [...dispatchEvidence.activity, ...updates.map(update => ({ id: `update:${update.id}`, title: update.text, state: update.followUpNeeded ? "FOLLOW_UP" : "UPDATE", owner: person.name, href: `/vehicles/coo-workbook?date=${period.startDate}`, occurredAt: update.createdAt.toISOString() })),
       ...workbookSignals.map(signal => {
         const metadata = object(signal.metadata);
         const href = typeof metadata.sourcePath === "string" && metadata.sourcePath.startsWith("/") && !metadata.sourcePath.startsWith("//") ? metadata.sourcePath : `/vehicles/coo-workbook?date=${period.startDate}`;
         return { id: `workbook-signal:${signal.id}`, title: signal.businessImpact || signal.actionType.replace(/[._]/g, " "), state: signal.actionType === "workbook.rhythm_start_confirmed" ? "STARTED_DAY" : "ACTIVITY", owner: person.name, href, occurredAt: signal.occurredAt.toISOString() };
       }),
       ...dealDrafts.map(draft => ({ id: `deal-draft:${draft.id}`, title: `${draft.customerName} - ${pathwayLabel(draft.pathway)}`, state: draft.status, owner: person.name, href: `/crm-next/deals/start?draft=${encodeURIComponent(draft.id)}`, occurredAt: draft.updatedAt.toISOString(), detail: draft.vehicleReference || undefined }))],
-    sourceCoverage: `${coverage} of ${days.length} recorded staff days have submitted snapshots. Work is counted by its last observed state; outstanding items remain until a later observed completion. Reopened work is included in carryover, not an additional total. Current-day tasks are current state; earlier unsaved outcomes are not reconstructed. Start Day confirmations, report-relevant workbook signals, and saved deal drafts updated in the covered period are included as activity evidence. ${reconciled.unresolvedLineageCount} task identities have incomplete or conflicting carryover links and may not be fully consolidated. This is not a historical end-of-period certification.${currentTasksTruncated ? " Current-day evidence is limited to 1,000 tasks." : ""}`,
+    sourceCoverage: `${dispatchEvidence.sourceCoverage} ${coverage} of ${days.length} recorded staff days have submitted snapshots. Work is counted by its last observed state; outstanding items remain until a later observed completion. Reopened work is included in carryover, not an additional total. Current-day tasks are current state; earlier unsaved outcomes are not reconstructed. Start Day confirmations, report-relevant workbook signals, and saved deal drafts updated in the covered period are included as activity evidence. ${reconciled.unresolvedLineageCount} task identities have incomplete or conflicting carryover links and may not be fully consolidated. This is not a historical end-of-period certification.${currentTasksTruncated ? " Current-day evidence is limited to 1,000 tasks." : ""}`,
     context: typeof draft.context === "string" ? draft.context : "", priorities: typeof draft.priorities === "string" ? draft.priorities : ""
   };
   return { subject: person, content, seriesId: series?.id ?? null, draftVersion: series?.version ?? 0,
@@ -112,7 +116,7 @@ export async function savePeriodDraft(actor: AuthenticatedUser | null, input: { 
   });
 }
 
-export async function submitPeriodReport(actor: AuthenticatedUser | null, input: { date: string; cadence: ReportCadence; context: string; priorities: string; expectedVersion: number; idempotencyKey: string; accuracyConfirmed: boolean }) {
+export async function submitPeriodReport(actor: AuthenticatedUser | null, input: { date: string; cadence: ReportCadence; context: string; priorities: string; expectedVersion: number; idempotencyKey: string; accuracyConfirmed: boolean; correctionReason?: string }) {
   writesEnabled();
   const { user, subject } = reportingSubject(actor);
   if (!input.accuracyConfirmed) throw new Error("Confirm this report is accurate before submitting.");
@@ -121,13 +125,13 @@ export async function submitPeriodReport(actor: AuthenticatedUser | null, input:
   if (period.startDate > reportBusinessDate(new Date())) throw new Error("Future reports cannot be submitted.");
   if (input.cadence === "DAILY") {
     // Preserve the existing Start Day, rollout, accuracy and carryover policy.
-    const report = await submitDailyHandoff(user, input.date, { accuracyConfirmed: true, additionalContext: input.context, tomorrowFollowUp: input.priorities, idempotencyKey: input.idempotencyKey, expectedDraftVersion: input.expectedVersion });
+    const report = await submitDailyHandoff(user, input.date, { accuracyConfirmed: true, additionalContext: input.context, tomorrowFollowUp: input.priorities, idempotencyKey: input.idempotencyKey, expectedDraftVersion: input.expectedVersion, correctionReason: input.correctionReason });
     const linked = await prisma.reportingRevision.findUniqueOrThrow({ where: { legacyDailyId: report.id } });
     return { id: linked.id, version: linked.version };
   }
   const prepared = await preparePeriodReport(user, input.date, input.cadence);
   const content = { ...prepared.content, context: input.context, priorities: input.priorities };
-  const requestHash = hashEnterpriseCommand({ subject, cadence: input.cadence, startDate: period.startDate, context: input.context, priorities: input.priorities, accuracyConfirmed: input.accuracyConfirmed });
+  const requestHash = hashEnterpriseCommand({ subject, cadence: input.cadence, startDate: period.startDate, context: input.context, priorities: input.priorities, correctionReason: input.correctionReason ?? "", accuracyConfirmed: input.accuracyConfirmed });
   return prisma.$transaction(async tx => {
     const series = await tx.reportingSeries.upsert({ where: { organizationId_subjectUserId_cadence_periodStart: key }, update: {}, create: { ...key, subjectName: user.name, periodEnd: period.endDate, timezone: period.timezone, calendarVersion: period.calendarVersion } });
     await tx.$queryRaw`SELECT id FROM "ReportingSeries" WHERE id = ${series.id} FOR UPDATE`;
@@ -139,7 +143,9 @@ export async function submitPeriodReport(actor: AuthenticatedUser | null, input:
     const current = await tx.reportingSeries.findUniqueOrThrow({ where: { id: series.id } });
     if (current.version !== input.expectedVersion) throw new Error("Report draft changed. Reload before submitting.");
     const latest = await tx.reportingRevision.aggregate({ where: { seriesId: series.id }, _max: { version: true } });
-    const revision = await tx.reportingRevision.create({ data: { seriesId: series.id, version: (latest._max.version ?? 0) + 1, submittedByUserId: user.id, idempotencyKey: input.idempotencyKey, requestHash, content: json(content) } });
+    if (latest._max.version && !input.correctionReason?.trim()) throw new Error("A correction requires a short reason.");
+    if ((input.correctionReason?.length ?? 0) > 500) throw new Error("Correction reason must be 500 characters or fewer.");
+    const revision = await tx.reportingRevision.create({ data: { seriesId: series.id, version: (latest._max.version ?? 0) + 1, submittedByUserId: user.id, idempotencyKey: input.idempotencyKey, requestHash, correctionReason: input.correctionReason?.trim() || null, content: json(content) } });
     await tx.reportingSeries.update({ where: { id: series.id }, data: { version: { increment: 1 }, draft: Prisma.DbNull } });
     await recordReportingCommand(tx, { actorUserId: user.id, subjectId: revision.id, action: "PERIOD_SUBMITTED", version: revision.version, key: `${series.id}:${input.idempotencyKey}`, hash: requestHash, reason: "Staff confirmed the covered period report.", result: { reportId: revision.id } });
     return { id: revision.id, version: revision.version };
@@ -167,36 +173,55 @@ export async function reviewPeriodReport(actor: AuthenticatedUser | null, input:
   });
 }
 
-export async function reportingHistory(actor: AuthenticatedUser | null, input: { subjectUserId?: string; cadence?: ReportCadence; from?: string; to?: string; team?: boolean; cursor?: string } = {}) {
+export async function reportingHistory(actor: AuthenticatedUser | null, input: { subjectUserId?: string; cadence?: ReportCadence; from?: string; to?: string; team?: boolean; cursor?: string; reportStatus?: string; query?: string } = {}) {
   const { user, subject } = reportingSubject(actor, input.subjectUserId);
   if (input.team && !isGeneralManager(user)) throw new Error("General Manager access is required for team reports.");
+  if (input.reportStatus && !["ALL", "SUBMITTED", "DRAFT", "NOT_SUBMITTED"].includes(input.reportStatus)) throw new Error("Report status is invalid.");
+  if ((input.query?.length ?? 0) > 200) throw new Error("Report search must be 200 characters or fewer.");
+  const query = input.query?.trim() ?? "";
+  const searchWhere = query ? { OR: [{ subjectName: { contains: query, mode: "insensitive" as const } }, { revisions: { some: { OR: [{ content: { path: ["context"], string_contains: query } }, { legacyDaily: { additionalContext: { contains: query, mode: "insensitive" as const } } }] } } }] } : {};
+  const submissionWhere = input.reportStatus === "SUBMITTED" ? { revisions: { some: {} } } : input.reportStatus === "DRAFT" || input.reportStatus === "NOT_SUBMITTED" ? { revisions: { none: {} } } : {};
   const subjectWhere = input.team && !input.subjectUserId ? {} : { subjectUserId: subject };
-  const scope = hashEnterpriseCommand({ actor: user.id, subject: input.team && !input.subjectUserId ? null : subject, team: input.team === true, cadence: input.cadence ?? null, from: input.from ?? null, to: input.to ?? null });
+  const scope = hashEnterpriseCommand({ actor: user.id, subject: input.team && !input.subjectUserId ? null : subject, team: input.team === true, cadence: input.cadence ?? null, from: input.from ?? null, to: input.to ?? null, ...(input.reportStatus && input.reportStatus !== "ALL" ? { reportStatus: input.reportStatus } : {}), ...(query ? { query } : {}) });
   const cursor = decodeReportingHistoryCursor(input.cursor, scope);
-  const series = cursor?.seriesDone ? [] : await prisma.reportingSeries.findMany({ where: { organizationId, ...subjectWhere, ...(input.cadence ? { cadence: input.cadence } : {}), ...(input.from || input.to ? { periodStart: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}) },
+  const series = cursor?.seriesDone ? [] : await prisma.reportingSeries.findMany({ where: { organizationId, ...subjectWhere, ...submissionWhere, ...searchWhere, ...(input.cadence ? { cadence: input.cadence } : {}), ...(input.from || input.to ? { periodStart: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}) },
     orderBy: [{ periodStart: "desc" }, { id: "asc" }], take: 51, ...(cursor?.series ? { cursor: { id: cursor.series }, skip: 1 } : {}),
     include: { revisions: { orderBy: { version: "desc" }, take: 1, include: { reviews: { orderBy: { createdAt: "desc" }, take: 1 } } } } });
   const rows = series.slice(0, 50).map(item => ({ id: item.id, subject: item.subjectName, subjectUserId: item.subjectUserId, cadence: item.cadence, periodStart: item.periodStart, periodEnd: item.periodEnd, version: item.version,
-    revisionId: item.acceptedRevisionId ?? item.revisions[0]?.id ?? null,
+    sourceKind: "SUBMISSION" as const, title: `${item.subjectName} ${item.periodStart}`, revisionId: item.revisions[0]?.id ?? item.acceptedRevisionId ?? null,
     latestRevisionId: item.revisions[0]?.id ?? null,
     status: item.revisions[0] ? reviewState(item.revisions[0].reviews, item.acceptedRevisionId === item.revisions[0].id) : "DRAFT", submittedAt: item.revisions[0]?.submittedAt.toISOString() ?? null }));
-  const legacy = !cursor?.legacyDone && (!input.cadence || input.cadence === "DAILY") ? await prisma.staffDailyReport.findMany({ where: { reportingRevision: null, staffDay: { ...(input.team && !input.subjectUserId ? {} : { userId: subject }), ...(input.from || input.to ? { boardDay: { date: { ...(input.from ? { gte: new Date(`${input.from}T00:00:00Z`) } : {}), ...(input.to ? { lte: new Date(`${input.to}T00:00:00Z`) } : {}) } } } : {}) } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: 51, ...(cursor?.legacy ? { cursor: { id: cursor.legacy }, skip: 1 } : {}), include: { staffDay: { include: { user: { select: { name: true } }, boardDay: { select: { date: true } } } } } }) : [];
-  const nextCursor = series.length > 50 || legacy.length > 50 ? encodeReportingHistoryCursor({ version: 1, scope, series: series[49]?.id ?? cursor?.series ?? null, legacy: legacy[49]?.id ?? cursor?.legacy ?? null, seriesDone: series.length <= 50, legacyDone: legacy.length <= 50 }) : null;
-  return { rows, legacy: legacy.slice(0, 50).map(item => ({ id: `legacy:${item.id}`, subject: item.staffDay.user.name, subjectUserId: item.staffDay.userId, cadence: "DAILY", periodStart: item.staffDay.boardDay.date.toISOString().slice(0, 10), periodEnd: "", version: item.version, revisionId: `legacy:${item.id}`, latestRevisionId: `legacy:${item.id}`, status: "SUBMITTED", submittedAt: item.submittedAt.toISOString() })), nextCursor, canReview: isGeneralManager(user) };
+  const legacy = !["DRAFT", "NOT_SUBMITTED"].includes(input.reportStatus ?? "") && !cursor?.legacyDone && (!input.cadence || input.cadence === "DAILY") ? await prisma.staffDailyReport.findMany({ where: { ...(query ? { OR: [{ additionalContext: { contains: query, mode: "insensitive" } }, { staffDay: { user: { name: { contains: query, mode: "insensitive" } } } }] } : {}), reportingRevision: null, staffDay: { ...(input.team && !input.subjectUserId ? {} : { userId: subject }), ...(input.from || input.to ? { boardDay: { date: { ...(input.from ? { gte: new Date(`${input.from}T00:00:00Z`) } : {}), ...(input.to ? { lte: new Date(`${input.to}T00:00:00Z`) } : {}) } } } : {}) } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: 51, ...(cursor?.legacy ? { cursor: { id: cursor.legacy }, skip: 1 } : {}), include: { staffDay: { include: { user: { select: { name: true } }, boardDay: { select: { date: true } } } } } }) : [];
+  const workbookDrafts = await workbookReportHistory({ subjectUserId: input.team && !input.subjectUserId ? undefined : subject, cadence: input.cadence, from: input.from, to: input.to, query,
+    cursor: cursor?.workbook, done: cursor?.workbookDone, submittedOnly: input.reportStatus === "SUBMITTED" || input.reportStatus === "NOT_SUBMITTED" });
+  const nextCursor = series.length > 50 || legacy.length > 50 || workbookDrafts.length > 50 ? encodeReportingHistoryCursor({ version: 1, scope, series: series[49]?.id ?? cursor?.series ?? null, legacy: legacy[49]?.id ?? cursor?.legacy ?? null, seriesDone: series.length <= 50, legacyDone: legacy.length <= 50, workbook: workbookDrafts[49]?.id ?? cursor?.workbook ?? null, workbookDone: workbookDrafts.length <= 50 }) : null;
+  return { rows, workbooks: workbookDrafts.slice(0, 50).map(item => ({ id: `workbook:${item.id}`, sourceKind: "WORKBOOK_DRAFT" as const, title: item.title, subject: item.subject, subjectUserId: item.userId, cadence: item.cadence, periodStart: item.businessStart, periodEnd: item.businessEnd, version: item.version, revisionId: `workbook:${item.id}`, latestRevisionId: `workbook:${item.id}`, status: "DRAFT", submittedAt: null })), legacy: legacy.slice(0, 50).map(item => ({ id: `legacy:${item.id}`, sourceKind: "LEGACY_SUBMISSION" as const, title: `${item.staffDay.user.name} ${item.staffDay.boardDay.date.toISOString().slice(0, 10)}`, subject: item.staffDay.user.name, subjectUserId: item.staffDay.userId, cadence: "DAILY", periodStart: item.staffDay.boardDay.date.toISOString().slice(0, 10), periodEnd: "", version: item.version, revisionId: `legacy:${item.id}`, latestRevisionId: `legacy:${item.id}`, status: "SUBMITTED", submittedAt: item.submittedAt.toISOString() })), nextCursor, canReview: isGeneralManager(user) };
 }
 
 export async function reportingRevision(actor: AuthenticatedUser | null, id: string) {
   const user = assertAuthenticatedUser(actor);
+  if (id.startsWith("workbook:")) {
+    const draft = await prisma.workdayReportDraft.findFirstOrThrow({ where: { id: id.slice(9), ...(isGeneralManager(user) ? {} : { workbook: { userId: user.id } }) },
+      include: { workbook: { include: { user: { select: { name: true } } } } } });
+    reportingSubject(user, draft.workbook.userId);
+    const versions = await prisma.workdayReportDraft.findMany({ where: { workbookId: draft.workbookId, cadence: draft.cadence, periodStart: draft.periodStart }, orderBy: { version: "desc" }, take: 100,
+      select: { id: true, version: true, generatedAt: true } });
+    return { id, subject: draft.workbook.user.name, subjectUserId: draft.workbook.userId, cadence: draft.cadence,
+      periodStart: draft.periodStart.toISOString().slice(0, 10), version: draft.version, seriesVersion: 0, status: "WORKBOOK_DRAFT", correctionReason: null,
+      content: { title: draft.title, context: draft.summary, workbookSections: draft.sections, sourceCoverage: "Saved workbook draft. This was generated in the workbook and has not been submitted as a staff report." },
+      reviews: [], revisions: versions.map(item => ({ id: `workbook:${item.id}`, version: item.version, submittedAt: item.generatedAt.toISOString() })), canReview: false };
+  }
   if (id.startsWith("legacy:")) {
     const legacy = await prisma.staffDailyReport.findUniqueOrThrow({ where: { id: id.slice(7) }, include: { staffDay: { include: { user: { select: { name: true } }, boardDay: { select: { date: true } } } } } });
     reportingSubject(user, legacy.staffDay.userId);
-    return { id, subject: legacy.staffDay.user.name, subjectUserId: legacy.staffDay.userId, cadence: "DAILY", periodStart: legacy.staffDay.boardDay.date.toISOString().slice(0, 10), version: legacy.version, seriesVersion: 0, status: "SUBMITTED", content: { snapshot: legacy.sourceSnapshot, context: legacy.additionalContext, priorities: legacy.tomorrowFollowUp }, reviews: [], revisions: [], canReview: false };
+    return { id, subject: legacy.staffDay.user.name, subjectUserId: legacy.staffDay.userId, cadence: "DAILY", periodStart: legacy.staffDay.boardDay.date.toISOString().slice(0, 10), version: legacy.version, seriesVersion: 0, status: "SUBMITTED", correctionReason: null, content: { snapshot: legacy.sourceSnapshot, context: legacy.additionalContext, priorities: legacy.tomorrowFollowUp }, reviews: [], revisions: [], canReview: false };
   }
   const revision = await prisma.reportingRevision.findFirstOrThrow({ where: { id, series: { organizationId, ...(isGeneralManager(user) ? {} : { subjectUserId: user.id }) } }, include: { series: { include: { revisions: { orderBy: { version: "desc" }, select: { id: true, version: true, submittedAt: true }, take: 100 } } }, legacyDaily: true, reviews: { orderBy: { createdAt: "desc" } } } });
   reportingSubject(user, revision.series.subjectUserId);
   const expectation = await prisma.reportingExpectation.findUnique({ where: { organizationId_subjectUserId_cadence_periodStart: { organizationId, subjectUserId: revision.series.subjectUserId, cadence: revision.series.cadence, periodStart: revision.series.periodStart } } });
   return { id, subject: revision.series.subjectName, subjectUserId: revision.series.subjectUserId, cadence: revision.series.cadence, periodStart: revision.series.periodStart, version: revision.version, seriesVersion: revision.series.version,
     status: reviewState(revision.reviews, revision.series.acceptedRevisionId === id),
+    correctionReason: revision.correctionReason,
     content: revision.legacyDaily ? { snapshot: revision.legacyDaily.sourceSnapshot, context: revision.legacyDaily.additionalContext, priorities: revision.legacyDaily.tomorrowFollowUp } : revision.content,
     reviews: revision.reviews.map(review => ({ action: review.action, comment: review.comment, createdAt: review.createdAt.toISOString() })), revisions: revision.series.revisions.map(item => ({ id: item.id, version: item.version, submittedAt: item.submittedAt.toISOString() })),
     canReview: process.env.REPORTING_WRITES_ENABLED === "true" && isGeneralManager(user) && (!expectation || expectation.reviewerUserId === user.id) && user.id !== revision.series.subjectUserId && user.id !== revision.submittedByUserId && !revision.reviews.length && revision.series.revisions[0]?.id === id };

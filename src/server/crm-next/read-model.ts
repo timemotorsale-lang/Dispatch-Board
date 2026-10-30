@@ -62,6 +62,7 @@ export type CrmNextAttentionItem = {
 
 export type CrmNextCustomer360 = {
   id: string;
+  customerNumber?: string;
   name: string;
   status: "Active";
   phone: string;
@@ -2237,6 +2238,7 @@ function crmNextCustomerFromListItem(item: UnifiedCrmCustomerListItem, now: Date
   const riskLevel = riskFromNextAction(item.nextActionAt, now);
   return {
     id: item.id,
+    customerNumber: item.customerNumber,
     name: item.displayName,
     status: "Active",
     phone: item.maskedPhone,
@@ -2315,6 +2317,7 @@ function crmNextCustomerFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextC
   const opportunityCount = model.opportunityLensObservation.visibleRecordCount;
   return {
     id: model.identity.id,
+    customerNumber: model.identity.customerNumber,
     name: model.identity.displayName,
     status: "Active",
     phone: customer360Contact(model, "PHONE"),

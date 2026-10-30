@@ -38,7 +38,7 @@ const consoleCopy: Array<{ description: string; path: string; title: string }> =
 function getConsoleCopy(pathname: string, live: boolean) {
   if (pathname === "/board") {
     return live
-      ? { title: "Live Board", description: "Operate and update today’s work" }
+      ? { title: "Live Board", description: "See team activity and live operations" }
       : { title: "Dispatch Overview", description: "Today’s operating command" };
   }
 

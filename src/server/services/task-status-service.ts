@@ -661,18 +661,17 @@ export async function updateTaskStatus(
     normalizedInput
   );
 
-  const updatedTask = await repository.updateTaskStatus(
-    normalizedTaskId,
-    buildTaskStatusUpdateData(
-      authenticatedUser,
-      task,
-      normalizedInput,
-      completionNoteSuppliesConvertedEvidence ||
-        Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
-    )
+  const statusData = buildTaskStatusUpdateData(
+    authenticatedUser, task, normalizedInput,
+    completionNoteSuppliesConvertedEvidence ||
+      Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
   );
+  const updatedTask = repository.commitStatusChange
+    ? await repository.commitStatusChange(normalizedTaskId, statusData, { actorUserId: authenticatedUser.id,
+      expectedUpdatedAt: task.updatedAt, previousStatus, previousBlockerReason: task.blockerReason })
+    : await repository.updateTaskStatus(normalizedTaskId, statusData);
 
-  if (repository.supportsActivityEvents && task.boardDayId) {
+  if (repository.supportsActivityEvents && task.boardDayId && !repository.commitStatusChange) {
     await recordBoardActivityEvent({
       boardDayId: task.boardDayId,
       actorUserId: authenticatedUser.id,
