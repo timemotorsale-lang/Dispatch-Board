@@ -1,3 +1,4 @@
+import { matchesOperationalState } from "@/lib/dispatch-display";
 import type { BoardReadTask } from "@/server/services/board-read";
 
 export type BoardGroupMode = "assignee" | "status" | "workflowArea";
@@ -140,37 +141,7 @@ function getSearchHaystack(task: BoardTaskLike) {
 }
 
 function matchesFilters(task: BoardTaskLike, filters: BoardFilters) {
-  if (filters.metricFilter === "active" && task.status === "COMPLETED") {
-    return false;
-  }
-
-  if (
-    filters.metricFilter === "stuck" &&
-    task.status !== "BLOCKED" &&
-    task.status !== "WAITING_ON_PARTS"
-  ) {
-    return false;
-  }
-
-  if (
-    filters.metricFilter === "needs_manager" &&
-    task.status !== "WAITING_ON_APPROVAL" &&
-    task.status !== "READY_FOR_REVIEW"
-  ) {
-    return false;
-  }
-
-  if (filters.metricFilter === "ready_for_review" && task.status !== "READY_FOR_REVIEW") {
-    return false;
-  }
-
-  if (filters.metricFilter === "completed" && task.status !== "COMPLETED") {
-    return false;
-  }
-
-  if (filters.status && task.status !== filters.status) {
-    return false;
-  }
+  if (!matchesOperationalState(task, filters)) return false;
 
   if (filters.assigneeId && getTaskAssigneeKey(task) !== filters.assigneeId) {
     return false;

@@ -4,6 +4,9 @@ import { useEffect, useEffectEvent, useRef, useState, useTransition } from "reac
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
 import { TeamNow } from "./team/team-now";
+import { sourceDelayed } from "@/lib/dispatch-display";
+import { SourceFreshness, useBoardClock } from "./team/source-freshness";
+import teamStyles from "./team/team-now.module.css";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadLookupResult, BoardReadModel, BoardReadSchedulerHealth } from "@/server/services/board-read";
@@ -148,7 +151,8 @@ function createMetrics(board: BoardReadModel): Metric[] {
   ];
 }
 
-function getLiveStatusTone(isRefreshing: boolean) {
+function getLiveStatusTone(isRefreshing: boolean, delayed = false) {
+  if (delayed) return "status-badge status-badge-muted";
   return isRefreshing ? "status-badge status-badge-muted" : "status-badge status-badge-success";
 }
 
@@ -160,6 +164,9 @@ export function BoardScreen({
   initialDateError,
   initialView
 }: BoardScreenProps) {
+  const now = useBoardClock();
+  const [workFreshness, setWorkFreshness] = useState<{ date: string; at: string | null; error: string }>({ date: initialBoardDate, at: null, error: "" });
+  const [activityFreshness, setActivityFreshness] = useState<{ date: string; at: string | null; error: string }>({ date: initialBoardDate, at: null, error: "" });
   const [selectedBoardDate, setSelectedBoardDate] = useState(initialBoardDate);
   const [loadState, setLoadState] = useState<BoardLoadState>({
     status: "loading",
@@ -187,7 +194,7 @@ export function BoardScreen({
 
     async function load() {
       try {
-        const response = await fetch(endpoint(selectedBoardDate, todayBoardDate), {
+        const response = await fetch(initialView === "live" && selectedBoardDate === todayBoardDate ? `/api/board/${encodeURIComponent(selectedBoardDate)}?scope=operations` : endpoint(selectedBoardDate, todayBoardDate), {
           cache: "no-store",
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)])
         });
@@ -198,6 +205,7 @@ export function BoardScreen({
         }
 
         if (response.status === 404 && payload) {
+          setWorkFreshness(current => ({ date: selectedBoardDate, at: current.date === selectedBoardDate ? current.at : null, error: "No work list is available for this date." }));
           setSchedulerHealth(payload.schedulerHealth);
           setIsRefreshing(false);
           if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
@@ -212,6 +220,8 @@ export function BoardScreen({
         }
 
         if (!response.ok || !payload?.board) {
+          setWorkFreshness(current => ({ date: selectedBoardDate, at: current.date === selectedBoardDate ? current.at : null, error: payload?.error ?? "Work list could not be refreshed." }));
+          if (response.status === 401 || response.status === 403) { setLoadState({ status: "error", date: selectedBoardDate, message: payload?.error ?? "Sign in to view work." }); setIsRefreshing(false); return; }
           if (payload?.schedulerHealth) {
             setSchedulerHealth(payload.schedulerHealth);
           }
@@ -228,11 +238,13 @@ export function BoardScreen({
         }
 
         setSchedulerHealth(payload.schedulerHealth);
+        setWorkFreshness({ date: payload.date, at: new Date().toISOString(), error: "" });
         setIsRefreshing(false);
         refreshModeRef.current = "blocking";
         setLoadState({ status: "ready", date: payload.date, board: payload.board });
       } catch (error) {
         if (!controller.signal.aborted) {
+          setWorkFreshness(current => ({ date: selectedBoardDate, at: current.date === selectedBoardDate ? current.at : null, error: error instanceof Error && error.name === "TimeoutError" ? "Refresh timed out. Last received work is retained." : "Work list could not be refreshed." }));
           setIsRefreshing(false);
           if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
             return;
@@ -249,7 +261,7 @@ export function BoardScreen({
     void load();
 
     return () => controller.abort();
-  }, [reloadCount, selectedBoardDate, todayBoardDate]);
+  }, [reloadCount, selectedBoardDate, todayBoardDate, initialView]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -257,18 +269,21 @@ export function BoardScreen({
     async function loadActivity() {
       try {
         const response = await fetch(`/api/activity?date=${encodeURIComponent(selectedBoardDate)}`, {
-          signal: controller.signal
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)])
         });
         const payload = (await response.json().catch(() => null)) as ActivityApiPayload | null;
 
-        if (controller.signal.aborted || !response.ok || !payload) {
+        if (controller.signal.aborted) return;
+        if (!response.ok || !payload || !Array.isArray(payload.events)) {
+          setActivityFreshness(current => ({ date: selectedBoardDate, at: current.date === selectedBoardDate ? current.at : null, error: "Activity could not be refreshed." }));
+          if (response.status === 401 || response.status === 403) setActivityEvents([]);
           return;
         }
-
+        setActivityFreshness({ date: selectedBoardDate, at: new Date().toISOString(), error: "" });
         setActivityEvents(payload.events);
       } catch {
         if (!controller.signal.aborted) {
-          setActivityEvents([]);
+          setActivityFreshness(current => ({ date: selectedBoardDate, at: current.date === selectedBoardDate ? current.at : null, error: "Activity could not be refreshed. Last received updates are retained." }));
         }
       }
     }
@@ -281,6 +296,7 @@ export function BoardScreen({
   const board = loadState.status === "ready" ? loadState.board : null;
   const presentation = board ? getBoardPresentation(board.tasks, groupMode, filters) : null;
   const isFiltered = hasActiveBoardFilters(filters);
+  const updatesDelayed = initialView === "live" && (sourceDelayed(workFreshness.date === selectedBoardDate ? workFreshness.at : null, now, workFreshness.date === selectedBoardDate ? workFreshness.error : "") || sourceDelayed(activityFreshness.date === selectedBoardDate ? activityFreshness.at : null, now, activityFreshness.date === selectedBoardDate ? activityFreshness.error : ""));
 
   function requestBoardReload(mode: "blocking" | "silent" = "silent") {
     if (loadStateRef.current.status === "loading") return;
@@ -404,8 +420,8 @@ export function BoardScreen({
         informational={initialView === "live"}
         toolbar={
           <>
-            <span className={getLiveStatusTone(isRefreshing)}>
-              {isRefreshing ? "Updating..." : "Live"}
+            <span className={getLiveStatusTone(isRefreshing, updatesDelayed)}>
+              {updatesDelayed ? "Updates delayed" : isRefreshing ? "Updating..." : "Live"}
             </span>
             {initialView !== "live" && isManager && schedulerHealth ? (
               <ManagerHealthPanelToggle
@@ -457,7 +473,9 @@ export function BoardScreen({
         />
       ) : null}
 
-      {initialView === "live" ? <TeamNow date={loadState.date} manager={isManager} onPerson={handleAssigneeSelect} /> : null}
+      {initialView === "live" ? <TeamNow date={loadState.date} manager={isManager} onPerson={id => { setGroupMode("assignee"); setFilters(current => ({ ...current, assigneeId: id })); }} filters={filters} onFiltersChange={setFilters} /> : null}
+
+      {initialView === "live" ? <div className={teamStyles.sources} aria-label="Work and activity freshness"><SourceFreshness label="Work list" at={workFreshness.date === selectedBoardDate ? workFreshness.at : null} error={workFreshness.date === selectedBoardDate ? workFreshness.error : ""} now={now} /><SourceFreshness label="Activity" at={activityFreshness.date === selectedBoardDate ? activityFreshness.at : null} error={activityFreshness.date === selectedBoardDate ? activityFreshness.error : ""} now={now} /><button onClick={() => requestBoardReload()}>Refresh sources</button></div> : null}
 
       {loadState.status === "loading" ? (
         <LoadingStateCard
@@ -492,7 +510,7 @@ export function BoardScreen({
           ) : null}
           <div className="board-and-rail">
             <div className="board-primary-column" ref={boardPrimaryRef}>
-              <BoardControls
+              {initialView !== "live" ? <BoardControls
                 board={board}
                 filters={filters}
                 groupMode={groupMode}
@@ -500,7 +518,7 @@ export function BoardScreen({
                 onClear={() => setFilters(DEFAULT_BOARD_FILTERS)}
                 onFilterChange={setFilter}
                 onGroupChange={setGroupMode}
-              />
+              /> : null}
               <TaskBoard
                 readOnly={initialView === "live"}
                 boardDate={loadState.date}

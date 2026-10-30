@@ -34,6 +34,38 @@ describe("Team now projection", () => {
   it("does not assume a receiver started a handoff merely because the task is active", () => {
     expect(projectTeamRow({ ...base, tasks: [task], presence: { ...presence, state: "UNKNOWN", primaryTaskId: null } }).state).toBe("UNKNOWN");
   });
+  it("does not keep Working when its manual focus is gone", () => {
+    const row = projectTeamRow({ ...base, presence: { ...presence, primaryTaskId: null, primaryFocusId: "removed-focus" } });
+    expect(row.state).toBe("UNKNOWN"); expect(row.title).toBeNull();
+  });
+  it("uses the latest task state when a stored Working indicator is stale", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, status: "WAITING_ON_PARTS", blockerReason: "Rotor delivery tomorrow" }], presence });
+    expect(row.state).toBe("BLOCKED"); expect(row.nextAction).toBe("Rotor delivery tomorrow");
+  });
+  it("switches to other active work when the primary task completes", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, status: "COMPLETED" }, { ...task, id: "next" }], presence });
+    expect(row.taskId).toBe("next"); expect(row.state).toBe("WORKING");
+  });
+  it("does not keep a transferred task as its former worker's activity", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, assignedUserId: "receiver" }], presence });
+    expect(row.taskId).toBeNull(); expect(row.state).toBe("UNKNOWN");
+  });
+  it("shows older unresolved blocked work without inventing availability", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, status: "WAITING_ON_APPROVAL", boardDate: "2026-10-27" }] });
+    expect(row.state).toBe("BLOCKED"); expect(row.taskId).toBe(task.id);
+  });
+  it("keeps a blocked job visible while the person works on something else", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, status: "BLOCKED" }, { ...task, id: "active" }], presence });
+    expect(row.taskId).toBe("active"); expect(row.state).toBe("WORKING"); expect(row.tasks).toHaveLength(2);
+  });
+  it("uses new task activity after an older off-duty update", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, updatedAt: "2026-10-29T15:00:00Z" }], presence: { ...presence, state: "OFF_DUTY", primaryTaskId: null } });
+    expect(row.state).toBe("WORKING");
+  });
+  it("does not interpret a handoff's own task timestamp as a receiver starting work", () => {
+    const row = projectTeamRow({ ...base, tasks: [{ ...task, updatedAt: "2026-10-29T14:00:00.050Z" }], presence: { ...presence, state: "UNKNOWN", primaryTaskId: null } });
+    expect(row.state).toBe("UNKNOWN"); expect(row.taskId).toBeNull();
+  });
   it("links reviewers to the exact person/day and staff to their own report", () => {
     expect(dispatchReportLink(base.date, person.id, true)).toContain("subject=staff");
     expect(dispatchReportLink(base.date, person.id, false)).not.toContain("subject=");

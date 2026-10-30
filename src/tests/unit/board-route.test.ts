@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   getBoardReadModelForDate: vi.fn(),
-  getBoardReadModelForToday: vi.fn()
+  getBoardReadModelForToday: vi.fn(), settings: vi.fn(), operations: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
@@ -11,9 +11,12 @@ vi.mock("@/server/auth/current-user", () => ({
 }));
 
 vi.mock("@/server/services/board-read", () => ({
+  getTaskOperationsReadModelForDate: mocks.operations,
   getBoardReadModelForDate: mocks.getBoardReadModelForDate,
   getBoardReadModelForToday: mocks.getBoardReadModelForToday
 }));
+
+vi.mock("@/server/services/app-settings-service", () => ({ getGenerationSettings: mocks.settings }));
 
 import { GET as getBoardForDate } from "@/app/api/board/[date]/route";
 import { GET as getBoardForToday } from "@/app/api/board/today/route";
@@ -145,12 +148,27 @@ describe("board read routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue(managerUser);
+    mocks.settings.mockResolvedValue({ timezone: "America/Chicago" });
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.useRealTimers(); vi.clearAllMocks();
   });
 
+  it("uses the existing operations ledger for today's Live Board work list", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-06-17T15:00Z"));
+    mocks.operations.mockResolvedValue(boardPayload);
+    const response = await getBoardForDate(new Request("http://localhost/api/board/2026-06-17?scope=operations"), { params: Promise.resolve({ date: "2026-06-17" }) });
+    expect(response.status).toBe(200); expect(mocks.operations).toHaveBeenCalledWith(managerUser, "2026-06-17");
+    expect(mocks.getBoardReadModelForDate).not.toHaveBeenCalled();
+  });
+  it("does not present current operational state as a past-date replay", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-06-18T15:00Z"));
+    mocks.getBoardReadModelForDate.mockResolvedValue(boardPayload);
+    const response = await getBoardForDate(new Request("http://localhost/api/board/2026-06-17?scope=operations"), { params: Promise.resolve({ date: "2026-06-17" }) });
+    expect(response.status).toBe(200); expect(mocks.operations).not.toHaveBeenCalled();
+    expect(mocks.getBoardReadModelForDate).toHaveBeenCalledWith(managerUser, "2026-06-17");
+  });
   it("returns board data for a specific date", async () => {
     mocks.getBoardReadModelForDate.mockResolvedValue(boardPayload);
 

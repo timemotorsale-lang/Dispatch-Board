@@ -1180,7 +1180,7 @@ export async function getTaskOperationsReadModelForDate(
   });
 
   const records = repository.listTasksForOperationsConsole
-    ? await repository.listTasksForOperationsConsole(boardResult.board?.id ?? null)
+    ? await repository.listTasksForOperationsConsole(boardResult.board?.id ?? null, boardResult.date)
     : boardResult.board ? await repository.listTasksForBoardDay(boardResult.board.id) : [];
   const tasks = records.map(toTaskSummary);
   // A missing daily board must not hide carry-over assignments. This is a
