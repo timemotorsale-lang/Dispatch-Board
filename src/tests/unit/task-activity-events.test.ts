@@ -277,7 +277,8 @@ describe("task activity events", () => {
         managerUser,
         "task-1",
         {
-          assignedUserId: "user-casey.mechanic@local.test"
+          assignedUserId: "user-casey.mechanic@local.test",
+          reason: "Balance today’s workload across the team"
         },
         repository
       );
@@ -289,6 +290,7 @@ describe("task activity events", () => {
         message:
           "Eli Manager reassigned Review sales follow-up tasks from Baraka Sales to Walter Mechanic, overriding the recommendation for Baraka Sales.",
         metadata: {
+          reason: "Balance today’s workload across the team",
           nextAssignedUserId: "user-casey.mechanic@local.test",
           nextAssignedUserName: "Walter Mechanic",
           ownerUserId: ownerUserId ?? "user-jordan.sales@local.test",
