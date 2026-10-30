@@ -2014,6 +2014,7 @@ model DiagnosticWorkspaceDraft {
 }
 
 model User {
+  autobodyDrafts AutobodyEstimateDraft[]
   dispatchPresence DispatchPresence?
   dispatchSentHandoffs DispatchHandoff[] @relation("DispatchSender")
   dispatchReceivedHandoffs DispatchHandoff[] @relation("DispatchReceiver")
@@ -2549,6 +2550,7 @@ model MoneyDailyClose {
 }
 
 model Organization {
+  autobodyDrafts AutobodyEstimateDraft[]
   complianceTaxRecords ComplianceTaxRecord[]
   complianceTaxPeriods ComplianceTaxPeriod[]
   complianceTaxAudits ComplianceTaxAudit[]
@@ -2745,6 +2747,7 @@ model Organization {
 }
 
 model Location {
+  autobodyDrafts AutobodyEstimateDraft[]
   id                                 String                              @id @default(cuid())
   organizationId                     String
   code                               String
@@ -4128,6 +4131,7 @@ model UnifiedCrmForecastSnapshot {
 }
 
 model Vehicle {
+  autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]
   dealWorkflowContexts DealWorkflowContext[] @relation("DealVehicle")
   sourceDealContexts DealWorkflowContext[] @relation("SourceDealVehicle")
@@ -4851,6 +4855,7 @@ model ServiceIntakeReadinessSnapshot {
 }
 
 model RepairOrder {
+  autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]
   id                           String                              @id @default(cuid())
   organizationId               String
@@ -10844,4 +10849,40 @@ model DispatchHandoff {
   @@index([organizationId, status, createdAt])
   @@index([receiverUserId, status])
   @@index([taskId, status])
+}
+
+model AutobodyEstimateDraft {
+  id String @id
+  organizationId String
+  locationId String
+  vehicleId String?
+  repairOrderId String?
+  createdByUserId String
+  title String
+  content Json
+  version Int @default(1)
+  status String @default("DRAFT")
+  presentation Json?
+  estimateId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  repairOrder RepairOrder? @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  createdByUser User @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revisions AutobodyEstimateDraftRevision[]
+  @@index([organizationId, locationId, updatedAt])
+  @@index([repairOrderId])
+}
+
+model AutobodyEstimateDraftRevision {
+  id String @id
+  draftId String
+  version Int
+  content Json
+  actorUserId String
+  createdAt DateTime @default(now())
+  draft AutobodyEstimateDraft @relation(fields: [draftId], references: [id], onDelete: Restrict)
+  @@unique([draftId, version])
 }

@@ -1,4 +1,5 @@
 import { LIGHT_DUTY_OPERATIONS, lightDutyOperationForId } from "./light-duty-baseline";
+import { bodyOperationForLineKey } from "./autobody-estimating/catalog";
 import { lightDutyScopeProfile, type CatalogRequirements } from "./light-duty-scope-profiles";
 
 export const catalogLaborLineKey = (id: string) => `labor-${id.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`;
@@ -14,15 +15,16 @@ export function expandedOperationForLineKey(key: string) {
 }
 
 export function catalogJobRequirements(key: string, supplied?: Partial<CatalogRequirements>) {
+  const collision = bodyOperationForLineKey(key);
   const operation = expandedOperationForLineKey(key);
-  const profile = operation ? lightDutyScopeProfile(operation.systemId, operation.groupId, operation.label, operation.diagnosis).requirements : null;
+  const profile = collision ? { requiredSkills: [collision.category === "REFINISH" ? "PAINTER" : collision.category === "ELECTRICAL" ? "ELECTRICAL_DIAGNOSTIC_REPAIR" : collision.category === "MECHANICAL" ? "BASIC_REPAIR" : "BODY_TECHNICIAN"], requiredCertifications: [], bayRequirements: [collision.category === "REFINISH" ? "PAINT_BOOTH" : "BODY_REPAIR_BAY"], toolRequirements: ["BODY_HAND_TOOLS"] } : operation ? lightDutyScopeProfile(operation.systemId, operation.groupId, operation.label, operation.diagnosis).requirements : null;
   const merge = (field: keyof CatalogRequirements) => [...new Set([...(supplied?.[field] ?? []), ...(profile?.[field] ?? [])])];
   return {
     requiredSkills: merge("requiredSkills"), requiredCertifications: merge("requiredCertifications"),
     bayRequirements: merge("bayRequirements"), toolRequirements: merge("toolRequirements"),
     partsRequired: Boolean(operation?.parts.length),
-    workTypeCode: operation ? `CATALOG_${operation.groupId.replaceAll("-", "_").toUpperCase()}` : null,
-    systemId: operation?.systemId ?? null
+    workTypeCode: collision ? `BODY_${collision.category}` : operation ? `CATALOG_${operation.groupId.replaceAll("-", "_").toUpperCase()}` : null,
+    systemId: collision ? "body-collision" : operation?.systemId ?? null
   };
 }
 
