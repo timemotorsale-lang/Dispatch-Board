@@ -69,3 +69,11 @@ Component breakdowns and generic component views now use original material-shade
 This is an original generic visual identification aid. Material shading and resemblance do not establish exact-vehicle dimensions, mounting points, equipment, serviceability or repair instructions. No new labor data, manufacturer source entitlement or technical approval is claimed. Existing component identities, draft composition and estimate calculations are unchanged.
 
 Validation: 119 focused checks passed, including distinct artwork routing for real door catalog nodes, non-colliding material definitions, accessible enlarged speaker rendering and the prior catalog/estimate checks. Source type checking and changed-source lint passed. Local browser inspection verified door-trim/speaker artwork and optional names without changing estimate lines.
+
+## Body-panel silhouette and detail refinement
+
+Original scalable body-panel artwork now distinguishes front/rear bumper covers, grilles, fenders/quarter panels, impact absorbers and reinforcement members. Bumper studies include curved wraparound returns, intake/side-pocket contours, lower lips, surface highlights and cavity shading. The generic vehicle-group front view also uses a shaped fascia, lamp contours and intake detail rather than rectangular blocks. Captions/descriptions, accessible names, component IDs, drilldown and estimating links are retained. Single-part artwork fits the available width at normal zoom; larger zoom remains available.
+
+These visual studies support recognition, not manufacturer part identification or verified construction. No silhouette implies a particular OEM part number, mounting-hole count, fitment or repair method. Source rights, labor allowances and approval/adoption state are unchanged.
+
+Validation: 126 focused checks passed, including distinct body-art routing and front/rear artwork, vector rather than raster embedding, existing panel bindings and estimate behavior. Changed-source lint and source type checking passed. Local browser review inspected the sedan front fascia and isolated bumper-cover artwork with captions hidden, then restored descriptions.

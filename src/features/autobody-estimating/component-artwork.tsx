@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { BodyPanelArtwork } from "./body-panel-artwork";
 import type { AssemblyItem } from "@/lib/autobody-estimating/assemblies";
 
 /** Visual classification only. Never establishes fitment, serviceability or labor. */
@@ -24,6 +25,9 @@ export function componentArtworkKind(item: AssemblyItem) {
   if (/harness|electrical connections/.test(label)) return "harness";
   if (/barrier|adhesive/.test(label)) return "barrier";
   if (/clip|retainer|fastener|screw|mounting hardware|mounts/.test(label)) return "hardware";
+  if (/reinforcement|crash box/.test(label)) return "reinforcement";
+  if (/impact absorber|energy absorber/.test(label)) return "absorber";
+  if (/quarter panel|outer quarter/.test(label)) return "quarter";
   if (/grille|mesh/.test(label)) return "grille";
   if (/belt molding|molding|air guide/.test(label)) return "molding";
   if (/cable|linkage|coupling/.test(label)) return "cable";
@@ -60,6 +64,7 @@ export function ComponentArtwork({ item }: { item: AssemblyItem }) {
   const plate = (x: number, y: number) => <g key={`${x}:${y}`} fill={metal} stroke="#46596b" strokeWidth="1"><path d={`M${x} ${y}l17-5 6 14-15 7Z`} /><circle cx={x+11} cy={y+5} r="2.5" fill="#26384a" /></g>;
   let drawing;
   switch (kind) {
+    case "bumper": case "grille": case "fender": case "quarter": case "absorber": case "reinforcement": drawing = <BodyPanelArtwork kind={kind} rear={/rear/.test(item.id)} />; break;
     case "speaker": drawing = <>
       <path d="M46 30L40 69Q80 105 121 69L113 30Z" fill={dark} /><ellipse cx="80" cy="40" rx="53" ry="33" fill="#25303b" stroke="#111d29" strokeWidth="2" />
       <path d="M29 40L22 32 30 21 42 23M118 24L131 21 139 33 130 40M42 64L34 72 45 81 56 75M104 75L118 81 129 72 121 63" fill="#46525e" />
@@ -100,12 +105,10 @@ export function ComponentArtwork({ item }: { item: AssemblyItem }) {
     case "cable": drawing = <><path d="M22 83Q19 26 71 30T137 76" fill="none" stroke="#304b61" strokeWidth="7" /><path d="M22 81Q19 24 71 28T137 74" fill="none" stroke="#93a8b8" strokeWidth="2" /><path d="M23 82L22 99M137 75L142 94" stroke="#b5c3cf" strokeWidth="3" /><path d="M15 70H30V84H15M130 65L144 61 149 75 135 79" fill="#1e394e" stroke="#607c92" /><circle cx="22" cy="99" r="4" fill={metal} /><circle cx="143" cy="95" r="4" fill={metal} /></>; break;
     case "barrier": drawing = <><path d="M23 18L110 12 141 44 134 95 33 104 17 77Z" fill="#b6cedb" fillOpacity=".55" stroke="#8ba6ba" strokeWidth="2" /><path d="M27 24L107 18 134 46 127 89 37 97 24 74Z" fill="none" stroke="#596f80" strokeWidth="4" strokeDasharray="9 3" /><path d="M40 34Q75 64 117 38M35 81Q72 59 118 82" fill="none" stroke="#e9f3f8" strokeWidth="2" /><circle cx="105" cy="68" r="8" fill="#e9f3f8" stroke="#7895aa" /></>; break;
     case "glass": drawing = <><path d="M25 20L107 12 143 69 20 86Z" fill={glass} stroke="#527d99" strokeWidth="1.6" /><path d="M27 22L107 14 139 68 23 82" fill="none" stroke="#d7edf7" /><path d="M48 27L32 62M65 25L49 60M119 50L106 74" stroke="#effaff" strokeWidth="3" opacity=".7" /></>; break;
-    case "fender": case "liner": drawing = <><path d="M12 34L65 17 136 24 147 50 142 92 114 97Q114 55 83 58Q52 61 51 99L20 96Z" fill={kind==="liner"?dark:metal} stroke="#4c677d" strokeWidth="1.6" /><path d="M25 39L67 25 129 30M24 84L41 87M123 85L137 81" fill="none" stroke={kind==="liner"?"#7a8c9c":"#f5f8fc"} strokeWidth="2" /><path d="M48 96Q47 51 82 49Q124 48 123 94" fill="none" stroke="#7c94a8" strokeWidth="3" />{[[23,39],[64,24],[134,36],[138,85],[28,90]].map(([x,y])=>screw(x,y))}</>; break;
+    case "liner": drawing = <><path d="M12 34L65 17 136 24 147 50 142 92 114 97Q114 55 83 58Q52 61 51 99L20 96Z" fill={kind==="liner"?dark:metal} stroke="#4c677d" strokeWidth="1.6" /><path d="M25 39L67 25 129 30M24 84L41 87M123 85L137 81" fill="none" stroke={kind==="liner"?"#7a8c9c":"#f5f8fc"} strokeWidth="2" /><path d="M48 96Q47 51 82 49Q124 48 123 94" fill="none" stroke="#7c94a8" strokeWidth="3" />{[[23,39],[64,24],[134,36],[138,85],[28,90]].map(([x,y])=>screw(x,y))}</>; break;
     case "hood": drawing = <><path d="M30 17Q80 4 130 17L148 84Q80 110 12 84Z" fill={metal} stroke="#546e83" strokeWidth="1.6" /><path d="M48 21L30 78M112 21L130 78" stroke="#829bad" strokeWidth="2.5" fill="none" /><path d="M51 22L34 77M109 22L126 77M26 84Q80 99 136 84" stroke="#f4f8fc" strokeWidth="2" fill="none" /><path d="M61 20Q80 15 99 20" stroke="#a1b5c5" fill="none" /></>; break;
     case "roof": drawing = <><path d="M30 17Q80 1 130 17L143 88Q80 111 17 88Z" fill={metal} stroke="#526e84" strokeWidth="1.6" /><path d="M37 23L28 83M122 23L133 83" stroke="#f0f7fc" strokeWidth="3" /><path d="M33 91Q80 105 126 91" fill="none" stroke="#849fb3" strokeWidth="2" /></>; break;
     case "tailgate": drawing = <><path d="M16 23L134 14 146 82 27 98Z" fill={metal} stroke="#526e83" strokeWidth="1.6" /><path d="M28 35L123 27 132 73 37 86Z" fill="#aec1cf" stroke="#e8f0f6" strokeWidth="2" /><path d="M60 34L96 31 98 42 62 46Z" fill="#304c63" /><path d="M34 58L125 47M37 70L127 59" stroke="#8ea8bb" strokeWidth="2" /><path d="M23 97V105M136 84V93" stroke="#56748b" strokeWidth="5" /></>; break;
-    case "bumper": drawing = <><path d="M9 38Q78 7 151 35L141 88Q80 69 20 95Z" fill={metal} stroke="#4b657b" strokeWidth="1.6" /><path d="M44 47Q81 34 121 44L112 70Q80 58 48 74Z" fill="#233d52" /><path d="M20 48L36 45 39 73 25 80ZM132 44L143 44 137 71 125 69Z" fill="#405a70" /><path d="M23 86Q80 64 137 80" fill="none" stroke="#607b90" strokeWidth="4" /><path d="M17 36Q80 17 145 34" fill="none" stroke="#f9fcff" strokeWidth="2" /></>; break;
-    case "grille": drawing = <><path d="M20 28Q80 12 141 26L127 87Q80 71 33 93Z" fill="#243b50" stroke="#7c93a6" strokeWidth="4" /><g fill="none" stroke="#698195" strokeWidth="1.3">{[37,52,67,82,97,112].map(x=><path key={x} d={`M${x} 31l20 47m-20 0l20-47`} />)}</g><ellipse cx="80" cy="51" rx="13" ry="9" fill="#93a6b6" stroke="#1c3449" /></>; break;
     case "lamp": drawing = <><path d="M13 29L111 15 147 48 129 85 23 99Z" fill="#3d566c" stroke="#263e54" strokeWidth="2" /><path d="M17 29L108 19 137 49 120 78 25 90Z" fill={glass} stroke="#b6d1e1" strokeWidth="2" /><ellipse cx="56" cy="56" rx="21" ry="23" fill="#b6d0df" stroke="#3e5e76" strokeWidth="3" /><ellipse cx="56" cy="56" rx="13" ry="15" fill="#506d83" /><ellipse cx="101" cy="49" rx="15" ry="17" fill="#d5e5ef" stroke="#506d83" /><path d="M29 80L120 68" stroke="#edf9ff" strokeWidth="4" />{plate(17,96)}{plate(118,13)}</>; break;
     case "mirror": drawing = <><path d="M22 30Q77 5 137 27L146 61 113 82 27 68Z" fill={dark} stroke="#263e54" strokeWidth="2" /><path d="M30 29Q81 12 131 31L135 56 111 72 34 60Z" fill={glass} stroke="#bacbd8" strokeWidth="2" /><path d="M47 35L37 52M62 30L50 54" stroke="#e6f7ff" strokeWidth="3" /><path d="M109 81L119 102 139 97 133 68" fill="#334e64" /></>; break;
     case "strut": drawing = <><path d="M29 91L113 23" stroke="#405a70" strokeWidth="11" /><path d="M35 85L112 23" stroke="#9eafbc" strokeWidth="4" /><path d="M39 82L71 56" stroke="#172f44" strokeWidth="15" /><circle cx="26" cy="94" r="7" fill={metal} stroke="#344d63" /><circle cx="117" cy="20" r="7" fill={metal} stroke="#344d63" /></>; break;
@@ -119,6 +122,6 @@ export function ComponentArtwork({ item }: { item: AssemblyItem }) {
   }
   return <g data-artwork={kind} strokeLinejoin="round" strokeLinecap="round">
     <defs><linearGradient id={metalId} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#f1f6fa" /><stop offset=".38" stopColor="#b4c5d2" /><stop offset=".68" stopColor="#e1eaf0" /><stop offset="1" stopColor="#839bad" /></linearGradient><linearGradient id={darkId} x1="0" y1="0" x2=".8" y2="1"><stop stopColor="#627482" /><stop offset=".5" stopColor="#324858" /><stop offset="1" stopColor="#182f40" /></linearGradient><linearGradient id={glassId} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#daeef8" stopOpacity=".8" /><stop offset=".55" stopColor="#8db4ca" stopOpacity=".65" /><stop offset="1" stopColor="#537e9a" stopOpacity=".85" /></linearGradient></defs>
-    <ellipse cx="80" cy="105" rx="60" ry="4" fill="#1e405a" stroke="none" opacity=".08" />{drawing}
+    {!["bumper", "grille", "fender", "quarter", "absorber", "reinforcement"].includes(kind) && <ellipse cx="80" cy="105" rx="60" ry="4" fill="#1e405a" stroke="none" opacity=".08" />}{drawing}
   </g>;
 }

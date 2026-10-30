@@ -1,10 +1,13 @@
+import { useId } from "react";
 import { componentFor } from "@/lib/autobody-estimating/catalog";
 import { groupComponents, type GroupView, type VehicleGroup } from "@/lib/autobody-estimating/vehicle-groups";
 
 export function GroupIllustration({ group, view, selectedId, onSelect }: { group: VehicleGroup; view: GroupView; selectedId: string; onSelect: (id: string) => void }) {
+  const uid = useId().replace(/:/g, ""), paintId = `${uid}-body-paint`;
+  const painted = `url(#${paintId})`;
   const ids = groupComponents(group, view), roof = group.roof, end = group.length;
   const tall = ["van", "bus", "truck"].includes(group.body);
-  const panel = (id: string, d: string, fill = "#dfe8f2") => <g key={id} data-component={id} role="button" tabIndex={0} aria-pressed={selectedId === id} aria-label={`Select ${componentFor(id)?.label}`} onKeyDown={event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); event.stopPropagation(); onSelect(id); } }}><title>{componentFor(id)?.label}</title><path d={d} fill={id === selectedId ? "#a0bfff" : fill} stroke={id === selectedId ? "#214ac0" : "#58708c"} strokeWidth={id === selectedId ? 3 : 2} strokeLinejoin="round" /></g>;
+  const panel = (id: string, d: string, fill = painted) => <g key={id} data-component={id} role="button" tabIndex={0} aria-pressed={selectedId === id} aria-label={`Select ${componentFor(id)?.label}`} onKeyDown={event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); event.stopPropagation(); onSelect(id); } }}><title>{componentFor(id)?.label}</title><path d={d} fill={id === selectedId ? "#a0bfff" : fill} stroke={id === selectedId ? "#214ac0" : "#58708c"} strokeWidth={id === selectedId ? 3 : 2} strokeLinejoin="round" /></g>;
   const wheel = (x: number) => <g key={x} stroke="#253b53"><circle cx={x} cy="334" r="43" fill="#2c3b4d" /><circle cx={x} cy="334" r="28" fill="#a3b3c3" /><circle cx={x} cy="334" r="9" fill="#526a83" /><path d={`M${x} 310v48m-24-24h48m-41-17l34 34m0-34l-34 34`} /></g>;
   const sidePath = (id: string) => {
     if (id === "front-cover") return "M62 259H129V320H62Z";
@@ -26,11 +29,11 @@ export function GroupIllustration({ group, view, selectedId, onSelect }: { group
     if (view === "left" || view === "right") return sidePath(id);
     if (view === "front") {
       if (id === "windshield") return `M302 ${tall ? 112 : 136}H598L${tall ? 623 : 636} 215H264Z`;
-      if (id === "hood") return "M264 222H636L677 271H223Z";
-      if (id === "front-cover") return "M217 274H683L707 302V370H193V302Z";
-      if (id === "grille") return "M309 294H591L615 355H285Z";
-      if (id === "left-headlamp") return "M604 258L685 268L674 291H601Z";
-      return "M296 258L215 268L226 291H299Z";
+      if (id === "hood") return "M274 215Q450 193 626 215L677 266Q450 286 223 266Z";
+      if (id === "front-cover") return "M211 263L267 275Q450 302 633 275L689 263L714 301L704 353L671 379L615 365Q450 386 285 365L229 379L196 353L186 301Z";
+      if (id === "grille") return "M310 301Q450 316 590 301L616 352Q450 380 284 352Z";
+      if (id === "left-headlamp") return "M595 266L682 247L690 263L668 278L588 287Z";
+      return "M305 266L218 247L210 263L232 278L312 287Z";
     }
     if (view === "rear") {
       if (id === "rear-cover") return "M216 308H684L706 338V375H194V338Z";
@@ -49,6 +52,7 @@ export function GroupIllustration({ group, view, selectedId, onSelect }: { group
     return "M331 370H569L555 411H345Z";
   }
   return <>
+    <defs><linearGradient id={paintId} x1="0" y1="0" x2=".1" y2="1"><stop stopColor="#fafcfd" /><stop offset=".32" stopColor="#d7e1e8" /><stop offset=".58" stopColor="#eef3f7" /><stop offset="1" stopColor="#9cb0c0" /></linearGradient></defs>
     <text x="36" y="38" fontSize="22" fontWeight="700" fill="#193450">{group.label}</text><text x="36" y="63" fontSize="13" fill="#526c89">{view === "left" || view === "right" ? `Vehicle ${view} · front at left` : view === "top" ? "Upper body" : `${view} exterior`} · generic body-group illustration</text>
     <ellipse cx="450" cy="393" rx="344" ry="16" fill="#e1e8f1" />
     {view === "left" || view === "right" ? <>
@@ -56,7 +60,16 @@ export function GroupIllustration({ group, view, selectedId, onSelect }: { group
       {ids.map(id => panel(id, pathFor(id), id.includes("mirror") ? "#59738d" : undefined))}
       <g fill="#a3bdce" stroke="#5d778f" strokeWidth="1.5" pointerEvents="none">{tall ? Array.from({length: group.body === "bus" ? 7 : 3}, (_, index) => <rect key={index} x={group.body === "bus" ? 238 + index * 77 : 256 + index * 150} y={roof + 40} width={group.body === "bus" ? 64 : 121} height={group.body === "bus" ? 78 : 87} rx="4" />) : <><path d={`M303 217L359 ${roof+24}H433V217Z`} /><path d={`M471 ${roof+24}H${group.body === "pickup" ? 505 : 547}L595 217H471Z`} /></>}</g>
       {wheel(228)}{wheel(tall ? end-122 : 689)}
-    </> : <>{view === "rear" && <path d="M298 136Q450 105 602 136L639 226H261Z" fill="#aec3d3" stroke="#57718d" />}{view === "top" && <path d="M338 103Q450 78 562 103L599 190V340L571 421H329L301 340V190Z" fill="#e5ecf4" stroke="#58708c" />}{ids.map(id => panel(id, pathFor(id), id.includes("glass") || id === "windshield" ? "#a3bdce" : id.includes("lamp") ? "#b9d8ed" : id === "grille" ? "#344c65" : undefined))}</>}
+    </> : <>{view === "rear" && <path d="M298 136Q450 105 602 136L639 226H261Z" fill="#aec3d3" stroke="#57718d" />}{view === "top" && <path d="M338 103Q450 78 562 103L599 190V340L571 421H329L301 340V190Z" fill="#e5ecf4" stroke="#58708c" />}{ids.map(id => panel(id, pathFor(id), id.includes("glass") || id === "windshield" ? "#a3bdce" : id.includes("lamp") ? view === "rear" ? "#a9464e" : "#b9d8ed" : id === "grille" ? "#344c65" : undefined))}</>}
+    {view === "front" && <g pointerEvents="none" fill="none" strokeLinejoin="round">
+      <path d="M307 222L331 263M593 222L569 263M288 218Q450 202 612 218" stroke="#f8fcff" strokeWidth="3" />
+      <path d="M223 301L269 312L257 351L211 346ZM677 301L631 312L643 351L689 346Z" fill="#243c50" stroke="#728a9c" strokeWidth="2" />
+      <path d="M221 321L262 330M638 330L679 321M325 318Q450 333 575 318M316 333Q450 350 584 333M308 347Q450 365 592 347" stroke="#6e8494" strokeWidth="2" />
+      <path d="M219 261L299 276M601 276L681 261" stroke="#effaff" strokeWidth="4" />
+      <path d="M215 360L282 355Q450 379 618 355L685 360M280 291Q450 312 620 291" stroke="#f8fcff" strokeWidth="3" />
+      <path d="M229 374L283 365Q450 388 617 365L671 374" stroke="#445e73" strokeWidth="5" />
+      <path d="M268 212L302 136M632 212L598 136" stroke="#405d73" strokeWidth="4" />
+    </g>}
     <text x="450" y="455" textAnchor="middle" fontSize="14" fill="#435e7c">Select a panel, then explore its components below. Equipment and serviceability vary.</text>
   </>;
 }

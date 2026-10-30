@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ComponentArtwork, componentArtworkKind } from "@/features/autobody-estimating/component-artwork";
 import { ComponentExplorer } from "@/features/autobody-estimating/component-explorer";
-import { ASSEMBLY_TREES } from "@/lib/autobody-estimating/catalog";
+import { ASSEMBLY_TREES, componentFor } from "@/lib/autobody-estimating/catalog";
 import type { AssemblyItem } from "@/lib/autobody-estimating/assemblies";
 
 function all(node: AssemblyItem): AssemblyItem[] { return [node, ...(node.children ?? []).flatMap(all)]; }
@@ -25,6 +25,19 @@ describe("recognizable component artwork", () => {
     const ids = [...markup.matchAll(/id="([^"]+)"/g)].map(match => match[1]);
     expect(new Set(ids).size).toBe(ids.length);
     for (const match of markup.matchAll(/url\(#([^)]+)\)/g)) expect(ids).toContain(match[1]);
+  });
+  it.each([
+    ["front-cover", "bumper", "front-bumper"], ["rear-cover", "bumper", "rear-bumper"],
+    ["grille", "grille", "grille"], ["left-fender", "fender", "fender"],
+    ["left-quarter", "quarter", "quarter"], ["front-absorber", "absorber", "absorber"],
+    ["front-reinforcement", "reinforcement", "reinforcement"],
+  ])("keeps %s visually distinct and uses scalable panel artwork", (id, kind, drawing) => {
+    const component = componentFor(id)!;
+    expect(componentArtworkKind(component)).toBe(kind);
+    const markup = renderToStaticMarkup(<svg><ComponentArtwork item={component} /></svg>);
+    expect(markup).toContain(`data-panel-artwork="${drawing}"`);
+    expect(markup).toContain('viewBox="0 0 800 480"');
+    expect(markup).not.toContain("<image");
   });
   it("keeps a drilled-in part accessible and enlarges its drawing without adding work", () => {
     const markup = renderToStaticMarkup(<ComponentExplorer componentId="p-lfd-trim-speaker" onSelect={() => { throw new Error("Rendering must not select work"); }} forceOpen />);
