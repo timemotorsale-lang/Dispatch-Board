@@ -30,6 +30,7 @@ export function goToDealBlocker(message: string, source: HTMLElement, closeDrawe
   if (!target) return;
   if (!target.closest("aside")) closeDrawer?.();
   const destination = target;
+  for (let ancestor = destination.parentElement; ancestor; ancestor = ancestor.parentElement) if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
   requestAnimationFrame(() => {
     if (!destination.matches(editable)) destination.tabIndex = -1;
     destination.focus({ preventScroll: true });

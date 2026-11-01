@@ -2151,12 +2151,13 @@ function LeaseToOwnExecutionDesk({
   });
   useCanonicalDealVehicle(setVehicleFacts);
   const [leaseInputs, setLeaseInputs] = useDealDraftState("leaseInputs", {
+    agreedPrice: "",
     calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT",
     targetPayment: "$250.00",
     additionalItems: "$0.00",
     capitalizedCostReduction: "$0.00",
     contractLength: "36",
-    documentPreparationFee: "$375.00",
+    documentPreparationFee: "$300.00",
     downPayment: "$0.00",
     gpsCost: "$0.00",
     multiplier: "2.00",
@@ -2170,6 +2171,7 @@ function LeaseToOwnExecutionDesk({
     warrantyCost: "$0.00",
     wholesaleCost: "$0.00"
   });
+  const [calculatorView, setCalculatorView] = useDealDraftState("calculatorView", "COMPACT");
   const [leaseFacts, setLeaseFacts] = useDealDraftState("leaseFacts", {
     deliveryAt: "",
     agreementDate: "",
@@ -2187,6 +2189,8 @@ function LeaseToOwnExecutionDesk({
     coLesseeName: "",
     effectiveDate: "",
     insuranceCompany: "",
+    insurancePolicyNumber: "",
+    insuranceExpirationDate: "",
     insurancePhone: "",
     lesseeEmail: "",
     lesseePhone: "",
@@ -2206,6 +2210,7 @@ function LeaseToOwnExecutionDesk({
   }, [customerPrefill, setLeaseFacts]);
 
   const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
+    agreedPriceCents: leaseInputs.agreedPrice.trim() ? dollarsToCents(leaseInputs.agreedPrice) ?? NaN : undefined,
     calculationMode: leaseInputs.calculationMode,
     targetPaymentCents: dollarsToCents(leaseInputs.targetPayment) ?? 0,
     additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) ?? 0,
@@ -2434,6 +2439,8 @@ function LeaseToOwnExecutionDesk({
           <label><span>Cell phone</span><input value={leaseFacts.lesseePhone} onChange={(event) => updateLeaseFact("lesseePhone", event.target.value)} /></label>
           <label><span>Email</span><input value={leaseFacts.lesseeEmail} onChange={(event) => updateLeaseFact("lesseeEmail", event.target.value)} /></label>
           <label><span>Insurance company</span><input value={leaseFacts.insuranceCompany} onChange={(event) => updateLeaseFact("insuranceCompany", event.target.value)} /></label>
+          <label><span>Insurance policy number</span><input maxLength={80} value={leaseFacts.insurancePolicyNumber} onChange={(event) => updateLeaseFact("insurancePolicyNumber", event.target.value)} /></label>
+          <label><span>Insurance expiration date</span><input type="date" value={leaseFacts.insuranceExpirationDate} onChange={(event) => updateLeaseFact("insuranceExpirationDate", event.target.value)} /></label>
           <label><span>Insurance agent</span><input value={leaseFacts.agentName} onChange={(event) => updateLeaseFact("agentName", event.target.value)} /></label>
           <label><span>Insurance phone</span><input value={leaseFacts.insurancePhone} onChange={(event) => updateLeaseFact("insurancePhone", event.target.value)} /></label>
           <label><span>Effective date</span><input value={leaseFacts.effectiveDate} onChange={(event) => updateLeaseFact("effectiveDate", event.target.value)} placeholder="MM/DD/YYYY" /></label>
@@ -2474,13 +2481,35 @@ function LeaseToOwnExecutionDesk({
           <span>Lease calculator</span>
           <strong>Lease terms and signing amounts</strong>
         </header>
+        <div className={styles.retailActionRow} role="group" aria-label="Lease calculator view"><button type="button" aria-pressed={calculatorView === "COMPACT"} onClick={() => setCalculatorView("COMPACT")}>Compact</button><button type="button" aria-pressed={calculatorView === "DETAILED"} onClick={() => setCalculatorView("DETAILED")}>Detailed</button></div>
+        <p>Both views share one calculator. Enter the full agreed vehicle price, including vehicle extras; taxes and fees are calculated separately.</p>
+        {leaseInputs.agreedPrice && calculatorView === "DETAILED" ? <p>Derived calculation base: {formatCurrency(calculator.subtotalCents)} (agreed price ÷2). Saved cost entries remain available through Use cost-based price.</p> : null}
+        <div className={styles.retailFieldGrid}><label><span>Agreed price</span><input inputMode="decimal" value={leaseInputs.agreedPrice || (calculator.grossCapitalizedCostTotalCents > 0 ? formatCurrency(calculator.grossCapitalizedCostTotalCents) : "")} onChange={event => updateLeaseInput("agreedPrice", event.target.value)} /></label>{calculatorView === "DETAILED" && leaseInputs.agreedPrice ? <button type="button" onClick={() => updateLeaseInput("agreedPrice", "")}>Use cost-based price</button> : null}</div>
+        {calculatorView === "COMPACT" ? <>
+          <div className={styles.retailFieldGrid}>
+            <label><span>Signing amount entry</span><select value={leaseInputs.signingPaymentMode} onChange={event => updateLeaseInput("signingPaymentMode", event.target.value)}><option value="CAPITALIZED_REDUCTION">Down payment toward vehicle — fees extra</option><option value="DOWN_PAYMENT">Total cash at signing — fees and first payment included</option></select></label>
+            <label><span>{leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? "Total cash at signing" : "Down payment"}</span><input inputMode="decimal" value={leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? leaseInputs.downPayment : leaseInputs.capitalizedCostReduction} onChange={event => updateLeaseInput(leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? "downPayment" : "capitalizedCostReduction", event.target.value)} /></label>
+            <fieldset className={styles.leaseCalculationMode}><legend>Calculate by</legend><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "TERM"} onChange={() => updateLeaseInput("calculationMode", "TERM")} />By lease term</label><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} onChange={() => updateLeaseInput("calculationMode", "PAYMENT_AMOUNT")} />By payment amount</label></fieldset>
+            {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <label><span>Target payment amount</span><input inputMode="decimal" value={leaseInputs.targetPayment} onChange={event => updateLeaseInput("targetPayment", event.target.value)} /></label> : <label><span>Number of payments</span><input type="number" min="1" step="1" value={leaseInputs.contractLength} onChange={event => updateLeaseInput("contractLength", event.target.value)} /></label>}
+            <label><span>Lease date</span><input type="date" value={leaseFacts.agreementDate} onChange={event => updateLeaseFact("agreementDate", event.target.value)} /></label>
+          </div>
+          <p>{leaseInputs.paymentFrequency === "BiWeekly" ? "Every two weeks" : leaseInputs.paymentFrequency} · {calculator.contractLength || "—"} payments. Tax: {leaseInputs.salesTaxRate}%. Title: {leaseInputs.titleFee}. Document fee: {leaseInputs.documentPreparationFee}.</p>
+          <details><summary>Adjust fees and payment schedule</summary><div className={styles.retailFieldGrid}>
+            <label><span>Registration fee</span><input inputMode="decimal" value={leaseInputs.registrationFee} onChange={event => updateLeaseInput("registrationFee", event.target.value)} /></label>
+            <label><span>Sales tax rate</span><input inputMode="decimal" value={leaseInputs.salesTaxRate} onChange={event => updateLeaseInput("salesTaxRate", event.target.value)} /></label>
+            <label><span>Title fee</span><input inputMode="decimal" value={leaseInputs.titleFee} onChange={event => updateLeaseInput("titleFee", event.target.value)} /></label>
+            <label><span>Document prep fee</span><input inputMode="decimal" value={leaseInputs.documentPreparationFee} onChange={event => updateLeaseInput("documentPreparationFee", event.target.value)} /></label>
+            <label><span>Frequency</span><select value={leaseInputs.paymentFrequency} onChange={event => updateLeaseInput("paymentFrequency", event.target.value)}><option>Weekly</option><option>BiWeekly</option><option>Monthly</option></select></label>
+            <label><span>Next payment date</span><input type="date" value={leaseFacts.firstPaymentDate} onChange={event => updateLeaseFact("firstPaymentDate", event.target.value)} /></label>
+          </div></details>
+        </> : <>
         <div className={styles.retailFieldGrid}>
-          <label><span>Wholesale cost</span><input value={leaseInputs.wholesaleCost} onChange={(event) => updateLeaseInput("wholesaleCost", event.target.value)} /></label>
-          <label><span>GPS cost</span><input value={leaseInputs.gpsCost} onChange={(event) => updateLeaseInput("gpsCost", event.target.value)} /></label>
-          <label><span>Warranty cost</span><input value={leaseInputs.warrantyCost} onChange={(event) => updateLeaseInput("warrantyCost", event.target.value)} /></label>
-          <label><span>Other roadworthy cost</span><input value={leaseInputs.otherRoadWorthyCost} onChange={(event) => updateLeaseInput("otherRoadWorthyCost", event.target.value)} /></label>
-          <label><span>Multiplier</span><input value={leaseInputs.multiplier} onChange={(event) => updateLeaseInput("multiplier", event.target.value)} /></label>
-          <label><span>Added items over term</span><input value={leaseInputs.additionalItems} onChange={(event) => updateLeaseInput("additionalItems", event.target.value)} /></label>
+          <label><span>{leaseInputs.agreedPrice ? "Calculation base (agreed price ÷2)" : "Wholesale cost"}</span><input disabled={Boolean(leaseInputs.agreedPrice)} value={leaseInputs.agreedPrice ? formatCurrency(calculator.subtotalCents) : leaseInputs.wholesaleCost} onChange={(event) => updateLeaseInput("wholesaleCost", event.target.value)} /></label>
+          <label><span>GPS cost</span><input disabled={Boolean(leaseInputs.agreedPrice)} value={leaseInputs.agreedPrice ? "$0.00" : leaseInputs.gpsCost} onChange={(event) => updateLeaseInput("gpsCost", event.target.value)} /></label>
+          <label><span>Warranty cost</span><input disabled={Boolean(leaseInputs.agreedPrice)} value={leaseInputs.agreedPrice ? "$0.00" : leaseInputs.warrantyCost} onChange={(event) => updateLeaseInput("warrantyCost", event.target.value)} /></label>
+          <label><span>Other roadworthy cost</span><input disabled={Boolean(leaseInputs.agreedPrice)} value={leaseInputs.agreedPrice ? "$0.00" : leaseInputs.otherRoadWorthyCost} onChange={(event) => updateLeaseInput("otherRoadWorthyCost", event.target.value)} /></label>
+          <label><span>Multiplier</span><input disabled={Boolean(leaseInputs.agreedPrice)} value={leaseInputs.agreedPrice ? "2.00" : leaseInputs.multiplier} onChange={(event) => updateLeaseInput("multiplier", event.target.value)} /></label>
+          <label><span>Added items over term</span><input disabled={Boolean(leaseInputs.agreedPrice)} value={leaseInputs.agreedPrice ? "$0.00" : leaseInputs.additionalItems} onChange={(event) => updateLeaseInput("additionalItems", event.target.value)} /></label>
           <label><span>Sales tax rate</span><input value={leaseInputs.salesTaxRate} onChange={(event) => updateLeaseInput("salesTaxRate", event.target.value)} /></label>
           <label><span>Title fee</span><input value={leaseInputs.titleFee} onChange={(event) => updateLeaseInput("titleFee", event.target.value)} /></label>
           <label><span>Registration fee</span><input value={leaseInputs.registrationFee} onChange={(event) => updateLeaseInput("registrationFee", event.target.value)} /></label>
@@ -2499,8 +2528,10 @@ function LeaseToOwnExecutionDesk({
           <label><span>Service facility</span><input value={leaseFacts.serviceFacility} onChange={(event) => updateLeaseFact("serviceFacility", event.target.value)} /></label>
           <label><span>Facility phone</span><input value={leaseFacts.serviceFacilityPhone} onChange={(event) => updateLeaseFact("serviceFacilityPhone", event.target.value)} /></label>
         </div>
+        </>}
+        {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <p>Regular payments stay at your entered amount. The final payment covers the exact remaining balance and may be smaller.</p> : null}
         <div className={styles.leaseCalculatorSummary}>
-          <div><span>Gross cap cost</span><strong>{formatCurrency(calculator.grossCapitalizedCostCents)}</strong></div>
+          <div><span>{leaseInputs.agreedPrice || calculatorView === "COMPACT" ? "Agreed price" : "Gross cap cost"}</span><strong>{formatCurrency(calculatorView === "COMPACT" ? calculator.grossCapitalizedCostTotalCents : calculator.grossCapitalizedCostCents)}</strong></div>
           <div><span>Base payment</span><strong>{formatCurrency(calculator.basePeriodicPaymentCents)}</strong></div>
           <div><span>Final payment</span><strong>{formatCurrency(calculator.finalPeriodicPaymentCents)}</strong></div>
           <div><span>Residual / purchase option</span><strong>{formatCurrency(calculator.residualValueCents)}</strong></div>
@@ -2508,7 +2539,7 @@ function LeaseToOwnExecutionDesk({
           <div><span>Due at signing</span><strong>{formatCurrency(calculator.amountDueAtSigningCents)}</strong></div>
           <div><span>Costs / taxes / fees</span><strong>{formatCurrency(calculator.costsTaxesFeesCents)}</strong></div>
           <div><span>Total payments</span><strong>{formatCurrency(calculator.totalOfPaymentsCents)}</strong></div>
-          <div><span>Dealer gross</span><strong>{formatCurrency(calculator.dealerGrossProfitCents)}</strong></div>
+          {calculatorView === "DETAILED" ? <div><span>{leaseInputs.agreedPrice ? "Estimated gross (half-price base)" : "Dealer gross"}</span><strong>{formatCurrency(calculator.dealerGrossProfitCents)}</strong></div> : null}
           <button type="button" onClick={() => onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents))}>Use calculated amount</button>
         </div>
         {calculationError ? <p role="alert" className={styles.retailPacketError}>{calculationError}</p> : null}

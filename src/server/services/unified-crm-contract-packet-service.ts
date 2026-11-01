@@ -8,7 +8,7 @@ import { testDriveAgreementHtml, testDriveAgreementPdfBase64 } from "./test-driv
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyPosture, dealerWarrantyDetails, dealerWarrantyError } from "@/lib/dealer-warranty-policy";
 import { dealerWarrantyHtml, dealerWarrantyPdfBase64 } from "./dealer-warranty-document";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, leaseNextPaymentDate, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, leaseCalculationInputs, leaseNextPaymentDate, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -143,7 +143,8 @@ function paymentFrequency(value: unknown): LeasePaymentFrequency {
 
 function leaseCalculatorInput(value: unknown): LeaseToOwnCalculatorInput {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  return {
+  return leaseCalculationInputs({
+    agreedPriceCents: input.agreedPriceCents === undefined ? undefined : typeof input.agreedPriceCents === "number" ? input.agreedPriceCents : NaN,
     additionalItemsCents: moneyCents(input.additionalItemsCents),
     capitalizedCostReductionCents: moneyCents(input.capitalizedCostReductionCents),
     calculationMode: input.calculationMode === "PAYMENT_AMOUNT" ? "PAYMENT_AMOUNT" : "TERM",
@@ -162,7 +163,7 @@ function leaseCalculatorInput(value: unknown): LeaseToOwnCalculatorInput {
     titleFeeCents: moneyCents(input.titleFeeCents),
     warrantyCostCents: moneyCents(input.warrantyCostCents),
     wholesaleCostCents: moneyCents(input.wholesaleCostCents)
-  };
+  });
 }
 
 function formatCurrency(cents: number) {
@@ -194,7 +195,7 @@ function publicPdfBytes(templatePath: string) {
   return readFileSync(join(process.cwd(), "public", safePath));
 }
 
-async function filledPdfBase64(templatePath: string, fieldValues: Record<string, string>) {
+async function filledPdfBase64(templatePath: string, fieldValues: Record<string, string>, insuranceFacts?: Record<string, unknown>) {
   const templateBytes = publicPdfBytes(templatePath);
   if (Object.keys(fieldValues).length === 0) return templateBytes.toString("base64");
   const pdf = await PDFDocument.load(templateBytes);
@@ -209,6 +210,20 @@ async function filledPdfBase64(templatePath: string, fieldValues: Record<string,
     }
   }
   const font = await pdf.embedFont(StandardFonts.Helvetica);
+  if (insuranceFacts && [insuranceFacts.insuranceCompany, insuranceFacts.insurancePolicyNumber, insuranceFacts.insuranceExpirationDate].some(value => typeof value === "string" && value.trim())) {
+    const page = pdf.addPage([612, 792]);
+    page.drawText("Recorded insurance details", { x: 36, y: 750, size: 18, font });
+    page.drawText("For staff review; this record does not verify coverage.", { x: 36, y: 729, size: 10, font });
+    const rows = [["customer", "Customer", insuranceFacts.customerName], ["vehicle", "Vehicle VIN", insuranceFacts.vin], ["company", "Insurance company", insuranceFacts.insuranceCompany], ["policy", "Policy number", insuranceFacts.insurancePolicyNumber], ["expiration", "Expiration date", insuranceFacts.insuranceExpirationDate], ["effective", "Effective date", insuranceFacts.effectiveDate], ["agent", "Insurance agent", insuranceFacts.agentName], ["phone", "Insurance phone", insuranceFacts.insurancePhone]];
+    rows.forEach(([id, label, value], index) => {
+      const y = 660 - index * 66;
+      page.drawText(String(label), { x: 36, y: y + 35, size: 10, font });
+      const field = form.createTextField(`recorded_insurance_${id}`);
+      field.enableMultiline();
+      field.addToPage(page, { x: 36, y, width: 540, height: 30, font });
+      field.setText(text(value, "")); field.setFontSize(10);
+    });
+  }
   form.updateFieldAppearances(font);
   return Buffer.from(await pdf.save()).toString("base64");
 }
@@ -371,7 +386,8 @@ function leaseTemplateFieldValues(input: {
 
   if (input.formId === "w2-lease") {
     const paymentCount = Math.round(input.leaseInput.contractLength);
-    const hasFinalAdjustment = input.calculator.finalPeriodicPaymentCents !== input.calculator.totalPeriodicPaymentCents;
+    const hasFinalAdjustment = paymentCount > 1 && input.calculator.finalPeriodicPaymentCents !== input.calculator.totalPeriodicPaymentCents;
+    const disclosedPayment = paymentCount === 1 ? input.calculator.firstPeriodicPaymentCents : input.calculator.totalPeriodicPaymentCents;
     return {
       ...common,
       "Amount to be paid in cash 1": "N/A",
@@ -385,7 +401,7 @@ function leaseTemplateFieldValues(input: {
       "Document preparation fee not gov fee": formatFormMoney(input.leaseInput.documentPreparationFeeCents),
       "Gross capitalized cost The agreed upon value of the vehicle of": formatFormMoney(input.calculator.grossCapitalizedCostCents),
       "Odometer Reading": input.vehicle.mileage,
-      "Pay1": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "Pay1": formatFormMoney(input.calculator.firstPeriodicPaymentCents),
       "Rate": "0.000",
       "Text2": input.leaseInput.paymentFrequency === "BiWeekly" ? "biweekly" : input.leaseInput.paymentFrequency.toLowerCase(),
       "The total of all your periodic payments is": formatFormMoney(input.calculator.totalOfAllPeriodicPaymentsCents),
@@ -395,7 +411,7 @@ function leaseTemplateFieldValues(input: {
       "and any outstanding prior credit or lease balance": "0.00",
       "due on the": dueDay,
       "of each": input.leaseInput.paymentFrequency === "Monthly" ? "month" : input.leaseInput.paymentFrequency === "Weekly" ? "week" : "other week",
-      "payments of": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "payments of": formatFormMoney(disclosedPayment),
       "starting": firstPaymentDate ? formDate(firstPaymentDate) : leaseDate,
       "undefined": formatFormMoney(input.calculator.amountDueAtSigningCents),
       "undefined_2": "0.00",
@@ -405,7 +421,7 @@ function leaseTemplateFieldValues(input: {
       "undefined_6": "0.00",
       "undefined_7": formatFormMoney(input.calculator.capitalizedCostReductionCents),
       "undefined_8": formatFormMoney(input.leaseInput.registrationFeeCents),
-      "undefined_9": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "undefined_9": formatFormMoney(input.calculator.firstPeriodicPaymentCents),
       "undefined_10": formatFormMoney(input.leaseInput.originationFeeCents),
       "undefined_11": "0.00",
       "undefined_12": formatFormMoney(input.leaseInput.titleFeeCents),
@@ -431,11 +447,11 @@ function leaseTemplateFieldValues(input: {
       "undefined_32": "0.00",
       "undefined_33": formatFormMoney(input.calculator.totalBasePeriodicPaymentsCents),
       "undefined_34": String(paymentCount),
-      "undefined_35": formatFormMoney(input.calculator.basePeriodicPaymentCents),
+      "undefined_35": formatFormMoney(disclosedPayment),
       "undefined_36": "0.00",
       "undefined-43": formatFormMoney(input.calculator.estimatedFeesAndTaxesOverTermCents),
       "undefined_38": "0.00",
-      "undefined_39": formatFormMoney(input.calculator.totalPeriodicPaymentCents),
+      "undefined_39": formatFormMoney(disclosedPayment),
       "Year": input.vehicle.year,
       "Make": input.vehicle.make,
       "Model": input.vehicle.model,
@@ -1713,10 +1729,10 @@ export async function generateUnifiedCrmContractPacket(
         ["Vehicle", `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim === "Not captured" ? "" : ` ${vehicle.trim}`} | VIN: ${vehicle.vin}`],
         ["Deal / lease date / mileage", `${dealNumber} / ${formDate(agreementDate)} / ${vehicle.mileage || "Not captured"}`]
       ],
-      highlights: [["Due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)], ["Regular payment", formatCurrency(leaseOutput.totalPeriodicPaymentCents)], ["Next payment", leaseInput.contractLength > 1 ? formDate(nextDate) : "None"], ["End purchase price", formatCurrency(leaseOutput.residualValueCents)]],
+      highlights: [["Due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)], [leaseInput.contractLength === 1 ? "Single final payment" : "Regular payment", formatCurrency(leaseInput.contractLength === 1 ? leaseOutput.firstPeriodicPaymentCents : leaseOutput.totalPeriodicPaymentCents)], ["Next payment", leaseInput.contractLength > 1 ? formDate(nextDate) : "None"], ["End purchase price", formatCurrency(leaseOutput.residualValueCents)]],
       signing: { heading: "Signing breakdown", rows: [
         ["Capitalized cost reduction", formatCurrency(leaseOutput.capitalizedCostReductionCents)],
-        ["First payment (included)", formatCurrency(leaseOutput.totalPeriodicPaymentCents)],
+        ["First payment (included)", formatCurrency(leaseOutput.firstPeriodicPaymentCents)],
         ["Upfront sales tax", formatCurrency(leaseOutput.applicableTaxesCents)],
         ["Title / registration", `${formatCurrency(leaseInput.titleFeeCents)} / ${formatCurrency(leaseInput.registrationFeeCents)}`],
         ["Document preparation", formatCurrency(leaseInput.documentPreparationFeeCents)],
@@ -1801,7 +1817,7 @@ export async function generateUnifiedCrmContractPacket(
         }),
         contentType: "application/pdf" as const
       } : hasPdfTemplate(form) && packetType === "LEASE_TO_OWN" ? {
-        contentBase64: await filledPdfBase64(form.templatePath, leaseFieldValues),
+        contentBase64: await filledPdfBase64(form.templatePath, leaseFieldValues, form.id === "insurance-binder" ? { ...leaseFacts, customerName, vin: vehicle.vin } : undefined),
         contentType: "application/pdf" as const,
         fieldValues: leaseFieldValues,
         templatePath: form.templatePath
