@@ -7,6 +7,7 @@ import { isSavedDealStatus, type SavedDealStatus } from "@/lib/saved-deal-status
 import { requireSalesDocumentsUser } from "./service";
 import { SalesDocumentsError } from "./domain";
 import { buildDealDashboard } from "./dashboard";
+import { canManageDeals } from "./dashboard-operations";
 
 type WorkbenchRow = { id: string; draftId: string | null; draftRevision: number | null; jacketId: string | null; customerName: string; vehicleReference: string; pathway: string; status: SavedDealStatus; packetState: string | null; dealNumber: string | null; updatedAt: Date };
 
@@ -16,7 +17,9 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
   if (!Number.isInteger(page) || page < 1 || page > 100000) throw new SalesDocumentsError("Choose a valid deals page.");
   if (status !== "ALL" && status !== "CURRENT" && !isSavedDealStatus(status)) throw new SalesDocumentsError("Choose a valid deal status.");
   if (pathway !== "ALL" && !isSalesDocumentPathway(pathway)) throw new SalesDocumentsError("Choose a valid revenue path.");
-  // Drafts stay owner-private; packets keep the existing organization-scoped document policy.
+  const team = params.get("dashboard") === "1" && params.get("workspace") === "TEAM";
+  if (team && !canManageDeals(user)) throw new SalesDocumentsError("Team work requires manager access.", 403);
+  // Team summaries expose operational fields to managers; full saved snapshots remain owner-private.
   // Link by saved jacket ID/reference, never by a customer's name alone.
   const source = Prisma.sql`WITH drafts AS (
     SELECT d."id", d."id" AS "draftId", d."revision" AS "draftRevision", j."id" AS "jacketId", d."customerName", d."vehicleReference", d."pathway", d."status",
@@ -28,7 +31,7 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
         AND (j."id" = d."snapshot" -> 'jackets' ->> d."pathway" OR j."dealReference" IN (
           SELECT value FROM jsonb_each_text(CASE WHEN jsonb_typeof(d."snapshot" -> 'references') = 'object' THEN d."snapshot" -> 'references' ELSE '{}'::jsonb END)
         )) ORDER BY j."updatedAt" DESC LIMIT 1
-    ) j ON TRUE WHERE d."organizationId" = ${organizationId} AND d."ownerUserId" = ${user.id}
+    ) j ON TRUE WHERE d."organizationId" = ${organizationId} ${team ? Prisma.empty : Prisma.sql`AND d."ownerUserId" = ${user.id}`}
   ), packet_archives AS (
     SELECT j."id", BOOL_AND(d."status" = 'ARCHIVED') AS archived
     FROM "SalesDocumentJacket" j JOIN "DealDeskDraft" d

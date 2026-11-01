@@ -5,6 +5,7 @@ import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/
 import { createSalesDocumentJacket, requireSalesDocumentsUser, updateSalesDocumentJacket } from "./service";
 import { SalesDocumentsError } from "./domain";
 import { dealGroup } from "@/lib/deal-dashboard";
+import { canManageDeals } from "./dashboard-operations";
 
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
@@ -16,7 +17,7 @@ export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: 
   const note = typeof raw.note === "string" ? raw.note.trim().slice(0, 1000) : "";
   if (["REOPEN", "REQUEST_UNWIND"].includes(action) && note.length < 10) throw new SalesDocumentsError("Enter a reason of at least 10 characters. The original signed packet will remain preserved.");
   return prisma.$transaction(async database => {
-    const draft = await database.dealDeskDraft.findFirst({ where: { id: raw.id as string, organizationId, ownerUserId: user.id } });
+    const draft = await database.dealDeskDraft.findFirst({ where: { id: raw.id as string, organizationId, ...(!canManageDeals(user) ? { ownerUserId: user.id } : {}) } });
     if (!draft) throw new SalesDocumentsError("This deal is not available to your account.", 404);
     if (!["SALES", "LEASING"].includes(dealGroup(draft.pathway))) throw new SalesDocumentsError("Use the return or completion workflow for this revenue pathway.");
     const snapshot = object(draft.snapshot), jacketIds = object(snapshot.jackets), references = Object.values(object(snapshot.references));
@@ -33,7 +34,7 @@ export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: 
       if (!draft.customerName?.trim() || /^(Customer not selected|Customer not captured)$/i.test(draft.customerName.trim()) || !draft.vehicleReference?.trim() || draft.vehicleReference === "Vehicle not assigned") throw new SalesDocumentsError("Select the customer and vehicle on this existing deal first. Signed paperwork can be added after it is sold.");
       if (action === "PREPARE_PAPERWORK" && draft.status !== "SOLD") throw new SalesDocumentsError("Mark this deal sold first, then complete its paperwork.", 409);
       const history = Array.isArray(draft.statusHistory) ? draft.statusHistory : [], at = new Date().toISOString();
-      const changed = await database.dealDeskDraft.updateMany({ where: { id: draft.id, organizationId, ownerUserId: user.id, revision: Number(raw.revision) }, data: { ...(action === "MARK_SOLD" ? { status: "SOLD" } : {}), revision: { increment: 1 }, statusHistory: [...history, { from: draft.status, to: action === "MARK_SOLD" ? "SOLD" : draft.status, action, actorId: user.id, at, effectiveAt: action === "MARK_SOLD" ? jacket?.versions.find(version => version.disposition === "CLOSED")?.finalizedAt.toISOString() || at : at, reason: note || (action === "MARK_SOLD" ? "Deal marked sold. Paperwork remains a separate follow-up; no funding or document completion is implied." : "Prepared paperwork checklist on the existing sold deal.") }] as Prisma.InputJsonValue } });
+      const changed = await database.dealDeskDraft.updateMany({ where: { id: draft.id, organizationId, ownerUserId: draft.ownerUserId, revision: Number(raw.revision) }, data: { ...(action === "MARK_SOLD" ? { status: "SOLD" } : {}), revision: { increment: 1 }, statusHistory: [...history, { from: draft.status, to: action === "MARK_SOLD" ? "SOLD" : draft.status, action, actorId: user.id, actorName: user.name, at, effectiveAt: action === "MARK_SOLD" ? jacket?.versions.find(version => version.disposition === "CLOSED")?.finalizedAt.toISOString() || at : at, reason: note || (action === "MARK_SOLD" ? "Deal marked sold. Paperwork remains a separate follow-up; no funding or document completion is implied." : "Prepared paperwork checklist on the existing sold deal.") }] as Prisma.InputJsonValue } });
       if (changed.count !== 1) throw new SalesDocumentsError("This deal changed in another window. Refresh this panel before continuing.", 409);
       if (action === "MARK_SOLD") return { id: draft.id, jacketId: jacket?.id ?? null, revision: draft.revision + 1, status: "SOLD", state: jacket?.state ?? null };
       const form = object(snapshot["desk:form"]), facts = object(snapshot[`${draft.pathway}:vehicleFacts`]);
@@ -52,7 +53,7 @@ export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: 
     const history = Array.isArray(draft.statusHistory) ? draft.statusHistory : [];
     const at = new Date().toISOString();
     const firstClosed = jacket.versions.find(version => version.disposition === "CLOSED")?.finalizedAt.toISOString();
-    const changed = await database.dealDeskDraft.updateMany({ where: { id: draft.id, organizationId, ownerUserId: user.id, revision: Number(raw.revision) }, data: { status, revision: { increment: 1 }, statusHistory: [...history, { from: draft.status, to: status, action, actorId: user.id, at, effectiveAt: action === "FINISH" ? firstClosed || at : at, reason: note || "Paperwork finalized on this existing sold deal. Original sold date and revenue pathway preserved." }] as Prisma.InputJsonValue } });
+    const changed = await database.dealDeskDraft.updateMany({ where: { id: draft.id, organizationId, ownerUserId: draft.ownerUserId, revision: Number(raw.revision) }, data: { status, revision: { increment: 1 }, statusHistory: [...history, { from: draft.status, to: status, action, actorId: user.id, actorName: user.name, at, effectiveAt: action === "FINISH" ? firstClosed || at : at, reason: note || "Paperwork finalized on this existing sold deal. Original sold date and revenue pathway preserved." }] as Prisma.InputJsonValue } });
     if (changed.count !== 1) throw new SalesDocumentsError("This deal changed in another window. Refresh this panel before continuing.", 409);
     let state = jacket.state;
     if (action !== "FINISH" || jacket.state !== "CLOSED") {

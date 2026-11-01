@@ -25,7 +25,7 @@ test(`staff mark sold before paperwork, then finalize the same deal (existing pa
       if (body.action === "REQUEST_UNWIND") { state = "UNWIND_PENDING"; status = "PENDING"; }
       return route.fulfill({ json: { id: body.id, jacketId, status, state, revision } });
     }
-    if (query.get("id")) return route.fulfill({ json: { id: "draft-sample", revision } });
+    if (query.get("id") || query.get("view") === "operations") return route.fulfill({ json: { id: "draft-sample", revision, draftRevision: revision } });
     const row: DashboardDeal = { id: "draft-sample", draftId: "draft-sample", draftRevision: revision, jacketId, dealNumber: "D-SAMPLE", customerName: "Sample lease customer", customerId: "sample-customer", vehicleReference: "Sample Toyota", pathway: "lease-to-own", status, packetState: jacketId ? state : null, updatedAt: new Date().toISOString(), ownerId: "sample-staff", ownerName: "Sample Staff", stage: state === "CLOSED" ? "Completed" : state === "UNWIND_PENDING" ? "Unwind review pending" : status === "SOLD" ? "Sold · paperwork pending" : "Working", nextAction: "Review packet", dueAt: null, taskHref: null, completedDate: state === "CLOSED" ? "2026-11-01" : null, createdDate: "2026-11-01", documentsReady: ready ? 1 : 0, documentsTotal: 1, needsAttention: state !== "CLOSED" };
     const range = reportingRange("2026-11-01", "month");
     return route.fulfill({ json: { items: [row], total: 1, pages: 1, page: 1, counts: { [status]: 1 }, dashboard: { range, summary: summarizeDeals([row], range), owners: [], taxes: { available: false, message: "Outside lifecycle test" }, canManage: true, scope: "Synthetic test records" } } });

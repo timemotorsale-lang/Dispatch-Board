@@ -16,10 +16,10 @@ export function DealLifecycleDialog({ deal, action, onClose, onSaved }: { deal: 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); setError(""); setConfirmed(false);
     try {
-      const responses = await Promise.all([fetch(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(deal.draftId)}`, { signal }), ...(!sold && jacketId ? [fetch(`/api/sales-documents/${encodeURIComponent(jacketId)}`, { signal })] : [])]);
+      const responses = await Promise.all([fetch(`/api/crm/v1/deal-drafts?view=operations&draftId=${encodeURIComponent(deal.draftId)}`, { signal }), ...(!sold && jacketId ? [fetch(`/api/sales-documents/${encodeURIComponent(jacketId)}`, { signal })] : [])]);
       const [draft, jacket] = await Promise.all(responses.map(response => response.json()));
       if (!responses[0].ok || (responses[1] && !responses[1].ok)) throw new Error(draft.error || jacket?.error || "This deal could not be loaded. Refresh and try again.");
-      if (!signal?.aborted) { setPacket(jacket || null); setRevision(draft.revision); }
+      if (!signal?.aborted) { setPacket(jacket || null); setRevision(draft.draftRevision ?? draft.revision); }
     } catch (caught) { if (!signal?.aborted) setError(caught instanceof Error ? caught.message : "Connection interrupted. Refresh this panel to try again."); }
     finally { if (!signal?.aborted) setLoading(false); }
   }, [deal.draftId, jacketId, sold]);

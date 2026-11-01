@@ -85,3 +85,28 @@
 @media (max-width: 600px) { .commands { width: 100%; }.toolbar select { flex: 1; min-width: 160px; }.toolbar { padding: 12px; } }
 @media (max-width: 600px) { .library .compact table { min-width: 0; table-layout: auto; } }
 .library .commands select { padding: 6px; border: 1px solid #b8c5ce; border-radius: 4px; background: #fff; color: #183147; font: inherit; font-size: 12px; max-width: 100%; }
+.savedViews { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; margin: 12px 0; padding: 10px; background: #f4f7fa; border: 1px solid #dce3e9; border-radius: 6px; }
+.savedViews label { display: grid; gap: 3px; font-size: 11px; }
+.savedViews input, .savedViews select { max-width: 190px; min-width: 0; padding: 6px; border: 1px solid #b8c5ce; border-radius: 4px; background: white; color: #183147; font: inherit; }
+.savedViews > small { flex-basis: 100%; color: #536879; font-size: 11px; }
+.viewEditor { position: relative; font-size: 12px; }
+.viewEditor summary { padding: 8px; cursor: pointer; }
+.viewEditor > div { position: absolute; right: 0; z-index: 5; display: grid; gap: 10px; width: 240px; max-width: calc(100vw - 48px); box-sizing: border-box; padding: 12px; border: 1px solid #b8c5ce; border-radius: 4px; background: white; box-shadow: 0 6px 18px #18314720; }
+.viewEditor > div small { color: #536879; font-size: 11px; }
+.progressBadges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.progressBadges span { padding: 3px 5px; background: #fff2c2; color: #634900; border-radius: 3px; font-size: 10px; }
+.progressBadges span[data-complete="true"] { background: #dcefe2; color: #195333; }
+.library td .dealAlert { color: #8f3038; }
+.dealDrawer { position: fixed; inset: 0 0 0 auto; margin: 0; height: 100dvh; max-height: 100dvh; width: min(720px, 100vw); max-width: 100vw; border-radius: 0; padding: 20px; }
+.dealDrawer > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.dealDrawer h2 { margin-top: 0; }
+.dealDrawer form { display: grid; gap: 12px; margin: 20px 0; padding: 16px; border: 1px solid #dce3e9; border-radius: 6px; }
+.dealDrawer form label { display: grid; gap: 5px; font-size: 13px; }
+.dealDrawer form label:has(input[type="checkbox"]) { display: block; }
+.dealDrawer input:not([type="checkbox"]), .dealDrawer select { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; font: inherit; border: 1px solid #b8c5ce; border-radius: 4px; }
+.dealDrawer .tabs { margin-top: 16px; }
+.dealDrawer [role="status"] { color: #195333; }
+.dealFlags { padding: 10px 10px 10px 26px; background: #fff8df; border-left: 3px solid #cba13c; color: #634900; font-size: 12px; }
+.dealDrawer .reportTotals { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.library .progressBadges span { font-size: 10px; line-height: 1.2; padding: 2px 4px; }
+@media(max-width: 600px) { .savedViews { align-items: stretch; }.savedViews label { flex: 1 1 140px; }.savedViews input, .savedViews select { max-width: 100%; }.dealDrawer { padding: 16px; }.dealDrawer .reportTotals { grid-template-columns: 1fr; } }

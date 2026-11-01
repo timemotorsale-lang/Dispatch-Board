@@ -4,6 +4,7 @@ import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDe
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { listDealWorkbench } from "@/server/sales-documents/deal-workbench";
 import { manageDealLifecycle } from "@/server/sales-documents/deal-lifecycle";
+import { manageDealOperations, readDealOperations } from "@/server/sales-documents/dashboard-operations";
 
 function failure(error: unknown) {
   if (error instanceof SalesDocumentsError) return NextResponse.json({ error: error.message }, { status: error.status });
@@ -21,6 +22,7 @@ function failure(error: unknown) {
 export async function GET(request: Request) {
   try {
     const actor = await getCurrentUser(), params = new URL(request.url).searchParams;
+    if (params.get("view") === "operations") return NextResponse.json(await readDealOperations(actor, Object.fromEntries(params)));
     if (params.get("view") === "workbench") return NextResponse.json(await listDealWorkbench(actor, params));
     if (params.get("view") === "library") return NextResponse.json(await listSavedDealLibrary(actor, params));
     return NextResponse.json(params.get("id") ? await readDealDeskDraft(actor, params.get("id")!) : await listDealDrafts(actor, params.get("customerId") ?? ""));
@@ -37,6 +39,7 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     if (!body) throw new SalesDocumentsError("Choose a deal action.");
+    if (["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_MILESTONE"].includes(body.action)) return NextResponse.json(await manageDealOperations(await getCurrentUser(), body));
     if (["MARK_SOLD", "PREPARE_PAPERWORK", "FINISH", "REOPEN", "REQUEST_UNWIND"].includes(body.action)) return NextResponse.json(await manageDealLifecycle(await getCurrentUser(), body));
     if (body.action !== "ARCHIVE_DUPLICATE") throw new SalesDocumentsError("Choose the archive duplicate action.");
     return NextResponse.json(await archiveDuplicateDealDraft(await getCurrentUser(), body));

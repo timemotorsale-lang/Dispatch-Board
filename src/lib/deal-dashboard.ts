@@ -1,4 +1,5 @@
 import { businessDate } from "@/lib/money-resources";
+import type { DealWorkIndicators } from "./deal-dashboard-enterprise";
 
 export const DEAL_GROUPS = { ALL: "All pathways", SALES: "Vehicle Sales", LEASING: "Leasing", USE: "Vehicle Use", SERVICE: "Service & Repairs", PRODUCTS: "Additional Products" } as const;
 export type DealGroup = keyof typeof DEAL_GROUPS;
@@ -27,6 +28,7 @@ export type DashboardDeal = {
   ownerId: string; ownerName: string; stage: string; nextAction: string; dueAt: string | null; taskHref: string | null;
   completedDate: string | null; createdDate: string | null; documentsReady: number; documentsTotal: number; needsAttention: boolean;
   soldDate?: string | null;
+  indicators?: DealWorkIndicators;
   documentChecklist?: Array<{ id: string; label: string; phase: string; status: string }>;
 };
 export function summarizeDeals(rows: DashboardDeal[], range: { start: string; end: string }) {
