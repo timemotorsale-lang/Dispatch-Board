@@ -32,8 +32,32 @@ export function ServiceDocument({ content, repairOrderId, reviewWorkflow = false
   return <article ref={printRef} className={styles.document}>
     {showControls && <div data-print-controls className={styles.printControls}><button className={styles.print} onClick={() => void print()}>Print</button>{repairOrderId && documentId && <a href={serviceDocumentPdfHref(repairOrderId, documentId)} download>Save PDF</a>}{printError && <p role="alert">{printError}</p>}</div>}
     {repairOrderId && <nav className={styles.actions} aria-label="Continue repair order"><Link href={reviewWorkflow ? repairReviewHref(repairOrderId) : `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(repairOrderId)}`}>Continue recon / shop workflow · review / authorize</Link><Link href={`/service-documents?repairOrderId=${encodeURIComponent(repairOrderId)}`}>View Documents & Approvals</Link><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(repairOrderId)}`}>Create / Print Final Invoice</Link><p>Printing an estimate does not authorize work. Final invoicing requires the approved revision, completed work and quality checks.</p></nav>}
-    <header className={styles.header}><div className={styles.brand}><TimeMotorSalesLogo className={styles.logo} priority variant="horizontal" /><p className={styles.department}>SERVICE DEPARTMENT</p><p className={styles.location}>{content.identity.store}<br />{content.identity.address}</p><div className={styles.contact}><a href="mailto:timemotorsale@gmail.com">timemotorsale@gmail.com</a><a href="https://timemotors.net">timemotors.net</a></div></div><div className={styles.documentIdentity}><p className={styles.eyebrow}>CUSTOMER SERVICE DOCUMENT</p><h1>{title}</h1><div className={styles.metadata}><div><span>Document reference</span><strong>{content.number}</strong></div><div><span>Issued</span><strong>{issuedDate}</strong><small>{issuedTime}</small></div><div><span>Repair order</span><strong>{content.identity.repairOrderNumber}</strong></div></div></div></header>
-    <section className={styles.identitySection} aria-label="Customer and vehicle"><p><strong>{content.identity.customer}</strong></p>{customerContact && <p className={styles.customerContact}>{[customerContact.phone, customerContact.email, customerContact.address].filter(Boolean).join(" · ")}</p>}<p data-print-vehicle className={styles.vehicleDetails}><span>{content.identity.vehicle}</span>{vehicleDetails.map(([label, value]) => <span key={label}>{label}: {value}</span>)}</p><p className={styles.concern}><strong>Service requested:</strong> {content.identity.concern}</p></section>
+    <header data-document-heading className={styles.header}>
+      <h1>{title}</h1>
+      <div className={styles.metadata}>
+        <strong>{content.number}</strong>
+        <span>Issued {issuedDate} · {issuedTime}</span>
+        <span>Repair order: {content.identity.repairOrderNumber}</span>
+      </div>
+    </header>
+    <section data-document-parties className={styles.parties} aria-label="Dealership and customer">
+      <div data-document-brand className={styles.brand}>
+        <TimeMotorSalesLogo className={styles.logo} priority variant="horizontal" />
+        <p className={styles.department}>SERVICE DEPARTMENT</p>
+        <p className={styles.location}>{content.identity.store}<br />{content.identity.address}</p>
+        <div className={styles.contact}><a href="mailto:timemotorsale@gmail.com">timemotorsale@gmail.com</a><a href="https://timemotors.net">timemotors.net</a></div>
+      </div>
+      <div data-document-customer className={styles.customer}>
+        <h2>CUSTOMER</h2>
+        <p className={styles.customerName}>{content.identity.customer}</p>
+        {customerContact && <div className={styles.customerContact}>{[customerContact.phone, customerContact.email, customerContact.address].filter(Boolean).map((value, index) => <p key={index}>{value}</p>)}</div>}
+      </div>
+    </section>
+    <section data-print-vehicle className={styles.vehicleDetails} aria-label="Vehicle details">
+      <div><h2>VEHICLE</h2><strong>{content.identity.vehicle}</strong></div>
+      {vehicleDetails.map(([label, value]) => <div key={label}><span>{label}</span><p>{value}</p></div>)}
+    </section>
+    <section data-document-concern className={styles.concern} aria-label="Concerns / Service Requested"><h2>CONCERNS / SERVICE REQUESTED</h2><p>{content.identity.concern}</p></section>
     {receipt ? <section className={styles.receipt} aria-label="Payment details"><h2>{receipt.kind === "PAYMENT" ? "Payment received" : receipt.kind === "REFUND" ? "Refund recorded" : "Invoice adjustment"}</h2><dl><dt>Invoice</dt><dd>{receipt.invoiceNumber}</dd><dt>{receipt.kind === "PAYMENT" ? "Amount paid" : "Amount"}</dt><dd><strong>{money(receipt.amountCents)}</strong></dd><dt>Payment method</dt><dd>{receipt.method ? receipt.method.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, char => char.toUpperCase()) : "Adjustment"}</dd><dt>Reference</dt><dd>{receipt.reference}</dd><dt>Remaining balance</dt><dd><strong>{money(receipt.balanceCents)}</strong></dd></dl></section> : <div className={styles.tableWrap}><table><caption className={styles.tableCaption}>Itemized work and parts</caption><thead><tr><th scope="col">Work / item</th><th scope="col">Qty</th><th scope="col">Rate / price</th><th scope="col">Amount</th></tr></thead><tbody>{workLines.map(line => <tr key={line.key}><td>{line.description.replace(/\s*\(\s*\)$/, "")}{line.hours != null && <small className={styles.laborDetail}>{line.hours.toFixed(2)} labor hours{line.planningHourlyRateCents == null ? "" : ` × ${money(line.planningHourlyRateCents)}/hr`}</small>}</td><td>{line.quantity}</td><td>{money(line.unitPriceCents)}</td><td>{money(line.totalCents)}</td></tr>)}</tbody></table></div>}
     {!receipt && feeLines.length > 0 && <section className={styles.charges} aria-label="Other charges"><h2>Other charges</h2>{feeLines.map(line => <div key={line.key}><span>{line.description}</span><strong>{money(line.totalCents)}</strong></div>)}</section>}
     {content.totals && <dl className={styles.totals}><dt>Subtotal</dt><dd>{money(content.totals.subtotalCents)}</dd><dt>Discount</dt><dd>{money(content.totals.discountCents)}</dd><dt>Tax</dt><dd>{money(content.totals.taxCents)}</dd><dt>Total</dt><dd>{money(content.totals.totalCents)}</dd></dl>}

@@ -36,6 +36,10 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   const draw = (text: string, x: number, at: number, size = 9, face: PDFFont = font) => page.drawText(clean(text), { x, y: at, size, font: face, color: ink });
   const addPage = () => {
     page = pdf.addPage([612, 792]); y = 746;
+    if (pdf.getPageCount() === 1) {
+      page.drawLine({ start: { x: left, y: 756 }, end: { x: right, y: 756 }, thickness: 3, color: rgb(.14, .31, .53) });
+      return;
+    }
     draw("TIME MOTOR SALES  |  SERVICE DEPARTMENT", left, y, 9, bold);
     const reference = clean(content.number);
     const referenceLines = lines(reference, 240, 8);
@@ -48,28 +52,59 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
     for (const line of lines(text, width, size, face)) { space(size + 5); draw(line, x, y, size, face); y -= size + 5; }
   };
   addPage();
-  await drawDealDeskPdfLogo(pdf, page!, { x: left, y: y - 36, width: 212 });
   const title = /^(Official repair estimate|Repair Estimate)/i.test(content.title) ? "Repair Estimate" : content.title;
-  const titleLines = lines(title, 270, 20, bold);
-  titleLines.forEach((line, index) => draw(line, 300, y - 12 - index * 25, 20, bold));
-  y -= Math.max(54, titleLines.length * 25 + 10);
-  paragraph(content.identity.store, 9, bold);
-  paragraph(content.identity.address, 8);
-  paragraph("timemotorsale@gmail.com  |  timemotors.net", 8);
   const issued = new Date(content.issuedAt).toLocaleString("en-US", { timeZone: content.identity.timezone, year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  paragraph(`Issued: ${issued}  |  Repair order: ${content.identity.repairOrderNumber}`, 8);
-  y -= 10;
-  paragraph(content.identity.customer, 11, bold);
+  const titleLines = lines(title, 270, 21, bold);
+  titleLines.forEach((line, index) => draw(line, left, 723 - index * 25, 21, bold));
+  const metadata = [...lines(content.number, 230, 9, bold), ...lines(`Issued ${issued}`, 230, 8), ...lines(`Repair order: ${content.identity.repairOrderNumber}`, 230, 8)];
+  metadata.forEach((line, index) => { const face = index === 0 ? bold : font, size = index === 0 ? 9 : 8; draw(line, right - face.widthOfTextAtSize(line, size), 735 - index * 12, size, face); });
+  y = Math.min(723 - titleLines.length * 25, 735 - metadata.length * 12) - 4;
+  page!.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: .7, color: rule });
+  const partiesTop = y - 20, customerX = 324, columnWidth = 248;
+  await drawDealDeskPdfLogo(pdf, page!, { x: left, y: partiesTop - 36, width: 224 });
+  y = partiesTop - 54;
+  paragraph("SERVICE DEPARTMENT", 8, bold, columnWidth);
+  paragraph(content.identity.store, 8, font, columnWidth);
+  paragraph(content.identity.address, 8, font, columnWidth);
+  y -= 3;
+  paragraph("timemotorsale@gmail.com", 8, font, columnWidth);
+  paragraph("timemotors.net", 8, font, columnWidth);
+  const brandBottom = y;
+  y = partiesTop - 6;
+  paragraph("CUSTOMER", 8, bold, columnWidth, customerX);
+  y -= 4;
+  paragraph(content.identity.customer, 13, bold, columnWidth, customerX);
+  y -= 4;
   const contact = content.identity.customerContact;
-  if (contact) paragraph([contact.phone, contact.email, contact.address].filter(Boolean).join("  |  "), 8);
+  if (contact) for (const value of [contact.phone, contact.email, contact.address]) if (value) paragraph(value, 9, font, columnWidth, customerX);
+  y = Math.min(brandBottom, y);
+  page!.drawLine({ start: { x: 306, y: partiesTop }, end: { x: 306, y: y + 8 }, thickness: .7, color: rule });
+  y -= 12;
   const identity = content.identity;
-  paragraph([identity.vehicle, `VIN: ${identity.vin}`, `Mileage: ${identity.odometer ? `${identity.odometer.reading.toLocaleString("en-US")} ${identity.odometer.unit === "KILOMETERS" ? "km" : "mi"}` : "Not recorded"}`, identity.licensePlate ? `Plate: ${[identity.licensePlate, identity.licensePlateState].filter(Boolean).join(" ")}` : "", identity.color ? `Color: ${identity.color}` : "", identity.stockNumber ? `Stock #: ${identity.stockNumber}` : `Vehicle ID: ${identity.vehicleNumber}`].filter(Boolean).join("  |  "), 8);
-  y -= 5; paragraph(`Service requested: ${identity.concern}`, 9); y -= 14;
+  const boxedText = (label: string, text: string, shaded = false) => {
+    const rows = lines(text, right - left - 24, 9);
+    let index = 0;
+    while (index < rows.length) {
+      space(60);
+      const room = Math.max(1, Math.floor((y - bottom - 40) / 14));
+      const segment = rows.slice(index, index + room), height = 36 + segment.length * 14;
+      page.drawRectangle({ x: left, y: y - height, width: right - left, height, borderWidth: .6, borderColor: rule, ...(shaded ? { color: rgb(.95, .96, .98) } : {}) });
+      draw(index ? `${label} (continued)` : label, left + 12, y - 16, 8, bold);
+      segment.forEach((line, offset) => draw(line, left + 12, y - 34 - offset * 14, 9));
+      y -= height + 14; index += segment.length;
+      if (index < rows.length) addPage();
+    }
+  };
+  boxedText("VEHICLE", [identity.vehicle, `VIN: ${identity.vin}`, `Mileage: ${identity.odometer ? `${identity.odometer.reading.toLocaleString("en-US")} ${identity.odometer.unit === "KILOMETERS" ? "km" : "mi"}` : "Not recorded"}`, identity.licensePlate ? `Plate: ${[identity.licensePlate, identity.licensePlateState].filter(Boolean).join(" ")}` : "", identity.color ? `Color: ${identity.color}` : "", identity.stockNumber ? `Stock #: ${identity.stockNumber}` : `Vehicle ID: ${identity.vehicleNumber}`].filter(Boolean).join("  |  "), true);
+  boxedText("CONCERNS / SERVICE REQUESTED", identity.concern);
   const receipt = content.receipt ?? legacyReceiptDetails(content);
   if (receipt) {
     space(135); paragraph(receipt.kind === "PAYMENT" ? "Payment received" : receipt.kind === "REFUND" ? "Refund recorded" : "Invoice adjustment", 13, bold);
     for (const [label, value] of [["Invoice", receipt.invoiceNumber], [receipt.kind === "PAYMENT" ? "Amount paid" : "Amount", money(receipt.amountCents)], ["Payment method", receipt.method?.replaceAll("_", " ") ?? "Adjustment"], ["Reference", receipt.reference], ["Remaining balance", money(receipt.balanceCents)]]) paragraph(`${label}: ${value}`, 10);
   } else {
+    space(65);
+    paragraph("ITEMIZED WORK & PARTS", 8, bold);
+    y -= 12;
     const heading = () => {
       space(30);
       page.drawRectangle({ x: left, y: y - 6, width: right - left, height: 22, color: rgb(.94, .96, .98) });

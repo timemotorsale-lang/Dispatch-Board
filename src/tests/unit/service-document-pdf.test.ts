@@ -24,6 +24,7 @@ describe("direct saved-document PDFs", () => {
     expect(pdf.getPages()[0].node.Resources()?.get(PDFName.of("XObject"))).toBeTruthy();
     expect(pdf.getTitle()).toBe("Repair Estimate - RO-SAMPLE / v2");
     expect(JSON.stringify(pdfFixture)).toBe(original);
+    if (process.env.SERVICE_PDF_LAYOUT_OUTPUT) await writeFile(process.env.SERVICE_PDF_LAYOUT_OUTPUT, bytes);
   });
   it("paginates long work lists and descriptions with repeated headers and page numbers", async () => {
     const lines = Array.from({ length: 65 }, (_, index) => ({ ...pdfFixture.lines[1], key: `part-${index}`, description: `Service item ${index + 1}: Inspect and replace the listed vehicle component, verify the installation and retain the approved repair details.` }));
@@ -37,6 +38,12 @@ describe("direct saved-document PDFs", () => {
     const receipt = { ...pdfFixture, title: "Payment Receipt", receipt: { invoiceNumber: "INV-SAMPLE", kind: "PAYMENT", amountCents: 20000, method: "CARD", reference: "Sample verified payment", balanceCents: 21871 }, lines: [], totals: undefined, notes: ["Please retain this receipt for your records."] };
     expect((await PDFDocument.load(await createServiceDocumentPdf(receipt))).getPageCount()).toBe(1);
     await expect(createServiceDocumentPdf({ ...pdfFixture, identity: { ...pdfFixture.identity, customer: "Customer 🚙" } })).rejects.toThrow("browser printing to preserve its text");
+  });
+  it("flows a long concern across bounded pages before rendering work and totals", async () => {
+    const bytes = await createServiceDocumentPdf({ ...pdfFixture, identity: { ...pdfFixture.identity, concern: "Inspect customer concern and confirm approved repair scope. ".repeat(250) } });
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.getPageCount()).toBeGreaterThan(2);
+    if (process.env.SERVICE_PDF_CONCERN_OUTPUT) await writeFile(process.env.SERVICE_PDF_CONCERN_OUTPUT, bytes);
   });
   it("sanitizes download names without allowing response header injection", () => {
     expect(serviceDocumentFilename("RO-123 / v2")).toBe("RO-123-v2.pdf");
