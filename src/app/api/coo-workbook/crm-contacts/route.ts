@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { crmNextCustomer360Href } from "@/features/crm/crm-route-authority";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { prisma } from "@/server/db/client";
@@ -50,6 +51,6 @@ export async function POST(request: Request) {
       prisma.customerNote.create({ data: { customerId: customer.id, authorUserId: user.id, body: noteBody, visibility: "INTERNAL" } }),
       prisma.enterpriseAuditEvent.create({ data: { organizationId: INITIAL_ORGANIZATION.id, actorUserId: user.id, domain: "UNIFIED_CRM", subjectType: "CUSTOMER", subjectId: customer.id, eventType: "WORKBOOK_CONTACT_IMPORTED", reason: "Import a reviewed workbook contact into CRM.", correlationId: `workbook:${sourceKind}:${sourceId}`, metadata: { sourceId, sourceKind, duplicateCustomer: Boolean(duplicate) } } })
     ]);
-    return NextResponse.json({ customer, duplicate: Boolean(duplicate), sourceAlreadyImported: Boolean(priorImport), href: `/crm/customers/${encodeURIComponent(customer.id)}` }, { status: duplicate ? 200 : 201 });
+    return NextResponse.json({ customer, duplicate: Boolean(duplicate), sourceAlreadyImported: Boolean(priorImport), href: crmNextCustomer360Href(customer.id) }, { status: duplicate ? 200 : 201 });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to import this contact." }, { status: 400 }); }
 }

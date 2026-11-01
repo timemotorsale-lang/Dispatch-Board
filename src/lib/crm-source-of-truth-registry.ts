@@ -97,6 +97,14 @@ export function isCustomerLeadStageInLifecycle(stage: string, lifecycleStages: r
 
 export const CRM_ACTION_SOURCE_TRUTH = [
   {
+    id: "set-reminder",
+    label: "Set Reminder",
+    owner: "Customer task bridge",
+    source: "CRM customer task list and staff queue",
+    staffMessage: "Reminders save as customer-linked follow-up tasks assigned to you, with the date and time you select. No text or email is sent.",
+    status: "Live"
+  },
+  {
     id: "log-call",
     label: "Phone Call",
     owner: "Communications provider",

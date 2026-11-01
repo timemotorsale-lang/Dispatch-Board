@@ -271,7 +271,7 @@ export type CrmNextPilotReleaseGate = {
 };
 
 export type CrmNextOperatingAction = {
-  id: "log-call" | "send-email" | "new-task" | "add-note" | "new-case" | "schedule-appointment" | "upload-document" | "send-text";
+  id: "log-call" | "send-email" | "new-task" | "set-reminder" | "add-note" | "new-case" | "schedule-appointment" | "upload-document" | "send-text";
   label: string;
   category: "Communication" | "Task" | "Note" | "Case" | "Appointment" | "Document";
   state: "SAFE_ROUTE" | "PREVIEW_ONLY" | "HELD";
@@ -1359,6 +1359,17 @@ const operatingActions: CrmNextOperatingAction[] = [
     response: "Create a CRM task that stays attached to this customer record.",
     auditPosture: "Requires actor, assignee, due date, source customer, task type, outcome expectation, and timeline entry.",
     pilotRequirement: "Approve CRM task fields, ownership rules, completion outcomes, and escalation-to-dispatch boundary."
+  },
+  {
+    id: "set-reminder",
+    label: "Set Reminder",
+    category: "Task",
+    state: "SAFE_ROUTE",
+    href: "/crm-next/actions/set-reminder",
+    sourceAuthority: "Customer task list and staff queue",
+    response: "Set a dated follow-up reminder linked to this customer and assigned to you.",
+    auditPosture: "Uses the audited customer task workflow with a due time and duplicate-request protection.",
+    pilotRequirement: "Uses existing task access and ownership rules."
   },
   {
     id: "add-note",

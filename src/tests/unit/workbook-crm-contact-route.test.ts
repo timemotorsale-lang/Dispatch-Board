@@ -17,4 +17,11 @@ describe("workbook CRM contact import",()=>{
   expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({take:5,where:expect.objectContaining({organizationId:"org-time-motor-sales",OR:expect.arrayContaining([{displayName:{equals:"Alex Smith",mode:"insensitive"}},{contactPoints:{some:{type:"PHONE",normalizedValue:"+16125551212"}}}])})}));
  });
  it("requires CRM authorization",async()=>{mocks.user.mockResolvedValue({...manager,roles:["Technician"]});const response=await POST(new Request("http://localhost/api/coo-workbook/crm-contacts",{method:"POST",body:JSON.stringify(body)}));expect(response.status).toBe(403);expect(mocks.findMany).not.toHaveBeenCalled()});
+ it("opens an existing imported customer in CRM Next rather than the disabled review shell",async()=>{
+  mocks.findMany.mockResolvedValue([{id:"customer/1",customerNumber:"CUS-1",displayName:"Alex Smith"}]);
+  mocks.findAudit.mockResolvedValue({id:"prior-import"});
+  const response=await POST(new Request("http://localhost/api/coo-workbook/crm-contacts",{method:"POST",body:JSON.stringify({...body,duplicateResolution:"USE_EXISTING",existingCustomerId:"customer/1"})}));
+  expect(response.status).toBe(200); expect((await response.json()).href).toBe("/crm-next/customers/customer%2F1");
+  expect(mocks.transaction).not.toHaveBeenCalled();
+ });
 });
