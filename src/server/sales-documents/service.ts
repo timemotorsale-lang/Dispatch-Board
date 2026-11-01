@@ -125,7 +125,7 @@ async function storedBytes(reference: string, checksum: string) {
 export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; signed?: boolean; expectedRevision?: number }) {
   const user = requireSalesDocumentsUser(actor);
   const jacket = await findJacket(id);
-  if (["CLOSED", "DELIVERED_FUNDING_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("Open an addendum before adding documents to a finalized jacket.", 409);
+  if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
   if (!input.bytes.length || input.bytes.length > 25 * 1024 * 1024) throw new SalesDocumentsError("Choose a file up to 25 MB.");
   if (!input.generated) {
     const bytes = Buffer.from(input.bytes);
@@ -145,7 +145,7 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
   await storedBytes(object.reference, object.checksumSha256);
   await prisma.$transaction(async (db) => {
     const current = await findJacket(id, db);
-    if (["CLOSED", "DELIVERED_FUNDING_PENDING"].includes(current.state)) throw new SalesDocumentsError("This jacket was finalized. Open an addendum before adding documents.", 409);
+    if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(current.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
     await lock(db, current, input.expectedRevision ?? jacket.revision);
     await db.documentLibraryDocument.create({ data: { id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType: normalizeSalesDocumentType(text(input.documentType)) || "supplemental", fileName: input.fileName, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", storageProvider: "INTERNAL", storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, currentVersionId: versionId, classificationSnapshot: json({ jacketId: id, signed: !input.generated && input.signed === true }), createdByUserId: user.id, versions: { create: { id: versionId, organizationId: jacket.organizationId, version: 1, storageProvider: "INTERNAL", storageReference: object.reference, fileName: input.fileName, contentType: object.contentType, sizeBytes: object.sizeBytes, checksumSha256: object.checksumSha256, createdByUserId: user.id } }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
     await audit(db, jacket, user, "DOCUMENT_SAVED", `${input.fileName} saved as ${input.generated ? "working form" : "uploaded document"}.`);
@@ -153,9 +153,9 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
   return getSalesDocumentJacket(user, id);
 }
 
-export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>) {
-  const user = requireSalesDocumentsUser(actor, raw.action === "WAIVE" || raw.action === "CLOSING_REVIEW");
-  return prisma.$transaction(async (db) => {
+export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>, transaction?: Transaction) {
+  const user = requireSalesDocumentsUser(actor, ["WAIVE", "CLOSING_REVIEW", "ADDENDUM", "REQUEST_UNWIND"].includes(String(raw.action)));
+  const execute = async (db: Transaction) => {
     const jacket = await findJacket(id, db);
     await lock(db, jacket, raw.revision);
     const note = text(raw.note, 1000);
@@ -172,8 +172,13 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
       if (!note) throw new SalesDocumentsError("Record the reason for opening an addendum.");
       await db.salesDocumentJacket.update({ where: { id }, data: { state: "WORKING" } });
       await audit(db, jacket, user, "ADDENDUM_OPENED", note);
+    } else if (raw.action === "REQUEST_UNWIND") {
+      if (!["CLOSED", "DELIVERED_FUNDING_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("Only a finalized deal can be unwound.", 409);
+      if (!note) throw new SalesDocumentsError("Record why this deal is being unwound.");
+      await db.salesDocumentJacket.update({ where: { id }, data: { state: "UNWIND_PENDING" } });
+      await audit(db, jacket, user, "UNWIND_REQUESTED", `${note} Review pending. Original final packets preserved. Customer refunds, lender funding, title, vehicle return and tax corrections must be reconciled separately. No funds were reversed.`);
     } else {
-      if (["CLOSED", "DELIVERED_FUNDING_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("Finalized documents are preserved. Open an addendum to make changes.", 409);
+      if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("Finalized documents are preserved. A manager must open an addendum before corrections. Unwind requests require financial review.", 409);
       if (raw.action === "REVIEW") {
         const link = jacket.packet.documents.find((item) => item.documentId === raw.documentId);
         if (!link) throw new SalesDocumentsError("Document is not part of this jacket.", 404);
@@ -221,7 +226,8 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
       } else throw new SalesDocumentsError("Choose a supported document action.");
     }
     return view(await findJacket(id, db));
-  }, { timeout: 30000 });
+  };
+  return transaction ? execute(transaction) : prisma.$transaction(execute, { timeout: 30000 });
 }
 
 export async function getSalesDocumentContent(actor: AuthenticatedUser | null, id: string, documentId: string) {
@@ -278,4 +284,20 @@ export async function readArchivedSalesPacket(actor: AuthenticatedUser | null, p
   const packet = await prisma.salesDocumentGeneratedPacket.findFirst({ where: { id: packetId, jacket: { organizationId: organization() } } });
   if (!packet) throw new SalesDocumentsError("Saved contract packet was not found.", 404);
   return packet.payload as unknown as UnifiedCrmContractPacketResult;
+}
+
+export async function readLatestSalesPacket(actor: AuthenticatedUser | null, params: URLSearchParams) {
+  const user = requireSalesDocumentsUser(actor);
+  const jacketId = text(params.get("jacketId")), reference = text(params.get("jacketReference")), pathway = text(params.get("pathway"));
+  const draftId = text(params.get("draftId"));
+  if (!jacketId && ((!reference && !draftId) || !isSalesDocumentPathway(pathway))) throw new SalesDocumentsError("Open the packet linked to this saved deal.");
+  let references = reference ? [reference] : [];
+  if (draftId && !jacketId) {
+    const draft = await prisma.dealDeskDraft.findFirst({ where: { id: draftId, organizationId: organization(), ownerUserId: user.id, pathway }, select: { snapshot: true } });
+    if (!draft) throw new SalesDocumentsError("This saved deal is not available to your account.", 404);
+    references = Object.entries(metadata(metadata(draft.snapshot).references ?? null)).filter(([key]) => key === pathway || (key.startsWith("crm-next:document-jacket:") && key.includes(`:${pathway}:`))).flatMap(([, value]) => typeof value === "string" ? [value] : []);
+    if (!references.length) return null;
+  }
+  const packet = await prisma.salesDocumentGeneratedPacket.findFirst({ where: { jacket: { organizationId: organization(), ...(jacketId ? { id: jacketId } : { dealReference: { in: references }, pathway }) } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+  return packet ? packet.payload as unknown as UnifiedCrmContractPacketResult : null;
 }

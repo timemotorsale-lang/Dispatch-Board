@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { generateUnifiedCrmContractPacket } from "@/server/services/unified-crm-contract-packet-service";
-import { archiveGeneratedSalesPacket } from "@/server/sales-documents/service";
+import { archiveGeneratedSalesPacket, readLatestSalesPacket } from "@/server/sales-documents/service";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import {
   UNIFIED_CRM_CONTRACT_PACKET_ERROR_CONTRACT_VERSION,
@@ -20,6 +20,11 @@ function statusForCode(code: string | undefined) {
   if (code === "AUTHENTICATION_REQUIRED") return 401;
   if (code === "CONTRACT_PACKET_INVALID") return 400;
   return 500;
+}
+
+export async function GET(request: Request) {
+  try { return NextResponse.json(await readLatestSalesPacket(await getCurrentUser(), new URL(request.url).searchParams), { headers: { "Cache-Control": "private, no-store" } }); }
+  catch (error) { return NextResponse.json({ error: error instanceof SalesDocumentsError ? error.message : "The saved packet archive is unavailable. Retry opening it before generating another packet." }, { status: error instanceof SalesDocumentsError ? error.status : 503 }); }
 }
 
 export async function POST(request: Request) {

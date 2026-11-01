@@ -2129,7 +2129,10 @@ function LeaseToOwnExecutionDesk({
   const [dealerWarrantyOffered, setDealerWarrantyOffered] = useDealDraftState("dealerWarrantyOffered", true);
   const leaseForms = LEASE_TO_OWN_FORM_PACKET.filter((form) => dealerWarrantyOffered || form.id !== LEASE_WARRANTY_FORM_ID);
   const [preparedForms, setPreparedForms] = useDealDraftState<string[]>("preparedForms", []);
-  const [contractPacket, setContractPacket] = useArchivedDealPacket<GeneratedContractPacket>();
+  const [contractPacket, setContractPacket, savedPreview] = useArchivedDealPacket<GeneratedContractPacket>(true);
+  const [generatedFingerprint, setGeneratedFingerprint] = useDealDraftState("generatedPacketFingerprint", "");
+  const generation = useRef<Promise<GeneratedContractPacket | undefined> | null>(null);
+  const [saveIssue, setSaveIssue] = useState(false);
   const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
   const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
@@ -2228,8 +2231,11 @@ function LeaseToOwnExecutionDesk({
   const leaseWarranty = dealerWarrantyOffered ? dealerWarrantyDetails({ deliveryAt: leaseDeliveryIso, deliveryMileage: vehicleFacts.mileage }) : null;
   const calculationError = leaseAgreementCalculationError(calculatorInput, calculator);
   const packetFormCount = leaseForms.length;
-  const preparedPacketCount = leaseForms.filter((form) => form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || preparedForms.includes(form.id)).length;
+  const selectedLeaseForms = preparedForms.length ? preparedForms : leaseForms.map(form => form.id);
+  const preparedPacketCount = leaseForms.filter((form) => form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || selectedLeaseForms.includes(form.id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
+  const previewFingerprint = JSON.stringify({ customerName, vehicle, vehicleFacts, leaseInputs, leaseFacts, dealerWarrantyOffered, forms: [...selectedLeaseForms].sort() });
+  const previewChanged = savedPreview.dirty || Boolean(generatedFingerprint && generatedFingerprint !== previewFingerprint);
 
   function updateLeaseInput(key: keyof typeof leaseInputs, value: string) {
     setContractPacket(null);
@@ -2275,7 +2281,11 @@ function LeaseToOwnExecutionDesk({
 
 
   function togglePreparedForm(id: string) {
-    setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    setContractPacket(null);
+    setPreparedForms((current) => {
+      const selected = current.length ? current : leaseForms.map(form => form.id);
+      return selected.includes(id) ? selected.filter(item => item !== id) : [...selected, id];
+    });
   }
 
   function prepareRequiredForms() {
@@ -2285,13 +2295,19 @@ function LeaseToOwnExecutionDesk({
 
   const getDocumentContext = useContext(DealDocumentContext);
   const identityDraft = useDealDraft();
-  async function generateLeasePacket() {
+  function generateLeasePacket() {
+    if (!generation.current) generation.current = createLeasePacket().finally(() => { generation.current = null; });
+    return generation.current;
+  }
+  async function createLeasePacket() {
+    setSaveIssue(false);
     if (calculationError) {
       setPacketStatus({ kind: "error", message: calculationError });
       return;
     }
     setPacketStatus({ kind: "generating", message: "Generating and archiving lease-to-own packet..." });
     if (identityDraft && !await identityDraft.save()) {
+      setSaveIssue(true);
       setPacketStatus({ kind: "error", message: identityDraft.saveError() || "The deal could not be saved. Check your connection and try again. Your entries remain on this screen." });
       return;
     }
@@ -2333,6 +2349,7 @@ function LeaseToOwnExecutionDesk({
     }
     const generatedPacket = payload as GeneratedContractPacket;
     setContractPacket(generatedPacket);
+    setGeneratedFingerprint(previewFingerprint);
     setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
     setPacketStatus({ kind: "ready", message: `Archived lease packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents));
@@ -2382,10 +2399,18 @@ function LeaseToOwnExecutionDesk({
   }
 
   async function openPacketPreview() {
-    const packet = contractPacket ?? await generateLeasePacket();
+    const packet = contractPacket;
     if (!packet) return;
     setPreviewFormId((current) => current ?? packet.documents[0]?.formId ?? null);
     setPacketPreviewOpen(true);
+  }
+
+  async function retryDealSave() {
+    if (!identityDraft) return;
+    setPacketStatus({ kind: "generating", message: "Retrying the save for this existing deal…" });
+    const saved = await identityDraft.save();
+    setSaveIssue(!saved);
+    setPacketStatus(saved ? { kind: "ready", message: "Deal saved. Select Generate lease packet to prepare the checked forms." } : { kind: "error", message: identityDraft.saveError() || "This deal could not be saved. Your entries remain on this screen." });
   }
 
   return (
@@ -2498,7 +2523,7 @@ function LeaseToOwnExecutionDesk({
           <div>
             <span>Packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedPacketCount}/${packetFormCount} packet forms ready`}</strong>
-            <small>Open the drawer to prepare the lease agreement, binder, Exhibit A, all addenda, and inspection form.</small>
+            <small>Open the packet to preview saved documents or prepare an updated copy. Finalizing the deal is a separate step.</small>
           </div>
           <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open lease packet</button>
         </div>
@@ -2510,23 +2535,24 @@ function LeaseToOwnExecutionDesk({
                 <div>
                   <span>Lease-to-own packet</span>
                   <strong>Prepare, generate, and review lease documents</strong>
-                  <small>Lease forms stay out of the main workspace until staff needs to review, send, print, or archive them.</small>
+                  <small>Check the forms you need, generate the packet, then open its preview. Finalizing the deal is a separate step.</small>
                 </div>
                 <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
               </header>
               <div className={styles.retailFormsCommand}>
                 <div>
-                  <span>Packet forms ready</span>
+                  <span>Selected forms</span>
                   <strong>{preparedPacketCount}/{packetFormCount}</strong>
-                  <small>Prepare the full lease-to-own packet, then remove any addendum that does not apply before generation.</small>
+                  <small>Check the forms below, generate the packet, then preview the saved documents.</small>
                 </div>
-                <button type="button" onClick={prepareRequiredForms}>Prepare full packet</button>
-                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateLeasePacket()}>
-                  {packetStatus.kind === "generating" ? "Generating..." : "Generate lease packet"}
-                </button>
-                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void openPacketPreview()}>{packetStatus.kind === "generating" ? "Generating..." : contractPacket ? "Preview generated packet" : "Generate and preview packet"}</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={prepareRequiredForms}>Prepare full packet</button>
+                <button disabled={packetStatus.kind === "generating" || savedPreview.loading || Boolean(savedPreview.error)} type="button" onClick={() => void generateLeasePacket()}>{packetStatus.kind === "generating" ? "Working…" : "Generate lease packet"}</button>
+                <button disabled={!contractPacket || packetStatus.kind === "generating"} type="button" onClick={() => void openPacketPreview()}>Preview generated packet</button>
               </div>
+              {savedPreview.error ? <div role="alert" className={styles.retailPacketError}><p>{savedPreview.error}</p><button type="button" disabled={savedPreview.loading} onClick={() => void savedPreview.retry()}>Retry opening saved packet</button></div> : null}
+              {contractPacket && previewChanged ? <p role="status" className={styles.retailPacketStatus}>Deal details or selected forms have changed. Preview opens the previous saved copy. Select Generate lease packet to include your changes; previous copies stay saved.</p> : null}
               <PacketFeedback status={packetStatus} closeDrawer={() => setPacketDrawerOpen(false)}><SavedPacketLink packet={contractPacket} /></PacketFeedback>
+              {saveIssue ? <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void retryDealSave()}>Retry saving this deal</button> : null}
               {contractPacket ? (
                 <div className={styles.retailPacketArchive} aria-label="Generated lease packet archive">
                   <div>
@@ -2534,7 +2560,6 @@ function LeaseToOwnExecutionDesk({
                     <strong>{contractPacket.packetNumber}</strong>
                     <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
                   </div>
-                  <button type="button" onClick={openPacketPreview}>Preview packet</button>
                   <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download form</button>
                   <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print form</button>
                   <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
@@ -2544,7 +2569,7 @@ function LeaseToOwnExecutionDesk({
               ) : null}
               <div className={styles.retailFormsGrid}>
                 {leaseForms.map((form) => {
-                  const prepared = form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || preparedForms.includes(form.id);
+                  const prepared = form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID || selectedLeaseForms.includes(form.id);
                   return (
                     <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
                       <input checked={prepared} disabled={form.id === "lease-summary" || form.id === LEASE_WARRANTY_FORM_ID} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
@@ -2564,7 +2589,7 @@ function LeaseToOwnExecutionDesk({
                       <div>
                         <span>Packet preview</span>
                         <strong>{contractPacket.packetNumber}</strong>
-                        <small>Review generated lease forms before download, print, text, or email.</small>
+                        <small>{previewChanged ? "Previous saved copy. Close this preview and generate the checked forms to include your changes." : "Review generated lease forms before download, print, text, or email. Finalization is a separate step."}</small>
                       </div>
                       <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
                     </header>

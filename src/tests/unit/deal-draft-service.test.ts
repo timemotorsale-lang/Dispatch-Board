@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ prisma: { dealDeskDraft: mocks, $transaction: (run: (db: unknown) => unknown) => run({ dealDeskDraft: mocks, vehicleUseBooking: { count: mocks.count } }) } }));
+const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn(), count: vi.fn(), groupBy: vi.fn(), preserved: vi.fn() }));
+vi.mock("@/server/db/client", () => ({ prisma: { dealDeskDraft: mocks, $transaction: (run: (db: unknown) => unknown) => run({ dealDeskDraft: mocks, vehicleUseBooking: { count: mocks.count }, salesDocumentJacket: { findFirst: mocks.preserved } }) } }));
 vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org" }) }));
 import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft, sanitizeDealDraftSnapshot } from "@/server/sales-documents/deal-drafts";
 
@@ -37,6 +37,12 @@ describe("Saved deal draft controls", () => {
     mocks.findUnique.mockResolvedValue({ organizationId: "test-org", ownerUserId: actor.id });
     mocks.updateMany.mockResolvedValue({ count: 0 });
     await expect(saveDealDeskDraft(actor, { ...draft, revision: 1 })).rejects.toMatchObject({ status: 409 });
+  });
+  it("prevents ordinary draft saves from bypassing preserved final paperwork or an unwind review", async () => {
+    mocks.findUnique.mockResolvedValue({ organizationId: "test-org", ownerUserId: actor.id, pathway: "bhph", snapshot: { jackets: { bhph: "jacket-1" } } });
+    mocks.preserved.mockResolvedValue({ id: "jacket-1" });
+    await expect(saveDealDeskDraft(actor, draft)).rejects.toMatchObject({ status: 409 });
+    expect(mocks.updateMany).not.toHaveBeenCalled();
   });
   it("rejects oversized snapshots, invalid pathways and missing working data", async () => {
     await expect(saveDealDeskDraft(actor, { ...draft, pathway: "unknown" })).rejects.toMatchObject({ status: 400 });

@@ -53,22 +53,42 @@ export function useDealDraftState<T>(name: string, initial: T | (() => T)): [T, 
   return [value, update];
 }
 
-export function useArchivedDealPacket<T extends { packetId: string; jacketId?: string }>(): [T | null, (packet: T | null) => void] {
+type ArchivedPacketState<T> = { loading: boolean; error: string; dirty: boolean; retry: () => Promise<T | null> };
+export function useArchivedDealPacket<T extends { packetId: string; jacketId?: string }>(preserveSavedPacket = false): [T | null, (packet: T | null) => void, ArchivedPacketState<T>] {
   const [packetId, setPacketId] = useDealDraftState("generatedPacketId", "");
+  const [dirty, setDirty] = useDealDraftState("generatedPacketDirty", false);
   const [packet, setPacket] = useState<T | null>(null);
   const store = useDealDraft(), pathway = useContext(ScopeContext);
-  useEffect(() => {
-    if (!packetId) return;
-    const controller = new AbortController();
-    void fetch(`/api/crm/v1/contract-packets/${encodeURIComponent(packetId)}`, { signal: controller.signal }).then(async (response) => {
-      if (response.ok && !controller.signal.aborted) setPacket(await response.json());
-    }).catch(() => {});
-    return () => controller.abort();
-  }, [packetId]);
+  const jacketId = (store?.read("jackets") as Record<string, string> | undefined)?.[pathway];
+  const references = (store?.read("references") as Record<string, string> | undefined) ?? {};
+  const hasReference = Object.keys(references).some(key => key === pathway || (key.startsWith("crm-next:document-jacket:") && key.includes(`:${pathway}:`)));
+  const lookup = packetId ? `/api/crm/v1/contract-packets/${encodeURIComponent(packetId)}` : preserveSavedPacket && (jacketId || hasReference) ? `/api/crm/v1/contract-packets?${new URLSearchParams(jacketId ? { jacketId } : { draftId: store!.draftId(), pathway })}` : "";
+  const [loadState, setLoadState] = useState({ url: "", loading: false, error: "" });
+  const current = useRef<T | null>(null), sequence = useRef(0);
+  const load = useCallback(async (signal?: AbortSignal, force = false) => {
+    if (!lookup) return null;
+    if (!force && current.current && (!packetId || current.current.packetId === packetId)) return current.current;
+    const attempt = ++sequence.current;
+    setLoadState({ url: lookup, loading: true, error: "" });
+    try {
+      const timeout = AbortSignal.timeout(30000);
+      const response = await fetch(lookup, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error || "The saved packet could not be opened. Retry loading it before generating another packet.");
+      if (!signal?.aborted && attempt === sequence.current) { current.current = body; setPacket(body); setLoadState({ url: lookup, loading: false, error: "" }); }
+      return body as T | null;
+    } catch (caught) {
+      if (!signal?.aborted && attempt === sequence.current) setLoadState({ url: lookup, loading: false, error: caught instanceof Error && caught.name === "TimeoutError" ? "The saved packet is taking too long to open. Retry loading it; your documents remain saved." : caught instanceof Error ? caught.message : "Connection interrupted while opening the saved packet. Retry loading it." });
+      return null;
+    }
+  }, [lookup, packetId]);
+  useEffect(() => { const controller = new AbortController(); const timer = setTimeout(() => void load(controller.signal), 0); return () => { clearTimeout(timer); controller.abort(); }; }, [load]);
   return [packet, (next) => {
-    setPacket(next); setPacketId(next?.packetId ?? "");
+    if (!next && preserveSavedPacket) { setDirty(true); return; }
+    sequence.current += 1; current.current = next;
+    setPacket(next); setPacketId(next?.packetId ?? ""); setDirty(false);
     if (next?.jacketId) store?.recordJacket(pathway, next.jacketId);
-  }];
+  }, { loading: Boolean(lookup) && !packet && (loadState.url !== lookup || loadState.loading), error: loadState.error, dirty, retry: () => load(undefined, true) }];
 }
 
 function fieldEntries(root: HTMLElement) {

@@ -6,6 +6,7 @@ import { isSalesDocumentPathway } from "@/lib/sales-document-pathways";
 import { isSavedDealStatus, type SavedDealStatus } from "@/lib/saved-deal-status";
 import { requireSalesDocumentsUser } from "./service";
 import { SalesDocumentsError } from "./domain";
+import { buildDealDashboard } from "./dashboard";
 
 type WorkbenchRow = { id: string; draftId: string | null; draftRevision: number | null; jacketId: string | null; customerName: string; vehicleReference: string; pathway: string; status: SavedDealStatus; packetState: string | null; dealNumber: string | null; updatedAt: Date };
 
@@ -40,11 +41,12 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
     SELECT * FROM drafts
     UNION ALL
     SELECT j."id", NULL::text AS "draftId", NULL::integer AS "draftRevision", j."id" AS "jacketId", j."customerName", j."vehicleReference", j."pathway",
-      CASE WHEN EXISTS (SELECT 1 FROM packet_archives a WHERE a."id" = j."id" AND a.archived) THEN 'ARCHIVED' WHEN j."state" = 'CLOSED' THEN 'COMPLETED' WHEN j."state" = 'DELIVERED_FUNDING_PENDING' THEN 'PENDING' ELSE 'IN_PROGRESS' END AS "status",
+      CASE WHEN EXISTS (SELECT 1 FROM packet_archives a WHERE a."id" = j."id" AND a.archived) THEN 'ARCHIVED' WHEN j."state" = 'CLOSED' THEN 'COMPLETED' WHEN j."state" IN ('DELIVERED_FUNDING_PENDING', 'UNWIND_PENDING') THEN 'PENDING' ELSE 'IN_PROGRESS' END AS "status",
       j."state" AS "packetState", j."dealNumber", j."updatedAt"
     FROM "SalesDocumentJacket" j WHERE j."organizationId" = ${organizationId}
       AND NOT EXISTS (SELECT 1 FROM drafts d WHERE d."jacketId" = j."id")
   )`;
+  if (params.get("dashboard") === "1") return buildDealDashboard(user, source, params);
   const pattern = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
   const filters = Prisma.sql`WHERE (${pathway} = 'ALL' OR "pathway" = ${pathway}) AND (${search} = '' OR "customerName" ILIKE ${pattern} OR "vehicleReference" ILIKE ${pattern} OR "dealNumber" ILIKE ${pattern} OR "id" ILIKE ${pattern})`;
   const [items, groups] = await Promise.all([

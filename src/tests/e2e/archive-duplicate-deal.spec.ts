@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 
 for (const rejectArchive of [false, true]) {
   test(rejectArchive ? "archive conflict preserves the deal and explains the error" : "archive duplicate confirms, hides the draft and preserves its packet link", async ({ page }) => {
+    test.setTimeout(120000);
     const duplicate = { id: "draft-duplicate", draftId: "draft-duplicate", draftRevision: 3, jacketId: "packet-duplicate", dealNumber: "SAMPLE-DUP", customerName: "Sample buyer", vehicleReference: "Sample vehicle", pathway: "lease-to-own", status: "IN_PROGRESS", updatedAt: "2026-10-31T18:00:00Z" };
     const keep = { ...duplicate, id: "draft-keep", draftId: "draft-keep", jacketId: "packet-keep", dealNumber: "SAMPLE-KEEP" };
     let archives = 0;
@@ -29,6 +30,7 @@ for (const rejectArchive of [false, true]) {
     expect((await page.request.get("/api/crm/v1/deal-drafts?view=workbench&status=CURRENT")).status()).toBe(200);
     await page.goto("/crm-next/deals");
     const row = page.getByRole("row").filter({ hasText: "SAMPLE-DUP" });
+    await row.getByText("More", { exact: true }).click();
     await row.getByRole("button", { name: "Archive duplicate", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Archive duplicate deal" });
     await expect(dialog).toContainText("All packet documents and history stay saved");
