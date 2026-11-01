@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft } from "@/server/sales-documents/deal-drafts";
+import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft } from "@/server/sales-documents/deal-drafts";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { listDealWorkbench } from "@/server/sales-documents/deal-workbench";
 
@@ -18,4 +18,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try { return NextResponse.json(await saveDealDeskDraft(await getCurrentUser(), await request.json())); }
   catch (error) { return failure(error); }
+}
+
+export async function PATCH(request: Request) {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Use this app to archive the deal." }, { status: 403 });
+  try {
+    const body = await request.json().catch(() => null);
+    if (!body || body.action !== "ARCHIVE_DUPLICATE") throw new SalesDocumentsError("Choose the archive duplicate action.");
+    return NextResponse.json(await archiveDuplicateDealDraft(await getCurrentUser(), body));
+  } catch (error) { return failure(error); }
 }

@@ -24,6 +24,9 @@
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid #ccd6de; padding-bottom: 10px; }
 .tabs button[aria-selected="true"] { background: #e6f3ed; border-color: #328160; }
 .tableWrap { overflow-x: auto; }
+.archiveDialog { box-sizing: border-box; width: min(560px, calc(100vw - 32px)); padding: 24px; border: 1px solid #b8c5ce; border-radius: 8px; color: #183147; background: #fff; }
+.archiveDialog::backdrop { background: rgb(6 23 53 / 45%); }
+.archiveDialog p { overflow-wrap: anywhere; }
 .library table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .library th, .library td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #dce3e9; vertical-align: middle; }
 .library td small { display: block; overflow-wrap: anywhere; margin-top: 4px; color: #536879; font-size: 11px; }

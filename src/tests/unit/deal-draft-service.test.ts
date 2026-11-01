@@ -4,7 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ prisma: { dealDeskDraft: mocks, $transaction: (run: (db: unknown) => unknown) => run({ dealDeskDraft: mocks, vehicleUseBooking: { count: mocks.count } }) } }));
 vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org" }) }));
-import { listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft, sanitizeDealDraftSnapshot } from "@/server/sales-documents/deal-drafts";
+import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft, sanitizeDealDraftSnapshot } from "@/server/sales-documents/deal-drafts";
 
 const actor: AuthenticatedUser = { id: "staff-1", name: "Staff", email: "staff@local.test", isActive: true, roles: ["Sales"], duties: { direct: [], roleDefaults: [], all: [] } };
 const draft = { id: "draft-12345678", revision: 0, pathway: "bhph", customerName: "Buyer", vehicleReference: "Vehicle", snapshot: { "bhph:terms": { salePrice: "$14000", downPayment: "$2000" } } };
@@ -77,5 +77,42 @@ describe("Saved deal draft controls", () => {
     expect(mocks.findMany.mock.calls[0][0]).toMatchObject({ skip: 25, take: 25, where: { organizationId: "test-org", ownerUserId: actor.id, pathway: "bhph", status: "SOLD", OR: expect.any(Array) } });
     expect(mocks.groupBy.mock.calls[0][0].where.status).toBeUndefined();
     expect(mocks.findMany.mock.calls[0][0].select.snapshot).toBeUndefined();
+  });
+});
+
+describe("archive duplicate draft", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.findFirst.mockResolvedValue({ status: "IN_PROGRESS", statusHistory: [], revision: 3 });
+    mocks.count.mockResolvedValue(0);
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+  });
+  it("archives with attribution and revision protection without replacing documents or the snapshot", async () => {
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id, revision: 3 })).resolves.toMatchObject({ status: "ARCHIVED" });
+    expect(mocks.findFirst.mock.calls[0][0].where).toEqual({ id: draft.id, organizationId: "test-org", ownerUserId: actor.id });
+    const update = mocks.updateMany.mock.calls[0][0];
+    expect(update.where).toMatchObject({ revision: 3, status: "IN_PROGRESS", ownerUserId: actor.id });
+    expect(update.data).toEqual({ status: "ARCHIVED", revision: { increment: 1 }, statusHistory: [expect.objectContaining({ actorId: actor.id, from: "IN_PROGRESS", to: "ARCHIVED", reason: "Duplicate deal archived" })] });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("denies unauthenticated, inaccessible and changed drafts", async () => {
+    await expect(archiveDuplicateDealDraft(null, { id: draft.id, revision: 3 })).rejects.toMatchObject({ status: 401 });
+    mocks.findFirst.mockResolvedValueOnce(null);
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id, revision: 3 })).rejects.toMatchObject({ status: 404 });
+    mocks.updateMany.mockResolvedValue({ count: 0 });
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id, revision: 3 })).rejects.toMatchObject({ status: 409 });
+  });
+  it("prevents hiding active vehicle assignments or completed sales", async () => {
+    mocks.count.mockResolvedValueOnce(1);
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id, revision: 3 })).rejects.toThrow("active vehicle assignment");
+    mocks.findFirst.mockResolvedValueOnce({ status: "SOLD" });
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id, revision: 3 })).rejects.toMatchObject({ status: 409 });
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+  });
+  it("does not add repeated archive history or accept missing revisions", async () => {
+    mocks.findFirst.mockResolvedValue({ status: "ARCHIVED" });
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id, revision: 2 })).resolves.toMatchObject({ status: "ARCHIVED" });
+    await expect(archiveDuplicateDealDraft(actor, { id: draft.id })).rejects.toMatchObject({ status: 409 });
+    expect(mocks.updateMany).not.toHaveBeenCalled();
   });
 });
