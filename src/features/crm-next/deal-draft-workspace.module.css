@@ -61,12 +61,12 @@
 .library th, .library td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #dce3e9; vertical-align: middle; }
 .library .compact table { table-layout: fixed; min-width: 900px; font-size: 12px; }
 .library .compact th, .library .compact td { padding: 6px 8px; font-size: 12px; line-height: 1.25; }
-.library .compact th:nth-child(1) { width: 17%; }
-.library .compact th:nth-child(2) { width: 22%; }
-.library .compact th:nth-child(3) { width: 12%; }
-.library .compact th:nth-child(4) { width: 20%; }
-.library .compact th:nth-child(5) { width: 15%; }
-.library .compact th:nth-child(6) { width: 14%; }
+.library .compact th:nth-child(1) { width: 16%; }
+.library .compact th:nth-child(2) { width: 19%; }
+.library .compact th:nth-child(3) { width: 11%; }
+.library .compact th:nth-child(4) { width: 22%; }
+.library .compact th:nth-child(5) { width: 12%; }
+.library .compact th:nth-child(6) { width: 20%; }
 .library .compact .commands svg { display: none; }
 .library .compact button, .library .compact a { white-space: nowrap; font-size: 12px; padding: 5px 6px; }
 .library .metrics strong { font-size: 24px; line-height: 1.2; }
@@ -110,3 +110,24 @@
 .dealDrawer .reportTotals { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .library .progressBadges span { font-size: 10px; line-height: 1.2; padding: 2px 4px; }
 @media(max-width: 600px) { .savedViews { align-items: stretch; }.savedViews label { flex: 1 1 140px; }.savedViews input, .savedViews select { max-width: 100%; }.dealDrawer { padding: 16px; }.dealDrawer .reportTotals { grid-template-columns: 1fr; } }
+.rowActionBar { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.library .rowActionBar > button, .library .rowActionBar > a { white-space: normal; }
+.library .rowStatusTrigger { display: inline-flex; justify-content: space-between; gap: 6px; max-width: 100%; white-space: normal; text-align: left; border-color: transparent; }
+.rowStatusTrigger svg, .rowActionsTrigger svg { display: block; flex: 0 0 auto; }
+.library .rowNextAction > a { display: inline; padding: 0; border: 0; background: transparent; border-radius: 0; text-decoration: underline; text-underline-offset: 2px; white-space: normal; font-size: inherit; }
+.rowPopoverPanel { position: fixed; inset: auto; box-sizing: border-box; margin: 0; padding: 14px; max-width: calc(100vw - 16px); overflow: auto; overscroll-behavior: contain; border: 1px solid #b8c5ce; border-radius: 7px; background: var(--crm-next-panel, #fff); color: #183147; box-shadow: 0 8px 28px #152b4d28; font: 13px/1.4 Arial, sans-serif; }
+.rowPopoverPanel:focus-visible, .rowPopoverPanel :focus-visible { outline: 2px solid #4669c8; outline-offset: 2px; }
+.rowPanelHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.library .rowPanelHeading button { padding: 4px; border: 0; }
+.rowPopoverPanel p { margin: 8px 0; }
+.rowPopoverPanel h3 { margin: 14px 0 6px; font-size: 12px; }
+.rowPopoverPanel small { font-size: 11px; color: #536879; }
+.rowProgress { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 14px 0; }
+.rowProgress dt { font-weight: 600; }
+.rowProgress dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.library .rowPopoverPanel a, .library .rowPopoverPanel button { white-space: normal; }
+.rowActionMenu { padding: 5px; }
+.library .rowActionMenu [role="menuitem"] { display: flex; width: 100%; justify-content: flex-start; box-sizing: border-box; padding: 9px 10px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; line-height: 1.3; font-size: 13px; }
+.rowActionMenu [role="menuitem"]:hover, .rowActionMenu [role="menuitem"]:focus-visible { background: #edf3fb; }
+.rowActionMenu [role="separator"] { height: 1px; margin: 5px; background: #dce3e9; }
+.library .rowActionMenu .rowCautionAction { color: #8f3038; }

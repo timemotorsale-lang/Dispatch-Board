@@ -35,7 +35,8 @@ test(`staff mark sold before paperwork, then finalize the same deal (existing pa
   const login = page.waitForResponse(response => response.url().endsWith("/api/auth/login"));
   await page.getByRole("button", { name: "Sign in", exact: true }).click(); expect((await login).ok()).toBe(true);
   await page.goto("/crm-next/deals");
-  await page.getByRole("button", { name: "Mark sold", exact: true }).click();
+  await page.getByRole("button", { name: "Actions for Sample lease customer", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Mark sold", exact: true }).click();
   const sold = page.getByRole("dialog", { name: "Mark deal sold", exact: true });
   await sold.getByRole("checkbox").check(); await sold.getByRole("button", { name: "Mark deal sold", exact: true }).click();
   const row = page.getByRole("row").filter({ hasText: "D-SAMPLE" });
@@ -52,7 +53,7 @@ test(`staff mark sold before paperwork, then finalize the same deal (existing pa
   await finish.getByRole("checkbox").check(); await finish.getByRole("button", { name: "Finalize paperwork", exact: true }).click();
   await expect(row).toContainText("Sold · finalized");
   await expect(row.locator('[data-status="SOLD"]')).toHaveAttribute("data-finalized", "true");
-  await row.locator("summary").filter({ hasText: "More" }).click(); await row.getByRole("button", { name: "Reopen for corrections", exact: true }).click();
+  await row.getByRole("button", { name: "Actions for Sample lease customer", exact: true }).click(); await page.getByRole("menuitem", { name: "Reopen for corrections", exact: true }).click();
   const reopen = page.getByRole("dialog", { name: "Reopen for corrections", exact: true });
   await reopen.getByLabel("Reason", { exact: true }).fill("Correct the customer mailing address.");
   await reopen.getByRole("button", { name: "Reopen for corrections", exact: true }).click();
@@ -61,7 +62,7 @@ test(`staff mark sold before paperwork, then finalize the same deal (existing pa
   await expect(finish.getByRole("checkbox")).toBeVisible(); await finish.getByRole("checkbox").check();
   await finish.getByRole("button", { name: "Finalize paperwork", exact: true }).click();
   await expect(row).toContainText("Sold · finalized");
-  await row.locator("summary").filter({ hasText: "More" }).click(); await row.getByRole("button", { name: "Request unwind review", exact: true }).click();
+  await row.getByRole("button", { name: "Actions for Sample lease customer", exact: true }).click(); await page.getByRole("menuitem", { name: "Request unwind review", exact: true }).click();
   const unwind = page.getByRole("dialog", { name: "Request unwind review", exact: true });
   await expect(unwind).toContainText("does not refund the customer");
   await unwind.getByLabel("Reason", { exact: true }).fill("Customer requested cancellation; accounting review needed.");
