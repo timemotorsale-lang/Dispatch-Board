@@ -2286,12 +2286,15 @@ function LeaseToOwnExecutionDesk({
   const getDocumentContext = useContext(DealDocumentContext);
   const identityDraft = useDealDraft();
   async function generateLeasePacket() {
-    if (identityDraft && !await identityDraft.save()) return;
     if (calculationError) {
       setPacketStatus({ kind: "error", message: calculationError });
       return;
     }
     setPacketStatus({ kind: "generating", message: "Generating and archiving lease-to-own packet..." });
+    if (identityDraft && !await identityDraft.save()) {
+      setPacketStatus({ kind: "error", message: identityDraft.saveError() || "The deal could not be saved. Check your connection and try again. Your entries remain on this screen." });
+      return;
+    }
     const response = await requestContractPacket({
       body: JSON.stringify({
         customerName,
@@ -2333,6 +2336,7 @@ function LeaseToOwnExecutionDesk({
     setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
     setPacketStatus({ kind: "ready", message: `Archived lease packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents));
+    return generatedPacket;
   }
 
   function packetHtml() {
@@ -2377,9 +2381,10 @@ function LeaseToOwnExecutionDesk({
     setPacketStatus({ kind: "ready", message: `${channel === "email" ? "Email" : "Text"} delivery link queued for ${contractPacket.packetNumber}; signed provider delivery remains governed by CRM communications controls.` });
   }
 
-  function openPacketPreview() {
-    if (!contractPacket) return;
-    setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
+  async function openPacketPreview() {
+    const packet = contractPacket ?? await generateLeasePacket();
+    if (!packet) return;
+    setPreviewFormId((current) => current ?? packet.documents[0]?.formId ?? null);
     setPacketPreviewOpen(true);
   }
 
@@ -2519,7 +2524,7 @@ function LeaseToOwnExecutionDesk({
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateLeasePacket()}>
                   {packetStatus.kind === "generating" ? "Generating..." : "Generate lease packet"}
                 </button>
-                <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void openPacketPreview()}>{packetStatus.kind === "generating" ? "Generating..." : contractPacket ? "Preview generated packet" : "Generate and preview packet"}</button>
               </div>
               <PacketFeedback status={packetStatus} closeDrawer={() => setPacketDrawerOpen(false)}><SavedPacketLink packet={contractPacket} /></PacketFeedback>
               {contractPacket ? (
@@ -4602,15 +4607,7 @@ function DealStartDesk({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  async function applyPreset(preset: DealStartPreset) {
-    if (workflowId !== preset.workflowId && form.customerId && form.vehicle) {
-      if (!window.confirm("Start this as a separate related path? The existing deal and its paperwork will remain saved.")) return;
-      if (!await savedDeal?.save()) return;
-      const params = new URLSearchParams({ new: "1", pathway: preset.workflowId, customerId: form.customerId });
-      if (preset.workflowId === "vehicle-loaner") params.set("sourceDraftId", savedDeal!.draftId());
-      else if (identity.vehicleId) params.set("vehicleId", identity.vehicleId);
-      router.push(`/crm-next/deals/start?${params}`); return;
-    }
+  function applyPreset(preset: DealStartPreset) {
     setSelectedPresetId(preset.id);
     setWorkflowId(preset.workflowId);
     setExecutionOpen(false);

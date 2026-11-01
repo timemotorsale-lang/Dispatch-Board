@@ -11,6 +11,11 @@ export type TaxInput = {
 };
 export type TaxLine = { code: string; rate: string; baseCents: number; taxCents: number };
 export type TaxCalculation = { policy: string; input: TaxInput; baseCents: number; taxCents: number; lines: TaxLine[]; flags: string[] };
+export function taxHistoryDetails(value: unknown) {
+  const object = (item: unknown): Record<string, unknown> => item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
+  const details = object(value), record = object(details.after ?? details.before), snapshot = object(record.snapshot), period = object(details.period);
+  return { snapshot: snapshot.input ? snapshot as unknown as TaxCalculation : null, corrected: Boolean(details.before && details.after), reason: text(details.reason, 500), filingReference: text(period.filingReference, 160), paymentReference: text(details.paymentReference, 160) };
+}
 export function taxMonth(value: unknown) {
   const month = text(value, 7);
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month < "2000-01") throw new MoneyError("Choose a valid reporting month.");
@@ -38,7 +43,7 @@ export function calculateTax(raw: unknown): TaxCalculation {
   };
   if (!input.reference || !input.customer || !input.vehicle) throw new MoneyError("Enter a unique contract reference, customer and vehicle.");
   const amount = (key: "vehicleValue" | "rebates" | "residual" | "trade" | "taxableAdditions" | "rentCharge") => cents(input[key], true);
-  const baseCents = amount("vehicleValue") - amount("rebates") - amount("residual") - amount("trade") + amount("taxableAdditions") + amount("rentCharge");
+  const baseCents = input.kind === "SALE" ? amount("vehicleValue") : amount("vehicleValue") - amount("rebates") - amount("residual") - amount("trade") + amount("taxableAdditions") + amount("rentCharge");
   if (baseCents < 0 || baseCents > 1_000_000_000) throw new MoneyError("The taxable lease price must be between $0 and $10,000,000.");
   const lines: TaxLine[] = [], flags: string[] = [];
   if (input.kind === "LEASE") {
@@ -74,5 +79,9 @@ export function summarizeTax(records: Array<{ id: string; snapshot: TaxCalculati
     grouped.set(key, { ...line, baseCents: (existing?.baseCents ?? 0) + line.baseCents, taxCents: (existing?.taxCents ?? 0) + line.taxCents });
   }
   const lines = [...grouped.values()];
-  return { leaseCount: leases.length, saleCount: sales.length, lines, totalCents: lines.reduce((total, line) => total + line.taxCents, 0), needsReview: leases.filter(row => row.snapshot.flags.length).length };
+  return { leaseCount: leases.length, saleCount: sales.length, contractCount: leases.length + sales.length,
+    taxableLeaseCents: leases.reduce((total, row) => total + row.snapshot.baseCents, 0),
+    recordedSaleBaseCents: sales.reduce((total, row) => total + row.snapshot.baseCents, 0),
+    recordedTaxableCents: [...leases, ...sales].reduce((total, row) => total + row.snapshot.baseCents, 0),
+    lines, totalCents: lines.reduce((total, line) => total + line.taxCents, 0), needsReview: leases.filter(row => row.snapshot.flags.length).length };
 }

@@ -28,7 +28,8 @@ test("compact lease entry, reconciliation, worksheet export and filing handoff",
     await expect(page.getByText("Taxable lease price $10,000.00 · Total upfront tax $687.50", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Save contract", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("Contract recorded");
-    await expect(page.getByText("1 leases · 0 vehicle sales (excluded) · 0 leases need review")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Monthly totals" })).toContainText("Vehicles sold: 0");
+    await expect(page.getByRole("region", { name: "Monthly totals" })).toContainText("Vehicles leased: 1");
     await page.getByRole("button", { name: "Review saved contract" }).click();
     await expect(page.getByText("Browser review customer", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Close details", exact: true }).click();

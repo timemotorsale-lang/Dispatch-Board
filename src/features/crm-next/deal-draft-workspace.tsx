@@ -16,6 +16,7 @@ type Store = {
   write: (key: string, value: unknown) => void;
   seed: (key: string, value: unknown) => void;
   save: () => Promise<boolean>;
+  saveError: () => string;
   recordJacket: (pathway: string, id: string) => void;
   reference: (key: string, renew?: boolean) => string;
 };
@@ -103,6 +104,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
   const [loaded, setLoaded] = useState(false), [epoch, setEpoch] = useState(0), [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [selectedId, setSelectedId] = useState(""), [message, setMessage] = useState("Loading saved deals..."), [error, setError] = useState(""), [busy, setBusy] = useState(false), [conflict, setConflict] = useState(false);
   const blocked = useRef(false);
+  const lastSaveError = useRef("");
   const dealStatus = useRef<SavedDealStatus>("IN_PROGRESS");
   const [currentStatus, setCurrentStatus] = useState<SavedDealStatus>("IN_PROGRESS"), [showLibrary, setShowLibrary] = useState(false);
 
@@ -123,6 +125,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     clearTimeout(timer.current);
     queue.current = queue.current.catch(() => {}).then(async () => {
       if (blocked.current) return;
+      lastSaveError.current = "";
       setBusy(true); setError(""); setMessage("Saving draft...");
       const number = changes.current, payload = JSON.parse(JSON.stringify(snapshot.current)) as Snapshot;
       const form = payload["desk:form"] as Record<string, string> | undefined;
@@ -135,7 +138,8 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
         setMessage(changes.current === number ? `Draft saved at ${new Date(draft.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Unsaved changes");
       } catch (caught) {
         if ((caught as { status?: number }).status === 409) { blocked.current = true; setConflict(true); }
-        setError(caught instanceof Error ? caught.message : "Draft save failed. Your entries remain on this screen."); setMessage("Not saved");
+        lastSaveError.current = caught instanceof Error ? caught.message : "Draft save failed. Your entries remain on this screen.";
+        setError(lastSaveError.current); setMessage("Not saved");
       } finally { setBusy(false); }
     });
     await queue.current;
@@ -149,7 +153,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     if (!blocked.current) timer.current = setTimeout(() => { void save(); }, 1000);
   }, [save]);
   const store = useMemo<Store>(() => ({
-    read: (key) => snapshot.current[key], write, save, draftId: () => id.current,
+    read: (key) => snapshot.current[key], write, save, saveError: () => lastSaveError.current, draftId: () => id.current,
     seed: (key, value) => { if (snapshot.current[key] === undefined) snapshot.current[key] = value; },
     recordJacket: (pathway, jacketId) => write("jackets", { ...(snapshot.current.jackets as Record<string, string> ?? {}), [pathway]: jacketId }),
     reference: (key, renew) => {
@@ -180,6 +184,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     dealStatus.current = draft?.status ?? "IN_PROGRESS"; setCurrentStatus(dealStatus.current);
     if (draft) setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)]);
     changes.current = 0; savedChanges.current = 0; blocked.current = false; setConflict(false);
+    lastSaveError.current = "";
     setSelectedId(draft?.id ?? ""); setError(""); setMessage(draft ? "Saved deal reopened" : "New draft"); setEpoch((value) => value + 1); setLoaded(true);
     setTimeout(() => { initialized.current = true; }, 0);
   }, [initialVehicleFacts]);
