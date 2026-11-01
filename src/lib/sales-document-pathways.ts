@@ -45,7 +45,7 @@ export function salesDocumentRequirements(pathway: SalesDocumentPathway): SalesD
   const base = [
     item("sales-agreement", "Signed purchase agreement", true),
     item("odometer-disclosure", "Odometer disclosure", true),
-    item("title-assignment", "Title transfer documents"),
+    item("title-assignment", "DMV / title transfer paperwork"),
     item("funding-proof", "Payment / funding proof"),
     item("delivery-documents", "Signed delivery record", true),
     item("trade-documents", "Trade-in documents", false, false)

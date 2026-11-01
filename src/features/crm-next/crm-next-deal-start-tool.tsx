@@ -5050,12 +5050,10 @@ function DealStartDesk({
               <div className={styles.retailNextActionBar} aria-label="Lease-to-own next actions">
                 <div>
                   <span>Next action</span>
-                  <strong>{ready ? "Ready to complete intake" : "Save now, complete when required facts are ready"}</strong>
+                  <strong>Mark sold first, then complete signed documents, insurance and DMV/title paperwork</strong>
                 </div>
                 <button type="button" onClick={saveDraft}>Save draft</button>
-                <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
-                  {status.kind === "saving" ? "Completing..." : "Complete intake"}
-                </button>
+                <button disabled={status.kind === "saving"} onClick={() => void savedDeal?.completeSale()} type="button">Mark sold / complete paperwork</button>
               </div>
             </>
           ) : testDriveWorkflow ? (

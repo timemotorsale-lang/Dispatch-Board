@@ -85,14 +85,14 @@ export async function listSalesDocumentJackets(actor: AuthenticatedUser | null, 
 
 export async function getSalesDocumentJacket(actor: AuthenticatedUser | null, id: string) { requireSalesDocumentsUser(actor); return view(await findJacket(id)); }
 
-export async function createSalesDocumentJacket(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
+export async function createSalesDocumentJacket(actor: AuthenticatedUser | null, raw: Record<string, unknown>, transaction?: Transaction) {
   const user = requireSalesDocumentsUser(actor);
   const pathway = text(raw.pathway);
   if (!isSalesDocumentPathway(pathway)) throw new SalesDocumentsError("Choose a supported deal pathway.");
   const customerName = text(raw.customerName), vehicleReference = text(raw.vehicleReference), dealReference = text(raw.dealReference) || randomUUID();
   if (!customerName || !vehicleReference) throw new SalesDocumentsError("Customer and vehicle are required.");
   const organizationId = organization();
-  return prisma.$transaction(async (db) => {
+  const execute = async (db: Transaction) => {
     const existing = await db.salesDocumentJacket.findUnique({ where: { organizationId_dealReference_pathway: { organizationId, dealReference, pathway } }, include });
     if (existing) {
       if (existing.customerName !== customerName || existing.vehicleReference !== vehicleReference) throw new SalesDocumentsError("This deal reference belongs to a different customer or vehicle.", 409);
@@ -103,7 +103,9 @@ export async function createSalesDocumentJacket(actor: AuthenticatedUser | null,
     const jacket = await db.salesDocumentJacket.create({ data: { id, packetId, organizationId, dealReference, dealNumber: text(raw.dealNumber) || `DD-${id.slice(-8).toUpperCase()}`, pathway, customerName, customerId: text(raw.customerId) || null, vehicleReference, vin: text(raw.vin) || null, stockNumber: text(raw.stockNumber) || null, requirements: json(salesDocumentRequirements(pathway)), createdByUserId: user.id }, include });
     await audit(db, jacket, user, "JACKET_CREATED", `Created ${SALES_DOCUMENT_PATHWAYS[pathway]} jacket for ${customerName}.`);
     return view(jacket);
-  }).catch(async (error: unknown) => {
+  };
+  if (transaction) return execute(transaction);
+  return prisma.$transaction(execute).catch(async (error: unknown) => {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
     const existing = await prisma.salesDocumentJacket.findUnique({ where: { organizationId_dealReference_pathway: { organizationId, dealReference, pathway } }, include });
     if (!existing) throw error;

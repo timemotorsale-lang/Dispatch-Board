@@ -35,6 +35,7 @@ export function summarizeDeals(rows: DashboardDeal[], range: { start: string; en
   const sold = current.filter(row => dealGroup(row.pathway) === "SALES" && row.soldDate && row.soldDate >= range.start && row.soldDate <= range.end);
   return { current: current.length, attention: current.filter(row => row.needsAttention).length,
     working: current.filter(row => row.stage === "Working").length, ready: current.filter(row => row.stage === "Ready to finalize").length,
+    paperwork: current.filter(row => row.status === "SOLD" && row.stage !== "Completed").length,
     funding: current.filter(row => row.stage === "Awaiting funding").length, completed: completed.length, sold: sold.length,
     undatedCompleted: current.filter(row => row.stage === "Completed" && !row.completedDate).length,
     groups: Object.entries(DEAL_GROUPS).filter(([key]) => key !== "ALL").map(([key, label]) => ({ key, label,

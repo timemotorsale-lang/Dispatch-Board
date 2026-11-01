@@ -37,7 +37,7 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     if (!body) throw new SalesDocumentsError("Choose a deal action.");
-    if (["FINISH", "REOPEN", "REQUEST_UNWIND"].includes(body.action)) return NextResponse.json(await manageDealLifecycle(await getCurrentUser(), body));
+    if (["MARK_SOLD", "PREPARE_PAPERWORK", "FINISH", "REOPEN", "REQUEST_UNWIND"].includes(body.action)) return NextResponse.json(await manageDealLifecycle(await getCurrentUser(), body));
     if (body.action !== "ARCHIVE_DUPLICATE") throw new SalesDocumentsError("Choose the archive duplicate action.");
     return NextResponse.json(await archiveDuplicateDealDraft(await getCurrentUser(), body));
   } catch (error) { return failure(error); }

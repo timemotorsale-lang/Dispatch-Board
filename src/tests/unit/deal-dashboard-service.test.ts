@@ -10,7 +10,7 @@ const row = (id: string, status = "IN_PROGRESS") => ({ id, draftId: id, draftRev
 describe("scoped deal dashboard", () => {
   beforeEach(() => { vi.resetAllMocks(); mocks.query.mockResolvedValue([]); mocks.jackets.mockResolvedValue([]); mocks.tasks.mockResolvedValue([]); mocks.access.mockRejectedValue({ status: 403 }); });
   it("does not use the last edit as a completion date and keeps undated records out of period totals", async () => {
-    mocks.query.mockResolvedValue([{ ...row("sold", "SOLD"), statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }, row("old", "SOLD"), { ...row("rental", "COMPLETED"), pathway: "daily-rental", statusHistory: [{ to: "COMPLETED", at: "2026-10-31T18:00:00Z" }] }]);
+    mocks.query.mockResolvedValue([{ ...row("sold", "SOLD"), packetState: "CLOSED", statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }, row("old", "COMPLETED"), { ...row("rental", "COMPLETED"), pathway: "daily-rental", statusHistory: [{ to: "COMPLETED", at: "2026-10-31T18:00:00Z" }] }]);
     const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day&bucket=completed"));
     expect(result.total).toBe(2);
     expect(result.dashboard.summary.groups.find(group => group.key === "SALES")?.completed).toBe(1);
@@ -57,5 +57,14 @@ describe("scoped deal dashboard", () => {
     const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=month"));
     expect(result.items[0]).toMatchObject({ stage: "Unwind review pending", soldDate: "2026-10-15", needsAttention: true });
     expect(result.dashboard.summary).toMatchObject({ sold: 1, completed: 0 });
+  });
+  it("counts the sale immediately but keeps paperwork pending until its packet is finalized", async () => {
+    mocks.query.mockResolvedValue([{ ...row("sold-pending", "SOLD"), statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }]);
+    const pending = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day&bucket=paperwork"));
+    expect(pending.items[0]).toMatchObject({ stage: "Sold · paperwork pending", needsAttention: true, nextAction: "Start paperwork checklist" });
+    expect(pending.dashboard.summary).toMatchObject({ sold: 1, completed: 0, paperwork: 1 });
+    mocks.query.mockResolvedValue([{ ...row("sold-pending", "SOLD"), packetState: "CLOSED", statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }]);
+    const complete = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day"));
+    expect(complete.dashboard.summary).toMatchObject({ sold: 1, completed: 1, paperwork: 0 });
   });
 });
