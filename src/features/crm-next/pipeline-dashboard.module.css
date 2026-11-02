@@ -3,3 +3,5 @@
 .overlay{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;padding:0;border:0}.overlay:not([open]){display:none}.workspace :focus-visible{outline:3px solid #4564ce;outline-offset:3px}
 
 .complete{display:inline-block;background:#dff3e6;color:#205b38;padding:4px 7px;border-radius:4px;font-size:12px}
+
+.routines{position:relative;font-size:12px}.routines summary{border:1px solid #c5cfdf;border-radius:6px;padding:8px 12px;background:white}.routines>div{position:absolute;right:0;top:100%;background:white;box-shadow:0 8px 24px #13294322;border:1px solid #dce3ee;border-radius:8px;padding:10px;display:grid;gap:6px;width:230px;z-index:12}.bulkTools{border:1px solid #dce3ee;border-radius:6px;background:white;padding:9px 12px;margin:10px 0;font-size:12px}.notice button{float:right;padding:0 7px!important;background:transparent!important;border:0!important}

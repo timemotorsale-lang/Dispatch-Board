@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/server/auth/current-user";
 import { pipelineCommand, PipelineError, readPipeline, findPipelineMatches } from "@/server/crm-next/pipeline-service";
 import { runPipelineRecovery } from "@/server/crm-next/pipeline-worker";
 import { processPipelineImport, readPipelineImport } from "@/server/crm-next/pipeline-import";
+import { savePipelineTemplate } from "@/server/crm-next/pipeline-templates";
 
 function failure(error: unknown) {
   const reference = crypto.randomUUID().slice(0, 8);
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     if (new TextEncoder().encode(raw).length > 128 * 1024) throw new PipelineError("REQUEST_TOO_LARGE", "Import at most 25 compact inquiry rows per request.", 413);
     const body = JSON.parse(raw), actor = await getCurrentUser();
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new PipelineError("INVALID_INPUT", "Choose a pipeline action.");
+    if (body.action === "SAVE_TEMPLATE") return Response.json(await savePipelineTemplate(actor, body));
     if (body.action === "RECONCILE") return Response.json(await runPipelineRecovery(actor, { cursor: body.cursor, retryFailed: body.retryFailed === true }));
     if (body.action === "BULK") {
       if (!Array.isArray(body.rows) || !body.rows.length || body.rows.length > 25 || !["FOLLOW_UP", "REQUEST_HANDOFF"].includes(body.operation) || typeof body.idempotencyKey !== "string") throw new PipelineError("INVALID_BULK", "Choose up to 25 records and a supported task or handoff operation.");

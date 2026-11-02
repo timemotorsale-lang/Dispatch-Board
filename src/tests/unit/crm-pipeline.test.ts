@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pipelineSignals, resolvePipelinePeriod, type PipelineRow } from "@/lib/crm-pipeline";
 import { defaultPipelineFilters, filterPipelineRows, recordedPipelinePlan } from "@/lib/crm-pipeline-views";
 import { previousPipelineRange, summarizePipeline } from "@/lib/crm-pipeline-reporting";
+import { estimatedPipelineTotal, leadInboxRows, operationRows } from "@/lib/crm-pipeline-workspaces";
 
 const now = new Date("2026-11-01T18:00:00Z");
 function record(overrides: Partial<PipelineRow> = {}): PipelineRow {
@@ -33,6 +34,22 @@ describe("pipeline calendar periods", () => {
   });
 });
 describe("pipeline continuity and historical queues", () => {
+  it("retains qualified inquiries in their own inbox queue and tracks recorded review", () => {
+    const reviewed = record({ id: "reviewed", stage: "QUALIFIED", inquiryReviewedAt: now.toISOString() }), fresh = record();
+    expect(leadInboxRows([reviewed, fresh], "all")).toHaveLength(2);
+    expect(leadInboxRows([reviewed, fresh], "unreviewed")).toEqual([fresh]);
+    expect(leadInboxRows([reviewed, fresh], "qualified")).toEqual([reviewed]);
+  });
+  it("separates operational pathways and keeps sold fulfillment independently accessible", () => {
+    const sale = record(), repair = record({ id: "repair", pathway: "repairs" }), rental = record({ id: "rental", pathway: "daily-rental" }), sold = record({ id: "sold", dealStatus: "SOLD", stage: "WON" });
+    expect(operationRows([sale, repair, rental], "sales")).toEqual([sale]);
+    expect(operationRows([sale, repair, rental], "vehicle_use")).toEqual([rental]);
+    expect(operationRows([sale, sold], "fulfillment")).toEqual([sold]);
+  });
+  it("keeps zero-valued known estimates distinct from an entirely unknown lane", () => {
+    expect(estimatedPipelineTotal([record()])).toEqual({ value: null, unknown: 1 });
+    expect(estimatedPipelineTotal([record(), record({ estimatedValueCents: 0 })])).toEqual({ value: 0, unknown: 1 });
+  });
   it("flags invalid contact and repeated snoozes without discarding the inquiry", () => {
     const signals = pipelineSignals(record({ customerId: null, contact: { phone: "not a phone", email: "missing-at" }, followUpPushCount: 3 }), now);
     expect(signals.filter(([code]) => code === "CONTACT_REVIEW")).toHaveLength(1);

@@ -1,8 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { join } from "node:path";
 
 test("pipeline captures, retains failed form entries, records next work and preserves compact views", async ({ page }) => {
   test.setTimeout(90000);
   test.skip(process.env.PIPELINE_ISOLATED_E2E !== "1", "Requires the dedicated pipeline_it_ database and fixture accounts");
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const reviewScreenshot = async (name: string) => { const dismiss = page.getByRole("button", { name: "Dismiss notice" }); if (await dismiss.count()) await dismiss.click(); await page.evaluate(() => { window.scrollTo(0, 0); document.querySelectorAll("table").forEach(table => { if (table.parentElement) table.parentElement.scrollLeft = 0; }); }); await page.screenshot({ path: join(process.env.PIPELINE_REVIEW_OUTPUT_DIR ?? "work/pipeline-review", name), fullPage: true }); };
   await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: { error: "Outside isolated pipeline workflow test" } }));
   await page.goto("/login");
   await page.getByLabel("Email").fill("pipeline-manager@example.test");
@@ -13,6 +16,8 @@ test("pipeline captures, retains failed form entries, records next work and pres
   await page.goto("/crm-next/pipeline");
   const workspace = page.getByRole("region", { name: "Pipeline operations" });
   await expect(workspace.getByRole("button", { name: "+ Lead", exact: true })).toBeEnabled();
+  const initialWorkspace = await (await page.request.get("/api/crm-next/pipeline")).json();
+  const priorInquiryVersion = Math.max(1, ...(initialWorkspace.templateVersions ?? []).filter((v: { code: string }) => v.code === "inquiry").map((v: { version: number }) => v.version));
   const name = `Browser Pipeline ${Date.now()}`;
   let failOnce = true;
   const keys: string[] = [];
@@ -35,6 +40,14 @@ test("pipeline captures, retains failed form entries, records next work and pres
   expect(keys).toHaveLength(2); expect(keys[0]).toBe(keys[1]);
   const panel = page.getByRole("complementary", { name: `Opportunity ${name}` });
   await expect(panel).toBeVisible(); await expect(panel).toContainText("Link the captured inquiry");
+  const inbox = workspace.getByRole("region", { name: "Leads inbox", exact: true });
+  await expect(inbox.getByRole("columnheader", { name: "Source", exact: true })).toBeVisible();
+  await inbox.getByLabel(`Actions for ${name}`, { exact: true }).click();
+  await inbox.getByRole("button", { name: "Mark inquiry reviewed", exact: true }).click();
+  await expect(inbox.getByRole("row").filter({ hasText: name }).getByLabel("Unreviewed inquiry")).toHaveCount(0);
+  await workspace.getByRole("button", { name: "Close opportunity panel" }).click();
+  await reviewScreenshot("Pipeline Review - Leads Inbox.png");
+  await inbox.getByRole("button", { name, exact: true }).click();
   await panel.getByLabel("Activity completed").selectOption({ label: "Respond to inquiry" });
   await panel.getByLabel("Short note").fill("Synthetic contact reviewed and next appointment discussed");
   await panel.getByLabel("Next action", { exact: true }).first().fill("Confirm synthetic appointment");
@@ -63,9 +76,18 @@ test("pipeline captures, retains failed form entries, records next work and pres
   expect((await download).suggestedFilename()).toBe("time-motor-sales-pipeline.csv");
   await workspace.getByRole("button", { name: "Insights", exact: true }).click();
   await expect(workspace.getByRole("region", { name: "Pipeline performance comparisons" })).toContainText("Mean first response");
+  await reviewScreenshot("Pipeline Review - Insights.png");
+  await workspace.getByRole("button", { name: /Open received inquiries/ }).click();
+  await expect(workspace).toContainText("records from Insights: Inquiries received in selected period");
+  await workspace.getByRole("button", { name: "Return to filtered workspace" }).click();
   await workspace.getByRole("button", { name: "Pipeline", exact: true }).click();
   await workspace.getByRole("button", { name: "Board", exact: true }).click();
   await expect(workspace.getByRole("button", { name: new RegExp(name) }).first()).toBeVisible();
+  await workspace.getByRole("button", { name: /Repairs \d+/ }).click();
+  await expect(workspace.getByRole("region", { name: "Visual pipeline board" })).toContainText("Execution, checkout, repairs");
+  await workspace.getByRole("button", { name: /Sales & leasing \d+/ }).click();
+  if (await workspace.getByRole("button", { name: "Close opportunity panel" }).count()) await workspace.getByRole("button", { name: "Close opportunity panel" }).click();
+  await reviewScreenshot("Pipeline Review - Visual Board.png");
   await workspace.getByRole("button", { name: "List", exact: true }).click();
   await workspace.getByRole("combobox", { name: "Period", exact: true }).selectOption("last_month");
   await workspace.getByRole("combobox", { name: "Date basis", exact: true }).selectOption("received");
@@ -73,6 +95,15 @@ test("pipeline captures, retains failed form entries, records next work and pres
   await workspace.getByRole("combobox", { name: "Work view", exact: true }).selectOption("no_activity");
   await workspace.getByRole("button", { name: "Automation", exact: true }).click();
   await expect(workspace.getByRole("heading", { name: "Internal sequences and recovery" })).toBeVisible();
+  const workbench = workspace.getByRole("region", { name: "Visual automation workbench" });
+  await expect(workbench).toContainText("TRIGGER");
+  await workbench.getByText("Edit a new template version", { exact: true }).click();
+  await workbench.getByLabel("Internal task steps · one per line").fill("Review captured inquiry\nConfirm the next commitment");
+  await workbench.getByLabel("Reason for this version").fill("Synthetic manager review of simplified internal tasks");
+  await workbench.getByRole("button", { name: "Save new template version", exact: true }).click();
+  await expect(workbench.getByText(`Version ${priorInquiryVersion + 1}`, { exact: true })).toBeVisible();
+  await reviewScreenshot("Pipeline Review - Automation.png");
+  await workspace.getByText("Recovery, configuration & inquiry imports", { exact: true }).click();
   const csv = `Name,Source,Reference,Phone,Email,Vehicle\n${name} CSV good,BROWSER_CSV,${name}-good,6125550101,,Test vehicle\n${name} CSV repair,BROWSER_CSV,${name}-repair,${"9".repeat(90)},,Test vehicle\n`;
   await workspace.getByLabel("Inquiry CSV file").setInputFiles({ name: "pipeline-inquiries.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await workspace.getByRole("button", { name: "Import 2 inquiries", exact: true }).click();

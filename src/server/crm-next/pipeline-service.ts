@@ -12,6 +12,7 @@ import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/
 import { dealOrganization } from "@/server/deal-continuity/identities";
 import { persistDealContext } from "@/server/deal-continuity/service";
 import { pipelinePolicy } from "./pipeline-policy";
+import { effectivePipelineTemplate, readPipelineTemplateVersions } from "./pipeline-templates";
 import { PIPELINE_EVIDENCE_CODES, pipelineContactRestrictions, reconcilePipelineEvidence } from "./pipeline-evidence";
 import { localPipelineDate, pipelineMidnight, pipelineSignals, activePipelineRow, PIPELINE_PATHS, PIPELINE_DISPOSITIONS, PIPELINE_SEQUENCES, type PipelineRow, type PipelineWorkspace, type PipelineSequenceCode } from "@/lib/crm-pipeline";
 
@@ -65,6 +66,7 @@ type RecordRow = Prisma.UnifiedCrmOpportunityRecordGetPayload<{ include: typeof 
 function row(record: RecordRow): PipelineRow {
   const state = record.pipelineState, receipt = record.pipelineReceipts[0], enrollment = record.pipelineEnrollments[0], meta = object(state?.metadata);
   return {
+    inquiryReviewedAt: typeof meta.inquiryReviewedAt === "string" ? meta.inquiryReviewedAt : null,
     responseTargetMinutes: pipelinePolicy().responseMinutes,
     followUpPushCount: typeof meta.followUpPushCount === "number" ? meta.followUpPushCount : 0,
     appointments: record.appointmentLinks.filter(l => l.appointment.organizationId === record.organizationId).map(({ appointment: p }) => ({ id: p.id, title: p.title, startsAt: iso(p.startsAt), attendance: p.attendanceStatus, status: p.bookingStatus })),
@@ -80,7 +82,7 @@ function row(record: RecordRow): PipelineRow {
     soldAt: null, completedAt: null, reviewAt: iso(state?.reviewAt), pushCount: state?.pushCount ?? 0, pendingOwnerId: state?.pendingOwnerId ?? null, handoffDueAt: iso(state?.handoffDueAt), dealId: state?.dealId ?? null, dealStatus: null,
     exceptions: record.pipelineExceptions.map(e => ({ ...e, firstSeenAt: e.firstSeenAt.toISOString(), lastSeenAt: e.lastSeenAt.toISOString(), reviewDueAt: e.reviewDueAt.toISOString(), resolvedAt: iso(e.resolvedAt) })),
     tasks: record.taskLinks.map(({ task }) => ({ id: task.id, title: task.title, dueAt: task.dueAt.toISOString(), status: task.status, completedAt: iso(task.completedAt), requiresManagerApproval: task.requiresManagerApproval, assignedUserId: task.assignedUserId })),
-    history: [], sequence: enrollment ? { id: enrollment.id, code: enrollment.code as PipelineSequenceCode, version: enrollment.templateVersion, step: enrollment.step, state: enrollment.state, nextRunAt: iso(enrollment.nextRunAt), reason: enrollment.reason, steps: enrollment.steps as string[] } : null
+    history: [], sequence: enrollment ? { taskId: enrollment.taskId, id: enrollment.id, code: enrollment.code as PipelineSequenceCode, version: enrollment.templateVersion, step: enrollment.step, state: enrollment.state, nextRunAt: iso(enrollment.nextRunAt), reason: enrollment.reason, steps: enrollment.steps as string[] } : null
   };
 }
 async function current(db: Db, a: Access, id: string) {
@@ -157,7 +159,7 @@ export async function readPipeline(actor: AuthenticatedUser | null, page: { curs
   const imports = await prisma.enterpriseCommandLedger.findMany({ where: { organizationId: a.organizationId, domain: "CRM_PIPELINE_IMPORT", status: "FAILED", ...(a.canManage ? {} : { actorUserId: a.actor.id }) }, orderBy: { createdAt: "asc" }, take: 25 });
   const importBatches = imports.map(batch => ({ id: batch.id, receivedAt: batch.createdAt.toISOString(), ownerUserId: batch.actorUserId, remaining: Array.isArray(object(batch.resultSnapshot).rows) ? (object(batch.resultSnapshot).rows as Array<{ ok: boolean }>).filter(r => !r.ok).length : 0, reason: batch.errorMessage ?? "Import needs review" }));
   const tail = visible.at(-1), nextCursor = records.length > 250 && tail ? Buffer.from(JSON.stringify({ updatedAt: tail.updatedAt.toISOString(), id: tail.id })).toString("base64url") : null;
-  return { importBatches, generatedAt: now.toISOString(), actorId: a.actor.id, organizationId: a.organizationId, canManage: a.canManage, canWrite: process.env.CRM_PIPELINE_OPERATIONS !== "READ_ONLY" && evaluateUnifiedCrmCapability(actor, "crm.mutate").allowed, scope: a.canManage ? "Authorized organization records" : "Your owned records and accessible handoffs", rows, owners, customers: customers.map(c => ({ id: c.id, name: c.displayName })), truncated: Boolean(nextCursor) || unlinked.length > 500, nextCursor, moreLeads: unlinked.length > 500, unlinkedLeads: unlinked.slice(0, 500).map(l => ({ id: l.id, title: l.customer.displayName, customerId: l.customerId, ownerUserId: l.ownerUserId, sourceCode: l.sourceCode, stage: l.stage, nextActionAt: l.nextActionAt.toISOString(), createdAt: l.createdAt.toISOString() })), health: { pending, failed, oldestPendingAt: iso(oldest?.createdAt), lastWorkerAt: iso(last?.lastSuccessAt) } };
+  return { templateVersions: await readPipelineTemplateVersions(a.organizationId), importBatches, generatedAt: now.toISOString(), actorId: a.actor.id, organizationId: a.organizationId, canManage: a.canManage, canWrite: process.env.CRM_PIPELINE_OPERATIONS !== "READ_ONLY" && evaluateUnifiedCrmCapability(actor, "crm.mutate").allowed, scope: a.canManage ? "Authorized organization records" : "Your owned records and accessible handoffs", rows, owners, customers: customers.map(c => ({ id: c.id, name: c.displayName })), truncated: Boolean(nextCursor) || unlinked.length > 500, nextCursor, moreLeads: unlinked.length > 500, unlinkedLeads: unlinked.slice(0, 500).map(l => ({ id: l.id, title: l.customer.displayName, customerId: l.customerId, ownerUserId: l.ownerUserId, sourceCode: l.sourceCode, stage: l.stage, nextActionAt: l.nextActionAt.toISOString(), createdAt: l.createdAt.toISOString() })), health: { pending, failed, oldestPendingAt: iso(oldest?.createdAt), lastWorkerAt: iso(last?.lastSuccessAt) } };
 }
 
 export async function findPipelineMatches(actor: AuthenticatedUser | null, query: string) {
@@ -263,6 +265,8 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
             await db.crmPipelineEnrollment.update({ where: { id: enrollment.id }, data: { step: next, state: next >= steps.length ? "COMPLETED" : "ACTIVE", activeKey: next >= steps.length ? null : enrollment.activeKey, nextRunAt: dueAt, taskId: null, reason } });
           }
         }
+      } else if (action === "ACKNOWLEDGE_INQUIRY") {
+        await db.crmPipelineState.update({ where: { opportunityId: id }, data: { metadata: json({ ...object(record.pipelineState?.metadata), inquiryReviewedAt: now.toISOString(), inquiryReviewedBy: a.actor.id }) } });
       } else if (action === "REVIEW_EXCEPTION") {
         const code = text(input.code, "Review item", true, 60);
         if (!(PIPELINE_EVIDENCE_CODES as readonly string[]).includes(code) || !record.pipelineExceptions.some(e => e.code === code)) throw new PipelineError("REVIEW_NOT_AVAILABLE", "This review item is no longer open. Refresh the opportunity.", 409);
@@ -325,13 +329,14 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
         if (action === "REOPEN") await db.crmPipelineState.update({ where: { opportunityId: id }, data: { disposition: "ACTIVE", reviewAt: null } });
         if (toStage === "LOST") await db.crmPipelineEnrollment.updateMany({ where: { opportunityId: id, state: { in: ["ACTIVE", "PAUSED"] } }, data: { state: "STOPPED", activeKey: null, reason, nextRunAt: null } });
       } else if (action === "ENROLL") {
-        const code = text(input.sequenceCode, "Sequence", true, 40) as PipelineSequenceCode, template = PIPELINE_SEQUENCES[code];
+        const code = text(input.sequenceCode, "Sequence", true, 40) as PipelineSequenceCode;
         if (!Object.hasOwn(PIPELINE_SEQUENCES, code)) throw new PipelineError("INVALID_SEQUENCE", "Choose a sequence template.");
+        const template = await effectivePipelineTemplate(db, a.organizationId, code);
         const fulfillment = ["paperwork", "delivery"].includes(code) && record.stage === "WON" && Boolean(record.pipelineState?.dealId);
         if ((!activePipelineRow(row(record)) && !fulfillment) || record.pipelineState?.disposition === "DO_NOT_CONTACT") throw new PipelineError("SEQUENCE_NOT_ELIGIBLE", "This relationship is not eligible for this follow-up sequence.", 409);
         if (record.pipelineEnrollments.some(e => ["ACTIVE", "PAUSED"].includes(e.state))) throw new PipelineError("SEQUENCE_ALREADY_ACTIVE", "Complete or stop the current sequence before starting another. Paused work remains accountable.", 409);
         const nextRunAt = future(input.nextActionDueAt);
-        await db.crmPipelineEnrollment.create({ data: { id: randomUUID(), organizationId: a.organizationId, opportunityId: id, code, steps: [...template.steps], activeKey: id, nextRunAt } });
+        await db.crmPipelineEnrollment.create({ data: { id: randomUUID(), organizationId: a.organizationId, opportunityId: id, code, templateVersion: template.version, steps: [...template.steps], activeKey: id, nextRunAt } });
       } else if (["PAUSE_SEQUENCE", "RESUME_SEQUENCE", "STOP_SEQUENCE"].includes(action)) {
         const enrollment = record.pipelineEnrollments[0]; if (!enrollment || ["COMPLETED", "STOPPED"].includes(enrollment.state)) throw new PipelineError("SEQUENCE_NOT_AVAILABLE", "This sequence is no longer active.", 409);
         const state = action === "PAUSE_SEQUENCE" ? "PAUSED" : action === "RESUME_SEQUENCE" ? "ACTIVE" : "STOPPED";
