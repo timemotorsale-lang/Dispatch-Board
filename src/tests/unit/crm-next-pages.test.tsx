@@ -411,7 +411,9 @@ describe("CRM Next pages", () => {
     expect(timeline).toContain("Customer activity timeline");
     expect(timeline).toContain("No recorded activity yet");
     expect(timeline).not.toContain("Opportunity moved to proposal");
-    expect(pipeline).toContain("Pipeline board");
+    expect(pipeline).toContain('aria-label="Pipeline operations"');
+    expect(pipeline).toContain("Loading authorized pipeline records");
+    for (const area of ["Leads", "Pipeline", "Activities", "Insights", "Automation"]) expect(pipeline).toContain(area);
     expect(appointments).toContain("Appointments");
     expect(testDrives).toContain("Test drives");
     expect(deals).toContain("Saved deals library");
