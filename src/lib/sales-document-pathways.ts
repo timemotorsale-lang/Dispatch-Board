@@ -52,6 +52,7 @@ export function salesDocumentRequirements(pathway: SalesDocumentPathway): SalesD
   ];
   if (pathway !== "wholesale") base.push(item("tax-fee-receipt", "Taxes and fees receipt"), item("buyers-guide", "Buyer's Guide", true), item("binding-contract-disclosure", "Binding contract disclosure", true));
   if (["outside-finance-one-pay", "finance"].includes(pathway)) base.push(item("lender-approval", "Lender approval / stipulations"), item("lienholder", "Lienholder confirmation"));
+  if (pathway === "retail-sale") base.push(item("insurance-proof", "Insurance proof"), item("power-of-attorney", "Limited power of attorney, if used", true, false));
   if (pathway === "bhph") base.push(item("retail-installment-contract", "Signed installment contract", true), item("payment-schedule", "Payment schedule"), item("insurance-proof", "Insurance proof"));
   if (pathway === "lease-to-own") base.push(item("lease-agreement", "Signed lease agreement", true), item("payment-schedule", "Payment schedule"), item("insurance-proof", "Insurance proof"));
   return base;

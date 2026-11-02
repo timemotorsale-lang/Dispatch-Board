@@ -20,6 +20,8 @@ type Store = {
   save: () => Promise<boolean>;
   saveError: () => string;
   completeSale: () => Promise<void>;
+  saleStatus: SavedDealStatus;
+  paperworkComplete: boolean;
   recordJacket: (pathway: string, id: string) => void;
   reference: (key: string, renew?: boolean) => string;
 };
@@ -186,6 +188,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
   }, [save, customers]);
   const store = useMemo<Store>(() => ({
     read: (key) => snapshot.current[key], write, save, saveError: () => lastSaveError.current, draftId: () => id.current,
+    saleStatus: currentStatus, paperworkComplete,
     completeSale: () => openLifecycle(dealStatus.current === "SOLD" ? "FINISH" : "MARK_SOLD"),
     seed: (key, value) => { if (snapshot.current[key] === undefined) snapshot.current[key] = value; },
     recordJacket: (pathway, jacketId) => write("jackets", { ...(snapshot.current.jackets as Record<string, string> ?? {}), [pathway]: jacketId }),
@@ -194,7 +197,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
       if (!references[key] || renew) { const value = crypto.randomUUID(); write("references", { ...references, [key]: value }); return value; }
       return references[key];
     }
-  }), [write, save, openLifecycle]);
+  }), [write, save, openLifecycle, currentStatus, paperworkComplete]);
 
   const install = useCallback(async (draft: Draft | null) => {
     initialized.current = false; clearTimeout(timer.current);
