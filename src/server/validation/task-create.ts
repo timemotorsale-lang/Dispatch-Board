@@ -1,5 +1,6 @@
 import { TaskStatus, TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 
+import { isBroadTaskContext, taskContextAreas, taskContextScopes, type TaskContextArea, type TaskContextScope } from "@/lib/task-context";
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
 const taskCreateAllowedKeys = new Set([
@@ -29,6 +30,9 @@ const taskPriorityValues = new Set(Object.values(TaskTemplatePriority));
 export type NormalizedTaskIntakeMetadata = {
   channel: string;
   contextOmitted: boolean;
+  contextScope?: TaskContextScope;
+  contextDetails?: string;
+  contextAreas?: TaskContextArea[];
   enterpriseControls?: {
     escalationPath: string;
     evidenceRequirement: string;
@@ -246,7 +250,7 @@ function normalizePriority(value: unknown) {
 function normalizeIntakeMetadata(value: unknown) {
   if (value === undefined) return undefined;
   const metadata = assertTaskCreateObject(value);
-  const allowedKeys = new Set(["channel", "contextOmitted", "enterpriseControls", "expectedOutcome", "intakeType", "requiredUpdates", "taskTools"]);
+  const allowedKeys = new Set(["channel", "contextOmitted", "contextScope", "contextDetails", "contextAreas", "enterpriseControls", "expectedOutcome", "intakeType", "requiredUpdates", "taskTools"]);
   for (const key of Object.keys(metadata)) {
     if (!allowedKeys.has(key)) throw new Error(`Task intake metadata contains an unsupported field: "${key}".`);
   }
@@ -263,6 +267,21 @@ function normalizeIntakeMetadata(value: unknown) {
     intakeType: normalizeRequiredText(metadata.intakeType, "Task intake metadata requires an intake type."),
     requiredUpdates: metadata.requiredUpdates.map((item) => normalizeRequiredText(item, "Every required update must be a non-empty string."))
   };
+  if (metadata.contextScope !== undefined) {
+    if (typeof metadata.contextScope !== "string" || !taskContextScopes.some(scope => scope === metadata.contextScope)) throw new Error("Choose a specific-record, inventory, or operations task scope.");
+    normalizedMetadata.contextScope = metadata.contextScope as TaskContextScope;
+    if (isBroadTaskContext(normalizedMetadata.contextScope) && normalizedMetadata.contextOmitted) throw new Error("Inventory and operations scopes have context; do not mark that context as omitted.");
+  }
+  if (metadata.contextDetails !== undefined) {
+    const details = normalizeOptionalText(metadata.contextDetails, "contextDetails");
+    if (details && details.length > 4000) throw new Error("Task scope details must be 4000 characters or fewer.");
+    if (details) normalizedMetadata.contextDetails = details;
+  }
+  if (metadata.contextAreas !== undefined) {
+    const areas = normalizeStringList(metadata.contextAreas, "contextAreas", taskContextAreas.length);
+    if (areas.some(area => !taskContextAreas.some(option => option.value === area))) throw new Error("Choose supported operating areas for this task.");
+    normalizedMetadata.contextAreas = areas as TaskContextArea[];
+  }
   if (metadata.enterpriseControls !== undefined) {
     const controls = assertTaskCreateObject(metadata.enterpriseControls);
     const controlKeys = new Set(["escalationPath", "evidenceRequirement", "reviewCadence", "slaPolicy", "visibility"]);
@@ -355,7 +374,12 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
     if (normalizedInput.title.length < 8) throw new Error("Task intake requires an executable title of at least 8 characters.");
     if (normalizedInput.description.length < 16) throw new Error("Task intake requires clear task details of at least 16 characters.");
     if (intakeMetadata.expectedOutcome.length < 20) throw new Error("Task intake requires an expected outcome of at least 20 characters.");
-    if (intakeTypeRequiresCustomerOrVehicle(intakeMetadata.intakeType) && !intakeMetadata.contextOmitted && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
+    if (isBroadTaskContext(intakeMetadata.contextScope)) {
+      intakeMetadata.contextDetails ||= normalizedInput.description;
+      if (intakeMetadata.contextDetails.length > 4000) throw new Error("Add task scope details of 4000 characters or fewer.");
+      intakeMetadata.contextAreas ||= intakeMetadata.contextScope === "INVENTORY" ? ["INVENTORY"] : [];
+    }
+    if (!isBroadTaskContext(intakeMetadata.contextScope) && (intakeTypeRequiresCustomerOrVehicle(intakeMetadata.intakeType) || (intakeMetadata.contextScope === "SPECIFIC" && intakeMetadata.intakeType !== "Quick Task")) && !intakeMetadata.contextOmitted && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
       throw new Error("Task intake requires customer or vehicle context for this intake type.");
     }
     normalizedInput.intakeMetadata = intakeMetadata;

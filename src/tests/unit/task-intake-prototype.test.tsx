@@ -40,4 +40,13 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain('href="/customers/resolutions"');
     expect(markup).toContain("Return to source console");
   });
+  it("shows the context opt-out directly for manager planning tasks", () => {
+    const markup = renderToStaticMarkup(<EnterpriseTaskIntakePrototype canAssignOthers currentUserId="manager" initialDraft={{ intakeType: "Manager Decision", title: "November 2026 action plans", brief: "Review and assign the main operating goals for November." }} />);
+    expect(markup).toContain("Task scope and context");
+    expect(markup).toContain("No customer or vehicle is needed for this task");
+    expect(markup).toContain('id="task-intake-context"');
+    expect(markup).toContain("Inventory / multiple vehicles");
+    expect(markup).toContain("Operations / action plan");
+  });
+
 });

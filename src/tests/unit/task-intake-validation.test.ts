@@ -131,4 +131,34 @@ describe("task intake validation", () => {
       intakeMetadata: { ...validIntake.intakeMetadata, expectedOutcome: "Call customer" }
     })).toThrow("Task intake requires an expected outcome");
   });
+  it("records an explicit no-context choice for an internal manager planning task", () => {
+    expect(normalizeTaskCreateInput({
+      ...validIntake,
+      title: "November 2026 action plans",
+      description: "Review and assign the main operating goals for November.",
+      vehicleReference: "",
+      workflowArea: "GENERAL_MANAGER",
+      requiresManagerApproval: true,
+      intakeMetadata: { ...validIntake.intakeMetadata, intakeType: "Manager Decision", contextOmitted: true }
+    })).toMatchObject({ requiresManagerApproval: true, intakeMetadata: { intakeType: "Manager Decision", contextOmitted: true } });
+  });
+
+  it.each(["INVENTORY", "OPERATIONS"])("accepts %s scope as real context without a single vehicle", scope => {
+    const result = normalizeTaskCreateInput({ ...validIntake, vehicleReference: "", intakeMetadata: { ...validIntake.intakeMetadata, contextScope: scope, contextDetails: "All active inventory and related November operating work.", contextAreas: ["INVENTORY", "SERVICE"] } });
+    expect(result.intakeMetadata).toMatchObject({ contextOmitted: false, contextScope: scope, contextAreas: ["INVENTORY", "SERVICE"] });
+    expect(result.vehicleReference).toBeUndefined();
+  });
+  it("uses the plan description when broad scope details are not repeated", () => {
+    const result = normalizeTaskCreateInput({ ...validIntake, vehicleReference: "", intakeMetadata: { ...validIntake.intakeMetadata, contextScope: "OPERATIONS" } });
+    expect(result.intakeMetadata?.contextDetails).toBe(validIntake.description);
+  });
+  it("rejects conflicting and unknown scope declarations", () => {
+    for (const extra of [{ contextScope: "UNKNOWN" }, { contextScope: "OPERATIONS", contextOmitted: true }, { contextScope: "OPERATIONS", contextAreas: ["UNKNOWN"] }]) {
+      expect(() => normalizeTaskCreateInput({ ...validIntake, intakeMetadata: { ...validIntake.intakeMetadata, ...extra } })).toThrow();
+    }
+  });
+  it("still requires a link when a specific-record scope is selected", () => {
+    expect(() => normalizeTaskCreateInput({ ...validIntake, vehicleReference: "", intakeMetadata: { ...validIntake.intakeMetadata, contextScope: "SPECIFIC" } })).toThrow(/requires customer or vehicle context/);
+  });
+
 });

@@ -141,6 +141,17 @@ function createTaskReadRepository(): TaskReadRepository {
 }
 
 describe("task read service", () => {
+  it("retains the plan's broad scope for staff after creation", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const repository = createTaskReadRepository();
+    const record = await repository.findTaskById("task-1");
+    if (!record) throw new Error("Fixture unavailable");
+    const result = await getTaskReadModelById(usersByEmail.get("jordan.sales@local.test") ?? null, "task-1", {
+      ...repository, findTaskById: async () => ({ ...record, templateSnapshot: { intake: { contextScope: "OPERATIONS", contextDetails: "November operating priorities", contextAreas: ["INVENTORY", "SERVICE"] } } })
+    });
+    expect(result?.operatingContext).toMatchObject({ scope: "OPERATIONS", label: "Operations / action plan", details: "November operating priorities", areas: ["Inventory management", "Service and reconditioning"] });
+  });
+
   it("exposes an encoded repair-order link for RO assignments", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const repository = createTaskReadRepository();

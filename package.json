@@ -38,7 +38,8 @@
     "db:validate": "prisma validate",
     "test:vendor-billing": "node scripts/check-vendor-billing.mjs",
     "test:vendor-billing-ui": "node scripts/check-vendor-billing-ui.mjs",
-    "vendors:billing-worker": "tsx scripts/run-vendor-billing-worker.ts"
+    "vendors:billing-worker": "tsx scripts/run-vendor-billing-worker.ts",
+    "test:task-intake-ui": "node scripts/check-task-intake-resolution-ui.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

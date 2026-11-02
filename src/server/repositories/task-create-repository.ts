@@ -2,6 +2,7 @@
 
 import type { TaskChecklistItemKind, TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 
+import type { TaskContextArea, TaskContextScope } from "@/lib/task-context";
 import { prisma } from "@/server/db/client";
 
 type TaskCreateDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "task" | "user">;
@@ -94,6 +95,10 @@ export type CreateTaskRecordInput = {
   };
   intakeMetadata?: {
     channel: string;
+    contextOmitted?: boolean;
+    contextScope?: TaskContextScope;
+    contextDetails?: string;
+    contextAreas?: TaskContextArea[];
     expectedOutcome: string;
     intakeType: string;
     requiredUpdates: string[];

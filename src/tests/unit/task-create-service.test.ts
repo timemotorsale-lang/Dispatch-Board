@@ -171,6 +171,18 @@ function createTaskCreateRepositoryHarness(
 }
 
 describe("task create service", () => {
+  it("preserves operating scope and inventory work in a monthly action plan", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const actor = usersByEmail.get("morgan.manager@local.test")!;
+    const { repository, readTasks } = createTaskCreateRepositoryHarness([...usersByEmail.values()].map(user => ({ id: user.id, name: user.name, email: user.email, isActive: user.isActive })));
+    await createManualTask(actor, {
+      assignedUserId: actor.id, boardDate: "2026-11-02", dueAt: "2026-11-02T22:30:00Z", title: "November operational action plan", description: "Manage inventory, service, sales, documentation and collections for November.", workflowArea: "GENERAL_MANAGER",
+      intakeMetadata: { channel: "Internal observation", intakeType: "Operations / Action Plan", expectedOutcome: "Every operating area has owned and dated actions with progress updates.", requiredUpdates: ["Next step"], contextOmitted: false, contextScope: "OPERATIONS", contextAreas: ["INVENTORY", "SERVICE", "SALES"], taskTools: { subtaskTemplates: ["Inventory management"] } }
+    }, repository);
+    expect(readTasks()[0]).toMatchObject({ intakeMetadata: { contextOmitted: false, contextScope: "OPERATIONS", contextDetails: "Manage inventory, service, sales, documentation and collections for November.", contextAreas: ["INVENTORY", "SERVICE", "SALES"], taskTools: { subtaskTemplates: ["Inventory management"] } } });
+    expect(readTasks()[0].vehicleReference).toBeUndefined();
+  });
+
   it("allows managers to create a manual task with the required workflow fields", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-18T15:30:00.000Z"));

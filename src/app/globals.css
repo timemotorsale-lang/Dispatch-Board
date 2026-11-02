@@ -22024,6 +22024,35 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .task-intake-form-footer button.primary:not(:disabled) { border-color:#175fe6; background:#175fe6; color:#fff; cursor:pointer; box-shadow:0 6px 16px rgb(23 95 230 / 20%); }
 .task-intake-form-footer button:not(:disabled) { cursor:pointer; }.task-intake-form-footer button:disabled { cursor:not-allowed; opacity:.62; }
 .task-intake-message.error { color:#b42318; font-weight:800; }
+.task-intake-context-fields { min-width:0; margin:16px; padding:14px; border:1px solid #cbd8e9; border-radius:10px; background:#f7faff; scroll-margin-top:160px; }
+.task-intake-context-fields legend { padding:0 5px; color:#172a44; font-size:15px; font-weight:800; }
+.task-intake-context-fields>p { margin:0 0 12px; color:#405570; font-size:14px; line-height:1.5; }
+.task-intake-context-fields .task-intake-context-block { padding:0; border:0; background:transparent; }
+.task-intake-context-fields label { display:grid; gap:6px; color:#263d5b; font-size:14px; font-weight:600; }
+.task-intake-context-fields input:not([type="checkbox"]) { width:100%; min-width:0; min-height:40px; border:1px solid #bacbe0; border-radius:7px; padding:9px; background:white; color:#172a44; font:inherit; }
+.task-intake-context-fields input:disabled { background:#eaf0f7; }
+.task-intake-context-fields select,.task-intake-context-fields textarea { width:100%; min-width:0; min-height:40px; border:1px solid #bacbe0; border-radius:7px; padding:9px; background:white; color:#172a44; font:inherit; }
+.task-intake-context-fields textarea { resize:vertical; }
+.task-intake-context-fields>label,.task-intake-context-fields>p { margin-bottom:10px; }
+.task-intake-scope-areas { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; min-width:0; padding:12px; border:1px solid #cbd8e9; border-radius:8px; }
+.task-intake-scope-areas>p { grid-column:1 / -1; margin:0; font-size:13px; color:#405570; }
+.task-intake-scope-areas>label { display:flex; align-items:center; gap:8px; min-width:0; }
+.task-intake-scope-picker summary { padding:8px 0; color:#263d5b; font-size:14px; font-weight:700; cursor:pointer; }
+.task-intake-scope-picker summary:focus-visible { outline:3px solid #3166d8; outline-offset:3px; }
+@media (max-width:760px) { .task-intake-scope-areas { grid-template-columns:1fr; } }
+
+.task-intake-context-fields .task-intake-context-omit { display:flex; align-items:center; gap:10px; grid-column:1 / -1; padding-top:8px; }
+.task-intake-context-fields input[type="checkbox"] { flex:0 0 18px; width:18px; height:18px; min-height:18px; padding:0; }
+.task-intake-context-fields:focus-visible,.task-intake-prototype input:focus-visible,.task-intake-prototype select:focus-visible,.task-intake-prototype textarea:focus-visible,.task-intake-prototype button:focus-visible { outline:3px solid #3166d8; outline-offset:3px; }
+.task-intake-resolution { display:grid; gap:10px; margin:0 16px 16px; padding:14px; border:1px solid #d8b45f; border-radius:10px; background:#fff9e9; color:#533c12; }
+.task-intake-resolution h3 { margin:0; font-size:15px; }
+.task-intake-resolution ul { display:grid; gap:10px; margin:0; padding:0; list-style:none; }
+.task-intake-resolution li { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; font-size:14px; line-height:1.5; }
+.task-intake-resolution button,.task-intake-enterprise-panel>button { min-height:40px; border:1px solid #afbfda; border-radius:7px; padding:8px 12px; background:white; color:#183f8c; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+.task-intake-checks>button { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; width:100%; min-height:38px; border:0; border-top:1px solid #dce5f1; padding:7px 0; text-align:left; background:transparent; color:#334b68; font:inherit; font-size:12px; cursor:pointer; }
+.task-intake-checks>button.ready svg { color:#087f45; }.task-intake-checks>button.missing svg { color:#a75a05; }
+@media (max-width:760px) { .task-intake-resolution li { grid-template-columns:1fr; }.task-intake-resolution button { justify-self:start; }.task-intake-context-fields { margin:12px; } }
+
 .task-intake-approval>span:last-child { display:flex; align-items:center; gap:7px; min-height:34px; padding:0 9px; border:1px solid #d7e1ee; border-radius:8px; background:#fff; color:#43536a; font-size:11.5px; font-weight:750; }
 .task-intake-approval input { width:14px!important; min-height:14px!important; margin:0; }
 .task-intake-category-shell { position:fixed; inset:0; z-index:90; }
