@@ -32611,3 +32611,11 @@ html[data-app-theme="dark"] .app-content :where(
   .task-review-worklog, .task-review-compact .etw-task-tool-workspace, .task-review-compact .etw-compact-expanded-panel { padding: 14px 16px; }
   .etw-simple-review .etw-simple-shell { padding: 12px 8px; }
 }
+
+/* Keep Start The Day guidance readable on its dark hero in both app themes. */
+.advisor-coo-effectiveness.full .advisor-start-day-heading > div > p,
+.advisor-coo-tool-page.full .advisor-start-day-heading > div > p {
+  color: #f1f5ff !important;
+  opacity: 1;
+  font-weight: 600;
+}
