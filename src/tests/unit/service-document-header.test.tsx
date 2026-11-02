@@ -2,10 +2,35 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { ServiceDocument } from "@/features/inventory/service-document";
 import type { ServiceDocumentContent } from "@/server/repair-order/service-documents";
+import { readFile, writeFile } from "node:fs/promises";
+import styles from "@/features/inventory/service-document.module.css";
+import { SERVICE_DOCUMENT_PRINT_CSS } from "@/lib/service-document-print";
 
 const content: ServiceDocumentContent = { title: "Official repair estimate", number: "RO-123 / v1", issuedAt: "2026-10-28T18:30:00Z", identity: { customer: "Customer", vehicle: "Actual vehicle", vin: "VIN", vehicleNumber: "VEH-1", concern: "Repair", repairOrderNumber: "RO-123", store: "Time Motor Sales", address: "1101 E. Lake Street, Minneapolis MN 55407", timezone: "America/Chicago" }, lines: [], notes: [] };
 
 describe("branded service document header", () => {
+  it("groups document metadata above the parties, then vehicle and concerns without losing saved details", async () => {
+    const saved = { ...content, identity: { ...content.identity, customer: "Charles Semakula", customerContact: { phone: "612 321 8463", email: "semakula@gmail.com", address: "1101 E. Lake Street, Minneapolis, MN 55407" }, vehicle: "2024 TOYOTA RAV4", vin: "2T3W1RFVXRW333586", stockNumber: "333586", color: "Silver", concern: "Vehicle recently purchased at auction with front-end damage. Inspect damaged front bumper cover and deployed knee and steering-wheel airbags. Confirm repair scope and required parts." }, lines: [{ key: "labor", type: "LABOR", description: "Initial damage inspection", quantity: 1, unitPriceCents: 12500, totalCents: 12500 }], totals: { subtotalCents: 12500, discountCents: 0, taxCents: 0, totalCents: 12500 } };
+    const original = JSON.stringify(saved);
+    const html = renderToStaticMarkup(<ServiceDocument content={saved} sha256="proof" templateVersion="v3" showControls={false} />);
+    const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    expect(header).toContain("Repair Estimate");
+    expect(header).toContain("RO-123 / v1");
+    expect(header).not.toContain("Charles Semakula");
+    expect(html.indexOf("data-document-parties")).toBeLessThan(html.indexOf("data-print-vehicle"));
+    expect(html.indexOf("data-document-customer")).toBeLessThan(html.indexOf("data-print-vehicle"));
+    expect(html.indexOf("data-print-vehicle")).toBeLessThan(html.indexOf("data-document-concern"));
+    expect(html.indexOf("data-document-concern")).toBeLessThan(html.indexOf("<table"));
+    expect(html).toContain(saved.identity.concern);
+    expect(JSON.stringify(saved)).toBe(original);
+    if (process.env.SERVICE_LAYOUT_HTML_OUTPUT) {
+      const css = (await readFile("src/features/inventory/service-document.module.css", "utf8")).replace(/\.([a-zA-Z][\w-]*)/g, (match, key) => styles[key] ? `.${styles[key]}` : match);
+      const logo = await readFile("public/brand/time-motor-sales-horizontal.png");
+      const markup = html.replace(/<img[^>]*>/, `<img class="${styles.logo}" alt="Time Motor Sales" src="data:image/png;base64,${logo.toString("base64")}" />`);
+      await writeFile(process.env.SERVICE_LAYOUT_HTML_OUTPUT, `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;background:#f1f5fa}${css}</style></head><body>${markup}</body></html>`);
+      await writeFile(`${process.env.SERVICE_LAYOUT_HTML_OUTPUT}.print.html`, `<!doctype html><html><head><style>${SERVICE_DOCUMENT_PRINT_CSS}</style></head><body>${markup}</body></html>`);
+    }
+  });
   it("prints approved customer wording and readable expiry without exposing internal invoice notes or changing saved records", () => {
     const saved = { ...content, notes: ["Valid until 2026-11-05T13:51:11.398Z.", "Labor hours are provisional planning allowances, not validated vehicle-specific standards.", "Only separately recorded exact-version customer authorization permits repair execution.", "Native posted invoice. Internal detail", "Authorized planning time 120 minutes", "Source estimate internal-id; authorization hidden."] };
     const original = JSON.stringify(saved);

@@ -3804,6 +3804,77 @@ model CustomerLead {
   @@index([customerId, createdAt])
 }
 
+// Operational metadata extends the canonical opportunity; it is not a second CRM.
+model CrmPipelineState {
+  opportunityId String @id
+  organizationId String
+  pathway String @default("retail-sale")
+  temperature String @default("WARM")
+  disposition String @default("ACTIVE")
+  reviewAt DateTime?
+  pushCount Int @default(0)
+  pendingOwnerId String?
+  handoffDueAt DateTime?
+  dealId String? @unique
+  metadata Json @default("{}")
+  updatedAt DateTime @default(now()) @updatedAt
+  opportunity UnifiedCrmOpportunityRecord @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  @@unique([opportunityId, organizationId])
+  @@index([organizationId, disposition, reviewAt])
+}
+
+model CrmPipelineReceipt {
+  id String @id
+  organizationId String
+  opportunityId String
+  sourceCode String
+  sourceKey String
+  requestHash String
+  payload Json
+  receivedAt DateTime @default(now())
+  opportunity UnifiedCrmOpportunityRecord @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  @@unique([organizationId, sourceCode, sourceKey])
+  @@index([organizationId, receivedAt])
+}
+
+model CrmPipelineException {
+  id String @id
+  organizationId String
+  opportunityId String
+  code String
+  state String @default("OPEN")
+  reason String
+  ownerUserId String?
+  queue String @default("Intake manager")
+  firstSeenAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  reviewDueAt DateTime
+  resolvedAt DateTime?
+  resolution String?
+  opportunity UnifiedCrmOpportunityRecord @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  @@unique([opportunityId, code])
+  @@index([organizationId, state, reviewDueAt])
+}
+
+model CrmPipelineEnrollment {
+  id String @id
+  organizationId String
+  opportunityId String
+  code String
+  templateVersion Int @default(1)
+  steps Json
+  step Int @default(0)
+  state String @default("ACTIVE")
+  activeKey String? @unique
+  nextRunAt DateTime?
+  reason String?
+  taskId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  opportunity UnifiedCrmOpportunityRecord @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  @@index([organizationId, state, nextRunAt])
+}
+
 model CustomerLeadTaskLink {
   id         String       @id @default(cuid())
   leadId     String
@@ -3819,6 +3890,10 @@ model CustomerLeadTaskLink {
 }
 
 model UnifiedCrmOpportunityRecord {
+  pipelineState       CrmPipelineState?
+  pipelineReceipts    CrmPipelineReceipt[]
+  pipelineExceptions  CrmPipelineException[]
+  pipelineEnrollments CrmPipelineEnrollment[]
   id                  String                                 @id @default(cuid())
   organizationId      String
   opportunityNumber   String
@@ -3853,6 +3928,7 @@ model UnifiedCrmOpportunityRecord {
   quotes              UnifiedCrmQuoteRecord[]
 
   @@unique([organizationId, opportunityNumber])
+  @@unique([id, organizationId])
   @@index([organizationId, stage, nextActionDueAt])
   @@index([organizationId, ownerUserId, updatedAt])
   @@index([customerId, updatedAt])

@@ -46,6 +46,22 @@ export async function readDealDeskDraft(actor: AuthenticatedUser | null, id: str
   return draft;
 }
 
+export async function archiveDuplicateDealDraft(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
+  const access = scope(actor), id = text(raw.id);
+  if (!id || !Number.isInteger(raw.revision) || Number(raw.revision) < 0) throw new SalesDocumentsError("Refresh the deals list before archiving.", 409);
+  return prisma.$transaction(async db => {
+    const current = await db.dealDeskDraft.findFirst({ where: { ...access, id } });
+    if (!current) throw new SalesDocumentsError("Saved deal draft was not found.", 404);
+    if (current.status === "ARCHIVED") return { id, status: "ARCHIVED" };
+    if (!["IN_PROGRESS", "PENDING"].includes(current.status)) throw new SalesDocumentsError("Only working or pending duplicate drafts can be archived here.", 409);
+    if (await db.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before archiving this deal.", 409);
+    const history = Array.isArray(current.statusHistory) ? current.statusHistory : [];
+    const updated = await db.dealDeskDraft.updateMany({ where: { ...access, id, revision: Number(raw.revision), status: current.status }, data: { status: "ARCHIVED", revision: { increment: 1 }, statusHistory: [...history, { from: current.status, to: "ARCHIVED", actorId: access.ownerUserId, at: new Date().toISOString(), reason: "Duplicate deal archived" }] as Prisma.InputJsonValue } });
+    if (updated.count !== 1) throw new SalesDocumentsError("This deal changed in another window. Refresh the list and review it before archiving.", 409);
+    return { id, status: "ARCHIVED" };
+  });
+}
+
 export async function saveDealDeskDraft(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
   const access = scope(actor), id = text(raw.id), pathway = text(raw.pathway);
   if (raw.status !== undefined && !isSavedDealStatus(raw.status)) throw new SalesDocumentsError("Choose a valid deal status.");
@@ -70,6 +86,14 @@ export async function saveDealDeskDraft(actor: AuthenticatedUser | null, raw: Re
       return created;
     }
     if (current.organizationId !== access.organizationId || current.ownerUserId !== access.ownerUserId) throw new SalesDocumentsError("Saved deal draft was not found.", 404);
+    const savedSnapshot = current.snapshot && typeof current.snapshot === "object" && !Array.isArray(current.snapshot) ? current.snapshot : {};
+    const savedJackets = savedSnapshot.jackets && typeof savedSnapshot.jackets === "object" && !Array.isArray(savedSnapshot.jackets) ? savedSnapshot.jackets : {};
+    const savedReferences = savedSnapshot.references && typeof savedSnapshot.references === "object" && !Array.isArray(savedSnapshot.references) ? savedSnapshot.references : {};
+    const savedJacket = savedJackets[current.pathway], savedReference = savedReferences[current.pathway];
+    if (typeof savedJacket === "string" || typeof savedReference === "string") {
+      const preserved = await db.salesDocumentJacket.findFirst({ where: { organizationId: access.organizationId, pathway: current.pathway, ...(typeof savedJacket === "string" ? { id: savedJacket } : { dealReference: savedReference as string }), state: { in: ["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"] } }, select: { id: true } });
+      if (preserved) throw new SalesDocumentsError("This deal has preserved final paperwork or a pending unwind review. A manager must reopen finalized deals for corrections from the Deals list.", 409);
+    }
     const previousIdentity = current.snapshot && typeof current.snapshot === "object" && !Array.isArray(current.snapshot) ? current.snapshot["desk:identity"] : null;
     if (previousIdentity && typeof previousIdentity === "object" && !Array.isArray(previousIdentity) && previousIdentity.customerId && !identity?.customerId) throw new SalesDocumentsError("Keep the shared customer link when saving this deal. Use the selector to change customer through a separate deal.");
     if (current.pathway !== pathway && await db.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before changing its deal path.", 409);

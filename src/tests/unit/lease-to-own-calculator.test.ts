@@ -13,14 +13,13 @@ describe("lease-to-own calculator", () => {
     wholesaleCostCents: 1900000
   };
 
-  it.each(["Monthly", "Weekly", "BiWeekly"] as const)("solves a whole term from the target for %s payments without changing the formula", (paymentFrequency) => {
+  it.each(["Monthly", "Weekly", "BiWeekly"] as const)("keeps the exact target for %s regular payments and reconciles the final payment", (paymentFrequency) => {
     const input = { ...paymentInput, paymentFrequency };
     const output = calculateLeaseToOwn(input);
     expect(output.contractLength).toBe(72);
-    expect(output.totalPeriodicPaymentCents).toBe(24958);
-    expect(output.finalPeriodicPaymentCents).toBe(24989);
-    expect(output.totalPeriodicPaymentCents).toBeLessThanOrEqual(input.targetPaymentCents);
-    expect(output).toEqual(calculateLeaseToOwn({ ...input, calculationMode: "TERM", contractLength: 72 }));
+    expect(output.totalPeriodicPaymentCents).toBe(25000);
+    expect(output.finalPeriodicPaymentCents).toBe(22007);
+    expect(output.totalPeriodicPaymentCents * 71 + output.finalPeriodicPaymentCents).toBe(output.totalBasePeriodicPaymentsCents);
     expect(leaseAgreementCalculationError(input, output)).toBeNull();
   });
 
@@ -28,18 +27,19 @@ describe("lease-to-own calculator", () => {
     const input = { ...paymentInput, signingPaymentMode: "DOWN_PAYMENT" as const, downPaymentCents: 1968064 };
     const output = calculateLeaseToOwn(input);
     expect(output.contractLength).toBe(72);
-    expect(output.capitalizedCostReductionCents).toBe(1619235);
+    expect(output.capitalizedCostReductionCents).toBe(1619193);
     expect(output.amountDueAtSigningCents).toBe(1968064);
-    expect(output).toEqual(calculateLeaseToOwn({ ...input, calculationMode: "TERM", contractLength: 72 }));
+    expect(output.firstPeriodicPaymentCents).toBe(25000);
+    expect(output.finalPeriodicPaymentCents).toBe(22007);
     expect(leaseAgreementCalculationError(input, output)).toBeNull();
   });
 
-  it("lengthens the term when signing cash cannot cover the target first payment", () => {
+  it("reports insufficient signing cash without silently lowering the selected payment", () => {
     const input = { ...paymentInput, targetPaymentCents: 50000, signingPaymentMode: "DOWN_PAYMENT" as const, downPaymentCents: 343871 };
     const output = calculateLeaseToOwn(input);
-    expect(output.totalPeriodicPaymentCents).toBeLessThanOrEqual(20000);
-    expect(output.signingShortfallCents).toBeLessThanOrEqual(1);
-    expect(leaseAgreementCalculationError(input, output)).toBeNull();
+    expect(output.totalPeriodicPaymentCents).toBe(50000);
+    expect(output.signingShortfallCents).toBeGreaterThan(0);
+    expect(leaseAgreementCalculationError(input, output)).toContain("selected first payment");
   });
 
   it.each([0, -100, NaN, Infinity, 0.5])("rejects invalid target payment %s", (targetPaymentCents) => {

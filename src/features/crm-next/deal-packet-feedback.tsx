@@ -30,6 +30,7 @@ export function goToDealBlocker(message: string, source: HTMLElement, closeDrawe
   if (!target) return;
   if (!target.closest("aside")) closeDrawer?.();
   const destination = target;
+  for (let ancestor = destination.parentElement; ancestor; ancestor = ancestor.parentElement) if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
   requestAnimationFrame(() => {
     if (!destination.matches(editable)) destination.tabIndex = -1;
     destination.focus({ preventScroll: true });
@@ -40,10 +41,13 @@ export function goToDealBlocker(message: string, source: HTMLElement, closeDrawe
 export function PacketFeedback({ status, closeDrawer, children }: { status: { kind: string; message: string }; closeDrawer?: () => void; children?: ReactNode }) {
   if (status.kind === "idle") return null;
   const correction = status.kind === "error" ? packetCorrection(status.message) : null;
-  const storage = /sales documents|document storage|database|save outcome|could not be saved|saving the packet/i.test(status.message);
+  const draftSave = /saved-deal|saved deal|saving this same deal|deal from saving|while checking the deal|draft could not be saved or opened/i.test(status.message);
+  const storage = !draftSave && /sales documents|document storage|database|save outcome|could not be saved|saving the packet/i.test(status.message);
+  const preserved = /preserved final|reopen.*correction|finalized deals|pending unwind/i.test(status.message);
   return <div role={status.kind === "error" ? "alert" : "status"} className={status.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>
     <p>{status.message}</p>
-    {correction && !storage ? <button type="button" onClick={(event) => goToDealBlocker(status.message, event.currentTarget, closeDrawer)}>Go to blocker <ArrowRight size={16} /></button> : null}
+    {correction && !storage && !preserved && !draftSave ? <button type="button" onClick={(event) => goToDealBlocker(status.message, event.currentTarget, closeDrawer)}>Go to blocker <ArrowRight size={16} /></button> : null}
+    {preserved ? <Link href="/crm-next/deals">Open deal actions</Link> : null}
     {storage ? <Link href="/sales-documents">Open Sales Documents</Link> : null}
     {/sign in/i.test(status.message) ? <Link href="/login">Sign in</Link> : null}
     {children}

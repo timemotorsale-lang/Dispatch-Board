@@ -25,7 +25,17 @@ function dateOffset(days: number) {
 }
 
 function dateTimeOffset(days: number, hour: number) {
+  if (days === 0 && new Date(`${dateOffset(days)}T${String(hour).padStart(2, "0")}:00`).getTime() <= Date.now()) {
+    const next = new Date(Date.now() + 60 * 60 * 1000);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}T${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`;
+  }
   return `${dateOffset(days)}T${String(hour).padStart(2, "0")}:00`;
+}
+
+export function reminderDateToIso(value: string, now = Date.now()) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.getTime() > now ? date.toISOString() : null;
 }
 
 function isDateField(label: string) {
@@ -104,13 +114,19 @@ export function CrmNextDirectActionForm({
       setSavedMessage("This action needs a verified Customer 360 record before it can save. Open the customer record, then use Add Note from that customer.");
       return;
     }
+    const reminderDueAt = actionId === "set-reminder" ? reminderDateToIso(dateFieldValue(fields, dateValues, "Reminder")) : null;
+    if (actionId === "set-reminder" && (!reminderDueAt || fieldValue(fields, values, "Reminder note").length < 3)) {
+      setSaveFailed(true);
+      setSavedMessage("Enter a reminder note (at least 3 characters) and choose a future date and time.");
+      return;
+    }
     setIsSaving(true);
     setSavedMessage(null);
     setSavedHref(null);
     setSaveFailed(false);
     try {
       const fingerprint = JSON.stringify({ actionId, customerId, values, dateValues });
-      if (requestRef.current?.fingerprint !== fingerprint) requestRef.current = { fingerprint, key: makeIdempotencyKey(actionId, customerId), dueAt: dueDateToIso(dateFieldValue(fields, dateValues, "Due")) };
+      if (requestRef.current?.fingerprint !== fingerprint) requestRef.current = { fingerprint, key: makeIdempotencyKey(actionId, customerId), dueAt: reminderDueAt ?? dueDateToIso(dateFieldValue(fields, dateValues, "Due")) };
       const idempotencyKey = requestRef.current.key;
       let response: Response;
       if (actionId === "add-note") {
@@ -124,12 +140,12 @@ export function CrmNextDirectActionForm({
           headers: { "content-type": "application/json" },
           method: "POST"
         });
-      } else if (actionId === "new-task") {
-        const task = fieldValue(fields, values, "Task") || nextAction;
+      } else if (actionId === "new-task" || actionId === "set-reminder") {
+        const task = actionId === "set-reminder" ? `Reminder: ${fieldValue(fields, values, "Reminder note")}`.slice(0, 240) : fieldValue(fields, values, "Task") || nextAction;
         response = await fetch(`/api/crm-next/customers/${encodeURIComponent(customerId)}/actions`, {
           body: JSON.stringify({
             action: "new-task",
-            brief: `${task}\n\nCustomer: ${customerName}\nSource: Customer Console action.`,
+            brief: `${task}\n\nCustomer: ${customerName}\nSource: Customer Console ${actionId === "set-reminder" ? "reminder" : "action"}.`,
             dueAt: requestRef.current.dueAt,
             idempotencyKey,
             title: task

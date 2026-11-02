@@ -32,4 +32,14 @@ describe("Deal workbench retrieval", () => {
     for (const query of ["status=UNKNOWN", "pathway=UNKNOWN", "page=0"]) await expect(listDealWorkbench(actor, new URLSearchParams(query))).rejects.toMatchObject({ status: 400 });
     expect(mocks.query).not.toHaveBeenCalled();
   });
+  it("excludes archived drafts from current totals while keeping archived packets linked", async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ status: "IN_PROGRESS", count: 2n }, { status: "ARCHIVED", count: 3n }]);
+    expect(await listDealWorkbench(actor, new URLSearchParams("status=CURRENT"))).toMatchObject({ total: 2, counts: { ARCHIVED: 3 } });
+    const query = mocks.query.mock.calls[0][0].text;
+    expect(query).toContain('"status" <> \'ARCHIVED\'');
+    expect(query).toContain('d."revision" AS "draftRevision"');
+    expect(query).toContain('NOT EXISTS (SELECT 1 FROM drafts');
+    expect(query).toContain('BOOL_AND(d."status" = \'ARCHIVED\')');
+    expect(query).toContain('SELECT 1 FROM packet_archives');
+  });
 });

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
+import { PipelineDashboard } from "@/features/crm-next/pipeline-dashboard";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
 import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft } from "@/features/crm-next/crm-next-deal-start-tool";
 import { SavedDealsLibrary } from "@/features/crm-next/saved-deals-library";
@@ -71,6 +72,7 @@ function crmNextActionSearchHref(actionId: string) {
 function crmNextActionLabel(actionId: string) {
   if (actionId === "add-note") return "Add Note";
   if (actionId === "new-task") return "Create CRM Task";
+  if (actionId === "set-reminder") return "Set Reminder";
   if (actionId === "new-case") return "New Case";
   if (actionId === "log-call") return "Log Call";
   if (actionId === "schedule-appointment") return "Schedule Appointment";
@@ -78,7 +80,7 @@ function crmNextActionLabel(actionId: string) {
 }
 
 function validReturnAction(actionId?: string) {
-  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment", "upload-document"].includes(actionId ?? "") ? actionId : undefined;
+  return ["add-note", "new-task", "set-reminder", "new-case", "log-call", "schedule-appointment", "upload-document"].includes(actionId ?? "") ? actionId : undefined;
 }
 
 function crmNextTimelineHref(customerId?: string) {
@@ -90,6 +92,14 @@ function salesWorkbenchHref(customer: CrmNextCustomer360) {
 }
 
 function directActionWorkspace(action: CrmNextOperatingAction, customerName: string, nextAction: string) {
+  if (action.id === "set-reminder") {
+    return {
+      button: "Save Reminder",
+      fields: [{ label: "Reminder note", placeholder: "What do you need to follow up on?" }, { label: "Reminder", placeholder: "Choose a future date and time in your local time zone." }],
+      status: `Save a reminder linked to ${customerName}, assigned to you in your staff task queue. No text or email is sent.`,
+      title: "Set customer reminder"
+    };
+  }
   if (action.id === "log-call") {
     return {
       button: "Log call when phone is wired",
@@ -1554,19 +1564,7 @@ export function CrmNextPipelineView({ model }: { model: CrmNextCommandCenter }) 
   return (
     <CrmNextFrame active="pipeline" userName={model.userName}>
       <Topbar />
-      <section className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>Pipeline</span>
-          <h1>Pipeline board</h1>
-          <p>Review lead and opportunity flow, owners, value, stage, and next action.</p>
-        </div>
-        <div className={styles.quickActions}>
-          <Link className={styles.secondaryButton} href="/crm-next/deals">Deals</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/test-drives">Test drives</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/appointments">Appointments</Link>
-        </div>
-      </section>
-      <SalesTable records={model.sales.opportunities} title="Opportunities" summary="Stage, amount, owner, and next action are visible for the sales team." />
+      <PipelineDashboard />
     </CrmNextFrame>
   );
 }
@@ -1614,7 +1612,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
         renderHeaderAction={(pathway) => {
           const params = new URLSearchParams({ new: "1" });
           if (pathway !== "ALL") params.set("pathway", pathway);
-          return <>{pathway !== "repairs" ? <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1&pathway=repairs`}>Start Repair</Link> : null}<Link href={`${CRM_NEXT_DEAL_START_HREF}?${params}`}><UserPlus size={16} />{pathway === "repairs" ? "Start Repair" : "Start Deal"}</Link></>;
+          return <>{pathway !== "repairs" ? <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1&pathway=repairs`}>Start Repair</Link> : null}<Link href={`${CRM_NEXT_DEAL_START_HREF}?${params}`}><UserPlus size={16} />{pathway === "repairs" ? "Start Repair" : pathway === "lease-to-own" ? "Start Lease" : ["daily-rental", "vehicle-loaner", "test-drive"].includes(pathway) ? "Start Vehicle Use" : "Start Deal"}</Link></>;
         }}
         disabled={false}
         refreshKey="deals-page"
@@ -2584,12 +2582,14 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
     : backHref;
   const workspace = directActionWorkspace(action, customerDisplayName, relatedCustomer?.nextAction ?? action.response);
   const actionTruth = crmActionSourceTruth(action.id);
-  const isCrmTaskAction = action.id === "new-task";
+  const isCrmTaskAction = action.id === "new-task" || action.id === "set-reminder";
   const isCaseAction = action.id === "new-case";
   const isHeldProviderAction = actionTruth.status === "Not wired" || actionTruth.status === "Hidden";
   const isLiveAction = actionTruth.status === "Live";
   const successMessage = action.id === "add-note"
     ? `Note saved to ${customerDisplayName}'s CRM timeline.`
+    : action.id === "set-reminder"
+      ? `Reminder saved for ${customerDisplayName} in your staff task queue.`
     : action.id === "new-case"
       ? `Case prepared for ${customerDisplayName} with reminder, task, queue, and escalation routing.`
       : action.id === "new-task"

@@ -154,12 +154,14 @@ describe("CRM Next access and safe bridge", () => {
       "send-email",
       "send-text",
       "new-task",
+      "set-reminder",
       "add-note",
       "new-case",
       "schedule-appointment",
       "upload-document"
     ]);
     expect(model.operatingActions.find((action) => action.id === "schedule-appointment")?.state).toBe("SAFE_ROUTE");
+    expect(model.operatingActions.find((action) => action.id === "set-reminder")?.state).toBe("SAFE_ROUTE");
     expect(model.operatingActions.find((action) => action.id === "send-email")?.state).toBe("HELD");
 
     process.env.CRM_NEXT = "DOGFOOD";

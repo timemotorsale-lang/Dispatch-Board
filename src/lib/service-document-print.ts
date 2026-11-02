@@ -6,16 +6,26 @@ export const SERVICE_DOCUMENT_PRINT_CSS = `
 * { box-sizing: border-box; }
 body { margin: 0; background: white; color: #172334; font: 11px/1.5 Arial, sans-serif; }
 article { width: 100%; max-width: 900px; margin: 24px auto; padding: 20px; }
-header { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; border-top: 4px solid #244f87; border-bottom: 1px solid #cad6e5; padding: 20px 0; margin-bottom: 18px; break-inside: avoid; }
-header img { display: block; width: 240px; max-width: 100%; height: auto; margin-bottom: 12px; }
-h1 { margin: 6px 0 14px; font-size: 23px; } h2 { font-size: 13px; break-after: avoid; }
-header p { margin: 6px 0; } header a { color: #244f87; margin-right: 12px; }
-header > div:last-child { background: #f1f5fa; padding: 16px; border-radius: 8px; }
-header > div:last-child > div { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-header span, header strong, header small { display: block; }
-header span { color: #526477; font-size: 10px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 4px solid #244f87; border-bottom: 1px solid #cad6e5; padding: 16px 0; break-inside: avoid; }
+h1 { margin: 0; font-size: 25px; line-height: 1.2; color: #142e4d; } h2 { font-size: 13px; break-after: avoid; }
+header > div { min-width: 0; text-align: right; font-size: 10px; overflow-wrap: anywhere; }
+header span, header strong { display: block; } header span { color: #526477; }
+[data-document-parties] { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; padding: 8px 0; break-inside: avoid; }
+[data-document-brand] { min-width: 0; font-size: 10px; color: #526477; }
+[data-document-brand] img { display: block; width: 240px; max-width: 100%; height: auto; margin-bottom: 12px; }
+[data-document-brand] a { color: #244f87; display: inline-block; margin: 4px 12px 0 0; overflow-wrap: anywhere; }
+[data-document-brand] > p:first-of-type { font-weight: bold; letter-spacing: 1.5px; color: #3b608b; }
+[data-document-customer] { min-width: 0; padding-left: 24px; border-left: 1px solid #cad6e5; overflow-wrap: anywhere; }
+[data-document-customer] > p { font-size: 18px; font-weight: bold; margin: 8px 0 10px; }
+[data-document-customer] h2, [data-print-vehicle] h2, [data-document-concern] h2 { font-size: 9px; letter-spacing: 1.2px; color: #3b608b; margin: 0 0 6px; }
 section { margin: 14px 0; } section p { margin: 4px 0; }
-[data-print-vehicle] { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 10px; color: #526477; }
+[data-print-vehicle] { display: flex; flex-wrap: wrap; gap: 10px 14px; padding: 12px; border: 1px solid #e0e7ef; background: #f1f5fa; font-size: 10px; }
+[data-print-vehicle] > div { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+[data-print-vehicle] > div + div { border-left: 1px solid #cad6e5; padding-left: 12px; }
+[data-print-vehicle] span { font-size: 9px; color: #526477; }
+[data-print-vehicle] strong { font-size: 12px; }
+[data-document-concern] { border: 1px solid #cad6e5; padding: 12px; }
+[data-document-concern] p { white-space: pre-wrap; overflow-wrap: anywhere; }
 table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 18px 0; }
 caption { text-align: left; font-weight: bold; margin-bottom: 8px; }
 th, td { padding: 8px 5px; border-bottom: 1px solid #cbd5e1; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
@@ -29,7 +39,7 @@ article > dl dt:last-of-type, article > dl dd:last-of-type { font-weight: bold; 
 [aria-label="Payment details"] dl { max-width: none; }
 footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid #cbd5e1; margin-top: 24px; padding-top: 10px; font-size: 9px; color: #526477; break-inside: avoid; }
 .print-controls { padding: 12px; background: #f1f5fa; font-size: 13px; } .print-controls button { padding: 8px 20px; cursor: pointer; } .print-controls span { margin-left: 12px; }
-@media print { article { max-width: none; margin: 0; padding: 0; } .print-controls { display: none; } a { color: inherit; text-decoration: none; } header > div:last-child { background: white; border: 1px solid #cad6e5; } }
+@media print { article { max-width: none; margin: 0; padding: 0; } .print-controls { display: none; } a { color: inherit; text-decoration: none; } }
 `;
 
 export async function openServiceDocumentPrint(source: HTMLElement | null, autoPrint = true) {

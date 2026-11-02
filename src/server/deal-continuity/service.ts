@@ -68,7 +68,7 @@ export async function readDealContinuity(actor: AuthenticatedUser | null, id: st
   const source = context.sourceDraftId || context.sourceJacketId ? await resolveDealSource(actor, { sourceDraftId: context.sourceDraftId ?? undefined, sourceJacketId: context.sourceJacketId ?? undefined }) : null;
   const jacketIds = object(context.draft.snapshot).jackets;
   const agreementId = text(object(jacketIds)[context.draft.pathway]);
-  const agreements = agreementId && context.vehicleId ? await prisma.salesDocumentJacket.findMany({ where: { id: agreementId, organizationId: context.organizationId, customerId: context.customerId, pathway: context.draft.pathway, state: "CHECKED_OUT", vin: (await dealVehicle(actor, context.vehicleId)).vin, versions: { some: { phase: "CHECKOUT" } } }, select: { id: true, dealNumber: true } }) : [];
+  const agreements = agreementId && context.vehicleId ? await prisma.salesDocumentJacket.findMany({ where: { id: agreementId, organizationId: dealDocumentOrganization(), customerId: context.customerId, pathway: context.draft.pathway, state: "CHECKED_OUT", vin: (await dealVehicle(actor, context.vehicleId)).vin, versions: { some: { phase: "CHECKOUT" } } }, select: { id: true, dealNumber: true } }) : [];
   return { agreements, agreementHref: agreementId ? `/sales-documents?jacketId=${encodeURIComponent(agreementId)}` : null, id: context.id, customerId: context.customerId, vehicleId: context.vehicleId, source, bookings: context.bookings, events: await prisma.dealContinuityEvent.findMany({ where: { contextId: id, organizationId: context.organizationId }, orderBy: { occurredAt: "desc" }, take: 30 }) };
 }
 

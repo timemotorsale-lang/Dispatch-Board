@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateTax, summarizeTax, taxMonth } from "@/lib/compliance-tax";
+import { calculateTax, summarizeTax, taxHistoryDetails, taxMonth } from "@/lib/compliance-tax";
 
 export const leaseFixture = () => ({ kind: "LEASE", reference: "lease-1", date: "2026-09-15", customer: "Review customer", vehicle: "Review vehicle", vehicleValue: "25000", rebates: "1000", residual: "10000", trade: "5000", taxableAdditions: "400", rentCharge: "2116", contractTax: "791.73", garageAddress: "Verified Minnesota garaging address", localTaxes: [], localConfirmed: true, qualified: true });
 describe("Minnesota upfront lease-tax worksheet", () => {
@@ -26,5 +26,19 @@ describe("Minnesota upfront lease-tax worksheet", () => {
   it("rejects invalid amounts, dates, rates and duplicate reporting codes", () => {
     for (const patch of [{ vehicleValue: "-1" }, { residual: "999999" }, { vehicleValue: "1.001" }, { date: "2026-02-30" }, { kind: "RENTAL" }, { reference: "" }, { localTaxes: [{ code: "City", rate: "NaN" }] }, { localTaxes: [{ code: "City", rate: "1" }, { code: "city", rate: "2" }] }]) expect(() => calculateTax({ ...leaseFixture(), ...patch })).toThrow();
     expect(() => taxMonth("2026-13")).toThrow(); expect(() => taxMonth("2026-01-01")).toThrow(); expect(taxMonth("2026-10")).toBe("2026-10");
+  });
+  it("totals the taxable amount once per active contract rather than once per state/local line", () => {
+    const lease = calculateTax({ ...leaseFixture(), localTaxes: [{ code: "CITY", rate: "0.5" }] });
+    const sale = calculateTax({ ...leaseFixture(), kind: "SALE", vehicleValue: "20000" });
+    const summary = summarizeTax([{ id: "lease", status: "ACTIVE", snapshot: lease }, { id: "sale", status: "ACTIVE", snapshot: sale }, { id: "void", status: "VOID", snapshot: lease }]);
+    expect(summary).toMatchObject({ leaseCount: 1, saleCount: 1, contractCount: 2, taxableLeaseCents: 1151600, recordedSaleBaseCents: 2000000, recordedTaxableCents: 3151600, totalCents: 84931 });
+    expect(sale.lines).toEqual([]);
+    expect(summarizeTax([])).toMatchObject({ contractCount: 0, taxableLeaseCents: 0, totalCents: 0 });
+  });
+  it("uses the saved event amounts and references for readable history", () => {
+    const snapshot = calculateTax(leaseFixture());
+    expect(taxHistoryDetails({ before: { snapshot }, after: { snapshot } })).toMatchObject({ corrected: true, snapshot: { baseCents: 1151600, taxCents: 79173 } });
+    expect(taxHistoryDetails({ before: { snapshot }, reason: "Duplicate entry" })).toMatchObject({ reason: "Duplicate entry", snapshot });
+    expect(taxHistoryDetails(null).snapshot).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { crmNextCustomer360Href } from "@/features/crm/crm-route-authority";
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import styles from "./crm-contact-import.module.css";
@@ -25,7 +26,7 @@ export function CrmContactImport({ disabled, sourceId, sourceKind, sourceText, p
       <label>Company / relationship<input maxLength={200} value={draft.company} onChange={event=>setDraft({...draft,company:event.target.value})}/></label>
       <label>Follow-up date<input type="date" value={draft.followUpDate} onChange={event=>setDraft({...draft,followUpDate:event.target.value})}/></label>
       <small>The source note will be preserved as an internal CRM note. Contact consent remains unknown until staff verifies it.</small>
-      {candidates.length?<section className={styles.duplicates} aria-label="Possible duplicate CRM customers"><strong>Possible duplicate—double-check before adding</strong><p>No customer has been added. Choose a matching record, or confirm this is a different customer.</p>{candidates.map(candidate=><article key={candidate.id}><span><b>{candidate.displayName}</b><small>{[candidate.customerNumber,candidate.phoneNumber,candidate.email].filter(Boolean).join(' · ')}</small></span><button disabled={saving} type="button" onClick={()=>void save('USE_EXISTING',candidate.id)}>Use existing customer</button><Link href={`/crm/customers/${encodeURIComponent(candidate.id)}`}>Review CRM record</Link></article>)}<button disabled={saving} type="button" onClick={()=>void save('CREATE_NEW')}>None match—create new customer</button></section>:null}
+      {candidates.length?<section className={styles.duplicates} aria-label="Possible duplicate CRM customers"><strong>Possible duplicate—double-check before adding</strong><p>No customer has been added. Choose a matching record, or confirm this is a different customer.</p>{candidates.map(candidate=><article key={candidate.id}><span><b>{candidate.displayName}</b><small>{[candidate.customerNumber,candidate.phoneNumber,candidate.email].filter(Boolean).join(' · ')}</small></span><button disabled={saving} type="button" onClick={()=>void save('USE_EXISTING',candidate.id)}>Use existing customer</button><Link href={crmNextCustomer360Href(candidate.id)}>Review CRM record</Link></article>)}<button disabled={saving} type="button" onClick={()=>void save('CREATE_NEW')}>None match—create new customer</button></section>:null}
       <span>{!candidates.length?<button disabled={saving||!draft.displayName.trim()||(!draft.phoneNumber.trim()&&!draft.email.trim())} type="button" onClick={()=>void save()}>{saving?'Checking…':'Check and import'}</button>:null}<button disabled={saving} type="button" onClick={()=>{setDraft(null);setCandidates([]);setError('')}}>Cancel</button></span>
     </div>:null}
     {result?<p role="status">{result.sourceAlreadyImported?'This workbook item was already imported. ':result.duplicate?'Matched an existing CRM customer. ':'CRM customer created. '}<Link href={result.href}>Open {result.name} →</Link></p>:null}

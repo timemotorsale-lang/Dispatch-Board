@@ -25,7 +25,9 @@ export async function getTaxWorksheet(actor: AuthenticatedUser | null, monthValu
       database.complianceTaxAudit.findMany({ where: { organizationId: access.organizationId, month }, orderBy: { createdAt: "desc" }, take: 100 })
     ]);
     const rows = records.map(record => ({ ...record, snapshot: record.snapshot as unknown as TaxCalculation }));
-    return { month, records: rows, period, summary: summarizeTax(rows), history, revision: revision(rows) };
+    const staff = await database.user.findMany({ where: { id: { in: [...new Set(history.map(event => event.actorId))] } }, select: { id: true, name: true } });
+    const names = new Map(staff.map(user => [user.id, user.name]));
+    return { month, records: rows, period, summary: summarizeTax(rows), history: history.map(event => ({ ...event, actorName: names.get(event.actorId) || "Staff member" })), revision: revision(rows) };
   });
 }
 export async function searchTaxLinks(actor: AuthenticatedUser | null, query: string) {

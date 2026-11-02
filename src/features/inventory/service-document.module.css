@@ -5,34 +5,38 @@
 .document dd { margin: 0; text-align: right; }
 .document footer { overflow-wrap: anywhere; font-size: 11px; border-top: 1px solid #cbd5e1; margin-top: 24px; padding-top: 12px; }
 .print { padding: 10px 20px; cursor: pointer; }
-.header { display: grid; grid-template-columns: minmax(230px, .9fr) minmax(0, 1.1fr); gap: 32px; border-top: 5px solid #244f87; border-bottom: 1px solid #cad6e5; padding: 28px 0; margin-bottom: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 4px solid #244f87; border-bottom: 1px solid #cad6e5; padding: 18px 0; }
+.header h1 { color: #142e4d; font-size: 28px; line-height: 1.2; letter-spacing: -.5px; margin: 0; }
+.metadata { min-width: 0; text-align: right; font-size: 11px; color: #526477; }
+.metadata span, .metadata strong { display: block; overflow-wrap: anywhere; }
+.metadata strong { color: #1c3551; font-size: 12px; }
+.parties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; padding: 24px 0; }
+.brand { min-width: 0; }
+.customer { min-width: 0; border-left: 1px solid #cad6e5; padding-left: 28px; align-self: stretch; }
+.customer h2, .vehicleDetails h2, .concern h2 { color: #3b608b; font-size: 10px; font-weight: 700; letter-spacing: 1.4px; margin: 0 0 8px; }
+.customerName { font-size: 19px; font-weight: 700; line-height: 1.3; margin: 0 0 12px; overflow-wrap: anywhere; }
+.customerContact { font-size: 12px; color: #526477; overflow-wrap: anywhere; }
+.customerContact p { margin: 3px 0; }
 .logo { display: block; width: 270px; max-width: 100%; height: auto; }
-.department, .eyebrow { color: #3b608b; font-size: 10px; font-weight: 700; letter-spacing: 1.6px; }
-.department { margin: 18px 0 8px; }
+.department { color: #3b608b; font-size: 10px; font-weight: 700; letter-spacing: 1.6px; margin: 12px 0 8px; }
 .location { color: #526477; font-size: 12px; line-height: 1.65; margin: 0; }
 .contact { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; font-size: 12px; }
 .contact a { color: #244f87; text-decoration: none; overflow-wrap: anywhere; }
-.documentIdentity { min-width: 0; border-radius: 10px; background: #f1f5fa; padding: 20px; }
-.eyebrow { margin: 0 0 8px; }
-.documentIdentity h1 { color: #142e4d; font-size: 23px; line-height: 1.3; letter-spacing: -.5px; margin: 0 0 20px; }
-.metadata { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.metadata > div:first-child { grid-column: 1/-1; }
-.metadata span, .metadata strong, .metadata small { display: block; }
-.metadata span { color: #62758b; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 3px; }
-.metadata strong { color: #1c3551; font-size: 12px; overflow-wrap: anywhere; }
-.metadata small { color: #526477; font-size: 11px; margin-top: 2px; }
 .document footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: #526477; }
-.identitySection { margin-bottom: 20px; }
-.identitySection p { margin: 0; }
-.identitySection .vehicleDetails { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 5px; color: #526477; font-size: 11px; }
-.vehicleDetails span { overflow-wrap: anywhere; }
-.identitySection .concern { margin-top: 10px; font-size: 12px; }
-.identitySection .customerContact { font-size: 12px; color: #526477; margin-top: 4px; overflow-wrap: anywhere; }
+.vehicleDetails { display: flex; flex-wrap: wrap; gap: 12px 20px; background: #f1f5fa; border: 1px solid #e0e7ef; border-radius: 4px; padding: 14px; margin: 0 0 16px; font-size: 11px; }
+.vehicleDetails > div { min-width: 0; max-width: 100%; }
+.vehicleDetails > div + div { border-left: 1px solid #cad6e5; padding-left: 16px; }
+.vehicleDetails span { color: #526477; font-size: 10px; }
+.vehicleDetails p { margin: 3px 0 0; overflow-wrap: anywhere; }
+.vehicleDetails h2 { margin-bottom: 4px; }
+.vehicleDetails strong { font-size: 13px; overflow-wrap: anywhere; }
+.concern { border: 1px solid #cad6e5; border-radius: 4px; padding: 14px 16px; margin: 0 0 20px; }
+.concern p { margin: 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .charges { margin-top: 16px; }
 .charges h2 { font-size: 13px; margin: 0 0 6px; }
 .charges > div { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid #e0e7ef; padding: 6px 0; font-size: 12px; }
-@media(max-width: 720px) { .header { grid-template-columns: 1fr; gap: 20px; } .documentIdentity h1 { font-size: 22px; } }
-@media print { .header { break-inside: avoid; padding: 16px 0; gap: 24px; } .documentIdentity { border: 1px solid #cad6e5; background: white; } .contact a { color: #172334; } }
+@media(max-width: 600px) { .header { align-items: flex-start; flex-direction: column; gap: 12px; } .header h1 { font-size: 24px; } .metadata { text-align: left; } .parties { grid-template-columns: 1fr; gap: 20px; } .customer { border-left: 0; border-top: 1px solid #cad6e5; padding: 16px 0 0; } }
+@media print { .header { break-inside: avoid; padding: 14px 0; } .parties { grid-template-columns: 1fr 1fr; break-inside: avoid; } .contact a { color: #172334; } }
 @media (max-width: 600px) { .document { padding: 12px; margin: 0; font-size: 12px; } .document th, .document td { padding: 4px; } }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px 0; }
 .actions p { flex-basis: 100%; margin: 0; }

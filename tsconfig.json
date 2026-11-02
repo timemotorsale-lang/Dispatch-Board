@@ -49,6 +49,8 @@
     ".next-local*",
     ".next-runtime",
     ".worktrees",
+    "work",
+    "tmp",
     "apps/dealership",
     "node_modules",
     "src/tests/**/*",

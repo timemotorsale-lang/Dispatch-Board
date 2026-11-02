@@ -2,6 +2,7 @@ export type PacketCorrection = { fields: string[]; sections: string[] };
 
 export function packetCorrection(message: string): PacketCorrection | null {
   const value = message.toLowerCase();
+  if (/signing cash|cash at signing/.test(value)) return { fields: ["Total cash at signing", "Down payment", "Signing amount entry"], sections: ["calculator", "terms"] };
   if (/delivery.*odometer|delivery.*mileage/.test(value)) return { fields: ["Delivery odometer", "Odometer"], sections: ["vehicle", "unit"] };
   if (/delivery.*date|warranty delivery/.test(value)) return { fields: ["Delivery date / time (local)"], sections: ["vehicle", "unit"] };
   if (/customer selected|select the driver|driver selected/.test(value)) return { fields: ["Customer", "Driver", "Buyer"], sections: ["applicant", "buyer", "renter", "driver"] };

@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 test("packet errors explain the blocker and focus its correction; storage errors offer recovery", async ({ page }) => {
+  test.setTimeout(120000);
+  page.setDefaultTimeout(15000);
   await page.route("**/api/crm/v1/deal-drafts*", (route) => route.fulfill({ json: route.request().method() === "POST" ? { ...route.request().postDataJSON(), revision: 1, updatedAt: new Date().toISOString() } : [] }));
   await page.goto("/login");
   await page.getByLabel("Email").fill("morgan.manager@local.test");
@@ -29,5 +31,11 @@ test("packet errors explain the blocker and focus its correction; storage errors
   await expect(page.getByRole("alert").filter({ hasText: error })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Sales Documents", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Go to blocker" })).toHaveCount(0);
+  error = "An unexpected error prevented this deal from saving. Retry saving this same deal. Support reference: example (DRAFT_SAVE_FAILED).";
+  await page.getByRole("button", { name: "Generate BHPH packet" }).click();
+  const saveFailure = page.getByRole("alert").filter({ hasText: error });
+  await expect(saveFailure).toBeVisible();
+  await expect(saveFailure.getByRole("button", { name: "Go to blocker" })).toHaveCount(0);
+  await expect(saveFailure.getByRole("link", { name: "Open Sales Documents" })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("packet-feedback-mobile.png") });
 });

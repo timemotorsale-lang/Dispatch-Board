@@ -17,6 +17,33 @@ import { POST } from "@/app/api/crm/v1/contract-packets/route";
 import { archiveGeneratedSalesPacket } from "@/server/sales-documents/service";
 
 describe("Unified CRM contract packet route", () => {
+  it("discloses the actual remaining balance when only a single final payment is due", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "LEASE_TO_OWN", dealerWarrantyOffered: false, preparedFormIds: ["w2-lease"], leaseCalculator: { agreedPriceCents: 2000000, capitalizedCostReductionCents: 300000, calculationMode: "PAYMENT_AMOUNT", targetPaymentCents: 5000000, documentPreparationFeeCents: 30000 } }) }));
+    expect(response.status).toBe(201);
+    const packet = await response.json(), lease = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
+    expect(lease.fieldValues.undefined_34).toBe("1"); expect(lease.fieldValues.undefined_35).toBe("14980.00"); expect(lease.fieldValues.Pay1).toBe("14980.00");
+    expect(lease.fieldValues["DELIVERY, followed by 3"]).toBe(""); expect(packet.documents[0].html).toContain("Single final payment"); expect(packet.documents[0].html).not.toContain("$50,000.00");
+  });
+  it.each([30000, 50000])("prints the exact %s-cent payment, full agreed price and recorded insurance details", async targetPaymentCents => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({
+      customerName: "Synthetic insured buyer", packetType: "LEASE_TO_OWN", dealerWarrantyOffered: false, preparedFormIds: ["w2-lease", "insurance-binder"],
+      leaseCalculator: { agreedPriceCents: 2000000, additionalItemsCents: 125000, capitalizedCostReductionCents: 300000, calculationMode: "PAYMENT_AMOUNT", targetPaymentCents, documentPreparationFeeCents: 30000, registrationFeeCents: 51600, titleFeeCents: 10280, salesTaxRateBasisPoints: 687.5 },
+      leaseFacts: { agreementDate: "2026-11-01", firstPaymentDate: "2026-12-01", insuranceCompany: "Example Insurance", insurancePolicyNumber: "SAMPLE-POLICY-123", insuranceExpirationDate: "2027-11-01" }, vehicle: { vin: "SAMPLE123456789012" }
+    }) }));
+    expect(response.status).toBe(201);
+    const packet = await response.json(), lease = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease"), binder = packet.documents.find((document: { formId: string }) => document.formId === "insurance-binder");
+    const value = (targetPaymentCents / 100).toFixed(2);
+    expect(lease.fieldValues.undefined_35).toBe(value); expect(lease.fieldValues.Pay1).toBe(value);
+    expect(lease.fieldValues["Gross capitalized cost The agreed upon value of the vehicle of"]).toBe("20000.00");
+    expect(lease.fieldValues["Document preparation fee not gov fee"]).toBe("300.00"); expect(lease.fieldValues.undefined_26).toBe("0.00");
+    const pdf = await PDFDocument.load(Buffer.from(lease.contentBase64, "base64"));
+    expect(pdf.getForm().getTextField("undefined_35").getText()).toBe(value);
+    const insurance = await PDFDocument.load(Buffer.from(binder.contentBase64, "base64"));
+    expect(insurance.getPageCount()).toBeGreaterThan(1);
+    expect(insurance.getForm().getTextField("recorded_insurance_policy").getText()).toBe("SAMPLE-POLICY-123");
+    expect(insurance.getForm().getTextField("recorded_insurance_expiration").getText()).toBe("2027-11-01");
+    expect(insurance.getForm().getTextField("recorded_insurance_company").getText()).toBe("Example Insurance");
+  });
   it("omits the voluntary BHPH warranty and retains the required-coverage notice when not offered", async () => {
     const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance", "bhph-engine-transmission-warranty-return"], bhph: {} }) }));
     expect(response.status).toBe(201);
@@ -286,11 +313,11 @@ describe("Unified CRM contract packet route", () => {
     const packet = await created.json();
     const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
     expect(agreement.fieldValues.undefined_34).toBe("72");
-    expect(agreement.fieldValues.undefined_35).toBe("249.58");
-    const finalPayment = signingPaymentMode === "DOWN_PAYMENT" ? "249.47" : "249.89";
+    expect(agreement.fieldValues.undefined_35).toBe("250.00");
+    const finalPayment = "220.07";
     expect(agreement.fieldValues["DELIVERY, followed by 3"]).toBe(`Final: $${finalPayment}`);
     expect(packet.documents[0].html).toContain("<td>72</td>");
-    expect(packet.documents[0].html).toContain("$249.58");
+    expect(packet.documents[0].html).toContain("$250.00");
     expect(packet.documents[0].html).toContain(`$${finalPayment}`);
     const warranty = packet.documents.find((document: { formId: string }) => document.formId === "lease-engine-transmission-warranty-return");
     expect(warranty.contentType).toBe("application/pdf");
