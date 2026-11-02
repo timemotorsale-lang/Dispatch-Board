@@ -40,6 +40,7 @@ export type NormalizedVendorTaskInput = {
 };
 
 export type NormalizedVendorWorkJobInput = {
+  batchId?: string | null;
   vehicleReference: string;
   additionalVehicleReferences: string[];
   workType: string;
@@ -238,6 +239,7 @@ export function normalizeVendorWorkJobInput(value: unknown): NormalizedVendorWor
   }
 
   return {
+    ...(value.batchId === null ? { batchId: null } : typeof value.batchId === "string" && value.batchId ? { batchId: normalizeRequiredText(value.batchId, "Batch", 150) } : {}),
     vehicleReference: normalizeRequiredText(value.vehicleReference, "Vehicle / stock / RO", 160),
     additionalVehicleReferences: normalizeAdditionalVehicleReferences(value.additionalVehicleReferences),
     workType: normalizeRequiredText(value.workType, "Work type", 80),

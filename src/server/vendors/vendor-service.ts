@@ -624,11 +624,12 @@ export async function recordVendorWorkJob(user: AuthenticatedUser | null, vendor
   const vendor = await repository.getVendor(organizationId, vendorId);
   if (!vendor) throw errorForMissingVendor();
 
-  const [jobNumber, openBatch] = await Promise.all([
-    repository.getNextVendorJobNumber(organizationId),
-    repository.getOpenInvoiceBatch(organizationId, vendorId)
-  ]);
+  const openBatches = vendor.invoiceBatches.filter(batch => batch.status === "OPEN");
+  if (input.batchId === undefined && openBatches.length > 1) throw new Error("Choose an open batch for these work tickets.");
+  const openBatch = input.batchId === null ? null : input.batchId ? openBatches.find(batch => batch.id === input.batchId) : openBatches[0];
+  if (input.batchId && !openBatch) throw new Error("The selected batch must be open and belong to this vendor.");
   const vehicleReferences = [input.vehicleReference, ...input.additionalVehicleReferences];
+  const jobNumber = await repository.getNextVendorJobNumber(organizationId, vehicleReferences.length);
   const jobNumbers = buildJobNumbers(jobNumber, vehicleReferences.length);
   const jobs = await Promise.all(vehicleReferences.map((vehicleReference, index) =>
     repository.addWorkJob({

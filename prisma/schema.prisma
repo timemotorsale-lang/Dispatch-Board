@@ -3232,6 +3232,11 @@ model CustomerDocumentRequirement {
 }
 
 model Vendor {
+  billingDocuments VendorBillingDocument[]
+  billingAgreements VendorBillingAgreement[]
+  billingSettlements VendorBillingSettlement[]
+  billingEvents VendorBillingEvent[]
+  workReviews VendorBillingWorkReview[]
   purchasingAuthorizations MoneyPurchasingAuthorization[]
   moneyEntries MoneyEntry[]
   id                  String             @id @default(cuid())
@@ -3268,6 +3273,7 @@ model Vendor {
   workJobs            VendorWorkJob[]
   invoiceBatches      VendorInvoiceBatch[]
 
+  @@unique([organizationId, id])
   @@unique([organizationId, vendorNumber])
   @@index([organizationId, normalizedName])
   @@index([organizationId, category])
@@ -10962,4 +10968,148 @@ model AutobodyEstimateDraftRevision {
   createdAt DateTime @default(now())
   draft AutobodyEstimateDraft @relation(fields: [draftId], references: [id], onDelete: Restrict)
   @@unique([draftId, version])
+}
+
+
+model VendorBillingAgreement {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  direction String
+  kind String
+  title String
+  amountCents Int
+  principalCents Int?
+  startDate DateTime @db.Date
+  endDate DateTime? @db.Date
+  active Boolean @default(true)
+  version Int @default(1)
+  ownerUserId String
+  terms String
+  createdAt DateTime @default(now())
+  vendor Vendor @relation(fields: [organizationId, vendorId], references: [organizationId, id], onDelete: Restrict)
+  documents VendorBillingDocument[]
+  dueItems VendorBillingDueItem[]
+  @@unique([organizationId, vendorId, id])
+  @@index([organizationId, vendorId, active])
+}
+model VendorBillingDocument {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  direction String
+  kind String @default("INVOICE")
+  number String
+  normalizedNumber String
+  title String
+  issueDate DateTime @db.Date
+  dueDate DateTime @db.Date
+  amountCents Int
+  taxCents Int @default(0)
+  status String @default("DRAFT")
+  version Int @default(1)
+  agreementId String?
+  periodKey String?
+  sourceReference String
+  unmatchedReason String @default("")
+  disputeReason String @default("")
+  createdById String
+  approvedById String?
+  createdAt DateTime @default(now())
+  vendor Vendor @relation(fields: [organizationId, vendorId], references: [organizationId, id], onDelete: Restrict)
+  agreement VendorBillingAgreement? @relation(fields: [organizationId, vendorId, agreementId], references: [organizationId, vendorId, id], onDelete: Restrict)
+  lines VendorBillingLine[]
+  dueItems VendorBillingDueItem[]
+  allocations VendorBillingAllocation[]
+  @@unique([organizationId, vendorId, id])
+  @@unique([organizationId, vendorId, direction, normalizedNumber])
+  @@unique([agreementId, periodKey])
+  @@index([organizationId, vendorId, status, dueDate])
+}
+model VendorBillingLine {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  documentId String
+  description String
+  amountCents Int
+  workJobId String?
+  document VendorBillingDocument @relation(fields: [organizationId, vendorId, documentId], references: [organizationId, vendorId, id], onDelete: Restrict)
+  @@index([organizationId, vendorId, workJobId])
+}
+model VendorBillingDueItem {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  documentId String
+  agreementId String?
+  periodKey String
+  dueDate DateTime @db.Date
+  amountCents Int
+  document VendorBillingDocument @relation(fields: [organizationId, vendorId, documentId], references: [organizationId, vendorId, id], onDelete: Restrict)
+  agreement VendorBillingAgreement? @relation(fields: [organizationId, vendorId, agreementId], references: [organizationId, vendorId, id], onDelete: Restrict)
+  @@unique([documentId, periodKey])
+  @@index([organizationId, vendorId, dueDate])
+}
+model VendorBillingSettlement {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  kind String
+  date DateTime @db.Date
+  amountCents Int
+  reference String
+  reason String
+  createdById String
+  reversalOfId String? @unique
+  reconciledAt DateTime?
+  reconciliationReference String?
+  createdAt DateTime @default(now())
+  vendor Vendor @relation(fields: [organizationId, vendorId], references: [organizationId, id], onDelete: Restrict)
+  allocations VendorBillingAllocation[]
+  @@unique([organizationId, vendorId, id])
+  @@index([organizationId, vendorId, date])
+}
+model VendorBillingAllocation {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  documentId String
+  settlementId String
+  amountCents Int
+  effectiveDate DateTime @db.Date
+  document VendorBillingDocument @relation(fields: [organizationId, vendorId, documentId], references: [organizationId, vendorId, id], onDelete: Restrict)
+  settlement VendorBillingSettlement @relation(fields: [organizationId, vendorId, settlementId], references: [organizationId, vendorId, id], onDelete: Restrict)
+  @@index([settlementId, documentId])
+}
+model VendorBillingWorkReview {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  workJobId String
+  vehicleId String
+  repairOrderId String?
+  approvedAmountCents Int
+  accepted Boolean @default(false)
+  scopeSnapshot Json
+  evidenceReference String
+  version Int @default(1)
+  reviewedById String
+  reviewedAt DateTime @default(now())
+  vendor Vendor @relation(fields: [organizationId, vendorId], references: [organizationId, id], onDelete: Restrict)
+  @@unique([organizationId, vendorId, workJobId])
+}
+model VendorBillingEvent {
+  id String @id @default(cuid())
+  organizationId String
+  vendorId String
+  commandKey String
+  requestHash String
+  action String
+  actorId String
+  detail Json
+  createdAt DateTime @default(now())
+  vendor Vendor @relation(fields: [organizationId, vendorId], references: [organizationId, id], onDelete: Restrict)
+  @@unique([organizationId, vendorId, commandKey])
+  @@index([organizationId, vendorId, createdAt])
 }
