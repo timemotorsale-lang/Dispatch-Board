@@ -1,5 +1,12 @@
 # Current Implementation Status
 
+## 2026-11-01 — Vendor billing in both directions
+
+Vendor registry profiles now include separate receivables/payables, invoice drafts and manager approval, monthly rent/service agreements, existing-principal repayment schedules, per-vehicle batch bill matching and acceptance review, partial/unapplied payments, approved offsets, credits, reversals, bank-evidence reconciliation, audit history, CSV and printable documents. Several vendor repair batches can remain open simultaneously. Applies to all vendors, including dual-role rent/service and debt/service relationships.
+
+The additive `20261102050000_vendor_billing` migration and generated client are required. Due invoices can be generated manually; the optional manager-authorized worker requires explicit scheduling. No production rollout, external payment, outbound invoice delivery, automatic general-ledger posting, or creation of real vendor balances is included. See `docs/VENDOR_BILLING.md` for workflows, controls, verification and limits.
+
+
 ## 2026-10-24 — Website Appointments Preview and Shared Read
 
 Website Console → Appointments now separates an isolated fictitious calendar demo,

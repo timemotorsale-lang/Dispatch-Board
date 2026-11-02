@@ -67,7 +67,8 @@ describe("existing-deal lifecycle transaction", () => {
     expect(draft.statusHistory[0]).toMatchObject({ effectiveAt: "2026-10-15T18:00:00.000Z" });
     expect(mocks.version).not.toHaveBeenCalled();
   });
-  it("marks an existing deal sold even when no packet exists, without finalizing anything", async () => {
+  it.each(["lease-to-own", "retail-sale"])("marks an existing %s deal sold even when no packet exists, without finalizing anything", async pathway => {
+    draft.pathway = pathway;
     draft.status = "IN_PROGRESS"; draft.snapshot = {};
     await expect(manageDealLifecycle(actor(["Sales"]), { action: "MARK_SOLD", id: draft.id, revision: 3 })).resolves.toMatchObject({ id: draft.id, jacketId: null, status: "SOLD", state: null });
     expect(draft.status).toBe("SOLD"); expect(mocks.version).not.toHaveBeenCalled(); expect(mocks.jacketLock).not.toHaveBeenCalled();

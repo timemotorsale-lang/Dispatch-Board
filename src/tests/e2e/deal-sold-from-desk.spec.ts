@@ -18,6 +18,7 @@ test("staff mark an existing lease sold from its desk before generating any pack
       expect(request.postDataJSON().id).toBe(saved.id);
       saved = { ...request.postDataJSON(), revision: saved.revision + 1, updatedAt: new Date().toISOString() };
     }
+    if (new URL(request.url()).searchParams.get("view") === "operations") return route.fulfill({ json: { draftRevision: saved.revision } });
     return route.fulfill({ json: request.method() === "POST" || new URL(request.url()).searchParams.has("id") ? saved : [saved] });
   });
   await page.goto("/login"); await page.getByLabel("Email").fill("morgan.manager@local.test"); await page.getByLabel("Password", { exact: true }).fill("dispatch123!");

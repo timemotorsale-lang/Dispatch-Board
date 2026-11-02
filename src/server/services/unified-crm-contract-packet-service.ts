@@ -1,3 +1,5 @@
+import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, cashSaleFacts, cashSaleError } from "@/lib/cash-retail-sale";
+import { cashSalePdf, cashSaleDocumentHtml } from "./cash-retail-sale-documents";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-brand";
@@ -1624,7 +1626,9 @@ export async function generateUnifiedCrmContractPacket(
   const now = dependencies.now?.() ?? new Date();
   const generatedAt = now.toISOString();
   const packetType = input.packetType === "TEST_DRIVE" ? "TEST_DRIVE" : input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : input.packetType === "BHPH" ? "BHPH" : "MINNESOTA_RETAIL_SALE";
-  const packetForms: PacketFormItem[] = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET : packetType === "LEASE_TO_OWN"
+  const cashMode = packetType === "MINNESOTA_RETAIL_SALE" && input.retailCash !== undefined;
+  const cashFacts = cashSaleFacts(input.retailCash);
+  let packetForms: PacketFormItem[] = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET : packetType === "LEASE_TO_OWN"
     ? LEASE_TO_OWN_FORM_PACKET
     : packetType === "VEHICLE_LOANER"
       ? COURTESY_LOANER_FORM_PACKET
@@ -1633,7 +1637,8 @@ export async function generateUnifiedCrmContractPacket(
     : packetType === "BHPH"
       ? BHPH_FORM_PACKET
       : MN_SALE_FORM_PACKET;
-  const requiredIds = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
+  if (cashMode) packetForms = [...CASH_SALE_FORM_IDS, "trade-documents"].map(id => ({ id, label: CASH_SALE_LABELS[id], basis: id === "buyers-guide" ? "FTC Used Car Rule / official FTC form" : "Minnesota cash retail sale / dealership document", category: CASH_SALE_REQUIRED_IDS.includes(id) ? "Required" : "Conditional", trigger: id === "power-of-attorney" ? "Limited title and registration authority" : "Cash retail sale", description: CASH_SALE_LABELS[id] }));
+  const requiredIds = cashMode ? CASH_SALE_FORM_IDS : packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
     ? allLeaseToOwnFormIds()
     : packetType === "VEHICLE_LOANER"
       ? requiredCourtesyLoanerFormIds()
@@ -1657,6 +1662,12 @@ export async function generateUnifiedCrmContractPacket(
   const vehicle = vehicleFacts(input.vehicle);
   const customerName = text(input.customerName, "Customer not captured");
   const dealNumber = text(input.dealNumber, packet);
+  const cashDocumentInput = cashMode ? { customerName, dealNumber, salePrice: text(input.salePrice, ""), facts: cashFacts, vehicle } : null;
+  if (cashDocumentInput) {
+    if (CASH_SALE_REQUIRED_IDS.some(id => !selectedIds.includes(id))) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Include the purchase agreement, binding disclosure, odometer disclosure and tax itemization.");
+    const cashError = cashSaleError(customerName, vehicle.vin, cashDocumentInput.salePrice, cashFacts, selectedIds);
+    if (cashError) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", cashError);
+  }
   const driveFacts = testDriveFacts(input.testDrive);
   if (packetType === "TEST_DRIVE") {
     const error = testDriveAgreementError(driveFacts);
@@ -1767,7 +1778,7 @@ export async function generateUnifiedCrmContractPacket(
     const isLeaseSummary = form.id === "lease-summary" && summary !== undefined;
     const isPersonalReferencesForm = form.id === "personal-references" || form.id === "bhph-references-contact-authorization";
     const pdfTemplate = hasPdfTemplate(form);
-    const isPdfDocument = driveDocumentInput !== null || isDealerWarranty || isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
+    const isPdfDocument = cashDocumentInput !== null || driveDocumentInput !== null || isDealerWarranty || isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
     const leaseFieldValues = hasPdfTemplate(form) && packetType === "LEASE_TO_OWN"
       ? leaseTemplateFieldValues({
           calculator: leaseOutput,
@@ -1796,7 +1807,7 @@ export async function generateUnifiedCrmContractPacket(
         })
       : {};
     return {
-      ...(driveDocumentInput ? {
+      ...(cashDocumentInput ? { contentBase64: await cashSalePdf(form.id, cashDocumentInput), contentType: "application/pdf" as const } : driveDocumentInput ? {
         contentBase64: await testDriveAgreementPdfBase64(driveDocumentInput),
         contentType: "application/pdf" as const
       } : warrantyDocumentInput ? {
@@ -1833,7 +1844,7 @@ export async function generateUnifiedCrmContractPacket(
       category: form.category,
       downloadFileName: `${form.id}-${packet}.${isPdfDocument ? "pdf" : "html"}`,
       formId: form.id,
-      html: driveDocumentInput ? testDriveAgreementHtml(driveDocumentInput) : warrantyDocumentInput ? dealerWarrantyHtml(warrantyDocumentInput) : isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
+      html: cashDocumentInput ? cashSaleDocumentHtml(form.id, cashDocumentInput) : driveDocumentInput ? testDriveAgreementHtml(driveDocumentInput) : warrantyDocumentInput ? dealerWarrantyHtml(warrantyDocumentInput) : isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
         ? buildRentalDocumentHtml({
             customerName,
             dealNumber,

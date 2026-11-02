@@ -1,0 +1,2 @@
+.statusAction[data-completion="pending"] { background: #fff4c4; border: 1px solid #c99a22; color: #604609; font-weight: 650; }
+.statusAction[data-completion="complete"] { background: #e4f6e9; border: 1px solid #47805c; color: #215836; font-weight: 650; opacity: 1; }

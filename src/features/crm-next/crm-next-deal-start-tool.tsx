@@ -26,6 +26,7 @@ import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationErr
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
+import { CashRetailSaleDesk } from "./cash-retail-sale-desk";
 import styles from "./crm-next-shell.module.css";
 
 const DealDocumentContext = createContext<() => Record<string, string>>(() => ({}));
@@ -387,7 +388,7 @@ const MN_DMV_FEE_ITEMS = [
   { amountCents: 0, code: "custom-dvs-fee", label: "Custom MN DMV / DVS fee" }
 ];
 
-const MN_VEHICLE_SALES_TAX_BASIS_POINTS = 685;
+const MN_VEHICLE_SALES_TAX_BASIS_POINTS = 687.5;
 
 type RetailFeeLine = {
   amountCents: number;
@@ -1096,8 +1097,8 @@ function RetailSaleExecutionDesk({
               readOnly={!manualSalesTax}
               value={displayedSalesTax}
             />
-            <small>{manualSalesTax ? "Manual tax override enabled. Confirm against the final DVS calculation." : "MN sales tax: 6.85% of selling price"}</small>
-            <button type="button" onClick={() => setManualSalesTax((current) => !current)}>{manualSalesTax ? "Use 6.85% auto tax" : "Manual tax override"}</button>
+            <small>{manualSalesTax ? "Manual tax override enabled. Confirm against the final DVS calculation." : "MN sales tax: 6.875% of selling price"}</small>
+            <button type="button" onClick={() => setManualSalesTax((current) => !current)}>{manualSalesTax ? "Use 6.875% auto tax" : "Manual tax override"}</button>
           </label>
           <label><span>Down payment</span><input value={downPayment} onChange={(event) => setDownPayment(event.target.value)} placeholder="$0.00" /></label>
           <label><span>Trade in</span><input placeholder="$0.00" /></label>
@@ -5024,14 +5025,14 @@ function DealStartDesk({
                 {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
-              <RetailSaleExecutionDesk
+              {selectedPresetId === "retail-cash-one-pay" ? <CashRetailSaleDesk amount={form.amount} customerPrefill={customerPrefill} customerName={effectiveCustomerName} onAmountChange={value => update("amount", value)} onVehicleChange={value => update("vehicle", value)} vehicle={form.vehicle} getDocumentContext={getDocumentContext} /> : <RetailSaleExecutionDesk
                 amount={form.amount}
                 customerPrefill={customerPrefill}
                 customerName={effectiveCustomerName}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
                 vehicle={form.vehicle}
-              />
+              />}
               <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this retail sale" rows={3} /></label>
               <div className={styles.retailNextActionBar} aria-label="Retail sale next actions">
                 <div>

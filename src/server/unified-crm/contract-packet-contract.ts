@@ -21,6 +21,7 @@ export class UnifiedCrmContractPacketError extends Error {
 export type UnifiedCrmContractPacketInput = {
   dealerWarrantyOffered?: unknown;
   bhph?: unknown;
+  retailCash?: unknown;
   customerName?: unknown;
   dailyRental?: unknown;
   dealNumber?: unknown;

@@ -665,17 +665,19 @@ export function createVendorRepository() {
       `);
       return rows[0] ?? null;
     },
-    async getNextVendorJobNumber(organizationId: string) {
-      const rows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-        SELECT COUNT(*) AS count FROM "VendorWorkJob" WHERE "organizationId" = ${organizationId}
-      `);
-      return `VJ-${String(Number(rows[0]?.count ?? 0) + 1).padStart(5, "0")}`;
+    async getNextVendorJobNumber(organizationId: string, count = 1) {
+      if (!organizationId || !Number.isInteger(count) || count < 1 || count > 100) throw new Error("Choose between 1 and 100 work tickets.");
+      // Reserve the entire range under one lock; individual nextval calls can otherwise interleave.
+      return prisma.$transaction(async db => {
+        await db.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(196511, 1)`);
+        const rows = await db.$queryRaw<Array<{ first: bigint }>>(Prisma.sql`SELECT MIN(n) AS first FROM (SELECT nextval('"VendorWorkJobNumberSeq"') AS n FROM generate_series(1, ${count}::int)) numbered`);
+        return `VJ-${String(rows[0].first).padStart(5, "0")}`;
+      });
     },
-    async getNextVendorBatchNumber(organizationId: string) {
-      const rows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-        SELECT COUNT(*) AS count FROM "VendorInvoiceBatch" WHERE "organizationId" = ${organizationId}
-      `);
-      return `VB-${String(Number(rows[0]?.count ?? 0) + 1).padStart(5, "0")}`;
+    async getNextVendorBatchNumber(_organizationId: string) {
+      if (!_organizationId) throw new Error("Organization is required.");
+      const rows = await prisma.$queryRaw<Array<{ next: bigint }>>(Prisma.sql`SELECT nextval('"VendorBatchNumberSeq"') AS next`);
+      return `VB-${String(rows[0].next).padStart(5, "0")}`;
     },
     async getOpenInvoiceBatch(organizationId: string, vendorIdInput: string) {
       const rows = await prisma.$queryRaw<VendorInvoiceBatchRecord[]>(Prisma.sql`
@@ -745,14 +747,7 @@ export function createVendorRepository() {
         LEFT JOIN "VendorInvoiceBatch" batch ON batch."id" = job."batchId"
         WHERE job."organizationId" = ${organizationId}
           AND job."vendorId" = ${vendorIdInput}
-          AND (
-            job."batchId" = ${batchId}
-            OR ${batch.status === "OPEN"
-              ? Prisma.sql`(
-              job."status" IN ('OPEN'::"VendorWorkJobStatus", 'READY_FOR_BATCH'::"VendorWorkJobStatus", 'BATCHED'::"VendorWorkJobStatus")
-            )`
-              : Prisma.sql`FALSE`}
-          )
+          AND job."batchId" = ${batchId}
         ORDER BY job."serviceDate" ASC, job."createdAt" ASC
       `);
 
@@ -853,10 +848,6 @@ export function createVendorRepository() {
       batch: NormalizedVendorInvoiceBatchInput;
       fallbackTitle: string;
     }) {
-      const existingOpenBatch = await this.getOpenInvoiceBatch(input.organizationId, input.vendorId);
-      if (existingOpenBatch) {
-        throw new Error("This vendor already has an open batch. Close it before opening another.");
-      }
       const id = vendorId();
       await prisma.$executeRaw(Prisma.sql`
         INSERT INTO "VendorInvoiceBatch" (
@@ -867,7 +858,7 @@ export function createVendorRepository() {
           ${input.batch.title ?? input.fallbackTitle}, ${input.batch.notes ?? null}, ${input.createdByUserId}, CURRENT_TIMESTAMP
         )
       `);
-      return this.getOpenInvoiceBatch(input.organizationId, input.vendorId);
+      return (await this.getInvoiceBatchWithJobs(input.organizationId, input.vendorId, id))?.batch ?? null;
     },
     async closeInvoiceBatch(input: {
       organizationId: string;
@@ -876,7 +867,8 @@ export function createVendorRepository() {
       closedByUserId: string;
       close: NormalizedVendorInvoiceBatchCloseInput;
     }) {
-      await prisma.$executeRaw(Prisma.sql`
+      return prisma.$transaction(async db => {
+      const changed = await db.$executeRaw(Prisma.sql`
         UPDATE "VendorInvoiceBatch"
         SET
           "status" = CASE WHEN ${input.close.invoiceNumber ?? null} IS NULL THEN 'CLOSED'::"VendorInvoiceBatchStatus" ELSE 'INVOICED'::"VendorInvoiceBatchStatus" END,
@@ -892,7 +884,8 @@ export function createVendorRepository() {
           AND "id" = ${input.batchId}
           AND "status" = 'OPEN'::"VendorInvoiceBatchStatus"
       `);
-      await prisma.$executeRaw(Prisma.sql`
+      if (changed !== 1) return null;
+      await db.$executeRaw(Prisma.sql`
         UPDATE "VendorWorkJob"
         SET
           "status" = CASE WHEN ${input.close.invoiceNumber ?? null} IS NULL THEN 'BATCHED'::"VendorWorkJobStatus" ELSE 'INVOICED'::"VendorWorkJobStatus" END,
@@ -900,8 +893,9 @@ export function createVendorRepository() {
         WHERE "organizationId" = ${input.organizationId}
           AND "vendorId" = ${input.vendorId}
           AND "batchId" = ${input.batchId}
+          AND "status" <> 'CANCELLED'::"VendorWorkJobStatus"
       `);
-      const rows = await prisma.$queryRaw<VendorInvoiceBatchRecord[]>(Prisma.sql`
+      const rows = await db.$queryRaw<VendorInvoiceBatchRecord[]>(Prisma.sql`
         SELECT
           batch."id",
           batch."batchNumber",
@@ -922,6 +916,7 @@ export function createVendorRepository() {
         LIMIT 1
       `);
       return rows[0] ?? null;
+      });
     },
     async addActivity(input: {
       actorUserId?: string;

@@ -4,6 +4,8 @@ import { Activity, ArrowLeft, ClipboardCheck, Download, ExternalLink, Eye, FileT
 import Link from "next/link";
 import { type FormEvent, useState } from "react";
 
+import { VendorBilling } from "./vendor-billing";
+
 import type { VendorProfile, VendorProfileReadModel } from "@/server/vendors/vendor-service";
 
 type VendorEditForm = {
@@ -311,14 +313,16 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
   };
 
   const websiteHref = normalizeWebsiteHref(form.websiteOrPortalUrl);
-  const openBatch = vendor.invoiceBatches.find((batch) => batch.status === "OPEN") ?? null;
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const openBatches = vendor.invoiceBatches.filter(batch => batch.status === "OPEN");
+  const openBatch = selectedBatchId === "__NONE__" ? null : openBatches.find(batch => batch.id === selectedBatchId) ?? openBatches[0] ?? null;
 
   const recordWorkJob = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy(true);
     try {
       const response = await fetch(`/api/vendors/${vendor.id}/work-jobs`, {
-        body: JSON.stringify(workJobForm),
+        body: JSON.stringify({ ...workJobForm, batchId: openBatch?.id ?? null }),
         headers: { "content-type": "application/json" },
         method: "POST"
       });
@@ -461,6 +465,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
 
       <div className="vendor-live-notice" aria-live="polite">{notice}</div>
 
+      <VendorBilling vendorId={vendor.id} documents={vendor.documents} refreshKey={JSON.stringify(vendor.workJobs)} />
       <div className="vendor-profile-layout">
         <main className="vendor-profile-main">
           <form className="vendor-profile-editor" onSubmit={saveVendor}>
@@ -507,12 +512,14 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
               <em>{openBatch ? `${openBatch.batchNumber} open` : "No open batch"}</em>
             </header>
 
+            <label>Active work batch<select aria-label="Active vendor work batch" value={openBatch?.id || "__NONE__"} onChange={event => setSelectedBatchId(event.target.value)}><option value="__NONE__">Unbatched work</option>{openBatches.map(batch => <option key={batch.id} value={batch.id}>{batch.batchNumber} · {batch.title}</option>)}</select></label>
+            <p>Several batches may be open. Closing a batch groups the work records; receive and approve its vendor bill in Billing separately.</p>
             <div className="vendor-batch-control">
               <form onSubmit={openInvoiceBatch}>
                 <strong>Begin a batch</strong>
-                <input aria-label="Batch title" disabled={busy || Boolean(openBatch)} onChange={(event) => setBatchForm({ ...batchForm, title: event.target.value })} placeholder={`${vendor.name} batch`} value={batchForm.title} />
-                <textarea aria-label="Batch notes" disabled={busy || Boolean(openBatch)} onChange={(event) => setBatchForm({ ...batchForm, notes: event.target.value })} placeholder="Optional batch notes..." value={batchForm.notes} />
-                <button disabled={busy || Boolean(openBatch)} type="submit"><PackageCheck size={16} /> Open batch</button>
+                <input aria-label="Batch title" disabled={busy} onChange={(event) => setBatchForm({ ...batchForm, title: event.target.value })} placeholder={`${vendor.name} batch`} value={batchForm.title} />
+                <textarea aria-label="Batch notes" disabled={busy} onChange={(event) => setBatchForm({ ...batchForm, notes: event.target.value })} placeholder="Optional batch notes..." value={batchForm.notes} />
+                <button disabled={busy} type="submit"><PackageCheck size={16} /> Open batch</button>
               </form>
 
               <form onSubmit={closeInvoiceBatch}>
@@ -535,6 +542,10 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
               <div className="vendor-two-column">
                 <input aria-label="Vehicle, stock, VIN, or RO" onChange={(event) => setWorkJobForm({ ...workJobForm, vehicleReference: event.target.value })} placeholder="Vehicle, stock #, VIN, or RO" value={workJobForm.vehicleReference} />
                 <select aria-label="Work type" onChange={(event) => setWorkJobForm({ ...workJobForm, workType: event.target.value })} value={workJobForm.workType}>
+                  <option>Collision / body repair</option>
+                  <option>Tire service</option>
+                  <option>Mechanical repair</option>
+                  <option>Detail / reconditioning</option>
                   <option>Windshield replacement</option>
                   <option>Door glass replacement</option>
                   <option>Back glass replacement</option>
@@ -647,7 +658,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
             </div>
           </section>
 
-          <form className="vendor-task-card" onSubmit={createTask}>
+          <form id="vendor-follow-up" className="vendor-task-card" onSubmit={createTask}>
             <header><ClipboardCheck size={18} /><strong>Create Follow-up Task</strong></header>
             <input aria-label="Task title" onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} value={taskForm.title} />
             <div className="vendor-two-column">
@@ -758,6 +769,10 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
                             <div className="vendor-two-column">
                               <input aria-label="Edit vehicle reference" onChange={(event) => setJobEditForm({ ...jobEditForm, vehicleReference: event.target.value })} value={jobEditForm.vehicleReference} />
                               <select aria-label="Edit work type" onChange={(event) => setJobEditForm({ ...jobEditForm, workType: event.target.value })} value={jobEditForm.workType}>
+                                <option>Collision / body repair</option>
+                                <option>Tire service</option>
+                                <option>Mechanical repair</option>
+                                <option>Detail / reconditioning</option>
                                 <option>Windshield replacement</option>
                                 <option>Door glass replacement</option>
                                 <option>Back glass replacement</option>
