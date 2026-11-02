@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
+import { PipelineDashboard } from "@/features/crm-next/pipeline-dashboard";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
 import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft } from "@/features/crm-next/crm-next-deal-start-tool";
 import { SavedDealsLibrary } from "@/features/crm-next/saved-deals-library";
@@ -1563,19 +1564,7 @@ export function CrmNextPipelineView({ model }: { model: CrmNextCommandCenter }) 
   return (
     <CrmNextFrame active="pipeline" userName={model.userName}>
       <Topbar />
-      <section className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>Pipeline</span>
-          <h1>Pipeline board</h1>
-          <p>Review lead and opportunity flow, owners, value, stage, and next action.</p>
-        </div>
-        <div className={styles.quickActions}>
-          <Link className={styles.secondaryButton} href="/crm-next/deals">Deals</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/test-drives">Test drives</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/appointments">Appointments</Link>
-        </div>
-      </section>
-      <SalesTable records={model.sales.opportunities} title="Opportunities" summary="Stage, amount, owner, and next action are visible for the sales team." />
+      <PipelineDashboard />
     </CrmNextFrame>
   );
 }
