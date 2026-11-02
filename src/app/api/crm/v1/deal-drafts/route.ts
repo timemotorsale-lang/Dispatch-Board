@@ -35,7 +35,16 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Use this app to archive the deal." }, { status: 403 });
+  // TLS terminates at the production proxy; request.url can have an internal HTTP origin.
+  const host = request.headers.get("host") || new URL(request.url).host;
+  let trustedOrigin = request.headers.get("sec-fetch-site") !== "cross-site";
+  if (origin) {
+    try {
+      const source = new URL(origin);
+      trustedOrigin &&= ["http:", "https:"].includes(source.protocol) && source.host === host && source.origin === origin;
+    } catch { trustedOrigin = false; }
+  }
+  if (!trustedOrigin) return NextResponse.json({ error: "Reload this deal from the application, then try the action again. The request did not match this website." }, { status: 403 });
   try {
     const body = await request.json().catch(() => null);
     if (!body) throw new SalesDocumentsError("Choose a deal action.");
