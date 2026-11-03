@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, type ReactNode, useContext, useSyncExternalStore } from "react";
+import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
+import { createContext, type ReactNode, useContext, useState, useSyncExternalStore } from "react";
 
 import { APPEARANCE_STORAGE_KEY } from "./appearance-config";
 
@@ -14,7 +15,7 @@ type AppearanceContextValue = {
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 
 function readStoredAppearance(): AppAppearance {
-  return window.localStorage.getItem(APPEARANCE_STORAGE_KEY) === "dark" ? "dark" : "light";
+  return readBrowserPreference(APPEARANCE_STORAGE_KEY) === "dark" ? "dark" : "light";
 }
 
 function applyAppearance(appearance: AppAppearance) {
@@ -35,11 +36,15 @@ function subscribeToAppearance(onStoreChange: () => void) {
 }
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
-  const appearance = useSyncExternalStore(subscribeToAppearance, readStoredAppearance, (): AppAppearance => "light");
+  const [sessionAppearance, setSessionAppearance] = useState<AppAppearance | null>(null);
+  const storedAppearance = useSyncExternalStore(subscribeToAppearance, readStoredAppearance, (): AppAppearance => "light");
+
+  const appearance = sessionAppearance ?? storedAppearance;
 
   function setAppearance(nextAppearance: AppAppearance) {
     applyAppearance(nextAppearance);
-    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, nextAppearance);
+    const saved = writeBrowserPreference(APPEARANCE_STORAGE_KEY, nextAppearance);
+    setSessionAppearance(saved ? null : nextAppearance);
     window.dispatchEvent(new Event("tms-appearance-change"));
   }
 

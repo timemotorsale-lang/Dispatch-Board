@@ -40,7 +40,9 @@ export function resolveUnifiedCrmWorkspace(
 
   const workspaces = new Set(getPermittedWorkspaces(user).map((workspace) => workspace.key));
   if (workspaces.has("MANAGEMENT")) return "MANAGEMENT";
-  if (workspaces.has("SALES")) return "SALES";
+  // Coordinators prepare customer/deal work using the existing owner-scoped staff policy.
+  // This does not grant the Sales workspace, organization-wide access, or manager powers.
+  if (workspaces.has("SALES") || workspaces.has("OPERATIONS_COORDINATOR")) return "SALES";
   return null;
 }
 
@@ -49,7 +51,8 @@ export function getUnifiedCrmFallbackHref(user: AuthenticatedUser | null) {
 
   const workspace = resolveUnifiedCrmWorkspace(user);
   if (workspace === "MANAGEMENT") return "/manager-workspace";
-  if (workspace === "SALES") return "/tasks?department=SALES";
+  if (workspace === "SALES") return getPermittedWorkspaces(user).some(item => item.key === "SALES")
+    ? "/tasks?department=SALES" : "/operations-coordinator";
   return getDefaultLandingRoute(user);
 }
 

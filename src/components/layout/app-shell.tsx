@@ -4,6 +4,7 @@ import type { FormEvent, MouseEvent, ReactNode } from "react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getPermittedWorkspaces, resolveWorkspaceForPath, type WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
@@ -46,12 +47,13 @@ function subscribeSidebarPreference(onChange: () => void) {
 }
 
 function getSidebarPreference() {
-  const saved = window.localStorage.getItem("dispatch-board.sidebar");
+  const saved = readBrowserPreference("dispatch-board.sidebar");
   return saved === "collapsed" ? true : saved === "expanded" ? false : null;
 }
 
 function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [sessionSidebarCompact, setSessionSidebarCompact] = useState<boolean | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -80,9 +82,12 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarPreference = useSyncExternalStore(subscribeSidebarPreference, getSidebarPreference, () => null);
-  const sidebarCompact = sidebarPreference ?? (!tasksConsoleHome && isTasksSidebarCompact(pathname, mode));
+  // Only rails with compact rendering and recovery controls may consume this preference.
+  const sidebarCompact = (commandCenterHome || tasksConsoleHome) &&
+    (sessionSidebarCompact ?? sidebarPreference ?? (!tasksConsoleHome && isTasksSidebarCompact(pathname, mode)));
   function toggleSidebarCompact() {
-    window.localStorage.setItem("dispatch-board.sidebar", sidebarCompact ? "expanded" : "collapsed");
+    const saved = writeBrowserPreference("dispatch-board.sidebar", sidebarCompact ? "expanded" : "collapsed");
+    setSessionSidebarCompact(saved ? null : !sidebarCompact);
     window.dispatchEvent(new Event("sidebar-preference"));
   }
   const salesConsoleReturnTo = searchParams.get("returnTo");

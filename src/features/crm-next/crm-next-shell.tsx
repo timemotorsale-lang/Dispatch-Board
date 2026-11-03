@@ -1,5 +1,7 @@
 "use client";
 
+import type { DealCustomerList } from "@/lib/deal-continuity";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -1625,6 +1627,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
 export function CrmNextDealStartView({
   reviewTestDrive,
   initialCustomerId,
+  initialCustomerList,
   initialWorkflowId,
   initialVehicleReference,
   initialVehicleFacts,
@@ -1632,6 +1635,7 @@ export function CrmNextDealStartView({
 }: {
   reviewTestDrive?: boolean;
   initialCustomerId?: string;
+  initialCustomerList?: DealCustomerList;
   initialWorkflowId?: string;
   initialVehicleReference?: string;
   initialVehicleFacts?: Record<string, string>;
@@ -1640,7 +1644,7 @@ export function CrmNextDealStartView({
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
+      <CrmNextDealStartTool initialCustomerList={initialCustomerList} reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
 }

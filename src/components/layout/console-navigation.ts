@@ -1,3 +1,4 @@
+import { evaluateUnifiedCrmCapability } from "@/server/policies/unified-crm-access";
 import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays, CarFront, ClipboardList, ContactRound, FileText, Gauge, HandCoins, House, Megaphone, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Target, UserRoundCheck, UsersRound } from "lucide-react";
 
 import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
@@ -355,9 +356,7 @@ export function getConsoleNavigation(
   const resolvedWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
 
   if (isUnifiedCrmConsolePath(pathname)) {
-    const canDiscoverUnifiedCrm = getPermittedWorkspaces(user).some(
-      (workspace) => workspace.key === "MANAGEMENT" || workspace.key === "SALES"
-    );
+    const canDiscoverUnifiedCrm = evaluateUnifiedCrmCapability(user, "crm.console.access").allowed;
     if (!canDiscoverUnifiedCrm) return null;
 
     return {

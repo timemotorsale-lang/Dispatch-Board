@@ -14,6 +14,25 @@ describe("compact shared deal selectors", () => {
     expect(renderToStaticMarkup(<SharedDealCustomerPicker onSelect={() => {}} selected={customer} />)).toContain("Customer # CUS-001234");
   });
 
+  it("renders the page-loaded customer list without waiting for a browser search", () => {
+    const html = renderToStaticMarkup(<SharedDealCustomerPicker onSelect={() => {}} initialItems={[]} initialCustomerList={{
+      items: [{ id: "shared", name: "Company prospect", customerNumber: "CUS-501", phone: "••••1234", email: "" }],
+      nextCursor: "next-page"
+    }} />);
+    expect(html).toContain("Company prospect");
+    expect(html).toContain("Customer # CUS-501");
+    expect(html).toContain("More customers");
+    expect(html).not.toContain("No matching customers");
+  });
+  it("shows a recoverable load error instead of a silently blank customer panel", () => {
+    const html = renderToStaticMarkup(<SharedDealCustomerPicker onSelect={() => {}} initialCustomerList={{
+      items: [], nextCursor: null, error: "Customer list unavailable. Choose Find customer to retry."
+    }} />);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Choose Find customer to retry");
+    expect(html).toContain("Find customer</button>");
+    expect(html).not.toContain("No matching customers");
+  });
   it("does not invent customer numbers or expose opaque legacy references", () => {
     const customer = { id: "a50607d5-3f6b-471a-93b6-db46fd717961", name: "James", customerNumber: "a50607d5-3f6b-471a-93b6-db46fd717961", phone: "••••3232", email: "" };
     const html = renderToStaticMarkup(<SharedDealCustomerPicker onSelect={() => {}} initialItems={[customer]} />);

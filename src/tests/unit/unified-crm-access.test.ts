@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { canUpdateUnifiedCrmCustomerControlledEdit } from "@/server/unified-crm/customer-controlled-edit-access";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   evaluateUnifiedCrmCapability,
@@ -50,6 +51,24 @@ describe("Unified CRM foundation capability policy", () => {
 
     expect(resolveUnifiedCrmWorkspace(delegatedManager)).toBe("MANAGEMENT");
     expect(resolveUnifiedCrmWorkspace(managerSeller)).toBe("MANAGEMENT");
+  });
+
+  it("gives coordinators staff CRM access without manager or financial privileges", () => {
+    const actor = user(["Operations Coordinator", "Office Manager", "Marketing/Advertisement Manager"]);
+    expect(resolveUnifiedCrmWorkspace(actor)).toBe("SALES");
+    const options = { shellMode: "REVIEW", readMode: "REVIEW", commandMode: "REVIEW" };
+    expect(canUpdateUnifiedCrmCustomerControlledEdit(actor, actor.id, options)).toBe(true);
+    expect(canUpdateUnifiedCrmCustomerControlledEdit(actor, "another-owner", options)).toBe(false);
+    expect(canUpdateUnifiedCrmCustomerControlledEdit(actor, null, options)).toBe(false);
+
+    expect(evaluateUnifiedCrmCapability(actor, "crm.console.access")).toMatchObject({
+      allowed: true, fallbackHref: "/operations-coordinator"
+    });
+    expect(getUnifiedCrmCapabilityMap(actor)).toEqual({
+      "crm.console.access": true, "crm.customer.view": true, "crm.mutate": true,
+      "crm.sensitive.view": false, "crm.export": false, "crm.admin": false
+    });
+    expect(evaluateUnifiedCrmCapability({ ...actor, isActive: false }, "crm.console.access").allowed).toBe(false);
   });
 
   it("denies unknown and unrelated workspaces by default", () => {

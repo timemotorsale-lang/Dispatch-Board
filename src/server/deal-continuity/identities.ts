@@ -4,7 +4,10 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { requireSalesDocumentsUser } from "@/server/sales-documents/service";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
-import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
+import { getPermittedWorkspaces } from "@/server/auth/navigation";
+import { createUnifiedCrmCustomerReadRepository } from "@/server/repositories/unified-crm-customer-read-repository";
+import { normalizeUnifiedCrmCustomerListQuery, decodeUnifiedCrmCustomerCursor, encodeUnifiedCrmCustomerCursor } from "@/server/validation/unified-crm-customer-read";
+import { getUnifiedCrmCustomerList, resolveUnifiedCrmCustomerReadMode } from "@/server/services/unified-crm-customer-read-service";
 import { createServiceIntakeCustomer } from "@/server/service-intake/customer-service";
 import { createRegistryVehicle } from "@/server/vehicle-registry/service";
 import { createVehicleRegistryRepository } from "@/server/vehicle-registry/repository";
@@ -31,17 +34,51 @@ export async function dealIdentityOptions(actor: AuthenticatedUser | null, recor
   if (!allowed.length) throw new SalesDocumentsError(locations.length ? "No locations are available for this action under your permissions. Ask a manager to review your location access; your entries have been retained." : "No company locations are configured for this workflow. Ask a manager to check company settings; your entries have been retained.", locations.length ? 403 : 409);
   return { locations: allowed };
 }
+// Shared intake identities are distinct from permission to edit another owner's CRM record.
+async function dealCustomerReadScope(actor: AuthenticatedUser | null, database: Prisma.TransactionClient = prisma) {
+  const user = requireSalesDocumentsUser(actor);
+  const scope = requireUnifiedCrmCustomerReadPolicy(user);
+  if (scope.kind === "ORGANIZATION" || !getPermittedWorkspaces(user).some(workspace => workspace.key === "OPERATIONS_COORDINATOR")) return scope;
+  const organizationId = dealOrganization(), now = new Date();
+  const locations = await database.userLocationAccess.findMany({ where: {
+    userId: user.id, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gte: now } }], location: { organizationId }
+  }, select: { locationId: true } });
+  const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
+  if (!locations.some(location => evaluateVehicleCapability({ actor: user, capability: "CUSTOMER_LIFECYCLE_VIEW", grants, locationId: location.locationId, now }).allowed)) {
+    throw new SalesDocumentsError("Customer selection is unavailable for your company access. Ask a manager to review location permissions.", 403);
+  }
+  return { kind: "ORGANIZATION" } as const;
+}
+
 export async function dealCustomer(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealCustomerChoice> {
   requireSalesDocumentsUser(actor);
-  const scope = requireUnifiedCrmCustomerReadPolicy(actor);
+  const scope = await dealCustomerReadScope(actor, database);
   const customer = await database.customer.findFirst({ where: { id, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null, ...(scope.kind === "OWNER" ? { ownerUserId: scope.ownerUserId } : {}) }, select: { id: true, displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true, dateOfBirth: true, idLast4: true, idState: true, idType: true } });
   if (!customer) throw new SalesDocumentsError("Customer is unavailable or outside your authorized scope. Choose an accessible CRM customer.", 403);
   return { id: customer.id, name: customer.displayName, customerNumber: customer.customerNumber, phone: customer.phoneNumber ?? "", email: customer.email ?? "", dealPrefill: { address: customer.address ?? "", dateOfBirth: customer.dateOfBirth?.toISOString().slice(0, 10) ?? "", idLast4: customer.idLast4 ?? "", idState: customer.idState ?? "", idType: customer.idType ?? "" } };
 }
 export async function searchDealCustomers(actor: AuthenticatedUser | null, params: URLSearchParams) {
   requireSalesDocumentsUser(actor);
-  const result = await getUnifiedCrmCustomerList(actor, { q: params.get("q") ?? "", cursor: params.get("cursor"), limit: "25", status: "active" });
-  return { items: result.items.map(item => ({ id: item.id, name: item.displayName, customerNumber: item.customerNumber, phone: item.maskedPhone, email: item.maskedEmail })), nextCursor: result.page.nextCursor };
+  const scope = await dealCustomerReadScope(actor);
+  const query = normalizeUnifiedCrmCustomerListQuery({ q: params.get("q") ?? "", cursor: params.get("cursor"), limit: "25", status: "active" });
+  const workspaces = getPermittedWorkspaces(actor!);
+  const coordinator = !workspaces.some(workspace => workspace.key === "MANAGEMENT") && workspaces.some(workspace => workspace.key === "OPERATIONS_COORDINATOR");
+  if (!coordinator) {
+    const result = await getUnifiedCrmCustomerList(actor, query);
+    return { items: result.items.map(item => ({ id: item.id, name: item.displayName, customerNumber: item.customerNumber, phone: item.maskedPhone, email: item.maskedEmail })), nextCursor: result.page.nextCursor };
+  }
+  if (resolveUnifiedCrmCustomerReadMode() !== "REVIEW") throw new SalesDocumentsError("Customer records are temporarily unavailable.", 403);
+  const records = await createUnifiedCrmCustomerReadRepository().listCustomers({
+    ...query, cursor: query.cursor ? decodeUnifiedCrmCustomerCursor(query.cursor) : null,
+    organizationId: dealOrganization(), recordScope: scope, viewerUserId: actor!.id
+  });
+  const visible = records.slice(0, query.limit), last = visible.at(-1);
+  return {
+    items: visible.map(item => ({ id: item.id, name: item.displayName, customerNumber: item.customerNumber,
+      phone: item.phoneNumber ? `••••${item.phoneNumber.replace(/\D/g, "").slice(-4)}` : "",
+      email: item.email ? `${item.email.slice(0, 1)}•••@•••` : "" })),
+    nextCursor: records.length > query.limit && last ? encodeUnifiedCrmCustomerCursor(last) : null
+  };
 }
 export async function dealVehicle(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealVehicleChoice> {
   requireSalesDocumentsUser(actor);

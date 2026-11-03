@@ -7,6 +7,7 @@ import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, us
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
+import type { DealCustomerList } from "@/lib/deal-continuity";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
@@ -4488,7 +4489,7 @@ function OutsideFinanceExecutionDesk({
   );
 }
 
-export function CrmNextDealStartTool(props: { reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
+export function CrmNextDealStartTool(props: { initialCustomerList?: DealCustomerList; reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
   const params = useSearchParams();
   return <DealDraftWorkspace key={params?.toString() ?? ""} initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
 }
@@ -4496,12 +4497,14 @@ export function CrmNextDealStartTool(props: { reviewTestDrive?: boolean; initial
 function DealStartDesk({
   reviewTestDrive: initialReviewTestDrive = false,
   initialCustomerId,
+  initialCustomerList,
   initialWorkflowId,
   initialVehicleReference,
   model
 }: {
   reviewTestDrive?: boolean;
   initialCustomerId?: string;
+  initialCustomerList?: DealCustomerList;
   initialWorkflowId?: string;
   initialVehicleReference?: string;
   model: CrmNextCommandCenter;
@@ -4509,7 +4512,7 @@ function DealStartDesk({
   const savedDeal = useDealDraft();
   const router = useRouter();
   const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? null;
-  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(model.customers.map(customer => ({ ...customer, customerNumber: dealCustomerDisplayNumber(customer) })));
+  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(initialCustomerList?.items ?? model.customers.map(customer => ({ ...customer, customerNumber: dealCustomerDisplayNumber(customer) })));
   const repairCustomerRef = useRef<HTMLDivElement>(null);
   const repairVehicleRef = useRef<HTMLDivElement>(null);
   const [identity, setIdentity] = useDealDraftState<DealIdentity>("identity", { ...emptyDealIdentity });
@@ -4598,6 +4601,9 @@ function DealStartDesk({
     setCustomerChoices(current => [customer, ...current.filter(item => item.id !== customer.id)]);
     setManualCustomerName(""); setForm(current => ({ ...current, customerId: customer.id }));
     setIdentity(current => ({ ...current, customerId: customer.id }));
+    setSourceError("");
+    // Persist the canonical customer link immediately, including customers created here.
+    await savedDeal?.save();
   }
   async function chooseSharedVehicle(vehicle: DealVehicleChoice) {
     if (identity.vehicleId === vehicle.id) {
@@ -4807,7 +4813,7 @@ function DealStartDesk({
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
       <div className={identityStyles.identityGrid}>
-        <div ref={repairCustomerRef}><SharedDealCustomerPicker selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
+        <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
         <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
       </div>
       {sourceError && <p role="alert">{sourceError}</p>}

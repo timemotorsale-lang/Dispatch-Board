@@ -28,7 +28,7 @@ describe("Unified CRM customer read policy", () => {
     });
   });
 
-  it.each([["Salesperson"], ["Sales Manager"]])("limits %s to own Customer records", (role) => {
+  it.each([["Salesperson"], ["Sales Manager"], ["Operations Coordinator"]])("limits %s to own Customer records", (role) => {
     expect(evaluateUnifiedCrmCustomerReadPolicy(user([role]))).toMatchObject({
       allowed: true,
       recordScope: { kind: "OWNER", ownerUserId: "user-1" }
