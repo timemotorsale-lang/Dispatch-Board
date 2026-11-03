@@ -12,6 +12,9 @@ import { DealDashboardPanels, type DealDashboardData } from "./deal-dashboard-pa
 import { DealLifecycleDialog, type DealLifecycleAction } from "./deal-lifecycle-dialog";
 import { DealOperationsDrawer } from "./deal-operations-drawer";
 import { DEAL_WORK_VIEWS } from "@/lib/deal-dashboard-enterprise";
+import { DealHomeQuickLinks } from "./deal-home-quick-links";
+import { dealTimeShortcut } from "@/lib/deal-workspace-navigation";
+import overviewStyles from "./deal-workspace-overview.module.css";
 import { DealRowActions, DealRowStatus, type DealLibraryRow } from "./deal-row-controls";
 
 type SavedDeal = DealLibraryRow;
@@ -101,6 +104,8 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
   const detailedDeal = data?.items.find(deal => deal.id === details?.id) || details;
   return <section className={styles.library} aria-label="Saved deals library">
     <header>{title === "Deals" ? <h1>Deals</h1> : <h2>{title}</h2>}<div className={styles.commands}>{renderHeaderAction?.(pathway !== "ALL" ? pathway : group === "LEASING" ? "lease-to-own" : group === "SERVICE" ? "repairs" : group === "USE" ? "daily-rental" : "ALL") ?? headerAction}<button title="Refresh saved deals" aria-label="Refresh saved deals" disabled={loading} onClick={() => setReload((value) => value + 1)}><RefreshCw size={17} /></button></div></header>
+    {dashboard && <p className={overviewStyles.compactIntro}>Deals Home · choose the next task, then continue in the exact customer and vehicle workspace.</p>}
+    {dashboard && section === "overview" && <DealHomeQuickLinks onContinue={() => { setSection("work"); setStatus("CURRENT"); setBucket("ALL"); setPage(1); }} onPaperwork={() => { selectBucket("paperwork"); setMessage("Choose the deal's Packet or Actions control to review requirements and attach signed documents."); }} onReturns={() => selectBucket("returns")} onSummary={() => { setSection("report"); setStatus("CURRENT"); setBucket("ALL"); setPage(1); }} />}
     <div className={styles.tabs} role="tablist" aria-label="Deal sections">
       {dashboard && <button role="tab" aria-selected={section === "overview"} onClick={() => { setSection("overview"); setStatus("CURRENT"); setBucket("ALL"); setPage(1); }}>Overview</button>}
       <button role="tab" aria-selected={status !== "ARCHIVED" && (!dashboard || section === "work")} onClick={() => { setSection("work"); setStatus("CURRENT"); setBucket("ALL"); setPage(1); }}>Current deals ({loading ? "…" : count("CURRENT")})</button>
@@ -109,6 +114,8 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     </div>
     {status === "ARCHIVED" ? <p>Archived deals · preserved packet documents and history. These deals are excluded from Current deals.</p> : null}
     {dashboard && status !== "ARCHIVED" && <small>Yellow: sold, paperwork pending. Green: sold, paperwork finalized.</small>}
+    {dashboard && section !== "archive" && <div className={styles.commands} style={{marginTop:12}}><label>Quick reporting range<select aria-label="Quick reporting range" value="" onChange={event => { const value=event.target.value; if(!value)return; const next=dealTimeShortcut(value,moneyToday());setDate(next.date);setPeriod(next.period);setPage(1); }}><option value="">Choose a reporting period</option>{[["today","Today"],["week","This week"],["month","This month"],["yesterday","Yesterday"],["last-week","Last week"],["two-weeks","Two weeks ago"],["last-month","Last month"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><span>{period === "day" ? "Daily" : period === "week" ? "Weekly" : "Monthly"} reporting · {date}</span></div>}
+    <details className={overviewStyles.advanced} open={!dashboard || section !== "overview"}><summary>Filters, pathway and personal views</summary>
     {dashboard && section !== "archive" && <div className={styles.savedViews} aria-label="Saved work views">
       <label>Workspace<select aria-label="Workspace" value={workspace} onChange={event => { setWorkspace(event.target.value); setOwner("ALL"); setPage(1); }}><option value="ACCESSIBLE">Accessible deals</option><option value="MY">My work</option>{data?.dashboard?.canManage && <option value="TEAM">Team work · manager</option>}</select></label>
       <button onClick={() => { setSelectedView(""); applyWorkView({ group: "ALL", owner: "ALL", workspace: "MY", pathway: "ALL", bucket: "overdue", search: "" }); }}>My overdue deals</button>
@@ -126,6 +133,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
       {dashboard && <button onClick={() => { setGroup("ALL"); setOwner("ALL"); setWorkspace("ACCESSIBLE"); setSelectedView(""); setPathway("ALL"); setSearch(""); setBucket("ALL"); setStatus(section === "archive" ? "ARCHIVED" : "CURRENT"); setPage(1); }}>Clear filters</button>}
     </div>
     {dashboard && section !== "archive" && section !== "report" && <div className={styles.commands}><label>Work view<select aria-label="Work view" value={bucket} onChange={event => { selectBucket(event.target.value); }}>{Object.entries(DEAL_WORK_VIEWS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><button onClick={exportVisible} disabled={loading}>Export visible rows</button><label>Rows<select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPage(1); }}>{[25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}</select></label></div>}
+    </details>
     {dashboard && data?.dashboard && !loading && section !== "archive" && <DealDashboardPanels data={data.dashboard} report={section === "report"} onFilter={selectBucket} />}
     {error && !archiving ? <p role="alert">{error}</p> : null}
     {message ? <p role="status">{message}</p> : null}

@@ -1611,11 +1611,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
     <CrmNextFrame active="deals" userName={model.userName}>
       <SavedDealsLibrary
         title="Deals"
-        renderHeaderAction={(pathway) => {
-          const params = new URLSearchParams({ new: "1" });
-          if (pathway !== "ALL") params.set("pathway", pathway);
-          return <>{pathway !== "repairs" ? <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1&pathway=repairs`}>Start Repair</Link> : null}<Link href={`${CRM_NEXT_DEAL_START_HREF}?${params}`}><UserPlus size={16} />{pathway === "repairs" ? "Start Repair" : pathway === "lease-to-own" ? "Start Lease" : ["daily-rental", "vehicle-loaner", "test-drive"].includes(pathway) ? "Start Vehicle Use" : "Start Deal"}</Link></>;
-        }}
+        renderHeaderAction={() => <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1`}><UserPlus size={16} />Start Deal</Link>}
         disabled={false}
         refreshKey="deals-page"
         onOpen={(id) => router.push(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}
@@ -1643,7 +1639,6 @@ export function CrmNextDealStartView({
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
-      <Topbar />
       <CrmNextDealStartTool initialCustomerList={initialCustomerList} reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );

@@ -3,14 +3,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type SetStateAction, type Dispatch } from "react";
 import { Save, FolderOpen, Plus } from "lucide-react";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
-import { SAVED_DEAL_STATUSES, isActiveSavedDeal, type SavedDealStatus } from "@/lib/saved-deal-status";
+import { chooseEntryDraft } from "@/lib/deal-workspace-navigation";
+import overviewStyles from "./deal-workspace-overview.module.css";
+import { SAVED_DEAL_STATUSES, type SavedDealStatus } from "@/lib/saved-deal-status";
 import { SavedDealsLibrary } from "./saved-deals-library";
 import styles from "./deal-draft-workspace.module.css";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { DealLifecycleDialog, type DealLifecycleAction } from "./deal-lifecycle-dialog";
 
 type Snapshot = Record<string, unknown>;
-type DraftSummary = { id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string; status?: SavedDealStatus };
+type DraftSummary = { customerId?: string | null; id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string; status?: SavedDealStatus };
 type Draft = DraftSummary & { revision: number; snapshot: Snapshot };
 type Store = {
   draftId: () => string;
@@ -26,6 +28,8 @@ type Store = {
   reference: (key: string, renew?: boolean) => string;
 };
 const DraftContext = createContext<Store | null>(null);
+const SaveStateContext = createContext({ saved: false, message: "New deal" });
+export const useDealSaveState = () => useContext(SaveStateContext);
 const ScopeContext = createContext("desk");
 export const useDealDraft = () => useContext(DraftContext);
 
@@ -125,6 +129,9 @@ export function DealDraftScope({ name, children }: { name: string; children: Rea
 
 export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, customers, children }: { initialCustomerId?: string; initialVehicleFacts?: Record<string, string>; customers: Array<{ id: string; name: string }>; children: ReactNode }) {
   const snapshot = useRef<Snapshot>({}), id = useRef(""), revision = useRef(0), changes = useRef(0), savedChanges = useRef(0);
+  const autoSaveArmed = useRef(false);
+  const [persistedId, setPersistedId] = useState("");
+  const [entryChoices, setEntryChoices] = useState<DraftSummary[]>([]);
   const initialized = useRef(false), queue = useRef(Promise.resolve()), timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), root = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false), [epoch, setEpoch] = useState(0), [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [selectedId, setSelectedId] = useState(""), [message, setMessage] = useState("Loading saved deals..."), [error, setError] = useState(""), [busy, setBusy] = useState(false), [conflict, setConflict] = useState(false);
@@ -159,7 +166,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
       const customerId = form?.customerId && form.customerId !== "__manual_customer__" ? form.customerId : "";
       try {
         const draft = await request<Draft>("/api/crm/v1/deal-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id.current, revision: revision.current, status: dealStatus.current, snapshot: payload, customerId, customerName: customers.find((customer) => customer.id === customerId)?.name || payload["desk:manualCustomerName"] || "Customer not selected", pathway: payload["desk:workflowId"] || "retail-sale", vehicleReference: form?.vehicle || "" }) });
-        revision.current = draft.revision; savedChanges.current = number; setSelectedId(draft.id);
+        revision.current = draft.revision; autoSaveArmed.current = true; setPersistedId(draft.id); savedChanges.current = number; setSelectedId(draft.id);
         success = true;
         setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)]);
         setMessage(changes.current === number ? `Draft saved at ${new Date(draft.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Unsaved changes");
@@ -177,7 +184,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     snapshot.current[key] = value;
     if (key === "desk:workflowId") setCurrentPathway(String(value));
     if (key === "jackets") setPacketRefresh(current => current + 1);
-    if (!initialized.current) return;
+    if (!initialized.current || !autoSaveArmed.current) return;
     changes.current += 1; setMessage("Unsaved changes"); clearTimeout(timer.current);
     if (!blocked.current) timer.current = setTimeout(() => { void save(); }, 1000);
   }, [save]);
@@ -200,7 +207,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
   }), [write, save, openLifecycle, currentStatus, paperworkComplete]);
 
   const install = useCallback(async (draft: Draft | null) => {
-    initialized.current = false; clearTimeout(timer.current);
+    initialized.current = false; autoSaveArmed.current = Boolean(draft); setPersistedId(draft?.id ?? ""); setEntryChoices([]); clearTimeout(timer.current);
     const next = draft?.snapshot ?? (initialVehicleFacts ? Object.fromEntries(Object.keys(SALES_DOCUMENT_PATHWAYS).map(pathway => [`${pathway}:vehicleFacts`, { ...initialVehicleFacts }])) : {});
     // Never restore upload readiness from a filename that was not saved to its jacket.
     for (const pathway of Object.keys(SALES_DOCUMENT_PATHWAYS)) {
@@ -230,15 +237,13 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     let active = true;
     void (async () => {
       try {
-        const list = await request<DraftSummary[]>("/api/crm/v1/deal-drafts");
+        const list = await request<DraftSummary[]>(`/api/crm/v1/deal-drafts${initialCustomerId ? `?customerId=${encodeURIComponent(initialCustomerId)}` : ""}`);
         if (!active) return;
         setDrafts(list);
-        const preferred = list.find((item) => isActiveSavedDeal(item.status) && (!initialCustomerId || (item as DraftSummary & { customerId?: string }).customerId === initialCustomerId));
         const params = new URLSearchParams(window.location.search);
-        const requestedId = params.get("draftId");
-        const startNew = params.get("new") === "1";
-        const targetId = requestedId || (startNew ? undefined : preferred?.id);
-        const draft = targetId ? await request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(targetId)}`) : null;
+        const entry = chooseEntryDraft(list, { draftId: params.get("draftId"), newDeal: params.get("new") === "1", customerId: initialCustomerId, pathway: params.get("pathway") ?? undefined });
+        if (entry.candidates.length) { setEntryChoices(entry.candidates); setMessage("Choose which existing deal to continue"); return; }
+        const draft = entry.id ? await request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(entry.id)}`) : null;
         if (active) await install(draft);
       } catch (caught) {
         if (!active) return;
@@ -268,19 +273,20 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     return () => { clearTimeout(timer); controller.abort(); };
   }, [currentStatus, currentPathway, epoch, packetRefresh]);
   useEffect(() => { const refresh = () => setPacketRefresh(value => value + 1); window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh); }, []);
-  return <DraftContext.Provider value={store}>
+  return <SaveStateContext.Provider value={{ saved: Boolean(persistedId), message }}><DraftContext.Provider value={store}>
     <section className={styles.toolbar} aria-label="Saved deal drafts">
       <div className={styles.commands}><button disabled={!loaded || busy || conflict} onClick={() => void save()}><Save size={16} />Save draft</button><button disabled={!loaded || busy} onClick={() => { if (changes.current !== savedChanges.current && !window.confirm("Start a new deal without saving these edits?")) return; void install(null); }}><Plus size={16} />New deal</button><span role="status">{message}</span></div>
-      <div className={styles.commands}><select aria-label="Saved deals" value={selectedId} onFocus={() => void refreshList().catch(() => {})} onChange={(event) => setSelectedId(event.target.value)}><option value="">Choose saved deal</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? draft.pathway} · {draft.vehicleReference || "Vehicle not assigned"}</option>)}</select><button disabled={!loaded || busy || !selectedId} onClick={() => void openDraft()}><FolderOpen size={16} />Resume</button></div>
+      <details className={overviewStyles.advanced}><summary>Resume another saved deal</summary><div className={styles.commands}><select aria-label="Saved deals" value={selectedId} onFocus={() => void refreshList().catch(() => {})} onChange={(event) => setSelectedId(event.target.value)}><option value="">Choose saved deal</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? draft.pathway} · {draft.vehicleReference || "Vehicle not assigned"}</option>)}</select><button disabled={!loaded || busy || !selectedId} onClick={() => void openDraft()}><FolderOpen size={16} />Resume</button></div></details>
       <div className={styles.commands}><label>Deal status <select aria-label="Current saved deal status" disabled={!loaded || busy || conflict} value={currentStatus} onChange={(event) => { const value = event.target.value as SavedDealStatus; if (["SOLD", "COMPLETED"].includes(value) && ["SALES", "LEASING"].includes(dealGroup(currentPathway))) { void openLifecycle(currentStatus === "SOLD" ? "FINISH" : "MARK_SOLD"); return; } dealStatus.current = value; setCurrentStatus(value); write("dealStatus", value); }}>{Object.entries(SAVED_DEAL_STATUSES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>{["SALES", "LEASING"].includes(dealGroup(currentPathway)) && !["ARCHIVED", "LOST", "CANCELLED"].includes(currentStatus) && (currentStatus !== "SOLD" ? <button data-completion="pending" disabled={!loaded || busy || conflict} onClick={() => void openLifecycle("MARK_SOLD")}>Mark sold</button> : paperworkComplete ? <span className={styles.badge} data-finalized="true">Sold · finalized</span> : <button data-completion="pending" disabled={!loaded || busy || conflict} onClick={() => void openLifecycle("FINISH")}>Sold · complete paperwork</button>)}<button aria-expanded={showLibrary} onClick={() => setShowLibrary((value) => !value)}><FolderOpen size={16} />Saved deals</button></div>
       {error ? <p role="alert">{error}{conflict ? <button onClick={() => { id.current = crypto.randomUUID(); revision.current = 0; blocked.current = false; setConflict(false); void save(); }}>Save as new draft</button> : null}</p> : null}
     </section>
+    {entryChoices.length > 0 && <section className={overviewStyles.panel} aria-label="Choose customer deal"><h2>Choose the deal to continue</h2><p>This customer has several active deals. Choose the correct vehicle and pathway, or explicitly start a separate deal.</p><div className={overviewStyles.entry}>{entryChoices.map(draft => <button key={draft.id} disabled={busy} onClick={() => void openDraft(draft.id)} type="button"><strong>{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS]}</strong><small>{draft.vehicleReference || "Vehicle not assigned"} · {draft.status ? SAVED_DEAL_STATUSES[draft.status] : "Working"} · Updated {new Date(draft.updatedAt).toLocaleString()}</small></button>)}</div><button onClick={() => void install(null)} type="button">Start a separate deal for this customer</button></section>}
     {lifecycle && <DealLifecycleDialog {...lifecycle} onClose={() => setLifecycle(null)} onSaved={text => { setLifecycle(null); void request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(id.current)}`).then(async draft => { await install(draft); setMessage(text); }).catch(caught => setError(caught instanceof Error ? caught.message : "Refresh this saved deal to see its updated status.")); }} />}
     {showLibrary ? <SavedDealsLibrary disabled={!loaded || busy} onOpen={(targetId) => void openDraft(targetId)} refreshKey={drafts.map((draft) => `${draft.id}:${draft.updatedAt}`).join("|")} /> : null}
     <fieldset className={styles.body} disabled={!loaded}><div ref={root} key={epoch} onChangeCapture={(event) => {
       if (!root.current || !initialized.current) return;
       const item = fieldEntries(root.current).find(({ input }) => input === event.target);
-      if (item) write("fields", { ...(snapshot.current.fields as Record<string, unknown> ?? {}), [item.key]: item.input instanceof HTMLInputElement && ["checkbox", "radio"].includes(item.input.type) ? item.input.checked : item.input.value });
+      if (item) { autoSaveArmed.current = true; write("fields", { ...(snapshot.current.fields as Record<string, unknown> ?? {}), [item.key]: item.input instanceof HTMLInputElement && ["checkbox", "radio"].includes(item.input.type) ? item.input.checked : item.input.value }); }
     }}><DealDraftScope name="desk">{children}</DealDraftScope></div></fieldset>
-  </DraftContext.Provider>;
+  </DraftContext.Provider></SaveStateContext.Provider>;
 }

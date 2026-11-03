@@ -3,11 +3,15 @@
 import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
+import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealSaveState, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
 import type { DealCustomerList } from "@/lib/deal-continuity";
+import { DealWorkspaceOverview, DealActivityPanel } from "./deal-workspace-overview";
+import workspaceStyles from "./deal-workspace-overview.module.css";
+import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
+import { dealGroup } from "@/lib/deal-dashboard";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
@@ -1169,7 +1173,7 @@ function RetailSaleExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredFormCount} required forms ready`}</strong>
             <small>Open the drawer to prepare forms, generate the packet, preview documents, and send or print.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open MN sale packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open MN sale packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -2008,7 +2012,7 @@ function DailyRentalExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
             <small>{isLoaner ? "Open the drawer to prepare the official courtesy loaner agreement, condition/return record, and Minnesota insurance notice." : "Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions."}</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -2558,7 +2562,7 @@ function LeaseToOwnExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedPacketCount}/${packetFormCount} packet forms ready`}</strong>
             <small>Open the packet to preview saved documents or prepare an updated copy. Finalizing the deal is a separate step.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open lease packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open lease packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -2960,7 +2964,7 @@ function BhphExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredBhphForms.length} required forms ready`}</strong>
             <small>Open the drawer to prepare the installment support packet, payment schedule, insurance, default, GPS, references, delivery, privacy, and deal-jacket controls.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open BHPH packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open BHPH packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -4510,6 +4514,34 @@ function DealStartDesk({
   model: CrmNextCommandCenter;
 }) {
   const savedDeal = useDealDraft();
+  const saveState = useDealSaveState();
+  const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
+  const [documentEditor, setDocumentEditor] = useState(false);
+  const workspaceRoot = useRef<HTMLElement>(null);
+  const [packetRequested, setPacketRequested] = useState(false);
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const section = (event as CustomEvent<string>).detail;
+      if (["identity", "terms", "completion"].includes(section)) setWorkspaceSection(section as DealWorkspaceSection);
+    };
+    window.addEventListener("deal-workspace-navigate", navigate);
+    return () => window.removeEventListener("deal-workspace-navigate", navigate);
+  }, []);
+  useEffect(() => {
+    if (!packetRequested) return;
+    const frame = window.requestAnimationFrame(() => {
+      workspaceRoot.current?.querySelector<HTMLButtonElement>("[data-deal-packet-open]")?.click();
+      setPacketRequested(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [packetRequested]);
+  function navigateWorkspace(section: DealWorkspaceSection) {
+    setWorkspaceSection(section);
+    if (section === "terms") setExecutionOpen(true);
+  }
+  function openDocumentPreparation() {
+    setExecutionOpen(true); setDocumentEditor(true); setWorkspaceSection("documents"); setPacketRequested(true);
+  }
   const router = useRouter();
   const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? null;
   const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(initialCustomerList?.items ?? model.customers.map(customer => ({ ...customer, customerNumber: dealCustomerDisplayNumber(customer) })));
@@ -4633,6 +4665,7 @@ function DealStartDesk({
     if (fields) savedDeal?.write("fields", Object.fromEntries(Object.entries(fields).filter(([key]) => !key.startsWith(workflowId + ":"))));
     setIdentity(current => ({ ...current, vehicleId: vehicle.id, inventoryUnitId: vehicle.inventoryUnitId, vehicle }));
     setForm(current => ({ ...current, vehicle: [vehicle.label, vehicle.vin, vehicle.stockNumber].filter(Boolean).join(" / ") }));
+    await savedDeal?.save();
   }
   const [authorizedContact, setAuthorizedContact] = useState<{ customerId: string; phoneNumber: string; email: string } | null>(null);
   useEffect(() => {
@@ -4663,7 +4696,7 @@ function DealStartDesk({
   const completedCount = useMemo(() => (repairWorkflow ? [identity.customerId, identity.vehicleId, form.note] : [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount]).filter(value => value.trim()).length, [repairWorkflow, identity.customerId, identity.vehicleId, form.note, customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
-  const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
+  const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId && preset.workflowId === workflowId) ?? DEAL_START_PRESETS.find(preset => preset.workflowId === workflowId) ?? DEAL_START_PRESETS[0];
 
   function update(key: keyof typeof form, value: string) {
     if (key === "vehicle" && identity.vehicle?.vin && !value.toUpperCase().includes(identity.vehicle.vin)) setIdentity(current => ({ ...current, vehicleId: "", inventoryUnitId: null, vehicle: null }));
@@ -4695,9 +4728,12 @@ function DealStartDesk({
   }
 
   function focusRepairIdentity(field: "customer" | "vehicle") {
-    const container = field === "customer" ? repairCustomerRef.current : repairVehicleRef.current;
-    container?.scrollIntoView({ behavior: "smooth", block: "center" });
-    container?.querySelector<HTMLInputElement>("input:not([type=hidden])")?.focus({ preventScroll: true });
+    setWorkspaceSection("identity");
+    window.requestAnimationFrame(() => {
+      const container = field === "customer" ? repairCustomerRef.current : repairVehicleRef.current;
+      container?.scrollIntoView({ behavior: "smooth", block: "center" });
+      container?.querySelector<HTMLInputElement>("input:not([type=hidden])")?.focus({ preventScroll: true });
+    });
   }
 
   async function continueRepair() {
@@ -4811,18 +4847,25 @@ function DealStartDesk({
   return (
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
-    <section className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
-      <div className={identityStyles.identityGrid}>
+    <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
+      <DealWorkspaceOverview customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
+      <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
+      <div data-deal-workspace-section="identity" hidden={workspaceSection !== "identity"}><div className={identityStyles.identityGrid}>
         <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
         <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
       </div>
+      </div>
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
-      {(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}
-      <header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
+      {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div></section>}
+      {workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
+      <div hidden={workspaceSection !== "completion"}>{(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}</div>
+      {workspaceSection === "activity" && <DealActivityPanel key={savedDeal?.draftId()} draftId={savedDeal?.draftId() ?? ""} saved={saveState.saved} />}
+      <div data-deal-workspace-section="terms" hidden={workspaceSection !== "terms" && !(workspaceSection === "documents" && documentEditor)}>
+      <details className={workspaceStyles.advanced}><summary>Additional packet controls</summary><header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
         <div>
           <span className={styles.eyebrow}>Revenue execution desk</span>
-          <h1>Work the revenue path</h1>
+          <strong>Packet administration</strong>
           <p>Choose the channel unfolding in front of staff. The desk asks for only the facts needed to open the right execution path.</p>
         </div>
         <Link className={styles.secondaryButton} href={CRM_NEXT_DEALS_HREF}>Back to deals</Link>
@@ -4833,7 +4876,7 @@ function DealStartDesk({
           savedDeal?.reference(key, true);
           if (await savedDeal?.save()) window.location.reload();
         }}><FilePlus2 size={16} />New document jacket</button>
-      </header>
+      </header></details>
 
       {!executionOpen ? (
         <>
@@ -4845,7 +4888,7 @@ function DealStartDesk({
             <div>
               {DEAL_START_PRESETS.map((preset) => (
                 <button
-                  aria-pressed={selectedPresetId === preset.id}
+                  aria-pressed={selectedPreset.id === preset.id}
                   key={preset.id}
                   onClick={() => applyPreset(preset)}
                   type="button"
@@ -5191,6 +5234,7 @@ function DealStartDesk({
       )}
       {documentArchiveError ? <p role="alert" className={styles.dealStartError}>{documentArchiveError}</p> : documentArchiveMessage ? <p role="status" className={styles.dealStartStatus}>{documentArchiveMessage} <Link href={documentJacketHref}>Open deal jacket</Link></p> : null}
       {status.kind !== "idle" ? <p className={status.kind === "error" ? styles.dealStartError : styles.dealStartStatus}>{status.message}{status.href ? <> <Link href={status.href}>Open opportunity</Link></> : null}</p> : null}
+      </div></div>
       {summaryOpen ? (
         <div className={styles.executionDrawerBackdrop} role="presentation">
           <aside className={styles.executionDrawer} aria-label="Execution summary drawer">

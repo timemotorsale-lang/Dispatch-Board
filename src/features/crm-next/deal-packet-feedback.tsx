@@ -30,6 +30,8 @@ export function goToDealBlocker(message: string, source: HTMLElement, closeDrawe
   if (!target) return;
   if (!target.closest("aside")) closeDrawer?.();
   const destination = target;
+  const workspaceSection = destination.closest<HTMLElement>("[data-deal-workspace-section]");
+  if (workspaceSection?.hidden) window.dispatchEvent(new CustomEvent("deal-workspace-navigate", { detail: workspaceSection.dataset.dealWorkspaceSection }));
   for (let ancestor = destination.parentElement; ancestor; ancestor = ancestor.parentElement) if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
   requestAnimationFrame(() => {
     if (!destination.matches(editable)) destination.tabIndex = -1;

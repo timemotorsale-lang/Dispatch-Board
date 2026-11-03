@@ -148,7 +148,7 @@ export function CashRetailSaleDesk(props: Props) {
 
       <header><span>Cash retail sale</span><strong>{props.customerName || "Select buyer"}</strong></header>
 
-      <div className={styles.retailActionRow}><button className={cashStyles.statusAction} type="button" data-completion={complete ? "complete" : "pending"} disabled={busy || !draft || complete} onClick={() => void draft?.completeSale()}>{complete ? "Sold · finalized" : sold ? "Sold · complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => setDrawer(true)}>Open cash sale packet</button></div>
+      <div className={styles.retailActionRow}><button className={cashStyles.statusAction} type="button" data-completion={complete ? "complete" : "pending"} disabled={busy || !draft || complete} onClick={() => void draft?.completeSale()}>{complete ? "Sold · finalized" : sold ? "Sold · complete paperwork" : "Mark deal sold"}</button><button type="button" data-deal-packet-open onClick={() => setDrawer(true)}>Open cash sale packet</button></div>
 
       <p>Mark this existing deal sold first. Signed forms, insurance, DMV/title and delivery items can be completed afterward. Yellow means paperwork pending; green means finalized.</p>
 
