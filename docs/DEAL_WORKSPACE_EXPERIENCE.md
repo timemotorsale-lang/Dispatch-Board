@@ -28,3 +28,15 @@ Activity reads the existing saved-deal operations history. Deal follow-up and ve
 ## Validation
 
 Focused unit coverage verifies entry selection, next-action routing, period boundaries and rendered navigation. Browser coverage verifies both manager and coordinator access, explicit selection among customer deals, no automatic draft writes during navigation, preserved edits, packet chooser access, mobile layout and dashboard time/work filters. Writes are intercepted in the browser fixtures.
+
+## Saved-deal summary and signing handoff
+
+A saved deal opens on a compact summary: vehicle and customer details, assigned staff from the deal operations service, saved price structure, payment figures and next-step actions. Save & review explicitly saves and returns to the summary. Successful intake submission and lifecycle changes also return to Overview. Automatic saves keep staff in the section they are editing.
+
+The summary uses the last successful server snapshot and revision. Unsaved edits are flagged, and packet preparation is unavailable until they are saved. Save & close returns to Deals Home only after a successful save, or immediately if the saved deal is unchanged. Failed saves retain the same deal, entries and screen.
+
+Cash-sale figures reuse cashSaleTotals. The lease editing view and saved summary share defaults, input conversion and calculateLeaseToOwn, including exact target payment, final payment and residual/purchase option. BHPH displays entered terms; other pathways show their saved amount and relevant schedule without inventing financing totals. Worksheet payment entries do not certify a payment receipt, funding or delivery.
+
+The action rail opens existing form selection, generation and PDF preview/printing. Upload/review links target the same linked document jacket. The live checklist shows actual remaining blockers and scheduled deal follow-up, supports refresh/retry, and refreshes when focus returns. Only a closed paperwork jacket is labeled finalized. Final paperwork and manager correction controls remain protected by the existing service.
+
+No credit-provider, e-signature, lender-submission or accounting integration is implied by the summary. Those actions are not presented as enabled tools without a working integration.

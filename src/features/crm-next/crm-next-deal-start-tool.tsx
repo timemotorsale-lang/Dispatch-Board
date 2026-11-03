@@ -8,6 +8,7 @@ import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
 import type { DealCustomerList } from "@/lib/deal-continuity";
+import { DealSavedSummary } from "./deal-saved-summary";
 import { DealWorkspaceOverview, DealActivityPanel } from "./deal-workspace-overview";
 import workspaceStyles from "./deal-workspace-overview.module.css";
 import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
@@ -27,7 +28,7 @@ import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
 import { testDriveFacts, testDriveAgreementError, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, dealerWarrantyPosture, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIELDS, leaseCalculatorInputFromFields, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
@@ -2113,11 +2114,6 @@ function DailyRentalExecutionDesk({
   );
 }
 
-function basisPointsFromMultiplier(value: string) {
-  const parsed = Number(value.trim());
-  return Number.isFinite(parsed) ? Math.round(parsed * 10000) : 10000;
-}
-
 function LeaseToOwnExecutionDesk({
   customerPrefill,
   customerName,
@@ -2156,27 +2152,7 @@ function LeaseToOwnExecutionDesk({
     year: ""
   });
   useCanonicalDealVehicle(setVehicleFacts);
-  const [leaseInputs, setLeaseInputs] = useDealDraftState("leaseInputs", {
-    agreedPrice: "",
-    calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT",
-    targetPayment: "$250.00",
-    additionalItems: "$0.00",
-    capitalizedCostReduction: "$0.00",
-    contractLength: "36",
-    documentPreparationFee: "$300.00",
-    downPayment: "$0.00",
-    gpsCost: "$0.00",
-    multiplier: "2.00",
-    originationFee: "$0.00",
-    otherRoadWorthyCost: "$0.00",
-    paymentFrequency: "Monthly" as LeasePaymentFrequency,
-    registrationFee: "$516.00",
-    salesTaxRate: "6.875",
-    signingPaymentMode: "CAPITALIZED_REDUCTION" as "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION",
-    titleFee: "$102.80",
-    warrantyCost: "$0.00",
-    wholesaleCost: "$0.00"
-  });
+  const [leaseInputs, setLeaseInputs] = useDealDraftState("leaseInputs", { ...DEFAULT_LEASE_CALCULATOR_FIELDS });
   const [calculatorView, setCalculatorView] = useDealDraftState("calculatorView", "COMPACT");
   const [leaseFacts, setLeaseFacts] = useDealDraftState("leaseFacts", {
     deliveryAt: "",
@@ -2215,27 +2191,7 @@ function LeaseToOwnExecutionDesk({
     }));
   }, [customerPrefill, setLeaseFacts]);
 
-  const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
-    agreedPriceCents: leaseInputs.agreedPrice.trim() ? dollarsToCents(leaseInputs.agreedPrice) ?? NaN : undefined,
-    calculationMode: leaseInputs.calculationMode,
-    targetPaymentCents: dollarsToCents(leaseInputs.targetPayment) ?? 0,
-    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) ?? 0,
-    capitalizedCostReductionCents: dollarsToCents(leaseInputs.capitalizedCostReduction) ?? 0,
-    contractLength: Number(leaseInputs.contractLength) || 0,
-    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) ?? 0,
-    downPaymentCents: dollarsToCents(leaseInputs.downPayment) ?? 0,
-    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) ?? 0,
-    multiplierBasisPoints: basisPointsFromMultiplier(leaseInputs.multiplier),
-    originationFeeCents: dollarsToCents(leaseInputs.originationFee) ?? 0,
-    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) ?? 0,
-    paymentFrequency: leaseInputs.paymentFrequency,
-    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) ?? 0,
-    salesTaxRateBasisPoints: Number(leaseInputs.salesTaxRate.replace("%", "")) * 100,
-    signingPaymentMode: leaseInputs.signingPaymentMode,
-    titleFeeCents: dollarsToCents(leaseInputs.titleFee) ?? 0,
-    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) ?? 0,
-    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) ?? 0
-  }), [leaseInputs]);
+  const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => leaseCalculatorInputFromFields(leaseInputs), [leaseInputs]);
   const calculator = useMemo(() => calculateLeaseToOwn(calculatorInput), [calculatorInput]);
   const leaseDeliveryDate = new Date(leaseFacts.deliveryAt);
   const leaseDeliveryIso = Number.isFinite(leaseDeliveryDate.getTime()) ? leaseDeliveryDate.toISOString() : "";
@@ -4522,7 +4478,7 @@ function DealStartDesk({
   useEffect(() => {
     const navigate = (event: Event) => {
       const section = (event as CustomEvent<string>).detail;
-      if (["identity", "terms", "completion"].includes(section)) setWorkspaceSection(section as DealWorkspaceSection);
+      if (["overview", "identity", "terms", "completion"].includes(section)) setWorkspaceSection(section as DealWorkspaceSection);
     };
     window.addEventListener("deal-workspace-navigate", navigate);
     return () => window.removeEventListener("deal-workspace-navigate", navigate);
@@ -4764,10 +4720,15 @@ function DealStartDesk({
     if (nonRevenueWorkflow) {
       const saved = await savedDeal?.save();
       setStatus({ kind: saved ? "success" : "error", message: saved ? "Operational path saved. Use assignment and handoff; no sales opportunity or original deal was replaced." : "Resolve the draft save before continuing." });
+      if (saved) setWorkspaceSection("overview");
       return false;
     }
     if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return false;
     setStatus({ kind: "saving", message: "Starting deal..." });
+    if (!savedDeal || !await savedDeal.save()) {
+      setStatus({ kind: "error", message: savedDeal?.saveError() || "Save this deal before completing intake." });
+      return false;
+    }
     try {
     const response = await fetch("/api/crm/v1/opportunities", {
       body: JSON.stringify({
@@ -4793,6 +4754,7 @@ function DealStartDesk({
       return false;
     }
     setStatus({ kind: "success", href: payload.opportunity?.href, message: payload.duplicate ? "Execution path replayed safely." : `Execution path opened: ${payload.opportunity?.opportunityNumber ?? "new opportunity"}` });
+    setWorkspaceSection("overview");
     return true;
     } catch {
       setStatus({ kind: "error", message: "The execution path could not be opened. Try again." });
@@ -4848,7 +4810,7 @@ function DealStartDesk({
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
-      <DealWorkspaceOverview customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
+      <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
       <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
       <div data-deal-workspace-section="identity" hidden={workspaceSection !== "identity"}><div className={identityStyles.identityGrid}>
         <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
