@@ -1077,7 +1077,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
                     <Link href={customer360Href(customer.id)} className={styles.avatar}>{initials(customer.name)}</Link>
                     <div>
                       <Link href={customer360Href(customer.id)}><strong>{customer.name}</strong></Link>
-                      <CustomerContactDetails customerId={customer.id} phone={customer.phone} email={customer.email} />
+                      <CustomerContactDetails surface="crm-next" autoReveal customerId={customer.id} phone={customer.phone} email={customer.email} />
                     </div>
                   </div>
                   <dl>
@@ -1464,7 +1464,7 @@ export function CrmNextSearchView({ model, returnAction }: { model: CrmNextComma
           return (
             <article className={styles.card} key={`customer-${customer.id}`}>
               <header><h2><Link href={actionId ? crmNextActionHref(actionId, customer.id) : customer360Href(customer.id)}>{customer.name}</Link></h2><span className={styles.pill}>Customer</span></header>
-              <CustomerContactDetails customerId={customer.id} phone={customer.phone} email={customer.email} />
+              <CustomerContactDetails surface="crm-next" autoReveal customerId={customer.id} phone={customer.phone} email={customer.email} />
               <p>{attentionItem?.nextAction ?? customer.nextAction}</p>
             </article>
           );
@@ -2195,7 +2195,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <div>
                 <h1 className={styles.customerName}>{customer.name}</h1>
                 <span className={styles.customerBadge}>Preferred Customer</span>
-                <CustomerContactDetails customerId={customer.id} phone={customer.phone} email={customer.email} />
+                <CustomerContactDetails surface="crm-next" autoReveal customerId={customer.id} phone={customer.phone} email={customer.email} />
                 <p>{customer.address}</p>
               </div>
             </div>
