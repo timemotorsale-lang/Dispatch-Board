@@ -74,6 +74,33 @@ describe("test-drive checkout review", () => {
       expect(startDisabled(markup())).toBe(true);
     }
   });
+  it("allows an unaccompanied departure without an accompanying employee", () => {
+    readyDraft();
+    draft.values.facts = { ...validFacts, driveMode: "UNACCOMPANIED", accompanyingEmployee: "" };
+    const html = markup();
+    expect(startDisabled(html)).toBe(false);
+    expect(html).toContain("Unaccompanied drive · no accompanying employee required.");
+    expect(html).not.toContain("Employee riding with the driver");
+  });
+
+  it("offers explicit release authorization at the agreement without inventing it", () => {
+    readyDraft();
+    draft.values.facts = { ...validFacts, driveMode: "UNACCOMPANIED", accompanyingEmployee: "", salesperson: "" };
+    const html = markup({ review: false });
+    expect(html).toContain('aria-label="Complete agreement check here"');
+    expect(html).toContain("Release authorized by");
+    expect(html).toContain("Use my name · Pat Employee");
+    expect(startDisabled(html)).toBe(true);
+  });
+
+  it("lets staff verify the recorded license directly beside the agreement action", () => {
+    readyDraft();
+    draft.values.facts = { ...validFacts, driveMode: "UNACCOMPANIED", accompanyingEmployee: "", licenseVerified: false };
+    const html = markup({ review: false });
+    expect(html).toContain("I reviewed the driver&#x27;s license and verified it is valid");
+    expect(html).toContain("A license number is recorded.");
+    expect(startDisabled(html)).toBe(true);
+  });
 
   it("allows saving intake with photos deferred without treating departure as ready", () => {
     readyDraft();

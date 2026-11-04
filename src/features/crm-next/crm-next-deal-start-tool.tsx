@@ -3819,6 +3819,23 @@ export function TestDriveExecutionDesk({
 
       <section hidden={review && reviewPanel !== "agreement"} className={styles.retailSection}>
         <header><span>Test-drive agreement</span><strong>Authorization and vehicle release</strong></header>
+        <p>{facts.driveMode === "UNACCOMPANIED" ? "Unaccompanied drive · no accompanying employee required." : "Supervised drive · an accompanying employee is required."}</p>
+        {agreementIssue && ["Authorizing employee", "Accompanying employee", "Valid license verified", "Coverage reviewed for this drive"].includes(agreementIssue.field) && <fieldset className={styles.retailFieldGrid} aria-label="Complete agreement check here">
+          <legend>Complete this check here</legend>
+          {agreementIssue.field === "Authorizing employee" && <>
+            <label><span>Release authorized by</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+            {employeeName && <button type="button" onClick={() => update("salesperson", employeeName)}>Use my name · {employeeName}</button>}
+          </>}
+          {agreementIssue.field === "Accompanying employee" && <>
+            <label><span>Employee riding with the driver</span><input value={facts.accompanyingEmployee} onChange={(event) => update("accompanyingEmployee", event.target.value)} /></label>
+            <button type="button" onClick={() => update("driveMode", "UNACCOMPANIED")}>Customer is driving unaccompanied</button>
+          </>}
+          {agreementIssue.field === "Valid license verified" && <>
+            <p>A license number is recorded. Confirm you reviewed the license and it is valid for this driver.</p>
+            <label><input type="checkbox" checked={facts.licenseVerified} onChange={(event) => update("licenseVerified", event.target.checked)} />I reviewed the driver&apos;s license and verified it is valid</label>
+          </>}
+          {agreementIssue.field === "Coverage reviewed for this drive" && <label><input type="checkbox" checked={facts.insuranceVerified} onChange={(event) => update("insuranceVerified", event.target.checked)} />I reviewed coverage for this drive</label>}
+        </fieldset>}
         <div className={`${styles.retailNextActionBar} ${styles.testDriveAgreementActions}`}>
           <div>{!agreementError && agreementStatus.kind === "idle" && <strong>Ready to generate</strong>}<PacketFeedback status={agreementError ? { kind: "error", message: agreementError } : agreementStatus} onCorrect={agreementIssue ? correctAgreementIssue : undefined}><SavedPacketLink packet={agreementPacket} /></PacketFeedback></div>
           <button type="button" disabled={agreementStatus.kind === "generating"} onClick={generateAgreement}><FilePlus2 size={16} aria-hidden="true" />Generate agreement</button>

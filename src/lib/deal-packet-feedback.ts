@@ -12,6 +12,7 @@ export function packetCorrection(message: string): PacketCorrection | null {
   if (/payment hold/.test(value)) return { fields: ["Card last 4"], sections: ["protection"] };
   if (/next payment|payment date|lease.*date/.test(value)) return { fields: ["Next payment date", "First payment date", "Lease date"], sections: ["calculator", "terms"] };
   if (/license expiration|license must be current/.test(value)) return { fields: ["License expiration"], sections: ["driver", "buyer", "renter"] };
+  if (/valid license verified|reviewed the.*license/.test(value)) return { fields: ["Valid license verified"], sections: ["driver"] };
   if (/license|driver contact|identity/.test(value)) return { fields: ["Driver license", "Driver license number", "License number", "ID number"], sections: ["driver", "buyer", "applicant", "renter"] };
   if (/authorizing|accompanying/.test(value)) return { fields: ["Authorizing employee", "Accompanying employee"], sections: ["driver"] };
   if (/insurance|coverage|protection/.test(value)) return { fields: ["Insurance status", "Protection choice", "Insurance carrier"], sections: ["protection", "vehicle", "driver"] };

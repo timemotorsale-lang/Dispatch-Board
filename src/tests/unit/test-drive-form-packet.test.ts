@@ -4,6 +4,15 @@ import { testDriveFacts, testDriveDeadline, testDriveAgreementError, testDriveAg
 import { testDriveAgreementPdfBase64 } from "@/server/services/test-drive-agreement-document";
 
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: vi.fn(async () => ({ id: "manager-1", isActive: true, roles: ["Manager"] })) }));
+// Exercise actual document generation without writing to a customer database.
+const archive = vi.hoisted(() => ({ packet: null as unknown }));
+vi.mock("@/server/sales-documents/service", () => ({
+  archiveGeneratedSalesPacket: vi.fn(async (_actor: unknown, _input: unknown, packet: unknown) => {
+    archive.packet = packet;
+    return packet;
+  }),
+  readArchivedSalesPacket: vi.fn(async () => archive.packet)
+}));
 import { POST } from "@/app/api/crm/v1/contract-packets/route";
 import { GET } from "@/app/api/crm/v1/contract-packets/[packetId]/route";
 
@@ -39,6 +48,16 @@ describe("Test-drive agreement", () => {
   it("supports unaccompanied drives with staff-reviewed dealership coverage", () => {
     expect(testDriveAgreementError(testDriveFacts({ ...valid, driveMode: "UNACCOMPANIED", accompanyingEmployee: "",
       insuranceBasis: "DEALER_REVIEW", insuranceCarrier: "", insurancePolicy: "" }))).toBeNull();
+  });
+  it("distinguishes release authorization from accompaniment for a solo drive", () => {
+    const solo = { ...valid, driveMode: "UNACCOMPANIED", accompanyingEmployee: "" };
+    expect(testDriveAgreementIssue(testDriveFacts(solo))).toBeNull();
+    expect(testDriveAgreementIssue(testDriveFacts({ ...solo, salesperson: "" }))).toMatchObject({
+      field: "Authorizing employee", message: expect.stringContaining("does not require an accompanying employee")
+    });
+    expect(testDriveAgreementIssue(testDriveFacts({ ...solo, driveMode: "SUPERVISED" }))).toMatchObject({
+      field: "Accompanying employee", message: expect.stringContaining("select Unaccompanied")
+    });
   });
   it.each([
     { accompanyingEmployee: "" }, { licenseVerified: false }, { insuranceVerified: false },

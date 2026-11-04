@@ -67,7 +67,8 @@ export type TestDriveAgreementIssue = { message: string; field: string; panel: "
 export function testDriveAgreementIssue(facts: TestDriveFacts): TestDriveAgreementIssue | null {
   const issue = (message: string, field: string, panel: TestDriveAgreementIssue["panel"] = "driver") => ({ message, field, panel });
   if (!["SUPERVISED", "UNACCOMPANIED"].includes(facts.driveMode)) return issue("Select a valid test-drive mode.", "Drive type", "driver");
-  if (!facts.salesperson || (facts.driveMode === "SUPERVISED" && !facts.accompanyingEmployee)) return issue("Capture the authorizing employee and, for a supervised drive, the accompanying employee.", !facts.salesperson ? "Authorizing employee" : "Accompanying employee", "driver");
+  if (!facts.salesperson) return issue("Enter the employee authorizing this vehicle release. An unaccompanied drive does not require an accompanying employee.", "Authorizing employee");
+  if (facts.driveMode === "SUPERVISED" && !facts.accompanyingEmployee) return issue("Enter the accompanying employee for this supervised drive, or select Unaccompanied if the customer will drive alone.", "Accompanying employee");
   if (!facts.driverLicense) return issue("Enter the driver's license number.", "Driver license");
   if (!facts.licenseState) return issue("Enter the license issuing state.", "License state");
   if (!facts.driverPhone) return issue("Enter the driver's phone number.", "Driver phone");
