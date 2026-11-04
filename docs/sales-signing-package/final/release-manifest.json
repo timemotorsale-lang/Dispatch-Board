@@ -1,0 +1,92 @@
+{
+  "version": "TMS-MN-SIGNING-1.0",
+  "header": "TMS-HDR-02",
+  "released_on": "2026-11-03",
+  "release_authority": "Owner instruction in this conversation to present these as final customer signing forms",
+  "forms": [
+    {
+      "file": "01-motor-vehicle-purchase-agreement.pdf",
+      "pages": 2,
+      "source_sha256": "51c8e600826a5b62fad6c1dd31388a8fbea9dca1f911fc012c5b5bee5e0a679a",
+      "sha256": "f496565f1ac049af13ce34db02facc56f4a98b6a09a6094435a78bb207681147",
+      "official_unchanged": false
+    },
+    {
+      "file": "02-title-and-damage-disclosure.pdf",
+      "pages": 1,
+      "source_sha256": "9f865f826769d8cbd1c08f6077a1b6c4ea965a24c87cf3eec974a81bf80654bd",
+      "sha256": "f072b36cbe6c01541c46ea7a7f81c3a520a4bd3afe17907e3d740a504fa3b358",
+      "official_unchanged": false
+    },
+    {
+      "file": "03-promised-work-we-owe.pdf",
+      "pages": 1,
+      "source_sha256": "ccd2a29e763d5531de227d453b18088717a82699d845c252d8d021ae111b3df2",
+      "sha256": "560ef8bf36f28957f9afb7c49aa6f9ed5f58b31ec18787ee3892ae8eaf1fa4a6",
+      "official_unchanged": false
+    },
+    {
+      "file": "04-vehicle-delivery-receipt.pdf",
+      "pages": 1,
+      "source_sha256": "348be74baa059fd05d4ad5561752e6ecef98609d584929bafed3bd19acff5818",
+      "sha256": "6c62d17c6aa8915fa4cfb368dfe8a503e80152726afdfc4a6ef07531d9e75f9d",
+      "official_unchanged": false
+    },
+    {
+      "file": "05-separate-arbitration-agreement.pdf",
+      "pages": 1,
+      "source_sha256": "3bc3087ca093a99d6b87dc5c06b8a5a2be2a1fd3c2ecf50b08dc372ca51a5069",
+      "sha256": "a62c5c576dafe07a8ef94ab0bc61061b13231155b44b70590e8ce3a1afac78a3",
+      "official_unchanged": false
+    },
+    {
+      "file": "06-limited-power-of-attorney.pdf",
+      "pages": 1,
+      "source_sha256": "45c84f6bb584c5335cefc2ab792eb34998168d4a7c2c0342dd910140863451cb",
+      "sha256": "2bdccc1e6f2af031729396231ecd1722aa9d5230eff7abd4300ac986d8816557",
+      "official_unchanged": false
+    },
+    {
+      "file": "07-conditional-as-is-acknowledgment.pdf",
+      "pages": 1,
+      "source_sha256": "a41fd3a32f0e601dcc0554e986ef28d18b25f71496ad708176711d02f475c516",
+      "sha256": "997417cb1df39073040e83333c1d1caa2aced34b01de76fd61c6c901330437c0",
+      "official_unchanged": false
+    },
+    {
+      "file": "08-gps-consent-and-safety.pdf",
+      "pages": 2,
+      "source_sha256": "d29b52c9cbd677ad80d251ee62ecda0fc93270b2aedd8d0ed4181c1c47ee0e59",
+      "sha256": "02c7b6bc8ecfd7a66346796c8555d5152a4b2c9a1e0e6f634c36ad35a5daf6a3",
+      "official_unchanged": false
+    },
+    {
+      "file": "09-retail-installment-sale-and-security-agreement.pdf",
+      "pages": 3,
+      "source_sha256": "ff1109d7f56e7ebd2e8e87b8e504a6e2828e062c3a4c08b1c667a8b4322f02d7",
+      "sha256": "4139486ade17fa3e3acda8292a2ebe9daca5bbfe3c7cb6ee9a469fcead6e0076",
+      "official_unchanged": false
+    },
+    {
+      "file": "10-limited-used-vehicle-warranty.pdf",
+      "pages": 3,
+      "source_sha256": "59125afbaea187941d7f6e8e862d6664bcdacda0f0352a6e0580a21dba266cd7",
+      "sha256": "4e7d57ab7e12317b2cba23b047724bfd9db138b251db3033dc46c0a03650db5b",
+      "official_unchanged": false
+    },
+    {
+      "file": "11-financing-product-and-device-disclosure.pdf",
+      "pages": 1,
+      "source_sha256": "df6313bc3d843aebb6aa0a5178ae7b743bf1332f322c89179bcc93bfdc87e092",
+      "sha256": "cdcf69c4b080a06beaeeb114212c6216fef75876bc8c79627dd63ad410aa5a35",
+      "official_unchanged": false
+    },
+    {
+      "file": "12-ftc-buyers-guide.pdf",
+      "pages": 2,
+      "source_sha256": "9b23e112d7bf3a19862033144a615887f8d2373c8e787238334162180062c00f",
+      "sha256": "9b23e112d7bf3a19862033144a615887f8d2373c8e787238334162180062c00f",
+      "official_unchanged": true
+    }
+  ]
+}

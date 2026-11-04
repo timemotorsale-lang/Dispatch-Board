@@ -40,6 +40,15 @@ describe("CRM Next access and safe bridge", () => {
     expect(access.reason).toBe("CRM_NEXT_OFF");
   });
 
+  it("lets active coordinators open CRM while preserving feature-off and inactive restrictions", () => {
+    const actor = user(["Operations Coordinator", "Office Manager"]);
+    expect(resolveCrmNextAccess(actor, { flag: "DOGFOOD" })).toMatchObject({
+      allowed: true, workspace: "SALES", fallbackHref: "/operations-coordinator"
+    });
+    expect(resolveCrmNextAccess(actor, { flag: "OFF" })).toMatchObject({ allowed: false, reason: "CRM_NEXT_OFF" });
+    expect(resolveCrmNextAccess({ ...actor, isActive: false }, { flag: "DOGFOOD" })).toMatchObject({ allowed: false, reason: "INACTIVE_USER" });
+  });
+
   it("allows an enabled manager without granting live task writes", () => {
     const access = resolveCrmNextAccess(user(["General Manager"]), { flag: "CRM_NEXT" });
     expect(access.allowed).toBe(false);

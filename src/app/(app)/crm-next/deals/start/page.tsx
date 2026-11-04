@@ -3,6 +3,8 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
+import { searchDealCustomers } from "@/server/deal-continuity/identities";
+import type { DealCustomerList } from "@/lib/deal-continuity";
 import { notFound } from "next/navigation";
 
 type CrmNextDealStartPageProps = {
@@ -23,5 +25,11 @@ export default async function CrmNextDealStartPage({ searchParams }: CrmNextDeal
   if (vehicleId && !journey) notFound();
   const initialVehicleReference = journey ? [journey.vehicle.year, journey.vehicle.make, journey.vehicle.model, journey.vehicle.vin, journey.vehicle.stockNumber].filter(Boolean).join(" / ") : undefined;
   const initialVehicleFacts = journey ? { year: String(journey.vehicle.year ?? ""), make: journey.vehicle.make ?? "", model: journey.vehicle.model ?? "", vin: journey.vehicle.vin ?? "", stockNumber: journey.vehicle.stockNumber ?? "" } : undefined;
-  return <CrmNextDealStartView reviewTestDrive={resolvedSearchParams?.review === "test-drive"} initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={await getCrmNextOperationalCommandCenter(user)} />;
+  const [model, initialCustomerList] = await Promise.all([
+    getCrmNextOperationalCommandCenter(user),
+    searchDealCustomers(user, new URLSearchParams()).catch((): DealCustomerList => ({
+      items: [], nextCursor: null, error: "The customer list could not be loaded. Choose Find customer to retry; your deal entries are retained."
+    }))
+  ]);
+  return <CrmNextDealStartView initialCustomerList={initialCustomerList} reviewTestDrive={resolvedSearchParams?.review === "test-drive"} initialCustomerId={resolvedSearchParams?.customerId} initialWorkflowId={resolvedSearchParams?.pathway} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />;
 }

@@ -63,27 +63,36 @@ export function testDriveDateTime(value: string) {
   }).format(new Date(value)) + " (America/Chicago)" : "";
 }
 
-export function testDriveAgreementError(facts: TestDriveFacts): string | null {
-  if (!["SUPERVISED", "UNACCOMPANIED"].includes(facts.driveMode)) return "Select a valid test-drive mode.";
-  if (!facts.salesperson || (facts.driveMode === "SUPERVISED" && !facts.accompanyingEmployee)) return "Capture the authorizing employee and, for a supervised drive, the accompanying employee.";
-  if (!facts.driverLicense || !facts.licenseState || !facts.driverPhone || !facts.licenseVerified) return "Capture driver contact and license details, and verify the license before generating the agreement.";
+export type TestDriveAgreementIssue = { message: string; field: string; panel: "driver" | "vehicle" | "return" };
+export function testDriveAgreementIssue(facts: TestDriveFacts): TestDriveAgreementIssue | null {
+  const issue = (message: string, field: string, panel: TestDriveAgreementIssue["panel"] = "driver") => ({ message, field, panel });
+  if (!["SUPERVISED", "UNACCOMPANIED"].includes(facts.driveMode)) return issue("Select a valid test-drive mode.", "Drive type", "driver");
+  if (!facts.salesperson || (facts.driveMode === "SUPERVISED" && !facts.accompanyingEmployee)) return issue("Capture the authorizing employee and, for a supervised drive, the accompanying employee.", !facts.salesperson ? "Authorizing employee" : "Accompanying employee", "driver");
+  if (!facts.driverLicense) return issue("Enter the driver's license number.", "Driver license");
+  if (!facts.licenseState) return issue("Enter the license issuing state.", "License state");
+  if (!facts.driverPhone) return issue("Enter the driver's phone number.", "Driver phone");
+  if (!facts.licenseVerified) return issue('The license number is entered. Review the license, then check "Valid license verified" under Staff verification.', "Valid license verified");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(facts.licenseExpiration) ||
     !Number.isFinite(Date.parse(facts.licenseExpiration)) ||
-    new Date(facts.licenseExpiration).toISOString().slice(0, 10) !== facts.licenseExpiration) return "Enter a valid license expiration date.";
-  if (!testDriveDeadline(facts)) return "Enter a valid departure date/time and a positive whole-number duration.";
+    new Date(facts.licenseExpiration).toISOString().slice(0, 10) !== facts.licenseExpiration) return issue("Enter a valid license expiration date.", "License expiration", "driver");
+  if (!testDriveDeadline(facts)) return issue("Enter a valid departure date/time and a positive whole-number duration.", !facts.departureAt ? "Start time" : "Time allowance (minutes)", "vehicle");
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit"
   }).formatToParts(new Date(facts.departureAt)).map((part) => [part.type, part.value]));
-  if (facts.licenseExpiration < `${parts.year}-${parts.month}-${parts.day}`) return "The driver's license must be current on the test-drive date.";
+  if (facts.licenseExpiration < `${parts.year}-${parts.month}-${parts.day}`) return issue("The driver's license must be current on the test-drive date.", "License expiration", "driver");
   if (!["DRIVER_POLICY", "DEALER_REVIEW"].includes(facts.insuranceBasis) || !facts.insuranceVerified ||
-    (facts.insuranceBasis === "DRIVER_POLICY" && (!facts.insuranceCarrier || !facts.insurancePolicy))) return "Record the insurance/coverage basis and staff review before generating the agreement.";
+    (facts.insuranceBasis === "DRIVER_POLICY" && (!facts.insuranceCarrier || !facts.insurancePolicy))) return issue("Record the insurance/coverage basis and staff review before generating the agreement.", !["DRIVER_POLICY", "DEALER_REVIEW"].includes(facts.insuranceBasis) ? "Coverage basis" : facts.insuranceBasis === "DRIVER_POLICY" && !facts.insuranceCarrier ? "Insurance carrier" : facts.insuranceBasis === "DRIVER_POLICY" && !facts.insurancePolicy ? "Insurance policy" : "Coverage reviewed for this drive", "driver");
   if (!Number.isSafeInteger(facts.departureMileage) || facts.departureMileage < 0 ||
     !Number.isSafeInteger(facts.mileageAllowance) || facts.mileageAllowance < 1 ||
-    !Number.isSafeInteger(facts.departureMileage + facts.mileageAllowance)) return "Enter valid whole-number checkout mileage and a positive mileage allowance.";
-  if (!facts.approvedRoute || !facts.departureCondition || !facts.fuelOut) return "Capture the approved route, checkout condition, and fuel level.";
+    !Number.isSafeInteger(facts.departureMileage + facts.mileageAllowance)) return issue("Enter valid whole-number checkout mileage and a positive mileage allowance.", !Number.isSafeInteger(facts.departureMileage) || facts.departureMileage < 0 ? "Checkout odometer" : "Mileage allowance", "vehicle");
+  if (!facts.approvedRoute || !facts.departureCondition || !facts.fuelOut) return issue("Capture the approved route, checkout condition, and fuel level.", !facts.approvedRoute ? "Approved route" : !facts.departureCondition ? "Checkout condition" : "Fuel out", "vehicle");
   const hasReturn = Boolean(facts.returnAt || Number.isFinite(facts.returnMileage) || facts.returnCondition || facts.fuelIn || facts.receivedBy || facts.keysReturned);
   if (hasReturn && (!validInstant(facts.returnAt) || Date.parse(facts.returnAt) < Date.parse(facts.departureAt) ||
     !Number.isSafeInteger(facts.returnMileage) || facts.returnMileage < facts.departureMileage ||
-    !facts.returnCondition || !facts.fuelIn || !facts.receivedBy || !facts.keysReturned)) return "Complete the return time, odometer, fuel, condition, keys, and receiving employee; return must follow departure.";
+    !facts.returnCondition || !facts.fuelIn || !facts.receivedBy || !facts.keysReturned)) return issue("Complete the return time, odometer, fuel, condition, keys, and receiving employee; return must follow departure.", "Actual return time", "return");
   return null;
+}
+
+export function testDriveAgreementError(facts: TestDriveFacts): string | null {
+  return testDriveAgreementIssue(facts)?.message ?? null;
 }

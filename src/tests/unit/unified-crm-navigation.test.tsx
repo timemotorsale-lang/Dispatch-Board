@@ -35,13 +35,13 @@ describe("Unified CRM shared navigation", () => {
     currentSearchParams = new URLSearchParams();
   });
 
-  it("discovers CRM only for coarse Management and Sales workspaces", () => {
+  it("discovers CRM for eligible staff and keeps unrelated workspaces hidden", () => {
     expect(titlesFor(manager)).toContain("CRM");
     expect(titlesFor({ ...manager, roles: ["Salesperson"] })).toContain("CRM");
     expect(titlesFor({ ...manager, roles: ["Parts"] })).not.toContain("CRM");
     expect(titlesFor({ ...manager, roles: ["Operations Coordinator"] })).not.toContain("CRM");
     expect(getConsoleNavigation("/crm", { ...manager, roles: ["Parts"] })).toBeNull();
-    expect(getConsoleNavigation("/crm", { ...manager, roles: ["Operations Coordinator"] })).toBeNull();
+    expect(getConsoleNavigation("/crm", { ...manager, roles: ["Operations Coordinator"] })).not.toBeNull();
   });
 
   it("keeps the independent CRM views query-addressable with Home active by default", () => {

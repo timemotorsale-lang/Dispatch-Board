@@ -82,6 +82,12 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
 }
 
 describe("task detail workspace", () => {
+  it("shows a plan's inventory and operations context without a false no-context label", () => {
+    const task = createTask({ operatingContext: { scope: "OPERATIONS", label: "Operations / action plan", details: "November operating priorities", areas: ["Inventory management", "Service and reconditioning"] } });
+    const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager assignableUsers={[]} canComment canManageCollaborators canCreateAppointment canUpdateStatus initialView="simple" task={task} />);
+    expect(markup).toContain("Operations / action plan");expect(markup).toContain("November operating priorities");expect(markup).toContain("Inventory management");
+  });
+
   it("shows the accountable owner separately from the person assigned to execute", () => {
     const ownerUser = { id: "owner-eli", name: "Eli Accountable", email: "eli@example.test" };
     const markup = renderToStaticMarkup(<TaskDetailWorkspace activityEvents={[]} actorIsManager={false} assignableUsers={[]} canComment canManageCollaborators canCreateAppointment={false} canReassign canUpdateStatus={false} compactReview task={createTask({ ownerUser })} />);

@@ -1,3 +1,4 @@
+import { evaluateUnifiedCrmCapability } from "@/server/policies/unified-crm-access";
 import {
   Activity,
   AlertTriangle,
@@ -36,7 +37,6 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { CRM_CUSTOMER_LANDING_HREF, CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_HOME_HREF } from "@/features/crm/crm-route-authority";
 import {
   canOpenDispatchBoard,
-  getPermittedWorkspaces,
   getWorkspaceKey,
   resolveWorkspaceForPath,
   type WorkspaceKey
@@ -251,9 +251,7 @@ export const dispatchNavigationItems: NavigationItem[] = [
     icon: ContactRound,
     parentHref: "/board",
     activePaths: ["/crm", "/crm-next"],
-    isVisible: (user) => getPermittedWorkspaces(user).some(
-      (workspace) => workspace.key === "MANAGEMENT" || workspace.key === "SALES"
-    )
+    isVisible: (user) => evaluateUnifiedCrmCapability(user, "crm.console.access").allowed
   },
   {
     href: "/sales",

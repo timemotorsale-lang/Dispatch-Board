@@ -40,7 +40,7 @@ export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: 
       const form = object(snapshot["desk:form"]), facts = object(snapshot[`${draft.pathway}:vehicleFacts`]);
       const key = `crm-next:document-jacket:${String(form.customerId || "")}:${draft.pathway}:${String(form.vehicle || "").trim()}`;
       const reference = String(jacket?.dealReference || object(snapshot.references)[key] || draft.id);
-      const packet = jacket || await createSalesDocumentJacket(user, { pathway: draft.pathway, dealReference: reference, customerId: draft.customerId, customerName: draft.customerName, vehicleReference: draft.vehicleReference, vin: facts.vin, stockNumber: facts.stockNumber }, database);
+      const packet = jacket || await createSalesDocumentJacket(user, { pathway: draft.pathway, dealReference: reference, dealNumber: String(draft.dealNumber), customerId: draft.customerId, customerName: draft.customerName, vehicleReference: draft.vehicleReference, vin: facts.vin, stockNumber: facts.stockNumber }, database);
       await database.dealDeskDraft.update({ where: { id: draft.id }, data: { snapshot: { ...snapshot, jackets: { ...jacketIds, [draft.pathway]: packet.id }, references: { ...object(snapshot.references), [key]: reference } } as Prisma.InputJsonValue } });
       return { id: draft.id, jacketId: packet.id, revision: draft.revision + 1, status: draft.status, state: packet.state };
     }

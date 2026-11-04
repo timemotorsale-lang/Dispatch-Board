@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("saved deal restores work and the optional dealer warranty choice", async ({ page }) => {
+  await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: { error: "Operating rhythm is outside this saved-deal fixture." } }));
   let saved: Record<string, unknown> | null = null;
   await page.route("**/api/crm/v1/deal-drafts*", async (route) => {
     const request = route.request(), url = new URL(request.url());
@@ -21,8 +22,9 @@ test("saved deal restores work and the optional dealer warranty choice", async (
   await page.goto("/crm-next/deals/start");
   const toolbar = page.getByRole("region", { name: "Saved deal drafts" });
   await expect(toolbar.getByRole("button", { name: "New deal", exact: true })).toBeEnabled();
+  await page.getByText("Choose or change revenue pathway", { exact: true }).click();
   await page.getByRole("button", { name: /^BHPH/ }).click();
-  await page.getByRole("button", { name: "Open execution path" }).click();
+  await page.getByRole("tab", { name: "Terms & Payments", exact: true }).click();
   await page.getByLabel("Make", { exact: true }).fill("Chevrolet");
   await page.getByLabel("Down payment", { exact: true }).fill("$2000");
   await page.getByLabel("Income proof", { exact: true }).fill("Verified paystub");
@@ -33,8 +35,9 @@ test("saved deal restores work and the optional dealer warranty choice", async (
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await toolbar.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(toolbar.getByRole("status")).toContainText("Draft saved");
-  await page.reload();
+  await page.goto(`/crm-next/deals/start?draftId=${encodeURIComponent(String(saved!.id))}`);
   await expect(toolbar.getByRole("status")).toContainText("Saved deal reopened");
+  await page.getByRole("tab", { name: "Terms & Payments", exact: true }).click();
   await expect(page.getByLabel("Make", { exact: true })).toHaveValue("Chevrolet");
   await expect(page.getByLabel("Down payment", { exact: true })).toHaveValue("$2000");
   await expect(page.getByLabel("Income proof", { exact: true })).toHaveValue("Verified paystub");

@@ -1,3 +1,4 @@
+import { cashDefaultFormIds, CASH_SIGNING_TEMPLATE_FILES, CASH_SIGNING_TEMPLATE_VERSION } from "@/lib/cash-sale-print-library";
 import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, cashSaleFacts, cashSaleError } from "@/lib/cash-retail-sale";
 import { cashSalePdf, cashSaleDocumentHtml } from "./cash-retail-sale-documents";
 import { readFileSync } from "node:fs";
@@ -1637,8 +1638,8 @@ export async function generateUnifiedCrmContractPacket(
     : packetType === "BHPH"
       ? BHPH_FORM_PACKET
       : MN_SALE_FORM_PACKET;
-  if (cashMode) packetForms = [...CASH_SALE_FORM_IDS, "trade-documents"].map(id => ({ id, label: CASH_SALE_LABELS[id], basis: id === "buyers-guide" ? "FTC Used Car Rule / official FTC form" : "Minnesota cash retail sale / dealership document", category: CASH_SALE_REQUIRED_IDS.includes(id) ? "Required" : "Conditional", trigger: id === "power-of-attorney" ? "Limited title and registration authority" : "Cash retail sale", description: CASH_SALE_LABELS[id] }));
-  const requiredIds = cashMode ? CASH_SALE_FORM_IDS : packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
+  if (cashMode) packetForms = [...CASH_SALE_FORM_IDS, "trade-documents"].map(id => ({ id, label: CASH_SALE_LABELS[id], basis: CASH_SIGNING_TEMPLATE_FILES[id] ? `${CASH_SIGNING_TEMPLATE_VERSION} - customer signing form` : id === "buyers-guide" ? "FTC Used Car Rule / official FTC form" : "Minnesota cash retail sale / dealership document", category: CASH_SALE_REQUIRED_IDS.includes(id) ? "Required" : "Conditional", trigger: id === "power-of-attorney" ? "Limited title and registration authority" : "Cash retail sale", description: CASH_SALE_LABELS[id] }));
+  const requiredIds = cashMode ? cashDefaultFormIds(cashFacts) : packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
     ? allLeaseToOwnFormIds()
     : packetType === "VEHICLE_LOANER"
       ? requiredCourtesyLoanerFormIds()

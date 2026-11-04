@@ -23,7 +23,7 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
   // Link by saved jacket ID/reference, never by a customer's name alone.
   const source = Prisma.sql`WITH drafts AS (
     SELECT d."id", d."id" AS "draftId", d."revision" AS "draftRevision", j."id" AS "jacketId", d."customerName", d."vehicleReference", d."pathway", d."status",
-      j."state" AS "packetState", j."dealNumber", GREATEST(d."updatedAt", j."updatedAt") AS "updatedAt"
+      j."state" AS "packetState", d."dealNumber"::text AS "dealNumber", GREATEST(d."updatedAt", j."updatedAt") AS "updatedAt"
     FROM "DealDeskDraft" d
     LEFT JOIN LATERAL (
       SELECT j."id", j."state", j."dealNumber", j."updatedAt" FROM "SalesDocumentJacket" j

@@ -1,3 +1,4 @@
+import { resolveUnifiedCrmWorkspace } from "@/server/policies/unified-crm-access";
 import { getDefaultLandingRoute, getPermittedWorkspaces } from "@/server/auth/navigation";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -35,12 +36,7 @@ export function resolveCrmNextMode(options: CrmNextAccessOptions = {}): CrmNextM
 }
 
 export function resolveCrmNextWorkspace(user: AuthenticatedUser | null): CrmNextWorkspace | null {
-  if (!user?.isActive) return null;
-
-  const workspaces = new Set(getPermittedWorkspaces(user).map((workspace) => workspace.key));
-  if (workspaces.has("MANAGEMENT")) return "MANAGEMENT";
-  if (workspaces.has("SALES")) return "SALES";
-  return null;
+  return resolveUnifiedCrmWorkspace(user);
 }
 
 export function getCrmNextFallbackHref(user: AuthenticatedUser | null) {
@@ -48,7 +44,8 @@ export function getCrmNextFallbackHref(user: AuthenticatedUser | null) {
 
   const workspace = resolveCrmNextWorkspace(user);
   if (workspace === "MANAGEMENT") return "/manager-workspace";
-  if (workspace === "SALES") return "/sales";
+  if (workspace === "SALES") return getPermittedWorkspaces(user).some(item => item.key === "SALES")
+    ? "/sales" : "/operations-coordinator";
   return getDefaultLandingRoute(user);
 }
 

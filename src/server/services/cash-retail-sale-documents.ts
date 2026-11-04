@@ -1,9 +1,11 @@
+import { cashSigningTemplate, cashSigningTemplatePdf } from "./cash-signing-templates";
+
 import fs from "node:fs";
 import path from "node:path";
 import { PDFDocument, PDFTextField, StandardFonts, rgb } from "pdf-lib";
 import { CASH_SALE_LABELS, cashCents, cashMoney, cashSaleTotals, type CashSaleFacts } from "@/lib/cash-retail-sale";
 
-type Input = { customerName: string; dealNumber: string; salePrice: string; facts: CashSaleFacts; vehicle: { vin: string; stockNumber: string; year: string; make: string; model: string; color: string } };
+export type Input = { customerName: string; dealNumber: string; salePrice: string; facts: CashSaleFacts; vehicle: { vin: string; stockNumber: string; year: string; make: string; model: string; color: string } };
 type Section = { title: string; rows?: Array<[string, string]>; paragraphs?: string[] };
 const DISCLOSURE = "IMPORTANT: THIS MAY BE A BINDING CONTRACT AND YOU MAY LOSE ANY DEPOSITS IF YOU DO NOT PERFORM ACCORDING TO ITS TERMS.";
 const safe = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"');
@@ -30,20 +32,27 @@ function sections(id: string, input: Input): Section[] {
   return [identity, { title: "Delivery acknowledgment", rows: [["Actual delivery date (complete at handoff)", f.deliveryDate], ["Odometer", f.mileage], ["Keys", f.keys], ["Fuel", f.fuel], ["Delivery notes", f.deliveryNotes]], paragraphs: ["Customer and staff sign only at actual delivery after checking vehicle identity, condition, keys, insurance and the required delivery documents. Generating this page does not release the vehicle or mark delivery complete."] }];
 }
 export function cashSaleDocumentHtml(id: string, input: Input) {
+  if(cashSigningTemplate(id)) return `<html><body><h1>${esc(CASH_SALE_LABELS[id] || id)}</h1><p>Customer signing form - complete all applicable fields before signing</p><p>The generated PDF preserves the committed TMS-MN-SIGNING-1.0 form and HDR-02 header. Read all pages of the PDF. ${esc(input.dealNumber)} | ${esc(input.customerName)} | ${esc(input.vehicle.vin)}</p></body></html>`;
   return `<html><body><h1>${esc(CASH_SALE_LABELS[id] || id)}</h1><p>${esc(input.facts.dealerName)} | ${esc(input.dealNumber)}</p>${sections(id, input).map(s => `<h2>${esc(s.title)}</h2>${(s.rows || []).map(([k, v]) => `<p><b>${esc(k)}:</b> ${esc(v || "Not recorded")}</p>`).join("")}${(s.paragraphs || []).map(p => `<p>${esc(p)}</p>`).join("")}`).join("")}<p>Unsigned document. Review before signing.</p></body></html>`;
 }
 export async function cashSalePdf(id: string, input: Input) {
   if (id === "buyers-guide") return officialBuyersGuide(input);
+  if (cashSigningTemplate(id)) return cashSigningTemplatePdf(id,input);
   const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica), bold = await pdf.embedFont(StandardFonts.HelveticaBold), form = pdf.getForm();
+  const logo = await pdf.embedPng(fs.readFileSync(path.join(process.cwd(),"public/brand/time-motor-sales-horizontal.png")));
   let page = pdf.addPage([612, 792]), y = 680, count = 0;
   const ink = rgb(.06, .12, .23), muted = rgb(.32, .38, .47);
   function header() {
-    page.drawRectangle({ x: 32, y: 710, width: 548, height: 50, color: rgb(.94, .96, .99) });
-    page.drawText(safe(input.facts.dealerName), { x: 44, y: 741, size: 11, font: bold, color: ink });
-    page.drawText(safe(CASH_SALE_LABELS[id]), { x: 44, y: 723, size: 13, font: bold, color: ink });
-    page.drawText(safe(`${input.dealNumber} | ${input.facts.saleDate} | VIN ${input.vehicle.vin}`), { x: 36, y: 692, size: 8, font, color: muted });
-    page.drawText("Unsigned dealership document - review, complete and sign before use.", { x: 36, y: 22, size: 8, font, color: muted });
-    y = 668;
+    page.drawImage(logo,{x:40,y:739,width:225,height:225*logo.height/logo.width});
+    page.drawText("Automotive Group Since 1955",{x:40,y:725,size:10,font:bold,color:ink});
+    page.drawText("1101 E. Lake Street",{x:370,y:763,size:9,font,color:ink});
+    page.drawText("Minneapolis, MN 55407",{x:370,y:749,size:9,font,color:ink});
+    page.drawText("timemotors.net | timemotorsale@gmail.com | 612-724-3631",{x:122,y:707,size:9,font,color:ink});
+    page.drawLine({start:{x:40,y:695},end:{x:570,y:695},thickness:1,color:rgb(.2,.32,.6)});
+    page.drawText(safe(CASH_SALE_LABELS[id]), { x:40,y:675,size:13,font:bold,color:ink });
+    page.drawText(safe(`${input.dealNumber} | ${input.facts.saleDate} | VIN ${input.vehicle.vin}`), { x:40,y:659,size:8,font,color:muted });
+    page.drawText("Unsigned dealership document - review, complete and sign before use.", { x:36,y:22,size:8,font,color:muted });
+    y = 638;
   }
   function space(height: number) { if (y - height < 52) { page = pdf.addPage([612, 792]); header(); } }
   function text(value: string, strong = false, size = 10) {

@@ -324,3 +324,35 @@ export function leaseAgreementCalculationError(input: LeaseToOwnCalculatorInput,
   if (output.signingShortfallCents > 1) return "The signing cash must cover fees, taxes, and the first lease payment.";
   return null;
 }
+
+export const DEFAULT_LEASE_CALCULATOR_FIELDS = {
+  agreedPrice: "", calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT", targetPayment: "$250.00", additionalItems: "$0.00",
+  capitalizedCostReduction: "$0.00", contractLength: "36", documentPreparationFee: "$300.00", downPayment: "$0.00",
+  gpsCost: "$0.00", multiplier: "2.00", originationFee: "$0.00", otherRoadWorthyCost: "$0.00",
+  paymentFrequency: "Monthly" as LeasePaymentFrequency, registrationFee: "$516.00", salesTaxRate: "6.875",
+  signingPaymentMode: "CAPITALIZED_REDUCTION" as "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION", titleFee: "$102.80",
+  warrantyCost: "$0.00", wholesaleCost: "$0.00"
+};
+
+// Shared conversion for the editable calculator and its saved-deal summary.
+export function leaseCalculatorInputFromFields(savedFields: Record<string, string>): LeaseToOwnCalculatorInput {
+  const fields: Record<string, string> = { ...DEFAULT_LEASE_CALCULATOR_FIELDS, ...savedFields };
+  const money = (key: string) => {
+    const normalized = (fields[key] ?? "").trim().replace(/[$,]/g, "");
+    return !normalized ? 0 : /^\d+(\.\d{1,2})?$/.test(normalized) ? Math.round(Number(normalized) * 100) : NaN;
+  };
+  const multiplier = Number((fields.multiplier ?? "").trim());
+  return {
+    agreedPriceCents: fields.agreedPrice?.trim() ? money("agreedPrice") : undefined,
+    calculationMode: fields.calculationMode === "PAYMENT_AMOUNT" ? "PAYMENT_AMOUNT" : "TERM",
+    targetPaymentCents: money("targetPayment"), additionalItemsCents: money("additionalItems"),
+    capitalizedCostReductionCents: money("capitalizedCostReduction"), contractLength: Number(fields.contractLength) || 0,
+    documentPreparationFeeCents: money("documentPreparationFee"), downPaymentCents: money("downPayment"),
+    gpsCostCents: money("gpsCost"), multiplierBasisPoints: Number.isFinite(multiplier) ? Math.round(multiplier * 10000) : 10000,
+    originationFeeCents: money("originationFee"), otherRoadWorthyCostCents: money("otherRoadWorthyCost"),
+    paymentFrequency: fields.paymentFrequency === "Weekly" ? "Weekly" : fields.paymentFrequency === "BiWeekly" ? "BiWeekly" : "Monthly",
+    registrationFeeCents: money("registrationFee"), salesTaxRateBasisPoints: Number((fields.salesTaxRate ?? "").replace("%", "")) * 100,
+    signingPaymentMode: fields.signingPaymentMode === "DOWN_PAYMENT" ? "DOWN_PAYMENT" : "CAPITALIZED_REDUCTION",
+    titleFeeCents: money("titleFee"), warrantyCostCents: money("warrantyCost"), wholesaleCostCents: money("wholesaleCost")
+  };
+}

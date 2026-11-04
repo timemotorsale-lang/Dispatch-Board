@@ -1,5 +1,6 @@
 "use client";
 
+import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 
 export type WorkspaceMode = "standard" | "compact" | "focus";
@@ -20,7 +21,7 @@ export function WorkspaceModeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<WorkspaceMode>("compact");
 
   useEffect(() => {
-    const storedMode = window.localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY);
+    const storedMode = readBrowserPreference(WORKSPACE_MODE_STORAGE_KEY);
 
     if (isWorkspaceMode(storedMode)) {
       // Restore the user preference after hydration so server markup stays deterministic.
@@ -31,7 +32,7 @@ export function WorkspaceModeProvider({ children }: { children: ReactNode }) {
 
   function handleModeChange(nextMode: WorkspaceMode) {
     setMode(nextMode);
-    window.localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, nextMode);
+    writeBrowserPreference(WORKSPACE_MODE_STORAGE_KEY, nextMode);
   }
 
   return (

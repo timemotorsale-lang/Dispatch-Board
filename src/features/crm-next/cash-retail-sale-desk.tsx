@@ -8,7 +8,7 @@ import { useCanonicalDealVehicle } from "./shared-deal-identities";
 
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
 
-import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, EMPTY_CASH_SALE, cashSaleTotals, cashMoney, cashSaleError, type CashSaleFacts } from "@/lib/cash-retail-sale";
+import { EMPTY_CASH_SALE, cashSaleTotals, cashMoney, cashSaleError, type CashSaleFacts } from "@/lib/cash-retail-sale";
 
 import { requestContractPacket } from "@/lib/deal-packet-feedback";
 
@@ -17,6 +17,9 @@ import type { UnifiedCrmContractPacketResult } from "@/server/unified-crm/contra
 import styles from "./crm-next-shell.module.css";
 
 import cashStyles from "./cash-retail-sale-desk.module.css";
+import { CashSalePrintLibrary } from "./cash-sale-print-library";
+import { cashDefaultFormIds, cashFormUnavailable, cashGenerationIds } from "@/lib/cash-sale-print-library";
+import { cashSelectedPrintPdf } from "@/lib/cash-sale-print-pdf";
 
 
 
@@ -34,13 +37,15 @@ export function CashRetailSaleDesk(props: Props) {
 
   useCanonicalDealVehicle(setVehicle);
 
-  const [selected, setSelected] = useDealDraftState<string[]>("cashSaleForms", [...CASH_SALE_FORM_IDS]);
+  const [selected, setSelected] = useDealDraftState<string[]>("cashSaleForms", () => cashDefaultFormIds(facts));
 
   const [packet, setPacket, packetState] = useArchivedDealPacket<UnifiedCrmContractPacketResult>(true);
 
   const [generatedFingerprint, setGeneratedFingerprint] = useDealDraftState("cashGeneratedFingerprint", "");
 
-  const fingerprint = JSON.stringify([props.amount, facts, vehicle, selected]);
+  const fingerprint = JSON.stringify([props.amount, facts, vehicle]);
+  const [duplexSafe, setDuplexSafe] = useDealDraftState("cashPrintDuplexSafe", true);
+  useEffect(() => { setSelected(current => { const next=current.filter(id=>!cashFormUnavailable(id,facts)); return next.length===current.length ? current : next; }); }, [facts.warrantyType, facts.tradeVin, facts, setSelected]);
 
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [drawer, setDrawer] = useState(false), [preview, setPreview] = useState(false), [previewId, setPreviewId] = useState("");
 
@@ -58,17 +63,23 @@ export function CashRetailSaleDesk(props: Props) {
 
   const calculation = useMemo(() => { try { return { totals: cashSaleTotals(props.amount, facts), error: "" }; } catch (e) { return { totals: null, error: e instanceof Error ? e.message : "Check the sale amounts." }; } }, [props.amount, facts]);
 
-  const document = packet?.documents.find(d => d.formId === previewId) || packet?.documents[0];
+  const document = packet?.documents.find(d => d.formId === previewId);
+  const changed = Boolean(generatedFingerprint && generatedFingerprint !== fingerprint) || packetState.dirty;
+  const canPreview = Boolean(packet && selected.length && !changed && selected.every(id => packet.documents.some(doc => doc.formId === id)));
 
   useEffect(() => {
-
-    if (!preview || !document?.contentBase64) return;
-
-    const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(document.contentBase64), c => c.charCodeAt(0))], { type: "application/pdf" })); if (previewFrame.current) previewFrame.current.src = url;
-
-    return () => URL.revokeObjectURL(url);
-
-  }, [preview, document]);
+    if (!preview || !packet) return;
+    let active = true, url = "";
+    void (async () => {
+      try {
+        const bytes = document?.contentBase64 ? Uint8Array.from(atob(document.contentBase64), c => c.charCodeAt(0)) : await cashSelectedPrintPdf(packet.documents, selected, duplexSafe);
+        if (!active) return;
+        url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], {type:"application/pdf"}));
+        if (previewFrame.current) previewFrame.current.src = url;
+      } catch (e) { if(active)setError(e instanceof Error ? e.message : "The selected PDF could not be opened."); }
+    })();
+    return () => { active = false; if(url)URL.revokeObjectURL(url); };
+  }, [preview, packet, document, selected, duplexSafe]);
 
   const field = (label: string, key: keyof CashSaleFacts, type = "text") => <label key={key}><span>{label}</span><input type={type} value={facts[key]} onChange={e => edit(key, e.target.value)} /></label>;
 
@@ -78,7 +89,8 @@ export function CashRetailSaleDesk(props: Props) {
 
     setError(""); setNotice("");
 
-    const ids = facts.tradeVin ? [...new Set([...selected, "trade-documents"])] : selected;
+    const ids = cashGenerationIds(selected, facts);
+    if(!selected.length){setError("Choose at least one form or print pack.");return;}
 
     const invalid = cashSaleError(props.customerName, vehicle.vin, props.amount, facts, ids);
 
@@ -96,7 +108,7 @@ export function CashRetailSaleDesk(props: Props) {
 
       if (!response.ok) throw new Error(result.error || "Packet generation failed. Your entries remain here.");
 
-      setPacket(result); setGeneratedFingerprint(fingerprint); setPreviewId(result.documents[0]?.formId || ""); setNotice("Packet saved on this deal. Open preview to review and print the selected forms."); requestKey.current = crypto.randomUUID();
+      setPacket(result); setGeneratedFingerprint(fingerprint); setPreviewId(""); setNotice("Packet saved on this deal. Open preview to review and print the selected forms."); requestKey.current = crypto.randomUUID();
 
     } catch (e) { setError(e instanceof Error ? e.message : "The packet could not be generated."); }
 
@@ -104,40 +116,19 @@ export function CashRetailSaleDesk(props: Props) {
 
   }
 
-  async function download() {
-
-    if (!packet) return;
-
+  async function output(print = false) {
+    if (!packet || !canPreview) return;
+    const popup = print ? window.open("", "_blank") : null;
+    if (print && !popup) { setError("The browser blocked the print window. Allow pop-ups for this application, or use Preview selected forms and the PDF viewer’s print button."); return; }
+    if(popup) { popup.opener = null; popup.document.title = "Preparing selected cash sale forms"; popup.document.body.textContent = "Preparing selected forms for printing…"; }
     setError(""); setBusy(true);
-
     try {
-
-      const { PDFDocument, PDFName } = await import("pdf-lib"), combined = await PDFDocument.create();
-
-      for (const doc of packet.documents) {
-
-        if (!doc.contentBase64 || doc.contentType !== "application/pdf") continue;
-
-        const source = await PDFDocument.load(Uint8Array.from(atob(doc.contentBase64), c => c.charCodeAt(0)));
-
-        // Render appearances before copying so the combined print copy retains values without duplicate field names.
-
-        source.getForm().flatten();
-
-        source.getPages().forEach(page => page.node.delete(PDFName.of("Annots")));
-
-        for (const page of await combined.copyPages(source, source.getPageIndices())) combined.addPage(page);
-
-      }
-
-      const bytes = await combined.save(), url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/pdf" })), anchor = window.document.createElement("a");
-
-      anchor.href = url; anchor.download = `cash-sale-${packet.packetNumber}.pdf`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-    } catch { setError("The combined PDF could not be downloaded. Open each saved form in preview instead."); }
-
-    finally { setBusy(false); }
-
+      const bytes = await cashSelectedPrintPdf(packet.documents, selected, duplexSafe), url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], {type:"application/pdf"}));
+      if(popup){popup.addEventListener("load",()=>{try{popup.focus();popup.print();}catch{/* The PDF viewer keeps its own print control available. */}},{once:true});popup.location.href=url;setNotice("Selected forms opened in the PDF print viewer. Use its print button if the print dialog does not open.");}
+      else { const anchor=window.document.createElement("a");anchor.href=url;anchor.download=`cash-sale-${packet.packetNumber}.pdf`;anchor.click(); }
+      setTimeout(()=>URL.revokeObjectURL(url),60_000);
+    } catch(e) { popup?.close();setError(e instanceof Error ? e.message : "The selected forms could not be printed. Try Preview selected forms."); }
+    finally {setBusy(false);}
   }
 
   const sold = draft?.saleStatus === "SOLD", complete = draft?.paperworkComplete;
@@ -148,7 +139,7 @@ export function CashRetailSaleDesk(props: Props) {
 
       <header><span>Cash retail sale</span><strong>{props.customerName || "Select buyer"}</strong></header>
 
-      <div className={styles.retailActionRow}><button className={cashStyles.statusAction} type="button" data-completion={complete ? "complete" : "pending"} disabled={busy || !draft || complete} onClick={() => void draft?.completeSale()}>{complete ? "Sold · finalized" : sold ? "Sold · complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => setDrawer(true)}>Open cash sale packet</button></div>
+      <div className={styles.retailActionRow}><button className={cashStyles.statusAction} type="button" data-completion={complete ? "complete" : "pending"} disabled={busy || !draft || complete} onClick={() => void draft?.completeSale()}>{complete ? "Sold · finalized" : sold ? "Sold · complete paperwork" : "Mark deal sold"}</button><button type="button" data-deal-packet-open onClick={() => setDrawer(true)}>Open cash sale packet</button></div>
 
       <p>Mark this existing deal sold first. Signed forms, insurance, DMV/title and delivery items can be completed afterward. Yellow means paperwork pending; green means finalized.</p>
 
@@ -174,25 +165,21 @@ export function CashRetailSaleDesk(props: Props) {
 
     <section className={styles.retailSection}><header><span>Packet details</span><strong>Complete only the items needed for the selected forms</strong></header><div className={styles.retailFieldGrid}>{field("Dealer license number", "dealerLicense")}{field("Dealer phone", "dealerPhone")}{field("Named POA agent", "authorizedAgent")}{field("POA expiration", "poaExpiration", "date")}{choice("Warranty terms", "warrantyType", ["Dealer limited warranty", "No dealer warranty - eligibility reviewed"])}{field("Covered systems", "warrantyCoverage")}{field("Warranty duration / mileage", "warrantyDuration")}</div>
 
-      <details><summary>Insurance, payment record, warranty and delivery details</summary><div className={styles.retailFieldGrid}>{field("Insurance company", "insuranceCompany")}{field("Insurance policy", "insurancePolicy")}{field("Insurance expiration", "insuranceExpiration", "date")}{field("Payment actually recorded", "paymentReceived")}{field("Payment method", "paymentMethod")}{field("Payment reference / receipt", "paymentReference")}{field("Payment date", "paymentDate", "date")}{field("Dealer pays labor %", "warrantyLabor")}{field("Dealer pays parts %", "warrantyParts")}{field("No-warranty eligibility basis", "warrantyExemption")}{field("Promised repairs / items", "promises")}{field("Promised completion", "promiseDue", "date")}{field("Keys", "keys")}{field("Fuel", "fuel")}{field("Delivery notes", "deliveryNotes")}{field("Dealer legal name", "dealerName")}{field("Dealer address", "dealerAddress")}{field("Dealer email", "dealerEmail", "email")}</div></details>
+      <details><summary>Insurance, payment record, warranty and delivery details</summary><div className={styles.retailFieldGrid}>{field("Insurance company", "insuranceCompany")}{field("Insurance policy", "insurancePolicy")}{field("Insurance expiration", "insuranceExpiration", "date")}{field("Payment actually recorded", "paymentReceived")}{field("Payment method", "paymentMethod")}{field("Payment reference / receipt", "paymentReference")}{field("Payment date", "paymentDate", "date")}{field("Dealer pays labor %", "warrantyLabor")}{field("Dealer pays parts %", "warrantyParts")}{field("No-warranty eligibility basis", "warrantyExemption")}{field("Exact As Is statutory exclusion / subdivision", "asIsExclusion")}{field("Eligibility reviewed by / date", "eligibilityReviewedBy")}{field("Co-buyer address", "coBuyerAddress")}{field("Promised repairs / items", "promises")}{field("Promised completion", "promiseDue", "date")}{field("Keys", "keys")}{field("Fuel", "fuel")}{field("Delivery notes", "deliveryNotes")}{field("Dealer legal name", "dealerName")}{field("Dealer address", "dealerAddress")}{field("Dealer email", "dealerEmail", "email")}</div></details>
 
     </section>
 
     {calculation.error && <p role="alert">{calculation.error}</p>}
 
-    {drawer && <div className={styles.retailPacketDrawerBackdrop}><aside className={styles.retailPacketDrawer} role="dialog" aria-label="Cash sale packet"><header><div><span>Cash sale packet</span><strong>Choose forms, generate, then preview</strong></div><button onClick={() => setDrawer(false)} type="button">Close</button></header>
+    {drawer && <CashSalePrintLibrary facts={facts} selected={selected} onSelect={ids=>{setSelected(ids);setPreview(false);setError("");}} busy={busy} canPreview={canPreview} onGenerate={()=>void generate()} onPreview={()=>{setPreviewId("");setPreview(true);}} onPrint={()=>void output(true)} onDownload={()=>void output()} onClose={()=>setDrawer(false)} duplexSafe={duplexSafe} onDuplexChange={setDuplexSafe}>
+      {packetState.error && <p role="alert">{packetState.error}<button type="button" onClick={()=>void packetState.retry()}>Retry opening saved packet</button></p>}
+      {packetState.loading && <p role="status">Opening saved packet…</p>}
+      {changed && <p role="status">The saved packet has earlier deal details. Generate again to include your changes.</p>}
+      {packet && !changed && selected.some(id=>!packet.documents.some(doc=>doc.formId===id)) && <p role="status">Generate this selection to add the missing forms before previewing or printing.</p>}
+      {error && <div role="alert"><p>{error}</p><button type="button" disabled={busy} onClick={()=>{setDrawer(false);window.dispatchEvent(new CustomEvent("deal-workspace-navigate",{detail:"terms"}));}}>Review deal details</button></div>}{notice && <p role="status">{notice}</p>}
+      {preview && packet && <section aria-label="Generated cash sale preview"><label>Document<select value={previewId} onChange={e=>setPreviewId(e.target.value)}><option value="">Selected print packet ({selected.length} forms)</option>{packet.documents.filter(doc=>selected.includes(doc.formId)).map(doc=><option key={doc.formId} value={doc.formId}>{doc.label}</option>)}</select></label><p>Review all pages below. Generated documents are unsigned. Use the PDF viewer to print.</p><iframe ref={previewFrame} title={document?.label || "Selected cash sale print packet"} style={{width:"100%",height:"65vh",border:0}}/></section>}
+    </CashSalePrintLibrary>}
 
-      <div className={styles.retailFormsCommand}><button type="button" onClick={() => setSelected([...CASH_SALE_FORM_IDS])}>Prepare full cash packet</button><button type="button" disabled={busy} onClick={() => void generate()}>{busy ? "Generating..." : "Generate cash sale packet"}</button><button type="button" disabled={!packet || busy} onClick={() => setPreview(true)}>Preview generated packet</button><button type="button" disabled={!packet || busy} onClick={() => void download()}>Download print packet (PDF)</button></div>
-
-      {packetState.error && <p role="alert">{packetState.error}<button type="button" onClick={() => void packetState.retry()}>Retry opening saved packet</button></p>}{packetState.loading && <p role="status">Opening saved packet...</p>}{generatedFingerprint && generatedFingerprint !== fingerprint && <p role="status">The saved packet has earlier details. Generate again to include your changes.</p>}{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-
-      <p>The title worksheet supports filing; complete the <a href="https://dps.mn.gov/divisions/dvs" target="_blank" rel="noreferrer">current official DVS application or VTAP</a>. Attach the actual title, any secure POA, and signed forms to this deal.</p>
-
-      <div className={styles.retailFormsGrid}>{CASH_SALE_FORM_IDS.map(id => <label key={id}><input type="checkbox" checked={selected.includes(id)} disabled={CASH_SALE_REQUIRED_IDS.includes(id)} onChange={() => setSelected(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])} /><strong>{CASH_SALE_LABELS[id]}</strong><small>{id === "buyers-guide" ? "Official FTC form" : id === "title-registration-application" ? "Dealership worksheet; official filing still required" : "Dealership document"}</small></label>)}</div>
-
-      {preview && packet && <section aria-label="Generated cash sale preview"><label>Document<select value={document?.formId || ""} onChange={e => setPreviewId(e.target.value)}>{packet.documents.map(doc => <option key={doc.formId} value={doc.formId}>{doc.label}</option>)}</select></label><p>Review the saved PDF below. Use the PDF viewer to print. Generating forms does not mark them signed.</p><iframe ref={previewFrame} title={document?.label || "Cash sale PDF"} style={{ width: "100%", height: "72vh", border: 0 }} /></section>}
-
-    </aside></div>}
 
   </div>;
 

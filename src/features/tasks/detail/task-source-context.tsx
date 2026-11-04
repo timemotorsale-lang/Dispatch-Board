@@ -33,6 +33,11 @@ export function TaskSourceContext({ canEdit, task }: { canEdit: boolean; task: T
       <button type="button" aria-label={open ? "Hide source context" : "View source context"} aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? "Hide" : "Context"}</button>
       {canEdit ? <button aria-label="Refine task" type="button" onClick={() => { setDraft(description); setEditing(true); setOpen(true); setNotice(""); }}><Pencil size={14} /> Refine</button> : null}
     </div>
+    {task.operatingContext ? <div className={styles.operatingScope}>
+      <strong>Task scope: {task.operatingContext.label}</strong>
+      <p>{task.operatingContext.details}</p>
+      <small>Areas: {task.operatingContext.areas.length ? task.operatingContext.areas.join(", ") : task.operatingContext.scope === "INVENTORY" ? "Inventory management" : "Whole operation"}. Specific customers and vehicles can be linked to the individual tasks.</small>
+    </div> : null}
     {open ? <div className={styles.details}>
       <dl><div><dt>Created from</dt><dd>{label}</dd></div>{source?.channel ? <div><dt>Channel</dt><dd>{source.channel}</dd></div> : null}{source?.sourceId ? <div><dt>Source reference</dt><dd>{source.sourceId}</dd></div> : null}</dl>
       <div><b>Original workbook context</b><p>{source?.text || description || "No additional source context was preserved for this older task."}</p></div>

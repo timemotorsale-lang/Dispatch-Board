@@ -1,14 +1,16 @@
-export const CASH_SALE_FORM_IDS = ["sales-agreement", "binding-contract-disclosure", "odometer-disclosure", "title-registration-application", "tax-fee-receipt", "title-assignment", "power-of-attorney", "buyers-guide", "funding-proof", "insurance-proof", "warranty-disclosure", "we-owe", "delivery-documents"];
+export const CASH_SALE_FORM_IDS = ["sales-agreement", "binding-contract-disclosure", "odometer-disclosure", "title-registration-application", "tax-fee-receipt", "title-assignment", "power-of-attorney", "buyers-guide", "funding-proof", "insurance-proof", "warranty-disclosure", "we-owe", "delivery-documents", "title-damage-disclosure", "arbitration-agreement", "as-is-acknowledgment"];
 export const CASH_SALE_REQUIRED_IDS = ["sales-agreement", "binding-contract-disclosure", "odometer-disclosure", "tax-fee-receipt"];
 export const CASH_SALE_LABELS: Record<string, string> = {
-  "sales-agreement": "Cash purchase agreement / buyer's order", "binding-contract-disclosure": "Binding contract disclosure",
+  "sales-agreement": "Motor vehicle purchase agreement (front and reverse)", "binding-contract-disclosure": "Binding contract disclosure",
   "odometer-disclosure": "Odometer and damage disclosure", "title-registration-application": "Title / registration worksheet",
   "tax-fee-receipt": "Itemized price, taxes and fees", "title-assignment": "Original title / lien release checklist",
   "power-of-attorney": "Limited motor vehicle power of attorney", "buyers-guide": "Official FTC Buyers Guide",
   "funding-proof": "Payment record", "insurance-proof": "Insurance record", "warranty-disclosure": "Warranty disclosure",
+  "title-damage-disclosure": "Vehicle title and damage disclosure", "arbitration-agreement": "Separate arbitration agreement (optional)", "as-is-acknowledgment": "Conditional As Is acknowledgment",
   "we-owe": "Promised repairs / we owe", "delivery-documents": "Delivery acknowledgment", "trade-documents": "Trade-in record"
 };
 export const EMPTY_CASH_SALE = {
+  coBuyerAddress: "", asIsExclusion: "", eligibilityReviewedBy: "",
   buyerAddress: "", buyerPhone: "", buyerEmail: "", coBuyer: "", saleDate: "", deliveryDate: "",
   dealerName: "Time Motor Sales", dealerAddress: "1101 E. Lake Street, Minneapolis, MN 55407", dealerLicense: "", dealerPhone: "", dealerEmail: "timemotorsale@gmail.com",
   mileage: "", odometerStatus: "", odometerExemption: "", titleBrand: "", damageDisclosure: "", plate: "", plateState: "MN",
@@ -64,7 +66,11 @@ export function cashSaleError(customer: string, vin: string, price: string, fact
   if (ids.includes("odometer-disclosure") && facts.odometerStatus === "Exempt" && !facts.odometerExemption) return "Record the odometer exemption basis.";
   if (ids.includes("odometer-disclosure") && (!facts.titleBrand || !facts.damageDisclosure)) return "Record the title brand and known damage disclosure.";
   if (ids.includes("power-of-attorney") && (!facts.authorizedAgent || !date(facts.poaExpiration) || facts.poaExpiration < facts.saleDate)) return "Name the authorized agent and enter a power-of-attorney expiration on or after the sale date.";
-  if (ids.includes("buyers-guide") || ids.includes("warranty-disclosure")) {
+  if (ids.includes("warranty-disclosure") && (facts.warrantyLabor !== "100" || facts.warrantyParts !== "100")) return "The committed warranty form states 100% covered parts and labor. Match the entered coverage before including it.";
+  if (ids.includes("as-is-acknowledgment") && facts.warrantyType !== "No dealer warranty - eligibility reviewed") return "Use the As Is acknowledgment only for an explicitly reviewed no-dealer-warranty election.";
+  if (ids.includes("as-is-acknowledgment") && (!facts.asIsExclusion || !facts.eligibilityReviewedBy)) return "Record the exact As Is exclusion and staff eligibility review before including this conditional form.";
+  if (ids.includes("as-is-acknowledgment") && ids.includes("warranty-disclosure")) return "Choose either the applicable warranty or conditional As Is acknowledgment, not both.";
+  if (ids.includes("buyers-guide") || ids.includes("warranty-disclosure") || ids.includes("as-is-acknowledgment")) {
     if (!["Dealer limited warranty", "No dealer warranty - eligibility reviewed"].includes(facts.warrantyType)) return "Choose the warranty terms before generating the Buyers Guide.";
     if (facts.warrantyType === "Dealer limited warranty" && (!facts.warrantyCoverage || !facts.warrantyDuration)) return "Describe the covered systems and warranty duration, including any required Minnesota coverage.";
     if (facts.warrantyType === "No dealer warranty - eligibility reviewed" && !facts.warrantyExemption) return "Record why the vehicle is exempt from the Minnesota used-vehicle warranty requirement before choosing no dealer warranty.";

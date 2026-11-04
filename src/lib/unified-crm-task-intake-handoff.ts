@@ -1,5 +1,6 @@
 const TASK_INTAKE_TYPES = [
   "Quick Task",
+  "Operations / Action Plan",
   "Manager Decision",
   "Sales Lead / Appointment",
   "Sales Deal / Delivery",

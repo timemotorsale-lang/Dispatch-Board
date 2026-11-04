@@ -1,3 +1,4 @@
+import { readTaskOperatingContext } from "@/lib/task-context";
 ﻿import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   createTaskReadRepository,
@@ -141,6 +142,7 @@ export type TaskReadModel = {
     text: string;
     href: string | null;
   } | null;
+  operatingContext?: NonNullable<ReturnType<typeof readTaskOperatingContext>>;
   repairOrderHref?: string | null;
   requiresManagerApproval: boolean;
   requiredUpdateFields: TaskTemplateRequiredUpdateField[];
@@ -359,6 +361,7 @@ function toUserSummary(
 
 function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
   const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const operatingContext = readTaskOperatingContext(snapshot);
   const conversionContract = snapshot && typeof snapshot === "object" && "conversionContract" in snapshot && snapshot.conversionContract && typeof snapshot.conversionContract === "object"
     ? snapshot.conversionContract as Record<string, unknown>
     : null;
@@ -402,6 +405,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     dueAt: task.dueAt.toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
+    ...(operatingContext ? { operatingContext } : {}),
     sourceContext: origin ? {
       channel: typeof origin.channel === "string" ? origin.channel : "Workbook",
       sourceId,

@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, History, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { CustomerContactDetails } from "@/features/crm/customer-contact-details";
 import { useState, type FormEvent, type ReactNode } from "react";
 
 import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
@@ -986,7 +987,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       />
       <section className={styles.priorityGrid}>
         <article className={styles.nextAction}><span className={styles.eyebrow}>{nextActionEyebrow(model.relationship.nextActionState)}</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><p>{nextActionGuidance(model)}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={model.permissions.canCreateGovernedTask ? "#task-bridge-heading" : taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
-        <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
+        <article className={styles.contactCard}><span className={styles.eyebrow}>Customer contact</span><CustomerContactDetails customerId={model.identity.id} maskedValues={[primaryContact, ...otherContacts].filter(Boolean).map(item => item!.maskedValue)} /><dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
       </section>
       {model.permissions.canManageNextAction ? (
         <UnifiedCrmCustomerNextActionForm currentNextActionAt={model.relationship.nextActionAt} currentNextActionState={model.relationship.nextActionState} customerId={model.identity.id} />

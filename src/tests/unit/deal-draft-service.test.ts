@@ -10,6 +10,21 @@ const actor: AuthenticatedUser = { id: "staff-1", name: "Staff", email: "staff@l
 const draft = { id: "draft-12345678", revision: 0, pathway: "bhph", customerName: "Buyer", vehicleReference: "Vehicle", snapshot: { "bhph:terms": { salePrice: "$14000", downPayment: "$2000" } } };
 
 describe("Saved deal draft controls", () => {
+  it("lets the database assign the number and prevents a client from replacing it", async () => {
+    mocks.findUnique.mockResolvedValue(null); mocks.create.mockImplementation(({ data }) => ({ ...data, dealNumber: 1234 }));
+    expect((await saveDealDeskDraft(actor, { ...draft, dealNumber: 9999 })).dealNumber).toBe(1234);
+    expect(mocks.create.mock.calls[0][0].data).not.toHaveProperty("dealNumber");
+    mocks.findUnique.mockResolvedValue({ organizationId: "test-org", ownerUserId: actor.id, dealNumber: 1234 });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    await saveDealDeskDraft(actor, { ...draft, revision: 1, dealNumber: 9999 });
+    expect(mocks.updateMany.mock.calls[0][0].data).not.toHaveProperty("dealNumber");
+  });
+  it("searches the saved-deal library by assigned number", async () => {
+    mocks.findMany.mockResolvedValue([]);mocks.count.mockResolvedValue(0);mocks.groupBy.mockResolvedValue([]);
+    await listSavedDealLibrary(actor, new URLSearchParams({ search: "1234" }));
+    expect(mocks.findMany.mock.calls[0][0].where.OR).toContainEqual({ dealNumber: 1234 });
+    expect(mocks.findMany.mock.calls[0][0].select.dealNumber).toBe(true);
+  });
   beforeEach(() => vi.resetAllMocks());
   it("requires an active permitted staff account", async () => {
     await expect(saveDealDeskDraft(null, draft)).rejects.toMatchObject({ status: 401 });

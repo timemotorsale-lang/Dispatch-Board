@@ -1,6 +1,9 @@
 "use client";
 
+import type { DealCustomerList } from "@/lib/deal-continuity";
+
 import Link from "next/link";
+import { CustomerContactDetails } from "@/features/crm/customer-contact-details";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import {
@@ -1070,13 +1073,13 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
               ].filter(Boolean);
               return (
                 <article className={styles.directoryRow} data-status={statusTone} key={customer.id}>
-                  <Link className={styles.directoryIdentity} href={customer360Href(customer.id)}>
-                    <span className={styles.avatar}>{initials(customer.name)}</span>
-                    <span>
-                      <strong>{customer.name}</strong>
-                      <small>{customer.phone} · {customer.email}</small>
-                    </span>
-                  </Link>
+                  <div className={styles.directoryIdentity}>
+                    <Link href={customer360Href(customer.id)} className={styles.avatar}>{initials(customer.name)}</Link>
+                    <div>
+                      <Link href={customer360Href(customer.id)}><strong>{customer.name}</strong></Link>
+                      <CustomerContactDetails customerId={customer.id} phone={customer.phone} email={customer.email} />
+                    </div>
+                  </div>
                   <dl>
                     <div><dt>Category</dt><dd>{customerCategory}</dd></div>
                     <div><dt>Owner</dt><dd>{activeAttentionItem?.owner ?? "Unassigned"}</dd></div>
@@ -1459,11 +1462,11 @@ export function CrmNextSearchView({ model, returnAction }: { model: CrmNextComma
         {matchingCustomers.map((customer) => {
           const attentionItem = attention.find((item) => item.customerId === customer.id);
           return (
-            <Link className={styles.card} href={actionId ? crmNextActionHref(actionId, customer.id) : customer360Href(customer.id)} key={`customer-${customer.id}`}>
-              <header><h2>{customer.name}</h2><span className={styles.pill}>Customer</span></header>
-              <p>{customer.phone} · {customer.email}</p>
+            <article className={styles.card} key={`customer-${customer.id}`}>
+              <header><h2><Link href={actionId ? crmNextActionHref(actionId, customer.id) : customer360Href(customer.id)}>{customer.name}</Link></h2><span className={styles.pill}>Customer</span></header>
+              <CustomerContactDetails customerId={customer.id} phone={customer.phone} email={customer.email} />
               <p>{attentionItem?.nextAction ?? customer.nextAction}</p>
-            </Link>
+            </article>
           );
         })}
       </section>
@@ -1609,11 +1612,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
     <CrmNextFrame active="deals" userName={model.userName}>
       <SavedDealsLibrary
         title="Deals"
-        renderHeaderAction={(pathway) => {
-          const params = new URLSearchParams({ new: "1" });
-          if (pathway !== "ALL") params.set("pathway", pathway);
-          return <>{pathway !== "repairs" ? <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1&pathway=repairs`}>Start Repair</Link> : null}<Link href={`${CRM_NEXT_DEAL_START_HREF}?${params}`}><UserPlus size={16} />{pathway === "repairs" ? "Start Repair" : pathway === "lease-to-own" ? "Start Lease" : ["daily-rental", "vehicle-loaner", "test-drive"].includes(pathway) ? "Start Vehicle Use" : "Start Deal"}</Link></>;
-        }}
+        renderHeaderAction={() => <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1`}><UserPlus size={16} />Start Deal</Link>}
         disabled={false}
         refreshKey="deals-page"
         onOpen={(id) => router.push(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}
@@ -1625,6 +1624,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
 export function CrmNextDealStartView({
   reviewTestDrive,
   initialCustomerId,
+  initialCustomerList,
   initialWorkflowId,
   initialVehicleReference,
   initialVehicleFacts,
@@ -1632,6 +1632,7 @@ export function CrmNextDealStartView({
 }: {
   reviewTestDrive?: boolean;
   initialCustomerId?: string;
+  initialCustomerList?: DealCustomerList;
   initialWorkflowId?: string;
   initialVehicleReference?: string;
   initialVehicleFacts?: Record<string, string>;
@@ -1639,8 +1640,7 @@ export function CrmNextDealStartView({
 }) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
-      <Topbar />
-      <CrmNextDealStartTool reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
+      <CrmNextDealStartTool initialCustomerList={initialCustomerList} reviewTestDrive={reviewTestDrive} initialCustomerId={initialCustomerId} initialWorkflowId={initialWorkflowId} initialVehicleReference={initialVehicleReference} initialVehicleFacts={initialVehicleFacts} model={model} />
     </CrmNextFrame>
   );
 }
@@ -2195,7 +2195,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <div>
                 <h1 className={styles.customerName}>{customer.name}</h1>
                 <span className={styles.customerBadge}>Preferred Customer</span>
-                <p>{customer.phone} · {customer.email}</p>
+                <CustomerContactDetails customerId={customer.id} phone={customer.phone} email={customer.email} />
                 <p>{customer.address}</p>
               </div>
             </div>

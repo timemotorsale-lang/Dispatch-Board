@@ -18,3 +18,7 @@
 .source :is(button, a, textarea):focus-visible { outline: 3px solid #4d6ce3; outline-offset: 2px; }
 @media(max-width:900px) { .bar { position: static; grid-column: 1 / -1; justify-self: stretch; justify-content: flex-start; max-width: none; margin-top: -2px; } }
 @media(max-width:600px) { .bar { align-items: center; } }
+
+.operatingScope { grid-column:1 / -1; min-width:0; display:grid; gap:6px; padding:12px 14px; border:1px solid #cbd9ed; border-radius:9px; background:#f2f6fd; color:#213b5d; }
+.operatingScope p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5; }
+.operatingScope small { font-size:13px; line-height:1.5; color:#405773; }

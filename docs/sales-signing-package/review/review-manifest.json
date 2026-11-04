@@ -1,0 +1,194 @@
+{
+  "source_name": "TMS_MN_Sales_Signing_Package_REVIEW.pdf",
+  "source_sha256": "c8972955322e8d50bbc773d87532f6534d283d92835e290e575e7884bd645adf",
+  "source_version": "TMS-MN-REVIEW-0.2 | 2026-11-03",
+  "preparation_date": "2026-11-03",
+  "status": "REVIEW ONLY - not released for signing or filing",
+  "forms": [
+    {
+      "number": "01",
+      "title": "Motor Vehicle Purchase Agreement",
+      "pdf": "forms/01-motor-vehicle-purchase-agreement.pdf",
+      "source_pages": [
+        2,
+        3
+      ],
+      "review_pages": [
+        1,
+        2
+      ],
+      "sha256": "51c8e600826a5b62fad6c1dd31388a8fbea9dca1f911fc012c5b5bee5e0a679a"
+    },
+    {
+      "number": "02",
+      "title": "Vehicle Title and Damage Disclosure",
+      "pdf": "forms/02-title-and-damage-disclosure.pdf",
+      "source_pages": [
+        4
+      ],
+      "review_pages": [
+        3
+      ],
+      "sha256": "9f865f826769d8cbd1c08f6077a1b6c4ea965a24c87cf3eec974a81bf80654bd"
+    },
+    {
+      "number": "03",
+      "title": "Promised Work Agreement / We Owe",
+      "pdf": "forms/03-promised-work-we-owe.pdf",
+      "source_pages": [
+        5
+      ],
+      "review_pages": [
+        4
+      ],
+      "sha256": "ccd2a29e763d5531de227d453b18088717a82699d845c252d8d021ae111b3df2"
+    },
+    {
+      "number": "04",
+      "title": "Vehicle Delivery Receipt",
+      "pdf": "forms/04-vehicle-delivery-receipt.pdf",
+      "source_pages": [
+        6
+      ],
+      "review_pages": [
+        5
+      ],
+      "sha256": "348be74baa059fd05d4ad5561752e6ecef98609d584929bafed3bd19acff5818"
+    },
+    {
+      "number": "05",
+      "title": "Separate Arbitration Agreement",
+      "pdf": "forms/05-separate-arbitration-agreement.pdf",
+      "source_pages": [
+        7
+      ],
+      "review_pages": [
+        6
+      ],
+      "sha256": "3bc3087ca093a99d6b87dc5c06b8a5a2be2a1fd3c2ecf50b08dc372ca51a5069"
+    },
+    {
+      "number": "06",
+      "title": "Limited Title and Registration Power of Attorney",
+      "pdf": "forms/06-limited-power-of-attorney.pdf",
+      "source_pages": [
+        8
+      ],
+      "review_pages": [
+        7
+      ],
+      "sha256": "45c84f6bb584c5335cefc2ab792eb34998168d4a7c2c0342dd910140863451cb"
+    },
+    {
+      "number": "07",
+      "title": "Conditional As Is - No Dealer Warranty Acknowledgment",
+      "pdf": "forms/07-conditional-as-is-acknowledgment.pdf",
+      "source_pages": [
+        9
+      ],
+      "review_pages": [
+        8
+      ],
+      "sha256": "a41fd3a32f0e601dcc0554e986ef28d18b25f71496ad708176711d02f475c516"
+    },
+    {
+      "number": "08",
+      "title": "GPS Installation, Location-Data Consent, and Safety Acknowledgment",
+      "pdf": "forms/08-gps-consent-and-safety.pdf",
+      "source_pages": [
+        10,
+        11
+      ],
+      "review_pages": [
+        9,
+        10
+      ],
+      "sha256": "d29b52c9cbd677ad80d251ee62ecda0fc93270b2aedd8d0ed4181c1c47ee0e59"
+    },
+    {
+      "number": "09",
+      "title": "Retail Installment Sale and Security Agreement",
+      "pdf": "forms/09-retail-installment-sale-and-security-agreement.pdf",
+      "source_pages": [
+        12,
+        13,
+        14
+      ],
+      "review_pages": [
+        11,
+        12,
+        13
+      ],
+      "sha256": "ff1109d7f56e7ebd2e8e87b8e504a6e2828e062c3a4c08b1c667a8b4322f02d7"
+    },
+    {
+      "number": "10",
+      "title": "Limited Used Vehicle Warranty and Component Schedule",
+      "pdf": "forms/10-limited-used-vehicle-warranty.pdf",
+      "source_pages": [
+        15,
+        16,
+        17
+      ],
+      "review_pages": [
+        14,
+        15,
+        16
+      ],
+      "sha256": "59125afbaea187941d7f6e8e862d6664bcdacda0f0352a6e0580a21dba266cd7"
+    },
+    {
+      "number": "11",
+      "title": "Separate Financing Product and Device Disclosure",
+      "pdf": "forms/11-financing-product-and-device-disclosure.pdf",
+      "source_pages": [
+        18
+      ],
+      "review_pages": [
+        17
+      ],
+      "sha256": "df6313bc3d843aebb6aa0a5178ae7b743bf1332f322c89179bcc93bfdc87e092"
+    },
+    {
+      "number": "12",
+      "title": "FTC Buyers Guide - supplied official reference",
+      "pdf": "forms/12-ftc-buyers-guide.pdf",
+      "source_pages": [
+        19,
+        20
+      ],
+      "review_pages": [
+        18,
+        19
+      ],
+      "sha256": "9b23e112d7bf3a19862033144a615887f8d2373c8e787238334162180062c00f"
+    },
+    {
+      "number": "13",
+      "title": "Minnesota PS2000A - January 2024 reference only",
+      "pdf": "forms/13-minnesota-ps2000a-reference-2024.pdf",
+      "source_pages": [
+        22,
+        23
+      ],
+      "review_pages": [
+        20,
+        21
+      ],
+      "sha256": "7fcb4698e87d564f4b52df9fc4c381db382fec8d06619afadcaafb25ca44be89"
+    }
+  ],
+  "collection_sha256": "b36d36d74404c835b99efa1091264c0be9f4baedeb597721c1dd557118f4e71e",
+  "internal_reference_sha256": "d1ad3f557bce160c3a3c84b66bbe98111927b8fd68686ba5b5f7a06fc359b92f",
+  "header_version": "TMS-HDR-REVIEW-02 | 2026-11-03",
+  "header_contact_line": "timemotors.net | timemotorsale@gmail.com | 612-724-3631",
+  "header_slogan": "Automotive Group Since 1955",
+  "header_logo_source": "Dispatch Board/public/brand/time-motor-sales-horizontal.png",
+  "header_logo_sha256": "e5cfff46ed8676827840883fa6996c1d7b5d62a59981f2560ac8373e23cf4c1b",
+  "header_contact_source": "Existing Minneapolis location foundation: 1101 E. Lake Street, Minneapolis, MN 55407, +16127243631. Phone also appears in supplied review source.",
+  "unchanged_official_forms": [
+    "FTC Buyers Guide",
+    "Minnesota PS2000A January 2024 reference"
+  ],
+  "header_only_update": true
+}

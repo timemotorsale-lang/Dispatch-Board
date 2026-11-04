@@ -3,10 +3,17 @@
 import { type ReactNode, type SetStateAction, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
+import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealSaveState, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
+import { openPrintablePdfDocument } from "@/lib/printable-pdf";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
+import type { DealCustomerList } from "@/lib/deal-continuity";
+import { DealSavedSummary } from "./deal-saved-summary";
+import { DealWorkspaceOverview, DealActivityPanel } from "./deal-workspace-overview";
+import workspaceStyles from "./deal-workspace-overview.module.css";
+import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
+import { dealGroup } from "@/lib/deal-dashboard";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
@@ -19,10 +26,10 @@ import { FilePlus2, Eye, Download, Printer, X, CheckCircle2, Circle, ChevronRigh
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
-import { testDriveFacts, testDriveAgreementError, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
+import { testDriveFacts, testDriveAgreementIssue, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, dealerWarrantyPosture, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIELDS, leaseCalculatorInputFromFields, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
@@ -479,18 +486,6 @@ function openPrintableHtmlDocument(html: string) {
   return true;
 }
 
-function openPrintablePdfDocument(document: GeneratedContractPacket["documents"][number]) {
-  const url = documentDataUrl(document);
-  if (!url) return false;
-  const printWindow = window.open(url, "_blank");
-  if (!printWindow) return false;
-  try {
-    printWindow.opener = null;
-  } catch {
-    // The packet is already open; keep printing even if the browser blocks opener cleanup.
-  }
-  return true;
-}
 
 function normalizeVin(value: string) {
   return value.toUpperCase().replace(/\s/g, "");
@@ -1168,7 +1163,7 @@ function RetailSaleExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredFormCount} required forms ready`}</strong>
             <small>Open the drawer to prepare forms, generate the packet, preview documents, and send or print.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open MN sale packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open MN sale packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -2007,7 +2002,7 @@ function DailyRentalExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
             <small>{isLoaner ? "Open the drawer to prepare the official courtesy loaner agreement, condition/return record, and Minnesota insurance notice." : "Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions."}</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -2108,11 +2103,6 @@ function DailyRentalExecutionDesk({
   );
 }
 
-function basisPointsFromMultiplier(value: string) {
-  const parsed = Number(value.trim());
-  return Number.isFinite(parsed) ? Math.round(parsed * 10000) : 10000;
-}
-
 function LeaseToOwnExecutionDesk({
   customerPrefill,
   customerName,
@@ -2151,27 +2141,7 @@ function LeaseToOwnExecutionDesk({
     year: ""
   });
   useCanonicalDealVehicle(setVehicleFacts);
-  const [leaseInputs, setLeaseInputs] = useDealDraftState("leaseInputs", {
-    agreedPrice: "",
-    calculationMode: "TERM" as "TERM" | "PAYMENT_AMOUNT",
-    targetPayment: "$250.00",
-    additionalItems: "$0.00",
-    capitalizedCostReduction: "$0.00",
-    contractLength: "36",
-    documentPreparationFee: "$300.00",
-    downPayment: "$0.00",
-    gpsCost: "$0.00",
-    multiplier: "2.00",
-    originationFee: "$0.00",
-    otherRoadWorthyCost: "$0.00",
-    paymentFrequency: "Monthly" as LeasePaymentFrequency,
-    registrationFee: "$516.00",
-    salesTaxRate: "6.875",
-    signingPaymentMode: "CAPITALIZED_REDUCTION" as "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION",
-    titleFee: "$102.80",
-    warrantyCost: "$0.00",
-    wholesaleCost: "$0.00"
-  });
+  const [leaseInputs, setLeaseInputs] = useDealDraftState("leaseInputs", { ...DEFAULT_LEASE_CALCULATOR_FIELDS });
   const [calculatorView, setCalculatorView] = useDealDraftState("calculatorView", "COMPACT");
   const [leaseFacts, setLeaseFacts] = useDealDraftState("leaseFacts", {
     deliveryAt: "",
@@ -2210,27 +2180,7 @@ function LeaseToOwnExecutionDesk({
     }));
   }, [customerPrefill, setLeaseFacts]);
 
-  const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
-    agreedPriceCents: leaseInputs.agreedPrice.trim() ? dollarsToCents(leaseInputs.agreedPrice) ?? NaN : undefined,
-    calculationMode: leaseInputs.calculationMode,
-    targetPaymentCents: dollarsToCents(leaseInputs.targetPayment) ?? 0,
-    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) ?? 0,
-    capitalizedCostReductionCents: dollarsToCents(leaseInputs.capitalizedCostReduction) ?? 0,
-    contractLength: Number(leaseInputs.contractLength) || 0,
-    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) ?? 0,
-    downPaymentCents: dollarsToCents(leaseInputs.downPayment) ?? 0,
-    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) ?? 0,
-    multiplierBasisPoints: basisPointsFromMultiplier(leaseInputs.multiplier),
-    originationFeeCents: dollarsToCents(leaseInputs.originationFee) ?? 0,
-    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) ?? 0,
-    paymentFrequency: leaseInputs.paymentFrequency,
-    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) ?? 0,
-    salesTaxRateBasisPoints: Number(leaseInputs.salesTaxRate.replace("%", "")) * 100,
-    signingPaymentMode: leaseInputs.signingPaymentMode,
-    titleFeeCents: dollarsToCents(leaseInputs.titleFee) ?? 0,
-    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) ?? 0,
-    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) ?? 0
-  }), [leaseInputs]);
+  const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => leaseCalculatorInputFromFields(leaseInputs), [leaseInputs]);
   const calculator = useMemo(() => calculateLeaseToOwn(calculatorInput), [calculatorInput]);
   const leaseDeliveryDate = new Date(leaseFacts.deliveryAt);
   const leaseDeliveryIso = Number.isFinite(leaseDeliveryDate.getTime()) ? leaseDeliveryDate.toISOString() : "";
@@ -2557,7 +2507,7 @@ function LeaseToOwnExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedPacketCount}/${packetFormCount} packet forms ready`}</strong>
             <small>Open the packet to preview saved documents or prepare an updated copy. Finalizing the deal is a separate step.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open lease packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open lease packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -2959,7 +2909,7 @@ function BhphExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredBhphForms.length} required forms ready`}</strong>
             <small>Open the drawer to prepare the installment support packet, payment schedule, insurance, default, GPS, references, delivery, privacy, and deal-jacket controls.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open BHPH packet</button>
+          <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open BHPH packet</button>
         </div>
 
         {packetDrawerOpen ? (
@@ -3553,7 +3503,28 @@ export function TestDriveExecutionDesk({
     ...facts, departureAt: facts.startTime ? localInstant(`${facts.testDriveDate}T${facts.startTime}`) : "",
     returnAt: facts.returnAt ? localInstant(facts.returnAt) : ""
   });
-  const agreementError = testDriveAgreementError(agreementFacts);
+  const agreementIssue = testDriveAgreementIssue(agreementFacts);
+  const agreementError = agreementIssue?.message ?? null;
+  const agreementEditor = useRef<HTMLDivElement>(null);
+  const [correctionField, setCorrectionField] = useState("");
+  useEffect(() => {
+    if (!correctionField) return;
+    const label = Array.from(agreementEditor.current?.querySelectorAll("label") ?? []).find(label =>
+      (label.querySelector("span")?.textContent ?? label.textContent)?.trim() === correctionField);
+    const control = label?.querySelector<HTMLElement>("input, select, textarea");
+    if (!control) return;
+    for (let ancestor = control.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+    }
+    control.focus({ preventScroll: true });
+    control.scrollIntoView({ behavior: "smooth", block: "center" });
+    setCorrectionField("");
+  }, [correctionField, reviewPanel]);
+  function correctAgreementIssue() {
+    if (!agreementIssue) return;
+    if (review) setReviewPanel(agreementIssue.panel);
+    setCorrectionField(agreementIssue.field);
+  }
   const returnDeadline = testDriveDateTime(testDriveDeadline(agreementFacts));
   const driveVin = facts.vin || getVinFromVehicleInput(vehicle);
   const validVehicle = /^[A-HJ-NPR-Z0-9]{17}$/.test(driveVin);
@@ -3772,7 +3743,7 @@ export function TestDriveExecutionDesk({
   }
 
   return (
-    <div className={`${styles.retailExecutionDesk} ${review ? styles.testDriveReview : ""}`}>
+    <div ref={agreementEditor} className={`${styles.retailExecutionDesk} ${review ? styles.testDriveReview : ""}`}>
       {review && <section className={styles.testDriveCheckout} aria-label="Test-drive checkout review">
         <header><div><span>{returnReceived ? "Returned" : started ? "Test drive active" : "Departure checks"}</span><h3>{vehicle || "Select a vehicle"}</h3><p>{customerName} · {employeeName}</p></div><button type="button" disabled={reviewBusy} onClick={onSaveDraft}><Save size={16} />Save draft</button></header>
         {started ? <div className={styles.testDriveActive}><dl><div><dt>Departure</dt><dd>{facts.testDriveDate} {facts.startTime}</dd></div><div><dt>Expected return</dt><dd>{returnDeadline}</dd></div></dl><button type="button" onClick={() => setReviewPanel("return")}>{returnReceived ? "Review return" : "Record return"}<ChevronRight size={16} /></button></div> : <>
@@ -3847,7 +3818,7 @@ export function TestDriveExecutionDesk({
       <section hidden={review && reviewPanel !== "agreement"} className={styles.retailSection}>
         <header><span>Test-drive agreement</span><strong>Authorization and vehicle release</strong></header>
         <div className={`${styles.retailNextActionBar} ${styles.testDriveAgreementActions}`}>
-          <div><strong>{agreementError || (agreementStatus.kind === "idle" ? "Ready to generate" : "")}</strong><PacketFeedback status={agreementStatus}><SavedPacketLink packet={agreementPacket} /></PacketFeedback></div>
+          <div>{!agreementError && agreementStatus.kind === "idle" && <strong>Ready to generate</strong>}<PacketFeedback status={agreementError ? { kind: "error", message: agreementError } : agreementStatus} onCorrect={agreementIssue ? correctAgreementIssue : undefined}><SavedPacketLink packet={agreementPacket} /></PacketFeedback></div>
           <button type="button" disabled={agreementStatus.kind === "generating"} onClick={generateAgreement}><FilePlus2 size={16} aria-hidden="true" />Generate agreement</button>
           <button type="button" disabled={!agreementDocument} onClick={() => setAgreementPreviewOpen(true)}><Eye size={16} aria-hidden="true" />Preview</button>
           <button type="button" disabled={!agreementDocument} onClick={downloadAgreement}><Download size={16} aria-hidden="true" />Download PDF</button>
@@ -4488,7 +4459,7 @@ function OutsideFinanceExecutionDesk({
   );
 }
 
-export function CrmNextDealStartTool(props: { reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
+export function CrmNextDealStartTool(props: { initialCustomerList?: DealCustomerList; reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
   const params = useSearchParams();
   return <DealDraftWorkspace key={params?.toString() ?? ""} initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
 }
@@ -4496,20 +4467,50 @@ export function CrmNextDealStartTool(props: { reviewTestDrive?: boolean; initial
 function DealStartDesk({
   reviewTestDrive: initialReviewTestDrive = false,
   initialCustomerId,
+  initialCustomerList,
   initialWorkflowId,
   initialVehicleReference,
   model
 }: {
   reviewTestDrive?: boolean;
   initialCustomerId?: string;
+  initialCustomerList?: DealCustomerList;
   initialWorkflowId?: string;
   initialVehicleReference?: string;
   model: CrmNextCommandCenter;
 }) {
   const savedDeal = useDealDraft();
+  const saveState = useDealSaveState();
+  const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
+  const [documentEditor, setDocumentEditor] = useState(false);
+  const workspaceRoot = useRef<HTMLElement>(null);
+  const [packetRequested, setPacketRequested] = useState(false);
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const section = (event as CustomEvent<string>).detail;
+      if (["overview", "identity", "terms", "completion"].includes(section)) setWorkspaceSection(section as DealWorkspaceSection);
+    };
+    window.addEventListener("deal-workspace-navigate", navigate);
+    return () => window.removeEventListener("deal-workspace-navigate", navigate);
+  }, []);
+  useEffect(() => {
+    if (!packetRequested) return;
+    const frame = window.requestAnimationFrame(() => {
+      workspaceRoot.current?.querySelector<HTMLButtonElement>("[data-deal-packet-open]")?.click();
+      setPacketRequested(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [packetRequested]);
+  function navigateWorkspace(section: DealWorkspaceSection) {
+    setWorkspaceSection(section);
+    if (section === "terms") setExecutionOpen(true);
+  }
+  function openDocumentPreparation() {
+    setExecutionOpen(true); setDocumentEditor(true); setWorkspaceSection("documents"); setPacketRequested(true);
+  }
   const router = useRouter();
   const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? null;
-  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(model.customers.map(customer => ({ ...customer, customerNumber: dealCustomerDisplayNumber(customer) })));
+  const [customerChoices, setCustomerChoices] = useState<DealCustomerChoice[]>(initialCustomerList?.items ?? model.customers.map(customer => ({ ...customer, customerNumber: dealCustomerDisplayNumber(customer) })));
   const repairCustomerRef = useRef<HTMLDivElement>(null);
   const repairVehicleRef = useRef<HTMLDivElement>(null);
   const [identity, setIdentity] = useDealDraftState<DealIdentity>("identity", { ...emptyDealIdentity });
@@ -4598,6 +4599,9 @@ function DealStartDesk({
     setCustomerChoices(current => [customer, ...current.filter(item => item.id !== customer.id)]);
     setManualCustomerName(""); setForm(current => ({ ...current, customerId: customer.id }));
     setIdentity(current => ({ ...current, customerId: customer.id }));
+    setSourceError("");
+    // Persist the canonical customer link immediately, including customers created here.
+    await savedDeal?.save();
   }
   async function chooseSharedVehicle(vehicle: DealVehicleChoice) {
     if (identity.vehicleId === vehicle.id) {
@@ -4627,6 +4631,7 @@ function DealStartDesk({
     if (fields) savedDeal?.write("fields", Object.fromEntries(Object.entries(fields).filter(([key]) => !key.startsWith(workflowId + ":"))));
     setIdentity(current => ({ ...current, vehicleId: vehicle.id, inventoryUnitId: vehicle.inventoryUnitId, vehicle }));
     setForm(current => ({ ...current, vehicle: [vehicle.label, vehicle.vin, vehicle.stockNumber].filter(Boolean).join(" / ") }));
+    await savedDeal?.save();
   }
   const [authorizedContact, setAuthorizedContact] = useState<{ customerId: string; phoneNumber: string; email: string } | null>(null);
   useEffect(() => {
@@ -4657,7 +4662,7 @@ function DealStartDesk({
   const completedCount = useMemo(() => (repairWorkflow ? [identity.customerId, identity.vehicleId, form.note] : [customerReady ? effectiveCustomerName : "", form.vehicle, effectiveAmount]).filter(value => value.trim()).length, [repairWorkflow, identity.customerId, identity.vehicleId, form.note, customerReady, effectiveAmount, effectiveCustomerName, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
-  const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
+  const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId && preset.workflowId === workflowId) ?? DEAL_START_PRESETS.find(preset => preset.workflowId === workflowId) ?? DEAL_START_PRESETS[0];
 
   function update(key: keyof typeof form, value: string) {
     if (key === "vehicle" && identity.vehicle?.vin && !value.toUpperCase().includes(identity.vehicle.vin)) setIdentity(current => ({ ...current, vehicleId: "", inventoryUnitId: null, vehicle: null }));
@@ -4689,9 +4694,12 @@ function DealStartDesk({
   }
 
   function focusRepairIdentity(field: "customer" | "vehicle") {
-    const container = field === "customer" ? repairCustomerRef.current : repairVehicleRef.current;
-    container?.scrollIntoView({ behavior: "smooth", block: "center" });
-    container?.querySelector<HTMLInputElement>("input:not([type=hidden])")?.focus({ preventScroll: true });
+    setWorkspaceSection("identity");
+    window.requestAnimationFrame(() => {
+      const container = field === "customer" ? repairCustomerRef.current : repairVehicleRef.current;
+      container?.scrollIntoView({ behavior: "smooth", block: "center" });
+      container?.querySelector<HTMLInputElement>("input:not([type=hidden])")?.focus({ preventScroll: true });
+    });
   }
 
   async function continueRepair() {
@@ -4722,10 +4730,15 @@ function DealStartDesk({
     if (nonRevenueWorkflow) {
       const saved = await savedDeal?.save();
       setStatus({ kind: saved ? "success" : "error", message: saved ? "Operational path saved. Use assignment and handoff; no sales opportunity or original deal was replaced." : "Resolve the draft save before continuing." });
+      if (saved) setWorkspaceSection("overview");
       return false;
     }
     if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return false;
     setStatus({ kind: "saving", message: "Starting deal..." });
+    if (!savedDeal || !await savedDeal.save()) {
+      setStatus({ kind: "error", message: savedDeal?.saveError() || "Save this deal before completing intake." });
+      return false;
+    }
     try {
     const response = await fetch("/api/crm/v1/opportunities", {
       body: JSON.stringify({
@@ -4751,6 +4764,7 @@ function DealStartDesk({
       return false;
     }
     setStatus({ kind: "success", href: payload.opportunity?.href, message: payload.duplicate ? "Execution path replayed safely." : `Execution path opened: ${payload.opportunity?.opportunityNumber ?? "new opportunity"}` });
+    setWorkspaceSection("overview");
     return true;
     } catch {
       setStatus({ kind: "error", message: "The execution path could not be opened. Try again." });
@@ -4767,7 +4781,7 @@ function DealStartDesk({
   function getDocumentContext() {
     const key = `crm-next:document-jacket:${form.customerId}:${workflowId}:${form.vehicle.trim()}`;
     const reference = savedDeal?.reference(key) ?? crypto.randomUUID();
-    return { workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
+    return { dealNumber: savedDeal?.dealNumber() ?? "", workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
   }
 
   function archiveSelectedFile(input: HTMLInputElement) {
@@ -4805,18 +4819,25 @@ function DealStartDesk({
   return (
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
-    <section className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
-      <div className={identityStyles.identityGrid}>
-        <div ref={repairCustomerRef}><SharedDealCustomerPicker selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
+    <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
+      <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
+      <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
+      <div data-deal-workspace-section="identity" hidden={workspaceSection !== "identity"}><div className={identityStyles.identityGrid}>
+        <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
         <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
+      </div>
       </div>
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
-      {(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}
-      <header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
+      {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div></section>}
+      {workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
+      <div hidden={workspaceSection !== "completion"}>{(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}</div>
+      {workspaceSection === "activity" && <DealActivityPanel key={savedDeal?.draftId()} draftId={savedDeal?.draftId() ?? ""} saved={saveState.saved} />}
+      <div data-deal-workspace-section="terms" hidden={workspaceSection !== "terms" && !(workspaceSection === "documents" && documentEditor)}>
+      <details className={workspaceStyles.advanced}><summary>Additional packet controls</summary><header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
         <div>
           <span className={styles.eyebrow}>Revenue execution desk</span>
-          <h1>Work the revenue path</h1>
+          <strong>Packet administration</strong>
           <p>Choose the channel unfolding in front of staff. The desk asks for only the facts needed to open the right execution path.</p>
         </div>
         <Link className={styles.secondaryButton} href={CRM_NEXT_DEALS_HREF}>Back to deals</Link>
@@ -4827,7 +4848,7 @@ function DealStartDesk({
           savedDeal?.reference(key, true);
           if (await savedDeal?.save()) window.location.reload();
         }}><FilePlus2 size={16} />New document jacket</button>
-      </header>
+      </header></details>
 
       {!executionOpen ? (
         <>
@@ -4839,7 +4860,7 @@ function DealStartDesk({
             <div>
               {DEAL_START_PRESETS.map((preset) => (
                 <button
-                  aria-pressed={selectedPresetId === preset.id}
+                  aria-pressed={selectedPreset.id === preset.id}
                   key={preset.id}
                   onClick={() => applyPreset(preset)}
                   type="button"
@@ -5185,6 +5206,7 @@ function DealStartDesk({
       )}
       {documentArchiveError ? <p role="alert" className={styles.dealStartError}>{documentArchiveError}</p> : documentArchiveMessage ? <p role="status" className={styles.dealStartStatus}>{documentArchiveMessage} <Link href={documentJacketHref}>Open deal jacket</Link></p> : null}
       {status.kind !== "idle" ? <p className={status.kind === "error" ? styles.dealStartError : styles.dealStartStatus}>{status.message}{status.href ? <> <Link href={status.href}>Open opportunity</Link></> : null}</p> : null}
+      </div></div>
       {summaryOpen ? (
         <div className={styles.executionDrawerBackdrop} role="presentation">
           <aside className={styles.executionDrawer} aria-label="Execution summary drawer">

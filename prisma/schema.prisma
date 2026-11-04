@@ -3497,6 +3497,7 @@ model DealDeskDraft {
   continuity DealWorkflowContext? @relation("ContextDraft")
   relatedDealContexts DealWorkflowContext[] @relation("SourceDealDraft")
   id                 String @id
+  dealNumber         Int @unique @default(autoincrement())
   organizationId     String
   ownerUserId        String
   customerId         String?

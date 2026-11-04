@@ -32,10 +32,11 @@ export async function POST(request: Request) {
   let stage: "generation" | "archive" = "generation";
   try {
     const actor = await getCurrentUser();
-    await validateDealDocumentContext(actor, payload ?? {});
-    const result = await generateUnifiedCrmContractPacket(actor, payload ?? {});
+    const context = await validateDealDocumentContext(actor, payload ?? {});
+    const input = { ...(payload ?? {}), ...(context?.dealNumber ? { dealNumber: String(context.dealNumber) } : {}) };
+    const result = await generateUnifiedCrmContractPacket(actor, input);
     stage = "archive";
-    return NextResponse.json(await archiveGeneratedSalesPacket(actor, payload ?? {}, result), { status: 201 });
+    return NextResponse.json(await archiveGeneratedSalesPacket(actor, input, result), { status: 201 });
   } catch (error) {
     if (error instanceof SalesDocumentsError) return NextResponse.json({ error: error.message, stage, retryable: error.status === 503 }, { status: error.status });
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : undefined;

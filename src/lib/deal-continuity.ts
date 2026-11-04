@@ -3,6 +3,12 @@ export type DealCustomerChoice = {
   dealPrefill?: { address?: string; dateOfBirth?: string; idLast4?: string; idState?: string; idType?: string; ssnLast4?: string };
 };
 
+export type DealCustomerList = {
+  items: DealCustomerChoice[];
+  nextCursor: string | null;
+  error?: string;
+};
+
 export function dealCustomerDisplayNumber(customer: { id: string; customerNumber?: string | null }) {
   const value = customer.customerNumber?.trim() ?? "";
   const opaque = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(value) || /^c[a-z\d]{24,}$/i.test(value);

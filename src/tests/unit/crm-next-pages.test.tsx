@@ -498,7 +498,8 @@ describe("CRM Next pages", () => {
 
     const markup = renderToStaticMarkup(await CrmNextDealStartPage());
 
-    expect(markup).toContain("Work the revenue path");
+    expect(markup).toContain("Deal overview");
+    expect(markup).toContain("Deal workspace sections");
     expect(markup).toContain("Start Deal presets");
     expect(markup).toContain("Retail Cash / One Pay");
     expect(markup).toContain("Retail Outside Finance");
