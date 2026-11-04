@@ -14,5 +14,16 @@
 .fields label:has(input[type=checkbox]) { display: flex; align-items: center; }
 .fields input[type=checkbox] { width: auto; }
 .identityGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rentalHeading { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+.rentalHeading strong { padding: 5px 10px; border-radius: 4px; background: #e8eefc; color: #25448d; }
+.rentalHeading span { font-size: 13px; }
+.rentalFacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 14px 0; }
+.rentalFacts div { min-width: 0; padding: 8px; border: 1px solid #ccd7e4; border-radius: 4px; }
+.rentalFacts dt { font-size: 12px; text-transform: capitalize; color: var(--text-secondary, #536780); }
+.rentalFacts dd { margin: 4px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.rentalSteps { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; margin: 10px 0; }
+.rentalSteps li { flex: 1 1 180px; }
+.rentalSteps button { width: 100%; min-height: 44px; margin: 0; text-align: left; }
+.useTool .rentalPrimary { background: #3154ae; border-color: #3154ae; color: #fff; font-weight: 600; }
 .picker [role=alert], .useTool [role=alert] { color: #a4262c; }
 @media(max-width:700px) { .identityGrid, .fields { grid-template-columns: minmax(0, 1fr); } }

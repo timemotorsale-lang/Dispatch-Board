@@ -8,7 +8,7 @@ import { DealRowPopover } from "./deal-row-popover";
 import type { DealLifecycleAction } from "./deal-lifecycle-dialog";
 import styles from "./deal-draft-workspace.module.css";
 
-export type DealLibraryRow = { id: string; draftId?: string | null; draftRevision?: number | null; jacketId?: string | null; dealNumber?: string | null; packetState?: string | null; customerId?: string | null; customerName: string; vehicleReference: string; pathway: string; status: SavedDealStatus; updatedAt: string; ownerName?: string; nextAction?: string; dueAt?: string | null; taskHref?: string | null; stage?: string; documentsReady?: number; documentsTotal?: number; documentChecklist?: Array<{ id: string; label: string; phase: string; status: string }>; indicators?: DealWorkIndicators };
+export type DealLibraryRow = { id: string; draftId?: string | null; draftRevision?: number | null; jacketId?: string | null; dealNumber?: string | null; packetState?: string | null; customerId?: string | null; customerName: string; vehicleReference: string; pathway: string; status: SavedDealStatus; updatedAt: string; ownerName?: string; nextAction?: string; dueAt?: string | null; taskHref?: string | null; dealStage?: string | null; stage?: string; documentsReady?: number; documentsTotal?: number; documentChecklist?: Array<{ id: string; label: string; phase: string; status: string }>; indicators?: DealWorkIndicators };
 export function dealRowStatus(deal: DealLibraryRow) { return deal.stage === "Completed" && deal.status === "SOLD" ? "Sold · finalized" : deal.status === "SOLD" && !deal.stage ? "Sold · paperwork pending" : deal.stage || SAVED_DEAL_STATUSES[deal.status] || deal.status; }
 export function DealRowStatus({ deal, onDetails }: { deal: DealLibraryRow; onDetails: () => void }) {
   const nextDocument = deal.documentChecklist?.find(item => item.label === deal.nextAction);
@@ -17,14 +17,14 @@ export function DealRowStatus({ deal, onDetails }: { deal: DealLibraryRow; onDet
   const milestone = (value: DealWorkIndicators["funding"]) => value?.state === "VERIFIED" ? "Verified" : value?.state === "NOT_REQUIRED" ? "Not required · reason recorded" : "Pending / not verified";
   return <div className={styles.rowStatus}>
     <DealRowPopover label={`Status details for ${deal.customerName}`} trigger={dealRowStatus(deal)} triggerClassName={`${styles.badge} ${styles.rowStatusTrigger}`} status={deal.status} finalized={deal.status === "SOLD" && deal.stage === "Completed"}>
-      <p><strong>{dealRowStatus(deal)}</strong></p>
+      <p><strong>{dealRowStatus(deal)}</strong></p>{deal.dealStage && <p>Deal stage: {deal.dealStage}</p>}
       <small>Last saved: {new Date(deal.updatedAt).toLocaleString("en-US", { timeZone: "America/Chicago" })} Central</small>
       <dl className={styles.rowProgress}><dt>Paperwork</dt><dd>{deal.packetState === "CLOSED" ? "Finalized" : deal.documentsTotal ? `${deal.documentsReady ?? 0}/${deal.documentsTotal} reviewed` : "Checklist not prepared"}</dd><dt>Funding</dt><dd>{milestone(deal.indicators?.funding || null)}</dd><dt>Delivery</dt><dd>{milestone(deal.indicators?.delivery || null)}</dd></dl>
       {deal.documentChecklist?.length ? <><h3>Document steps</h3><ul className={styles.documentChecklist}>{deal.documentChecklist.map(item => <li key={`${item.phase}:${item.id}`}><strong>{item.phase === "RETURN" ? "Return" : item.phase === "CHECKOUT" ? "Checkout" : "Closing"} · {item.label}</strong><span>{item.status}</span>{deal.jacketId && <Link href={dealDocumentHref(deal.jacketId, item.id)}>Open this document step</Link>}</li>)}</ul></> : null}
       {alerts.length > 0 && <ul className={styles.dealFlags}>{alerts.map(alert => <li key={alert}>{alert}</li>)}</ul>}
       <button type="button" onClick={onDetails}>View full deal details</button>
     </DealRowPopover>
-    {deal.nextAction && <small className={styles.rowNextAction}>{nextHref ? <Link href={nextHref}>{deal.nextAction}</Link> : deal.nextAction}</small>}
+    {deal.dealStage && <small>Deal stage: {deal.dealStage}</small>}{deal.nextAction && <small className={styles.rowNextAction}>{nextHref ? <Link href={nextHref}>{deal.nextAction}</Link> : deal.nextAction}</small>}
     {alerts.length > 0 && <small className={styles.dealAlert} title={alerts.join(" · ")}>{alerts[0]}{alerts.length > 1 ? ` · +${alerts.length - 1}` : ""}</small>}
   </div>;
 }

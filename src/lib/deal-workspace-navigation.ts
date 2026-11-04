@@ -12,6 +12,7 @@ export function dealNextAction(input: { customer: boolean; vehicle: boolean; pat
   if (input.finalized || input.status === "COMPLETED") return { section: "documents", title: "Review completed paperwork", detail: "Open the saved documents and recorded completion details.", action: "Open documents" } as const;
   if (input.status === "SOLD") return { section: "completion", title: "Complete the remaining paperwork", detail: "The sale is recorded. Review signed documents, insurance, title/DMV, funding and delivery requirements.", action: "Complete paperwork" } as const;
   if (input.pathway === "repairs") return { section: "terms", title: "Continue service intake", detail: "Confirm the concern and shared identities, then continue to the repair order.", action: "Open service handoff" } as const;
+  if (input.pathway === "daily-rental") return { section: "completion", title: "Prepare or activate the rental", detail: "Confirm rental dates, signed agreement and insurance, then record checkout. Active rentals remain open until actual return.", action: "Rental checkout & return" } as const;
   if (dealGroup(input.pathway) === "USE") return { section: "completion", title: "Review vehicle-use requirements", detail: "Confirm terms, agreement and dates before recording the reservation, actual handoff or return.", action: "Open assignment" } as const;
   return { section: "terms", title: "Review the deal terms", detail: "Confirm the agreed numbers, then prepare documents and record the sale when agreed.", action: "Review terms" } as const;
 }

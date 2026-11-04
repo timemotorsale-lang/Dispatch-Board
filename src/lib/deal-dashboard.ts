@@ -25,7 +25,7 @@ export function chicagoDate(value: Date | string | null | undefined) {
 export type DashboardDeal = {
   id: string; draftId: string | null; draftRevision: number | null; jacketId: string | null; dealNumber: string | null;
   customerId: string | null; customerName: string; vehicleReference: string; pathway: string; status: string; packetState: string | null; updatedAt: string;
-  ownerId: string; ownerName: string; stage: string; nextAction: string; dueAt: string | null; taskHref: string | null;
+  ownerId: string; ownerName: string; dealStage?: string | null; stage: string; nextAction: string; dueAt: string | null; taskHref: string | null;
   completedDate: string | null; createdDate: string | null; documentsReady: number; documentsTotal: number; needsAttention: boolean;
   soldDate?: string | null;
   indicators?: DealWorkIndicators;

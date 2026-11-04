@@ -9,6 +9,13 @@ import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/
 const actor = { id: "staff-1", name: "Staff", isActive: true } as AuthenticatedUser;
 const row = (id: string, status = "IN_PROGRESS") => ({ id, draftId: id, draftRevision: 1, jacketId: null, customerId: "customer-1", ownerId: actor.id, ownerName: actor.name, customerName: "Buyer", pathway: "retail-sale", status, packetState: null, createdAt: new Date("2026-10-01"), updatedAt: new Date("2026-11-01"), statusHistory: [] });
 describe("scoped deal dashboard", () => {
+  it("shows active rentals and return alerts independently of generic working status", async () => {
+    mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental" }]);
+    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: null, status: "CHECKED_OUT", expectedReturnAt: new Date(Date.now() - 1000) }]);
+    const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams());
+    expect(result.items[0]).toMatchObject({ stage: "Rental Overdue", needsAttention: true });
+    expect(result.items[0].nextAction).toContain("actual return");
+  });
   beforeEach(() => { vi.resetAllMocks(); mocks.query.mockResolvedValue([]); mocks.jackets.mockResolvedValue([]); mocks.tasks.mockResolvedValue([]); mocks.bookings.mockResolvedValue([]); mocks.access.mockRejectedValue({ status: 403 }); });
   it("does not use the last edit as a completion date and keeps undated records out of period totals", async () => {
     mocks.query.mockResolvedValue([{ ...row("sold", "SOLD"), packetState: "CLOSED", statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }, row("old", "COMPLETED"), { ...row("rental", "COMPLETED"), pathway: "daily-rental", statusHistory: [{ to: "COMPLETED", at: "2026-10-31T18:00:00Z" }] }]);
@@ -77,9 +84,9 @@ describe("scoped deal dashboard", () => {
   });
   it("surfaces overdue vehicle returns and does not treat them as overdue reminders", async () => {
     mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental", jacketId: "rental-packet", packetState: "CHECKED_OUT" }]);
-    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: "rental-packet", expectedReturnAt: new Date("2026-01-01") }]);
+    mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: "rental-packet", status: "CHECKED_OUT", expectedReturnAt: new Date("2026-01-01") }]);
     const returns = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("bucket=returns"));
-    expect(returns.items[0]).toMatchObject({ nextAction: "Record vehicle return", indicators: { overdue: false, alerts: expect.arrayContaining(["Vehicle return due"]) } });
+    expect(returns.items[0]).toMatchObject({ nextAction: "Contact customer and record actual return or approved extension", indicators: { overdue: false, alerts: expect.arrayContaining(["Vehicle return due"]) } });
     expect((await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("bucket=overdue"))).total).toBe(0);
   });
   it("rejects team scope for staff and shows no-follow-up work explicitly", async () => {
