@@ -22,12 +22,16 @@ test.beforeEach(async({context})=>{
 test("new overview offers pathways, creates no draft on navigation, and retains edited terms",async({page})=>{
  const {writes}=await mockDrafts(page);const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
  await page.goto("/crm-next/deals/start?new=1");
+ await expect(page.getByRole("heading",{name:"Step 1 · Choose the revenue pathway"})).toBeVisible();
+ expect(writes).toHaveLength(0);
+ await page.getByLabel("Revenue pathway",{exact:true}).selectOption("retail-cash-one-pay");
+ await page.getByRole("button",{name:"Continue to customer & vehicle"}).click();
  await expect(page.getByRole("heading",{name:"Deal overview",exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"New deal",exact:true})).toBeEnabled();
  await page.getByRole("tab",{name:"Documents",exact:true}).click();
  await page.getByRole("tab",{name:"Completion",exact:true}).click();
  await page.getByRole("tab",{name:"Overview",exact:true}).click();
- await page.getByText("Choose or change revenue pathway",{exact:true}).click();
+ await expect(page.getByLabel("Revenue pathway chooser")).toHaveAttribute("open","");
  await page.getByRole("button",{name:"Lease-to-Own",exact:true}).click();
  await expect(page.getByLabel("Deal identity summary")).toContainText("Lease-to-Own");
  await page.getByRole("tab",{name:"Terms & Payments",exact:true}).click();

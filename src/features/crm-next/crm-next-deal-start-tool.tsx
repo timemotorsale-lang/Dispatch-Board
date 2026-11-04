@@ -16,6 +16,7 @@ import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
 import { DealPathwayChange } from "./deal-pathway-change";
+import { NewDealPathway } from "./new-deal-pathway";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
 import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
@@ -4462,7 +4463,12 @@ function OutsideFinanceExecutionDesk({
 
 export function CrmNextDealStartTool(props: { initialCustomerList?: DealCustomerList; reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
   const params = useSearchParams();
-  return <DealDraftWorkspace key={params?.toString() ?? ""} initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
+  const router = useRouter();
+  const requested = props.initialWorkflowId ?? params?.get("pathway");
+  const preset = DEAL_START_PRESETS.find(item => item.workflowId === requested);
+  const chooser = <NewDealPathway options={DEAL_START_PRESETS} onChoose={id => { const choice = DEAL_START_PRESETS.find(item => item.id === id); if (!choice) return; const next = new URLSearchParams(params?.toString()); next.delete("draftId"); next.set("new", "1"); next.set("pathway", choice.workflowId); router.replace(`/crm-next/deals/start?${next}`); }} />;
+  if (!params?.get("draftId") && !preset && !props.initialCustomerId) return chooser;
+  return <DealDraftWorkspace key={params?.toString() ?? ""} newDealPrompt={!preset ? chooser : undefined} initialPathway={preset?.workflowId} initialPresetId={preset?.id} initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} initialWorkflowId={preset?.workflowId ?? props.initialWorkflowId} /></DealDraftWorkspace>;
 }
 
 function DealStartDesk({
@@ -4526,8 +4532,8 @@ function DealStartDesk({
   const [documentArchiveMessage, setDocumentArchiveMessage] = useState("");
   const [documentArchiveError, setDocumentArchiveError] = useDealDraftState("documentArchiveError", "");
   const [documentJacketHref, setDocumentJacketHref] = useDealDraftState("documentJacketHref", "/sales-documents");
-  const [workflowId, setWorkflowId] = useDealDraftState<DealWorkflowId>("workflowId", "retail-sale");
-  const [selectedPresetId, setSelectedPresetId] = useDealDraftState("selectedPresetId", "retail-cash-one-pay");
+  const [workflowId, setWorkflowId] = useDealDraftState<DealWorkflowId>("workflowId", initialWorkflowId as DealWorkflowId || "retail-sale");
+  const [selectedPresetId, setSelectedPresetId] = useDealDraftState("selectedPresetId", DEAL_START_PRESETS.find(item => item.workflowId === initialWorkflowId)?.id ?? "retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useDealDraftState("executionOpen", false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [testDriveInProgress, setTestDriveInProgress] = useState(false);
