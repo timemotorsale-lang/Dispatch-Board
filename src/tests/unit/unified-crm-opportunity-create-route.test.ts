@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createUnifiedCrmOpportunity: vi.fn(),
@@ -11,8 +11,10 @@ vi.mock("@/server/services/unified-crm-opportunity-create-command-service", () =
 }));
 
 import { POST } from "@/app/api/crm/v1/opportunities/route";
+import { POST as nextPOST } from "@/app/api/crm-next/opportunities/route";
 
 describe("Unified CRM opportunity create route", () => {
+  afterEach(() => vi.unstubAllEnvs());
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue({ id: "manager-a" });
@@ -55,5 +57,21 @@ describe("Unified CRM opportunity create route", () => {
     expect(fallback.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain("private database detail");
     expect(payload.error).toBe("Opportunity could not be created right now.");
+  });
+  it("uses enabled CRM Next intake without inheriting a disabled legacy opportunity rollout", async () => {
+    vi.stubEnv("CRM_NEXT", "DOGFOOD"); vi.stubEnv("UNIFIED_CRM_OPPORTUNITY_MODE", "OFF"); vi.stubEnv("NODE_ENV", "production");
+    mocks.getCurrentUser.mockResolvedValue({ id: "manager-a", name: "Manager", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } });
+    mocks.createUnifiedCrmOpportunity.mockResolvedValue({ duplicate: false, opportunity: { opportunityNumber: "OPP-1" } });
+    expect((await nextPOST(new Request("http://crm.local/api/crm-next/opportunities", { method: "POST", body: "{}" }))).status).toBe(201);
+    expect(mocks.createUnifiedCrmOpportunity.mock.calls[0][2]).toEqual({ mode: "REVIEW" });
+    await POST(new Request("http://crm.local/api/crm/v1/opportunities", { method: "POST", body: "{}" }));
+    expect(mocks.createUnifiedCrmOpportunity.mock.calls[1][2]).toEqual({});
+  });
+  it("does not create an opportunity when CRM Next is off or the session is absent", async () => {
+    vi.stubEnv("CRM_NEXT", "OFF");
+    expect((await nextPOST(new Request("http://crm.local/intake", { method: "POST", body: "{}" }))).status).toBe(403);
+    mocks.getCurrentUser.mockResolvedValue(null);
+    expect((await nextPOST(new Request("http://crm.local/intake", { method: "POST", body: "{}" }))).status).toBe(401);
+    expect(mocks.createUnifiedCrmOpportunity).not.toHaveBeenCalled();
   });
 });

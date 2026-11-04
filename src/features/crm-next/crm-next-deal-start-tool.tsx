@@ -15,6 +15,7 @@ import workspaceStyles from "./deal-workspace-overview.module.css";
 import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
+import { DealPathwayChange } from "./deal-pathway-change";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
 import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
@@ -4481,6 +4482,7 @@ function DealStartDesk({
 }) {
   const savedDeal = useDealDraft();
   const saveState = useDealSaveState();
+  const [pathwayTarget, setPathwayTarget] = useState<string | null>(null);
   const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
   const [documentEditor, setDocumentEditor] = useState(false);
   const workspaceRoot = useRef<HTMLElement>(null);
@@ -4670,6 +4672,7 @@ function DealStartDesk({
   }
 
   function applyPreset(preset: DealStartPreset) {
+    if (saveState.saved && preset.workflowId !== workflowId) { setPathwayTarget(preset.workflowId); return; }
     setSelectedPresetId(preset.id);
     setWorkflowId(preset.workflowId);
     setExecutionOpen(false);
@@ -4740,7 +4743,7 @@ function DealStartDesk({
       return false;
     }
     try {
-    const response = await fetch("/api/crm/v1/opportunities", {
+    const response = await fetch("/api/crm-next/opportunities", {
       body: JSON.stringify({
         customerId: selectedCustomer.id,
         estimatedValueCents: effectiveEstimatedValueCents,
@@ -4820,6 +4823,8 @@ function DealStartDesk({
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
+      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
+      {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p><VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} /></section>}
       {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
       <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>

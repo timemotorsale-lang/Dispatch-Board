@@ -79,4 +79,12 @@ describe("rental activation transaction", () => {
     await expect(executeVehicleUse(actor, "draft", { ...command, reason: "Different request" })).rejects.toThrow("different work");
     await expect(executeVehicleUse(actor, "draft", { ...command, insuranceValidUntil: new Date(due.getTime() + 86400000).toISOString() })).rejects.toThrow("different work");
   });
+  it("can return an original rental after the deal changes to a lease", async () => {
+    const context = await state.db.dealWorkflowContext.findFirst();
+    state.db.dealWorkflowContext.findFirst.mockResolvedValue({ ...context, draft: { ...context.draft, pathway: "lease-to-own", snapshot: { ...context.draft.snapshot, "desk:assignmentPathway": "daily-rental" } } });
+    state.db.vehicleUseBooking.findFirst.mockReset().mockResolvedValue({ id: "booking", vehicleId: "vehicle", status: "CHECKED_OUT", version: 1, checkedOutAt: new Date(Date.now() - 3600000), departureSnapshot: { odometer: 900 }, expectedReturnAt: due });
+    const result = await executeVehicleUse(actor, "draft", { ...command, action: "RETURN" });
+    expect(result.result).toMatchObject({ status: "RETURNED", lifecycle: "Rental Returned" });
+    expect(state.db.task.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "COMPLETED" }) }));
+  });
 });

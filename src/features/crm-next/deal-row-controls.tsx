@@ -46,6 +46,7 @@ export function DealRowActions({ deal, canManage, disabled, archiveBusy, onOpen,
       <div role="group" aria-label="Open and follow up">
         {primary !== "continue" && canContinue && <button {...menuItem} type="button" disabled={disabled} onClick={onOpen}>Continue deal</button>}
         {primary !== "packet" && deal.jacketId && <Link {...menuItem} href={dealDocumentHref(deal.jacketId)}>Open packet</Link>}
+        {Boolean(deal.draftId) && (deal.indicators?.canEdit !== false || canManage) && <button {...menuItem} type="button" disabled={disabled} onClick={() => onDetails("Pathway")}>Change revenue pathway</button>}
         <button {...menuItem} type="button" aria-label={`Deal details for ${deal.customerName}`} onClick={() => onDetails("Documents")}>Details & actions</button>
         {!inactive && <button {...menuItem} type="button" disabled={disabled} onClick={() => onDetails("Follow-ups")}>Set deal reminder</button>}
         {!inactive && !["vehicle-loaner", "daily-rental", "test-drive"].includes(deal.pathway) && <Link {...menuItem} href={loanerHref}>Issue loaner</Link>}

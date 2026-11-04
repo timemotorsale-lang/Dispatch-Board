@@ -69,7 +69,7 @@ export async function cashSalePdf(id: string, input: Input) {
     f.setFontSize(9); y -= height + 8;
   }
   header();
-  text(input.facts.dealerAddress, false, 9); text(`Dealer license: ${input.facts.dealerLicense} | ${input.facts.dealerPhone} | ${input.facts.dealerEmail}`, false, 9); y -= 8;
+  text(input.facts.dealerAddress, false, 9); text([input.facts.dealerPhone, input.facts.dealerEmail].filter(Boolean).join(" | "), false, 9); y -= 8;
   for (const section of sections(id, input)) {
     space(80); text(section.title, true, 12); y -= 4;
     const rows = section.rows || [];

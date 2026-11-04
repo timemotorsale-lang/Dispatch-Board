@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { requireSalesDocumentsUser } from "@/server/sales-documents/service";
+
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
 import { getPermittedWorkspaces } from "@/server/auth/navigation";
@@ -16,6 +16,14 @@ import type { DealCustomerChoice, DealVehicleChoice } from "@/lib/deal-continuit
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { DealCustomerMatchError } from "./customer-match-error";
+import { resolveCrmNextAccess } from "@/server/crm-next/access";
+
+function requireDealIdentityUser(actor: AuthenticatedUser | null) {
+  if (!actor?.isActive) throw new SalesDocumentsError("Sign in to access shared customer and vehicle records.", 401);
+  requireUnifiedCrmCustomerReadPolicy(actor);
+  return actor;
+}
 
 export const dealDocumentOrganization = () => resolveDocumentStorageRuntimeFromEnv().organizationId;
 export function dealOrganization() {
@@ -23,7 +31,7 @@ export function dealOrganization() {
   return configured === "default-org" && !process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID?.trim() ? INITIAL_ORGANIZATION.id : configured;
 }
 export async function dealIdentityOptions(actor: AuthenticatedUser | null, recordType: "customer" | "vehicle" = "customer") {
-  const user = requireSalesDocumentsUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  const user = requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
   const organizationId = dealOrganization();
   const [locations, grants] = await Promise.all([
     prisma.location.findMany({ where: { organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -36,7 +44,7 @@ export async function dealIdentityOptions(actor: AuthenticatedUser | null, recor
 }
 // Shared intake identities are distinct from permission to edit another owner's CRM record.
 async function dealCustomerReadScope(actor: AuthenticatedUser | null, database: Prisma.TransactionClient = prisma) {
-  const user = requireSalesDocumentsUser(actor);
+  const user = requireDealIdentityUser(actor);
   const scope = requireUnifiedCrmCustomerReadPolicy(user);
   if (scope.kind === "ORGANIZATION" || !getPermittedWorkspaces(user).some(workspace => workspace.key === "OPERATIONS_COORDINATOR")) return scope;
   const organizationId = dealOrganization(), now = new Date();
@@ -51,23 +59,24 @@ async function dealCustomerReadScope(actor: AuthenticatedUser | null, database: 
 }
 
 export async function dealCustomer(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealCustomerChoice> {
-  requireSalesDocumentsUser(actor);
+  requireDealIdentityUser(actor);
   const scope = await dealCustomerReadScope(actor, database);
   const customer = await database.customer.findFirst({ where: { id, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null, ...(scope.kind === "OWNER" ? { ownerUserId: scope.ownerUserId } : {}) }, select: { id: true, displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true, dateOfBirth: true, idLast4: true, idState: true, idType: true } });
   if (!customer) throw new SalesDocumentsError("Customer is unavailable or outside your authorized scope. Choose an accessible CRM customer.", 403);
   return { id: customer.id, name: customer.displayName, customerNumber: customer.customerNumber, phone: customer.phoneNumber ?? "", email: customer.email ?? "", dealPrefill: { address: customer.address ?? "", dateOfBirth: customer.dateOfBirth?.toISOString().slice(0, 10) ?? "", idLast4: customer.idLast4 ?? "", idState: customer.idState ?? "", idType: customer.idType ?? "" } };
 }
 export async function searchDealCustomers(actor: AuthenticatedUser | null, params: URLSearchParams) {
-  requireSalesDocumentsUser(actor);
+  requireDealIdentityUser(actor);
   const scope = await dealCustomerReadScope(actor);
   const query = normalizeUnifiedCrmCustomerListQuery({ q: params.get("q") ?? "", cursor: params.get("cursor"), limit: "25", status: "active" });
   const workspaces = getPermittedWorkspaces(actor!);
   const coordinator = !workspaces.some(workspace => workspace.key === "MANAGEMENT") && workspaces.some(workspace => workspace.key === "OPERATIONS_COORDINATOR");
+  const readOptions = resolveCrmNextAccess(actor).allowed ? { readMode: "REVIEW" as const } : {};
   if (!coordinator) {
-    const result = await getUnifiedCrmCustomerList(actor, query);
+    const result = await getUnifiedCrmCustomerList(actor, query, readOptions);
     return { items: result.items.map(item => ({ id: item.id, name: item.displayName, customerNumber: item.customerNumber, phone: item.maskedPhone, email: item.maskedEmail })), nextCursor: result.page.nextCursor };
   }
-  if (resolveUnifiedCrmCustomerReadMode() !== "REVIEW") throw new SalesDocumentsError("Customer records are temporarily unavailable.", 403);
+  if (resolveUnifiedCrmCustomerReadMode(readOptions) !== "REVIEW") throw new SalesDocumentsError("Customer records are temporarily unavailable.", 403);
   const records = await createUnifiedCrmCustomerReadRepository().listCustomers({
     ...query, cursor: query.cursor ? decodeUnifiedCrmCustomerCursor(query.cursor) : null,
     organizationId: dealOrganization(), recordScope: scope, viewerUserId: actor!.id
@@ -81,7 +90,7 @@ export async function searchDealCustomers(actor: AuthenticatedUser | null, param
   };
 }
 export async function dealVehicle(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealVehicleChoice> {
-  requireSalesDocumentsUser(actor);
+  requireDealIdentityUser(actor);
   requireUnifiedCrmCustomerReadPolicy(actor);
   const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 } } });
   if (!vehicle) throw new SalesDocumentsError("Choose an active canonical vehicle.", 404);
@@ -91,20 +100,29 @@ export async function dealVehicle(actor: AuthenticatedUser | null, id: string, d
   return { id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: active ? `${active.status === "CHECKED_OUT" ? active.context.draft.pathway === "daily-rental" ? "Out on Rental — actual return required" : "Out — actual return required" : "Reserved"} · expected ${active.expectedReturnAt.toISOString()}` : eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use", eligibleForUse: eligible };
 }
 export async function searchDealVehicles(actor: AuthenticatedUser | null, params: URLSearchParams) {
-  requireSalesDocumentsUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
   const pageNumber = Number(params.get("page") || "1");
   if (!Number.isSafeInteger(pageNumber) || pageNumber < 1 || pageNumber > 100000) throw new SalesDocumentsError("Choose a valid vehicle-search page.");
   const page = await createVehicleRegistryRepository().search(dealOrganization(), { query: (params.get("q") ?? "").slice(0, 100), page: pageNumber, pageSize: 15 });
   return { ...page, items: await Promise.all(page.items.filter(vehicle => vehicle.status === "ACTIVE").map(vehicle => dealVehicle(actor, vehicle.id))) };
 }
 export async function createDealCustomer(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
-  requireSalesDocumentsUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  await dealCustomerReadScope(actor);
   const result = await createServiceIntakeCustomer(actor, raw, { organizationId: dealOrganization(), source: "DEAL_SHARED_CUSTOMER" });
-  if (result.duplicate) throw new SalesDocumentsError("A possible customer match already exists. Search and select the existing customer; do not create a second record.", 409);
+  if (result.duplicate) {
+    let match: DealCustomerChoice;
+    try { match = await dealCustomer(actor, result.customer.id); }
+    catch (error) {
+      if (error instanceof SalesDocumentsError && [403, 404].includes(error.status)) throw new SalesDocumentsError("An existing customer needs an access review before selection. Ask a manager to review the existing record and your access. Your entries are retained; no duplicate was created.", 409);
+      throw error;
+    }
+    throw new DealCustomerMatchError([{ id: match.id, name: match.name, customerNumber: match.customerNumber, phone: match.phone ? `••••${match.phone.replace(/\D/g, "").slice(-4)}` : "", email: match.email ? `${match.email[0]}•••@•••` : "" }]);
+  }
   return dealCustomer(actor, result.customer.id);
 }
 export async function createDealVehicle(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
-  requireSalesDocumentsUser(actor);
+  requireDealIdentityUser(actor);
   const vin = String(raw.vin ?? "").trim().toUpperCase();
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) throw new SalesDocumentsError("Enter the complete 17-character VIN before creating a vehicle.");
   const existing = await prisma.vehicle.findFirst({ where: { organizationId: dealOrganization(), vin }, select: { id: true } });

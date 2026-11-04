@@ -10,6 +10,11 @@ const vehicle = { year: "2024", make: "Toyota", model: "RAV4", color: "Silver", 
 const actor = { id: "sample-staff" } as AuthenticatedUser;
 
 describe("Minnesota retail cash packet", () => {
+  it("does not require dealer license or POA expiration in intake", () => {
+    expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, dealerLicense: "", poaExpiration: "" }, cashDefaultFormIds(facts))).toBeNull();
+    expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, dealerLicense: "", poaExpiration: "legacy-invalid" }, cashDefaultFormIds(facts))).toBeNull();
+    expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, authorizedAgent: "" }, ["power-of-attorney"])).toContain("agent");
+  });
   it("calculates 6.875% using cents and separates fees, trade allowance, payoff and payments", () => {
     expect(cashSaleTotals("10000", facts).tax).toBe(68750);
     expect(cashSaleTotals("20000", { ...facts, accessories: "500", rebate: "1000", tradeAllowance: "5000", tradePayoff: "2000", titleFee: "102.80", registrationFee: "516", paymentReceived: "2000" })).toMatchObject({ taxable: 1450000, tax: 99688, total: 1841568, balance: 1641568 });
@@ -17,7 +22,7 @@ describe("Minnesota retail cash packet", () => {
   });
   it("requires a named limited agent, real dates, mileage and explicit warranty terms", () => {
     expect(cashSaleError("Sample buyer", vehicle.vin, "10000", facts, cashDefaultFormIds(facts))).toBeNull();
-    for (const change of [{ authorizedAgent: "" }, { poaExpiration: "2026-10-31" }, { saleDate: "2026-02-30" }, { mileage: "" }, { warrantyType: "" }, { warrantyType: "No dealer warranty - eligibility reviewed", warrantyExemption: "" }, { taxOverride: "0", taxReason: "" }, { paymentReceived: "100", paymentReference: "", paymentDate: "", paymentMethod: "" }]) {
+    for (const change of [{ authorizedAgent: "" }, { saleDate: "2026-02-30" }, { mileage: "" }, { warrantyType: "" }, { warrantyType: "No dealer warranty - eligibility reviewed", warrantyExemption: "" }, { taxOverride: "0", taxReason: "" }, { paymentReceived: "100", paymentReference: "", paymentDate: "", paymentMethod: "" }]) {
       expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, ...change }, cashDefaultFormIds(facts))).toBeTruthy();
     }
   });

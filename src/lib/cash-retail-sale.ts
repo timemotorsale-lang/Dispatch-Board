@@ -47,10 +47,9 @@ export function cashSaleError(customer: string, vin: string, price: string, fact
   if (!customer.trim() || /^(Customer not selected|Customer not captured)$/i.test(customer)) return "Select the buyer for this existing deal.";
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return "Select the inventory vehicle with a valid 17-character VIN.";
   if (!facts.buyerAddress) return "Enter the buyer's address for the sales packet.";
-  if (!facts.dealerLicense) return "Enter the selling dealer's license number.";
   const date = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
   if (!date(facts.saleDate)) return "Enter a valid sale date.";
-  for (const [label, value] of [["delivery", facts.deliveryDate], ["payment", facts.paymentDate], ["insurance expiration", facts.insuranceExpiration], ["power-of-attorney expiration", facts.poaExpiration], ["promised repair", facts.promiseDue]]) if (value && !date(value)) return `Enter a valid ${label} date.`;
+  for (const [label, value] of [["delivery", facts.deliveryDate], ["payment", facts.paymentDate], ["insurance expiration", facts.insuranceExpiration], ["promised repair", facts.promiseDue]]) if (value && !date(value)) return `Enter a valid ${label} date.`;
   try {
     const total = cashSaleTotals(price, facts);
     if (total.sale <= 0) return "Enter the agreed vehicle sale price.";
@@ -65,7 +64,7 @@ export function cashSaleError(customer: string, vin: string, price: string, fact
   if (ids.includes("odometer-disclosure") && (!/^\d+$/.test(facts.mileage) || !["Actual", "Not actual - odometer discrepancy", "Exceeds mechanical limits", "Exempt"].includes(facts.odometerStatus))) return "Enter the odometer reading and mileage status.";
   if (ids.includes("odometer-disclosure") && facts.odometerStatus === "Exempt" && !facts.odometerExemption) return "Record the odometer exemption basis.";
   if (ids.includes("odometer-disclosure") && (!facts.titleBrand || !facts.damageDisclosure)) return "Record the title brand and known damage disclosure.";
-  if (ids.includes("power-of-attorney") && (!facts.authorizedAgent || !date(facts.poaExpiration) || facts.poaExpiration < facts.saleDate)) return "Name the authorized agent and enter a power-of-attorney expiration on or after the sale date.";
+  if (ids.includes("power-of-attorney") && !facts.authorizedAgent) return "Name the authorized power-of-attorney agent.";
   if (ids.includes("warranty-disclosure") && (facts.warrantyLabor !== "100" || facts.warrantyParts !== "100")) return "The committed warranty form states 100% covered parts and labor. Match the entered coverage before including it.";
   if (ids.includes("as-is-acknowledgment") && facts.warrantyType !== "No dealer warranty - eligibility reviewed") return "Use the As Is acknowledgment only for an explicitly reviewed no-dealer-warranty election.";
   if (ids.includes("as-is-acknowledgment") && (!facts.asIsExclusion || !facts.eligibilityReviewedBy)) return "Record the exact As Is exclusion and staff eligibility review before including this conditional form.";
