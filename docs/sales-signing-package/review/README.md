@@ -49,3 +49,7 @@ architecture, permissions, validation, and document-version controls.
 - Preserved the original source text and checked individual PDF checksums.
 - Verified the contact line on every custom-form page.
 - Tested the image gallery's 13 forms, 21 images, file links, and mobile width.
+
+## Subsequent owner release
+
+On November 3, 2026, the owner requested final customer-facing signing forms with all draft/legal-review notices removed. The released edition is in [../final](../final/README.md). This directory remains the unchanged historical review archive.

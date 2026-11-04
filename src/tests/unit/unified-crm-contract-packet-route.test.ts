@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as continuity from "@/server/deal-continuity/service";
 import { PDFDocument } from "pdf-lib";
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +18,16 @@ import { POST } from "@/app/api/crm/v1/contract-packets/route";
 import { archiveGeneratedSalesPacket } from "@/server/sales-documents/service";
 
 describe("Unified CRM contract packet route", () => {
+  it("uses the saved deal number rather than a client-supplied number for generation and archive", async () => {
+    const check = vi.spyOn(continuity, "validateDealDocumentContext").mockResolvedValueOnce({ dealNumber: 1234 });
+    try {
+      const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ workflowContextId: "saved-deal", dealNumber: "9999", packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance"], bhph: {} }) }));
+      expect(response.status).toBe(201);
+      const packet = await response.json();
+      expect(packet.documents[0].html).toContain("1234");
+      expect(archiveGeneratedSalesPacket).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ dealNumber: "1234" }), expect.anything());
+    } finally { check.mockRestore(); }
+  });
   it("discloses the actual remaining balance when only a single final payment is due", async () => {
     const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "LEASE_TO_OWN", dealerWarrantyOffered: false, preparedFormIds: ["w2-lease"], leaseCalculator: { agreedPriceCents: 2000000, capitalizedCostReductionCents: 300000, calculationMode: "PAYMENT_AMOUNT", targetPaymentCents: 5000000, documentPreparationFeeCents: 30000 } }) }));
     expect(response.status).toBe(201);

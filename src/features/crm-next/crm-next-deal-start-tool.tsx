@@ -4,6 +4,7 @@ import { type ReactNode, type SetStateAction, createContext, useContext, useEffe
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealSaveState, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
+import { openPrintablePdfDocument } from "@/lib/printable-pdf";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
@@ -25,7 +26,7 @@ import { FilePlus2, Eye, Download, Printer, X, CheckCircle2, Circle, ChevronRigh
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
-import { testDriveFacts, testDriveAgreementError, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
+import { testDriveFacts, testDriveAgreementIssue, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, dealerWarrantyPosture, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIELDS, leaseCalculatorInputFromFields, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
@@ -485,18 +486,6 @@ function openPrintableHtmlDocument(html: string) {
   return true;
 }
 
-function openPrintablePdfDocument(document: GeneratedContractPacket["documents"][number]) {
-  const url = documentDataUrl(document);
-  if (!url) return false;
-  const printWindow = window.open(url, "_blank");
-  if (!printWindow) return false;
-  try {
-    printWindow.opener = null;
-  } catch {
-    // The packet is already open; keep printing even if the browser blocks opener cleanup.
-  }
-  return true;
-}
 
 function normalizeVin(value: string) {
   return value.toUpperCase().replace(/\s/g, "");
@@ -3514,7 +3503,28 @@ export function TestDriveExecutionDesk({
     ...facts, departureAt: facts.startTime ? localInstant(`${facts.testDriveDate}T${facts.startTime}`) : "",
     returnAt: facts.returnAt ? localInstant(facts.returnAt) : ""
   });
-  const agreementError = testDriveAgreementError(agreementFacts);
+  const agreementIssue = testDriveAgreementIssue(agreementFacts);
+  const agreementError = agreementIssue?.message ?? null;
+  const agreementEditor = useRef<HTMLDivElement>(null);
+  const [correctionField, setCorrectionField] = useState("");
+  useEffect(() => {
+    if (!correctionField) return;
+    const label = Array.from(agreementEditor.current?.querySelectorAll("label") ?? []).find(label =>
+      (label.querySelector("span")?.textContent ?? label.textContent)?.trim() === correctionField);
+    const control = label?.querySelector<HTMLElement>("input, select, textarea");
+    if (!control) return;
+    for (let ancestor = control.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+    }
+    control.focus({ preventScroll: true });
+    control.scrollIntoView({ behavior: "smooth", block: "center" });
+    setCorrectionField("");
+  }, [correctionField, reviewPanel]);
+  function correctAgreementIssue() {
+    if (!agreementIssue) return;
+    if (review) setReviewPanel(agreementIssue.panel);
+    setCorrectionField(agreementIssue.field);
+  }
   const returnDeadline = testDriveDateTime(testDriveDeadline(agreementFacts));
   const driveVin = facts.vin || getVinFromVehicleInput(vehicle);
   const validVehicle = /^[A-HJ-NPR-Z0-9]{17}$/.test(driveVin);
@@ -3733,7 +3743,7 @@ export function TestDriveExecutionDesk({
   }
 
   return (
-    <div className={`${styles.retailExecutionDesk} ${review ? styles.testDriveReview : ""}`}>
+    <div ref={agreementEditor} className={`${styles.retailExecutionDesk} ${review ? styles.testDriveReview : ""}`}>
       {review && <section className={styles.testDriveCheckout} aria-label="Test-drive checkout review">
         <header><div><span>{returnReceived ? "Returned" : started ? "Test drive active" : "Departure checks"}</span><h3>{vehicle || "Select a vehicle"}</h3><p>{customerName} · {employeeName}</p></div><button type="button" disabled={reviewBusy} onClick={onSaveDraft}><Save size={16} />Save draft</button></header>
         {started ? <div className={styles.testDriveActive}><dl><div><dt>Departure</dt><dd>{facts.testDriveDate} {facts.startTime}</dd></div><div><dt>Expected return</dt><dd>{returnDeadline}</dd></div></dl><button type="button" onClick={() => setReviewPanel("return")}>{returnReceived ? "Review return" : "Record return"}<ChevronRight size={16} /></button></div> : <>
@@ -3808,7 +3818,7 @@ export function TestDriveExecutionDesk({
       <section hidden={review && reviewPanel !== "agreement"} className={styles.retailSection}>
         <header><span>Test-drive agreement</span><strong>Authorization and vehicle release</strong></header>
         <div className={`${styles.retailNextActionBar} ${styles.testDriveAgreementActions}`}>
-          <div><strong>{agreementError || (agreementStatus.kind === "idle" ? "Ready to generate" : "")}</strong><PacketFeedback status={agreementStatus}><SavedPacketLink packet={agreementPacket} /></PacketFeedback></div>
+          <div>{!agreementError && agreementStatus.kind === "idle" && <strong>Ready to generate</strong>}<PacketFeedback status={agreementError ? { kind: "error", message: agreementError } : agreementStatus} onCorrect={agreementIssue ? correctAgreementIssue : undefined}><SavedPacketLink packet={agreementPacket} /></PacketFeedback></div>
           <button type="button" disabled={agreementStatus.kind === "generating"} onClick={generateAgreement}><FilePlus2 size={16} aria-hidden="true" />Generate agreement</button>
           <button type="button" disabled={!agreementDocument} onClick={() => setAgreementPreviewOpen(true)}><Eye size={16} aria-hidden="true" />Preview</button>
           <button type="button" disabled={!agreementDocument} onClick={downloadAgreement}><Download size={16} aria-hidden="true" />Download PDF</button>
@@ -4771,7 +4781,7 @@ function DealStartDesk({
   function getDocumentContext() {
     const key = `crm-next:document-jacket:${form.customerId}:${workflowId}:${form.vehicle.trim()}`;
     const reference = savedDeal?.reference(key) ?? crypto.randomUUID();
-    return { workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
+    return { dealNumber: savedDeal?.dealNumber() ?? "", workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
   }
 
   function archiveSelectedFile(input: HTMLInputElement) {

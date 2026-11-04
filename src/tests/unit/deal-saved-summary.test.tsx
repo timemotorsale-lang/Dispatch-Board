@@ -5,7 +5,7 @@ import { DealSavedSummary } from "@/features/crm-next/deal-saved-summary";
 import { calculateLeaseToOwn, leaseCalculatorInputFromFields } from "@/lib/lease-to-own-form-packet";
 import { cashMoney } from "@/lib/cash-retail-sale";
 
-const base: SavedDealReviewRecord = {id:"deal-a",revision:3,updatedAt:"2026-11-03T17:00:00Z",customerName:"Customer A",vehicleReference:"2024 Toyota RAV4",pathway:"retail-sale",status:"SOLD",snapshot:{"desk:form":{amount:"20000",ownerUserId:"staff-a"}}};
+const base: SavedDealReviewRecord = {id:"deal-a",dealNumber:1234,revision:3,updatedAt:"2026-11-03T17:00:00Z",customerName:"Customer A",vehicleReference:"2024 Toyota RAV4",pathway:"retail-sale",status:"SOLD",snapshot:{"desk:form":{amount:"20000",ownerUserId:"staff-a"}}};
 const lease = {agreedPrice:"20000",calculationMode:"PAYMENT_AMOUNT",targetPayment:"500",additionalItems:"0",capitalizedCostReduction:"5000",contractLength:"36",documentPreparationFee:"300",downPayment:"0",gpsCost:"0",multiplier:"2",originationFee:"0",otherRoadWorthyCost:"0",paymentFrequency:"Monthly",registrationFee:"516",salesTaxRate:"6.875",signingPaymentMode:"CAPITALIZED_REDUCTION",titleFee:"102.80",warrantyCost:"0",wholesaleCost:"0"};
 
 describe("saved deal summary",()=>{
@@ -44,7 +44,7 @@ describe("saved deal summary",()=>{
  });
  it("labels worksheet figures and blocks packet preparation while changes remain unsaved",()=>{
   const html=renderToStaticMarkup(<DealSavedSummary record={base} dirty busy={false} viewer="Staff A" viewerId="staff-a" onNavigate={()=>{}} onPreparePacket={()=>{}} onComplete={()=>{}} onSaveAndClose={()=>{}}/>);
-  expect(html).toContain("last saved version");expect(html).toContain("Saved worksheet figures");expect(html).toContain("Deal ID: deal-a");
+  expect(html).toContain("last saved version");expect(html).toContain("Saved worksheet figures");expect(html).toContain("Deal #1234");expect(html).not.toContain("deal-a");
   expect(html).toMatch(/disabled=""[^>]*><svg[^]*?Prepare \/ print signing packet/);
   expect(html).not.toContain("Sold · finalized");
  });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { testDriveFacts, testDriveDeadline, testDriveAgreementError } from "@/lib/test-drive-form-packet";
+import { testDriveFacts, testDriveDeadline, testDriveAgreementError, testDriveAgreementIssue } from "@/lib/test-drive-form-packet";
 import { testDriveAgreementPdfBase64 } from "@/server/services/test-drive-agreement-document";
 
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: vi.fn(async () => ({ id: "manager-1", isActive: true, roles: ["Manager"] })) }));
@@ -15,6 +15,20 @@ const valid = {
   fuelOut: "3/4", departureCondition: "Existing scratch on rear bumper; otherwise good", approvedRoute: "Lake Street local loop"
 };
 describe("Test-drive agreement", () => {
+  it.each([
+    [{driverLicense:""}, "Driver license"],
+    [{licenseState:""}, "License state"],
+    [{driverPhone:""}, "Driver phone"],
+    [{licenseVerified:false}, "Valid license verified"],
+    [{insurancePolicy:""}, "Insurance policy"],
+    [{insuranceVerified:false}, "Coverage reviewed for this drive"]
+  ])("points to the exact missing check: %j", (change, field) => {
+    expect(testDriveAgreementIssue(testDriveFacts({...valid,...change}))).toMatchObject({field,panel:"driver"});
+  });
+  it("accepts entered license formats without treating staff verification as a bad license number", () => {
+    expect(testDriveAgreementError(testDriveFacts({...valid,driverLicense:"A123-456-789-012"}))).toBeNull();
+    expect(testDriveAgreementError(testDriveFacts({...valid,licenseVerified:false}))).toContain('check "Valid license verified"');
+  });
   it("defaults to editable 30-minute and 20-mile limits across midnight", () => {
     const facts = testDriveFacts(valid);
     expect(facts.durationMinutes).toBe(30);

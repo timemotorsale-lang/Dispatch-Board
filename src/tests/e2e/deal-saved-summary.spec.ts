@@ -5,7 +5,7 @@ async function fixture(page: Page, finalized = false) {
   let failSave = false, failChecklist = false;
   const writes: Array<Record<string, unknown>> = [];
   const vehicle = {id:"vehicle-summary",inventoryUnitId:"inventory-summary",label:"2024 Toyota RAV4",vin:"2T3W1RFVXRW333586",stockNumber:"333586",year:"2024",make:"Toyota",model:"RAV4",color:"Silver",licensePlate:""};
-  let draft = {id:"saved-summary-deal",revision:4,customerId:"customer-summary",customerName:"Summary Buyer",vehicleReference:vehicle.label,pathway:"retail-sale",status:"SOLD",updatedAt:"2026-11-03T17:00:00.000Z",snapshot:{"desk:form":{amount:"20000",customerId:"customer-summary",ownerUserId:"summary-staff",vehicle:vehicle.label,note:"Deliver with two keys"},"desk:workflowId":"retail-sale","desk:identity":{customerId:"customer-summary",vehicleId:vehicle.id,inventoryUnitId:vehicle.inventoryUnitId,vehicle},"retail-sale:cashSaleFacts":{...EMPTY_CASH_SALE,paymentReceived:"5000",buyerEmail:"",buyerPhone:""},"retail-sale:cashPacketBuyer":"Summary Buyer","retail-sale:vehicleFacts":{...vehicle,trim:""},jackets:{"retail-sale":"summary-jacket"}}};
+  let draft = {id:"saved-summary-deal",dealNumber:1234,revision:4,customerId:"customer-summary",customerName:"Summary Buyer",vehicleReference:vehicle.label,pathway:"retail-sale",status:"SOLD",updatedAt:"2026-11-03T17:00:00.000Z",snapshot:{"desk:form":{amount:"20000",customerId:"customer-summary",ownerUserId:"summary-staff",vehicle:vehicle.label,note:"Deliver with two keys"},"desk:workflowId":"retail-sale","desk:identity":{customerId:"customer-summary",vehicleId:vehicle.id,inventoryUnitId:vehicle.inventoryUnitId,vehicle},"retail-sale:cashSaleFacts":{...EMPTY_CASH_SALE,paymentReceived:"5000",buyerEmail:"",buyerPhone:""},"retail-sale:cashPacketBuyer":"Summary Buyer","retail-sale:vehicleFacts":{...vehicle,trim:""},jackets:{"retail-sale":"summary-jacket"}}};
   await page.route("**/api/coo-workbook/rhythm*",route=>route.fulfill({status:503,json:{error:"Outside this deal-summary fixture"}}));
   await page.route("**/api/crm/v1/deal-identities*",route=>new URL(route.request().url()).searchParams.get("id")==="customer-summary" ? route.fulfill({json:{id:"customer-summary",name:"Summary Buyer",customerNumber:"CUS-SUMMARY"}}) : route.continue());
   await page.route("**/api/crm/v1/contract-packets*",route=>route.fulfill({status:404,json:{error:"No generated packet in this isolated fixture"}}));
@@ -34,7 +34,7 @@ test("saved sold deal opens a compact summary with exact figures, checklist and 
   await page.goto("/crm-next/deals/start?draftId=saved-summary-deal");
   await expect(page.getByRole("heading",{name:"Deal summary",exact:true})).toBeVisible();
   const summary=page.getByRole("region",{name:"Saved deal summary",exact:true});
-  await expect(summary).toContainText("Summary Buyer");await expect(summary).toContainText("Assigned Salesperson");
+  await expect(summary).toContainText("Deal #1234");await expect(summary).not.toContainText("saved-summary-deal");await expect(summary).toContainText("Summary Buyer");await expect(summary).toContainText("Assigned Salesperson");
   await expect(summary.getByRole("region",{name:"Saved payment summary"})).toContainText("$21,675.00");
   await expect(summary.getByRole("region",{name:"Saved payment summary"})).toContainText("$16,675.00");
   await expect(summary).toContainText("2 checklist items pending");await expect(summary).toContainText("Collect signed title");

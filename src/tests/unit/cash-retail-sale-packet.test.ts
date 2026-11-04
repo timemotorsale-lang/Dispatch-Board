@@ -1,6 +1,7 @@
+import { cashDefaultFormIds } from "@/lib/cash-sale-print-library";
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { CASH_SALE_FORM_IDS, EMPTY_CASH_SALE, cashCents, cashSaleError, cashSaleTotals } from "@/lib/cash-retail-sale";
+import { EMPTY_CASH_SALE, cashCents, cashSaleError, cashSaleTotals } from "@/lib/cash-retail-sale";
 import { generateUnifiedCrmContractPacket } from "@/server/services/unified-crm-contract-packet-service";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -15,14 +16,14 @@ describe("Minnesota retail cash packet", () => {
     for (const bad of ["-1", "NaN", "100.001", "1e4"]) expect(() => cashCents(bad)).toThrow();
   });
   it("requires a named limited agent, real dates, mileage and explicit warranty terms", () => {
-    expect(cashSaleError("Sample buyer", vehicle.vin, "10000", facts, CASH_SALE_FORM_IDS)).toBeNull();
+    expect(cashSaleError("Sample buyer", vehicle.vin, "10000", facts, cashDefaultFormIds(facts))).toBeNull();
     for (const change of [{ authorizedAgent: "" }, { poaExpiration: "2026-10-31" }, { saleDate: "2026-02-30" }, { mileage: "" }, { warrantyType: "" }, { warrantyType: "No dealer warranty - eligibility reviewed", warrantyExemption: "" }, { taxOverride: "0", taxReason: "" }, { paymentReceived: "100", paymentReference: "", paymentDate: "", paymentMethod: "" }]) {
-      expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, ...change }, CASH_SALE_FORM_IDS)).toBeTruthy();
+      expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, ...change }, cashDefaultFormIds(facts))).toBeTruthy();
     }
   });
   it("generates actual filled PDFs, the official two-page Buyers Guide, and unsigned limited POA", async () => {
     const packet = await generateUnifiedCrmContractPacket(actor, { customerName: "SAMPLE BUYER - NOT FOR SIGNATURE", dealNumber: "CASH-SAMPLE", packetType: "MINNESOTA_RETAIL_SALE", salePrice: "10000", retailCash: facts, vehicle }, { now: () => new Date("2026-11-01T18:00:00Z") });
-    expect(packet.documents.map(d => d.formId)).toEqual(CASH_SALE_FORM_IDS);
+    expect(packet.documents.map(d => d.formId)).toEqual(cashDefaultFormIds(facts));
     for (const document of packet.documents) {
       expect(document.contentType).toBe("application/pdf"); expect(document.signatureStatus).toBe("UNSIGNED");
       const pdf = await PDFDocument.load(Buffer.from(document.contentBase64!, "base64"));
@@ -38,7 +39,8 @@ describe("Minnesota retail cash packet", () => {
     expect(guide.getForm().getRadioGroup("topmostSubform[0].BG-AsIs[0].Warranty[0]").getSelected()).toBe("Dealer");
     expect(guide.getForm().getFields().some(f => f.getName().includes("BG-Implied"))).toBe(false);
     const poa = packet.documents.find(d => d.formId === "power-of-attorney")!;
-    expect(poa.html).toContain("Sample Title Clerk"); expect(poa.html).toContain("does not authorize signing both sides"); expect(poa.html).toContain("2026-12-01");
+    const poaPdf=await PDFDocument.load(Buffer.from(poa.contentBase64!,"base64"));
+    expect(poaPdf.getForm().getTextField("authorizedAgent").getText()).toBe("Sample Title Clerk"); expect(poaPdf.getForm().getTextField("poaExpiration").getText()).toBe("2026-12-01"); expect(poa.html).toContain("Customer signing form");
     expect(packet.documents.find(d => d.formId === "funding-proof")!.html).toContain("NO PAYMENT RECORDED");
     expect(packet.documents.find(d => d.formId === "title-registration-application")!.html).toContain("not a DVS application");
   });

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDealNumber } from "@/lib/deal-number";
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type SetStateAction, type Dispatch } from "react";
 import { Save, FolderOpen, Plus } from "lucide-react";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
@@ -13,10 +15,11 @@ import { dealGroup } from "@/lib/deal-dashboard";
 import { DealLifecycleDialog, type DealLifecycleAction } from "./deal-lifecycle-dialog";
 
 type Snapshot = Record<string, unknown>;
-type DraftSummary = { customerId?: string | null; id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string; status?: SavedDealStatus };
+type DraftSummary = { dealNumber?: number; customerId?: string | null; id: string; customerName: string; pathway: string; vehicleReference: string; updatedAt: string; status?: SavedDealStatus };
 type Draft = DraftSummary & { revision: number; snapshot: Snapshot };
 type Store = {
   draftId: () => string;
+  dealNumber: () => string;
   read: (key: string) => unknown;
   write: (key: string, value: unknown) => void;
   seed: (key: string, value: unknown) => void;
@@ -104,6 +107,7 @@ export function useArchivedDealPacket<T extends { packetId: string; jacketId?: s
 function fieldEntries(root: HTMLElement) {
   const counts = new Map<string, number>();
   return Array.from(root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea")).flatMap((input) => {
+    if (input.closest("[data-deal-transient]")) return [];
     if (input instanceof HTMLInputElement && (input.readOnly || ["file", "hidden", "password"].includes(input.type))) return [];
     const label = input.closest("label"), name = label?.querySelector("span")?.textContent?.trim() || label?.textContent?.trim();
     if (!name || /SSN|ITIN|social security|credit card number|routing number|bank account/i.test(name)) return [];
@@ -131,6 +135,7 @@ export function DealDraftScope({ name, children }: { name: string; children: Rea
 export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, customers, children }: { initialCustomerId?: string; initialVehicleFacts?: Record<string, string>; customers: Array<{ id: string; name: string }>; children: ReactNode }) {
   const snapshot = useRef<Snapshot>({}), id = useRef(""), revision = useRef(0), changes = useRef(0), savedChanges = useRef(0);
   const autoSaveArmed = useRef(false);
+  const assignedDealNumber = useRef("");
   const [persistedId, setPersistedId] = useState("");
   const [savedRecord, setSavedRecord] = useState<SavedDealReviewRecord | null>(null);
   const [hasUnsaved, setHasUnsaved] = useState(false);
@@ -169,6 +174,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
       const customerId = form?.customerId && form.customerId !== "__manual_customer__" ? form.customerId : "";
       try {
         const draft = await request<Draft>("/api/crm/v1/deal-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id.current, revision: revision.current, status: dealStatus.current, snapshot: payload, customerId, customerName: customers.find((customer) => customer.id === customerId)?.name || payload["desk:manualCustomerName"] || "Customer not selected", pathway: payload["desk:workflowId"] || "retail-sale", vehicleReference: form?.vehicle || "" }) });
+        assignedDealNumber.current = formatDealNumber(draft.dealNumber);
         setSavedRecord({ ...draft, snapshot: draft.snapshot ?? payload });
         revision.current = draft.revision; autoSaveArmed.current = true; setPersistedId(draft.id); savedChanges.current = number; setSelectedId(draft.id);
         // A completion/close action must not discard edits made while the save was in flight.
@@ -199,7 +205,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
     setLifecycle({ action, deal: { draftId: id.current, pathway, customerName: String(customers.find(customer => customer.id === (snapshot.current["desk:form"] as Record<string, string> | undefined)?.customerId)?.name || snapshot.current["desk:manualCustomerName"] || "Selected customer"), jacketId: (snapshot.current.jackets as Record<string, string> | undefined)?.[pathway] } });
   }, [save, customers]);
   const store = useMemo<Store>(() => ({
-    read: (key) => snapshot.current[key], write, save, saveError: () => lastSaveError.current, draftId: () => id.current,
+    read: (key) => snapshot.current[key], write, save, saveError: () => lastSaveError.current, draftId: () => id.current, dealNumber: () => assignedDealNumber.current,
     saleStatus: currentStatus, paperworkComplete,
     completeSale: () => openLifecycle(dealStatus.current === "SOLD" ? "FINISH" : "MARK_SOLD"),
     seed: (key, value) => { if (snapshot.current[key] === undefined) snapshot.current[key] = value; },
@@ -212,6 +218,7 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
   }), [write, save, openLifecycle, currentStatus, paperworkComplete]);
 
   const install = useCallback(async (draft: Draft | null) => {
+    assignedDealNumber.current = formatDealNumber(draft?.dealNumber);
     setSavedRecord(draft ? JSON.parse(JSON.stringify(draft)) as SavedDealReviewRecord : null);
     initialized.current = false; autoSaveArmed.current = Boolean(draft); setPersistedId(draft?.id ?? ""); setEntryChoices([]); clearTimeout(timer.current);
     const next = draft?.snapshot ?? (initialVehicleFacts ? Object.fromEntries(Object.keys(SALES_DOCUMENT_PATHWAYS).map(pathway => [`${pathway}:vehicleFacts`, { ...initialVehicleFacts }])) : {});
@@ -282,11 +289,11 @@ export function DealDraftWorkspace({ initialCustomerId, initialVehicleFacts, cus
   return <SaveStateContext.Provider value={{ saved: Boolean(persistedId), message, record: savedRecord, dirty: hasUnsaved, busy }}><DraftContext.Provider value={store}>
     <section className={styles.toolbar} aria-label="Saved deal drafts">
       <div className={styles.commands}><button disabled={!loaded || busy || conflict} onClick={() => void save()}><Save size={16} />Save draft</button><button disabled={!loaded || busy || conflict} onClick={async () => { if (await save()) window.dispatchEvent(new CustomEvent("deal-workspace-navigate", { detail: "overview" })); }}>Save &amp; review</button><button disabled={!loaded || busy} onClick={() => { if (changes.current !== savedChanges.current && !window.confirm("Start a new deal without saving these edits?")) return; void install(null); }}><Plus size={16} />New deal</button><span role="status">{message}</span></div>
-      <details className={overviewStyles.advanced}><summary>Resume another saved deal</summary><div className={styles.commands}><select aria-label="Saved deals" value={selectedId} onFocus={() => void refreshList().catch(() => {})} onChange={(event) => setSelectedId(event.target.value)}><option value="">Choose saved deal</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? draft.pathway} · {draft.vehicleReference || "Vehicle not assigned"}</option>)}</select><button disabled={!loaded || busy || !selectedId} onClick={() => void openDraft()}><FolderOpen size={16} />Resume</button></div></details>
+      <details className={overviewStyles.advanced}><summary>Resume another saved deal</summary><div className={styles.commands}><select aria-label="Saved deals" value={selectedId} onFocus={() => void refreshList().catch(() => {})} onChange={(event) => setSelectedId(event.target.value)}><option value="">Choose saved deal</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.dealNumber ? `#${formatDealNumber(draft.dealNumber)} · ` : ""}{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? draft.pathway} · {draft.vehicleReference || "Vehicle not assigned"}</option>)}</select><button disabled={!loaded || busy || !selectedId} onClick={() => void openDraft()}><FolderOpen size={16} />Resume</button></div></details>
       <div className={styles.commands}><label>Deal status <select aria-label="Current saved deal status" disabled={!loaded || busy || conflict} value={currentStatus} onChange={(event) => { const value = event.target.value as SavedDealStatus; if (["SOLD", "COMPLETED"].includes(value) && ["SALES", "LEASING"].includes(dealGroup(currentPathway))) { void openLifecycle(currentStatus === "SOLD" ? "FINISH" : "MARK_SOLD"); return; } dealStatus.current = value; setCurrentStatus(value); write("dealStatus", value); }}>{Object.entries(SAVED_DEAL_STATUSES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>{["SALES", "LEASING"].includes(dealGroup(currentPathway)) && !["ARCHIVED", "LOST", "CANCELLED"].includes(currentStatus) && (currentStatus !== "SOLD" ? <button data-completion="pending" disabled={!loaded || busy || conflict} onClick={() => void openLifecycle("MARK_SOLD")}>Mark sold</button> : paperworkComplete ? <span className={styles.badge} data-finalized="true">Sold · finalized</span> : <button data-completion="pending" disabled={!loaded || busy || conflict} onClick={() => void openLifecycle("FINISH")}>Sold · complete paperwork</button>)}<button aria-expanded={showLibrary} onClick={() => setShowLibrary((value) => !value)}><FolderOpen size={16} />Saved deals</button></div>
       {error ? <p role="alert">{error}{conflict ? <button onClick={() => { id.current = crypto.randomUUID(); revision.current = 0; blocked.current = false; setConflict(false); void save(); }}>Save as new draft</button> : null}</p> : null}
     </section>
-    {entryChoices.length > 0 && <section className={overviewStyles.panel} aria-label="Choose customer deal"><h2>Choose the deal to continue</h2><p>This customer has several active deals. Choose the correct vehicle and pathway, or explicitly start a separate deal.</p><div className={overviewStyles.entry}>{entryChoices.map(draft => <button key={draft.id} disabled={busy} onClick={() => void openDraft(draft.id)} type="button"><strong>{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS]}</strong><small>{draft.vehicleReference || "Vehicle not assigned"} · {draft.status ? SAVED_DEAL_STATUSES[draft.status] : "Working"} · Updated {new Date(draft.updatedAt).toLocaleString()}</small></button>)}</div><button onClick={() => void install(null)} type="button">Start a separate deal for this customer</button></section>}
+    {entryChoices.length > 0 && <section className={overviewStyles.panel} aria-label="Choose customer deal"><h2>Choose the deal to continue</h2><p>This customer has several active deals. Choose the correct vehicle and pathway, or explicitly start a separate deal.</p><div className={overviewStyles.entry}>{entryChoices.map(draft => <button key={draft.id} disabled={busy} onClick={() => void openDraft(draft.id)} type="button"><strong>{draft.dealNumber ? `#${formatDealNumber(draft.dealNumber)} · ` : ""}{draft.customerName} · {SALES_DOCUMENT_PATHWAYS[draft.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS]}</strong><small>{draft.vehicleReference || "Vehicle not assigned"} · {draft.status ? SAVED_DEAL_STATUSES[draft.status] : "Working"} · Updated {new Date(draft.updatedAt).toLocaleString()}</small></button>)}</div><button onClick={() => void install(null)} type="button">Start a separate deal for this customer</button></section>}
     {lifecycle && <DealLifecycleDialog {...lifecycle} onClose={() => setLifecycle(null)} onSaved={text => { setLifecycle(null); void request<Draft>(`/api/crm/v1/deal-drafts?id=${encodeURIComponent(id.current)}`).then(async draft => { await install(draft); setMessage(text); }).catch(caught => setError(caught instanceof Error ? caught.message : "Refresh this saved deal to see its updated status.")); }} />}
     {showLibrary ? <SavedDealsLibrary disabled={!loaded || busy} onOpen={(targetId) => void openDraft(targetId)} refreshKey={drafts.map((draft) => `${draft.id}:${draft.updatedAt}`).join("|")} /> : null}
     <fieldset className={styles.body} disabled={!loaded}><div ref={root} key={epoch} onChangeCapture={(event) => {

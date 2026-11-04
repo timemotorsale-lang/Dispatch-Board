@@ -40,3 +40,19 @@ Cash-sale figures reuse cashSaleTotals. The lease editing view and saved summary
 The action rail opens existing form selection, generation and PDF preview/printing. Upload/review links target the same linked document jacket. The live checklist shows actual remaining blockers and scheduled deal follow-up, supports refresh/retry, and refreshes when focus returns. Only a closed paperwork jacket is labeled finalized. Final paperwork and manager correction controls remain protected by the existing service.
 
 No credit-provider, e-signature, lender-submission or accounting integration is implied by the summary. Those actions are not presented as enabled tools without a working integration.
+
+## Cash-sale form library and print packs
+
+The cash-sale packet opens a compact native dialog with Document Library and Print Packs tabs, text/category filters, selection counts and PDF preview/download/print actions. Built-in packs cover cash signing, title/DMV, delivery/promises and the full applicable cash packet. Selecting several packs deduplicates their documents. Printing a subset does not remove baseline forms from the archived deal packet.
+
+The customer-facing edition is TMS-MN-SIGNING-1.0, released by owner instruction on November 3, 2026. It uses the committed custom form bodies and HDR-02 brand header with draft/legal-review notices removed. The historical review files remain preserved. Source hashes and the checked-in field map control generation. The purchase agreement keeps both pages and the warranty keeps its full original page set; readable continuation pages carry long entered values. Signature, notarial and customer consent fields remain blank.
+
+Cash generation excludes credit/device forms. Arbitration is optional; As Is is conditional on the explicit no-warranty election and entered eligibility basis, and conflicts with the warranty form. The official FTC form is preserved; title filing continues to use the actual current official application or agency system.
+
+Only selected unsigned generated PDFs are combined for printing. The duplex option pads odd-length documents between forms so a new document starts on a new sheet. Signed originals are not flattened by this utility. Stale details and missing selected forms require regeneration. A blocked print window gives a usable Preview fallback. Source-template access requires an authenticated document user and an allowlisted form ID.
+
+
+### Deal numbers
+Saved deals receive an immutable, database-assigned sequential number starting at 1000. Existing drafts are backfilled in creation order. UUIDs remain internal record references. The summary, saved-deal choices, workbench search/export, and newly generated paperwork use the assigned number. Client input cannot replace it. Existing signed documents and historical packet versions are preserved. Sequence gaps are permitted; numbers are never recycled or truncated when the sequence exceeds four digits.
+
+Apply migration `20261103160000_deal_display_numbers` and regenerate Prisma before starting the updated application. The migration has been applied to local development only.

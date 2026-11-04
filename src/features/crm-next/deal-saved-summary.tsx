@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Printer, Upload, Pencil, ClipboardCheck, History, RefreshCw } from "lucide-react";
+import { formatDealNumber } from "@/lib/deal-number";
 import { savedDealSummary, type SavedDealReviewRecord } from "@/lib/deal-saved-summary";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
 import { dealGroup } from "@/lib/deal-dashboard";
@@ -54,7 +55,7 @@ export function DealSavedSummary({ record, dirty, busy, viewer, viewerId, onNavi
   const guarded = dirty || busy || inactive;
   const missingIdentity = !summary.customerLinked || !summary.vehicleLinked;
   return <section className={styles.savedSummary} aria-label="Saved deal summary">
-    <div className={styles.summaryMeta}><div><strong>Saved deal</strong><span>Deal ID: {record.id}</span><span>Revision {record.revision} · {timestamp(record.updatedAt)}</span></div><button type="button" disabled={busy} onClick={onSaveAndClose}>Save &amp; close</button></div>
+    <div className={styles.summaryMeta}><div><strong>{formatDealNumber(record.dealNumber) ? `Deal #${formatDealNumber(record.dealNumber)}` : "Saved deal"}</strong><span>Revision {record.revision} · {timestamp(record.updatedAt)}</span></div><button type="button" disabled={busy} onClick={onSaveAndClose}>Save &amp; close</button></div>
     {dirty && <p className={styles.summaryNotice} role="status">There are unsaved changes. These figures show the last saved version. Use Save &amp; review before preparing paperwork.</p>}
     <div className={styles.summaryPeople} aria-label="Deal identity summary"><div><small>Vehicle</small><strong>{summary.vehicle || "Vehicle not assigned"}</strong>{summary.vin && <span>VIN: {summary.vin}</span>}{summary.stock && <span>Stock #: {summary.stock}</span>}</div><div><small>Customer</small><strong>{summary.customer}</strong>{summary.phone && <span>{summary.phone}</span>}{summary.email && <span>{summary.email}</span>}{summary.address && <span>{summary.address}</span>}</div><div><small>Pathway</small><strong>{SALES_DOCUMENT_PATHWAYS[record.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] || record.pathway}</strong><small>Assigned staff</small><strong>{owner}</strong>{jacket && <span>Packet: {jacket.dealNumber}</span>}<span>{finalized ? "Paperwork finalized" : record.status === "SOLD" ? "Sold · paperwork pending" : "Saved · continue this deal"}</span></div></div>
     {missingIdentity && !inactive && <section className={styles.next} aria-label="Next deal action"><div><small>Next action</small><h2>{!summary.customerLinked ? "Choose the customer" : "Confirm the vehicle"}</h2><p>Link the shared customer and vehicle before preparing this deal for signing.</p></div><button className={styles.primary} type="button" onClick={()=>onNavigate("identity")}>{!summary.customerLinked ? "Choose customer" : "Choose vehicle"}</button></section>}

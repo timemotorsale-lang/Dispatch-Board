@@ -21,7 +21,7 @@ function scope(actor: AuthenticatedUser | null) {
 }
 
 export async function listDealDrafts(actor: AuthenticatedUser | null, customerId = "") {
-  return prisma.dealDeskDraft.findMany({ where: { ...scope(actor), ...(customerId ? { customerId } : {}) }, select: { id: true, customerId: true, customerName: true, pathway: true, vehicleReference: true, status: true, updatedAt: true, revision: true }, orderBy: { updatedAt: "desc" }, take: 100 });
+  return prisma.dealDeskDraft.findMany({ where: { ...scope(actor), ...(customerId ? { customerId } : {}) }, select: { id: true, dealNumber: true, customerId: true, customerName: true, pathway: true, vehicleReference: true, status: true, updatedAt: true, revision: true }, orderBy: { updatedAt: "desc" }, take: 100 });
 }
 
 export async function listSavedDealLibrary(actor: AuthenticatedUser | null, params: URLSearchParams) {
@@ -30,10 +30,10 @@ export async function listSavedDealLibrary(actor: AuthenticatedUser | null, para
   if (!Number.isInteger(page) || page < 1 || page > 100000) throw new SalesDocumentsError("Choose a valid saved-deals page.");
   if (status !== "ALL" && !isSavedDealStatus(status)) throw new SalesDocumentsError("Choose a valid deal status.");
   if (pathway !== "ALL" && !isSalesDocumentPathway(pathway)) throw new SalesDocumentsError("Choose a valid revenue path.");
-  const base: Prisma.DealDeskDraftWhereInput = { ...access, ...(pathway !== "ALL" ? { pathway } : {}), ...(search ? { OR: ["customerName", "vehicleReference", "id"].map((key) => ({ [key]: { contains: search, mode: "insensitive" } })) } : {}) };
+  const base: Prisma.DealDeskDraftWhereInput = { ...access, ...(pathway !== "ALL" ? { pathway } : {}), ...(search ? { OR: [...["customerName", "vehicleReference", "id"].map((key) => ({ [key]: { contains: search, mode: "insensitive" } })), ...(/^\d+$/.test(search) && Number.isSafeInteger(Number(search)) && Number(search)<=2147483647 ? [{ dealNumber: Number(search) }] : [])] } : {}) };
   const where = { ...base, ...(status !== "ALL" ? { status } : {}) };
   const [items, total, groups] = await Promise.all([
-    prisma.dealDeskDraft.findMany({ where, select: { id: true, customerId: true, customerName: true, pathway: true, vehicleReference: true, status: true, updatedAt: true, revision: true }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], skip: (page - 1) * 25, take: 25 }),
+    prisma.dealDeskDraft.findMany({ where, select: { id: true, dealNumber: true, customerId: true, customerName: true, pathway: true, vehicleReference: true, status: true, updatedAt: true, revision: true }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], skip: (page - 1) * 25, take: 25 }),
     prisma.dealDeskDraft.count({ where }),
     prisma.dealDeskDraft.groupBy({ by: ["status"], where: base, _count: { _all: true } }),
   ]);

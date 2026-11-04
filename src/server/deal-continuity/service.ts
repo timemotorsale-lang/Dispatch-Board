@@ -151,4 +151,5 @@ export async function validateDealDocumentContext(actor: AuthenticatedUser | nul
   if (!vehicle || context.customerId !== raw.customerId || context.draft.pathway !== raw.pathway || text(object(raw.vehicle).vin).toUpperCase() !== vehicle.vin) throw new SalesDocumentsError("The document must use the saved shared customer, pathway and canonical vehicle.", 409);
   const occupied = await prisma.vehicleUseBooking.findFirst({ where: { organizationId: context.organizationId, vehicleId: vehicle.id, contextId: { not: context.id }, status: "CHECKED_OUT" } });
   if (occupied) throw new SalesDocumentsError("This vehicle is currently checked out on another assignment.", 409);
+  return { dealNumber: context.draft.dealNumber };
 }
