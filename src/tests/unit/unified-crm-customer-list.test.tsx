@@ -231,7 +231,7 @@ describe("Unified CRM real customer list", () => {
     expect(markup).toContain('role="search"');
     expect(markup).toContain("Search customers");
     expect(markup).toContain("<table");
-    expect(markup).toContain("<caption>1+ customer. Contact details are masked in this list.</caption>");
+    expect(markup).toContain("<caption>1+ customer. Contact details are masked until you choose to show them.</caption>");
     expect(markup).toContain('scope="col"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('aria-label="Customer result pages"');

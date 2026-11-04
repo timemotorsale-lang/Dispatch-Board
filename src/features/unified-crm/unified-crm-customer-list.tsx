@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowRight, ExternalLink, RefreshCw, Search, ShieldCheck, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { CustomerContactDetails } from "@/features/crm/customer-contact-details";
 import { useState } from "react";
 
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
@@ -117,7 +118,7 @@ function CustomerRows({
     <>
       <section className={styles.tablePanel} aria-label="Customer results">
         <table className={styles.table}>
-          <caption>{resultLabel(model)}. Contact details are masked in this list.</caption>
+          <caption>{resultLabel(model)}. Contact details are masked until you choose to show them.</caption>
           <thead><tr><th scope="col">Customer</th><th scope="col">Contact</th><th scope="col">Owner</th><th scope="col">Status</th><th scope="col">Last interaction</th><th scope="col">Next action</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>{model.items.map((customer) => {
             const customerOpportunityDiscovery = opportunityDiscovery?.byCustomerId[customer.id];
@@ -126,7 +127,7 @@ function CustomerRows({
             return (
             <tr key={customer.id}>
               <td><span className={styles.identity}><strong>{customer.displayName}</strong><small>{customer.customerNumber}</small></span></td>
-              <td><span className={styles.contact}><span>{customer.maskedPhone}</span><small>{customer.maskedEmail}</small></span></td>
+              <td><CustomerContactDetails customerId={customer.id} phone={customer.maskedPhone} email={customer.maskedEmail} /></td>
               <td>{customer.ownerName}</td>
               <td><CustomerStatus status={customer.status} /></td>
               <td><span className={styles.timing}><span>{formatDate(customer.lastInteractionAt, "No interaction recorded")}</span><small>Updated {formatDate(customer.updatedAt, "time unavailable")}</small></span></td>
@@ -145,7 +146,7 @@ function CustomerRows({
           <article className={styles.customerCard} key={customer.id}>
             <div className={styles.cardTop}><span className={styles.identity}><strong>{customer.displayName}</strong><small>{customer.customerNumber}</small></span><CustomerStatus status={customer.status} /></div>
             <dl className={styles.cardFacts}>
-              <div><dt>Contact</dt><dd>{customer.maskedPhone}<br />{customer.maskedEmail}</dd></div>
+              <div><dt>Contact</dt><dd><CustomerContactDetails customerId={customer.id} phone={customer.maskedPhone} email={customer.maskedEmail} /></dd></div>
               <div><dt>Owner</dt><dd>{customer.ownerName}</dd></div>
               <div><dt>Last interaction</dt><dd>{formatDate(customer.lastInteractionAt, "Not recorded")}</dd></div>
               <div><dt>Next action</dt><dd>{formatDate(customer.nextActionAt, "Not scheduled")}</dd></div>
