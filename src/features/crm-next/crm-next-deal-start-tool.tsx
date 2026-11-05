@@ -42,6 +42,8 @@ import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIE
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
+import { VehicleSaleFormLibrary } from "./vehicle-sale-form-library";
+import type { CashSaleFacts } from "@/lib/cash-retail-sale";
 import { CashRetailSaleDesk } from "./cash-retail-sale-desk";
 import styles from "./crm-next-shell.module.css";
 
@@ -776,6 +778,7 @@ function EnterpriseDealControlPanel({
 
 function RetailSaleExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onVehicleChange,
@@ -1166,7 +1169,8 @@ function RetailSaleExecutionDesk({
           <span>Contracted forms</span>
           <strong>Minnesota sale packet</strong>
         </header>
-        <div className={styles.retailPacketLauncher}>
+        <VehicleSaleFormLibrary pathway={paymentFunding === "Outside finance" ? "outside-finance-one-pay" : creditPaymentFunding ? "finance" : "retail-sale"} customerName={customerName} customerPrefill={customerPrefill} salePrice={amount} getDocumentContext={getDocumentContext} loan={{ downPayment, amountFinanced: formatCurrency(amountFinancedCents) }} defaults={{ saleDate: todayInputValue(), otherFee: formatCurrency(feeTotalCents), docFee: "0", otherFeeLabel: "Fees from saved retail terms", taxOverride: displayedSalesTax, taxReason: "Copied from the saved retail tax calculation" }} sourceFingerprint={JSON.stringify([amount, feeLines, displayedSalesTax, downPayment, paymentFunding, vehicleFacts])} legacyPacket={contractPacket} />
+        <div hidden className={styles.retailPacketLauncher}>
           <div>
             <span>Packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredFormCount} required forms ready`}</strong>
@@ -2796,7 +2800,7 @@ function BhphExecutionDesk({
 
   const getDocumentContext = useContext(DealDocumentContext);
   const identityDraft = useDealDraft();
-  async function generateBhphPacket() {
+  async function generateBhphPacket(library?: { ids: string[]; facts: CashSaleFacts; requestId: string }) {
     if (generationPending.current) return;
     generationPending.current = true;
     try {
@@ -2825,13 +2829,14 @@ function BhphExecutionDesk({
           warrantyPosture: dealerWarrantyPosture(dealerWarrantyOffered)
         },
         ...documentIdentity,
+        ...(library ? { sharedSaleLibrary: { pathway: "bhph", facts: library.facts } } : {}),
         dealType: "BHPH",
         dealerWarrantyOffered,
         feeTotal: formatCurrency(calculation.feeTotal),
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: library?.requestId || crypto.randomUUID(),
         packetType: "BHPH",
         paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${formatCurrency(paymentCalculation.schedule.regularPaymentCents)} ${terms.paymentFrequency}; ${paymentCalculation.schedule.numberOfPayments} payments; final ${formatCurrency(paymentCalculation.schedule.finalPaymentCents)}; entered annual rate ${terms.apr}; first payment ${terms.firstPaymentDate}.`,
-        preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredBhphForms,
+        preparedFormIds: library ? [...new Set([...library.ids, ...requiredBhphForms])] : preparedForms.length > 0 ? preparedForms : requiredBhphForms,
         salePrice: terms.salePrice || "$0.00"
       }),
       headers: { "content-type": "application/json" },
@@ -2840,6 +2845,7 @@ function BhphExecutionDesk({
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "BHPH packet could not be generated." });
+      if (library) throw new Error(typeof payload.error === "string" ? payload.error : "BHPH packet could not be generated.");
       return;
     }
     const generatedPacket = payload as GeneratedContractPacket;
@@ -2847,8 +2853,10 @@ function BhphExecutionDesk({
     setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
     setPacketStatus({ kind: "ready", message: `Archived BHPH packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(amountFinancedCents));
+    return generatedPacket;
     } catch (error) {
       setPacketStatus({ kind: "error", message: error instanceof Error ? error.message : "The BHPH packet could not be prepared. Your entries are retained; retry generation." });
+      if (library) throw error;
     } finally {
       generationPending.current = false;
     }
@@ -2924,7 +2932,8 @@ function BhphExecutionDesk({
           <div><span>Proof evidence</span><strong>{evidenceCount}/{BHPH_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before approval"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{BHPH_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required after signing"}</small></div>
         </div>
-        <div className={styles.retailPacketLauncher}>
+        <VehicleSaleFormLibrary pathway="bhph" warrantyOffered={dealerWarrantyOffered} customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} loan={{ downPayment: terms.downPayment, amountFinanced: formatCurrency(amountFinancedCents) }} defaults={{ saleDate: financing.saleDate, mileage: terms.deliveryMileage, coBuyer: proof.coBuyer, docFee: financing.docFee, registrationFee: financing.registrationFee, warrantyType: dealerWarrantyOffered ? "Dealer limited warranty" : "No dealer warranty - eligibility reviewed", warrantyCoverage: "Engine and transmission; additional Minnesota-required coverage applies.", warrantyDuration: "30 days or 1,000 miles, whichever occurs first" }} sourceFingerprint={JSON.stringify([terms, financing, proof, dealerWarrantyOffered, canonicalVehicle])} onGenerate={(ids, facts, requestId) => generateBhphPacket({ ids, facts, requestId })} legacyPacket={contractPacket} />
+        <div hidden className={styles.retailPacketLauncher}>
           <div>
             <span>BHPH packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredBhphForms.length} required forms ready`}</strong>
@@ -2938,7 +2947,7 @@ function BhphExecutionDesk({
             <aside className={styles.retailPacketDrawer} aria-label="BHPH packet drawer">
               <header>
                 <div>
-                  <span>BHPH packet</span>
+                  <span>Legacy BHPH template pack</span>
                   <strong>Prepare, generate, and review BHPH account documents</strong>
                   <small>BHPH documents stay available for signing, print, text, email, and archive review without crowding the main desk.</small>
                 </div>
@@ -3142,6 +3151,7 @@ function DealerFinanceExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const getDocumentContext = useContext(DealDocumentContext);
   const [packet, setPacket] = useDealDraftState<Record<string, string>>("packet", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
@@ -3335,6 +3345,7 @@ function DealerFinanceExecutionDesk({
           <div><span>Evidence</span><strong>{evidenceCount}/{DEALER_FINANCE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before delivery"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{DEALER_FINANCE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
+        <VehicleSaleFormLibrary pathway="finance" customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} loan={{ ...terms, ...lender }} defaults={{ saleDate: todayInputValue(), coBuyer: applicant.coBuyer }} sourceFingerprint={JSON.stringify([terms, lender, applicant])} legacyForms={DEALER_FINANCE_PACKET_REQUIREMENTS} />
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required finance documents</h3>
@@ -3980,6 +3991,7 @@ export function TestDriveExecutionDesk({
 
 function WholesaleExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3998,6 +4010,7 @@ function WholesaleExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const getDocumentContext = useContext(DealDocumentContext);
   const [packet, setPacket] = useDealDraftState<Record<string, string>>("packet", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
@@ -4133,6 +4146,7 @@ function WholesaleExecutionDesk({
           <div><span>Evidence</span><strong>{evidenceCount}/{WHOLESALE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before release"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{WHOLESALE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
+        <VehicleSaleFormLibrary pathway="wholesale" customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} defaults={{ saleDate: todayInputValue(), docFee: "0", taxOverride: "0", taxReason: "" }} sourceFingerprint={JSON.stringify([terms, buyer])} legacyForms={WHOLESALE_PACKET_REQUIREMENTS} onManageOriginals={() => window.dispatchEvent(new CustomEvent("deal-workspace-navigate", { detail: "documents" }))} />
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required wholesale documents</h3>
@@ -4249,6 +4263,7 @@ function OutsideFinanceExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const getDocumentContext = useContext(DealDocumentContext);
   const [packet, setPacket] = useDealDraftState<Record<string, string>>("packet", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
@@ -4401,6 +4416,7 @@ function OutsideFinanceExecutionDesk({
           <div><span>Evidence</span><strong>{evidenceCount}/{OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before funding release"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
+        <VehicleSaleFormLibrary pathway="outside-finance-one-pay" customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} loan={{ ...terms, ...funding }} defaults={{ saleDate: todayInputValue() }} sourceFingerprint={JSON.stringify([terms, funding])} legacyForms={OUTSIDE_FINANCE_PACKET_REQUIREMENTS} />
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required packet documents</h3>
@@ -4571,6 +4587,14 @@ function DealStartDesk({
   const [workflowId, setWorkflowId] = useDealDraftState<DealWorkflowId>("workflowId", initialWorkflowId as DealWorkflowId || "retail-sale");
   const [selectedPresetId, setSelectedPresetId] = useDealDraftState("selectedPresetId", DEAL_START_PRESETS.find(item => item.workflowId === initialWorkflowId)?.id ?? "retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useDealDraftState("executionOpen", false);
+  const libraryEntryDraftId = savedDeal?.draftId() || "";
+  useEffect(() => {
+    if (!saveState.saved) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("formsLibrary") !== "1" || params.get("draftId") !== libraryEntryDraftId) return;
+    const timer = setTimeout(() => { setExecutionOpen(true); setDocumentEditor(true); setWorkspaceSection("documents"); }, 0);
+    return () => clearTimeout(timer);
+  }, [libraryEntryDraftId, saveState.saved, setExecutionOpen]);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [manualCustomerName, setManualCustomerName] = useDealDraftState("manualCustomerName", "");
   const [form, setForm] = useDealDraftState("form", {

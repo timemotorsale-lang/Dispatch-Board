@@ -19,6 +19,7 @@ import styles from "./crm-next-shell.module.css";
 
 import cashStyles from "./cash-retail-sale-desk.module.css";
 import { CashSalePrintLibrary } from "./cash-sale-print-library";
+import { useFormsLibraryEntry } from "./use-forms-library-entry";
 import { MnTitleFeeEditor } from "./mn-title-fee-editor";
 import { CASH_PRINT_CATALOG, cashDefaultFormIds, cashFormUnavailable, cashGenerationIds } from "@/lib/cash-sale-print-library";
 import { cashSelectedPrintPdf } from "@/lib/cash-sale-print-pdf";
@@ -52,6 +53,14 @@ export function CashRetailSaleDesk(props: Props) {
   useEffect(() => { setSelected(current => { const next=current.filter(id=>!cashFormUnavailable(id,facts)); return next.length===current.length ? current : next; }); }, [facts.warrantyType, facts.tradeVin, facts, setSelected]);
 
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [drawer, setDrawer] = useState(false), [preview, setPreview] = useState(false), [previewId, setPreviewId] = useState("");
+  useFormsLibraryEntry(draft?.draftId() || "", ids => {
+    if (ids !== null) {
+      const applicable = ids.filter(id => CASH_PRINT_CATALOG.some(form => form.id === id) && !cashFormUnavailable(id, facts));
+      setSelected(applicable);
+      setNotice(`${applicable.length} applicable forms selected from Forms Library.${applicable.length < ids.length ? " Conditional forms remain available after their requirements are completed." : ""}`);
+    }
+    setDrawer(true);
+  });
 
   const requestKey = useRef(crypto.randomUUID());
   const pendingAction = useRef(false);

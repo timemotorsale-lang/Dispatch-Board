@@ -594,7 +594,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "customers" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
+export function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "customers" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "forms" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
@@ -604,6 +604,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "appointments", href: "/crm-next/appointments", label: "Appointments", icon: CalendarDays },
     { id: "deals", href: "/crm-next/deals", label: "Deals", icon: DollarSign },
+    { id: "forms", href: "/crm-next/forms-library", label: "Forms Library", icon: FileText },
     { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
     { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
     { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain }

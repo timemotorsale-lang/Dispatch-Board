@@ -23,6 +23,7 @@ export type UnifiedCrmContractPacketInput = {
   dealerWarrantyOffered?: unknown;
   bhph?: unknown;
   retailCash?: unknown;
+  sharedSaleLibrary?: unknown;
   customerName?: unknown;
   dailyRental?: unknown;
   dealNumber?: unknown;

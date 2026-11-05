@@ -2,6 +2,7 @@ import { useCallback, useState, type SetStateAction } from "react";
 import type { UnifiedCrmContractPacketResult } from "@/server/unified-crm/contract-packet-contract";
 export const fixture = { snapshot: {} as Record<string, unknown>, failSave: false, saveCalls: 0 };
 const store = {
+  draftId: () => "fictional-draft",
   read: (key: string) => fixture.snapshot[key],
   saleStatus: "SOLD", paperworkComplete: false, completeSale: async () => {}, recordJacket: () => {},
   saveError: () => "Fixture save unavailable; entered details are retained.",

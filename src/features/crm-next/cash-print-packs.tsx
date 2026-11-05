@@ -1,17 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CASH_PRINT_CATALOG, CASH_PRINT_PACKS, cashPrintPackIds, validateCashPrintPack, type CashPrintPack } from "@/lib/cash-sale-print-library";
+import { CASH_PRINT_CATALOG, CASH_PRINT_PACKS, cashPrintPackIds, validateCashPrintPack, type CashPrintPack, type SaleLibraryForm } from "@/lib/cash-sale-print-library";
 import type { CashSaleFacts } from "@/lib/cash-retail-sale";
 import styles from "./cash-sale-print-library.module.css";
 
 type Policy = { staffCanEdit: boolean; canManage: boolean; canEdit: boolean; updatedAt: string | null };
 type Editor = { id: string; label: string; detail: string; ids: string[]; updatedAt?: string };
-export function CashPrintPacks({ facts, selected, onSelect, busy }: { facts: CashSaleFacts; selected: string[]; onSelect: (ids: string[]) => void; busy: boolean }) {
+export function CashPrintPacks({ facts, selected, onSelect, busy, catalog = CASH_PRINT_CATALOG, presets = CASH_PRINT_PACKS, formUnavailable, selectionOnly = false }: { facts: CashSaleFacts; selected: string[]; onSelect: (ids: string[]) => void; busy: boolean; catalog?: SaleLibraryForm[]; presets?: CashPrintPack[]; formUnavailable?: (id: string) => string; selectionOnly?: boolean }) {
   const [saved, setSaved] = useState<CashPrintPack[]>([]), [policy, setPolicy] = useState<Policy | null>(null);
   const [choice, setChoice] = useState(""), [editor, setEditor] = useState<Editor | null>(null);
   const [working, setWorking] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const pending = useRef(false), editorRoot = useRef<HTMLDivElement>(null);
-  const packs = [...CASH_PRINT_PACKS, ...saved], chosen = saved.find(pack => pack.id === choice);
+  const packs = [...presets, ...saved], chosen = saved.find(pack => pack.id === choice);
   const disabled = busy || working;
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -62,13 +62,13 @@ export function CashPrintPacks({ facts, selected, onSelect, busy }: { facts: Cas
   function apply() {
     const pack = packs.find(item => item.id === choice);
     if (!pack) return;
-    const ids = cashPrintPackIds([pack.id], facts, saved);
+    const ids = (selectionOnly ? [...new Set(pack.ids)] : cashPrintPackIds([pack.id], facts, [...presets, ...saved])).filter(id => catalog.some(form => form.id === id) && !formUnavailable?.(id));
     onSelect(ids);
     const skipped = pack.ids.filter(id => !ids.includes(id));
-    setNotice(`${pack.label}: ${ids.length} forms selected. You can adjust individual forms below.${skipped.length ? ` Not applicable to this deal: ${skipped.map(id => CASH_PRINT_CATALOG.find(form => form.id === id)?.label || id).join(", ")}.` : ""}`);
+    setNotice(`${pack.label}: ${ids.length} forms selected. You can adjust individual forms below.${skipped.length ? ` Not applicable to this deal: ${skipped.map(id => catalog.find(form => form.id === id)?.label || id).join(", ")}.` : ""}`);
   }
   return <section aria-label="Reusable print packs" className={styles.packManager}>
-    <div className={styles.filters}><label><span>Choose a print pack</span><select aria-label="Choose a print pack" value={choice} onChange={event => { setChoice(event.target.value); setNotice(""); }} disabled={disabled}><option value="">Choose a preset or saved team pack</option><optgroup label="Preset packs">{CASH_PRINT_PACKS.map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}</optgroup><optgroup label="Team packs">{saved.map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}</optgroup></select></label>
+    <div className={styles.filters}><label><span>Choose a print pack</span><select aria-label="Choose a print pack" value={choice} onChange={event => { setChoice(event.target.value); setNotice(""); }} disabled={disabled}><option value="">Choose a preset or saved team pack</option><optgroup label="Preset packs">{presets.map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}</optgroup><optgroup label="Team packs">{saved.map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}</optgroup></select></label>
       <button type="button" disabled={disabled || !choice} onClick={apply}>Use pack</button>
       <button type="button" disabled={disabled || loading || !policy?.canEdit} onClick={() => { setEditor({ id: crypto.randomUUID(), label: "", detail: "", ids: [...selected] }); setError(""); }}>Create pack from selected forms</button>
       {chosen && policy?.canEdit && <><button type="button" disabled={disabled} onClick={() => { setEditor({ ...chosen }); setError(""); }}>Edit shared pack</button><button type="button" disabled={disabled} onClick={() => void removePack()}>Remove shared pack</button></>}
@@ -83,7 +83,7 @@ export function CashPrintPacks({ facts, selected, onSelect, busy }: { facts: Cas
       <h3>{editor.updatedAt ? "Edit team print pack" : "Create team print pack"}</h3>
       <div className={styles.filters}><label>Pack name<input maxLength={80} value={editor.label} disabled={disabled} onChange={event => setEditor({ ...editor, label: event.target.value })} /></label><label>Description (optional)<input maxLength={300} value={editor.detail} disabled={disabled} onChange={event => setEditor({ ...editor, detail: event.target.value })} /></label></div>
       <p>Select the forms to save in this pack. Conditional forms are included only when applicable to the deal.</p>
-      <div className={styles.packChoices}>{CASH_PRINT_CATALOG.map(form => <label key={form.id} className={styles.check}><input type="checkbox" aria-label={`Pack form: ${form.label}`} checked={editor.ids.includes(form.id)} disabled={disabled} onChange={event => setEditor({ ...editor, ids: event.target.checked ? [...editor.ids, form.id] : editor.ids.filter(id => id !== form.id) })} />{form.label}</label>)}</div>
+      <div className={styles.packChoices}>{catalog.map(form => <label key={form.id} className={styles.check}><input type="checkbox" aria-label={`Pack form: ${form.label}`} checked={editor.ids.includes(form.id)} disabled={disabled} onChange={event => setEditor({ ...editor, ids: event.target.checked ? [...editor.ids, form.id] : editor.ids.filter(id => id !== form.id) })} />{form.label}</label>)}</div>
       <div className={styles.actions}><strong>{editor.ids.length} pack forms</strong><button type="button" className={styles.primary} disabled={disabled || !editor.label.trim() || !editor.ids.length || !policy?.canEdit} onClick={() => void savePack()}>{working ? "Saving pack…" : "Save print pack"}</button><button type="button" disabled={disabled} onClick={() => setEditor(null)}>Cancel pack editing</button></div>
     </div>}
   </section>;
