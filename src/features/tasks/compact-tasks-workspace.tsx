@@ -158,6 +158,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [contextVisible, setContextVisible] = useState(false);
   const [comfortable, setComfortable] = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
   const [view, setView] = useState(props.initialView === "board" ? "board" : "list");
   const [now] = useState(() => Date.now());
   const allCheckbox = useRef<HTMLInputElement>(null);
@@ -175,7 +176,24 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   const departments = [...new Set(tasks.map(task => task.workflowArea))].sort();
   const owners = [...new Map(tasks.filter(task => task.assignedUser?.id).map(task => [task.assignedUser.id, task.assignedUser])).values()].sort((a, b) => a.name.localeCompare(b.name));
   const base = props.consoleBaseHref ?? "/tasks";
-  const returnTo = `${base}?date=${encodeURIComponent(props.boardDate)}&queue=${encodeURIComponent(filters.queue)}&department=${encodeURIComponent(filters.department)}&owner=${encodeURIComponent(filters.owner)}&page=${activePage}&view=${view}`;
+  const searchStorageKey = `dispatch-board.tasks-search:${props.currentUserId}:${base}`;
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      const sort = params.get("sort");
+      const rows = params.get("rows");
+      let query = "";
+      try { query = sessionStorage.getItem(searchStorageKey) ?? ""; } catch { /* Browser storage is optional. */ }
+      setFilters(current => ({ ...current, query, sort: sort === "description" || sort === "due" ? sort : "priority" }));
+      if (rows === "25" || rows === "50" || rows === "all") setPageSize(rows);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [searchStorageKey]);
+  const returnParams = new URLSearchParams({
+    date: props.boardDate, queue: filters.queue, department: filters.department, owner: filters.owner,
+    page: String(activePage), view, sort: filters.sort, rows: pageSize
+  });
+  const returnTo = `${base}?${returnParams}`;
   const boardGroups = [...new Set(rows.map(task => task.status))];
   const activeFilterCount = [filters.queue !== "ALL", filters.owner, filters.department, filters.query].filter(Boolean).length;
   const overdueTasks = tasks.filter(task => isOverdue(task, now));
@@ -201,30 +219,47 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
     { label: "Needs review", queue: "READY_FOR_REVIEW", count: reviewCount, sort: "due" },
     { label: "Unassigned", queue: "UNASSIGNED", count: unassignedCount, sort: "due" }
   ];
+  function updateListUrl(values: Record<string, string>) {
+    const url = new URL(window.location.href);
+    for (const [key, value] of Object.entries(values)) {
+      if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
+    }
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }
   function changeView(next: string) {
     setView(next); setSelected(null);
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", next);
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    updateListUrl({ view: next });
+  }
+  function rememberSearch(query: string) {
+    try {
+      if (query) sessionStorage.setItem(searchStorageKey, query);
+      else sessionStorage.removeItem(searchStorageKey);
+    } catch {
+      return;
+    }
   }
   function changeFilter(key: keyof CompactTaskFilters, value: string) {
     setFilters(current => ({ ...current, [key]: value })); setPage(1); setSelected(null);
-    // Native history updates keep the shared sidebar in sync without reloading the list.
-    if (key === "queue" || key === "department" || key === "owner") {
-      const url = new URL(window.location.href);
-      if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
-      url.searchParams.delete("page");
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-    }
+    if (key === "query") {
+      rememberSearch(value);
+      updateListUrl({ page: "" });
+    } else updateListUrl({ [key]: value, page: "" });
   }
   function applyExecutionView(queue: string, sort?: string) {
     setFilters(current => ({ ...current, queue, sort: sort ?? current.sort }));
     setPage(1); setSelected(null);
-    const url = new URL(window.location.href);
-    url.searchParams.set("queue", queue);
-    if (sort) url.searchParams.set("sort", sort);
-    url.searchParams.delete("page");
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    updateListUrl({ queue, sort: sort ?? filters.sort, page: "" });
+  }
+  function resetFilters() {
+    const queue = base === "/my-tasks" ? "MY_TASKS" : "ALL";
+    setFilters({ queue, query: "", department: "", owner: "", sort: "priority" });
+    setPage(1); setSelected(null);
+    rememberSearch("");
+    updateListUrl({ queue, department: "", owner: "", sort: "", page: "" });
+  }
+  function changePage(next: number) {
+    setPage(next); setSelected(null);
+    updateListUrl({ page: String(next) });
   }
   function toggleCheck(id: string) { setChecked(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
   function closeDetails(id: string) { setSelected(null); document.getElementById(`task-open-${id}`)?.focus(); }
@@ -236,9 +271,10 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
     const link = document.createElement("a"); link.href = url; link.download = "tasks.csv"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   if (props.errorMessage) return <ErrorStateCard title="Tasks could not load" message={props.errorMessage} actions={[{ label: "Open Dispatch Board", href: "/board" }]} />;
-  return <section className={`${styles.workspace} ${comfortable ? styles.comfortable : ""}`} aria-label="Compact task workspace">
+  return <section className={`${styles.workspace} ${comfortable ? styles.comfortable : ""}`} aria-label="Compact task workspace" data-show-overview={showOverview}>
     <header className={styles.heading}><div><h1>Tasks</h1><span>{tasks.length} tasks · {props.boardDate}</span></div><div className={styles.headingActions}><Link className={styles.primary} href={`/tasks/intake?returnTo=${encodeURIComponent(returnTo)}`}><Plus size={15} /> Task intake</Link><button onClick={() => props.onAdvanced(filters)} type="button">Operations tools</button></div></header>
     <nav className={styles.tabs} aria-label="Task queues">{([['ALL', 'All tasks'], ['MY_TASKS', 'My tasks'], ['BLOCKED', 'Blocked'], ['READY_FOR_REVIEW', 'Needs review']] as const).map(([queue, label]) => <button key={queue} aria-pressed={filters.queue === queue} onClick={() => changeFilter("queue", queue)} type="button">{label}<span>{tasks.filter(task => matchesQueue(task, queue, props.currentUserId, Date.now(), props.boardDate)).length}</span></button>)}</nav>
+    <button className={styles.overviewToggle} type="button" aria-expanded={showOverview} onClick={() => setShowOverview(current => !current)}>{showOverview ? "Hide queue overview" : "Show queue overview"}</button>
     <section className={styles.healthStrip} aria-label="Task work health">
       {focusCards.map(card => {
         const Icon = card.icon;
@@ -251,14 +287,14 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
       <span>Execution views</span>
       {executionViews.map(view => <button key={view.label} aria-pressed={filters.queue === view.queue && (!view.sort || filters.sort === view.sort)} onClick={() => applyExecutionView(view.queue, view.sort)} type="button">{view.label}<strong>{view.count}</strong></button>)}
     </nav>
-    <div className={styles.toolbar}><div className={styles.viewSwitch} role="group" aria-label="Task display"><button type="button" aria-pressed={view === "list"} onClick={() => changeView("list")}><List size={15} /> List</button><button type="button" aria-pressed={view === "board"} onClick={() => changeView("board")}><LayoutGrid size={15} /> Board</button></div><label className={styles.search}><Search size={16} /><input aria-label="Search tasks" placeholder="Search description, RO, vehicle, or task #…" value={filters.query} onChange={event => changeFilter("query", event.target.value)} /></label>
+    <div className={styles.toolbar}><div className={styles.viewSwitch} role="group" aria-label="Task display"><button type="button" aria-pressed={view === "list"} onClick={() => changeView("list")}><List size={15} /> List</button><button type="button" aria-pressed={view === "board"} onClick={() => changeView("board")}><LayoutGrid size={15} /> Board</button></div><label className={styles.search}><Search size={16} /><input aria-label="Search tasks" type="search" enterKeyHint="search" placeholder="Search description, RO, vehicle, or task #…" value={filters.query} onChange={event => changeFilter("query", event.target.value)} /></label>
       <select aria-label="Filter department" value={filters.department} onChange={event => changeFilter("department", event.target.value)}><option value="">All departments</option>{departments.map(value => <option key={value} value={value}>{departmentLabel(value)}</option>)}</select>
       <select aria-label="Filter owner" value={filters.owner} onChange={event => changeFilter("owner", event.target.value)}><option value="">All owners</option>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select>
       <select aria-label="Sort tasks" value={filters.sort} onChange={event => changeFilter("sort", event.target.value)}><option value="priority">Priority first</option><option value="description">Description A–Z</option><option value="due">Due date</option></select>
       <details className={styles.options}><summary>Bulk / display</summary><div>
         <label>Status<select aria-label="Filter status" value={filters.queue} onChange={event => changeFilter("queue", event.target.value)}>{["MY_URGENT", "DUE_TODAY", ...executionQueueOptions].map(value => <option key={value} value={value}>{compactQueueLabel(value)}</option>)}</select></label>
         <label><input type="checkbox" checked={contextVisible} onChange={event => setContextVisible(event.target.checked)} /> Show vehicle / RO context</label><label><input type="checkbox" checked={comfortable} onChange={event => setComfortable(event.target.checked)} /> Comfortable row spacing</label>
-        <button onClick={exportTasks} type="button"><Download size={14} /> {checkedTasks.length ? `Export ${checkedTasks.length} selected` : "Export filtered tasks"}</button><button onClick={() => router.refresh()} type="button"><RefreshCw size={14} /> Refresh tasks</button><button onClick={() => { setFilters({ queue: base === "/my-tasks" ? "MY_TASKS" : "ALL", query: "", department: "", owner: "", sort: "priority" }); setPage(1); setSelected(null); }} type="button">Reset filters</button>
+        <button onClick={exportTasks} type="button"><Download size={14} /> {checkedTasks.length ? `Export ${checkedTasks.length} selected` : "Export filtered tasks"}</button><button onClick={() => router.refresh()} type="button"><RefreshCw size={14} /> Refresh tasks</button><button onClick={resetFilters} type="button">Reset filters</button>
       </div></details>
     </div>
     <div className={styles.freshness}><span>Live board</span><strong>Updated {generatedLabel}</strong><em>{activeFilterCount ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active` : "No filters active"} · {visible.length} visible</em></div>
@@ -287,7 +323,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
       </tr>{selected === task.id ? <tr><td colSpan={7} className={styles.detailCell}><CompactTaskDetails task={task} currentUserId={props.currentUserId} returnTo={returnTo} onClose={() => closeDetails(task.id)} /></td></tr> : null}</Fragment>)}
       {!rows.length ? <tr><td colSpan={7} className={styles.empty}>No tasks match this view. Adjust the filters or choose All tasks.</td></tr> : null}
     </tbody></table></div>}
-    <footer className={styles.footer}><span aria-live="polite">Showing {visible.length ? start + 1 : 0}–{Math.min(start + size, visible.length)} of {visible.length} tasks</span>{checkedTasks.length ? <button onClick={exportTasks} type="button">Export {checkedTasks.length} selected</button> : null}<div><button aria-label="Previous page" disabled={activePage === 1} onClick={() => { setPage(activePage - 1); setSelected(null); }} type="button"><ChevronLeft size={16} /></button><span>Page {activePage} of {pages}</span><button aria-label="Next page" disabled={activePage === pages} onClick={() => { setPage(activePage + 1); setSelected(null); }} type="button"><ChevronRight size={16} /></button><label>Rows <select aria-label="Rows per page" value={pageSize} onChange={event => { setPageSize(event.target.value); setPage(1); setSelected(null); }}><option value="25">25</option><option value="50">50</option><option value="all">All</option></select></label></div></footer>
+    <footer className={styles.footer}><span aria-live="polite">Showing {visible.length ? start + 1 : 0}–{Math.min(start + size, visible.length)} of {visible.length} tasks</span>{checkedTasks.length ? <button onClick={exportTasks} type="button">Export {checkedTasks.length} selected</button> : null}<div><button aria-label="Previous page" disabled={activePage === 1} onClick={() => changePage(activePage - 1)} type="button"><ChevronLeft size={16} /></button><span>Page {activePage} of {pages}</span><button aria-label="Next page" disabled={activePage === pages} onClick={() => changePage(activePage + 1)} type="button"><ChevronRight size={16} /></button><label>Rows <select aria-label="Rows per page" value={pageSize} onChange={event => { const rows = event.target.value; setPageSize(rows); setPage(1); setSelected(null); updateListUrl({ rows, page: "" }); }}><option value="25">25</option><option value="50">50</option><option value="all">All</option></select></label></div></footer>
   </section>;
 }
 

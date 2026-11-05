@@ -3,8 +3,18 @@ import { describe, expect, it } from "vitest";
 import { MobileCustomerIntake } from "@/features/mobile-capture/mobile-customer-intake";
 import { MobileVehicleIntake } from "@/features/mobile-capture/mobile-vehicle-intake";
 import { emptyIdFields } from "@/features/mobile-capture/id-capture-fields";
+import { captureReturnHref } from "@/features/mobile-capture/capture-navigation";
 
 describe("mobile creation entry points", () => {
+  it("returns both intake flows to the launching workspace and rejects external URLs", () => {
+    const returnTo = "/tasks?queue=MY_TASKS&page=2";
+    const customer = renderToStaticMarkup(<MobileCustomerIntake returnTo={captureReturnHref(returnTo)} />);
+    const vehicle = renderToStaticMarkup(<MobileVehicleIntake options={{ locations: [], users: [] }} returnTo={captureReturnHref(returnTo)} />);
+    expect(customer).toContain('href="/tasks?queue=MY_TASKS&amp;page=2"');
+    expect(vehicle).toContain('href="/tasks?queue=MY_TASKS&amp;page=2"');
+    expect(captureReturnHref("//other.example/path")).toBe("/?view=mobile");
+    expect(captureReturnHref(["/tasks", "/vehicles"])).toBe("/?view=mobile");
+  });
   it("offers barcode, ID photo and manual customer entry", () => {
     const markup = renderToStaticMarkup(<MobileCustomerIntake />);
     expect(markup).toContain("Scan ID barcode");

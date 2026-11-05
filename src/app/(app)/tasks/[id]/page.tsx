@@ -28,7 +28,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
     searchParams
   ]);
   const requestedReturnTo = resolvedSearchParams.returnTo;
-  const returnTo = requestedReturnTo?.startsWith("/tasks") ? requestedReturnTo : "/tasks";
+  const returnTo = typeof requestedReturnTo === "string" && /^\/(?:tasks|my-tasks)(?:[?#]|$)/.test(requestedReturnTo) && !/[\\\x00-\x1f]/.test(requestedReturnTo) ? requestedReturnTo : "/tasks";
   const task = await getTaskReadModelById(user, id);
 
   if (!task) {

@@ -14,7 +14,7 @@ type Options = { locations: { id: string; name: string }[]; users: { id: string;
 type Preview = { potentialDuplicate?: { id: string }; decode?: { decoded?: { modelYear?: number; make?: string; model?: string } } };
 type Receipt = { vehicleId: string; inventoryUnitId: string; inventoryNumber: string };
 
-export function MobileVehicleIntake({ options, initialVin = "" }: { options: Options; initialVin?: string }) {
+export function MobileVehicleIntake({ options, initialVin = "", returnTo = MOBILE_HOME_HREF }: { options: Options; initialVin?: string; returnTo?: string }) {
   const prefix = useId();
   const [vin, setVin] = useState(initialVin);
   const [scanner, setScanner] = useState(false);
@@ -90,13 +90,13 @@ export function MobileVehicleIntake({ options, initialVin = "" }: { options: Opt
   }
 
   return <section className={styles.workspace} aria-label="Mobile vehicle intake">
-    <nav className={styles.nav}><Link href={MOBILE_HOME_HREF}>← Mobile home</Link><Link href="/vehicles">Inventory</Link></nav>
+    <nav className={styles.nav}><Link href={returnTo}>{returnTo === MOBILE_HOME_HREF ? "← Mobile home" : "← Return to previous screen"}</Link><Link href="/vehicles">Inventory</Link></nav>
     <p className={styles.steps}>{receipt ? "Complete" : identity ? "2 · Review & add" : "1 · Capture VIN"}</p>
     <h1>{receipt ? "Vehicle added" : "Add vehicle"}</h1>
     {receipt ? <div className={styles.card} role="status"><h2>{[identity?.year, identity?.make, identity?.model].filter(Boolean).join(" ")}</h2><p>Inventory {receipt.inventoryNumber} is saved. Pricing, documents and other missing acquisition details remain pending.</p><Link className={styles.primary} href={`/vehicles/${encodeURIComponent(receipt.vehicleId)}/frontline`}>Open vehicle</Link><button type="button" onClick={reset}>Add another vehicle</button></div> : !identity ? <form className={styles.card} onSubmit={(event) => { event.preventDefault(); void lookup(vin); }}><fieldset disabled={busy}><h2>Scan it. Decode it. Review it.</h2><p>Use the VIN barcode on the door jamb or windshield. You can also choose a photo or enter the VIN.</p><button className={styles.primary} type="button" onClick={() => setScanner(true)}>Scan VIN barcode</button><label htmlFor={`${prefix}-vin`}>VIN<input id={`${prefix}-vin`} autoCapitalize="characters" autoComplete="off" spellCheck={false} minLength={17} maxLength={17} required value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} /></label><button className={styles.primary} type="submit">{busy ? "Checking VIN…" : "Decode & continue"}</button><p className={styles.hint}>Nothing is added until you confirm. Existing VINs are checked first.</p></fieldset></form> : <>
       <p className={styles.notice} role="status">{message}</p>
       {existing?.inventoryUnitId ? <div className={styles.card}><h2>Already in inventory</h2><p>{identity.year} {identity.make} {identity.model} · {existing.inventoryNumber}</p><Link className={styles.primary} href={`/vehicles/${encodeURIComponent(existing.vehicleId)}/frontline`}>Open existing vehicle</Link><button type="button" onClick={reset}>Scan another VIN</button></div> : <form onSubmit={save}>
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy} aria-busy={busy}>
           <div className={styles.card}><h2>Verify vehicle</h2><p>{identity.vin}</p>
             <label htmlFor={`${prefix}-year`}>Year<input id={`${prefix}-year`} required type="number" min={1886} max={new Date().getFullYear() + 2} readOnly={Boolean(existing)} value={identity.year} onChange={(event) => setIdentity({ ...identity, year: event.target.value })} /></label>
             <div className={styles.pair}>{(["make", "model"] as const).map((name) => <label key={name} htmlFor={`${prefix}-${name}`}>{name === "make" ? "Make" : "Model"}<input id={`${prefix}-${name}`} required maxLength={100} readOnly={Boolean(existing)} value={identity[name]} onChange={(event) => setIdentity({ ...identity, [name]: event.target.value })} /></label>)}</div>
@@ -104,12 +104,13 @@ export function MobileVehicleIntake({ options, initialVin = "" }: { options: Opt
           <div className={styles.card}><h2>Receiving details</h2><p className={styles.hint}>Only the essentials now. Add price, mileage and documents later.</p>
             <label htmlFor={`${prefix}-source`}>Acquired from<select id={`${prefix}-source`} required value={source} onChange={(event) => setSource(event.target.value)}><option value="">Choose source</option>{INTAKE_SOURCES.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
             <label htmlFor={`${prefix}-date`}>Acquisition date<input id={`${prefix}-date`} required type="date" value={acquiredOn} onChange={(event) => setAcquiredOn(event.target.value)} /></label>
-            <label htmlFor={`${prefix}-location`}>Receiving location<select id={`${prefix}-location`} required value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Choose location</option>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+            {options.locations.length === 1 ? <p><strong>Receiving location:</strong> {options.locations[0].name}</p> : <label htmlFor={`${prefix}-location`}>Receiving location<select id={`${prefix}-location`} required value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Choose location</option>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
             <label htmlFor={`${prefix}-staff`}>Responsible staff<select id={`${prefix}-staff`} required value={ownerUserId} onChange={(event) => setOwnerUserId(event.target.value)}><option value="">Choose staff</option>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
             <label htmlFor={`${prefix}-where`}>Where is the vehicle now?<input id={`${prefix}-where`} required maxLength={500} value={whereabouts} onChange={(event) => setWhereabouts(event.target.value)} placeholder="Example: Main lot, receiving row" /></label>
             <label htmlFor={`${prefix}-condition`}>Arrival condition / damage<textarea id={`${prefix}-condition`} required minLength={10} maxLength={1000} value={condition} onChange={(event) => setCondition(event.target.value)} /></label>
             <label className={styles.check}><input type="checkbox" required checked={ownership} onChange={(event) => setOwnership(event.target.checked)} />I reviewed this VIN and confirm dealership ownership or consignment authority.</label>
             <button className={styles.primary} type="submit">{busy ? "Adding to inventory…" : "Confirm & add to inventory"}</button>
+            {busy ? <p role="status">Saving. Keep this screen open.</p> : null}
             <button type="button" onClick={() => { if (window.confirm("Discard this unsaved vehicle intake and scan another VIN?")) reset(); }}>Change VIN</button>
           </div>
         </fieldset>

@@ -16,6 +16,7 @@ import {
 } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
 import { WorkspaceSwitcher } from "./workspace-switcher";
+import { MobileToolsNavigation } from "./mobile-tools-navigation";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { CrmModeSwitch } from "@/features/crm/crm-mode-switch";
 import { getAppBreadcrumb } from "./app-topbar-breadcrumbs";
@@ -299,6 +300,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
 
       {showCrmModeSwitch ? <CrmModeSwitch /> : null}
 
+      <MobileToolsNavigation key={pathname} />
       <div className="topbar-actions" ref={actionsRef}>
         <div aria-label="Application appearance" className="app-appearance-switch" role="group">
           <button aria-label="Use light appearance" aria-pressed={appearance === "light"} className={appearance === "light" ? "active" : ""} onClick={() => setAppearance("light")} title="Light appearance" type="button"><Sun size={14} /><span>Light</span></button>
@@ -307,6 +309,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         <div className="topbar-popover-shell ccc-search-shell">
           <button
             aria-expanded={isSearchOpen}
+            aria-label="Quick search"
             className="ccc-search-trigger"
             onClick={() => {
               setIsSearchOpen((current) => !current);

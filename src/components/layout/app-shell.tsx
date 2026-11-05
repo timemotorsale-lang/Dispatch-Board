@@ -12,6 +12,7 @@ import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
 import { MobileToolsNavigation } from "./mobile-tools-navigation";
+import { rememberMobileScroll, restoreMobileScroll } from "./mobile-scroll";
 import { ConsoleSidebar } from "./console-sidebar";
 import { getConsoleNavigation, isAppointmentConsolePath, isInventoryConsolePath, isOperationsCoordinatorConsolePath, isSalesConsolePath } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
@@ -57,6 +58,9 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const location = `${pathname}${searchParams.size ? `?${searchParams}` : ""}`;
+
+  useEffect(() => restoreMobileScroll(location), [location]);
   const managerContext = getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT")
     ? readManagerWorkspaceContext(searchParams)
     : null;
@@ -128,7 +132,13 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     const destination = new URL(anchor.href, window.location.origin);
     if (destination.origin !== window.location.origin || destination.pathname === "/manager-workspace" || destination.pathname.startsWith("/api/")) return;
 
-    const containedHref = withManagerWorkspaceContext(`${destination.pathname}${destination.search}${destination.hash}`, managerContext.mode);
+    let containedHref = withManagerWorkspaceContext(`${destination.pathname}${destination.search}${destination.hash}`, managerContext.mode);
+    const returnTo = destination.searchParams.get("returnTo");
+    if (destination.pathname.startsWith("/tasks/") && (pathname === "/tasks" || pathname === "/my-tasks") && returnTo?.split(/[?#]/, 1)[0] === pathname) {
+      const contained = new URL(containedHref, window.location.origin);
+      contained.searchParams.set("returnTo", withManagerWorkspaceContext(returnTo, managerContext.mode));
+      containedHref = contained.pathname + contained.search + contained.hash;
+    }
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) {
       anchor.href = containedHref;
       return;
@@ -183,7 +193,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
-        <MobileToolsNavigation key={`${pathname}?${searchParams}`} />
+        {salesConsole ? <MobileToolsNavigation standalone /> : null}
         <OperatingRhythmReminder />
         {salesConsole ? null : (
           <AppTopbar commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
@@ -198,7 +208,18 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         {managerContext ? <ManagerWorkspaceGuard /> : null}
         {advisorWorkspace ? <AdvisorWorkspaceTabs pathname={pathname} searchParams={new URLSearchParams(searchParams.toString())} /> : null}
         {showInventoryRouteTabs && !advisorWorkspace ? <InventoryConsoleRouteTabs allowedHrefs={consoleNavigation?.items.map(item => item.href) ?? []} pathname={pathname} searchParams={new URLSearchParams(searchParams.toString())} showFullNavigation={showFullInventoryNavigation} showReturn={!showSalesConsoleReturn} /> : null}
-        <main className="app-content" onClickCapture={preserveManagerContextOnLink} onSubmitCapture={preserveManagerContextOnForm}>{children}</main>
+        <main className="app-content" onClickCapture={(event) => {
+          if (!event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+            const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+            if (link && link.target !== "_blank" && !link.hasAttribute("download")) {
+              if (link.origin === window.location.origin && (link.pathname.startsWith("/tasks/") || link.pathname === "/capture" || link.pathname.startsWith("/capture/"))) {
+                const returnTo = new URLSearchParams(link.search).get("returnTo");
+                if (returnTo?.split(/[?#]/, 1)[0] === pathname) rememberMobileScroll(returnTo);
+              }
+            }
+          }
+          preserveManagerContextOnLink(event);
+        }} onSubmitCapture={preserveManagerContextOnForm}>{children}</main>
       </div>
     </div>
   );

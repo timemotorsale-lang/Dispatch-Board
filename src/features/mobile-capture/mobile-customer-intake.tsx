@@ -11,7 +11,7 @@ import styles from "./mobile-intake.module.css";
 
 type CustomerReceipt = { customer: { id: string; displayName: string }; duplicate: boolean };
 
-export function MobileCustomerIntake({ initialFields, onCancel, onSaved }: { initialFields?: FrontIdFields; onCancel?: () => void; onSaved?: () => void }) {
+export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnTo = MOBILE_HOME_HREF }: { initialFields?: FrontIdFields; onCancel?: () => void; onSaved?: () => void; returnTo?: string }) {
   const prefix = useId();
   const [fields, setFields] = useState(() => ({ ...emptyIdFields(), ...initialFields, dateOfBirth: customerDate(initialFields?.dateOfBirth ?? "") }));
   const [step, setStep] = useState(initialFields ? "CONTACT" : "SCAN");
@@ -27,6 +27,7 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved }: { ini
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<CustomerReceipt | null>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+  const contactHeading = useRef<HTMLHeadingElement>(null);
   const saving = useRef(false);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved }: { ini
     }).catch(() => { if (!cancelled) setOptionsState("ERROR"); });
     return () => { cancelled = true; };
   }, [retry]);
-  useEffect(() => { if (step === "CONTACT") phoneRef.current?.focus(); }, [step]);
+  useEffect(() => { if (step === "CONTACT") contactHeading.current?.focus(); }, [step]);
 
   function applyFields(next: FrontIdFields) {
     setFields({ ...next, dateOfBirth: customerDate(next.dateOfBirth) }); setReviewed(false); setScanner(null); setError(""); setStep("CONTACT");
@@ -62,17 +63,17 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved }: { ini
   }
 
   return <section className={styles.workspace} aria-label="Mobile customer intake">
-    <nav className={styles.nav}><Link href={MOBILE_HOME_HREF}>← Mobile home</Link>{onCancel ? <button type="button" disabled={busy} onClick={onCancel}>Back to capture</button> : null}</nav>
+    <nav className={styles.nav}><Link href={returnTo}>{returnTo === MOBILE_HOME_HREF ? "← Mobile home" : "← Return to previous screen"}</Link>{onCancel ? <button type="button" disabled={busy} onClick={onCancel}>Back to capture</button> : null}</nav>
     <p className={styles.steps}>{receipt ? "Complete" : step === "SCAN" ? "1 · Capture ID" : "2 · Contact & confirm"}</p>
     <h1>{receipt ? receipt.duplicate ? "Existing customer found" : "Customer added" : "Add customer"}</h1>
     {receipt ? <div className={styles.card} role="status"><h2>{receipt.customer.displayName}</h2><p>{receipt.duplicate ? "A record with this phone or email already exists. No duplicate was created and the existing ID details were not overwritten. Review the record before using it." : "Customer details saved. You can continue in the customer record."}</p><Link className={styles.primary} href={`/crm-next/customers/${encodeURIComponent(receipt.customer.id)}`}>Review customer record</Link><button type="button" onClick={() => { setReceipt(null); setStep("SCAN"); setReviewed(false); setError(""); }}>Add another customer</button></div> : <>
       {step === "SCAN" ? <div className={styles.card}><h2>Start with an ID</h2><p>Scan the back barcode for the quickest entry, or photograph the front. You’ll review the result before adding contact details.</p><button className={styles.primary} type="button" onClick={() => setScanner("BACK")}>Scan ID barcode</button><button className={styles.primary} type="button" onClick={() => setScanner("FRONT")}>Photograph ID front / back</button><div className={styles.actions}><button type="button" onClick={() => setStep("CONTACT")}>Enter details manually</button></div><p className={styles.hint}>Only reviewed information is saved. ID images are not attached by this customer flow. Scanning does not verify identity or grant messaging consent.</p></div> : <form onSubmit={save}>
-        <fieldset disabled={busy}>
-          <div className={styles.card}><h2>How can we reach them?</h2><p>Captured details are filled below. Add at least one contact method.</p>
+        <fieldset disabled={busy} aria-busy={busy}>
+          <div className={styles.card}><h2 ref={contactHeading} tabIndex={-1}>How can we reach them?</h2><p>Add a phone number or email. Scanned information is already filled in.</p>
             <label htmlFor={`${prefix}-phone`}>Phone number<input id={`${prefix}-phone`} ref={phoneRef} type="tel" autoComplete="tel" value={phone} maxLength={50} onChange={(event) => { setPhone(event.target.value); setReviewed(false); }} /></label>
             <label htmlFor={`${prefix}-email`}>Email address<input id={`${prefix}-email`} type="email" autoComplete="email" value={email} maxLength={200} onChange={(event) => { setEmail(event.target.value); setReviewed(false); }} /></label>
             <label htmlFor={`${prefix}-name`}>Full name<input id={`${prefix}-name`} required maxLength={160} autoComplete="name" value={fields.fullName} onChange={(event) => update("fullName", event.target.value)} /></label>
-            <label htmlFor={`${prefix}-location`}>Customer location<select id={`${prefix}-location`} required value={locationId} onChange={(event) => { setLocationId(event.target.value); setReviewed(false); }}><option value="">Choose location</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+            {locations.length === 1 ? <p><strong>Customer location:</strong> {locations[0].name}</p> : <label htmlFor={`${prefix}-location`}>Customer location<select id={`${prefix}-location`} required value={locationId} onChange={(event) => { setLocationId(event.target.value); setReviewed(false); }}><option value="">Choose location</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
             <details><summary>Review ID details &amp; address</summary>
               <label htmlFor={`${prefix}-address`}>Address<textarea id={`${prefix}-address`} maxLength={500} value={fields.address} onChange={(event) => update("address", event.target.value)} /></label>
               <label htmlFor={`${prefix}-dob`}>Date of birth<input id={`${prefix}-dob`} type="date" value={fields.dateOfBirth} onChange={(event) => update("dateOfBirth", event.target.value)} /></label>
@@ -82,6 +83,7 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved }: { ini
             </details>
             <label className={styles.check}><input type="checkbox" required checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} />I reviewed the captured identity details and contact information with the customer.</label>
             <button className={styles.primary} disabled={optionsState !== "READY" || !locations.length || busy} type="submit">{busy ? "Saving customer…" : "Confirm & add customer"}</button>
+            {busy ? <p role="status">Saving. Keep this screen open.</p> : null}
           </div>
         </fieldset>
       </form>}

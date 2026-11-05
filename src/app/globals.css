@@ -32705,3 +32705,47 @@ html[data-app-theme="dark"] .app-content :where(
   :is(.enterprise-task-workbench, .task-detail-page) .task-comments-actions { display: flex; flex-wrap: wrap; align-items: center; }
   :is(.enterprise-task-workbench, .task-detail-page) .task-comments-actions > * { width: auto; }
 }
+
+.task-review-mobile-action { display: none; }
+.etw-note-save-status { margin: 0 12px 12px; }
+.etw-note-save-status:empty { position: absolute; margin: 0; }
+
+@media (max-width: 900px) {
+  .app-frame:has(.unified-crm-shell) .ccc-topbar { overflow: visible; }
+  .app-frame:has(.sic-reference-v2) .app-topbar { display: flex; }
+}
+
+@media (max-width: 760px) {
+  .app-frame:has(.task-review-return) .oc-topbar-return[aria-label="Return to source workspace"] { display: none; }
+  .etw-simple-workbench:has(.task-review-mobile-action),
+  .etw-compact-task-card:has(.task-review-mobile-action) { overflow: visible; }
+  .task-review-mobile-action {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: grid;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--etw-line, #dfe5ee);
+    border-radius: 0 0 8px 8px;
+    background: var(--background, #f7f9fc);
+  }
+  .enterprise-task-workbench .task-review-mobile-action button {
+    min-height: 48px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: #174fa2;
+    color: #fff;
+    font-weight: 700;
+  }
+  .etw-compact-task-card:has(.task-review-mobile-action) .etw-compact-next-action nav,
+  .etw-compact-task-card:has(.task-review-mobile-action) .task-review-attention > button,
+  .etw-compact-task-card .etw-note-template-strip { display: none; }
+  .etw-compact-task-card :is(.etw-task-tool-workspace, .etw-compact-expanded-panel) { scroll-margin-top: 80px; }
+  .etw-compact-task-card .etw-notes-card { display: flex; flex-direction: column; }
+  .etw-compact-task-card .etw-note-history { order: 1; }
+  .etw-compact-task-card .etw-note-history article > span { flex-wrap: wrap; }
+  .etw-compact-task-card .etw-note-composer .rich-text-composer:not(.rich-text-composer-expanded) textarea {
+    min-height: 104px;
+    max-height: 40dvh;
+  }
+}

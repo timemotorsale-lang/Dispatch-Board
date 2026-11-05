@@ -1187,6 +1187,15 @@ export function TaskSimpleSummaryCard({
   const [activeTool, setActiveTool] = useState<TaskToolSelection>(
     ["subtask", "checklist", "updates", "repairDetails"].includes(initialTool) ? "" : initialTool
   );
+  const actionTarget = useRef<HTMLElement>(null);
+  const focusActionTarget = useRef(false);
+
+  useEffect(() => {
+    if (!focusActionTarget.current) return;
+    focusActionTarget.current = false;
+    actionTarget.current?.focus({ preventScroll: true });
+    actionTarget.current?.scrollIntoView({ block: "start" });
+  }, [activePanel, activeTool]);
 
   const togglePanel = (panel: SummaryPanel) => {
     setActiveTool("");
@@ -1302,7 +1311,7 @@ export function TaskSimpleSummaryCard({
       </div>
 
       {activeTool ? (
-        <section className="etw-task-tool-workspace" aria-label="Selected task tool">
+        <section className="etw-task-tool-workspace" aria-label="Selected task tool" ref={actionTarget} tabIndex={-1}>
           <header>
             <div>
               <small>Selected tool</small>
@@ -1402,7 +1411,7 @@ export function TaskSimpleSummaryCard({
 
       {!compactReview || needsPlanDecision && !activeTool && !activePanel ? <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} /> : null}
 
-      {activePanel ? <div className="etw-compact-expanded-panel">
+      {activePanel ? <div className="etw-compact-expanded-panel" ref={(element) => { actionTarget.current = element; }} tabIndex={-1}>
         {compactReview ? <header className="task-review-panel-heading"><strong>{activePanel === "comments" ? "Work log" : activePanel === "next" ? "Subtasks" : activePanel === "checklist" ? "Checklist" : "Repair details"}</strong><button aria-label="Close selected task tool" onClick={() => setActivePanel(null)} title="Close tool" type="button"><X size={17} /></button></header> : null}
         {activePanel === "progress" ? (
           <TaskStatusPanel
@@ -1494,6 +1503,16 @@ export function TaskSimpleSummaryCard({
           </section>
         ) : null}
       </div> : null}
+      {!activePanel && !activeTool ? (
+        <div className="task-review-mobile-action">
+          <button type="button" onClick={() => {
+            focusActionTarget.current = true;
+            openTool(needsStatusAction || (canUpdateStatus && currentStatus === TaskStatus.NOT_STARTED) ? "status" : "updates");
+          }}>
+            {needsStatusAction ? "Review requirements" : canUpdateStatus && currentStatus === TaskStatus.NOT_STARTED ? "Start task" : canComment && !isClosed ? "Record update" : "View work log"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

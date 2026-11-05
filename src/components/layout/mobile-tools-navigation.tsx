@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Camera, ChevronDown, FileText, House, IdCard, ScanBarcode } from "lucide-react";
-import { captureToolHref, captureTools, MOBILE_HOME_HREF } from "@/features/mobile-capture/capture-navigation";
+import { captureIntakeHref, captureToolHref, captureTools, MOBILE_HOME_HREF } from "@/features/mobile-capture/capture-navigation";
+import { rememberMobileScroll } from "./mobile-scroll";
 import styles from "./mobile-tools-navigation.module.css";
 
 const toolIcons = { photo: Camera, barcode: ScanBarcode, "id-front": IdCard, "id-barcode": IdCard, document: FileText };
 
-export function MobileToolsNavigation() {
+export function MobileToolsNavigation({ standalone = false }: { standalone?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -29,16 +30,21 @@ export function MobileToolsNavigation() {
   }, []);
 
   if (pathname === "/capture" || pathname.startsWith("/capture/")) return null;
-  return <nav className={styles.toolbar} aria-label="Mobile home and capture tools">
-    <Link className={styles.home} href={MOBILE_HOME_HREF} prefetch={false}><House aria-hidden="true" size={19} />Mobile home</Link>
+  function openCapture() {
+    rememberMobileScroll(returnTo);
+    if (detailsRef.current) detailsRef.current.open = false;
+  }
+
+  return <nav className={`${styles.toolbar} ${standalone ? styles.standalone : ""}`} aria-label="Mobile home and capture tools">
+    <Link aria-label="Mobile home" className={styles.home} href={MOBILE_HOME_HREF} prefetch={false}><House aria-hidden="true" size={19} /><span>Home</span></Link>
     <details className={styles.launcher} ref={detailsRef}>
-      <summary><Camera aria-hidden="true" size={19} />Scan &amp; capture<ChevronDown aria-hidden="true" size={16} /></summary>
+      <summary aria-label="Scan and capture"><Camera aria-hidden="true" size={19} /><span>Capture</span><ChevronDown aria-hidden="true" size={16} /></summary>
       <div className={styles.panel}>
         <strong>Choose a tool</strong><span>Return to this page when finished.</span>
-        <Link href="/capture/vehicle" prefetch={false}>Add vehicle · scan VIN</Link>
-        <Link href="/capture/customer" prefetch={false}>Add customer · scan ID</Link>
-        {captureTools.map((tool) => { const Icon = toolIcons[tool.key]; return <Link href={captureToolHref(tool.key, returnTo)} key={tool.key} prefetch={false} onClick={() => { if (detailsRef.current) detailsRef.current.open = false; }}><Icon aria-hidden="true" size={22} /><span><b>{tool.label}</b><small>{tool.detail}</small></span></Link>; })}
-        <Link href={captureToolHref(null, returnTo)} prefetch={false}>All capture tools</Link>
+        <Link href={captureIntakeHref("vehicle", returnTo)} prefetch={false} onNavigate={openCapture}>Add vehicle · scan VIN</Link>
+        <Link href={captureIntakeHref("customer", returnTo)} prefetch={false} onNavigate={openCapture}>Add customer · scan ID</Link>
+        {captureTools.map((tool) => { const Icon = toolIcons[tool.key]; return <Link href={captureToolHref(tool.key, returnTo)} key={tool.key} prefetch={false} onNavigate={openCapture}><Icon aria-hidden="true" size={22} /><span><b>{tool.label}</b><small>{tool.detail}</small></span></Link>; })}
+        <Link href={captureToolHref(null, returnTo)} prefetch={false} onNavigate={openCapture}>All capture tools</Link>
       </div>
     </details>
   </nav>;
