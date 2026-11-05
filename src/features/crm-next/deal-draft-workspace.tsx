@@ -125,6 +125,8 @@ export function DealDraftScope({ name, children }: { name: string; children: Rea
     if (!root.current || !store) return;
     const fields = store.read("fields") as Record<string, string | boolean> | undefined;
     for (const { input, key } of fieldEntries(root.current)) {
+      // Hook-managed controls restore from their typed snapshot, not legacy DOM copies.
+      if (input.closest("[data-deal-state-managed]")) continue;
       const value = fields?.[key];
       if (typeof value === "boolean" && input instanceof HTMLInputElement) input.checked = value;
       else if (typeof value === "string") input.value = value;

@@ -23,7 +23,7 @@ export async function changeDealPathway(actor: AuthenticatedUser | null, raw: Re
     if (!draft) throw new SalesDocumentsError("This saved deal is unavailable to your account.", 404);
     if (draft.pathway === target) return { id, pathway: target, revision: draft.revision, unchanged: true };
     if (draft.revision !== raw.revision) throw new SalesDocumentsError("This deal changed. Refresh its details before changing the pathway.", 409);
-    const activeAssignment = await database.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT"] } } });
+    const activeAssignment = await database.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
     const snapshot = object(draft.snapshot), jackets = object(snapshot.jackets), references = object(snapshot.references);
     const jacketIds = Object.values(jackets).filter((value): value is string => typeof value === "string");
     const refs = Object.values(references).filter((value): value is string => typeof value === "string");

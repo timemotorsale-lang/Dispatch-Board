@@ -22,7 +22,7 @@ export type DealVehicleChoice = {
 export type DealIdentity = { customerId: string; vehicleId: string; inventoryUnitId: string | null; sourceDraftId?: string; sourceJacketId?: string; sourceVehicleId?: string; vehicle?: DealVehicleChoice | null };
 export const emptyDealIdentity: DealIdentity = { customerId: "", vehicleId: "", inventoryUnitId: null, sourceDraftId: "", sourceJacketId: "", sourceVehicleId: "", vehicle: null };
 export function vehicleUseOverlaps(existing: { status: string; startsAt: Date; expectedReturnAt: Date }, startsAt: Date, endsAt: Date) {
-  return existing.status === "CHECKED_OUT" || (existing.status === "RESERVED" && existing.startsAt < endsAt && existing.expectedReturnAt > startsAt);
+  return ["CHECKED_OUT", "RETURNED_REVIEW"].includes(existing.status) || (existing.status === "RESERVED" && existing.startsAt < endsAt && existing.expectedReturnAt > startsAt);
 }
 export function normalizeVehicleUseCommand(raw: Record<string, unknown>) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Enter a valid vehicle-use request.");

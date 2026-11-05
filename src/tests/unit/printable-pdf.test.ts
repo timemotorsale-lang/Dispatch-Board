@@ -19,6 +19,18 @@ describe("printable PDF", () => {
   expect(openPrintablePdfDocument({contentType:"application/pdf",contentBase64:btoa("%PDF-1.7")})).toBe(false);
   expect(revoke).toHaveBeenCalledWith("blob:printable-agreement");
  });
+ it("fills the window reserved during the user's click without opening a second popup",()=>{
+  const {open,timer}=setup();
+  const viewer={opener:{},closed:false,location:{href:"about:blank"}} as unknown as Window;
+  expect(openPrintablePdfDocument({contentType:"application/pdf",contentBase64:btoa("%PDF-1.7")},viewer)).toBe(true);
+  expect(viewer.location.href).toBe("blob:printable-agreement");
+  expect(open).not.toHaveBeenCalled();expect(timer).toHaveBeenCalledOnce();
+ });
+ it.each([null,{closed:true}])("does not attempt another async popup when the reserved viewer is unavailable",viewer=>{
+  const {open,revoke}=setup();
+  expect(openPrintablePdfDocument({contentType:"application/pdf",contentBase64:btoa("%PDF-1.7")},viewer as Window|null)).toBe(false);
+  expect(open).not.toHaveBeenCalled();expect(revoke).toHaveBeenCalledOnce();
+ });
  it.each(["not pdf","%%%"])("rejects invalid document bytes: %s",value=>{
   const {open}=setup();expect(openPrintablePdfDocument({contentType:"application/pdf",contentBase64:value})).toBe(false);expect(open).not.toHaveBeenCalled();
  });
