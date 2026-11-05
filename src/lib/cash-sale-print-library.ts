@@ -25,8 +25,18 @@ export const CASH_PRINT_PACKS = [
   {id:"delivery",label:"Delivery & promises pack",detail:"Delivery receipt, We Owe, insurance and payment records.",ids:["delivery-documents","we-owe","insurance-proof","funding-proof"]},
   {id:"full",label:"Full applicable cash packet",detail:"All applicable cash-sale forms. Arbitration remains a separate optional selection.",ids:CASH_SALE_FORM_IDS.filter(id=>id!=="arbitration-agreement")}
 ];
-export function cashPrintPackIds(packIds:string[],facts:CashSaleFacts) {
-  return [...new Set(CASH_PRINT_PACKS.filter(pack=>packIds.includes(pack.id)).flatMap(pack=>pack.ids))].filter(id=>!cashFormUnavailable(id,facts));
+export type CashPrintPack = { id: string; label: string; detail: string; ids: string[]; updatedAt?: string; canEdit?: boolean };
+export function cashPrintPackIds(packIds:string[],facts:CashSaleFacts, custom: CashPrintPack[] = []) {
+  return [...new Set([...CASH_PRINT_PACKS, ...custom].filter(pack=>packIds.includes(pack.id)).flatMap(pack=>pack.ids))].filter(id=>CASH_PRINT_CATALOG.some(form=>form.id===id) && !cashFormUnavailable(id,facts));
+}
+export function validateCashPrintPack(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Enter the print pack name and choose its forms.");
+  const raw = value as Record<string, unknown>;
+  const label = typeof raw.label === "string" ? raw.label.trim() : "";
+  const detail = typeof raw.detail === "string" ? raw.detail.trim() : "";
+  if (!label || label.length > 80 || detail.length > 300) throw new Error("Use a pack name of 1–80 characters and an optional description of up to 300 characters.");
+  if (!Array.isArray(raw.ids) || !raw.ids.length || raw.ids.length > CASH_PRINT_CATALOG.length || raw.ids.some(id=>typeof id !== "string" || !CASH_PRINT_CATALOG.some(form=>form.id===id))) throw new Error("Choose at least one available form for this print pack.");
+  return { label, detail, ids: [...new Set(raw.ids as string[])] };
 }
 export function cashGenerationIds(selected:string[],facts:CashSaleFacts) {
   return [...new Set([...CASH_SALE_REQUIRED_IDS,...selected,...(facts.tradeVin ? ["trade-documents"] : [])])].filter(id=>CASH_PRINT_CATALOG.some(form=>form.id===id));

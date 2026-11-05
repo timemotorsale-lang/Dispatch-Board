@@ -4,6 +4,32 @@ import { PDFDocument } from "pdf-lib";
 import { readFile } from "node:fs/promises";
 import { CASH_PRINT_CATALOG } from "../../../lib/cash-sale-print-library";
 type Fixture = { controls: { generations: number; failGeneration: boolean; delay: number }; fixture: { failSave: boolean; saveCalls: number } };
+test("compact fee dropdown selects item/amount rows without stretching the price grid", async ({ page }) => {
+  await page.goto("/");
+  const price = page.getByLabel("Agreed vehicle price", { exact: true });
+  const before = await price.boundingBox();
+  await page.getByText("Choose fees", { exact: true }).click();
+  await expect(page.getByLabel("Typical Minnesota title fee schedule", { exact: true })).toBeHidden();
+  const title = page.getByRole("checkbox", { name: "Select Minnesota title fee", exact: true });
+  await title.check();
+  await page.getByLabel("Amount: Minnesota title fee", { exact: true }).fill("9.25");
+  await title.uncheck(); await title.check();
+  await expect(page.getByLabel("Amount: Minnesota title fee", { exact: true })).toHaveValue("9.25");
+  await page.getByRole("checkbox", { name: "Select Regular / disability plates (double)", exact: true }).check();
+  await expect(page.getByLabel("Title, transfer & plate fees", { exact: true })).toHaveValue("$24.75");
+  await page.getByRole("checkbox", { name: "Select Regular / disability plate (single)", exact: true }).check();
+  await expect(page.getByRole("checkbox", { name: "Select Regular / disability plates (double)", exact: true })).not.toBeChecked();
+  await expect(page.getByLabel("Title, transfer & plate fees", { exact: true })).toHaveValue("$22.75");
+  expect((await price.boundingBox())!.height).toBe(before!.height);
+  await page.getByLabel("Amount: Minnesota title fee", { exact: true }).press("Escape");
+  await expect(title).toBeHidden();
+  await expect(page.getByText("Choose fees", { exact: true })).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText("Choose fees", { exact: true }).click();
+  const menu = page.getByRole("group", { name: "Title fee item selector", exact: true });
+  await expect(menu).toBeVisible();
+  await expect.poll(async () => { const box = (await menu.boundingBox())!; return box.x >= -1 && box.x + box.width <= 391 && box.y >= -1 && box.y + box.height <= 845; }).toBe(true);
+});
 test("limited warranty fills missing terms inside the print workspace and preserves staff edits", async ({ page }) => {
   await page.goto("/");
   await page.getByLabel("Covered systems", { exact: true }).fill("");
@@ -28,7 +54,8 @@ test("limited warranty fills missing terms inside the print workspace and preser
 test("MN title fee selector sums schedules, edits and custom fees into the same saved title total", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByLabel("Title, transfer & plate fees", { exact: true })).toHaveValue("$0.00");
-  await page.getByText("Select / edit MN title, transfer & plate fees", { exact: true }).click();
+  await page.getByText("Choose fees", { exact: true }).click();
+  await page.getByText("More options", { exact: true }).click();
   await page.getByLabel("Typical Minnesota title fee schedule", { exact: true }).selectOption("one-lien");
   await page.getByRole("button", { name: "Use selected schedule — replace current fees", exact: true }).click();
   await expect(page.getByLabel("Title, transfer & plate fees", { exact: true })).toHaveValue("$38.00");
@@ -37,7 +64,7 @@ test("MN title fee selector sums schedules, edits and custom fees into the same 
   await page.getByRole("button", { name: "Add fee", exact: true }).click();
   await page.getByLabel("Amount: Other quoted title fee", { exact: true }).fill("4.25");
   await expect(page.getByLabel("Title, transfer & plate fees", { exact: true })).toHaveValue("$43.25");
-  await page.getByRole("button", { name: "Remove Lien recording fee (per lien)", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Select Lien recording fee (per lien)", exact: true }).uncheck();
   await expect(page.getByLabel("Title, transfer & plate fees", { exact: true })).toHaveValue("$41.25");
   await page.getByLabel("Add Minnesota title or plate fee", { exact: true }).selectOption("plate-double");
   await page.getByRole("button", { name: "Add fee", exact: true }).click();
