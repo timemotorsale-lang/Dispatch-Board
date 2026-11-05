@@ -131,3 +131,28 @@
 @media (max-width: 760px) { .workspace .owner { width: 78px; } .workspace .priority { width: 54px; } .workspace .status { width: 100px; } .workspace .due { width: 78px; } .workspace .number { width: 88px; } .toolbar select { max-width: 155px; } }
 @media (max-width: 620px) { .workspace .priority, .workspace .owner, .workspace .due { display: none; } .workspace .status { width: 91px; } .workspace .number { width: 86px; } .tableWrap { padding: 0 8px; } .toolbar { padding: 10px 8px; } .search { flex-basis: 100%; } .mobileMeta { display: block; color: var(--muted); font-size: 11px; } .rowMeta { display: none; } .descriptionCell { grid-template-columns: 1fr; } .quickActions { justify-content: flex-start; } .workspace .title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } .tabs { padding: 0 10px; gap: 12px; } .heading { padding: 12px 10px; flex-wrap: wrap; } .healthStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-inline: 10px; } .healthCard { padding: 9px !important; } .healthCard em { display: none; } .executionViews, .freshness { padding-inline: 10px; } .bulkBar { margin-inline: 10px; flex-wrap: wrap; } .bulkBar span { flex-basis: 100%; } .footer { padding: 10px; } }
 @media (pointer: coarse) { .workspace button, .workspace select, .options summary { min-height: 44px; } .search input { min-height: 30px; font-size: 16px; } .workspace input[type="checkbox"] { width: 20px; height: 20px; } }
+@media (max-width: 760px) {
+  .workspace { font-size: 16px; line-height: 1.5; }
+  .workspace :is(button, select, input, textarea), .workspace table { font-size: 16px; }
+  .workspace :is(button, select, summary), .workspace a { min-height: 44px; min-width: 44px; }
+  .workspace a { display: inline-flex; align-items: center; }
+  .workspace button, .workspace select { padding: 10px 12px; }
+  .heading h1 { font-size: 28px; line-height: 1.2; }
+  .detailHeading h2 { font-size: 21px; line-height: 1.3; }
+  .healthCard strong { font-size: 26px; line-height: 1.2; }
+  .metadata, .detailActions span, .detail p, .detail label, .detail small { font-size: 16px; line-height: 1.5; }
+  .workspace .title, .cardHeading h2, .cardHeading h2 button { font-size: 19px; line-height: 1.35; }
+  .taskCard { padding: 16px; gap: 12px; }
+  .cardMeta, .cardMeta strong, .cardContext, .cardFooter, .mobileMeta, .rowMeta, .context, .workspace .due, .workspace .number { font-size: 16px; line-height: 1.5; }
+  .cardActions, .quickActions { gap: 10px; flex-wrap: wrap; }
+  .cardActions { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+  .cardActions > *, .quickActions > * { padding: 10px 12px; }
+  .cardFooter label { min-height: 44px; gap: 10px; }
+  .badge { padding: 6px 10px; font-size: 14px; white-space: normal; }
+  .toolbar, .tabs, .footer { gap: 12px; flex-wrap: wrap; }
+  .search { min-height: 44px; }
+  .workspace td { padding-top: 12px; padding-bottom: 12px; }
+  .workspace button.title { display: block; overflow: visible; }
+  .workspace .number { width: 94px; }
+  .footer > div { flex-wrap: wrap; gap: 10px; }
+}

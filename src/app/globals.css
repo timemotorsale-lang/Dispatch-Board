@@ -32648,3 +32648,60 @@ html[data-app-theme="dark"] .app-content :where(
   opacity: 1;
   font-weight: 600;
 }
+
+@media (max-width: 760px) {
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) :is(p, label, dt, dd, small, input, select, textarea, button, a, .rich-text-content) {
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) h1,
+  .task-review-compact .task-title-editor h1 {
+    font-size: clamp(24px, 6vw, 30px) !important;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) h2 {
+    font-size: 21px !important;
+    line-height: 1.3;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) h3 {
+    font-size: 19px !important;
+    line-height: 1.35;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) :is(button, select, input:not([type="checkbox"]):not([type="radio"]), a, summary) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) :is(button, select, .pill) {
+    padding: 10px 12px;
+    white-space: normal;
+  }
+  :is(.etw-tabs, .etw-compact-task-links, .task-review-worklog, .etw-command-actions) {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  :is(.etw-tabs, .etw-compact-task-links, .task-review-worklog, .etw-command-actions, .task-review-return) a {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 12px;
+  }
+  .enterprise-task-workbench :is(.etw-compact-title-row, .etw-tags, .task-review-state) { gap: 10px; flex-wrap: wrap; }
+  .enterprise-task-workbench :is(.etw-compact-title-row b, .etw-tags span, .task-review-state b) { padding: 6px 10px; font-size: 16px; line-height: 1.4; }
+  .enterprise-task-workbench :is(.etw-card, .etw-compact-task-body) { padding: 16px; }
+  .enterprise-task-workbench :is(.etw-facts, .etw-compact-task-fields, .task-review-detail-list) { gap: 12px; }
+  .enterprise-task-workbench :is(dd, p) { overflow-wrap: anywhere; }
+  :is(.enterprise-task-workbench, .task-detail-page) .task-comments-form textarea {
+    min-height: 112px;
+    height: 112px;
+    max-height: 50vh;
+    padding: 12px;
+    resize: vertical;
+  }
+  :is(.enterprise-task-workbench, .task-detail-page) :is(.task-comments-form, .task-comments-list, .task-comments-actions) { gap: 12px; }
+  :is(.enterprise-task-workbench, .task-detail-page) .task-comments-actions { display: flex; flex-wrap: wrap; align-items: center; }
+  :is(.enterprise-task-workbench, .task-detail-page) .task-comments-actions > * { width: auto; }
+}
