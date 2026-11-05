@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createServiceIntakeCustomer } from "@/server/service-intake/customer-service";
+import { createServiceIntakeCustomer, ServiceIntakeCustomerAccessConflict } from "@/server/service-intake/customer-service";
 
 export async function POST(request: Request) {
   try {
@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Customer could not be created.";
-    const status = message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : 400;
+    const status = error instanceof ServiceIntakeCustomerAccessConflict ? 409 : message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }

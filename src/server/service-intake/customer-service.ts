@@ -6,6 +6,13 @@ import { prisma } from "@/server/db/client";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
+import { evaluateUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
+
+export class ServiceIntakeCustomerAccessConflict extends Error {
+  constructor() {
+    super("A customer with this phone number or email already exists outside your access. Ask a manager to review the existing record and assign it if appropriate. No duplicate was created.");
+  }
+}
 
 type CustomerInput = {
   address?: unknown;
@@ -95,6 +102,9 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
   assertVehicleCapability({ actor: user, capability: "CUSTOMER_INTAKE_CREATE", grants, locationId, now: new Date() });
 
   const normalizedPhone = normalizeServiceIntakePhoneNumber(phoneNumber);
+  const recordScope = evaluateUnifiedCrmCustomerReadPolicy(user).recordScope;
+  const scopedOwnerId = recordScope?.kind === "OWNER" ? recordScope.ownerUserId : undefined;
+  const dealIntake = options.source === "DEAL_SHARED_CUSTOMER";
   return prisma.$transaction(async (tx) => {
   if (!await tx.location.findFirst({ where: { id: locationId, organizationId }, select: { id: true } })) throw new Error("Choose a location belonging to this organization.");
   for (const key of [normalizedPhone, email].filter(Boolean).sort()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + key}, 0))`;
@@ -109,9 +119,15 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
         ...(normalizedPhone ? [{ phoneNumber: normalizedPhone }] : []),
       ],
     },
-    select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true },
+    select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true, ownerUserId: true },
   });
-  if (duplicate) return { customer: duplicate, duplicate: true };
+  if (duplicate) {
+    if (!dealIntake && scopedOwnerId && duplicate.ownerUserId !== scopedOwnerId) {
+      throw new ServiceIntakeCustomerAccessConflict();
+    }
+    const { id, customerNumber, displayName, phoneNumber, email } = duplicate;
+    return { customer: { id, customerNumber, displayName, phoneNumber, email }, duplicate: true };
+  }
 
   const id = randomUUID();
   const correlationId = randomUUID();
@@ -132,7 +148,7 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
         idLast4: last4(idNumber),
         preferredContactMethod,
         sourceCode: options.source ?? "SERVICE_INTAKE",
-        ...(options.source === "DEAL_SHARED_CUSTOMER" ? { ownerUserId: user.id } : {}),
+        ...(dealIntake || scopedOwnerId ? { ownerUserId: user.id } : {}),
       },
       select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true },
     });
