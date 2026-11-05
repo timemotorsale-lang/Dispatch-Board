@@ -34,7 +34,7 @@ describe("next deal action",()=>{
  it("separates sold paperwork from finalization and rental handoff",()=>{
   expect(dealNextAction({...base,status:"SOLD"}).section).toBe("completion");
   expect(dealNextAction({...base,status:"SOLD",finalized:true}).section).toBe("documents");
-  expect(dealNextAction({...base,pathway:"daily-rental"}).action).toBe("Open assignment");
+  expect(dealNextAction({...base,pathway:"daily-rental"})).toMatchObject({action:"Rental checkout & return",section:"completion"});
   expect(dealNextAction({...base,status:"ARCHIVED"}).section).toBe("activity");
  });
 });

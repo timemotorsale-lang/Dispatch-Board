@@ -492,11 +492,24 @@ describe("CRM Next pages", () => {
     expect(uploadAction).not.toContain('type="file"');
   });
 
-  it("renders the executable revenue desk without staff review workflow language", async () => {
+  it("asks staff to choose a revenue pathway before opening a new deal", async () => {
+    process.env.CRM_NEXT = "REVIEW";
+    mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
+    const markup = renderToStaticMarkup(await CrmNextDealStartPage());
+    expect(markup).toContain("Step 1 · Choose the revenue pathway");
+    expect(markup).toContain("Choose a revenue pathway…");
+    expect(markup).toContain('required=""');
+    expect(markup).toContain('disabled=""');
+    for (const pathway of ["Retail Cash / One Pay", "Lease-to-Own", "Daily Rental", "Test Drive"]) expect(markup).toContain(pathway);
+    expect(markup).not.toContain("Deal workspace sections");
+    expect(markup).not.toContain("Review shell");
+  });
+
+  it("renders the explicitly selected revenue desk without staff review workflow language", async () => {
     process.env.CRM_NEXT = "REVIEW";
     mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
 
-    const markup = renderToStaticMarkup(await CrmNextDealStartPage());
+    const markup = renderToStaticMarkup(await CrmNextDealStartPage({ searchParams: Promise.resolve({ pathway: "retail-sale" }) }));
 
     expect(markup).toContain("Deal overview");
     expect(markup).toContain("Deal workspace sections");
