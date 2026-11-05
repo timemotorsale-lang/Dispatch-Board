@@ -209,6 +209,7 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
         await audit(db, jacket, user, raw.action, `${requirement.label}: ${note || "Marked applicable"}`);
       } else if (raw.action === "FINALIZE") {
         const current = view(jacket), phase = current.phase;
+        if (jacket.pathway === "daily-rental" && phase === "RETURN" && await db.vehicleUseBooking.count({ where: { agreementJacketId: jacket.id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Record the actual vehicle return before closing rental paperwork.", 409);
         if (phase === "RETURN" && !jacket.versions.some((item) => item.phase === "CHECKOUT")) throw new SalesDocumentsError("Finalize checkout before receiving the vehicle.");
         const pending = current.checklist.filter((item) => item.blocker);
         const fundingPending = raw.disposition === "DELIVERED_FUNDING_PENDING" && ["outside-finance-one-pay", "finance"].includes(jacket.pathway);

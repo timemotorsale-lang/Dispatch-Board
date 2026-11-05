@@ -33,6 +33,11 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
   const [lifecycle, setLifecycle] = useState<{ deal: SavedDeal; action: DealLifecycleAction } | null>(null);
   useEffect(() => { if (archiving) archiveDialog.current?.showModal(); }, [archiving]);
   const [data, setData] = useState<Result | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [reload, setReload] = useState(0);
+  useEffect(() => {
+    if (!dashboard) return;
+    const timer = setInterval(() => { if (document.visibilityState === "visible") setReload(value => value + 1); }, 60000);
+    return () => clearInterval(timer);
+  }, [dashboard]);
   const [restored, setRestored] = useState(!dashboard);
   useEffect(() => {
     if (!dashboard) return;

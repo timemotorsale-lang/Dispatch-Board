@@ -97,6 +97,7 @@ export async function saveDealDeskDraft(actor: AuthenticatedUser | null, raw: Re
     const previousIdentity = current.snapshot && typeof current.snapshot === "object" && !Array.isArray(current.snapshot) ? current.snapshot["desk:identity"] : null;
     if (previousIdentity && typeof previousIdentity === "object" && !Array.isArray(previousIdentity) && previousIdentity.customerId && !identity?.customerId) throw new SalesDocumentsError("Keep the shared customer link when saving this deal. Use the selector to change customer through a separate deal.");
     if (current.pathway !== pathway && await db.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before changing its deal path.", 409);
+    if (current.pathway && current.pathway !== pathway) throw new SalesDocumentsError("Use Change revenue pathway to update this saved deal with a reason and preserved history.", 409);
     const updated = await db.dealDeskDraft.updateMany({ where: { id, ...access, revision: Number(raw.revision) }, data: { ...data, ...statusData, revision: { increment: 1 } } });
     if (updated.count !== 1) throw new SalesDocumentsError("This draft was changed in another window. Reopen the saved draft before continuing; your current entries have not been replaced.", 409);
     await persistDealContext(actor, db, id, data.customerId, snapshot as Record<string, unknown>);

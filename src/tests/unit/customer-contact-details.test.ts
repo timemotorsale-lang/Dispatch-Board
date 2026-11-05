@@ -1,4 +1,4 @@
-import {beforeEach,describe,expect,it,vi} from "vitest";
+import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
 import type {AuthenticatedUser} from "@/server/auth/store";
 const mocks=vi.hoisted(()=>({findFirst:vi.fn(),organizations:vi.fn(),actor:vi.fn()}));
 vi.mock("@/server/db/client",()=>({prisma:{customer:{findFirst:mocks.findFirst}}}));
@@ -6,9 +6,11 @@ vi.mock("@/server/repositories/unified-crm-customer-read-repository",()=>({creat
 vi.mock("@/server/auth/current-user",()=>({getCurrentUser:mocks.actor}));
 import {getCustomerContactDetails} from "@/server/services/customer-contact-details-service";
 import {GET} from "@/app/api/crm/v1/customers/[customerId]/contact-details/route";
+import {GET as crmNextGET} from "@/app/api/crm-next/customers/[customerId]/contact-details/route";
 const manager:AuthenticatedUser={id:"manager-a",name:"Manager",email:"manager@test.local",isActive:true,roles:["General Manager"],duties:{direct:[],roleDefaults:[],all:[]}};
 const options={nodeEnv:"development",readMode:"REVIEW",shellMode:"REVIEW"};
 describe("customer contact reveal",()=>{
+ afterEach(()=>vi.unstubAllEnvs());
  beforeEach(()=>{vi.resetAllMocks();mocks.organizations.mockResolvedValue(["org-a"]);mocks.findFirst.mockResolvedValue({phoneNumber:"+16125550100",email:"staff@example.test",contactPoints:[]});});
  it("returns only phone and email after enforcing organization and customer scope",async()=>{
   expect(await getCustomerContactDetails(manager,"customer-a",options)).toEqual({customerId:"customer-a",contacts:[{type:"PHONE",value:"+16125550100"},{type:"EMAIL",value:"staff@example.test"}]});
@@ -36,5 +38,25 @@ describe("customer contact reveal",()=>{
  it("does not allow browsers or intermediaries to cache contact responses",async()=>{
   mocks.actor.mockResolvedValue(null);const result=await GET(new Request("http://localhost/contact"),{params:Promise.resolve({customerId:"customer-a"})});
   expect(result.status).toBe(401);expect(result.headers.get("cache-control")).toBe("private, no-store");
+ });
+ it("serves enabled CRM Next contacts in production independently of legacy rollout flags",async()=>{
+  vi.stubEnv("NODE_ENV","production");vi.stubEnv("CRM_NEXT","REVIEW");vi.stubEnv("UNIFIED_CRM_CUSTOMER_READ_MODE","OFF");vi.stubEnv("UNIFIED_CRM_SHELL_MODE","OFF");mocks.actor.mockResolvedValue(manager);
+  const result=await crmNextGET(new Request("http://localhost/api/crm-next/customers/customer-a/contact-details"),{params:Promise.resolve({customerId:"customer-a"})});
+  expect(result.status).toBe(200);expect(result.headers.get("cache-control")).toBe("private, no-store");expect(result.headers.get("vary")).toBe("Cookie");
+  expect(await result.json()).toEqual({customerId:"customer-a",contacts:[{type:"PHONE",value:"+16125550100"},{type:"EMAIL",value:"staff@example.test"}]});
+  expect((await GET(new Request("http://localhost/legacy"),{params:Promise.resolve({customerId:"customer-a"})})).status).toBe(503);
+ });
+ it("does not bypass disabled CRM Next or unauthenticated access",async()=>{
+  vi.stubEnv("CRM_NEXT","OFF");mocks.actor.mockResolvedValue(manager);
+  expect((await crmNextGET(new Request("http://localhost/contact"),{params:Promise.resolve({customerId:"customer-a"})})).status).toBe(403);
+  mocks.actor.mockResolvedValue(null);
+  expect((await crmNextGET(new Request("http://localhost/contact"),{params:Promise.resolve({customerId:"customer-a"})})).status).toBe(401);
+  expect(mocks.findFirst).not.toHaveBeenCalled();
+ });
+ it("keeps CRM Next sales contact requests restricted to owned customers",async()=>{
+  vi.stubEnv("CRM_NEXT","REVIEW");mocks.actor.mockResolvedValue({...manager,id:"sales-a",roles:["Salesperson"]});mocks.findFirst.mockResolvedValue(null);
+  const response=await crmNextGET(new Request("http://localhost/contact"),{params:Promise.resolve({customerId:"other-owner"})});
+  expect(response.status).toBe(404);expect(mocks.findFirst.mock.calls[0][0].where).toMatchObject({organizationId:"org-a",ownerUserId:"sales-a"});
+  expect(JSON.stringify(await response.json())).not.toContain("staff@example.test");
  });
 });

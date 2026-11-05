@@ -15,11 +15,14 @@ import workspaceStyles from "./deal-workspace-overview.module.css";
 import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleContext, useCanonicalDealVehicle } from "./shared-deal-identities";
+import { DealPathwayChange } from "./deal-pathway-change";
+import { NewDealPathway } from "./new-deal-pathway";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
 import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
 import identityStyles from "./shared-deal-identities.module.css";
 import { TestDriveVehiclePicker } from "./test-drive-vehicle-picker";
+import { GuidedTestDrive } from "./guided-test-drive";
 import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
 import { fillEmptyDecodeFields } from "@/lib/crm-vehicle-decode";
 import { FilePlus2, Eye, Download, Printer, X, CheckCircle2, Circle, ChevronRight, ArrowLeft, Play, Save, Camera, Upload } from "lucide-react";
@@ -3817,6 +3820,23 @@ export function TestDriveExecutionDesk({
 
       <section hidden={review && reviewPanel !== "agreement"} className={styles.retailSection}>
         <header><span>Test-drive agreement</span><strong>Authorization and vehicle release</strong></header>
+        <p>{facts.driveMode === "UNACCOMPANIED" ? "Unaccompanied drive · no accompanying employee required." : "Supervised drive · an accompanying employee is required."}</p>
+        {agreementIssue && ["Authorizing employee", "Accompanying employee", "Valid license verified", "Coverage reviewed for this drive"].includes(agreementIssue.field) && <fieldset className={styles.retailFieldGrid} aria-label="Complete agreement check here">
+          <legend>Complete this check here</legend>
+          {agreementIssue.field === "Authorizing employee" && <>
+            <label><span>Release authorized by</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+            {employeeName && <button type="button" onClick={() => update("salesperson", employeeName)}>Use my name · {employeeName}</button>}
+          </>}
+          {agreementIssue.field === "Accompanying employee" && <>
+            <label><span>Employee riding with the driver</span><input value={facts.accompanyingEmployee} onChange={(event) => update("accompanyingEmployee", event.target.value)} /></label>
+            <button type="button" onClick={() => update("driveMode", "UNACCOMPANIED")}>Customer is driving unaccompanied</button>
+          </>}
+          {agreementIssue.field === "Valid license verified" && <>
+            <p>A license number is recorded. Confirm you reviewed the license and it is valid for this driver.</p>
+            <label><input type="checkbox" checked={facts.licenseVerified} onChange={(event) => update("licenseVerified", event.target.checked)} />I reviewed the driver&apos;s license and verified it is valid</label>
+          </>}
+          {agreementIssue.field === "Coverage reviewed for this drive" && <label><input type="checkbox" checked={facts.insuranceVerified} onChange={(event) => update("insuranceVerified", event.target.checked)} />I reviewed coverage for this drive</label>}
+        </fieldset>}
         <div className={`${styles.retailNextActionBar} ${styles.testDriveAgreementActions}`}>
           <div>{!agreementError && agreementStatus.kind === "idle" && <strong>Ready to generate</strong>}<PacketFeedback status={agreementError ? { kind: "error", message: agreementError } : agreementStatus} onCorrect={agreementIssue ? correctAgreementIssue : undefined}><SavedPacketLink packet={agreementPacket} /></PacketFeedback></div>
           <button type="button" disabled={agreementStatus.kind === "generating"} onClick={generateAgreement}><FilePlus2 size={16} aria-hidden="true" />Generate agreement</button>
@@ -4461,7 +4481,12 @@ function OutsideFinanceExecutionDesk({
 
 export function CrmNextDealStartTool(props: { initialCustomerList?: DealCustomerList; reviewTestDrive?: boolean; initialCustomerId?: string; initialWorkflowId?: string; initialVehicleReference?: string; initialVehicleFacts?: Record<string, string>; model: CrmNextCommandCenter }) {
   const params = useSearchParams();
-  return <DealDraftWorkspace key={params?.toString() ?? ""} initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} /></DealDraftWorkspace>;
+  const router = useRouter();
+  const requested = props.initialWorkflowId ?? params?.get("pathway");
+  const preset = DEAL_START_PRESETS.find(item => item.workflowId === requested);
+  const chooser = <NewDealPathway options={DEAL_START_PRESETS} onChoose={id => { const choice = DEAL_START_PRESETS.find(item => item.id === id); if (!choice) return; const next = new URLSearchParams(params?.toString()); next.delete("draftId"); next.set("new", "1"); next.set("pathway", choice.workflowId); router.replace(`/crm-next/deals/start?${next}`); }} />;
+  if (!params?.get("draftId") && !preset && !props.initialCustomerId) return chooser;
+  return <DealDraftWorkspace key={params?.toString() ?? ""} newDealPrompt={!preset ? chooser : undefined} initialPathway={preset?.workflowId} initialPresetId={preset?.id} initialCustomerId={props.initialCustomerId} initialVehicleFacts={props.initialVehicleFacts} customers={props.model.customers}><DealStartDesk {...props} initialWorkflowId={preset?.workflowId ?? props.initialWorkflowId} /></DealDraftWorkspace>;
 }
 
 function DealStartDesk({
@@ -4481,6 +4506,7 @@ function DealStartDesk({
 }) {
   const savedDeal = useDealDraft();
   const saveState = useDealSaveState();
+  const [pathwayTarget, setPathwayTarget] = useState<string | null>(null);
   const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
   const [documentEditor, setDocumentEditor] = useState(false);
   const workspaceRoot = useRef<HTMLElement>(null);
@@ -4516,7 +4542,7 @@ function DealStartDesk({
   const [identity, setIdentity] = useDealDraftState<DealIdentity>("identity", { ...emptyDealIdentity });
   const [relatedSource, setRelatedSource] = useState<{ customerName: string; sourceVehicleReference: string; sourceVehicleId: string } | null>(null);
   const [sourceError, setSourceError] = useState("");
-  const [reviewTestDrive, setReviewTestDrive] = useState(initialReviewTestDrive);
+  const reviewTestDrive = initialReviewTestDrive;
   const documentUploadQueue = useRef(Promise.resolve());
   const pendingDocumentUploads = useRef(0);
   const [documentUploadBusy, setDocumentUploadBusy] = useState(false);
@@ -4524,11 +4550,10 @@ function DealStartDesk({
   const [documentArchiveMessage, setDocumentArchiveMessage] = useState("");
   const [documentArchiveError, setDocumentArchiveError] = useDealDraftState("documentArchiveError", "");
   const [documentJacketHref, setDocumentJacketHref] = useDealDraftState("documentJacketHref", "/sales-documents");
-  const [workflowId, setWorkflowId] = useDealDraftState<DealWorkflowId>("workflowId", "retail-sale");
-  const [selectedPresetId, setSelectedPresetId] = useDealDraftState("selectedPresetId", "retail-cash-one-pay");
+  const [workflowId, setWorkflowId] = useDealDraftState<DealWorkflowId>("workflowId", initialWorkflowId as DealWorkflowId || "retail-sale");
+  const [selectedPresetId, setSelectedPresetId] = useDealDraftState("selectedPresetId", DEAL_START_PRESETS.find(item => item.workflowId === initialWorkflowId)?.id ?? "retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useDealDraftState("executionOpen", false);
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [testDriveInProgress, setTestDriveInProgress] = useState(false);
   const [manualCustomerName, setManualCustomerName] = useDealDraftState("manualCustomerName", "");
   const [form, setForm] = useDealDraftState("form", {
     amount: "",
@@ -4670,6 +4695,7 @@ function DealStartDesk({
   }
 
   function applyPreset(preset: DealStartPreset) {
+    if (saveState.saved && preset.workflowId !== workflowId) { setPathwayTarget(preset.workflowId); return; }
     setSelectedPresetId(preset.id);
     setWorkflowId(preset.workflowId);
     setExecutionOpen(false);
@@ -4740,7 +4766,7 @@ function DealStartDesk({
       return false;
     }
     try {
-    const response = await fetch("/api/crm/v1/opportunities", {
+    const response = await fetch("/api/crm-next/opportunities", {
       body: JSON.stringify({
         customerId: selectedCustomer.id,
         estimatedValueCents: effectiveEstimatedValueCents,
@@ -4820,7 +4846,11 @@ function DealStartDesk({
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
+      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
+      {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p>{savedDeal.read("desk:assignmentPathway") === "test-drive" ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope> : <VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} />}</section>}
+      {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
+      {testDriveWorkflow && <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope>}
       <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
       <div data-deal-workspace-section="identity" hidden={workspaceSection !== "identity"}><div className={identityStyles.identityGrid}>
         <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
@@ -4831,7 +4861,7 @@ function DealStartDesk({
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
       {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div></section>}
       {workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
-      <div hidden={workspaceSection !== "completion"}>{(rentalLikeWorkflow || testDriveWorkflow) && <VehicleUseTool pathway={workflowId} />}</div>
+      <div hidden={workspaceSection !== "completion"}>{workflowId !== "daily-rental" && rentalLikeWorkflow && <VehicleUseTool pathway={workflowId} />}</div>
       {workspaceSection === "activity" && <DealActivityPanel key={savedDeal?.draftId()} draftId={savedDeal?.draftId() ?? ""} saved={saveState.saved} />}
       <div data-deal-workspace-section="terms" hidden={workspaceSection !== "terms" && !(workspaceSection === "documents" && documentEditor)}>
       <details className={workspaceStyles.advanced}><summary>Additional packet controls</summary><header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
@@ -4905,14 +4935,6 @@ function DealStartDesk({
           <button type="button" onClick={() => setExecutionOpen(false)}>Change path</button>
         </section>
       )}
-
-      {executionOpen && testDriveWorkflow && <nav className={styles.testDriveComparison} aria-label="Test-drive form comparison">
-        <strong>Prototype review</strong>
-        <div className={styles.testDriveVehicleModes}>
-          <button type="button" disabled={testDriveInProgress} aria-pressed={!reviewTestDrive} onClick={() => setReviewTestDrive(false)}>Current form</button>
-          <button type="button" aria-pressed={reviewTestDrive} onClick={() => setReviewTestDrive(true)}>Simplified prototype</button>
-        </div>
-      </nav>}
 
       {executionOpen && !repairWorkflow && !(reviewTestDrive && testDriveWorkflow) ? (
         <nav className={styles.retailSectionJumps} aria-label="Retail sale section jumps">
@@ -5115,23 +5137,7 @@ function DealStartDesk({
                 {renderCustomerSelector()}
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
-              <TestDriveExecutionDesk
-                review={reviewTestDrive}
-                employeeName={model.userName}
-                uploadBusy={documentUploadBusy}
-                uploadError={documentArchiveError}
-                onActiveChange={setTestDriveInProgress}
-                customerPrefill={customerPrefill}
-                key={effectiveCustomerName}
-                customerName={effectiveCustomerName}
-                onAmountChange={(value) => update("amount", value)}
-                onComplete={startDeal}
-                onSaveDraft={saveDraft}
-                onVehicleChange={(value) => update("vehicle", value)}
-                statusKind={status.kind}
-                vehicle={form.vehicle}
-              />
-              {!reviewTestDrive && <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this test drive" rows={3} /></label>}
+              <p>Use the guided Test Drive workflow above to prepare, release and receive the vehicle.</p>
             </>
           ) : wholesaleWorkflow ? (
             <>

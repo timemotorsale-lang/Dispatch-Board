@@ -9,6 +9,10 @@ import { dealCustomer, dealDocumentOrganization, dealOrganization, dealVehicle }
 import { normalizeVehicleUseCommand, vehicleUseOverlaps } from "@/lib/deal-continuity";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { validateRentalHandover } from "@/lib/rental-lifecycle";
+import { createManualTask } from "@/server/services/task-create-service";
+import { createTaskCreateRepository } from "@/server/repositories/task-create-repository";
+import { chicagoDate } from "@/lib/deal-dashboard";
 
 type Tx = Prisma.TransactionClient;
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -51,11 +55,11 @@ export async function persistDealContext(actor: AuthenticatedUser | null, db: Tx
   const existing = await db.dealWorkflowContext.findUnique({ where: { draftId } });
   const data = { organizationId, draftId, customerId, vehicleId, inventoryUnitId: vehicle?.inventoryUnitId ?? null, sourceDraftId, sourceJacketId, sourceVehicleId };
   if (existing && JSON.stringify([existing.customerId, existing.sourceDraftId, existing.sourceJacketId, existing.sourceVehicleId]) !== JSON.stringify([customerId, sourceDraftId, sourceJacketId, sourceVehicleId]) && await db.vehicleUseBooking.count({ where: { contextId: existing.id } })) throw new SalesDocumentsError("Start a separate deal to change the customer or original agreement after vehicle-use history has been recorded.", 409);
-  if (existing && JSON.stringify([existing.customerId, existing.vehicleId, existing.inventoryUnitId, existing.sourceDraftId, existing.sourceJacketId, existing.sourceVehicleId]) !== JSON.stringify([customerId, vehicleId, data.inventoryUnitId, sourceDraftId, sourceJacketId, sourceVehicleId]) && await db.vehicleUseBooking.count({ where: { contextId: existing.id, status: { in: ["RESERVED", "CHECKED_OUT"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before changing its customer or vehicle.", 409);
+  if (existing && JSON.stringify([existing.customerId, existing.vehicleId, existing.inventoryUnitId, existing.sourceDraftId, existing.sourceJacketId, existing.sourceVehicleId]) !== JSON.stringify([customerId, vehicleId, data.inventoryUnitId, sourceDraftId, sourceJacketId, sourceVehicleId]) && await db.vehicleUseBooking.count({ where: { contextId: existing.id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } })) throw new SalesDocumentsError("Return or cancel the active vehicle assignment before changing its customer or vehicle.", 409);
   return db.dealWorkflowContext.upsert({ where: { draftId }, create: { id: draftId, ...data, createdByUserId: actor!.id }, update: data });
 }
 
-async function contextFor(actor: AuthenticatedUser | null, id: string, db: Tx = prisma) {
+export async function contextFor(actor: AuthenticatedUser | null, id: string, db: Tx = prisma) {
   const user = requireSalesDocumentsUser(actor);
   const context = await db.dealWorkflowContext.findFirst({ where: { id, organizationId: dealOrganization() }, include: { draft: true, bookings: { orderBy: { createdAt: "desc" } } } });
   if (!context) throw new SalesDocumentsError("Save a deal with its shared customer and vehicle first.", 404);
@@ -74,25 +78,36 @@ export async function readDealContinuity(actor: AuthenticatedUser | null, id: st
 
 export async function executeVehicleUse(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>) {
   const user = requireSalesDocumentsUser(actor), data = normalizeVehicleUseCommand(raw), organizationId = dealOrganization();
-  const requestHash = createHash("sha256").update(JSON.stringify({ id, actorId: user.id, ...data })).digest("hex");
+  const requestHash = createHash("sha256").update(JSON.stringify({ id, actorId: user.id, ...data, ...(data.action === "HANDOFF" ? { handover: { physicalHandover: raw.physicalHandover === true, insuranceVerified: raw.insuranceVerified === true, insuranceValidUntil: String(raw.insuranceValidUntil ?? ""), timezone: String(raw.timezone ?? "") } } : {}) })).digest("hex");
   return prisma.$transaction(async db => {
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":operation:" + data.operationKey}, 0))`;
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":deal-context:" + id}, 0))`;
     const context = await contextFor(actor, id, db);
+    const workflowPathway = ["RETURN", "EXTEND", "CANCEL"].includes(data.action) ? String(object(context.draft.snapshot)["desk:assignmentPathway"] ?? context.draft.pathway) : context.draft.pathway;
+    if (["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status)) throw new SalesDocumentsError("Reopen the inactive deal before recording vehicle use.", 409);
     const prior = await db.dealContinuityEvent.findUnique({ where: { organizationId_operationKey: { organizationId, operationKey: data.operationKey } } });
     if (prior) { if (prior.requestHash !== requestHash || prior.contextId !== id) throw new SalesDocumentsError("This request reference belongs to different work.", 409); return { duplicate: true, result: prior.result }; }
-    if (!["vehicle-loaner", "daily-rental", "test-drive"].includes(context.draft.pathway)) throw new SalesDocumentsError("Reserve temporary use from a loaner, rental or test-drive path.");
+    if (!["vehicle-loaner", "daily-rental", "test-drive"].includes(workflowPathway)) throw new SalesDocumentsError("Reserve temporary use from a loaner, rental or test-drive path.");
+    if (workflowPathway === "test-drive" && data.action === "HANDOFF") throw new SalesDocumentsError("Use the guided Test Drive release checklist to verify the current agreement and evidence.");
     if (!context.vehicleId) throw new SalesDocumentsError("Select the actual temporary vehicle first.");
     const vehicle = await dealVehicle(actor, context.vehicleId, db);
     const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
     assertVehicleCapability({ actor: user, capability: "COMMERCIAL_HANDOFF_MANAGE", grants, locationId: vehicle.locationId, now: new Date() });
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + context.vehicleId}, 0))`;
     let booking = data.bookingId ? await db.vehicleUseBooking.findFirst({ where: { id: data.bookingId, contextId: id, organizationId } }) : null;
+    if (data.activate) {
+      if (workflowPathway !== "daily-rental") throw new SalesDocumentsError("Combined activation is available only for Daily Rental.");
+      if (!vehicle.eligibleForUse) throw new SalesDocumentsError("The vehicle is not ready for checkout. Review its frontline readiness.", 409);
+      if (context.bookings.some(row => ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"].includes(row.status))) throw new SalesDocumentsError("This rental already has an assignment. Reload its checkout details before continuing.", 409);
+      const others = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: context.vehicleId, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
+      if (others.some(row => vehicleUseOverlaps(row, data.startsAt!, data.expectedReturnAt!))) throw new SalesDocumentsError("This vehicle is already out or reserved for those dates.", 409);
+      booking = await db.vehicleUseBooking.create({ data: { id: randomUUID(), organizationId, contextId: id, vehicleId: context.vehicleId, startsAt: data.startsAt!, expectedReturnAt: data.expectedReturnAt!, reason: data.reason, createdByUserId: user.id } });
+    }
     if (data.action === "RESERVE") {
       if (!vehicle.eligibleForUse) throw new SalesDocumentsError("The vehicle is not frontline-ready for temporary use.", 409);
-      if (context.draft.pathway === "vehicle-loaner" && (context.sourceDraftId || context.sourceJacketId) && !context.sourceVehicleId) throw new SalesDocumentsError("Link the original leased vehicle before reserving the related loaner.");
-      if (context.bookings.some(row => ["RESERVED", "CHECKED_OUT"].includes(row.status))) throw new SalesDocumentsError("This deal already has an active vehicle assignment.", 409);
-      const others = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: context.vehicleId, status: { in: ["RESERVED", "CHECKED_OUT"] } } });
+      if (workflowPathway === "vehicle-loaner" && (context.sourceDraftId || context.sourceJacketId) && !context.sourceVehicleId) throw new SalesDocumentsError("Link the original leased vehicle before reserving the related loaner.");
+      if (context.bookings.some(row => ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"].includes(row.status))) throw new SalesDocumentsError("This deal already has an active vehicle assignment.", 409);
+      const others = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: context.vehicleId, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
       if (others.some(row => vehicleUseOverlaps(row, data.startsAt!, data.expectedReturnAt!))) throw new SalesDocumentsError("This vehicle is already out or reserved for those dates.", 409);
       booking = await db.vehicleUseBooking.create({ data: { id: randomUUID(), organizationId, contextId: id, vehicleId: context.vehicleId, startsAt: data.startsAt!, expectedReturnAt: data.expectedReturnAt!, reason: data.reason, createdByUserId: user.id } });
     } else {
@@ -104,22 +119,37 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
         values.status = "CANCELLED";
       }
       if (data.action === "EXTEND") {
+        if (workflowPathway === "daily-rental" && booking.status === "CHECKED_OUT") {
+          const coverage = new Date(String(object(booking.departureSnapshot).insuranceValidUntil ?? ""));
+          if (!Number.isFinite(coverage.getTime()) || coverage < data.expectedReturnAt!) throw new SalesDocumentsError("The extension exceeds verified insurance coverage. Arrange covered return before extending.");
+        }
         if (data.expectedReturnAt! <= booking.expectedReturnAt) throw new SalesDocumentsError("An extension must move the expected return later.");
-        const others = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: booking.vehicleId, id: { not: booking.id }, status: { in: ["RESERVED", "CHECKED_OUT"] } } });
+        const others = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: booking.vehicleId, id: { not: booking.id }, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
         if (others.some(row => vehicleUseOverlaps(row, booking!.startsAt, data.expectedReturnAt!))) throw new SalesDocumentsError("This extension conflicts with another vehicle assignment.", 409);
         values.expectedReturnAt = data.expectedReturnAt!;
       }
       if (data.action === "HANDOFF") {
+        const dueBack = workflowPathway === "daily-rental" ? data.expectedReturnAt ?? booking.expectedReturnAt : booking.expectedReturnAt;
+        const conflict = await db.vehicleUseBooking.findFirst({ where: { organizationId, vehicleId: context.vehicleId, id: { not: booking.id }, status: { in: ["CHECKED_OUT", "RETURNED_REVIEW"] } } });
+        if (conflict) throw new SalesDocumentsError("This vehicle is already out. Record its actual return first.", 409);
         if (booking.status !== "RESERVED" || !vehicle.eligibleForUse) throw new SalesDocumentsError("Recheck the reserved vehicle before handoff.");
-        if (text(object(object(context.draft.snapshot).jackets)[context.draft.pathway]) !== data.agreementJacketId) throw new SalesDocumentsError("Generate and finalize the agreement linked to this deal, then reload the assignment.");
-        const jacket = await db.salesDocumentJacket.findFirst({ where: { id: data.agreementJacketId, organizationId, customerId: context.customerId, vin: vehicle.vin, pathway: context.draft.pathway, state: "CHECKED_OUT" } });
+        if (text(object(object(context.draft.snapshot).jackets)[workflowPathway]) !== data.agreementJacketId) throw new SalesDocumentsError("Generate and finalize the agreement linked to this deal, then reload the assignment.");
+        const jacket = await db.salesDocumentJacket.findFirst({ where: { id: data.agreementJacketId, organizationId: dealDocumentOrganization(), customerId: context.customerId, vin: vehicle.vin, pathway: workflowPathway, state: "CHECKED_OUT" } });
         if (!jacket || !await db.salesDocumentPacketVersion.count({ where: { jacketId: jacket.id, phase: "CHECKOUT" } })) throw new SalesDocumentsError("Review and finalize this customer's exact vehicle agreement in Sales Documents before recording handoff.");
-        if (data.occurredAt! < booking.startsAt) throw new SalesDocumentsError("Actual handoff cannot predate the reservation.");
-        if (data.occurredAt! >= booking.expectedReturnAt) throw new SalesDocumentsError("Extend the expected return before recording this late handoff.");
+        if (workflowPathway === "daily-rental") {
+          const documents = await db.documentLibraryDocument.findMany({ where: { organizationId: jacket.organizationId, packetLinks: { some: { packetId: jacket.packetId } } } });
+          validateRentalHandover(raw, documents, data.occurredAt!, dueBack);
+          const reservations = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: context.vehicleId, id: { not: booking.id }, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
+          if (reservations.some(row => vehicleUseOverlaps(row, data.occurredAt!, dueBack))) throw new SalesDocumentsError("The actual checkout dates conflict with another vehicle assignment.", 409);
+          values.expectedReturnAt = dueBack;
+        }
+        if (workflowPathway !== "daily-rental" && data.occurredAt! < booking.startsAt) throw new SalesDocumentsError("Actual handoff cannot predate the reservation.");
+        if (data.occurredAt! >= dueBack) throw new SalesDocumentsError("Enter a due-back time after the actual checkout time in this checklist.");
         values.status = "CHECKED_OUT"; values.checkedOutAt = data.occurredAt!; values.agreementJacket = { connect: { id: jacket.id } };
-        values.departureSnapshot = json({ odometer: data.odometer, fuel: data.fuel, condition: data.condition, recipient: data.recipient, keysVerified: true, driverVerified: true, evidence: data.evidence });
+        values.departureSnapshot = json({ odometer: data.odometer, fuel: data.fuel, condition: data.condition, recipient: data.recipient, keysVerified: true, driverVerified: true, evidence: data.evidence, physicalHandover: raw.physicalHandover === true, insuranceVerified: raw.insuranceVerified === true, insuranceValidUntil: raw.insuranceValidUntil, timezone: raw.timezone });
       }
       if (data.action === "RETURN") {
+        if (workflowPathway === "test-drive" && object(booking.departureSnapshot).guided === true) throw new SalesDocumentsError("Use the guided Test Drive return checklist for this assignment.");
         if (booking.status !== "CHECKED_OUT" || data.occurredAt! < booking.checkedOutAt!) throw new SalesDocumentsError("Record return only after actual handoff.");
         const departure = object(booking.departureSnapshot);
         if (data.odometer! < Number(departure.odometer)) throw new SalesDocumentsError("Return mileage cannot be lower than departure mileage.");
@@ -131,12 +161,23 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
         if (latest && (data.occurredAt < latest.observedAt || data.odometer! < latest.reading)) throw new SalesDocumentsError("Recheck the actual time and mileage against the vehicle's latest recorded observation.", 409);
       }
       booking = await db.vehicleUseBooking.update({ where: { id: booking.id }, data: values });
+      if (workflowPathway === "daily-rental") {
+        const link = { version: 1, organizationId: dealDocumentOrganization(), draftId: context.draftId, jacketId: booking.agreementJacketId };
+        if (data.action === "HANDOFF") {
+          const task = await createManualTask(user, { assignedUserId: user.id, title: `Rental return · ${context.draft.dealNumber}`, description: `Confirm actual return, mileage, fuel, condition and keys. ${data.reason}`, dueAt: booking.expectedReturnAt.toISOString(), boardDate: chicagoDate(booking.expectedReturnAt)!, customerReference: context.draft.customerName, vehicleReference: context.draft.vehicleReference, status: "NOT_STARTED", priority: "MEDIUM", requiresManagerApproval: false, workflowArea: "SALES" }, createTaskCreateRepository(db));
+          const created = await db.task.findUniqueOrThrow({ where: { id: task.id }, select: { templateSnapshot: true } });
+          await db.task.update({ where: { id: task.id }, data: { customerId: context.customerId, vehicleId: booking.vehicleId, templateSnapshot: json({ ...object(created.templateSnapshot), dealDashboard: link, rentalBookingId: booking.id }) } });
+        }
+        if (["EXTEND", "RETURN"].includes(data.action)) {
+          await db.task.updateMany({ where: { templateSnapshot: { path: ["rentalBookingId"], equals: booking.id }, status: { not: "COMPLETED" } }, data: data.action === "RETURN" ? { status: "COMPLETED", completedAt: data.occurredAt! } : { dueAt: booking.expectedReturnAt } });
+        }
+      }
       if (data.action === "HANDOFF" || data.action === "RETURN") {
         await db.vehicleCustodyEvent.create({ data: { organizationId, vehicleId: booking.vehicleId, locationId: vehicle.locationId, eventType: data.action === "HANDOFF" ? "CHECK_OUT" : "CHECK_IN", custodianType: data.action === "HANDOFF" ? "CUSTOMER" : "DEALERSHIP", custodianId: data.action === "HANDOFF" ? context.customerId : null, occurredAt: data.occurredAt!, sourceCode: "DEAL_VEHICLE_USE", sourceReference: booking.id, reason: data.reason, recordedByUserId: user.id } });
         await db.vehicleOdometerObservation.create({ data: { organizationId, vehicleId: booking.vehicleId, reading: data.odometer!, unit: "MILES", observedAt: data.occurredAt!, sourceCode: "DEAL_VEHICLE_USE", sourceReference: booking.id, status: "ACCEPTED", recordedByUserId: user.id } });
       }
     }
-    const result = { id: booking!.id, status: booking!.status, version: booking!.version, contextId: id };
+    const result = { id: booking!.id, status: booking!.status, version: booking!.version, contextId: id, ...(workflowPathway === "daily-rental" && ["CHECKED_OUT", "RETURNED"].includes(booking!.status) ? { dealStage: "Delivered", lifecycle: booking!.status === "CHECKED_OUT" ? "Rental Active" : "Rental Returned" } : {}) };
     await db.dealContinuityEvent.create({ data: { id: randomUUID(), organizationId, contextId: id, bookingId: booking!.id, operationKey: data.operationKey, requestHash, action: data.action, actorUserId: user.id, result } });
     return { duplicate: false, result };
   }, { timeout: 20000 });
@@ -149,7 +190,7 @@ export async function validateDealDocumentContext(actor: AuthenticatedUser | nul
   const customer = await dealCustomer(actor, context.customerId);
   if (raw.customerName !== customer.name) throw new SalesDocumentsError("Reload the saved shared customer before generating its agreement.", 409);
   if (!vehicle || context.customerId !== raw.customerId || context.draft.pathway !== raw.pathway || text(object(raw.vehicle).vin).toUpperCase() !== vehicle.vin) throw new SalesDocumentsError("The document must use the saved shared customer, pathway and canonical vehicle.", 409);
-  const occupied = await prisma.vehicleUseBooking.findFirst({ where: { organizationId: context.organizationId, vehicleId: vehicle.id, contextId: { not: context.id }, status: "CHECKED_OUT" } });
+  const occupied = await prisma.vehicleUseBooking.findFirst({ where: { organizationId: context.organizationId, vehicleId: vehicle.id, contextId: { not: context.id }, status: { in: ["CHECKED_OUT", "RETURNED_REVIEW"] } } });
   if (occupied) throw new SalesDocumentsError("This vehicle is currently checked out on another assignment.", 409);
   return { dealNumber: context.draft.dealNumber };
 }

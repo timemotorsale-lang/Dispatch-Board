@@ -22,19 +22,20 @@ export type DealVehicleChoice = {
 export type DealIdentity = { customerId: string; vehicleId: string; inventoryUnitId: string | null; sourceDraftId?: string; sourceJacketId?: string; sourceVehicleId?: string; vehicle?: DealVehicleChoice | null };
 export const emptyDealIdentity: DealIdentity = { customerId: "", vehicleId: "", inventoryUnitId: null, sourceDraftId: "", sourceJacketId: "", sourceVehicleId: "", vehicle: null };
 export function vehicleUseOverlaps(existing: { status: string; startsAt: Date; expectedReturnAt: Date }, startsAt: Date, endsAt: Date) {
-  return existing.status === "CHECKED_OUT" || (existing.status === "RESERVED" && existing.startsAt < endsAt && existing.expectedReturnAt > startsAt);
+  return ["CHECKED_OUT", "RETURNED_REVIEW"].includes(existing.status) || (existing.status === "RESERVED" && existing.startsAt < endsAt && existing.expectedReturnAt > startsAt);
 }
 export function normalizeVehicleUseCommand(raw: Record<string, unknown>) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Enter a valid vehicle-use request.");
-  const action = String(raw.action ?? "");
+  const activate = raw.action === "ACTIVATE";
+  const action = activate ? "HANDOFF" : String(raw.action ?? "");
   if (!["RESERVE", "HANDOFF", "RETURN", "EXTEND", "CANCEL"].includes(action)) throw new Error("Choose a supported vehicle-use action.");
   const operationKey = String(raw.operationKey ?? "").trim();
   if (!/^[a-zA-Z0-9-]{8,100}$/.test(operationKey)) throw new Error("A stable request reference is required.");
   const reason = String(raw.reason ?? "").trim();
   if (!reason || reason.length > 500) throw new Error("Enter a brief reason, up to 500 characters.");
-  const parse = (value: unknown, label: string) => { const result = new Date(String(value ?? "")); if (Number.isNaN(result.getTime())) throw new Error(`Enter a valid ${label}.`); return result; };
-  const startsAt = action === "RESERVE" ? parse(raw.startsAt, "pickup time") : null;
-  const expectedReturnAt = ["RESERVE", "EXTEND"].includes(action) ? parse(raw.expectedReturnAt, "expected return time") : null;
+  const parse = (value: unknown, label: string) => { const source = String(value ?? ""); const result = new Date(source); if (!/T.*(Z|[+-]\d{2}:\d{2})$/.test(source) || Number.isNaN(result.getTime())) throw new Error(`Enter a valid ${label} with a timezone offset.`); return result; };
+  const startsAt = activate ? parse(raw.occurredAt, "actual checkout time") : action === "RESERVE" ? parse(raw.startsAt, "pickup time") : null;
+  const expectedReturnAt = activate || ["RESERVE", "EXTEND"].includes(action) || action === "HANDOFF" && Boolean(raw.expectedReturnAt) ? parse(raw.expectedReturnAt, "expected return time") : null;
   if (startsAt && expectedReturnAt && expectedReturnAt <= startsAt) throw new Error("Expected return must follow pickup.");
   const occurredAt = ["HANDOFF", "RETURN"].includes(action) ? parse(raw.occurredAt, "handoff / return time") : null;
   if (occurredAt && occurredAt.getTime() > Date.now() + 60000) throw new Error("Actual handoff / return cannot be in the future.");
@@ -42,6 +43,7 @@ export function normalizeVehicleUseCommand(raw: Record<string, unknown>) {
   const odometer = raw.odometer === "" || raw.odometer == null ? null : Number(raw.odometer);
   if (occurredAt && (raw.keysVerified !== true || !evidence.length || odometer == null || !Number.isSafeInteger(odometer) || odometer < 0 || !String(raw.condition ?? "").trim() || !String(raw.fuel ?? "").trim() || !String(raw.recipient ?? "").trim())) throw new Error("Record actual mileage, fuel, condition, recipient, verified keys and evidence.");
   if (action === "HANDOFF" && raw.driverVerified !== true) throw new Error("Verify the current driver and applicable coverage before handoff.");
-  if (action !== "RESERVE" && (!String(raw.bookingId ?? "").trim() || !Number.isSafeInteger(Number(raw.expectedVersion)) || Number(raw.expectedVersion) < 1)) throw new Error("Reload the assignment before recording this action.");
-  return { action, operationKey, reason, startsAt, expectedReturnAt, occurredAt, bookingId: String(raw.bookingId ?? ""), expectedVersion: action === "RESERVE" ? 0 : Number(raw.expectedVersion), agreementJacketId: String(raw.agreementJacketId ?? ""), evidence, odometer, fuel: String(raw.fuel ?? "").trim().slice(0, 100), condition: String(raw.condition ?? "").trim().slice(0, 1000), recipient: String(raw.recipient ?? "").trim().slice(0, 200), keysVerified: raw.keysVerified === true, driverVerified: raw.driverVerified === true };
+  if (!activate && action !== "RESERVE" && (!String(raw.bookingId ?? "").trim() || !Number.isSafeInteger(Number(raw.expectedVersion)) || Number(raw.expectedVersion) < 1)) throw new Error("Reload the assignment before recording this action.");
+  if (activate && raw.bookingId) throw new Error("Use the existing reserved checkout instead of creating another rental.");
+  return { activate, action, operationKey, reason, startsAt, expectedReturnAt, occurredAt, bookingId: String(raw.bookingId ?? ""), expectedVersion: activate ? 1 : action === "RESERVE" ? 0 : Number(raw.expectedVersion), agreementJacketId: String(raw.agreementJacketId ?? ""), evidence, odometer, fuel: String(raw.fuel ?? "").trim().slice(0, 100), condition: String(raw.condition ?? "").trim().slice(0, 1000), recipient: String(raw.recipient ?? "").trim().slice(0, 200), keysVerified: raw.keysVerified === true, driverVerified: raw.driverVerified === true };
 }

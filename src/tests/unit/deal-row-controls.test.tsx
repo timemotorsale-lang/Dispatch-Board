@@ -5,6 +5,10 @@ const deal: DealLibraryRow = { id: "deal-one", draftId: "draft-one", draftRevisi
 const noop = () => {};
 const actions = (row = deal, canManage = false) => renderToStaticMarkup(<DealRowActions deal={row} canManage={canManage} disabled={false} archiveBusy={false} onOpen={noop} onDetails={noop} onArchive={noop} onLifecycle={noop} />);
 describe("compact deal row controls", () => {
+  it("offers an explicit pathway change for working and sold deals", () => {
+    expect(actions({ ...deal, status: "IN_PROGRESS", stage: "Working" })).toContain("Change revenue pathway");
+    expect(actions(deal)).toContain("Change revenue pathway");
+  });
   it("keeps completion as a deliberate action and shows progress without an editable status selector", () => {
     const html = renderToStaticMarkup(<DealRowStatus deal={deal} onDetails={noop} />);
     expect(html).toContain('aria-haspopup="dialog"'); expect(html).not.toContain("<select");

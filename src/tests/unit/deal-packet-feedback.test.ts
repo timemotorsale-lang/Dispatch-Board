@@ -10,6 +10,7 @@ describe("Deal packet blocker feedback", () => {
   it("routes lease, test-drive and completion blockers to relevant controls", () => {
     expect(packetCorrection("The next payment date must follow the lease date.")?.fields[0]).toBe("Next payment date");
     expect(packetCorrection("Enter a valid license expiration date.")?.fields[0]).toBe("License expiration");
+    expect(packetCorrection('Review the license, then check "Valid license verified" under Staff verification.')?.fields[0]).toBe("Valid license verified");
     expect(packetCorrection("Signed paperwork stored")?.sections).toContain("paperwork");
     expect(packetCorrection("Servicing handoff complete")?.sections).toContain("handoff");
     expect(packetCorrection("Terms complete")?.sections).toContain("terms");
