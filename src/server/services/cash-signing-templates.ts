@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import map from "./cash-signing-template-map.json";
-import { cashCents, cashMoney, cashSaleTotals } from "@/lib/cash-retail-sale";
+import { cashTitleFeeTotal, cashCents, cashMoney, cashSaleTotals } from "@/lib/cash-retail-sale";
 import type { Input } from "./cash-retail-sale-documents";
 import { CASH_SIGNING_TEMPLATE_VERSION } from "@/lib/cash-sale-print-library";
 export function cashSigningTemplate(id:string) { return Object.hasOwn(map,id) ? map[id as keyof typeof map] : null; }
@@ -17,7 +17,7 @@ const safe=(value:string)=>value.replace(/[\u2013\u2014]/g,"-").replace(/[\u2018
 export async function cashSigningTemplatePdf(id:string,input:Input) {
   const {bytes,template}=cashSigningTemplateSource(id),pdf=await PDFDocument.load(bytes),form=pdf.getForm(),font=await pdf.embedFont(StandardFonts.Helvetica);
   const f=input.facts,t=cashSaleTotals(input.salePrice,f),m=cashMoney;
-  const values:Record<string,string>={...f,buyer:input.customerName,buyers:[input.customerName,f.coBuyer].filter(Boolean).join(" / "),dealNumber:input.dealNumber,agreementStock:[input.dealNumber,input.vehicle.stockNumber].filter(Boolean).join(" / "),vin:input.vehicle.vin,vehicle:[input.vehicle.year,input.vehicle.make,input.vehicle.model].filter(Boolean).join(" "),color:input.vehicle.color,stockNumber:input.vehicle.stockNumber,plate:[f.plate,f.plateState].filter(Boolean).join(" "),sale:m(t.sale),accessories:m(t.accessories),docFee:m(cashCents(f.docFee)),tax:m(t.tax),titleFee:m(cashCents(f.titleFee)),registrationFee:m(cashCents(f.registrationFee)),otherFee:m(cashCents(f.otherFee)),purchaseTotal:m(t.total+t.trade-t.payoff),trade:m(t.trade),payoff:m(t.payoff),paid:m(t.paid),balance:m(t.balance),deliveryPlace:[f.deliveryDate,f.dealerAddress].filter(Boolean).join(" / "),noFinance:"No - cash sale",insurance:[f.insuranceCompany,f.insurancePolicy].filter(Boolean).join(" / ")};
+  const values:Record<string,string>={...f,buyer:input.customerName,buyers:[input.customerName,f.coBuyer].filter(Boolean).join(" / "),dealNumber:input.dealNumber,agreementStock:[input.dealNumber,input.vehicle.stockNumber].filter(Boolean).join(" / "),vin:input.vehicle.vin,vehicle:[input.vehicle.year,input.vehicle.make,input.vehicle.model].filter(Boolean).join(" "),color:input.vehicle.color,stockNumber:input.vehicle.stockNumber,plate:[f.plate,f.plateState].filter(Boolean).join(" "),sale:m(t.sale),accessories:m(t.accessories),docFee:m(cashCents(f.docFee)),tax:m(t.tax),titleFee:m(cashTitleFeeTotal(f)),registrationFee:m(cashCents(f.registrationFee)),otherFee:m(cashCents(f.otherFee)),purchaseTotal:m(t.total+t.trade-t.payoff),trade:m(t.trade),payoff:m(t.payoff),paid:m(t.paid),balance:m(t.balance),deliveryPlace:[f.deliveryDate,f.dealerAddress].filter(Boolean).join(" / "),noFinance:"No - cash sale",insurance:[f.insuranceCompany,f.insurancePolicy].filter(Boolean).join(" / ")};
   const duration=f.warrantyDuration.match(/(\d+)\s*days?.*?([\d,]+)\s*miles?/i);
   values.dealerLicense="";
   const days=duration ? Number(duration[1]) : 0,miles=duration ? Number(duration[2].replaceAll(",","")) : 0;

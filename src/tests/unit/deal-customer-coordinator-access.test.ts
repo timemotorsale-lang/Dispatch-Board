@@ -14,6 +14,13 @@ const coordinator: AuthenticatedUser = { id: "coordinator", name: "Coordinator",
 const customer = { id: "shared-customer", displayName: "Shared customer", customerNumber: "CUS-100", phoneNumber: "+16125550100", email: "customer@example.test", updatedAt: new Date("2026-11-03"), ssnLast4: "9999" };
 
 describe("coordinator shared customer selection for deals", () => {
+  it("loads full primary contact points for the selected customer within the existing company scope", async () => {
+    mocks.customer.mockResolvedValue({ ...customer, contactPoints: [{ type: "PHONE", value: "+16125550199" }, { type: "EMAIL", value: "primary@example.test" }] });
+    const result = await dealCustomer(coordinator, customer.id);
+    expect(result).toMatchObject({ phone: "+16125550199", email: "primary@example.test" });
+    expect(JSON.stringify(result)).not.toContain("9999");
+    expect(mocks.customer.mock.calls[0][0].select.contactPoints).toMatchObject({ where: { type: { in: ["PHONE", "EMAIL"] } }, select: { type: true, value: true } });
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.locations.mockResolvedValue([{ locationId: "company-a-location" }]);

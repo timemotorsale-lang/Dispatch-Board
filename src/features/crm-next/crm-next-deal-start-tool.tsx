@@ -23,7 +23,7 @@ import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type D
 import identityStyles from "./shared-deal-identities.module.css";
 import { TestDriveVehiclePicker } from "./test-drive-vehicle-picker";
 import { GuidedTestDrive } from "./guided-test-drive";
-import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
+import { availableContactValue, customerContactValue, prefillCustomerContact, type CustomerContactRead } from "@/lib/customer-contact-prefill";
 import { fillEmptyDecodeFields } from "@/lib/crm-vehicle-decode";
 import { FilePlus2, Eye, Download, Printer, X, CheckCircle2, Circle, ChevronRight, ArrowLeft, Play, Save, Camera, Upload } from "lucide-react";
 
@@ -1539,9 +1539,9 @@ function DailyRentalExecutionDesk({
     setRentalFacts((current) => ({
       ...current,
       interestedVehicle: isLoaner && originalVehicleReference ? originalVehicleReference : current.interestedVehicle,
-      cellPhone: current.cellPhone || customerPrefill.phoneNumber,
+      cellPhone: prefillCustomerContact(current.cellPhone, customerPrefill.phoneNumber),
       dob: current.dob || customerPrefill.dateOfBirth,
-      email: current.email || customerPrefill.email,
+      email: prefillCustomerContact(current.email, customerPrefill.email),
       licenseState: customerPrefill.idState && current.licenseState === "MN" ? customerPrefill.idState : current.licenseState,
       state: customerPrefill.idState && current.state === "MN" ? customerPrefill.idState : current.state,
       streetAddress: current.streetAddress || customerPrefill.address
@@ -2184,8 +2184,8 @@ function LeaseToOwnExecutionDesk({
       streetAddress: current.streetAddress || customerPrefill.address,
       idType: current.idType || customerPrefill.idType,
       idState: customerPrefill.idState && current.idState === "MN" ? customerPrefill.idState : current.idState,
-      lesseeEmail: current.lesseeEmail || customerPrefill.email,
-      lesseePhone: current.lesseePhone || customerPrefill.phoneNumber
+      lesseeEmail: prefillCustomerContact(current.lesseeEmail, customerPrefill.email),
+      lesseePhone: prefillCustomerContact(current.lesseePhone, customerPrefill.phoneNumber)
     }));
   }, [customerPrefill, setLeaseFacts]);
 
@@ -4691,10 +4691,10 @@ function DealStartDesk({
   useEffect(() => {
     if (!selectedCustomerId) return;
     const controller = new AbortController();
-    void fetch(`/api/customers/customer-360?customerId=${encodeURIComponent(selectedCustomerId)}&tab=communications`, { signal: controller.signal })
+    void fetch(`/api/crm-next/customers/${encodeURIComponent(selectedCustomerId)}/contact-details`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => response.ok ? response.json() as Promise<CustomerContactRead> : null)
       .then((result) => {
-        if (!controller.signal.aborted && result?.customer) setAuthorizedContact({
+        if (!controller.signal.aborted && result) setAuthorizedContact({
           customerId: selectedCustomerId,
           phoneNumber: customerContactValue(result, "PHONE"),
           email: customerContactValue(result, "EMAIL")
@@ -4704,8 +4704,8 @@ function DealStartDesk({
   }, [selectedCustomerId]);
   const customerPrefill = useMemo(() => selectedCustomer ? {
     ...normalizeCustomerDealPrefill(selectedCustomer.dealPrefill),
-    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : selectedCustomer.phone,
-    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : selectedCustomer.email
+    phoneNumber: availableContactValue(authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : "") || availableContactValue(selectedCustomer.phone),
+    email: availableContactValue(authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : "") || availableContactValue(selectedCustomer.email)
   } : EMPTY_CUSTOMER_DEAL_PREFILL, [selectedCustomer, selectedCustomerId, authorizedContact]);
   const manualCustomer = manualCustomerName.trim();
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
@@ -4875,7 +4875,7 @@ function DealStartDesk({
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
-      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
+      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} status={saveState.record.status} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
       {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p>{savedDeal.read("desk:assignmentPathway") === "test-drive" ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope> : <VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} />}</section>}
       {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />

@@ -1,17 +1,36 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
-export function DealPathwayChange({ id, revision, pathway, initialPathway, disabled = false, onSaved }: { id: string; revision: number; pathway: string; initialPathway?: string; disabled?: boolean; onSaved: () => void }) {
+import styles from "./crm-next-shell.module.css";
+export function DealPathwayChange({ id, revision, pathway, status = "IN_PROGRESS", initialPathway, disabled = false, onSaved }: { id: string; revision: number; pathway: string; status?: string; initialPathway?: string; disabled?: boolean; onSaved: () => void }) {
   const [target, setTarget] = useState(initialPathway ?? ""), [reason, setReason] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const pending = useRef(false);
+  const moveToPending = status === "SOLD" || status === "COMPLETED";
   async function submit() {
-    if (busy || disabled) return;
+    if (pending.current || busy || disabled || !target || target === pathway) return;
+    pending.current = true;
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/crm/v1/deal-drafts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "CHANGE_PATHWAY", id, revision, pathway: target, reason }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error || "The pathway could not be changed. Your entries remain here.");
       onSaved();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "The connection was interrupted. Refresh the saved deal before retrying."); }
-    finally { setBusy(false); }
+    finally { pending.current = false; setBusy(false); }
   }
-  return <form aria-label="Change revenue pathway" onSubmit={event => { event.preventDefault(); void submit(); }}><h3>Change revenue pathway</h3><p>The same deal number, customer, vehicle and history are kept. The new pathway starts as Working for review, and the previous amount is kept in history. Review the new pricing and paperwork.</p><p>Current pathway: {SALES_DOCUMENT_PATHWAYS[pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? pathway}</p><label>New revenue pathway<select required value={target} onChange={event => setTarget(event.target.value)} disabled={busy || disabled}><option value="">Choose a pathway</option>{Object.entries(SALES_DOCUMENT_PATHWAYS).filter(([key]) => key !== pathway).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>Reason for change<textarea required minLength={10} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} disabled={busy || disabled} /></label><p>Existing signed documents and financial records stay in their original history. Any active vehicle assignment remains open until its actual return or cancellation is recorded.</p>{disabled && <p>Save pending edits before changing pathway.</p>}<button type="submit" disabled={busy || disabled || !target || reason.trim().length < 10}>{busy ? "Changing…" : "Confirm pathway change"}</button>{error && <p role="alert">{error}</p>}</form>;
+  return (
+    <form data-deal-transient className={styles.retailSection} aria-label="Change revenue pathway" onSubmit={event => { event.preventDefault(); void submit(); }}>
+      <h3>Change revenue pathway</h3>
+      <p>The same deal number, customer, vehicle and history are kept. Review the new pricing and paperwork; the previous amount stays in history.</p>
+      <p>Current pathway: {SALES_DOCUMENT_PATHWAYS[pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? pathway}</p>
+      {moveToPending && <p>This action moves the deal back to Pending and changes its pathway together, so staff can review and edit the new terms.</p>}
+      <div className={styles.retailFieldGrid}>
+        <label><span>New revenue pathway</span><select required value={target} onChange={event => { setTarget(event.target.value); setError(""); }} disabled={busy || disabled}><option value="">Choose a pathway</option>{Object.entries(SALES_DOCUMENT_PATHWAYS).filter(([key]) => key !== pathway).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <label><span>Reason for change (optional)</span><textarea maxLength={1000} placeholder="Add a note if helpful" value={reason} onChange={event => { setReason(event.target.value); setError(""); }} disabled={busy || disabled} /></label>
+      </div>
+      <p>Existing signed documents and financial records stay in their original history. Any active vehicle assignment remains open until its actual return or cancellation is recorded.</p>
+      {disabled && <p>Save pending edits before changing pathway.</p>}
+      <div><button className={styles.primaryButton} type="submit" disabled={busy || disabled || !target || target === pathway}>{busy ? "Changing…" : moveToPending ? "Move to Pending & change pathway" : "Confirm pathway change"}</button></div>
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
 }

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { customerContactValue } from "@/lib/customer-contact-prefill";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -61,9 +62,9 @@ async function dealCustomerReadScope(actor: AuthenticatedUser | null, database: 
 export async function dealCustomer(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealCustomerChoice> {
   requireDealIdentityUser(actor);
   const scope = await dealCustomerReadScope(actor, database);
-  const customer = await database.customer.findFirst({ where: { id, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null, ...(scope.kind === "OWNER" ? { ownerUserId: scope.ownerUserId } : {}) }, select: { id: true, displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true, dateOfBirth: true, idLast4: true, idState: true, idType: true } });
+const customer = await database.customer.findFirst({ where: { id, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null, ...(scope.kind === "OWNER" ? { ownerUserId: scope.ownerUserId } : {}) }, select: { id: true, displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true, dateOfBirth: true, idLast4: true, idState: true, idType: true, contactPoints: { where: { type: { in: ["PHONE", "EMAIL"] } }, select: { type: true, value: true }, orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }, { id: "asc" }] } } });
   if (!customer) throw new SalesDocumentsError("Customer is unavailable or outside your authorized scope. Choose an accessible CRM customer.", 403);
-  return { id: customer.id, name: customer.displayName, customerNumber: customer.customerNumber, phone: customer.phoneNumber ?? "", email: customer.email ?? "", dealPrefill: { address: customer.address ?? "", dateOfBirth: customer.dateOfBirth?.toISOString().slice(0, 10) ?? "", idLast4: customer.idLast4 ?? "", idState: customer.idState ?? "", idType: customer.idType ?? "" } };
+  return { id: customer.id, name: customer.displayName, customerNumber: customer.customerNumber, phone: customerContactValue({ contacts: customer.contactPoints, customer: { phone: customer.phoneNumber ?? "" } }, "PHONE"), email: customerContactValue({ contacts: customer.contactPoints, customer: { email: customer.email ?? "" } }, "EMAIL"), dealPrefill: { address: customer.address ?? "", dateOfBirth: customer.dateOfBirth?.toISOString().slice(0, 10) ?? "", idLast4: customer.idLast4 ?? "", idState: customer.idState ?? "", idType: customer.idType ?? "" } };
 }
 export async function authorizeDealOpportunityCustomer(actor: AuthenticatedUser | null, customerId: string, organizationId: string, database: Prisma.TransactionClient) {
   if (organizationId !== dealOrganization()) throw new Error("Customer not available.");

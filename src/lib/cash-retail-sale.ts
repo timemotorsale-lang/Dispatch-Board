@@ -14,7 +14,7 @@ export const EMPTY_CASH_SALE = {
   buyerAddress: "", buyerPhone: "", buyerEmail: "", coBuyer: "", saleDate: "", deliveryDate: "",
   dealerName: "Time Motor Sales", dealerAddress: "1101 E. Lake Street, Minneapolis, MN 55407", dealerLicense: "", dealerPhone: "", dealerEmail: "timemotorsale@gmail.com",
   mileage: "", odometerStatus: "", odometerExemption: "", titleBrand: "", damageDisclosure: "", plate: "", plateState: "MN",
-  docFee: "300.00", titleFee: "", registrationFee: "", otherFee: "", otherFeeLabel: "", accessories: "0", rebate: "0",
+  docFee: "300.00", titleFee: "", titleFeeItems: "", registrationFee: "", otherFee: "", otherFeeLabel: "", accessories: "0", rebate: "0",
   tradeVehicle: "", tradeVin: "", tradeAllowance: "0", tradePayoff: "0", tradeLienholder: "",
   taxOverride: "", taxReason: "", paymentReceived: "0", paymentMethod: "", paymentReference: "", paymentDate: "",
   insuranceCompany: "", insurancePolicy: "", insuranceExpiration: "",
@@ -22,9 +22,72 @@ export const EMPTY_CASH_SALE = {
   promises: "", promiseDue: "", authorizedAgent: "", poaExpiration: "", deliveryNotes: "", keys: "", fuel: ""
 };
 export type CashSaleFacts = typeof EMPTY_CASH_SALE;
+export function cashSaleWarrantySelection(facts: CashSaleFacts, warrantyType: string): CashSaleFacts {
+  if (warrantyType !== "Dealer limited warranty") return { ...facts, warrantyType };
+  // Defaults are added only on an explicit staff selection, never when opening historical records.
+  // Preserve staff-entered terms. Use the longer MN mileage-tier term for known low-mileage vehicles.
+  const lowMileage = facts.odometerStatus === "Actual" && /^\d+$/.test(facts.mileage.trim()) && Number(facts.mileage) < 36000;
+  return {
+    ...facts, warrantyType,
+    warrantyCoverage: facts.warrantyCoverage.trim() ? facts.warrantyCoverage : "Powertrain (engine, transmission and drive axle); additional Minnesota-required coverage applies.",
+    warrantyDuration: facts.warrantyDuration.trim() ? facts.warrantyDuration : lowMileage ? "60 days or 2,500 miles, whichever occurs first" : "30 days or 1,000 miles, whichever occurs first"
+  };
+}
+// Published DVS typical titled-vehicle transfer fees, verified 2026-11-05.
+// https://assets.dps.mn.gov/files/dvs/BuyingorSellingMotorVehicle_Just_the_Facts.pdf
+export const MN_TITLE_FEE_SCHEDULE = [
+  { id: "title", label: "Minnesota title fee", amount: "8.25" },
+  { id: "transfer", label: "Minnesota transfer tax", amount: "10.00" },
+  { id: "filing", label: "Title transaction filing fee", amount: "12.00" },
+  { id: "technology", label: "Title technology surcharge", amount: "2.25" },
+  { id: "public-safety", label: "Public safety vehicle fee", amount: "3.50" },
+  { id: "lien", label: "Lien recording fee (per lien)", amount: "2.00" }
+] as const;
+// Minnesota Statutes 168.12, subd. 5: regular/disability plate manufacturing fees.
+export const MN_PLATE_FEE_SCHEDULE = [
+  { id: "plate-double", label: "Regular / disability plates (double)", amount: "15.50" },
+  { id: "plate-single", label: "Regular / disability plate (single)", amount: "13.50" }
+] as const;
+export type CashTitleFeeItem = { id: string; label: string; amount: string };
+export function cashTitleFeeItems(facts: Pick<CashSaleFacts, "titleFee" | "titleFeeItems">): CashTitleFeeItem[] {
+  if (!facts.titleFeeItems?.trim()) return facts.titleFee.trim() ? [{ id: "existing", label: "Previously entered title fees", amount: facts.titleFee }] : [];
+  let raw: unknown;
+  try { raw = JSON.parse(facts.titleFeeItems); } catch { throw new Error("Review the title fee breakdown; its saved details are invalid."); }
+  if (!Array.isArray(raw) || raw.length > 20) throw new Error("Use no more than 20 title fee items.");
+  if (raw.some(item => item?.id === "plate-double") && raw.some(item => item?.id === "plate-single")) throw new Error("Choose either a single plate or double plates for this vehicle, not both.");
+  const ids = new Set<string>();
+  return raw.map(item => {
+    if (!item || typeof item.id !== "string" || !item.id.trim() || item.id.length > 80 || ids.has(item.id) || typeof item.label !== "string" || item.label.length > 80 || typeof item.amount !== "string" || item.amount.length > 40) throw new Error("Give each title fee a name, amount and unique selection.");
+    ids.add(item.id);
+    return { id: item.id, label: item.label.trim(), amount: item.amount.trim() };
+  });
+}
+export function cashTitleFeeTotal(facts: Pick<CashSaleFacts, "titleFee" | "titleFeeItems">): number {
+  return cashTitleFeeItems(facts).reduce((total, item) => {
+    if (!item.label) throw new Error("Enter a name for each additional title fee.");
+    if (!item.amount.trim()) throw new Error(`Enter an amount for ${item.label}, including 0 if not due.`);
+    const sum = total + cashCents(item.amount);
+    if (!Number.isSafeInteger(sum) || sum > 10000000000) throw new Error("Title fees exceed the supported amount.");
+    return sum;
+  }, 0);
+}
+export const CASH_SALE_DATE_FIELDS = ["saleDate", "deliveryDate", "paymentDate", "insuranceExpiration", "promiseDue"] as const;
+// Calendar dates stay calendar dates: never convert them through the user's timezone.
+export function cashSaleDate(value: string): string {
+  const raw = value.trim();
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
+  const iso = us ? `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}` : raw;
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) && Number.isFinite(Date.parse(iso)) && new Date(iso).toISOString().slice(0, 10) === iso ? iso : "";
+}
+export function normalizeCashSaleDates(facts: CashSaleFacts): CashSaleFacts {
+  return { ...facts, ...Object.fromEntries(CASH_SALE_DATE_FIELDS.map(key => [key, cashSaleDate(facts[key]) || facts[key]])) };
+}
 export function cashSaleFacts(value: unknown): CashSaleFacts {
   const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  return Object.fromEntries(Object.entries(EMPTY_CASH_SALE).map(([key, fallback]) => [key, typeof raw[key] === "string" ? raw[key].trim().slice(0, 1200) : fallback])) as CashSaleFacts;
+  const facts = normalizeCashSaleDates(Object.fromEntries(Object.entries(EMPTY_CASH_SALE).map(([key, fallback]) => [key, typeof raw[key] === "string" ? raw[key].trim().slice(0, key === "titleFeeItems" ? 12000 : 1200) : fallback])) as CashSaleFacts);
+  // The server derives the aggregate from the breakdown, rather than trusting a posted total.
+  if (facts.titleFeeItems) { try { facts.titleFee = (cashTitleFeeTotal(facts) / 100).toFixed(2); } catch { /* cashSaleError reports invalid itemization before generation. */ } }
+  return facts;
 }
 export function cashCents(value: string): number {
   const normalized = value.replace(/[$,\s]/g, "");
@@ -37,7 +100,7 @@ export function cashCents(value: string): number {
 }
 export function cashSaleTotals(price: string, facts: CashSaleFacts) {
   const sale = cashCents(price), accessories = cashCents(facts.accessories), rebate = cashCents(facts.rebate), trade = cashCents(facts.tradeAllowance), payoff = cashCents(facts.tradePayoff);
-  const fees = cashCents(facts.docFee) + cashCents(facts.titleFee) + cashCents(facts.registrationFee) + cashCents(facts.otherFee);
+  const fees = cashCents(facts.docFee) + cashTitleFeeTotal(facts) + cashCents(facts.registrationFee) + cashCents(facts.otherFee);
   const taxable = Math.max(0, sale + accessories - rebate - trade);
   const tax = facts.taxOverride !== "" ? cashCents(facts.taxOverride) : Math.round(taxable * 6875 / 100000);
   const total = sale + accessories - rebate - trade + payoff + fees + tax, paid = cashCents(facts.paymentReceived);
@@ -47,7 +110,7 @@ export function cashSaleError(customer: string, vin: string, price: string, fact
   if (!customer.trim() || /^(Customer not selected|Customer not captured)$/i.test(customer)) return "Select the buyer for this existing deal.";
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return "Select the inventory vehicle with a valid 17-character VIN.";
   if (!facts.buyerAddress) return "Enter the buyer's address for the sales packet.";
-  const date = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+  const date = (v: string) => Boolean(cashSaleDate(v));
   if (!date(facts.saleDate)) return "Enter a valid sale date.";
   for (const [label, value] of [["delivery", facts.deliveryDate], ["payment", facts.paymentDate], ["insurance expiration", facts.insuranceExpiration], ["promised repair", facts.promiseDue]]) if (value && !date(value)) return `Enter a valid ${label} date.`;
   try {

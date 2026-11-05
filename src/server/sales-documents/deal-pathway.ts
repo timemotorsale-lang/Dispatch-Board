@@ -15,14 +15,18 @@ export async function changeDealPathway(actor: AuthenticatedUser | null, raw: Re
   requireUnifiedCrmCustomerReadPolicy(actor);
   const user = actor, organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
   if (pathwayChangeAccess() === "MANAGERS_ONLY" && !isManager(user)) throw new SalesDocumentsError("Pathway changes are currently configured for managers only.", 403);
-  const id = typeof raw.id === "string" ? raw.id : "", target = String(raw.pathway ?? ""), reason = String(raw.reason ?? "").trim();
-  if (!id || !isSalesDocumentPathway(target) || !Number.isInteger(raw.revision) || reason.length < 10 || reason.length > 1000) throw new SalesDocumentsError("Choose the new pathway and explain the change in 10–1000 characters.");
+  const id = typeof raw.id === "string" ? raw.id : "", target = String(raw.pathway ?? "");
+  if (raw.reason != null && typeof raw.reason !== "string") throw new SalesDocumentsError("The optional reason must be text.");
+  const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
+  if (!id || !isSalesDocumentPathway(target) || !Number.isInteger(raw.revision)) throw new SalesDocumentsError("Choose the new pathway for a saved deal.");
+  if (reason.length > 1000) throw new SalesDocumentsError("Keep the optional reason to 1,000 characters or fewer.");
   return prisma.$transaction(async database => {
     await database.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${dealOrganization() + ":deal-context:" + id}, 0))`;
     const draft = await database.dealDeskDraft.findFirst({ where: { id, organizationId, ...(isManager(user) ? {} : { ownerUserId: user.id }) } });
     if (!draft) throw new SalesDocumentsError("This saved deal is unavailable to your account.", 404);
-    if (draft.pathway === target) return { id, pathway: target, revision: draft.revision, unchanged: true };
+    if (draft.pathway === target) return { id, pathway: target, status: draft.status, revision: draft.revision, unchanged: true };
     if (draft.revision !== raw.revision) throw new SalesDocumentsError("This deal changed. Refresh its details before changing the pathway.", 409);
+    const nextStatus = ["SOLD", "COMPLETED", "PENDING"].includes(draft.status) ? "PENDING" : "IN_PROGRESS";
     const activeAssignment = await database.vehicleUseBooking.count({ where: { contextId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
     const snapshot = object(draft.snapshot), jackets = object(snapshot.jackets), references = object(snapshot.references);
     const jacketIds = Object.values(jackets).filter((value): value is string => typeof value === "string");
@@ -35,8 +39,8 @@ export async function changeDealPathway(actor: AuthenticatedUser | null, raw: Re
     const next = { ...snapshot, "desk:workflowId": target, "desk:executionOpen": false, ...(activeAssignment ? { "desk:assignmentPathway": snapshot["desk:assignmentPathway"] ?? draft.pathway } : {}), "desk:form": { ...object(snapshot["desk:form"]), amount: "" }, jackets: nextJackets, references: nextReferences };
     delete (next as Record<string, unknown>)["desk:selectedPresetId"];
     const history = Array.isArray(draft.statusHistory) ? draft.statusHistory : [];
-    const changed = await database.dealDeskDraft.updateMany({ where: { id, organizationId, revision: draft.revision, pathway: draft.pathway, status: draft.status }, data: { pathway: target, status: "IN_PROGRESS", snapshot: next as Prisma.InputJsonValue, revision: { increment: 1 }, statusHistory: [...history, { action: "PATHWAY_CHANGED", from: draft.status, to: "IN_PROGRESS", fromPathway: draft.pathway, toPathway: target, actorId: user.id, actorName: user.name, reason, at: new Date().toISOString(), priorTargetJacketId: targetJacket, previousAmount: object(snapshot["desk:form"]).amount ?? null, preservedPacketId: protectedPacket?.id ?? null, activeAssignmentPreserved: Boolean(activeAssignment) }] as Prisma.InputJsonValue } });
+    const changed = await database.dealDeskDraft.updateMany({ where: { id, organizationId, revision: draft.revision, pathway: draft.pathway, status: draft.status }, data: { pathway: target, status: nextStatus, snapshot: next as Prisma.InputJsonValue, revision: { increment: 1 }, statusHistory: [...history, { action: "PATHWAY_CHANGED", from: draft.status, to: nextStatus, fromPathway: draft.pathway, toPathway: target, actorId: user.id, actorName: user.name, reason, at: new Date().toISOString(), priorTargetJacketId: targetJacket, previousAmount: object(snapshot["desk:form"]).amount ?? null, preservedPacketId: protectedPacket?.id ?? null, activeAssignmentPreserved: Boolean(activeAssignment) }] as Prisma.InputJsonValue } });
     if (changed.count !== 1) throw new SalesDocumentsError("This deal changed. Refresh its details before continuing.", 409);
-    return { id, pathway: target, revision: draft.revision + 1, unchanged: false };
+    return { id, pathway: target, status: nextStatus, revision: draft.revision + 1, unchanged: false };
   });
 }

@@ -5,6 +5,7 @@ import { EMPTY_CASH_SALE, CASH_SALE_LABELS } from "../../../lib/cash-retail-sale
 import { fixture } from "./draft-store";
 fixture.snapshot.cashSaleFacts = { ...EMPTY_CASH_SALE, buyerAddress: "100 Sample Street, Minneapolis MN", saleDate: "2026-11-04", mileage: "45000", odometerStatus: "Actual", titleBrand: "None", damageDisclosure: "None known", authorizedAgent: "Demo Clerk", warrantyType: "Dealer limited warranty", warrantyCoverage: "Engine and transmission", warrantyDuration: "30 days or 1000 miles" };
 fixture.snapshot.vehicleFacts = { vin: "1NXBR32E85Z123456", stockNumber: "DEMO-123", year: "2005", make: "Toyota", model: "Corolla", color: "Silver", trim: "", licensePlate: "" };
+if (new URLSearchParams(location.search).has("masked-contact")) Object.assign(fixture.snapshot.cashSaleFacts as object, { buyerPhone: "••••0100", buyerEmail: "d•••@•••", saleDate: "11/05/2026" });
 const controls = { generations: 0, failGeneration: false, delay: 0, bodies: [] as Record<string, unknown>[] };
 Object.assign(window, { __cashPrintFixture: { fixture, controls } });
 const pdf = await PDFDocument.create();

@@ -1,0 +1,10 @@
+.editor { min-width: 0; }
+.panel { margin-top: 8px; border: 1px solid #b4c2d7; border-radius: 8px; padding: 10px; }
+.panel summary { cursor: pointer; font-weight: 600; }
+.panel > * + * { margin-top: 10px; }
+.panel label { display: grid; gap: 5px; min-width: 0; }
+.panel input, .panel select { width: 100%; min-width: 0; box-sizing: border-box; }
+.items { display: grid; gap: 12px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(75px, .5fr); gap: 8px; align-items: end; border-top: 1px solid #d9dfeb; padding-top: 10px; }
+.row button { grid-column: 1 / -1; justify-self: start; }
+.panel > a, .panel > button { display: block; }
