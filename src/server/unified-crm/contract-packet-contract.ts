@@ -1,3 +1,4 @@
+import type { BhphPaymentSchedule, BhphPaymentSummary } from "@/lib/bhph-payment";
 export const UNIFIED_CRM_CONTRACT_PACKET_CONTRACT_VERSION = "ucrm.contract-packet/v1";
 export const UNIFIED_CRM_CONTRACT_PACKET_ERROR_CONTRACT_VERSION = "ucrm.contract-packet-error/v1";
 
@@ -56,6 +57,13 @@ export type UnifiedCrmGeneratedContractDocument = {
 };
 
 export type UnifiedCrmContractPacketResult = {
+  bhphPayment?: { calculationVersion: string; inputs: Record<string, string>; schedule: BhphPaymentSchedule; optionalProductComparison?: { with: BhphPaymentSummary; without: BhphPaymentSummary } };
+  bhphFinancing?: {
+    calculationVersion: string;
+    inputs: Record<string, string>;
+    amountsCents: Record<string, number>;
+    itemization: Array<[string, string]>;
+  };
   auditTrail: Array<{
     action: string;
     actorUserId: string;

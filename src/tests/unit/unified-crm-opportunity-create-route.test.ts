@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  authorizeCustomer: vi.fn(),
   createUnifiedCrmOpportunity: vi.fn(),
   getCurrentUser: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentUser }));
+vi.mock("@/server/deal-continuity/identities", () => ({ authorizeDealOpportunityCustomer: mocks.authorizeCustomer }));
 vi.mock("@/server/services/unified-crm-opportunity-create-command-service", () => ({
   createUnifiedCrmOpportunity: mocks.createUnifiedCrmOpportunity
 }));
@@ -63,7 +65,10 @@ describe("Unified CRM opportunity create route", () => {
     mocks.getCurrentUser.mockResolvedValue({ id: "manager-a", name: "Manager", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } });
     mocks.createUnifiedCrmOpportunity.mockResolvedValue({ duplicate: false, opportunity: { opportunityNumber: "OPP-1" } });
     expect((await nextPOST(new Request("http://crm.local/api/crm-next/opportunities", { method: "POST", body: "{}" }))).status).toBe(201);
-    expect(mocks.createUnifiedCrmOpportunity.mock.calls[0][2]).toEqual({ mode: "REVIEW" });
+    expect(mocks.createUnifiedCrmOpportunity.mock.calls[0][2]).toEqual({ mode: "REVIEW", authorizeCustomer: expect.any(Function) });
+    const transaction = {};
+    await mocks.createUnifiedCrmOpportunity.mock.calls[0][2].authorizeCustomer("customer-a", "company-a", transaction);
+    expect(mocks.authorizeCustomer).toHaveBeenCalledWith(expect.objectContaining({ id: "manager-a" }), "customer-a", "company-a", transaction);
     await POST(new Request("http://crm.local/api/crm/v1/opportunities", { method: "POST", body: "{}" }));
     expect(mocks.createUnifiedCrmOpportunity.mock.calls[1][2]).toEqual({});
   });

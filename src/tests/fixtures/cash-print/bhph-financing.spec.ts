@@ -1,0 +1,31 @@
+import { test, expect } from "@playwright/test";
+test("registration is editable, included in financing and restored with the saved quote", async ({ page }) => {
+  await page.goto("/bhph.html");
+  const calculator = page.getByRole("region", { name: "Minnesota BHPH taxes and fees" });
+  await expect(calculator.getByRole("textbox", { name: "Documentation fee", exact: true })).toHaveValue("300.00");
+  await expect(calculator.getByRole("button", { name: "Use financed amount" })).toBeDisabled();
+  await calculator.getByRole("textbox", { name: "Registration fee / tax", exact: true }).fill("100");
+  await expect(calculator.getByText("$15,308.28", { exact: true }).last()).toBeVisible();
+  await expect(calculator.getByRole("textbox", { name: "MN motor vehicle sales tax", exact: true })).toHaveValue("$955.28");
+  await calculator.getByRole("button", { name: "Use financed amount" }).click();
+  await expect(page.getByLabel("Applied financing")).toHaveText("1530828");
+  await calculator.getByRole("textbox", { name: "Registration fee / tax", exact: true }).fill("225");
+  await expect(calculator.getByText("$15,433.28", { exact: true }).last()).toBeVisible();
+  await page.getByRole("button", { name: "Reopen saved fields" }).click();
+  await expect(calculator.getByRole("textbox", { name: "Registration fee / tax", exact: true })).toHaveValue("225");
+  await page.getByLabel("Fixture down payment").fill("2000");
+  await expect(calculator.getByText("$13,433.28", { exact: true })).toBeVisible();
+  await expect(calculator.getByRole("textbox", { name: "MN motor vehicle sales tax", exact: true })).toHaveValue("$955.28");
+});
+test("a fee above the Minnesota cap has an actionable error and retains the registration entry", async ({ page }) => {
+  await page.goto("/bhph.html");
+  const calculator = page.getByRole("region", { name: "Minnesota BHPH taxes and fees" });
+  await calculator.getByRole("textbox", { name: "Registration fee / tax", exact: true }).fill("0");
+  await calculator.getByRole("textbox", { name: "Documentation fee", exact: true }).fill("400");
+  await expect(calculator.getByRole("alert")).toContainText("Minnesota limit");
+  await expect(calculator.getByRole("button", { name: "Use financed amount" })).toBeDisabled();
+  await calculator.getByRole("textbox", { name: "Documentation fee", exact: true }).fill("300");
+  await expect(calculator.getByRole("alert")).toHaveCount(0);
+  await expect(calculator.getByRole("button", { name: "Use financed amount" })).toBeEnabled();
+  await expect(calculator.getByRole("textbox", { name: "Registration fee / tax", exact: true })).toHaveValue("0");
+});

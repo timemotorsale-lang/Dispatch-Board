@@ -1,5 +1,8 @@
 import { cashDefaultFormIds, CASH_SIGNING_TEMPLATE_FILES, CASH_SIGNING_TEMPLATE_VERSION } from "@/lib/cash-sale-print-library";
-import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, cashSaleFacts, cashSaleError } from "@/lib/cash-retail-sale";
+import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, cashSaleFacts, cashSaleError, cashMoney } from "@/lib/cash-retail-sale";
+import { BHPH_FINANCING_VERSION, bhphFinancingFacts, bhphFinancingIssue, calculateBhphFinancing, bhphFinancingRows, bhphWithoutOptionalPrincipal } from "@/lib/bhph-financing";
+import { BHPH_PAYMENT_VERSION, calculateBhphPayment, bhphPaymentSummary } from "@/lib/bhph-payment";
+import { bhphOptionalProductRows } from "@/lib/bhph-optional-products";
 import { cashSalePdf, cashSaleDocumentHtml } from "./cash-retail-sale-documents";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -104,6 +107,10 @@ function dailyRentalFacts(value: unknown) {
 function bhphFacts(value: unknown) {
   const bhph = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
+    financingRows: [] as Array<[string, string]>,
+    paymentRows: [] as Array<[string, string]>,
+    paymentScheduleRows: [] as Array<[string, string]>,
+    termDescription: "",
     amountFinanced: text(bhph.amountFinanced, "$0.00"),
     apr: text(bhph.apr, "Not captured"),
     approvalTriggers: text(bhph.approvalTriggers, "0"),
@@ -1389,12 +1396,14 @@ function buildBhphDocumentHtml(input: {
     ["VIN", input.vehicle.vin],
     ["Stock #", input.vehicle.stockNumber],
     ["Sale price", input.bhph.salePrice],
+    ...input.bhph.financingRows.filter(([label]) => !["Vehicle sale price", "Down payment", "Amount financed"].includes(label)),
     ["Down payment", input.bhph.downPayment],
     ["Amount financed", input.bhph.amountFinanced],
-    ["APR", input.bhph.apr],
+    ["Entered annual rate (payment estimate)", input.bhph.apr],
     ["Payment amount", input.bhph.paymentAmount],
     ["Payment frequency", input.bhph.paymentFrequency],
-    ["Term", `${input.bhph.termMonths} month(s)`],
+    ["Term", input.bhph.termDescription || `${input.bhph.termMonths} month(s)`],
+    ...input.bhph.paymentRows,
     ["First payment date", input.bhph.firstPaymentDate],
     ["Late fee", input.bhph.lateFee],
     ["Title status", input.bhph.titleStatus],
@@ -1437,6 +1446,7 @@ function buildBhphDocumentHtml(input: {
         heading: "Payment schedule",
         rows: commonRows
       },
+      { heading: "Calculated installment schedule (estimate)", rows: input.bhph.paymentScheduleRows },
       {
         heading: "Servicing rules",
         bullets: [
@@ -1691,9 +1701,44 @@ export async function generateUnifiedCrmContractPacket(
   const paymentFunding = text(input.paymentFunding, "To be confirmed");
   const packetId = `contract-packet-${crypto.randomUUID()}`;
   const bhphInput = { ...bhphFacts(input.bhph), warrantyPosture: dealerWarrantyPosture(warrantyOffered) };
+  let financingSnapshot: UnifiedCrmContractPacketResult["bhphFinancing"];
+  let paymentSnapshot: UnifiedCrmContractPacketResult["bhphPayment"];
   if (packetType === "BHPH" && warrantyOffered) {
     const error = dealerWarrantyError(bhphInput);
     if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
+  }
+  if (packetType === "BHPH") {
+    try {
+      const raw = input.bhph && typeof input.bhph === "object" ? input.bhph as Record<string, unknown> : {};
+      if (raw.calculationVersion !== BHPH_FINANCING_VERSION) throw new Error("Review the itemized Minnesota taxes and fees before generating a new BHPH packet. Existing archived packets remain available.");
+      const financing = bhphFinancingFacts(raw.financing);
+      const issue = bhphFinancingIssue(bhphInput.salePrice, bhphInput.downPayment, financing);
+      if (issue) throw new Error(issue);
+      const totals = calculateBhphFinancing(bhphInput.salePrice, bhphInput.downPayment, financing);
+      bhphInput.amountFinanced = cashMoney(totals.amountFinanced);
+      bhphInput.salePrice = cashMoney(totals.sale);
+      bhphInput.downPayment = cashMoney(totals.down);
+      bhphInput.financingRows = [...bhphFinancingRows(totals, financing), ...bhphOptionalProductRows(financing)];
+      financingSnapshot = { calculationVersion: BHPH_FINANCING_VERSION, inputs: { ...financing, salePrice: bhphInput.salePrice, downPayment: bhphInput.downPayment }, amountsCents: { ...totals.fees, sale: totals.sale, taxable: totals.taxable, salesTax: totals.salesTax, exciseTax: totals.exciseTax, feeTotal: totals.feeTotal, total: totals.total, downPayment: totals.down, amountFinanced: totals.amountFinanced }, itemization: bhphInput.financingRows };
+      if (raw.paymentCalculationVersion !== BHPH_PAYMENT_VERSION) throw new Error("Choose the BHPH payment calculation mode before generating a new packet. Existing archived documents remain available.");
+      const paymentInput = { calculationMode: text(raw.calculationMode, ""), apr: bhphInput.apr, paymentFrequency: bhphInput.paymentFrequency, termMonths: bhphInput.termMonths, paymentAmount: bhphInput.paymentAmount, firstPaymentDate: bhphInput.firstPaymentDate };
+      const schedule = calculateBhphPayment(totals.amountFinanced, paymentInput, financing.saleDate);
+      bhphInput.paymentAmount = cashMoney(schedule.numberOfPayments === 1 ? schedule.finalPaymentCents : schedule.regularPaymentCents);
+      bhphInput.termDescription = `${schedule.numberOfPayments} ${schedule.paymentFrequency.toLowerCase()} payments; last due ${schedule.lastPaymentDate}`;
+      bhphInput.paymentRows = [["Calculation mode", paymentInput.calculationMode === "TERM" ? "Term — calculated payment" : "Fixed payment — calculated term"], ["Calculated payment count", String(schedule.numberOfPayments)], ["Final payment", cashMoney(schedule.finalPaymentCents)], ["Last payment date", schedule.lastPaymentDate], ["Estimated periodic interest", cashMoney(schedule.totalInterestCents)], ["Total payments", cashMoney(schedule.totalPaymentsCents)]];
+      bhphInput.paymentScheduleRows = schedule.payments.map(payment => [`${payment.number} · ${payment.dueDate}`, `${cashMoney(payment.amountCents)} payment · ${cashMoney(payment.interestCents)} interest · ${cashMoney(payment.principalCents)} principal · ${cashMoney(payment.balanceCents)} remaining`]);
+      paymentSnapshot = { calculationVersion: BHPH_PAYMENT_VERSION, inputs: paymentInput, schedule };
+      if (totals.optionalProducts.items.length) {
+        const comparison = { with: bhphPaymentSummary(totals.amountFinanced, paymentInput, financing.saleDate), without: bhphPaymentSummary(bhphWithoutOptionalPrincipal(bhphInput.salePrice, bhphInput.downPayment, financing), paymentInput, financing.saleDate) };
+        paymentSnapshot.optionalProductComparison = comparison;
+        for (const key of ["without", "with"] as const) {
+          const value = comparison[key], label = key === "with" ? "With selected optional products" : "Without optional products";
+          bhphInput.paymentRows.push([label, `${cashMoney(value.amountFinancedCents)} financed; ${value.numberOfPayments} payments at ${cashMoney(value.regularPaymentCents)}; final payment ${cashMoney(value.finalPaymentCents)}; total payments ${cashMoney(value.totalPaymentsCents)}`]);
+        }
+      }
+    } catch (error) {
+      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error instanceof Error ? error.message : "Review the Minnesota taxes and fees.");
+    }
   }
   const rentalInput = dailyRentalFacts(input.dailyRental);
   const requestedLeaseInput = leaseCalculatorInput(input.leaseCalculator);
@@ -1911,6 +1956,8 @@ export async function generateUnifiedCrmContractPacket(
   }));
 
   const result: UnifiedCrmContractPacketResult = {
+    ...(paymentSnapshot ? { bhphPayment: paymentSnapshot } : {}),
+    ...(financingSnapshot ? { bhphFinancing: financingSnapshot } : {}),
     auditTrail: [
       {
         action: "CONTRACT_PACKET_GENERATED",
@@ -1925,7 +1972,7 @@ export async function generateUnifiedCrmContractPacket(
           : packetType === "DAILY_RENTAL"
             ? `${documents.length} daily rental form(s) generated and archived.`
           : packetType === "BHPH"
-            ? `${documents.length} BHPH form(s) generated and archived.`
+            ? `${documents.length} BHPH form(s) generated and archived; ${BHPH_FINANCING_VERSION}; server-calculated amount financed ${bhphInput.amountFinanced}.`
             : `${documents.length} Minnesota sale form(s) generated and archived.`
       }
     ],

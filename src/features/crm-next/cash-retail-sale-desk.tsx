@@ -50,6 +50,9 @@ export function CashRetailSaleDesk(props: Props) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [drawer, setDrawer] = useState(false), [preview, setPreview] = useState(false), [previewId, setPreviewId] = useState("");
 
   const requestKey = useRef(crypto.randomUUID());
+  const pendingAction = useRef(false);
+  const latestFingerprint = useRef(fingerprint);
+  useEffect(() => { latestFingerprint.current = fingerprint; }, [fingerprint]);
   const [packetBuyer, setPacketBuyer] = useDealDraftState("cashPacketBuyer", props.customerName);
   useEffect(() => {
     if (packetBuyer === props.customerName) return;
@@ -66,6 +69,8 @@ export function CashRetailSaleDesk(props: Props) {
   const document = packet?.documents.find(d => d.formId === previewId);
   const changed = Boolean(generatedFingerprint && generatedFingerprint !== fingerprint) || packetState.dirty;
   const canPreview = Boolean(packet && selected.length && !changed && selected.every(id => packet.documents.some(doc => doc.formId === id)));
+  const warrantyNeeded = cashGenerationIds(selected, facts).some(id => ["buyers-guide", "warranty-disclosure", "as-is-acknowledgment"].includes(id));
+  const warrantyError = error.startsWith("Record why the vehicle is exempt") || error.startsWith("Record the exact As Is exclusion") || error.startsWith("Describe the covered systems") || error.startsWith("Choose the warranty terms");
 
   useEffect(() => {
     if (!preview || !packet) return;
@@ -84,56 +89,81 @@ export function CashRetailSaleDesk(props: Props) {
   const field = (label: string, key: keyof CashSaleFacts, type = "text") => <label key={key}><span>{label}</span><input type={type} value={facts[key]} onChange={e => edit(key, e.target.value)} /></label>;
 
   const choice = (label: string, key: keyof CashSaleFacts, values: string[]) => <label><span>{label}</span><select value={facts[key]} onChange={e => edit(key, e.target.value)}><option value="">Choose...</option>{values.map(value => <option key={value}>{value}</option>)}</select></label>;
+  const warrantyFields = <fieldset disabled={busy} style={{ margin: "10px 0", padding: 12, border: "1px solid #b4c2d7", borderRadius: 4 }}>
+    <legend>Warranty details for printing</legend>
+    <div className={styles.retailFieldGrid}>
+      {choice("Warranty terms", "warrantyType", ["Dealer limited warranty", "No dealer warranty - eligibility reviewed"])}
+      {facts.warrantyType === "No dealer warranty - eligibility reviewed" && field("Reviewed no-warranty reason", "warrantyExemption")}
+      {facts.warrantyType === "Dealer limited warranty" && <>{field("Covered systems", "warrantyCoverage")}{field("Warranty duration / mileage", "warrantyDuration")}</>}
+      {selected.includes("as-is-acknowledgment") && <>{field("Exact As Is statutory exclusion / subdivision", "asIsExclusion")}{field("Eligibility reviewed by / date", "eligibilityReviewedBy")}</>}
+    </div>
+    <small>Record the reviewed warranty terms. These details are saved with the deal and included in updated forms.</small>
+  </fieldset>;
 
-  async function generate() {
-
-    setError(""); setNotice("");
+  async function preparePacket(forceGeneration = false): Promise<UnifiedCrmContractPacketResult> {
+    if (!selected.length) throw new Error("Choose at least one form or print pack.");
+    let available = packet;
+    if (!available && (packetState.loading || packetState.error)) {
+      available = await packetState.retry();
+      if (!available) throw new Error("The saved packet could not be opened. Use Retry opening saved packet before creating another copy.");
+    }
+    if (!forceGeneration && available && !changed && selected.every(id => available!.documents.some(doc => doc.formId === id))) return available;
 
     const ids = cashGenerationIds(selected, facts);
-    if(!selected.length){setError("Choose at least one form or print pack.");return;}
-
     const invalid = cashSaleError(props.customerName, vehicle.vin, props.amount, facts, ids);
+    if (invalid) throw new Error(invalid);
+    if (!calculation.totals) throw new Error(calculation.error || "Check the sale amounts.");
+    if (!draft || !await draft.save()) throw new Error(draft?.saveError() || "Save this deal before generating the packet.");
 
-    if (invalid) { setError(invalid); return; }
-
-    setBusy(true);
-
-    try {
-
-      if (!draft || !await draft.save()) throw new Error(draft?.saveError() || "Save this deal before generating the packet.");
-
-      const response = await requestContractPacket({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...props.getDocumentContext(), packetType: "MINNESOTA_RETAIL_SALE", dealType: "Retail Cash / One Pay", customerName: props.customerName, salePrice: props.amount, feeTotal: cashMoney(calculation.totals!.fees), paymentFunding: "Cash / certified funds", vehicle, retailCash: facts, preparedFormIds: ids, idempotencyKey: requestKey.current }) });
-
-      const result = await response.json();
-
-      if (!response.ok) throw new Error(result.error || "Packet generation failed. Your entries remain here.");
-
-      setPacket(result); setGeneratedFingerprint(fingerprint); setPreviewId(""); setNotice("Packet saved on this deal. Open preview to review and print the selected forms."); requestKey.current = crypto.randomUUID();
-
-    } catch (e) { setError(e instanceof Error ? e.message : "The packet could not be generated."); }
-
-    finally { setBusy(false); }
-
+    const response = await requestContractPacket({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...props.getDocumentContext(), packetType: "MINNESOTA_RETAIL_SALE", dealType: "Retail Cash / One Pay", customerName: props.customerName, salePrice: props.amount, feeTotal: cashMoney(calculation.totals.fees), paymentFunding: "Cash / certified funds", vehicle, retailCash: facts, preparedFormIds: ids, idempotencyKey: requestKey.current }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Packet generation failed. Your entries remain here.");
+    if (!result.packetId || !Array.isArray(result.documents) || !selected.every(id => result.documents.some((doc: { formId: string }) => doc.formId === id))) throw new Error("The packet did not include every selected form. Check Sales Documents before retrying.");
+    setPacket(result); setGeneratedFingerprint(fingerprint); setPreviewId(""); requestKey.current = crypto.randomUUID();
+    if (latestFingerprint.current !== fingerprint) throw new Error("Deal details changed while the packet was being prepared. Your generated copy is saved; prepare the updated selection before printing.");
+    return result as UnifiedCrmContractPacketResult;
   }
 
-  async function output(print = false) {
-    if (!packet || !canPreview) return;
-    const popup = print ? window.open("", "_blank") : null;
-    if (print && !popup) { setError("The browser blocked the print window. Allow pop-ups for this application, or use Preview selected forms and the PDF viewer’s print button."); return; }
-    if(popup) { popup.opener = null; popup.document.title = "Preparing selected cash sale forms"; popup.document.body.textContent = "Preparing selected forms for printing…"; }
-    setError(""); setBusy(true);
+  async function perform(action: "generate" | "preview" | "download" | "print") {
+    if (pendingAction.current) return;
+    if (!selected.length) { setError("Choose at least one form or print pack."); return; }
+    pendingAction.current = true;
+    const popup = action === "print" ? window.open("", "_blank") : null;
+    if (popup) { popup.opener = null; popup.document.title = "Preparing selected cash sale forms"; popup.document.body.textContent = "Preparing selected forms for printing…"; }
+    setError(""); setNotice(""); setBusy(true);
     try {
-      const bytes = await cashSelectedPrintPdf(packet.documents, selected, duplexSafe), url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], {type:"application/pdf"}));
-      if(popup){popup.addEventListener("load",()=>{try{popup.focus();popup.print();}catch{/* The PDF viewer keeps its own print control available. */}},{once:true});popup.location.href=url;setNotice("Selected forms opened in the PDF print viewer. Use its print button if the print dialog does not open.");}
-      else { const anchor=window.document.createElement("a");anchor.href=url;anchor.download=`cash-sale-${packet.packetNumber}.pdf`;anchor.click(); }
-      setTimeout(()=>URL.revokeObjectURL(url),60_000);
-    } catch(e) { popup?.close();setError(e instanceof Error ? e.message : "The selected forms could not be printed. Try Preview selected forms."); }
-    finally {setBusy(false);}
+      const readyPacket = await preparePacket(action === "generate");
+      if (action === "generate") {
+        setNotice("Packet saved on this deal. Open preview to review and print the selected forms.");
+      } else if (action === "preview") {
+        setPreviewId(""); setPreview(true);
+        setNotice("Selected forms prepared. Review the PDF preview below.");
+      } else {
+        const bytes = await cashSelectedPrintPdf(readyPacket.documents, selected, duplexSafe);
+        const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/pdf" }));
+        if (action === "print") {
+          if (popup && !popup.closed) {
+            popup.addEventListener("load", () => { try { popup.focus(); popup.print(); } catch { /* The PDF viewer retains its print control. */ } }, { once: true });
+            popup.location.href = url;
+            setNotice("Selected forms opened in the PDF print viewer. Use its print button if the print dialog does not open.");
+          } else {
+            setPreviewId(""); setPreview(true);
+            setNotice("The browser blocked or closed the print window. Your PDF is ready: use Download selected PDF or the preview below.");
+          }
+        } else {
+          const anchor = window.document.createElement("a"); anchor.href = url; anchor.download = `cash-sale-${readyPacket.packetNumber}.pdf`; anchor.click();
+          setNotice("Selected PDF prepared for download.");
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 300_000);
+      }
+    } catch (caught) {
+      popup?.close();
+      setError(caught instanceof Error ? caught.message : "The selected forms could not be prepared. Your entries remain here.");
+    } finally { pendingAction.current = false; setBusy(false); }
   }
-
   const sold = draft?.saleStatus === "SOLD", complete = draft?.paperworkComplete;
 
-  return <div className={styles.retailExecutionDesk} aria-label="Cash retail sale workflow">
+  return <div className={styles.retailExecutionDesk} data-deal-state-managed aria-label="Cash retail sale workflow">
 
     <section className={styles.retailSection}>
 
@@ -171,12 +201,14 @@ export function CashRetailSaleDesk(props: Props) {
 
     {calculation.error && <p role="alert">{calculation.error}</p>}
 
-    {drawer && <CashSalePrintLibrary facts={facts} selected={selected} onSelect={ids=>{setSelected(ids);setPreview(false);setError("");}} busy={busy} canPreview={canPreview} onGenerate={()=>void generate()} onPreview={()=>{setPreviewId("");setPreview(true);}} onPrint={()=>void output(true)} onDownload={()=>void output()} onClose={()=>setDrawer(false)} duplexSafe={duplexSafe} onDuplexChange={setDuplexSafe}>
+    {drawer && <CashSalePrintLibrary facts={facts} selected={selected} onSelect={ids=>{if(pendingAction.current)return;setSelected(ids);setPreview(false);setError("");}} busy={busy} canPreview={canPreview} onGenerate={()=>void perform("generate")} onPreview={()=>void perform("preview")} onPrint={()=>void perform("print")} onDownload={()=>void perform("download")} onClose={()=>setDrawer(false)} duplexSafe={duplexSafe} onDuplexChange={value=>{if(!pendingAction.current)setDuplexSafe(value);}} feedback={<>
+      {warrantyNeeded && warrantyFields}
       {packetState.error && <p role="alert">{packetState.error}<button type="button" onClick={()=>void packetState.retry()}>Retry opening saved packet</button></p>}
       {packetState.loading && <p role="status">Opening saved packet…</p>}
-      {changed && <p role="status">The saved packet has earlier deal details. Generate again to include your changes.</p>}
-      {packet && !changed && selected.some(id=>!packet.documents.some(doc=>doc.formId===id)) && <p role="status">Generate this selection to add the missing forms before previewing or printing.</p>}
-      {error && <div role="alert"><p>{error}</p><button type="button" disabled={busy} onClick={()=>{setDrawer(false);window.dispatchEvent(new CustomEvent("deal-workspace-navigate",{detail:"terms"}));}}>Review deal details</button></div>}{notice && <p role="status">{notice}</p>}
+      {changed && <p role="status">The saved packet has earlier deal details. Preview, Download or Print will prepare an updated copy.</p>}
+      {packet && !changed && selected.some(id=>!packet.documents.some(doc=>doc.formId===id)) && <p role="status">The selected output will prepare any forms missing from the saved packet.</p>}
+      {error && <div role="alert"><p>{warrantyError ? "Complete the warranty details above, then choose Print selected forms." : error}</p>{!warrantyError && <button type="button" disabled={busy} onClick={()=>{setDrawer(false);window.dispatchEvent(new CustomEvent("deal-workspace-navigate",{detail:"terms"}));}}>Review deal details</button>}</div>}{notice && <p role="status">{notice}</p>}
+      </>}>
       {preview && packet && <section aria-label="Generated cash sale preview"><label>Document<select value={previewId} onChange={e=>setPreviewId(e.target.value)}><option value="">Selected print packet ({selected.length} forms)</option>{packet.documents.filter(doc=>selected.includes(doc.formId)).map(doc=><option key={doc.formId} value={doc.formId}>{doc.label}</option>)}</select></label><p>Review all pages below. Generated documents are unsigned. Use the PDF viewer to print.</p><iframe ref={previewFrame} title={document?.label || "Selected cash sale print packet"} style={{width:"100%",height:"65vh",border:0}}/></section>}
     </CashSalePrintLibrary>}
 

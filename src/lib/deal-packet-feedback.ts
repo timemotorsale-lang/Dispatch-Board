@@ -2,6 +2,12 @@ export type PacketCorrection = { fields: string[]; sections: string[] };
 
 export function packetCorrection(message: string): PacketCorrection | null {
   const value = message.toLowerCase();
+  if (/registration fee|registration.*tax/.test(value)) return { fields: ["Registration fee / tax"], sections: ["terms", "calculator"] };
+  if (/documentation fee/.test(value)) return { fields: ["Documentation fee"], sections: ["terms", "calculator"] };
+  if (/fixed payment|periodic interest/.test(value)) return { fields: ["Fixed payment amount", "Payment amount"], sections: ["terms", "calculator"] };
+  if (/annual rate/.test(value)) return { fields: ["Annual rate (%)"], sections: ["terms", "calculator"] };
+  if (/term from 1 to 120/.test(value)) return { fields: ["Term (months)"], sections: ["terms", "calculator"] };
+  if (/calculation mode|calculate payment from term/.test(value)) return { fields: ["Calculate using"], sections: ["terms", "calculator"] };
   if (/signing cash|cash at signing/.test(value)) return { fields: ["Total cash at signing", "Down payment", "Signing amount entry"], sections: ["calculator", "terms"] };
   if (/delivery.*odometer|delivery.*mileage/.test(value)) return { fields: ["Delivery odometer", "Odometer"], sections: ["vehicle", "unit"] };
   if (/delivery.*date|warranty delivery/.test(value)) return { fields: ["Delivery date / time (local)"], sections: ["vehicle", "unit"] };

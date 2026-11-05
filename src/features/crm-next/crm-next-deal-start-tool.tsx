@@ -29,6 +29,12 @@ import { FilePlus2, Eye, Download, Printer, X, CheckCircle2, Circle, ChevronRigh
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
+import { bhphDocumentIdentity } from "@/lib/bhph-document-identity";
+import { BhphVehicleFields } from "./bhph-vehicle-fields";
+import { BhphFinancingCalculator } from "./bhph-financing-calculator";
+import { BhphPaymentCalculator } from "./bhph-payment-calculator";
+import { BHPH_PAYMENT_VERSION, calculateBhphPayment } from "@/lib/bhph-payment";
+import { BHPH_FINANCING_VERSION, newBhphFinancingFacts, calculateBhphFinancing, bhphFinancingIssue, bhphWithoutOptionalPrincipal, type BhphFinancingFacts } from "@/lib/bhph-financing";
 import { testDriveFacts, testDriveAgreementIssue, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, dealerWarrantyPosture, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
@@ -2637,11 +2643,14 @@ function BhphExecutionDesk({
 }) {
   const [dealerWarrantyOffered, setDealerWarrantyOffered] = useDealDraftState("dealerWarrantyOffered", true);
   const bhphForms = BHPH_FORM_PACKET.filter((form) => dealerWarrantyOffered || form.id !== BHPH_WARRANTY_FORM_ID);
+  const canonicalVehicle = useContext(SharedDealVehicleContext);
+  const generationPending = useRef(false);
   const bhphPaperwork = BHPH_PAPERWORK_REQUIREMENTS.filter((item) => dealerWarrantyOffered || item.id !== "dealer-warranty");
   const [paperwork, setPaperwork] = useDealDraftState<Record<string, string>>("paperwork", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
   const [terms, setTerms] = useDealDraftState("terms", {
+    calculationMode: "TERM",
     deliveryAt: "",
     deliveryMileage: "",
     apr: "24.00%",
@@ -2675,9 +2684,16 @@ function BhphExecutionDesk({
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
 
-  const salePriceCents = dollarsToCents(terms.salePrice);
-  const downPaymentCents = dollarsToCents(terms.downPayment);
-  const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0));
+  const [financing, setFinancing] = useDealDraftState("financing", newBhphFinancingFacts);
+  const financingIssue = bhphFinancingIssue(terms.salePrice, terms.downPayment, financing);
+  const calculation = useMemo(() => {
+    try { return calculateBhphFinancing(terms.salePrice, terms.downPayment, financing); } catch { return null; }
+  }, [terms.salePrice, terms.downPayment, financing]);
+  const amountFinancedCents = calculation?.amountFinanced ?? 0;
+  const paymentCalculation = useMemo(() => {
+    try { return { schedule: calculateBhphPayment(amountFinancedCents, terms, financing.saleDate), error: "", withoutAddOnsPrincipalCents: calculation?.optionalProducts.items.length ? bhphWithoutOptionalPrincipal(terms.salePrice, terms.downPayment, financing) : undefined }; }
+    catch (error) { return { schedule: null, error: error instanceof Error ? error.message : "Review the payment inputs.", withoutAddOnsPrincipalCents: undefined }; }
+  }, [amountFinancedCents, terms, financing, calculation]);
   const requiredBhphForms = useMemo(() => requiredBhphFormIds().filter((id) => dealerWarrantyOffered || id !== BHPH_WARRANTY_FORM_ID), [dealerWarrantyOffered]);
   const preparedRequiredCount = bhphForms.filter((form) => form.category === "Required" && (form.id === BHPH_WARRANTY_FORM_ID || preparedForms.includes(form.id))).length;
   const deliveryDate = new Date(terms.deliveryAt);
@@ -2692,7 +2708,7 @@ function BhphExecutionDesk({
   const evidenceReady = evidenceCount === BHPH_EVIDENCE_REQUIREMENTS.length;
   const handoffReady = handoffCount === BHPH_HANDOFF_REQUIREMENTS.length;
   const proofReady = Boolean(proof.income.trim() && proof.residence.trim() && proof.references.trim());
-  const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.paymentAmount.trim() && terms.firstPaymentDate.trim());
+  const termsReady = Boolean(!financingIssue && paymentCalculation.schedule);
   const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && (!dealerWarrantyOffered || warrantyDetails) && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
   const bhphMissingGates = [
     { label: "Customer selected", ready: customerName !== "Customer not selected" },
@@ -2708,12 +2724,17 @@ function BhphExecutionDesk({
 
   function updateTerms(key: keyof typeof terms, value: string) {
     setContractPacket(null);
+    setPacketStatus({ kind: "idle", message: "" });
     const next = { ...terms, [key]: value };
     setTerms(next);
-    const nextSalePrice = dollarsToCents(next.salePrice);
-    const nextDownPayment = dollarsToCents(next.downPayment);
-    const nextAmountFinanced = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0));
-    onAmountChange(formatCurrency(nextAmountFinanced));
+    if (!bhphFinancingIssue(next.salePrice, next.downPayment, financing)) onAmountChange(formatCurrency(calculateBhphFinancing(next.salePrice, next.downPayment, financing).amountFinanced));
+  }
+
+  function updateFinancing(key: keyof BhphFinancingFacts, value: string) {
+    const next = { ...financing, [key]: value };
+    setFinancing(next); setContractPacket(null);
+    setPacketStatus({ kind: "idle", message: "" });
+    if (!bhphFinancingIssue(terms.salePrice, terms.downPayment, next)) onAmountChange(formatCurrency(calculateBhphFinancing(terms.salePrice, terms.downPayment, next).amountFinanced));
   }
 
   function togglePreparedForm(id: string) {
@@ -2776,14 +2797,23 @@ function BhphExecutionDesk({
   const getDocumentContext = useContext(DealDocumentContext);
   const identityDraft = useDealDraft();
   async function generateBhphPacket() {
-    if (identityDraft && !await identityDraft.save()) return;
+    if (generationPending.current) return;
+    generationPending.current = true;
+    try {
+    if (financingIssue || !calculation) throw new Error(financingIssue || "Review the Minnesota taxes and fees.");
+    if (!paymentCalculation.schedule) throw new Error(paymentCalculation.error);
+    if (!identityDraft || !await identityDraft.save()) throw new Error(identityDraft?.saveError() || "Save this deal before generating the BHPH packet. Your entries are retained.");
+    const documentIdentity = bhphDocumentIdentity(getDocumentContext(), canonicalVehicle, terms.deliveryMileage, identityDraft.read("bhph:vehicleDetailExtras"));
     setPacketStatus({ kind: "generating", message: "Generating and archiving BHPH packet..." });
-    const vin = getVinFromVehicleInput(vehicle);
     const response = await requestContractPacket({
       body: JSON.stringify({
         bhph: {
           ...terms,
           ...proof,
+          financing,
+          calculationVersion: BHPH_FINANCING_VERSION,
+          paymentCalculationVersion: BHPH_PAYMENT_VERSION,
+          paymentAmount: formatCurrency(paymentCalculation.schedule.regularPaymentCents),
           amountFinanced: formatCurrency(amountFinancedCents),
           approvalTriggers: String(approvalTriggers),
           evidenceCount: `${evidenceCount}/${BHPH_EVIDENCE_REQUIREMENTS.length}`,
@@ -2794,22 +2824,15 @@ function BhphExecutionDesk({
           deliveryAt: deliveryIso,
           warrantyPosture: dealerWarrantyPosture(dealerWarrantyOffered)
         },
-        ...getDocumentContext(),
-        customerName,
-        dealNumber: getStockNumberFromVin(vin) || vehicle || undefined,
+        ...documentIdentity,
         dealType: "BHPH",
         dealerWarrantyOffered,
-        feeTotal: "$0.00",
+        feeTotal: formatCurrency(calculation.feeTotal),
         idempotencyKey: crypto.randomUUID(),
         packetType: "BHPH",
-        paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${terms.paymentAmount || "$0.00"} ${terms.paymentFrequency}; APR ${terms.apr}; first payment ${terms.firstPaymentDate || "Not captured"}.`,
+        paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${formatCurrency(paymentCalculation.schedule.regularPaymentCents)} ${terms.paymentFrequency}; ${paymentCalculation.schedule.numberOfPayments} payments; final ${formatCurrency(paymentCalculation.schedule.finalPaymentCents)}; entered annual rate ${terms.apr}; first payment ${terms.firstPaymentDate}.`,
         preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredBhphForms,
-        salePrice: terms.salePrice || "$0.00",
-        vehicle: {
-          stockNumber: getStockNumberFromVin(vin) || vehicle,
-          mileage: terms.deliveryMileage,
-          vin
-        }
+        salePrice: terms.salePrice || "$0.00"
       }),
       headers: { "content-type": "application/json" },
       method: "POST"
@@ -2824,6 +2847,11 @@ function BhphExecutionDesk({
     setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
     setPacketStatus({ kind: "ready", message: `Archived BHPH packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(amountFinancedCents));
+    } catch (error) {
+      setPacketStatus({ kind: "error", message: error instanceof Error ? error.message : "The BHPH packet could not be prepared. Your entries are retained; retry generation." });
+    } finally {
+      generationPending.current = false;
+    }
   }
 
   function captureEvidence(
@@ -2860,7 +2888,7 @@ function BhphExecutionDesk({
           <strong>Bind the BHPH paperwork to the exact unit</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
+          <BhphVehicleFields vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Needs manager review</option><option>Title work pending</option></select></label>
           <label><span>Dealer warranty</span><select value={dealerWarrantyOffered ? "OFFERED" : "NOT_OFFERED"} onChange={(event) => { setDealerWarrantyOffered(event.target.value === "OFFERED"); setContractPacket(null); }}><option value="OFFERED">Offer engine / transmission: 30 days or 1,000 miles</option><option value="NOT_OFFERED">Not offered - required coverage unaffected</option></select></label>
           <label><span>Delivery date / time (local)</span><input type="datetime-local" value={terms.deliveryAt} onChange={(event) => updateTerms("deliveryAt", event.target.value)} /></label>
@@ -2871,7 +2899,7 @@ function BhphExecutionDesk({
         </div>
       </section>
 
-      <section className={styles.retailSection} id="bhph-terms">
+      <section className={styles.retailSection} id="bhph-terms" data-deal-state-managed>
         <header>
           <span>Deal terms</span>
           <strong>Structure the BHPH payment schedule before paperwork</strong>
@@ -2879,21 +2907,11 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Sale price</span><input value={terms.salePrice} onChange={(event) => updateTerms("salePrice", event.target.value)} placeholder="$0.00" /></label>
           <label><span>Down payment</span><input value={terms.downPayment} onChange={(event) => updateTerms("downPayment", event.target.value)} /></label>
-          <label><span>Amount financed</span><input readOnly value={formatCurrency(amountFinancedCents)} /></label>
-          <label><span>APR</span><input value={terms.apr} onChange={(event) => updateTerms("apr", event.target.value)} /></label>
-          <label><span>Payment amount</span><input value={terms.paymentAmount} onChange={(event) => updateTerms("paymentAmount", event.target.value)} placeholder="$0.00" /></label>
-          <label><span>Payment frequency</span><select value={terms.paymentFrequency} onChange={(event) => updateTerms("paymentFrequency", event.target.value)}><option>Weekly</option><option>Biweekly</option><option>Semimonthly</option><option>Monthly</option></select></label>
-          <label><span>Term</span><select value={terms.termMonths} onChange={(event) => updateTerms("termMonths", event.target.value)}><option value="12">12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="30">30 months</option><option value="36">36 months</option><option value="42">42 months</option></select></label>
-          <label><span>First payment date</span><input type="date" value={terms.firstPaymentDate} onChange={(event) => updateTerms("firstPaymentDate", event.target.value)} /></label>
+          <label><span>Amount financed</span><input readOnly value={calculation ? formatCurrency(amountFinancedCents) : "Review amounts"} /></label>
           <label><span>Late fee</span><input value={terms.lateFee} onChange={(event) => updateTerms("lateFee", event.target.value)} /></label>
         </div>
-        <div className={styles.rentalSummaryStrip}>
-          <div><span>Amount financed</span><strong>{formatCurrency(amountFinancedCents)}</strong></div>
-          <div><span>Payment</span><strong>{terms.paymentAmount || "$0.00"}</strong></div>
-          <div><span>Frequency</span><strong>{terms.paymentFrequency}</strong></div>
-          <div><span>Term</span><strong>{terms.termMonths} mo.</strong></div>
-          <button type="button" onClick={() => onAmountChange(formatCurrency(amountFinancedCents))}>Use financed amount</button>
-        </div>
+        <BhphFinancingCalculator salePrice={terms.salePrice} downPayment={terms.downPayment} facts={financing} onChange={updateFinancing} onUse={cents => onAmountChange(formatCurrency(cents))} />
+        <BhphPaymentCalculator principalCents={!financingIssue && calculation ? amountFinancedCents : null} terms={terms} saleDate={financing.saleDate} onChange={updateTerms} withoutAddOnsPrincipalCents={paymentCalculation.withoutAddOnsPrincipalCents} />
       </section>
 
       <section className={styles.retailSection} id="bhph-paperwork">
@@ -4586,6 +4604,17 @@ function DealStartDesk({
     }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
     return () => controller.abort();
   }, [identity.vehicleId, setIdentity, setForm]);
+  useEffect(() => {
+    if (workflowId !== "bhph" || !identity.vehicleId) return;
+    const controller = new AbortController(), vehicleId = identity.vehicleId;
+    void fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(vehicleId)}`, { signal: controller.signal, cache: "no-store" }).then(async response => {
+      const vehicle = await response.json();
+      if (!response.ok) throw new Error(vehicle.error || "The shared vehicle details could not be refreshed. Your entries are retained.");
+      if (controller.signal.aborted) return;
+      setIdentity(current => current.vehicleId === vehicleId ? { ...current, inventoryUnitId: vehicle.inventoryUnitId, vehicle } : current);
+    }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
+    return () => controller.abort();
+  }, [workflowId, identity.vehicleId, setIdentity]);
   useEffect(() => {
     if (!form.customerId || form.customerId === MANUAL_CUSTOMER_ID) return;
     const controller = new AbortController();

@@ -1,0 +1,24 @@
+import { test, expect } from "@playwright/test";
+test("warranty and accessories are optional, separately priced, saved and compared", async ({ page }) => {
+  await page.goto("/bhph.html");
+  await page.getByLabel("Fixture sale price").fill("28895"); await page.getByLabel("Fixture down payment").fill("15000");
+  await page.getByRole("textbox", { name: "Registration fee / tax", exact: true }).fill("417");
+  await page.getByText("Offer or select optional add-ons", { exact: true }).click();
+  const warranty = page.getByRole("checkbox", { name: "Include optional extended warranty / service contract", exact: true });
+  await expect(warranty).not.toBeChecked(); await warranty.check();
+  await page.getByRole("textbox", { name: "Extended warranty / contract name and coverage", exact: true }).fill("Example extended repair coverage");
+  await page.getByRole("textbox", { name: "Optional warranty price", exact: true }).fill("1500");
+  await expect(page.getByRole("textbox", { name: "MN motor vehicle sales tax", exact: true })).toHaveValue("$1,986.53");
+  const comparison = page.getByRole("region", { name: "Optional product payment comparison" });
+  await expect(comparison).toContainText("$16,656.53"); await expect(comparison).toContainText("$18,156.53");
+  await page.getByRole("checkbox", { name: "Include optional accessories / equipment", exact: true }).check();
+  await page.getByRole("textbox", { name: "Optional accessories description", exact: true }).fill("Accessory package");
+  await page.getByRole("textbox", { name: "Optional accessories price", exact: true }).fill("500");
+  await expect(page.getByRole("textbox", { name: "MN motor vehicle sales tax", exact: true })).toHaveValue("$2,020.91");
+  await expect(comparison).toContainText("$18,690.91");
+  await page.getByRole("button", { name: "Reopen saved fields" }).click();
+  await page.getByText("Offer or select optional add-ons", { exact: true }).click();
+  await expect(warranty).toBeChecked(); await expect(page.getByRole("textbox", { name: "Optional warranty price", exact: true })).toHaveValue("1500");
+  await warranty.uncheck(); await page.getByRole("checkbox", { name: "Include optional accessories / equipment", exact: true }).uncheck();
+  await expect(comparison).toHaveCount(0); await expect(page.getByRole("textbox", { name: "Calculated payment", exact: true })).toHaveValue("$694.03");
+});

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as continuity from "@/server/deal-continuity/service";
 import { PDFDocument } from "pdf-lib";
+import { BHPH_FINANCING_VERSION, MN_BHPH_FEE_DEFAULTS } from "@/lib/bhph-financing";
+import { BHPH_PAYMENT_VERSION } from "@/lib/bhph-payment";
+const BHPH_FINANCE_INPUT = { calculationVersion: BHPH_FINANCING_VERSION, paymentCalculationVersion: BHPH_PAYMENT_VERSION, calculationMode: "TERM", apr: "0", termMonths: "24", paymentAmount: "500", paymentFrequency: "Monthly", firstPaymentDate: "2026-12-05", financing: { ...MN_BHPH_FEE_DEFAULTS, saleDate: "2026-10-01", registrationFee: "0.00" }, salePrice: "10000.00", downPayment: "1500.00" };
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
@@ -18,10 +21,58 @@ import { POST } from "@/app/api/crm/v1/contract-packets/route";
 import { archiveGeneratedSalesPacket } from "@/server/sales-documents/service";
 
 describe("Unified CRM contract packet route", () => {
+  it("archives selected optional products and a server-calculated with/without payment statement", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-payment-schedule-servicing"], bhph: { ...BHPH_FINANCE_INPUT, salePrice: "28895", downPayment: "15000", financing: { ...BHPH_FINANCE_INPUT.financing, registrationFee: "417", optionalWarrantySelected: "true", optionalWarrantyName: "Example extended repair coverage", optionalWarrantyPrice: "1500" } } }) }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    expect(packet.bhphFinancing.amountsCents.amountFinanced).toBe(1815653);
+    expect(packet.bhphPayment.optionalProductComparison).toMatchObject({ without: { amountFinancedCents: 1665653, regularPaymentCents: 69403 }, with: { amountFinancedCents: 1815653, regularPaymentCents: 75653 } });
+    expect(packet.documents[0].html).toContain("Example extended repair coverage");
+    expect(packet.documents[0].html).toContain("Without optional products");
+    expect(packet.documents[0].html).toContain("With selected optional products");
+    const archived = await GET(new Request(`http://crm.local/api/crm/v1/contract-packets/${packet.packetId}`), { params: Promise.resolve({ packetId: packet.packetId }) });
+    expect((await archived.json()).bhphPayment.optionalProductComparison).toEqual(packet.bhphPayment.optionalProductComparison);
+  });
+  it.each(["TERM", "PAYMENT_AMOUNT"])("prints a server-calculated %s schedule using only its active input", async calculationMode => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-payment-schedule-servicing"], bhph: { ...BHPH_FINANCE_INPUT, salePrice: "28895", downPayment: "15000", financing: { ...BHPH_FINANCE_INPUT.financing, registrationFee: "$417.00" }, calculationMode, termMonths: calculationMode === "TERM" ? "24" : "inactive", paymentAmount: calculationMode === "TERM" ? "inactive" : "500", numberOfPayments: 1 } }) }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    expect(packet.bhphPayment.schedule).toMatchObject(calculationMode === "TERM" ? { regularPaymentCents: 69403, numberOfPayments: 24, finalPaymentCents: 69384 } : { regularPaymentCents: 50000, numberOfPayments: 34, finalPaymentCents: 15653 });
+    expect(packet.bhphPayment.schedule.payments.at(-1).balanceCents).toBe(0);
+    expect(packet.documents[0].html).toContain(calculationMode === "TERM" ? "$693.84" : "$156.53");
+    expect(packet.documents[0].html).toContain("Calculated installment schedule");
+    const archived = await GET(new Request(`http://crm.local/api/crm/v1/contract-packets/${packet.packetId}`), { params: Promise.resolve({ packetId: packet.packetId }) });
+    expect((await archived.json()).bhphPayment).toEqual(packet.bhphPayment);
+  });
+  it("returns a field-specific registration error for the screenshot's malformed entry", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-payment-schedule-servicing"], bhph: { ...BHPH_FINANCE_INPUT, financing: { ...BHPH_FINANCE_INPUT.financing, registrationFee: "$417.00/0" } } }) }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("Registration fee / tax: enter one amount");
+  });
+  it("recalculates BHPH taxes and fees instead of trusting a forged financed amount", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-installment-contract"], bhph: { ...BHPH_FINANCE_INPUT, financing: { ...BHPH_FINANCE_INPUT.financing, registrationFee: "100" }, amountFinanced: "$1.00" } }) }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    expect(packet.documents[0].html).toContain("$9,645.50");
+    expect(packet.documents[0].html).toContain("Registration fee / tax");
+    expect(packet.documents[0].html).toContain("$687.50");
+    expect(packet.documents[0].html).toContain("$300.00");
+    expect(packet.auditTrail[0].detail).toContain("server-calculated amount financed $9,645.50");
+    expect(packet.bhphFinancing).toMatchObject({ calculationVersion: BHPH_FINANCING_VERSION, inputs: { registrationFee: "100" }, amountsCents: { amountFinanced: 964550, salesTax: 68750, registrationFee: 10000, docFee: 30000 } });
+    const archived = await GET(new Request(`http://crm.local/api/crm/v1/contract-packets/${packet.packetId}`), { params: Promise.resolve({ packetId: packet.packetId }) });
+    expect((await archived.json()).bhphFinancing).toEqual(packet.bhphFinancing);
+  });
+  it("rejects new BHPH generation without itemization or a registration amount", async () => {
+    for (const bhph of [{ salePrice: "10000", amountFinanced: "8500" }, { ...BHPH_FINANCE_INPUT, financing: { ...BHPH_FINANCE_INPUT.financing, registrationFee: "" } }]) {
+      const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-installment-contract"], bhph }) }));
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toMatch(/itemized Minnesota|registration/);
+    }
+  });
   it("uses the saved deal number rather than a client-supplied number for generation and archive", async () => {
     const check = vi.spyOn(continuity, "validateDealDocumentContext").mockResolvedValueOnce({ dealNumber: 1234 });
     try {
-      const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ workflowContextId: "saved-deal", dealNumber: "9999", packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance"], bhph: {} }) }));
+      const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ workflowContextId: "saved-deal", dealNumber: "9999", packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance"], bhph: BHPH_FINANCE_INPUT }) }));
       expect(response.status).toBe(201);
       const packet = await response.json();
       expect(packet.documents[0].html).toContain("1234");
@@ -56,7 +107,7 @@ describe("Unified CRM contract packet route", () => {
     expect(insurance.getForm().getTextField("recorded_insurance_company").getText()).toBe("Example Insurance");
   });
   it("omits the voluntary BHPH warranty and retains the required-coverage notice when not offered", async () => {
-    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance", "bhph-engine-transmission-warranty-return"], bhph: {} }) }));
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", { method: "POST", body: JSON.stringify({ packetType: "BHPH", dealerWarrantyOffered: false, preparedFormIds: ["bhph-insurance-maintenance", "bhph-engine-transmission-warranty-return"], bhph: BHPH_FINANCE_INPUT }) }));
     expect(response.status).toBe(201);
     const packet = await response.json();
     expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual(["bhph-insurance-maintenance"]);
@@ -578,6 +629,7 @@ describe("Unified CRM contract packet route", () => {
     const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
       body: JSON.stringify({
         bhph: {
+          ...BHPH_FINANCE_INPUT,
           amountFinanced: "$8,500.00",
           apr: "24.00%",
           approvalTriggers: "0",
@@ -687,7 +739,7 @@ describe("Unified CRM contract packet route", () => {
     const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
       method: "POST", body: JSON.stringify({
         packetType: "BHPH", preparedFormIds: ["bhph-payment-schedule-servicing"],
-        bhph: { deliveryAt: "2026-10-01T15:00:00.000Z", deliveryMileage: "85000" }
+        bhph: { ...BHPH_FINANCE_INPUT, deliveryAt: "2026-10-01T15:00:00.000Z", deliveryMileage: "85000" }
       })
     }));
     expect(response.status).toBe(201);

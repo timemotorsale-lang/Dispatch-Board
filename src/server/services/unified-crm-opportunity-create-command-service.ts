@@ -17,6 +17,7 @@ import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/op
 import { type UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
 
 type Dependencies = {
+  authorizeCustomer?: Parameters<UnifiedCrmOpportunityCreateRepository["createOpportunity"]>[0]["authorizeCustomer"];
   accessContext?: UnifiedCrmOpportunityAccessContext;
   mode?: unknown;
   nodeEnv?: string;
@@ -162,7 +163,8 @@ export async function createUnifiedCrmOpportunity(
         summary: normalized.summary,
         title: normalized.title
       },
-      recordScope: access.recordScope
+      recordScope: access.recordScope,
+      ...(dependencies.authorizeCustomer ? { authorizeCustomer: dependencies.authorizeCustomer } : {})
     });
 
     return {
