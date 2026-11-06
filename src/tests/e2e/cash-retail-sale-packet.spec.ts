@@ -43,7 +43,8 @@ test("cash sale uses the same deal for sold-first, selected PDF forms and paperw
   expect(generations).toBe(0);
   await cash.getByRole("button", { name: "Open cash sale packet" }).click();
   const drawer = page.getByRole("dialog", { name: "Cash sale packet", exact: true });
-  await expect(drawer.getByRole("button", { name: "Preview selected forms" })).toBeDisabled();
+  await expect(drawer.getByRole("button", { name: "Preview selected forms" })).toBeEnabled();
+  await expect(drawer).toContainText("will generate any missing or updated forms first");
   await drawer.getByLabel("Search forms or packs").fill("power-of-attorney");
   await expect(drawer.getByRole("checkbox",{name:/Select Limited motor vehicle/})).toBeVisible();
   await expect(drawer).toContainText("14 forms selected");

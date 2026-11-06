@@ -1,7 +1,7 @@
 import { cashDefaultFormIds } from "@/lib/cash-sale-print-library";
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { EMPTY_CASH_SALE, cashCents, cashSaleError, cashSaleTotals } from "@/lib/cash-retail-sale";
+import { EMPTY_CASH_SALE, CASH_SALE_REQUIRED_IDS, cashCents, cashSaleError, cashSaleTotals, cashSaleFacts, cashSaleDate } from "@/lib/cash-retail-sale";
 import { generateUnifiedCrmContractPacket } from "@/server/services/unified-crm-contract-packet-service";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -10,6 +10,16 @@ const vehicle = { year: "2024", make: "Toyota", model: "RAV4", color: "Silver", 
 const actor = { id: "sample-staff" } as AuthenticatedUser;
 
 describe("Minnesota retail cash packet", () => {
+  it("normalizes a restored US calendar date without timezone shifts and still rejects impossible dates", () => {
+    const restored = cashSaleFacts({ ...facts, saleDate: "11/05/2026", deliveryDate: "11/05/2026" });
+    expect(restored.saleDate).toBe("2026-11-05");
+    expect(restored.deliveryDate).toBe("2026-11-05");
+    expect(cashSaleError("Demo Buyer", vehicle.vin, "10000", restored, CASH_SALE_REQUIRED_IDS)).toBeNull();
+    expect(cashSaleDate("02/29/2026")).toBe("");
+    expect(cashSaleDate("2026-02-30")).toBe("");
+    expect(cashSaleDate("11/05/2026 10:00" )).toBe("");
+    expect(cashSaleDate("2028-02-29")).toBe("2028-02-29");
+  });
   it("does not require dealer license or POA expiration in intake", () => {
     expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, dealerLicense: "", poaExpiration: "" }, cashDefaultFormIds(facts))).toBeNull();
     expect(cashSaleError("Sample buyer", vehicle.vin, "10000", { ...facts, dealerLicense: "", poaExpiration: "legacy-invalid" }, cashDefaultFormIds(facts))).toBeNull();

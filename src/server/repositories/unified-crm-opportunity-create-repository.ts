@@ -49,6 +49,7 @@ export type UnifiedCrmOpportunityCreateRepository = {
   createOpportunity(input: {
     command: OpportunityCreateCommand;
     recordScope: UnifiedCrmOpportunityRecordScope;
+    authorizeCustomer?: (customerId: string, organizationId: string, transaction: Prisma.TransactionClient) => Promise<void>;
   }): Promise<UnifiedCrmOpportunityCreateRecord>;
 };
 
@@ -134,13 +135,15 @@ export function createUnifiedCrmOpportunityCreateRepository(
         }
 
         if (input.command.customerId) {
+          // CRM Next intake may use a shared identity without granting ownership of its CRM record.
+          if (input.authorizeCustomer) await input.authorizeCustomer(input.command.customerId, input.command.organizationId, tx);
           const customer = await tx.customer.findFirst({
             where: {
               id: input.command.customerId,
               organizationId: input.command.organizationId,
               archivedAt: null,
               mergedIntoCustomerId: null,
-              ...(input.recordScope.kind === "OWNER" ? { ownerUserId: input.recordScope.ownerUserId } : {})
+              ...(!input.authorizeCustomer && input.recordScope.kind === "OWNER" ? { ownerUserId: input.recordScope.ownerUserId } : {})
             },
             select: { id: true }
           });

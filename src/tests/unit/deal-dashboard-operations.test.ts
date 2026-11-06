@@ -83,6 +83,7 @@ describe("deal dashboard operations", () => {
   });
   it("never returns a saved draft snapshot in the detail drawer", async () => {
     const result = await readDealOperations(staff, { draftId: draft.id });
+    expect(result.draftStatus).toBe("SOLD");
     expect(result).not.toHaveProperty("snapshot"); expect(result).not.toHaveProperty("statusHistory");
     expect(mocks.db.dealDeskDraft.findFirst.mock.calls[0][0].where.ownerUserId).toBe(staff.id);
   });

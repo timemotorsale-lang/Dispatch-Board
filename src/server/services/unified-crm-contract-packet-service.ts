@@ -1,6 +1,12 @@
 import { cashDefaultFormIds, CASH_SIGNING_TEMPLATE_FILES, CASH_SIGNING_TEMPLATE_VERSION } from "@/lib/cash-sale-print-library";
-import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, cashSaleFacts, cashSaleError } from "@/lib/cash-retail-sale";
+import { CASH_SALE_FORM_IDS, CASH_SALE_REQUIRED_IDS, CASH_SALE_LABELS, cashSaleFacts, cashSaleError, cashMoney, cashCents } from "@/lib/cash-retail-sale";
+import { BHPH_FINANCING_VERSION, bhphFinancingFacts, bhphFinancingIssue, calculateBhphFinancing, bhphFinancingRows, bhphWithoutOptionalPrincipal } from "@/lib/bhph-financing";
+import { BHPH_PAYMENT_VERSION, calculateBhphPayment, bhphPaymentSummary } from "@/lib/bhph-payment";
+import { bhphOptionalProductRows } from "@/lib/bhph-optional-products";
 import { cashSalePdf, cashSaleDocumentHtml } from "./cash-retail-sale-documents";
+import type { Input as SaleLibraryDocumentInput } from "./cash-retail-sale-documents";
+import { pathwayDocumentPdf } from "./shared-sale-library-documents";
+import { saleLibraryCatalog, saleLibraryDefaultIds, type SaleLibraryPathway } from "@/lib/cash-sale-print-library";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dealDeskLogoHtml, drawDealDeskPdfLogo } from "./deal-desk-document-brand";
@@ -104,6 +110,10 @@ function dailyRentalFacts(value: unknown) {
 function bhphFacts(value: unknown) {
   const bhph = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
+    financingRows: [] as Array<[string, string]>,
+    paymentRows: [] as Array<[string, string]>,
+    paymentScheduleRows: [] as Array<[string, string]>,
+    termDescription: "",
     amountFinanced: text(bhph.amountFinanced, "$0.00"),
     apr: text(bhph.apr, "Not captured"),
     approvalTriggers: text(bhph.approvalTriggers, "0"),
@@ -1389,12 +1399,14 @@ function buildBhphDocumentHtml(input: {
     ["VIN", input.vehicle.vin],
     ["Stock #", input.vehicle.stockNumber],
     ["Sale price", input.bhph.salePrice],
+    ...input.bhph.financingRows.filter(([label]) => !["Vehicle sale price", "Down payment", "Amount financed"].includes(label)),
     ["Down payment", input.bhph.downPayment],
     ["Amount financed", input.bhph.amountFinanced],
-    ["APR", input.bhph.apr],
+    ["Entered annual rate (payment estimate)", input.bhph.apr],
     ["Payment amount", input.bhph.paymentAmount],
     ["Payment frequency", input.bhph.paymentFrequency],
-    ["Term", `${input.bhph.termMonths} month(s)`],
+    ["Term", input.bhph.termDescription || `${input.bhph.termMonths} month(s)`],
+    ...input.bhph.paymentRows,
     ["First payment date", input.bhph.firstPaymentDate],
     ["Late fee", input.bhph.lateFee],
     ["Title status", input.bhph.titleStatus],
@@ -1437,6 +1449,7 @@ function buildBhphDocumentHtml(input: {
         heading: "Payment schedule",
         rows: commonRows
       },
+      { heading: "Calculated installment schedule (estimate)", rows: input.bhph.paymentScheduleRows },
       {
         heading: "Servicing rules",
         bullets: [
@@ -1627,6 +1640,10 @@ export async function generateUnifiedCrmContractPacket(
   const now = dependencies.now?.() ?? new Date();
   const generatedAt = now.toISOString();
   const packetType = input.packetType === "TEST_DRIVE" ? "TEST_DRIVE" : input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "VEHICLE_LOANER" ? "VEHICLE_LOANER" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : input.packetType === "BHPH" ? "BHPH" : "MINNESOTA_RETAIL_SALE";
+  const shared = input.sharedSaleLibrary && typeof input.sharedSaleLibrary === "object" ? input.sharedSaleLibrary as Record<string, unknown> : null;
+  const libraryPathway = shared?.pathway as SaleLibraryPathway | undefined;
+  if (shared && (!libraryPathway || !["retail-sale", "bhph", "finance", "outside-finance-one-pay", "wholesale"].includes(libraryPathway) || (packetType === "BHPH") !== (libraryPathway === "bhph") || !["BHPH", "MINNESOTA_RETAIL_SALE"].includes(packetType))) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Choose the saved sales pathway for the shared forms library.");
+  const sharedFacts = shared ? cashSaleFacts(shared.facts) : null;
   const cashMode = packetType === "MINNESOTA_RETAIL_SALE" && input.retailCash !== undefined;
   const cashFacts = cashSaleFacts(input.retailCash);
   let packetForms: PacketFormItem[] = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET : packetType === "LEASE_TO_OWN"
@@ -1639,7 +1656,8 @@ export async function generateUnifiedCrmContractPacket(
       ? BHPH_FORM_PACKET
       : MN_SALE_FORM_PACKET;
   if (cashMode) packetForms = [...CASH_SALE_FORM_IDS, "trade-documents"].map(id => ({ id, label: CASH_SALE_LABELS[id], basis: CASH_SIGNING_TEMPLATE_FILES[id] ? `${CASH_SIGNING_TEMPLATE_VERSION} - customer signing form` : id === "buyers-guide" ? "FTC Used Car Rule / official FTC form" : "Minnesota cash retail sale / dealership document", category: CASH_SALE_REQUIRED_IDS.includes(id) ? "Required" : "Conditional", trigger: id === "power-of-attorney" ? "Limited title and registration authority" : "Cash retail sale", description: CASH_SALE_LABELS[id] }));
-  const requiredIds = cashMode ? cashDefaultFormIds(cashFacts) : packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
+  if (shared && libraryPathway) packetForms = saleLibraryCatalog(libraryPathway).map(form => ({ id: form.id, label: form.label, basis: form.version, category: form.baseline ? "Required" : "Conditional", trigger: "Vehicle sale forms library", description: form.label }));
+  const requiredIds = shared && libraryPathway && sharedFacts ? saleLibraryDefaultIds(libraryPathway, sharedFacts, input.dealerWarrantyOffered !== false) : cashMode ? cashDefaultFormIds(cashFacts) : packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET.map((form) => form.id) : packetType === "LEASE_TO_OWN"
     ? allLeaseToOwnFormIds()
     : packetType === "VEHICLE_LOANER"
       ? requiredCourtesyLoanerFormIds()
@@ -1649,6 +1667,10 @@ export async function generateUnifiedCrmContractPacket(
       ? requiredBhphFormIds()
       : requiredMinnesotaSaleFormIds();
   const selectedIds = formIds(input.preparedFormIds, packetForms, requiredIds);
+  if (shared && libraryPathway) {
+    if (selectedIds.some(id => saleLibraryCatalog(libraryPathway).find(form => form.id === id)?.originalOnly)) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Use the uploaded wholesale originals from Sales Documents. Original agreements and receipts cannot be generated as replacement forms.");
+    for (const id of [...(libraryPathway === "wholesale" ? [] : CASH_SALE_REQUIRED_IDS), ...(libraryPathway === "bhph" ? requiredBhphFormIds() : libraryPathway === "finance" || libraryPathway === "outside-finance-one-pay" ? ["retail-installment-contract", "personal-references"] : [])]) if (!selectedIds.includes(id)) selectedIds.push(id);
+  }
   if (input.dealerWarrantyOffered !== undefined && typeof input.dealerWarrantyOffered !== "boolean") throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Choose whether the voluntary dealer warranty is offered.");
   const warrantyOffered = input.dealerWarrantyOffered !== false;
   if (packetType === "LEASE_TO_OWN" && !selectedIds.includes("lease-summary")) selectedIds.push("lease-summary");
@@ -1691,9 +1713,67 @@ export async function generateUnifiedCrmContractPacket(
   const paymentFunding = text(input.paymentFunding, "To be confirmed");
   const packetId = `contract-packet-${crypto.randomUUID()}`;
   const bhphInput = { ...bhphFacts(input.bhph), warrantyPosture: dealerWarrantyPosture(warrantyOffered) };
+  let financingSnapshot: UnifiedCrmContractPacketResult["bhphFinancing"];
+  let paymentSnapshot: UnifiedCrmContractPacketResult["bhphPayment"];
   if (packetType === "BHPH" && warrantyOffered) {
     const error = dealerWarrantyError(bhphInput);
     if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
+  }
+  if (packetType === "BHPH") {
+    try {
+      const raw = input.bhph && typeof input.bhph === "object" ? input.bhph as Record<string, unknown> : {};
+      if (raw.calculationVersion !== BHPH_FINANCING_VERSION) throw new Error("Review the itemized Minnesota taxes and fees before generating a new BHPH packet. Existing archived packets remain available.");
+      const financing = bhphFinancingFacts(raw.financing);
+      const issue = bhphFinancingIssue(bhphInput.salePrice, bhphInput.downPayment, financing);
+      if (issue) throw new Error(issue);
+      const totals = calculateBhphFinancing(bhphInput.salePrice, bhphInput.downPayment, financing);
+      bhphInput.amountFinanced = cashMoney(totals.amountFinanced);
+      bhphInput.salePrice = cashMoney(totals.sale);
+      bhphInput.downPayment = cashMoney(totals.down);
+      bhphInput.financingRows = [...bhphFinancingRows(totals, financing), ...bhphOptionalProductRows(financing)];
+      financingSnapshot = { calculationVersion: BHPH_FINANCING_VERSION, inputs: { ...financing, salePrice: bhphInput.salePrice, downPayment: bhphInput.downPayment }, amountsCents: { ...totals.fees, sale: totals.sale, taxable: totals.taxable, salesTax: totals.salesTax, exciseTax: totals.exciseTax, feeTotal: totals.feeTotal, total: totals.total, downPayment: totals.down, amountFinanced: totals.amountFinanced }, itemization: bhphInput.financingRows };
+      if (raw.paymentCalculationVersion !== BHPH_PAYMENT_VERSION) throw new Error("Choose the BHPH payment calculation mode before generating a new packet. Existing archived documents remain available.");
+      const paymentInput = { calculationMode: text(raw.calculationMode, ""), apr: bhphInput.apr, paymentFrequency: bhphInput.paymentFrequency, termMonths: bhphInput.termMonths, paymentAmount: bhphInput.paymentAmount, firstPaymentDate: bhphInput.firstPaymentDate };
+      const schedule = calculateBhphPayment(totals.amountFinanced, paymentInput, financing.saleDate);
+      bhphInput.paymentAmount = cashMoney(schedule.numberOfPayments === 1 ? schedule.finalPaymentCents : schedule.regularPaymentCents);
+      bhphInput.termDescription = `${schedule.numberOfPayments} ${schedule.paymentFrequency.toLowerCase()} payments; last due ${schedule.lastPaymentDate}`;
+      bhphInput.paymentRows = [["Calculation mode", paymentInput.calculationMode === "TERM" ? "Term — calculated payment" : "Fixed payment — calculated term"], ["Calculated payment count", String(schedule.numberOfPayments)], ["Final payment", cashMoney(schedule.finalPaymentCents)], ["Last payment date", schedule.lastPaymentDate], ["Estimated periodic interest", cashMoney(schedule.totalInterestCents)], ["Total payments", cashMoney(schedule.totalPaymentsCents)]];
+      bhphInput.paymentScheduleRows = schedule.payments.map(payment => [`${payment.number} · ${payment.dueDate}`, `${cashMoney(payment.amountCents)} payment · ${cashMoney(payment.interestCents)} interest · ${cashMoney(payment.principalCents)} principal · ${cashMoney(payment.balanceCents)} remaining`]);
+      paymentSnapshot = { calculationVersion: BHPH_PAYMENT_VERSION, inputs: paymentInput, schedule };
+      if (totals.optionalProducts.items.length) {
+        const comparison = { with: bhphPaymentSummary(totals.amountFinanced, paymentInput, financing.saleDate), without: bhphPaymentSummary(bhphWithoutOptionalPrincipal(bhphInput.salePrice, bhphInput.downPayment, financing), paymentInput, financing.saleDate) };
+        paymentSnapshot.optionalProductComparison = comparison;
+        for (const key of ["without", "with"] as const) {
+          const value = comparison[key], label = key === "with" ? "With selected optional products" : "Without optional products";
+          bhphInput.paymentRows.push([label, `${cashMoney(value.amountFinancedCents)} financed; ${value.numberOfPayments} payments at ${cashMoney(value.regularPaymentCents)}; final payment ${cashMoney(value.finalPaymentCents)}; total payments ${cashMoney(value.totalPaymentsCents)}`]);
+        }
+      }
+    } catch (error) {
+      throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error instanceof Error ? error.message : "Review the Minnesota taxes and fees.");
+    }
+  }
+  let sharedDocumentInput: SaleLibraryDocumentInput | null = null;
+  if (shared && sharedFacts && libraryPathway) {
+    let pricing: ReturnType<typeof import("@/lib/cash-retail-sale").cashSaleTotals> | undefined;
+    if (packetType === "BHPH") {
+      const raw = input.bhph as Record<string, unknown>, financing = bhphFinancingFacts(raw.financing);
+      const totals = calculateBhphFinancing(bhphInput.salePrice, bhphInput.downPayment, financing);
+      sharedFacts.saleDate = financing.saleDate;
+      sharedFacts.mileage = bhphInput.deliveryMileage;
+      sharedFacts.docFee = financing.docFee;
+      const titleItems = ["titleFee", "transferFee", "filingFee", "technologyFee", "publicSafetyFee", "lienFee", "plateFee"].map(key => ({ id: key, label: key.replace(/([A-Z])/g, " $1"), amount: String(financing[key as keyof typeof financing]) }));
+      sharedFacts.titleFeeItems = JSON.stringify(titleItems); sharedFacts.titleFee = (titleItems.reduce((sum, row) => sum + cashCents(row.amount), 0) / 100).toFixed(2);
+      sharedFacts.registrationFee = financing.registrationFee;
+      sharedFacts.coBuyer = bhphInput.coBuyer;
+      if ((sharedFacts.warrantyType === "Dealer limited warranty") !== warrantyOffered) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Match the shared library warranty election to the BHPH dealer warranty choice before printing.");
+      pricing = { sale: totals.sale, accessories: totals.accessories, rebate: totals.rebate, trade: totals.trade, payoff: totals.payoff, fees: totals.feeTotal + totals.exciseTax + totals.optionalProducts.nonMvstPriceCents + totals.optionalProducts.generalTaxCents, taxable: totals.taxable, tax: totals.salesTax, total: totals.total, paid: 0, balance: totals.total };
+    }
+    const sharedError = cashSaleError(customerName, vehicle.vin, packetType === "BHPH" ? bhphInput.salePrice : text(input.salePrice, ""), sharedFacts, selectedIds.filter(id => CASH_SALE_FORM_IDS.includes(id) || id === "trade-documents"));
+    if (sharedError) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", sharedError);
+    if (libraryPathway === "wholesale" && (!sharedFacts.taxOverride || !sharedFacts.taxReason)) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Record the actual wholesale sales tax amount (including 0) and its verified tax or resale basis before generating sale paperwork.");
+    const credit = ["bhph", "finance", "outside-finance-one-pay"].includes(libraryPathway);
+    const loan = shared.loan && typeof shared.loan === "object" ? shared.loan as Record<string, unknown> : {};
+    sharedDocumentInput = { customerName, dealNumber, salePrice: packetType === "BHPH" ? bhphInput.salePrice : text(input.salePrice, ""), facts: sharedFacts, vehicle, pricing, ...(credit ? { funding: { label: libraryPathway === "bhph" ? "BHPH / in-house financing" : libraryPathway === "finance" ? "Dealer financing" : "Outside financing", amountFinanced: packetType === "BHPH" ? bhphInput.amountFinanced : text(loan.amountFinanced, "See lender agreement"), downPayment: packetType === "BHPH" ? bhphInput.downPayment : text(loan.downPayment, "See signed agreement") } } : {}), ...(packetType === "BHPH" ? { itemization: bhphInput.financingRows } : {}) };
   }
   const rentalInput = dailyRentalFacts(input.dailyRental);
   const requestedLeaseInput = leaseCalculatorInput(input.leaseCalculator);
@@ -1769,6 +1849,8 @@ export async function generateUnifiedCrmContractPacket(
   }
 
   const documents = await Promise.all(selectedForms.map(async (form) => {
+    const libraryCommonInput = sharedDocumentInput && (CASH_SALE_FORM_IDS.includes(form.id) || form.id === "trade-documents") ? sharedDocumentInput : null;
+    const librarySupplementHtml = shared && !libraryCommonInput && packetType === "BHPH" ? buildBhphDocumentHtml({ bhph: bhphInput, customerName, dealNumber, form: form as BhphFormItem, generatedAt, vehicle }) : shared && !libraryCommonInput ? buildDocumentHtml({ customerName, dealNumber, dealType, feeTotal, generatedAt, label: form.label, paymentFunding, salePrice, sourceBasis: form.basis, trigger: form.trigger, vehicle, packetIntro: "Pathway-specific supporting document; final signed lender agreements remain separately required." }) : null;
     const isDealerWarranty = (packetType === "BHPH" && form.id === BHPH_WARRANTY_FORM_ID) || (packetType === "LEASE_TO_OWN" && form.id === LEASE_WARRANTY_FORM_ID);
     const warrantyDocumentInput = isDealerWarranty ? {
       dealType: packetType as "BHPH" | "LEASE_TO_OWN", customerName,
@@ -1779,7 +1861,7 @@ export async function generateUnifiedCrmContractPacket(
     const isLeaseSummary = form.id === "lease-summary" && summary !== undefined;
     const isPersonalReferencesForm = form.id === "personal-references" || form.id === "bhph-references-contact-authorization";
     const pdfTemplate = hasPdfTemplate(form);
-    const isPdfDocument = cashDocumentInput !== null || driveDocumentInput !== null || isDealerWarranty || isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
+    const isPdfDocument = libraryCommonInput !== null || librarySupplementHtml !== null || cashDocumentInput !== null || driveDocumentInput !== null || isDealerWarranty || isLeaseSummary || isPersonalReferencesForm || pdfTemplate;
     const leaseFieldValues = hasPdfTemplate(form) && packetType === "LEASE_TO_OWN"
       ? leaseTemplateFieldValues({
           calculator: leaseOutput,
@@ -1808,7 +1890,7 @@ export async function generateUnifiedCrmContractPacket(
         })
       : {};
     return {
-      ...(cashDocumentInput ? { contentBase64: await cashSalePdf(form.id, cashDocumentInput), contentType: "application/pdf" as const } : driveDocumentInput ? {
+      ...(libraryCommonInput ? { contentBase64: await cashSalePdf(form.id, libraryCommonInput), contentType: "application/pdf" as const } : librarySupplementHtml && !isDealerWarranty && !isPersonalReferencesForm ? { contentBase64: await pathwayDocumentPdf(librarySupplementHtml), contentType: "application/pdf" as const } : cashDocumentInput ? { contentBase64: await cashSalePdf(form.id, cashDocumentInput), contentType: "application/pdf" as const } : driveDocumentInput ? {
         contentBase64: await testDriveAgreementPdfBase64(driveDocumentInput),
         contentType: "application/pdf" as const
       } : warrantyDocumentInput ? {
@@ -1845,7 +1927,7 @@ export async function generateUnifiedCrmContractPacket(
       category: form.category,
       downloadFileName: `${form.id}-${packet}.${isPdfDocument ? "pdf" : "html"}`,
       formId: form.id,
-      html: cashDocumentInput ? cashSaleDocumentHtml(form.id, cashDocumentInput) : driveDocumentInput ? testDriveAgreementHtml(driveDocumentInput) : warrantyDocumentInput ? dealerWarrantyHtml(warrantyDocumentInput) : isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
+      html: libraryCommonInput ? cashSaleDocumentHtml(form.id, libraryCommonInput) : librarySupplementHtml && !isDealerWarranty && !isPersonalReferencesForm ? librarySupplementHtml : cashDocumentInput ? cashSaleDocumentHtml(form.id, cashDocumentInput) : driveDocumentInput ? testDriveAgreementHtml(driveDocumentInput) : warrantyDocumentInput ? dealerWarrantyHtml(warrantyDocumentInput) : isLeaseSummary ? leaseSummaryHtml(summary!) : packetType === "DAILY_RENTAL"
         ? buildRentalDocumentHtml({
             customerName,
             dealNumber,
@@ -1911,6 +1993,8 @@ export async function generateUnifiedCrmContractPacket(
   }));
 
   const result: UnifiedCrmContractPacketResult = {
+    ...(paymentSnapshot ? { bhphPayment: paymentSnapshot } : {}),
+    ...(financingSnapshot ? { bhphFinancing: financingSnapshot } : {}),
     auditTrail: [
       {
         action: "CONTRACT_PACKET_GENERATED",
@@ -1925,7 +2009,7 @@ export async function generateUnifiedCrmContractPacket(
           : packetType === "DAILY_RENTAL"
             ? `${documents.length} daily rental form(s) generated and archived.`
           : packetType === "BHPH"
-            ? `${documents.length} BHPH form(s) generated and archived.`
+            ? `${documents.length} BHPH form(s) generated and archived; ${BHPH_FINANCING_VERSION}; server-calculated amount financed ${bhphInput.amountFinanced}.`
             : `${documents.length} Minnesota sale form(s) generated and archived.`
       }
     ],

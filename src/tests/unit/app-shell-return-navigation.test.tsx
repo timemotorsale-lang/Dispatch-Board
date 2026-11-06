@@ -37,8 +37,9 @@ describe("application shell Sales Console return navigation", () => {
     const markup = renderToStaticMarkup(<AppShell user={testUser}><section>Workspace</section></AppShell>);
     expect(markup).toContain('aria-label="Mobile home and capture tools"');
     expect(markup).toContain('href="/?view=mobile"');
-    for (const label of ["Scan &amp; capture", "Take a photo", "ID front / back", "ID barcode", "Scan a document"]) expect(markup).toContain(label);
+    for (const label of ["Scan and capture", "Take a photo", "ID front / back", "ID barcode", "Scan a document"]) expect(markup).toContain(label);
     expect(markup).toContain(encodeURIComponent(`${pathname}?mode=coo`));
+    for (const intake of ["vehicle", "customer"]) expect(markup).toContain(`/capture/${intake}?returnTo=${encodeURIComponent(`${pathname}?mode=coo`)}`);
   });
   it("does not stack the global launcher over the capture screen", () => {
     currentPathname = "/capture";

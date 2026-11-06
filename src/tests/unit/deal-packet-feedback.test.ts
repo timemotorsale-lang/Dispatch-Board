@@ -2,6 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 
 describe("Deal packet blocker feedback", () => {
+  it("routes registration and BHPH payment errors to the exact editable input", () => {
+    expect(packetCorrection("Enter registration fee / tax, including 0 if not due.")?.fields).toEqual(["Registration fee / tax"]);
+    expect(packetCorrection("Registration fee / tax: enter one amount such as 417.00 or $417.00. Do not add /0.")?.fields).toEqual(["Registration fee / tax"]);
+    expect(packetCorrection("The fixed payment does not cover periodic interest.")?.fields[0]).toBe("Fixed payment amount");
+    expect(packetCorrection("Enter a term from 1 to 120 whole months.")?.fields[0]).toBe("Term (months)");
+  });
   afterEach(() => vi.unstubAllGlobals());
   it("routes warranty failures to the exact delivery fields", () => {
     expect(packetCorrection("Enter a valid delivery date and time before generating the dealer warranty.")?.fields[0]).toBe("Delivery date / time (local)");

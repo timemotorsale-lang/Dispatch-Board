@@ -23,4 +23,13 @@
 .workspace summary { padding: 14px 0; cursor: pointer; font-weight: 650; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 380px) { .pair { grid-template-columns: 1fr; gap: 0; } .card { padding: 16px; } }
+@media (max-width: 760px) {
+  .workspace, .workspace .hint { font-size: 16px; line-height: 1.5; }
+  .workspace :is(p, label, button, a, summary) { font-size: 16px !important; line-height: 1.5 !important; }
+  .nav { flex-wrap: wrap; gap: 8px 16px; margin-bottom: 16px; }
+  .nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 0; }
+  .workspace summary { min-height: 44px; }
+  .workspace .check { min-height: 44px; }
+  .workspace input, .workspace select, .workspace textarea { scroll-margin-block: 80px 24px; }
+}
 @media (prefers-reduced-motion: no-preference) { .workspace button { transition: background .15s; } }

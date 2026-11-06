@@ -31,9 +31,21 @@ describe("controlled revenue pathway change", () => {
     mocks.booking.mockResolvedValue(1); mocks.packet.mockResolvedValue({ id: "signed" }); mocks.find.mockResolvedValue({ ...draft, pathway: "daily-rental", status: "COMPLETED" });
     await changeDealPathway(actor, command);
     const data = mocks.update.mock.calls[0][0].data;
-    expect(data.status).toBe("IN_PROGRESS");
+    expect(data.status).toBe("PENDING");
     expect(data.snapshot["desk:assignmentPathway"]).toBe("daily-rental");
-    expect(data.statusHistory[0]).toMatchObject({ from: "COMPLETED", to: "IN_PROGRESS", preservedPacketId: "signed", activeAssignmentPreserved: true });
+    expect(data.statusHistory[0]).toMatchObject({ from: "COMPLETED", to: "PENDING", preservedPacketId: "signed", activeAssignmentPreserved: true });
+  });
+  it.each(["SOLD", "COMPLETED", "PENDING"])("moves or keeps %s in Pending and changes the pathway atomically without a reason", async status => {
+    mocks.find.mockResolvedValue({ ...draft, status });
+    const result = await changeDealPathway(actor, { ...command, reason: "" });
+    expect(result).toMatchObject({ pathway: "lease-to-own", status: "PENDING", revision: 4 });
+    expect(mocks.update).toHaveBeenCalledOnce();
+    expect(mocks.update.mock.calls[0][0]).toMatchObject({ where: { id: draft.id, status, revision: 3, pathway: "retail-sale" }, data: { status: "PENDING", pathway: "lease-to-own", statusHistory: [expect.objectContaining({ from: status, to: "PENDING", reason: "", actorId: actor.id })] } });
+  });
+  it("does not move status or write history if the atomic update loses a race", async () => {
+    mocks.find.mockResolvedValue({ ...draft, status: "SOLD" }); mocks.update.mockResolvedValue({ count: 0 });
+    await expect(changeDealPathway(actor, { ...command, reason: "" })).rejects.toMatchObject({ status: 409 });
+    expect(mocks.update).toHaveBeenCalledOnce();
   });
   it("supports optional managers-only mode without making it the default", async () => {
     vi.stubEnv("DEAL_PATHWAY_CHANGE_ACCESS", "MANAGERS_ONLY");
@@ -48,8 +60,13 @@ describe("controlled revenue pathway change", () => {
     mocks.find.mockResolvedValue({ ...draft, pathway: "lease-to-own", revision: 4 });
     expect(await changeDealPathway(actor, command)).toMatchObject({ unchanged: true }); expect(mocks.update).not.toHaveBeenCalled();
   });
-  it("rejects unsupported pathways and requests without an attributable reason", async () => {
-    await expect(changeDealPathway(actor, { ...command, reason: "" })).rejects.toMatchObject({ status: 400 });
+  it.each([undefined, "", "   ", "Fix"])("allows an optional reason %j and still records the actor and pathway history", async reason => {
+    await expect(changeDealPathway(actor, { ...command, reason })).resolves.toMatchObject({ pathway: "lease-to-own", revision: 4 });
+    expect(mocks.update.mock.calls[0][0].data.statusHistory[0]).toMatchObject({ action: "PATHWAY_CHANGED", actorId: actor.id, fromPathway: "retail-sale", toPathway: "lease-to-own", reason: reason?.trim() ?? "" });
+  });
+  it("rejects unsupported pathways, invalid optional reasons and unauthenticated requests", async () => {
+    await expect(changeDealPathway(actor, { ...command, reason: "a".repeat(1001) })).rejects.toMatchObject({ status: 400 });
+    await expect(changeDealPathway(actor, { ...command, reason: {} })).rejects.toMatchObject({ status: 400 });
     await expect(changeDealPathway(actor, { ...command, pathway: "invalid" })).rejects.toMatchObject({ status: 400 });
     await expect(changeDealPathway(null, command)).rejects.toMatchObject({ status: 401 });
   });

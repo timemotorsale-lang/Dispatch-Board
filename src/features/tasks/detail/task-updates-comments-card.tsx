@@ -56,6 +56,7 @@ export function TaskUpdatesCommentsCard({
   const [feedItems, setFeedItems] = useState(initialFeedItems);
   const [draftBody, setDraftBody] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
   const [historyOpen, setHistoryOpen] = useState(includeEvents);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quickNotesOpen, setQuickNotesOpen] = useState(false);
@@ -114,6 +115,7 @@ export function TaskUpdatesCommentsCard({
     }
 
     setIsSubmitting(true);
+    setSaveMessage("");
     setErrorMessage(null);
 
     try {
@@ -146,6 +148,7 @@ export function TaskUpdatesCommentsCard({
         ...currentItems
       ]);
       setDraftBody("");
+      setSaveMessage("Comment saved.");
       onActivityChanged?.();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to save this update right now.");
@@ -186,7 +189,7 @@ export function TaskUpdatesCommentsCard({
           </div>
         ) : null}
         {canComment ? (
-          <form className="etw-note-composer" onSubmit={handleSubmit}>
+          <form className="etw-note-composer" aria-busy={isSubmitting} onSubmit={handleSubmit}>
             <div className="etw-note-template-strip" aria-label="Progress update templates">
               {quickNoteShortcuts.slice(0, 6).map((shortcut) => (
                 <button
@@ -207,6 +210,7 @@ export function TaskUpdatesCommentsCard({
               onChange={(value) => {
                 setDraftBody(value);
                 setErrorMessage(null);
+                setSaveMessage("");
               }}
               placeholder="Add a note... use @ to mention"
               rows={5}
@@ -255,6 +259,7 @@ export function TaskUpdatesCommentsCard({
             />
           </form>
         ) : <p className="task-workspace-empty-copy">Only the assigned staff member or a manager can add notes.</p>}
+        <p className="etw-note-save-status" role="status">{isSubmitting ? "Saving comment…" : saveMessage}</p>
         {errorMessage ? <div className="notice notice-danger my-task-inline-notice" role="alert"><p>{errorMessage}</p></div> : null}
       </section>
     );
@@ -289,7 +294,7 @@ export function TaskUpdatesCommentsCard({
       </div>
 
       {canComment ? (
-        <form className="task-workspace-comment-form" onSubmit={handleSubmit}>
+        <form className="task-workspace-comment-form" aria-busy={isSubmitting} onSubmit={handleSubmit}>
           <div className="field rich-text-field">
             <span>Post a comment</span>
             <RichTextComposer
@@ -322,6 +327,7 @@ export function TaskUpdatesCommentsCard({
         </p>
       )}
 
+      <p className="etw-note-save-status" role="status">{isSubmitting ? "Saving comment…" : saveMessage}</p>
       {errorMessage ? (
         <div className="notice notice-danger my-task-inline-notice" role="alert">
           <p>{errorMessage}</p>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
+import { authorizeDealOpportunityCustomer } from "@/server/deal-continuity/identities";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { createUnifiedCrmOpportunity } from "@/server/services/unified-crm-opportunity-create-command-service";
@@ -40,7 +41,10 @@ export async function handleOpportunityCreate(request: Request, crmNext = false)
   const payload = await request.json().catch(() => null);
 
   try {
-    const result = await createUnifiedCrmOpportunity(user, payload ?? {}, crmNext ? { mode: "REVIEW" } : {});
+    const result = await createUnifiedCrmOpportunity(user, payload ?? {}, crmNext ? {
+      mode: "REVIEW",
+      authorizeCustomer: (customerId, organizationId, transaction) => authorizeDealOpportunityCustomer(user, customerId, organizationId, transaction)
+    } : {});
     return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (error) {
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : undefined;

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { customerContactValue } from "@/lib/customer-contact-prefill";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -61,10 +62,20 @@ async function dealCustomerReadScope(actor: AuthenticatedUser | null, database: 
 export async function dealCustomer(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealCustomerChoice> {
   requireDealIdentityUser(actor);
   const scope = await dealCustomerReadScope(actor, database);
-  const customer = await database.customer.findFirst({ where: { id, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null, ...(scope.kind === "OWNER" ? { ownerUserId: scope.ownerUserId } : {}) }, select: { id: true, displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true, dateOfBirth: true, idLast4: true, idState: true, idType: true } });
+const customer = await database.customer.findFirst({ where: { id, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null, ...(scope.kind === "OWNER" ? { ownerUserId: scope.ownerUserId } : {}) }, select: { id: true, displayName: true, customerNumber: true, phoneNumber: true, email: true, address: true, dateOfBirth: true, idLast4: true, idState: true, idType: true, contactPoints: { where: { type: { in: ["PHONE", "EMAIL"] } }, select: { type: true, value: true }, orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }, { id: "asc" }] } } });
   if (!customer) throw new SalesDocumentsError("Customer is unavailable or outside your authorized scope. Choose an accessible CRM customer.", 403);
-  return { id: customer.id, name: customer.displayName, customerNumber: customer.customerNumber, phone: customer.phoneNumber ?? "", email: customer.email ?? "", dealPrefill: { address: customer.address ?? "", dateOfBirth: customer.dateOfBirth?.toISOString().slice(0, 10) ?? "", idLast4: customer.idLast4 ?? "", idState: customer.idState ?? "", idType: customer.idType ?? "" } };
+  return { id: customer.id, name: customer.displayName, customerNumber: customer.customerNumber, phone: customerContactValue({ contacts: customer.contactPoints, customer: { phone: customer.phoneNumber ?? "" } }, "PHONE"), email: customerContactValue({ contacts: customer.contactPoints, customer: { email: customer.email ?? "" } }, "EMAIL"), dealPrefill: { address: customer.address ?? "", dateOfBirth: customer.dateOfBirth?.toISOString().slice(0, 10) ?? "", idLast4: customer.idLast4 ?? "", idState: customer.idState ?? "", idType: customer.idType ?? "" } };
 }
+export async function authorizeDealOpportunityCustomer(actor: AuthenticatedUser | null, customerId: string, organizationId: string, database: Prisma.TransactionClient) {
+  if (organizationId !== dealOrganization()) throw new Error("Customer not available.");
+  try {
+    await dealCustomer(actor, customerId, database);
+  } catch (error) {
+    if (error instanceof SalesDocumentsError && [401, 403, 404].includes(error.status)) throw new Error("Customer not available.");
+    throw error;
+  }
+}
+
 export async function searchDealCustomers(actor: AuthenticatedUser | null, params: URLSearchParams) {
   requireDealIdentityUser(actor);
   const scope = await dealCustomerReadScope(actor);
@@ -92,12 +103,15 @@ export async function searchDealCustomers(actor: AuthenticatedUser | null, param
 export async function dealVehicle(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealVehicleChoice> {
   requireDealIdentityUser(actor);
   requireUnifiedCrmCustomerReadPolicy(actor);
-  const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 } } });
+  const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
   if (!vehicle) throw new SalesDocumentsError("Choose an active canonical vehicle.", 404);
   const unit = vehicle.inventoryUnits[0];
+  const snapshot = vehicle.specificationSnapshot as { specifications?: { trim?: unknown } } | null;
+  const recorded = vehicle.odometerObservations?.[0];
+  const supplemental = { trim: typeof snapshot?.specifications?.trim === "string" ? snapshot.specifications.trim : "", recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? "" };
   const active = await database.vehicleUseBooking.findFirst({ where: { organizationId: dealOrganization(), vehicleId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } }, orderBy: { startsAt: "asc" }, select: { status: true, expectedReturnAt: true, context: { select: { draft: { select: { pathway: true } } } } } });
   const eligible = Boolean(vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && active?.status !== "RETURNED_REVIEW");
-  return { id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: active?.status === "RETURNED_REVIEW" ? "Returned — unavailable pending exception review" : active ? `${active.status === "CHECKED_OUT" ? active.context.draft.pathway === "daily-rental" ? "Out on Rental — actual return required" : "Out — actual return required" : "Reserved"} · expected ${active.expectedReturnAt.toISOString()}` : eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use", eligibleForUse: eligible };
+  return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: active?.status === "RETURNED_REVIEW" ? "Returned — unavailable pending exception review" : active ? `${active.status === "CHECKED_OUT" ? active.context.draft.pathway === "daily-rental" ? "Out on Rental — actual return required" : "Out — actual return required" : "Reserved"} · expected ${active.expectedReturnAt.toISOString()}` : eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use", eligibleForUse: eligible };
 }
 export async function searchDealVehicles(actor: AuthenticatedUser | null, params: URLSearchParams) {
   requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);

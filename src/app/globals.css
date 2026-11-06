@@ -32648,3 +32648,104 @@ html[data-app-theme="dark"] .app-content :where(
   opacity: 1;
   font-weight: 600;
 }
+
+@media (max-width: 760px) {
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) :is(p, label, dt, dd, small, input, select, textarea, button, a, .rich-text-content) {
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) h1,
+  .task-review-compact .task-title-editor h1 {
+    font-size: clamp(24px, 6vw, 30px) !important;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) h2 {
+    font-size: 21px !important;
+    line-height: 1.3;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) h3 {
+    font-size: 19px !important;
+    line-height: 1.35;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) :is(button, select, input:not([type="checkbox"]):not([type="radio"]), a, summary) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  :is(.enterprise-task-workbench, .my-tasks-live-page, .task-detail-page) :is(button, select, .pill) {
+    padding: 10px 12px;
+    white-space: normal;
+  }
+  :is(.etw-tabs, .etw-compact-task-links, .task-review-worklog, .etw-command-actions) {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  :is(.etw-tabs, .etw-compact-task-links, .task-review-worklog, .etw-command-actions, .task-review-return) a {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 12px;
+  }
+  .enterprise-task-workbench :is(.etw-compact-title-row, .etw-tags, .task-review-state) { gap: 10px; flex-wrap: wrap; }
+  .enterprise-task-workbench :is(.etw-compact-title-row b, .etw-tags span, .task-review-state b) { padding: 6px 10px; font-size: 16px; line-height: 1.4; }
+  .enterprise-task-workbench :is(.etw-card, .etw-compact-task-body) { padding: 16px; }
+  .enterprise-task-workbench :is(.etw-facts, .etw-compact-task-fields, .task-review-detail-list) { gap: 12px; }
+  .enterprise-task-workbench :is(dd, p) { overflow-wrap: anywhere; }
+  :is(.enterprise-task-workbench, .task-detail-page) .task-comments-form textarea {
+    min-height: 112px;
+    height: 112px;
+    max-height: 50vh;
+    padding: 12px;
+    resize: vertical;
+  }
+  :is(.enterprise-task-workbench, .task-detail-page) :is(.task-comments-form, .task-comments-list, .task-comments-actions) { gap: 12px; }
+  :is(.enterprise-task-workbench, .task-detail-page) .task-comments-actions { display: flex; flex-wrap: wrap; align-items: center; }
+  :is(.enterprise-task-workbench, .task-detail-page) .task-comments-actions > * { width: auto; }
+}
+
+.task-review-mobile-action { display: none; }
+.etw-note-save-status { margin: 0 12px 12px; }
+.etw-note-save-status:empty { position: absolute; margin: 0; }
+
+@media (max-width: 900px) {
+  .app-frame:has(.unified-crm-shell) .ccc-topbar { overflow: visible; }
+  .app-frame:has(.sic-reference-v2) .app-topbar { display: flex; }
+}
+
+@media (max-width: 760px) {
+  .app-frame:has(.task-review-return) .oc-topbar-return[aria-label="Return to source workspace"] { display: none; }
+  .etw-simple-workbench:has(.task-review-mobile-action),
+  .etw-compact-task-card:has(.task-review-mobile-action) { overflow: visible; }
+  .task-review-mobile-action {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: grid;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--etw-line, #dfe5ee);
+    border-radius: 0 0 8px 8px;
+    background: var(--background, #f7f9fc);
+  }
+  .enterprise-task-workbench .task-review-mobile-action button {
+    min-height: 48px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: #174fa2;
+    color: #fff;
+    font-weight: 700;
+  }
+  .etw-compact-task-card:has(.task-review-mobile-action) .etw-compact-next-action nav,
+  .etw-compact-task-card:has(.task-review-mobile-action) .task-review-attention > button,
+  .etw-compact-task-card .etw-note-template-strip { display: none; }
+  .etw-compact-task-card :is(.etw-task-tool-workspace, .etw-compact-expanded-panel) { scroll-margin-top: 80px; }
+  .etw-compact-task-card .etw-notes-card { display: flex; flex-direction: column; }
+  .etw-compact-task-card .etw-note-history { order: 1; }
+  .etw-compact-task-card .etw-note-history article > span { flex-wrap: wrap; }
+  .etw-compact-task-card .etw-note-composer .rich-text-composer:not(.rich-text-composer-expanded) textarea {
+    min-height: 104px;
+    max-height: 40dvh;
+  }
+}

@@ -13,9 +13,16 @@ export function captureToolFromQuery(value: string | null) {
   return captureTools.find((tool) => tool.key === value) ?? null;
 }
 
+export function captureReturnHref(returnTo?: string | string[] | null) {
+  return typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") && returnTo.length <= 2000 && !Array.from(returnTo).some((character) => character.charCodeAt(0) < 32) ? returnTo : MOBILE_HOME_HREF;
+}
+
+export function captureIntakeHref(intake: "vehicle" | "customer", returnTo: string) {
+  return `/capture/${intake}?${new URLSearchParams({ returnTo: captureReturnHref(returnTo) })}`;
+}
+
 export function captureToolHref(tool: CaptureToolKey | null, returnTo: string) {
-  const safeReturn = returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") && returnTo.length <= 2000 && !Array.from(returnTo).some((character) => character.charCodeAt(0) < 32) ? returnTo : MOBILE_HOME_HREF;
-  const params = new URLSearchParams({ returnTo: safeReturn });
+  const params = new URLSearchParams({ returnTo: captureReturnHref(returnTo) });
   const selected = tool ? captureToolFromQuery(tool) : null;
   if (selected) { params.set("tool", selected.key); params.set("kind", selected.kind); params.set("destination", selected.destination); }
   return `/capture?${params}`;

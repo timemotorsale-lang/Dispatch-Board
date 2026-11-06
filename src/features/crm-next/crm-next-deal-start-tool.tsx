@@ -23,12 +23,18 @@ import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type D
 import identityStyles from "./shared-deal-identities.module.css";
 import { TestDriveVehiclePicker } from "./test-drive-vehicle-picker";
 import { GuidedTestDrive } from "./guided-test-drive";
-import { customerContactValue, type CustomerContactRead } from "@/lib/customer-contact-prefill";
+import { availableContactValue, customerContactValue, prefillCustomerContact, type CustomerContactRead } from "@/lib/customer-contact-prefill";
 import { fillEmptyDecodeFields } from "@/lib/crm-vehicle-decode";
 import { FilePlus2, Eye, Download, Printer, X, CheckCircle2, Circle, ChevronRight, ArrowLeft, Play, Save, Camera, Upload } from "lucide-react";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
 import { BHPH_FORM_PACKET, requiredBhphFormIds } from "@/lib/bhph-form-packet";
+import { bhphDocumentIdentity } from "@/lib/bhph-document-identity";
+import { BhphVehicleFields } from "./bhph-vehicle-fields";
+import { BhphFinancingCalculator } from "./bhph-financing-calculator";
+import { BhphPaymentCalculator } from "./bhph-payment-calculator";
+import { BHPH_PAYMENT_VERSION, calculateBhphPayment } from "@/lib/bhph-payment";
+import { BHPH_FINANCING_VERSION, newBhphFinancingFacts, calculateBhphFinancing, bhphFinancingIssue, bhphWithoutOptionalPrincipal, type BhphFinancingFacts } from "@/lib/bhph-financing";
 import { testDriveFacts, testDriveAgreementIssue, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, dealerWarrantyPosture, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
@@ -36,6 +42,8 @@ import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIE
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
+import { VehicleSaleFormLibrary } from "./vehicle-sale-form-library";
+import type { CashSaleFacts } from "@/lib/cash-retail-sale";
 import { CashRetailSaleDesk } from "./cash-retail-sale-desk";
 import styles from "./crm-next-shell.module.css";
 
@@ -770,6 +778,7 @@ function EnterpriseDealControlPanel({
 
 function RetailSaleExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onVehicleChange,
@@ -1160,7 +1169,8 @@ function RetailSaleExecutionDesk({
           <span>Contracted forms</span>
           <strong>Minnesota sale packet</strong>
         </header>
-        <div className={styles.retailPacketLauncher}>
+        <VehicleSaleFormLibrary pathway={paymentFunding === "Outside finance" ? "outside-finance-one-pay" : creditPaymentFunding ? "finance" : "retail-sale"} customerName={customerName} customerPrefill={customerPrefill} salePrice={amount} getDocumentContext={getDocumentContext} loan={{ downPayment, amountFinanced: formatCurrency(amountFinancedCents) }} defaults={{ saleDate: todayInputValue(), otherFee: formatCurrency(feeTotalCents), docFee: "0", otherFeeLabel: "Fees from saved retail terms", taxOverride: displayedSalesTax, taxReason: "Copied from the saved retail tax calculation" }} sourceFingerprint={JSON.stringify([amount, feeLines, displayedSalesTax, downPayment, paymentFunding, vehicleFacts])} legacyPacket={contractPacket} />
+        <div hidden className={styles.retailPacketLauncher}>
           <div>
             <span>Packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredFormCount} required forms ready`}</strong>
@@ -1533,9 +1543,9 @@ function DailyRentalExecutionDesk({
     setRentalFacts((current) => ({
       ...current,
       interestedVehicle: isLoaner && originalVehicleReference ? originalVehicleReference : current.interestedVehicle,
-      cellPhone: current.cellPhone || customerPrefill.phoneNumber,
+      cellPhone: prefillCustomerContact(current.cellPhone, customerPrefill.phoneNumber),
       dob: current.dob || customerPrefill.dateOfBirth,
-      email: current.email || customerPrefill.email,
+      email: prefillCustomerContact(current.email, customerPrefill.email),
       licenseState: customerPrefill.idState && current.licenseState === "MN" ? customerPrefill.idState : current.licenseState,
       state: customerPrefill.idState && current.state === "MN" ? customerPrefill.idState : current.state,
       streetAddress: current.streetAddress || customerPrefill.address
@@ -2178,8 +2188,8 @@ function LeaseToOwnExecutionDesk({
       streetAddress: current.streetAddress || customerPrefill.address,
       idType: current.idType || customerPrefill.idType,
       idState: customerPrefill.idState && current.idState === "MN" ? customerPrefill.idState : current.idState,
-      lesseeEmail: current.lesseeEmail || customerPrefill.email,
-      lesseePhone: current.lesseePhone || customerPrefill.phoneNumber
+      lesseeEmail: prefillCustomerContact(current.lesseeEmail, customerPrefill.email),
+      lesseePhone: prefillCustomerContact(current.lesseePhone, customerPrefill.phoneNumber)
     }));
   }, [customerPrefill, setLeaseFacts]);
 
@@ -2637,11 +2647,14 @@ function BhphExecutionDesk({
 }) {
   const [dealerWarrantyOffered, setDealerWarrantyOffered] = useDealDraftState("dealerWarrantyOffered", true);
   const bhphForms = BHPH_FORM_PACKET.filter((form) => dealerWarrantyOffered || form.id !== BHPH_WARRANTY_FORM_ID);
+  const canonicalVehicle = useContext(SharedDealVehicleContext);
+  const generationPending = useRef(false);
   const bhphPaperwork = BHPH_PAPERWORK_REQUIREMENTS.filter((item) => dealerWarrantyOffered || item.id !== "dealer-warranty");
   const [paperwork, setPaperwork] = useDealDraftState<Record<string, string>>("paperwork", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
   const [terms, setTerms] = useDealDraftState("terms", {
+    calculationMode: "TERM",
     deliveryAt: "",
     deliveryMileage: "",
     apr: "24.00%",
@@ -2675,9 +2688,16 @@ function BhphExecutionDesk({
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
 
-  const salePriceCents = dollarsToCents(terms.salePrice);
-  const downPaymentCents = dollarsToCents(terms.downPayment);
-  const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0));
+  const [financing, setFinancing] = useDealDraftState("financing", newBhphFinancingFacts);
+  const financingIssue = bhphFinancingIssue(terms.salePrice, terms.downPayment, financing);
+  const calculation = useMemo(() => {
+    try { return calculateBhphFinancing(terms.salePrice, terms.downPayment, financing); } catch { return null; }
+  }, [terms.salePrice, terms.downPayment, financing]);
+  const amountFinancedCents = calculation?.amountFinanced ?? 0;
+  const paymentCalculation = useMemo(() => {
+    try { return { schedule: calculateBhphPayment(amountFinancedCents, terms, financing.saleDate), error: "", withoutAddOnsPrincipalCents: calculation?.optionalProducts.items.length ? bhphWithoutOptionalPrincipal(terms.salePrice, terms.downPayment, financing) : undefined }; }
+    catch (error) { return { schedule: null, error: error instanceof Error ? error.message : "Review the payment inputs.", withoutAddOnsPrincipalCents: undefined }; }
+  }, [amountFinancedCents, terms, financing, calculation]);
   const requiredBhphForms = useMemo(() => requiredBhphFormIds().filter((id) => dealerWarrantyOffered || id !== BHPH_WARRANTY_FORM_ID), [dealerWarrantyOffered]);
   const preparedRequiredCount = bhphForms.filter((form) => form.category === "Required" && (form.id === BHPH_WARRANTY_FORM_ID || preparedForms.includes(form.id))).length;
   const deliveryDate = new Date(terms.deliveryAt);
@@ -2692,7 +2712,7 @@ function BhphExecutionDesk({
   const evidenceReady = evidenceCount === BHPH_EVIDENCE_REQUIREMENTS.length;
   const handoffReady = handoffCount === BHPH_HANDOFF_REQUIREMENTS.length;
   const proofReady = Boolean(proof.income.trim() && proof.residence.trim() && proof.references.trim());
-  const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.paymentAmount.trim() && terms.firstPaymentDate.trim());
+  const termsReady = Boolean(!financingIssue && paymentCalculation.schedule);
   const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && (!dealerWarrantyOffered || warrantyDetails) && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
   const bhphMissingGates = [
     { label: "Customer selected", ready: customerName !== "Customer not selected" },
@@ -2708,12 +2728,17 @@ function BhphExecutionDesk({
 
   function updateTerms(key: keyof typeof terms, value: string) {
     setContractPacket(null);
+    setPacketStatus({ kind: "idle", message: "" });
     const next = { ...terms, [key]: value };
     setTerms(next);
-    const nextSalePrice = dollarsToCents(next.salePrice);
-    const nextDownPayment = dollarsToCents(next.downPayment);
-    const nextAmountFinanced = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0));
-    onAmountChange(formatCurrency(nextAmountFinanced));
+    if (!bhphFinancingIssue(next.salePrice, next.downPayment, financing)) onAmountChange(formatCurrency(calculateBhphFinancing(next.salePrice, next.downPayment, financing).amountFinanced));
+  }
+
+  function updateFinancing(key: keyof BhphFinancingFacts, value: string) {
+    const next = { ...financing, [key]: value };
+    setFinancing(next); setContractPacket(null);
+    setPacketStatus({ kind: "idle", message: "" });
+    if (!bhphFinancingIssue(terms.salePrice, terms.downPayment, next)) onAmountChange(formatCurrency(calculateBhphFinancing(terms.salePrice, terms.downPayment, next).amountFinanced));
   }
 
   function togglePreparedForm(id: string) {
@@ -2775,15 +2800,24 @@ function BhphExecutionDesk({
 
   const getDocumentContext = useContext(DealDocumentContext);
   const identityDraft = useDealDraft();
-  async function generateBhphPacket() {
-    if (identityDraft && !await identityDraft.save()) return;
+  async function generateBhphPacket(library?: { ids: string[]; facts: CashSaleFacts; requestId: string }) {
+    if (generationPending.current) return;
+    generationPending.current = true;
+    try {
+    if (financingIssue || !calculation) throw new Error(financingIssue || "Review the Minnesota taxes and fees.");
+    if (!paymentCalculation.schedule) throw new Error(paymentCalculation.error);
+    if (!identityDraft || !await identityDraft.save()) throw new Error(identityDraft?.saveError() || "Save this deal before generating the BHPH packet. Your entries are retained.");
+    const documentIdentity = bhphDocumentIdentity(getDocumentContext(), canonicalVehicle, terms.deliveryMileage, identityDraft.read("bhph:vehicleDetailExtras"));
     setPacketStatus({ kind: "generating", message: "Generating and archiving BHPH packet..." });
-    const vin = getVinFromVehicleInput(vehicle);
     const response = await requestContractPacket({
       body: JSON.stringify({
         bhph: {
           ...terms,
           ...proof,
+          financing,
+          calculationVersion: BHPH_FINANCING_VERSION,
+          paymentCalculationVersion: BHPH_PAYMENT_VERSION,
+          paymentAmount: formatCurrency(paymentCalculation.schedule.regularPaymentCents),
           amountFinanced: formatCurrency(amountFinancedCents),
           approvalTriggers: String(approvalTriggers),
           evidenceCount: `${evidenceCount}/${BHPH_EVIDENCE_REQUIREMENTS.length}`,
@@ -2794,22 +2828,16 @@ function BhphExecutionDesk({
           deliveryAt: deliveryIso,
           warrantyPosture: dealerWarrantyPosture(dealerWarrantyOffered)
         },
-        ...getDocumentContext(),
-        customerName,
-        dealNumber: getStockNumberFromVin(vin) || vehicle || undefined,
+        ...documentIdentity,
+        ...(library ? { sharedSaleLibrary: { pathway: "bhph", facts: library.facts } } : {}),
         dealType: "BHPH",
         dealerWarrantyOffered,
-        feeTotal: "$0.00",
-        idempotencyKey: crypto.randomUUID(),
+        feeTotal: formatCurrency(calculation.feeTotal),
+        idempotencyKey: library?.requestId || crypto.randomUUID(),
         packetType: "BHPH",
-        paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${terms.paymentAmount || "$0.00"} ${terms.paymentFrequency}; APR ${terms.apr}; first payment ${terms.firstPaymentDate || "Not captured"}.`,
-        preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredBhphForms,
-        salePrice: terms.salePrice || "$0.00",
-        vehicle: {
-          stockNumber: getStockNumberFromVin(vin) || vehicle,
-          mileage: terms.deliveryMileage,
-          vin
-        }
+        paymentFunding: `BHPH amount financed ${formatCurrency(amountFinancedCents)}; ${formatCurrency(paymentCalculation.schedule.regularPaymentCents)} ${terms.paymentFrequency}; ${paymentCalculation.schedule.numberOfPayments} payments; final ${formatCurrency(paymentCalculation.schedule.finalPaymentCents)}; entered annual rate ${terms.apr}; first payment ${terms.firstPaymentDate}.`,
+        preparedFormIds: library ? [...new Set([...library.ids, ...requiredBhphForms])] : preparedForms.length > 0 ? preparedForms : requiredBhphForms,
+        salePrice: terms.salePrice || "$0.00"
       }),
       headers: { "content-type": "application/json" },
       method: "POST"
@@ -2817,6 +2845,7 @@ function BhphExecutionDesk({
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "BHPH packet could not be generated." });
+      if (library) throw new Error(typeof payload.error === "string" ? payload.error : "BHPH packet could not be generated.");
       return;
     }
     const generatedPacket = payload as GeneratedContractPacket;
@@ -2824,6 +2853,13 @@ function BhphExecutionDesk({
     setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
     setPacketStatus({ kind: "ready", message: `Archived BHPH packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(amountFinancedCents));
+    return generatedPacket;
+    } catch (error) {
+      setPacketStatus({ kind: "error", message: error instanceof Error ? error.message : "The BHPH packet could not be prepared. Your entries are retained; retry generation." });
+      if (library) throw error;
+    } finally {
+      generationPending.current = false;
+    }
   }
 
   function captureEvidence(
@@ -2860,7 +2896,7 @@ function BhphExecutionDesk({
           <strong>Bind the BHPH paperwork to the exact unit</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
+          <BhphVehicleFields vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Needs manager review</option><option>Title work pending</option></select></label>
           <label><span>Dealer warranty</span><select value={dealerWarrantyOffered ? "OFFERED" : "NOT_OFFERED"} onChange={(event) => { setDealerWarrantyOffered(event.target.value === "OFFERED"); setContractPacket(null); }}><option value="OFFERED">Offer engine / transmission: 30 days or 1,000 miles</option><option value="NOT_OFFERED">Not offered - required coverage unaffected</option></select></label>
           <label><span>Delivery date / time (local)</span><input type="datetime-local" value={terms.deliveryAt} onChange={(event) => updateTerms("deliveryAt", event.target.value)} /></label>
@@ -2871,7 +2907,7 @@ function BhphExecutionDesk({
         </div>
       </section>
 
-      <section className={styles.retailSection} id="bhph-terms">
+      <section className={styles.retailSection} id="bhph-terms" data-deal-state-managed>
         <header>
           <span>Deal terms</span>
           <strong>Structure the BHPH payment schedule before paperwork</strong>
@@ -2879,21 +2915,11 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Sale price</span><input value={terms.salePrice} onChange={(event) => updateTerms("salePrice", event.target.value)} placeholder="$0.00" /></label>
           <label><span>Down payment</span><input value={terms.downPayment} onChange={(event) => updateTerms("downPayment", event.target.value)} /></label>
-          <label><span>Amount financed</span><input readOnly value={formatCurrency(amountFinancedCents)} /></label>
-          <label><span>APR</span><input value={terms.apr} onChange={(event) => updateTerms("apr", event.target.value)} /></label>
-          <label><span>Payment amount</span><input value={terms.paymentAmount} onChange={(event) => updateTerms("paymentAmount", event.target.value)} placeholder="$0.00" /></label>
-          <label><span>Payment frequency</span><select value={terms.paymentFrequency} onChange={(event) => updateTerms("paymentFrequency", event.target.value)}><option>Weekly</option><option>Biweekly</option><option>Semimonthly</option><option>Monthly</option></select></label>
-          <label><span>Term</span><select value={terms.termMonths} onChange={(event) => updateTerms("termMonths", event.target.value)}><option value="12">12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="30">30 months</option><option value="36">36 months</option><option value="42">42 months</option></select></label>
-          <label><span>First payment date</span><input type="date" value={terms.firstPaymentDate} onChange={(event) => updateTerms("firstPaymentDate", event.target.value)} /></label>
+          <label><span>Amount financed</span><input readOnly value={calculation ? formatCurrency(amountFinancedCents) : "Review amounts"} /></label>
           <label><span>Late fee</span><input value={terms.lateFee} onChange={(event) => updateTerms("lateFee", event.target.value)} /></label>
         </div>
-        <div className={styles.rentalSummaryStrip}>
-          <div><span>Amount financed</span><strong>{formatCurrency(amountFinancedCents)}</strong></div>
-          <div><span>Payment</span><strong>{terms.paymentAmount || "$0.00"}</strong></div>
-          <div><span>Frequency</span><strong>{terms.paymentFrequency}</strong></div>
-          <div><span>Term</span><strong>{terms.termMonths} mo.</strong></div>
-          <button type="button" onClick={() => onAmountChange(formatCurrency(amountFinancedCents))}>Use financed amount</button>
-        </div>
+        <BhphFinancingCalculator salePrice={terms.salePrice} downPayment={terms.downPayment} facts={financing} onChange={updateFinancing} onUse={cents => onAmountChange(formatCurrency(cents))} />
+        <BhphPaymentCalculator principalCents={!financingIssue && calculation ? amountFinancedCents : null} terms={terms} saleDate={financing.saleDate} onChange={updateTerms} withoutAddOnsPrincipalCents={paymentCalculation.withoutAddOnsPrincipalCents} />
       </section>
 
       <section className={styles.retailSection} id="bhph-paperwork">
@@ -2906,7 +2932,8 @@ function BhphExecutionDesk({
           <div><span>Proof evidence</span><strong>{evidenceCount}/{BHPH_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before approval"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{BHPH_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required after signing"}</small></div>
         </div>
-        <div className={styles.retailPacketLauncher}>
+        <VehicleSaleFormLibrary pathway="bhph" warrantyOffered={dealerWarrantyOffered} customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} loan={{ downPayment: terms.downPayment, amountFinanced: formatCurrency(amountFinancedCents) }} defaults={{ saleDate: financing.saleDate, mileage: terms.deliveryMileage, coBuyer: proof.coBuyer, docFee: financing.docFee, registrationFee: financing.registrationFee, warrantyType: dealerWarrantyOffered ? "Dealer limited warranty" : "No dealer warranty - eligibility reviewed", warrantyCoverage: "Engine and transmission; additional Minnesota-required coverage applies.", warrantyDuration: "30 days or 1,000 miles, whichever occurs first" }} sourceFingerprint={JSON.stringify([terms, financing, proof, dealerWarrantyOffered, canonicalVehicle])} onGenerate={(ids, facts, requestId) => generateBhphPacket({ ids, facts, requestId })} legacyPacket={contractPacket} />
+        <div hidden className={styles.retailPacketLauncher}>
           <div>
             <span>BHPH packet readiness</span>
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredBhphForms.length} required forms ready`}</strong>
@@ -2920,7 +2947,7 @@ function BhphExecutionDesk({
             <aside className={styles.retailPacketDrawer} aria-label="BHPH packet drawer">
               <header>
                 <div>
-                  <span>BHPH packet</span>
+                  <span>Legacy BHPH template pack</span>
                   <strong>Prepare, generate, and review BHPH account documents</strong>
                   <small>BHPH documents stay available for signing, print, text, email, and archive review without crowding the main desk.</small>
                 </div>
@@ -3124,6 +3151,7 @@ function DealerFinanceExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const getDocumentContext = useContext(DealDocumentContext);
   const [packet, setPacket] = useDealDraftState<Record<string, string>>("packet", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
@@ -3317,6 +3345,7 @@ function DealerFinanceExecutionDesk({
           <div><span>Evidence</span><strong>{evidenceCount}/{DEALER_FINANCE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before delivery"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{DEALER_FINANCE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
+        <VehicleSaleFormLibrary pathway="finance" customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} loan={{ ...terms, ...lender }} defaults={{ saleDate: todayInputValue(), coBuyer: applicant.coBuyer }} sourceFingerprint={JSON.stringify([terms, lender, applicant])} legacyForms={DEALER_FINANCE_PACKET_REQUIREMENTS} />
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required finance documents</h3>
@@ -3962,6 +3991,7 @@ export function TestDriveExecutionDesk({
 
 function WholesaleExecutionDesk({
   amount,
+  customerPrefill,
   customerName,
   onAmountChange,
   onComplete,
@@ -3980,6 +4010,7 @@ function WholesaleExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const getDocumentContext = useContext(DealDocumentContext);
   const [packet, setPacket] = useDealDraftState<Record<string, string>>("packet", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
@@ -4115,6 +4146,7 @@ function WholesaleExecutionDesk({
           <div><span>Evidence</span><strong>{evidenceCount}/{WHOLESALE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before release"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{WHOLESALE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
+        <VehicleSaleFormLibrary pathway="wholesale" customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} defaults={{ saleDate: todayInputValue(), docFee: "0", taxOverride: "0", taxReason: "" }} sourceFingerprint={JSON.stringify([terms, buyer])} legacyForms={WHOLESALE_PACKET_REQUIREMENTS} onManageOriginals={() => window.dispatchEvent(new CustomEvent("deal-workspace-navigate", { detail: "documents" }))} />
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required wholesale documents</h3>
@@ -4231,6 +4263,7 @@ function OutsideFinanceExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const getDocumentContext = useContext(DealDocumentContext);
   const [packet, setPacket] = useDealDraftState<Record<string, string>>("packet", {});
   const [evidence, setEvidence] = useDealDraftState<Record<string, string>>("evidence", {});
   const [handoff, setHandoff] = useDealDraftState<Record<string, boolean>>("handoff", {});
@@ -4383,6 +4416,7 @@ function OutsideFinanceExecutionDesk({
           <div><span>Evidence</span><strong>{evidenceCount}/{OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before funding release"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
+        <VehicleSaleFormLibrary pathway="outside-finance-one-pay" customerName={customerName} customerPrefill={customerPrefill} salePrice={terms.salePrice} getDocumentContext={getDocumentContext} loan={{ ...terms, ...funding }} defaults={{ saleDate: todayInputValue() }} sourceFingerprint={JSON.stringify([terms, funding])} legacyForms={OUTSIDE_FINANCE_PACKET_REQUIREMENTS} />
         <div className={styles.rentalEvidenceBoard}>
           <section>
             <h3>Required packet documents</h3>
@@ -4553,6 +4587,14 @@ function DealStartDesk({
   const [workflowId, setWorkflowId] = useDealDraftState<DealWorkflowId>("workflowId", initialWorkflowId as DealWorkflowId || "retail-sale");
   const [selectedPresetId, setSelectedPresetId] = useDealDraftState("selectedPresetId", DEAL_START_PRESETS.find(item => item.workflowId === initialWorkflowId)?.id ?? "retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useDealDraftState("executionOpen", false);
+  const libraryEntryDraftId = savedDeal?.draftId() || "";
+  useEffect(() => {
+    if (!saveState.saved) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("formsLibrary") !== "1" || params.get("draftId") !== libraryEntryDraftId) return;
+    const timer = setTimeout(() => { setExecutionOpen(true); setDocumentEditor(true); setWorkspaceSection("documents"); }, 0);
+    return () => clearTimeout(timer);
+  }, [libraryEntryDraftId, saveState.saved, setExecutionOpen]);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [manualCustomerName, setManualCustomerName] = useDealDraftState("manualCustomerName", "");
   const [form, setForm] = useDealDraftState("form", {
@@ -4586,6 +4628,17 @@ function DealStartDesk({
     }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
     return () => controller.abort();
   }, [identity.vehicleId, setIdentity, setForm]);
+  useEffect(() => {
+    if (workflowId !== "bhph" || !identity.vehicleId) return;
+    const controller = new AbortController(), vehicleId = identity.vehicleId;
+    void fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(vehicleId)}`, { signal: controller.signal, cache: "no-store" }).then(async response => {
+      const vehicle = await response.json();
+      if (!response.ok) throw new Error(vehicle.error || "The shared vehicle details could not be refreshed. Your entries are retained.");
+      if (controller.signal.aborted) return;
+      setIdentity(current => current.vehicleId === vehicleId ? { ...current, inventoryUnitId: vehicle.inventoryUnitId, vehicle } : current);
+    }).catch(error => { if (!controller.signal.aborted) setSourceError(error.message); });
+    return () => controller.abort();
+  }, [workflowId, identity.vehicleId, setIdentity]);
   useEffect(() => {
     if (!form.customerId || form.customerId === MANUAL_CUSTOMER_ID) return;
     const controller = new AbortController();
@@ -4662,10 +4715,10 @@ function DealStartDesk({
   useEffect(() => {
     if (!selectedCustomerId) return;
     const controller = new AbortController();
-    void fetch(`/api/customers/customer-360?customerId=${encodeURIComponent(selectedCustomerId)}&tab=communications`, { signal: controller.signal })
+    void fetch(`/api/crm-next/customers/${encodeURIComponent(selectedCustomerId)}/contact-details`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => response.ok ? response.json() as Promise<CustomerContactRead> : null)
       .then((result) => {
-        if (!controller.signal.aborted && result?.customer) setAuthorizedContact({
+        if (!controller.signal.aborted && result) setAuthorizedContact({
           customerId: selectedCustomerId,
           phoneNumber: customerContactValue(result, "PHONE"),
           email: customerContactValue(result, "EMAIL")
@@ -4675,8 +4728,8 @@ function DealStartDesk({
   }, [selectedCustomerId]);
   const customerPrefill = useMemo(() => selectedCustomer ? {
     ...normalizeCustomerDealPrefill(selectedCustomer.dealPrefill),
-    phoneNumber: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : selectedCustomer.phone,
-    email: authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : selectedCustomer.email
+    phoneNumber: availableContactValue(authorizedContact?.customerId === selectedCustomerId ? authorizedContact.phoneNumber : "") || availableContactValue(selectedCustomer.phone),
+    email: availableContactValue(authorizedContact?.customerId === selectedCustomerId ? authorizedContact.email : "") || availableContactValue(selectedCustomer.email)
   } : EMPTY_CUSTOMER_DEAL_PREFILL, [selectedCustomer, selectedCustomerId, authorizedContact]);
   const manualCustomer = manualCustomerName.trim();
   const effectiveCustomerName = form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName || "Customer not selected" : selectedCustomer?.name ?? "Customer not selected";
@@ -4846,7 +4899,7 @@ function DealStartDesk({
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
-      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
+      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} status={saveState.record.status} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
       {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p>{savedDeal.read("desk:assignmentPathway") === "test-drive" ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope> : <VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} />}</section>}
       {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />

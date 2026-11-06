@@ -15,6 +15,7 @@ export function dealCustomerDisplayNumber(customer: { id: string; customerNumber
   return value && value !== customer.id && !opaque ? value : "";
 }
 export type DealVehicleChoice = {
+  trim?: string; recordedMileage?: string; mileageRecordedAt?: string;
   id: string; label: string; vin: string; stockNumber: string; inventoryUnitId: string | null;
   year: string; make: string; model: string; color: string; licensePlate: string; locationId: string | null;
   availability: string; eligibleForUse: boolean;
