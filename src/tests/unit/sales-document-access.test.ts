@@ -34,8 +34,8 @@ describe("Sales Documents access boundaries", () => {
   it("rejects scan PDFs exceeding the page limit before writing storage", async () => {
     db.findFirst.mockResolvedValue({ state: "WORKING" });
     const pdf = await PDFDocument.create();
-    for (let page = 0; page < 13; page += 1) pdf.addPage();
-    await expect(saveSalesDocument(actor(), "scan-jacket", { bytes: await pdf.save(), fileName: "scan.pdf", contentType: "application/pdf", documentType: "supplemental", captureMethod: "DOCUMENT_SCAN" })).rejects.toThrow("1–12 pages");
+    for (let page = 0; page < 29; page += 1) pdf.addPage();
+    await expect(saveSalesDocument(actor(), "scan-jacket", { bytes: await pdf.save(), fileName: "scan.pdf", contentType: "application/pdf", documentType: "supplemental", captureMethod: "DOCUMENT_SCAN" })).rejects.toThrow("1–28 pages");
   });
   beforeEach(() => { db.findFirst.mockReset(); db.packet.mockReset(); db.draft.mockReset(); });
   it("rejects anonymous, inactive and unrelated roles", () => {
