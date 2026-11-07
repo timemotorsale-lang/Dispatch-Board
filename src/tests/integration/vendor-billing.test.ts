@@ -23,6 +23,23 @@ async function draft(vendorId:string,direction="RECEIVABLE",amount="1000",extra:
 async function post(vendorId:string,documentId:string,version=1){return command(vendorId,"POST_DOCUMENT",{documentId,version,reason:"Verified source and approved"});}
 
 describe.skipIf(!enabled)("vendor billing isolated PostgreSQL workflows",()=>{
+ it("posts without a note, retains approval evidence and still requires exception reasons",async()=>{
+  const v=await partner();
+  for(const reason of [undefined,"   ","Checked against original"]){
+   const d=await draft(v.id,"PAYABLE","100",{unmatchedReason:"Office supplies, not vehicle work",tax:"8.00"});
+   const model=await command(v.id,"POST_DOCUMENT",{documentId:d.id,version:d.version,...(reason===undefined?{}:{reason})});
+   expect(model.summary.payableCents).toBeGreaterThanOrEqual(10800);
+   const event=await prisma.vendorBillingEvent.findFirstOrThrow({where:{vendorId:v.id,action:"POST_DOCUMENT"},orderBy:{createdAt:"desc"}});
+   expect(event.actorId).toBe(actor.id);expect(event.createdAt).toBeInstanceOf(Date);
+   expect(event.detail).toMatchObject({id:d.id,status:"POSTED",amountCents:10800,taxCents:800,approvedById:actor.id,reviewNote:reason?.trim()||""});
+   await expect(command(v.id,"DISPUTE_DOCUMENT",{documentId:d.id,version:2,reason:" "})).rejects.toThrow("Review note is required");
+   const disputed=await command(v.id,"DISPUTE_DOCUMENT",{documentId:d.id,version:2,reason:"Invoice amount questioned"});
+   await expect(command(v.id,"RESOLVE_DISPUTE",{documentId:d.id,version:disputed.documents.find(row=>row.id===d.id)!.version})).rejects.toThrow("Review note is required");
+  }
+  const draftBill=await draft(v.id);
+  await expect(command(v.id,"VOID_DRAFT",{documentId:draftBill.id,version:1})).rejects.toThrow("Review note is required");
+  await expect(command(v.id,"POST_DOCUMENT",{documentId:draftBill.id,version:1,reason:"x".repeat(1001)})).rejects.toThrow("no longer than 1000");
+ });
  it("prepares intake without a batch, reuses identical uploads, then atomically creates the reviewed batch/job/bill",async()=>{
   const v=await partner(),pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica),page=pdf.addPage();
   ["Invoice #: AUTO-100","Invoice Date: 2026-11-07","2020 TOYOTA CAMRY","Engine repair 100.00","Subtotal 100.00","Tax 8.00","Total 108.00"].forEach((text,index)=>page.drawText(text,{x:40,y:740-index*40,font,size:18}));
@@ -34,6 +51,7 @@ describe.skipIf(!enabled)("vendor billing isolated PostgreSQL workflows",()=>{
   const review={documentId:source.id,batchId:"",autoCreateBatch:true,pages:[1],pagesConfirmed:true,reviewed:true,commandKey:randomUUID(),number:"AUTO-100",title:"Engine repair",issueDate:"2026-11-07",dueDate:"2026-11-07",tax:"8.00",scannedTotal:"108.00",paymentTermsBasis:"REVIEW_POLICY",workTicketProposal:preview.groups[0].scan.workTicketProposal,lines:[{description:"Engine repair",amount:"100.00",workJobId:"__NEW_INVOICE_JOB__"}]};
   let model=await processVendorInvoicePacket(actor,v.id,review,true) as Awaited<ReturnType<typeof readVendorBilling>>;
   expect(model.documents[0]).toMatchObject({status:"DRAFT",amountCents:10800});expect(model.documents[0].batchId).toBeTruthy();expect(model.jobs).toHaveLength(1);expect(model.jobs[0]).toMatchObject({vehicle:"2020 TOYOTA CAMRY",amountCents:10000,status:"BATCHED",review:undefined});expect(model.documents[0].lines[0].workJobId).toBe(model.jobs[0].id);
+  expect(model.jobs[0].number).toMatch(/^VJ-\d{5,}$/);
   model=await processVendorInvoicePacket(actor,v.id,review,true) as typeof model;expect(model.jobs).toHaveLength(1);expect(await prisma.vendorInvoiceBatch.count({where:{vendorId:v.id}})).toBe(1);
   await expect(post(v.id,model.documents[0].id,model.documents[0].version)).rejects.toThrow("Review the approved amount");
   const other=await partner(),otherSource=await receiveVendorInvoiceUpload(actor,other.id,file);
@@ -47,9 +65,13 @@ describe.skipIf(!enabled)("vendor billing isolated PostgreSQL workflows",()=>{
   const raw={documentId:original.id,batchId:batch.id,pages:[1],pagesConfirmed:true,reviewed:true,commandKey:randomUUID(),number:"A-100",title:"Repair supplies",issueDate:first,dueDate:first,tax:"0",scannedTotal:"100.00",lines:[{description:"Supplies",amount:"100.00",workJobId:""}],unmatchedReason:"Non-vehicle supplies"};
   let model=await processVendorInvoicePacket(actor,v.id,raw,true) as Awaited<ReturnType<typeof readVendorBilling>>;
   expect(model.documents).toHaveLength(1);expect(model.documents[0]).toMatchObject({batchId:batch.id,status:"DRAFT",amountCents:10000});
+  expect((await prisma.vendorRecordLink.findFirstOrThrow({where:{vendorId:v.id,recordId:model.documents[0].id}})).labelSnapshot).toBe(`Invoice A-100 · batch ${batch.batchNumber}`);
   model=await processVendorInvoicePacket(actor,v.id,raw,true) as typeof model;expect(model.documents).toHaveLength(1);expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(2);
   await expect(processVendorInvoicePacket(actor,v.id,{...raw,commandKey:randomUUID(),number:"OVERLAP"},true)).rejects.toMatchObject({status:409});expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(2);
-  const bill=model.documents[0];model=await command(v.id,"EDIT_DOCUMENT",{...raw,commandKey:randomUUID(),documentId:bill.id,sourceReference:"Corrected source description",direction:"PAYABLE",version:bill.version});expect(model.documents[0].batchId).toBe(batch.id);
+  const bill=model.documents[0];model=await command(v.id,"EDIT_DOCUMENT",{...raw,commandKey:randomUUID(),documentId:bill.id,sourceReference:"Corrected source description",direction:"PAYABLE",version:bill.version,lines:[{description:"Corrected supplies",amount:"125.00",workJobId:""}]});expect(model.documents[0].batchId).toBe(batch.id);
+  expect(model.documents[0].amountCents).toBe(12500);expect(model.documents[0].dueItems[0].amountCents).toBe(12500);
+  const correction=await prisma.vendorBillingEvent.findFirstOrThrow({where:{vendorId:v.id,action:"EDIT_DOCUMENT"},orderBy:{createdAt:"desc"}});
+  expect(correction.detail).toMatchObject({before:{amountCents:10000},after:{amountCents:12500}});
   const unbatched=await prisma.vendorWorkJob.create({data:{organizationId:org,vendorId:v.id,jobNumber:randomUUID(),vehicleReference:"Other vehicle",workType:"Repair",serviceDate:new Date(first)}});
   await expect(command(v.id,"EDIT_DOCUMENT",{...raw,commandKey:randomUUID(),documentId:bill.id,sourceReference:"Incorrect ticket",direction:"PAYABLE",version:model.documents[0].version,lines:[{description:"Other repair",amount:"100.00",workJobId:unbatched.id}]})).rejects.toThrow("that batch's tickets");
   await expect(processVendorInvoicePacket(actor,v.id,{...raw,commandKey:randomUUID(),pages:[2],number:"B-200",scannedTotal:"200.00"},true)).rejects.toThrow("must match");expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(2);expect(await prisma.vendorBillingDocument.count({where:{vendorId:v.id}})).toBe(1);
@@ -79,12 +101,38 @@ describe.skipIf(!enabled)("vendor billing isolated PostgreSQL workflows",()=>{
   const statement=vendorBillingPrint(model,new URLSearchParams({from:first,through:today}));
   expect(statement).toContain("$6,000.00");expect(statement).not.toContain("<script>unsafe</script>");expect(vendorBillingPrint(model,new URLSearchParams({documentId:model.documents.find(d=>d.kind==="INVOICE")!.id}))).toContain("&lt;script&gt;");
  });
+ it("reviews historical invoice vehicles without fabricating registry records and retains posting controls",async()=>{
+  const v=await partner(),other=await partner();
+  const source=await prisma.vendorDocument.create({data:{organizationId:org,vendorId:v.id,title:"Original historical invoice",documentType:"BILL_STATEMENT",fileName:"historical.pdf",contentType:"application/pdf",fileSizeBytes:4,fileData:Buffer.from("test"),uploadedByUserId:actor.id}});
+  const job=await prisma.vendorWorkJob.create({data:{organizationId:org,vendorId:v.id,jobNumber:randomUUID(),vehicleReference:"2024 TOYOTA HIGHLANDER",workType:"Repair",serviceDate:new Date(first),amount:100}});
+  const d=await draft(v.id,"PAYABLE","100",{lines:[{description:"Historical repair",amount:"100",workJobId:job.id}],sourceReference:`Vendor document ${source.id}: original`});
+  const raw={workJobId:job.id,identityBasis:"INVOICE_REFERENCE",invoiceVehicleReference:job.vehicleReference,identityReviewReason:"Historical repair vehicle is not registered",identitySourceDocumentId:source.id,invoiceVehicleConfirmed:true,approvedAmount:"100",accepted:true,evidenceReference:"Original invoice and work acceptance checked"};
+  const count=await prisma.vehicle.count({where:{organizationId:org}});
+  await expect(command(v.id,"REVIEW_WORK",raw,staff)).rejects.toThrow(/Manager/);
+  await expect(command(v.id,"REVIEW_WORK",{...raw,identityReviewReason:""})).rejects.toThrow(/Reason for using/);
+  await expect(command(v.id,"REVIEW_WORK",{...raw,invoiceVehicleConfirmed:false})).rejects.toThrow(/Confirm the vehicle/);
+  await expect(command(other.id,"REVIEW_WORK",raw)).rejects.toThrow(/work ticket belonging/);
+  await expect(command(v.id,"REVIEW_WORK",{...raw,identitySourceDocumentId:"foreign-or-missing"})).rejects.toThrow(/original document saved/);
+  await expect(command(v.id,"REVIEW_WORK",{...raw,invoiceVehicleReference:"2023 TOYOTA HIGHLANDER"})).rejects.toThrow(/must match/);
+  await expect(command(v.id,"REVIEW_WORK",{...raw,vehicleId:"unrelated"})).rejects.toThrow(/cannot link/);
+  await command(v.id,"REVIEW_WORK",{...raw,accepted:false});await expect(post(v.id,d.id)).rejects.toThrow(/Review the approved/);
+  let model=await command(v.id,"REVIEW_WORK",raw);
+  expect(model.jobs[0].review).toMatchObject({vehicleId:null,identityBasis:"INVOICE_REFERENCE",invoiceVehicleReference:job.vehicleReference,identitySourceDocumentId:source.id,identityReviewReason:raw.identityReviewReason,reviewedById:actor.id});
+  const event=await prisma.vendorBillingEvent.findFirstOrThrow({where:{vendorId:v.id,action:"REVIEW_WORK"},orderBy:{createdAt:"desc"}});expect(event.detail).toMatchObject({identityBasis:"INVOICE_REFERENCE",identitySourceDocumentId:source.id});
+  model=await post(v.id,d.id);expect(model.summary.payableCents).toBe(10000);expect(await prisma.vehicle.count({where:{organizationId:org}})).toBe(count);
+  const excess=await draft(v.id,"PAYABLE","1",{lines:[{description:"Extra historical charge",amount:"1",workJobId:job.id}]});await expect(post(v.id,excess.id)).rejects.toThrow(/exceeds the approved/);
+  await prisma.vendorWorkJob.update({where:{id:job.id},data:{workDescription:"Changed scope"}});await expect(post(v.id,excess.id)).rejects.toThrow(/Review the approved/);
+  const vehicle=await prisma.vehicle.create({data:{organizationId:org,vehicleNumber:randomUUID(),make:"Toyota",model:"Highlander"}});
+  model=await command(v.id,"REVIEW_WORK",{...raw,identityBasis:"REGISTRY",vehicleId:vehicle.id});
+  expect(model.jobs[0].review).toMatchObject({identityBasis:"REGISTRY",vehicleId:vehicle.id,invoiceVehicleReference:null,identityReviewReason:null,identitySourceDocumentId:null});
+ });
  it("requires work approval, supports partial batch bills, prevents overbilling and stale acceptance",async()=>{
   const v=await partner();const other=await partner();
   const vehicle=await prisma.vehicle.create({data:{organizationId:org,vehicleNumber:randomUUID(),make:"Toyota",model:"Camry"}});
   const job=await prisma.vendorWorkJob.create({data:{organizationId:org,vendorId:v.id,jobNumber:`TEST-${randomUUID()}`,vehicleReference:"Synthetic Toyota",workType:"Tires",serviceDate:new Date(first),amount:600}});
   const d=await draft(v.id,"PAYABLE","400",{lines:[{description:"Partial tire bill",amount:"400",workJobId:job.id}]});
   await expect(post(v.id,d.id)).rejects.toThrow(/Review the approved/);
+  await expect(command(v.id,"REVIEW_WORK",{workJobId:job.id,approvedAmount:"600",evidenceReference:"Estimate checked",accepted:true})).rejects.toThrow("Choose the work vehicle");
   await command(v.id,"REVIEW_WORK",{workJobId:job.id,vehicleId:vehicle.id,approvedAmount:"600",evidenceReference:"Approved estimate and accepted tires",accepted:true});
   await post(v.id,d.id);
   const second=await draft(v.id,"PAYABLE","200",{lines:[{description:"Final tire bill",amount:"200",workJobId:job.id}]});await post(v.id,second.id);

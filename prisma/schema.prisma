@@ -11088,7 +11088,11 @@ model VendorBillingWorkReview {
   organizationId String
   vendorId String
   workJobId String
-  vehicleId String
+  vehicleId String?
+  identityBasis String @default("REGISTRY")
+  invoiceVehicleReference String?
+  identityReviewReason String?
+  identitySourceDocumentId String?
   repairOrderId String?
   approvedAmountCents Int
   accepted Boolean @default(false)
