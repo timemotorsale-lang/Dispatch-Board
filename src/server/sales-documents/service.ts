@@ -14,7 +14,7 @@ import type { UnifiedCrmContractPacketInput, UnifiedCrmContractPacketResult } fr
 import { closingChecklist, SalesDocumentsError, type JacketDocument } from "./domain";
 import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } from "@/lib/deal-closing";
 import { prepareClosingReview } from "./closing-review";
-import { MAX_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
+import { MAX_SALES_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
 
 const include = {
   packet: { include: { documents: { include: { document: { include: { versions: true } } } }, auditEvents: { orderBy: { occurredAt: "desc" as const }, take: 30 } } },
@@ -146,7 +146,7 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
     if (input.contentType === "application/pdf") {
       if (bytes.subarray(0, 5).toString() !== "%PDF-") throw new SalesDocumentsError("This file is not a PDF.");
       const pdf = await PDFDocument.load(bytes).catch(() => { throw new SalesDocumentsError("Upload a readable, unencrypted PDF."); });
-      if (input.captureMethod && (pdf.getPageCount() < 1 || pdf.getPageCount() > MAX_SCAN_PAGES)) throw new SalesDocumentsError(`Scan 1–${MAX_SCAN_PAGES} pages per document.`);
+      if (pdf.getPageCount() < 1 || pdf.getPageCount() > MAX_SALES_SCAN_PAGES) throw new SalesDocumentsError(`Include 1–${MAX_SALES_SCAN_PAGES} pages per sales document.`);
     } else if (input.contentType === "image/png") {
       if (bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") throw new SalesDocumentsError("This file is not a PNG image.");
     } else if (input.contentType === "image/jpeg") {

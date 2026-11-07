@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { correctDocument, detectDocumentCorners, documentQualityHints, fullPageCorners, perspectiveMap, validCorners, type DocumentCorners } from "@/features/mobile-capture/document-image";
-import { buildScannedPdf } from "@/features/mobile-capture/document-pdf";
+import { buildScannedPdf,MAX_SALES_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
 
 describe("document geometry", () => {
   it("maps all four corners through a perspective transform", () => {
@@ -60,6 +60,9 @@ describe("scanned PDF assembly", () => {
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBe(2);
     expect(document.getPages().map((page) => page.getRotation().angle)).toEqual([0, 90]);
+    const sales=await PDFDocument.load(await buildScannedPdf(Array.from({length:28},()=>({bytes:jpeg,rotation:0})),"LETTER",MAX_SALES_SCAN_PAGES));
+    expect(sales.getPageCount()).toBe(28);
+    await expect(buildScannedPdf(Array.from({length:29},()=>({bytes:jpeg,rotation:0})),"LETTER",MAX_SALES_SCAN_PAGES)).rejects.toThrow("1–28 pages");
     const letter = await PDFDocument.load(await buildScannedPdf([{ bytes: jpeg, rotation: 0 }], "LETTER"));
     expect(letter.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
     const a4 = await PDFDocument.load(await buildScannedPdf([{ bytes: jpeg, rotation: 0 }], "A4"));

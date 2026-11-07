@@ -3,7 +3,7 @@ const mocks=vi.hoisted(()=>({user:vi.fn(),read:vi.fn(),command:vi.fn(),extract:v
 vi.mock("@/server/auth/current-user",()=>({getCurrentUser:mocks.user}));
 vi.mock("@/server/vendors/vendor-policy",()=>({canAddVendorNote:mocks.access}));
 vi.mock("@/server/vendors/vendor-billing-service",()=>({readVendorBilling:mocks.read,commandVendorBilling:mocks.command}));
-vi.mock("@/server/document-library/text-extraction",()=>({extractDocumentText:mocks.extract}));
+vi.mock("@/server/document-library/read-document",()=>({extractDocumentPages:async(...args:unknown[])=>({...await mocks.extract(...args),warnings:[]})}));
 import { POST, PUT } from "@/app/api/vendors/[vendorId]/invoice-scan/route";
 const context={params:Promise.resolve({vendorId:"vendor-1"})};
 function request(review?:unknown,file=new File(["%PDF-1.4\nexample"],"invoice.pdf",{type:"application/pdf"})) {

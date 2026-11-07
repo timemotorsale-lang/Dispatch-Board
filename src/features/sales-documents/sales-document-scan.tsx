@@ -5,7 +5,8 @@ import Image from "next/image";
 import { Camera, Smartphone } from "lucide-react";
 import { DocumentScanner } from "@/features/mobile-capture/document-scanner";
 import { PurchasePdfPreview } from "@/features/inventory/purchase-pdf-preview";
-import { MAX_SCAN_BYTES } from "@/features/mobile-capture/document-pdf";
+import { MAX_SCAN_BYTES, MAX_SALES_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 import { phoneDocumentHandoff } from "@/lib/phone-document-handoff";
 import { SECURE_POA_ID, SECURE_POA_GUIDANCE } from "@/lib/sales-document-pathways";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
@@ -30,19 +31,21 @@ export function SalesDocumentScan({ jacket, initialScan = false, initialRequirem
   const [qr, setQr] = useState("");
   const sending = useRef(false);
   const reviewRef = useRef<HTMLDivElement>(null);
+  function updateFile(next:File|null){setFile(next);setPreview(next?URL.createObjectURL(next):"");}
+  useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);
   useEffect(() => {
-    if (!file) { setPreview(""); return; }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
+    if (!file) return;
     reviewRef.current?.focus();
     const leaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", leaving);
-    return () => { URL.revokeObjectURL(url); window.removeEventListener("beforeunload", leaving); };
+    return () => { window.removeEventListener("beforeunload", leaving); };
   }, [file]);
   useEffect(() => {
     let cancelled = false;
     const url = phoneDocumentHandoff(window.location.origin, jacket.id, initialRequirementId) ??
       phoneDocumentHandoff(phoneOrigin, jacket.id, initialRequirementId);
+    // The handoff URL depends on the browser origin; this effect synchronizes browser-only state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHandoff(url ?? "");
     if (url) void import("@zxing/browser").then(({ BrowserQRCodeSvgWriter }) => {
       if (cancelled) return;
@@ -69,7 +72,7 @@ export function SalesDocumentScan({ jacket, initialScan = false, initialRequirem
       }
       if (!response.ok) throw new Error(body.error || "The scan could not be saved.");
       onSaved(body);
-      setFile(null); setReviewed(false); setSigned(false);
+      updateFile(null); setReviewed(false); setSigned(false);
       setReceipt("Scan saved to this deal jacket. Pending staff review.");
     } catch (failure) {
       setError(`${failure instanceof Error ? failure.message : "Upload interrupted."} Your scan remains here. Retry the same file to recover safely.`);
@@ -77,7 +80,13 @@ export function SalesDocumentScan({ jacket, initialScan = false, initialRequirem
   }
   return <section className={styles.form} aria-label="Optional sales document scanning">
     <h3>Scan sales documents · optional</h3>
-    <p>Capture paper pages, straighten and reorder them, then review a single PDF before attaching it to this deal.</p>
+    <p>Capture up to 28 paper pages, straighten and reorder them, then review a single PDF before attaching it to this deal.</p>
+    <DocumentReadingPanel purpose="SALES" disabled={busy||locked} onApply={(_reading,fields,source)=>{
+      if(fields.vin&&jacket.vin&&fields.vin.toUpperCase()!==jacket.vin.toUpperCase())throw new Error("The printed VIN does not match this deal. Resolve the vehicle mismatch before attaching this document.");
+      if(source.type!=="application/pdf")throw new Error("Use Scan with camera to prepare a PDF, or upload the original PDF for this sales jacket.");
+      if(file&&!window.confirm("Replace the prepared scan with this reviewed sales document?"))return;
+      updateFile(source);setName(source.name);setReviewed(false);setReceipt("Document details reviewed. Confirm its type and all signature/POA requirements before saving.");
+    }}/>
     <div className={styles.actions}><button type="button" disabled={busy || locked || Boolean(file)} onClick={() => { setReceipt(""); setScanner(true); }}><Camera size={18} />Scan paper documents</button></div>
     <details><summary><Smartphone size={16} /> Continue scanning on a phone</summary>
       {handoff ? <><p>Open this deal on your phone and sign in with your staff account. The link grants no additional access.</p>{qr && <Image unoptimized src={qr} width={180} height={180} alt="QR code to open this deal scanner on your phone" />}<a href={handoff}>Open phone scanning link</a></> : <p>Phone scanning needs this app’s reachable HTTPS address. Localhost points to the phone itself. Open the secure app address on your phone, or configure AUTH_PUBLIC_BASE_URL for the local review environment.</p>}
@@ -94,14 +103,14 @@ export function SalesDocumentScan({ jacket, initialScan = false, initialRequirem
         {documentType === SECURE_POA_ID && <p>{SECURE_POA_GUIDANCE}</p>}
         <label className={styles.check}><input type="checkbox" checked={signed} onChange={event => setSigned(event.target.checked)} />Contains signatures · staff verification is still required</label>
         <label className={styles.check}><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} />I checked every page for readability, completeness, order and the correct customer / vehicle.</label>
-        <div className={styles.actions}><button type="button" disabled={!reviewed || !name.trim()} onClick={() => void save()}>{busy ? "Saving scan…" : "Save scan to this deal"}</button><button type="button" onClick={() => { if (window.confirm("Discard this unsaved scan?")) { setFile(null); setReviewed(false); } }}>Discard scan</button></div>
+        <div className={styles.actions}><button type="button" disabled={!reviewed || !name.trim()} onClick={() => void save()}>{busy ? "Saving scan…" : "Save scan to this deal"}</button><button type="button" onClick={() => { if (window.confirm("Discard this unsaved scan?")) { updateFile(null); setReviewed(false); } }}>Discard scan</button></div>
       </fieldset>
     </div>}
     {receipt && <p role="status" className={styles.status}>{receipt}</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
-    {scanner && <DocumentScanner initialPaperSize="LETTER" onClose={() => setScanner(false)} onComplete={scanned => {
+    {scanner && <DocumentScanner maxPages={MAX_SALES_SCAN_PAGES} initialPaperSize="LETTER" onClose={() => setScanner(false)} onComplete={scanned => {
       if (scanned.type !== "application/pdf" || !scanned.size || scanned.size > MAX_SCAN_BYTES) { setError("Choose a readable PDF up to 25 MB."); return; }
-      setFile(scanned); setScanner(false); setReviewed(false); setError("");
+      updateFile(scanned); setScanner(false); setReviewed(false); setError("");
     }} />}
   </section>;
 }

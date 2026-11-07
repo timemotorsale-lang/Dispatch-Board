@@ -1,11 +1,13 @@
 export const MAX_SCAN_PAGES = 12;
+export const MAX_SALES_SCAN_PAGES = 28;
 export const MAX_SCAN_BYTES = 25 * 1024 * 1024;
 
 export type ScannedPage = { id: string; bytes: Uint8Array; rotation: number; url: string };
 export type ScanPaperSize = "ORIGINAL" | "LETTER" | "A4";
 
-export async function buildScannedPdf(pages: Pick<ScannedPage, "bytes" | "rotation">[], paperSize: ScanPaperSize = "ORIGINAL") {
-  if (!pages.length || pages.length > MAX_SCAN_PAGES) throw new Error(`Include 1–${MAX_SCAN_PAGES} pages.`);
+export async function buildScannedPdf(pages: Pick<ScannedPage, "bytes" | "rotation">[], paperSize: ScanPaperSize = "ORIGINAL", maxPages = MAX_SCAN_PAGES) {
+  if (!Number.isInteger(maxPages)||maxPages<1||maxPages>MAX_SALES_SCAN_PAGES)throw new Error("Unsupported scan page limit.");
+  if (!pages.length || pages.length > maxPages) throw new Error(`Include 1–${maxPages} pages.`);
   if (pages.reduce((total, page) => total + page.bytes.length, 0) > MAX_SCAN_BYTES) throw new Error("This scan is too large. Remove pages or split it into separate documents.");
   const { PDFDocument, degrees } = await import("pdf-lib");
   const document = await PDFDocument.create();

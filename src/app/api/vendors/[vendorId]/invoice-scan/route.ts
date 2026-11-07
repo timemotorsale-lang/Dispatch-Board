@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { canAddVendorNote } from "@/server/vendors/vendor-policy";
 import { commandVendorBilling, readVendorBilling } from "@/server/vendors/vendor-billing-service";
-import { extractDocumentText } from "@/server/document-library/text-extraction";
+import { extractDocumentPages } from "@/server/document-library/read-document";
 import { VendorBillingError } from "@/lib/vendor-billing";
 import { parseVendorInvoice } from "@/lib/vendor-invoice-scan";
 
@@ -38,11 +38,12 @@ async function receive(request: Request, context: {params:Promise<{vendorId:stri
     if(reading)throw new VendorBillingError("Another invoice is being read. Retry shortly.",429);
     reading=true;
     try{
-      const extracted=await extractDocumentText({bytes,contentType,fileName:file.name});
+      const extracted=await extractDocumentPages({bytes,contentType,fileName:file.name},24);
       const scan=parseVendorInvoice(extracted.text,model.vendor.name,model.jobs);
       // Never expose OCR engine paths or subprocess diagnostics to staff.
       if(!extracted.text)scan.warnings.push("Automatic reading was unavailable or found no text. Retry a clear photo or complete the review fields.");
-      if(extracted.method==="OCR_TEXT" && contentType==="application/pdf")scan.warnings.push("PDF OCR may read only the first configured pages (default 3). Check every page and the final invoice total.");
+      scan.warnings.push(...extracted.warnings);
+      if(scan.multipleInvoices)scan.warnings.push("Multiple invoices were detected. Use Process into batch on the vendor profile to review each invoice separately.");
       const duplicates=model.documents.filter(d=>d.direction==="PAYABLE" && scan.number && d.number.normalize("NFKC").replace(/\s+/g,"").toUpperCase()===scan.number.normalize("NFKC").replace(/\s+/g,"").toUpperCase()).map(d=>({number:d.number,status:d.status}));
       return NextResponse.json({scan,jobs:model.jobs,duplicates,vendor:model.vendor},{headers});
     }finally{reading=false;}

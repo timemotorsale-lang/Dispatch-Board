@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import type { getPartsOperationsWorkspace } from "@/server/parts-operations/service";
 import { BackToPartsWorkspace } from "./parts-return-link";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 
 type Model = Awaited<ReturnType<typeof getPartsOperationsWorkspace>>;
 type PurchaseOrder = Model["service"]["purchaseOrders"][number];
@@ -166,6 +167,18 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
           <span>Confirm what arrived and where it was placed. The system handles discrepancies, custody, and readiness behind the scenes.</span>
         </div>
       </header>
+
+      <DocumentReadingPanel purpose="PARTS" disabled={busy} onApply={(reading,fields)=>{
+        const matches=model.service.purchaseOrders.filter(order=>order.purchaseOrderNumber.toUpperCase()===fields.purchaseOrderNumber?.toUpperCase());
+        if(fields.purchaseOrderNumber&&matches.length!==1)throw new Error("The printed purchase order does not match one available order. Resolve the match before applying any lines.");
+        const order=matches.length===1?matches[0]:selectedOrder;
+        if(!order)throw new Error("Select the matching purchase order before preparing received lines.");
+        if(!receiveableStatuses.has(order.status))throw new Error("This order is not ready to receive. Review its status first.");
+        if(lines.some(line=>Number(line.quantity)>0)&&!window.confirm("Replace the prepared receiving lines with reviewed packing-slip lines? No receipt will be posted yet."))return;
+        const proposed=reading.lines.map(line=>{const part=model.waveOne.parts.filter(part=>part.partNumber.toUpperCase()===line.partNumber.toUpperCase());if(part.length!==1)throw new Error(`Match part ${line.partNumber} in the parts registry before applying. No lines have been changed.`);return {partId:part[0].id,quantity:line.quantity,unitCost:line.unitCost,damagedQuantity:"0",condition:"GOOD" as const};});
+        if(!proposed.length)throw new Error("No complete part lines were read. Review the source and enter the receiving lines manually.");
+        selectOrder(order);setLines(proposed);setPackingSource(`Reviewed ${reading.fileName}`);setInvoiceReference(fields.reference||"");setNotice("Reviewed lines prepared. Confirm actual quantities, condition and bin placement before receiving.");
+      }}/>
 
       {notice ? <div className={/failed|required|choose|select|enter|not enabled|must|cannot/i.test(notice) ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
 

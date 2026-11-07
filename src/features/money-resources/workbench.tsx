@@ -1,4 +1,5 @@
 "use client";
+import {DocumentReadingPanel,applyReadingToForm} from "@/features/document-library/document-reading-panel";
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -30,6 +31,7 @@ export function MoneyResourcesWorkbench({ vehicleId = "", repairOrderId = "", in
   const [model, setModel] = useState<MoneyResourcesModel | null>(null);
   const [day, setDay] = useState(/^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : moneyToday());
   const [view, setView] = useState(initialAction === "review" ? "Review" : "Record spending");
+  const [statementCsv,setStatementCsv]=useState("");
   const [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState<{ entry: Pick<Entry, "id" | "version" | "purpose">; action: string } | null>(null);
   const [history, setHistory] = useState<Array<{ action: string; createdAt: string; actor: { name: string }; details: { note?: string } }> | null>(null);
@@ -101,6 +103,9 @@ export function MoneyResourcesWorkbench({ vehicleId = "", repairOrderId = "", in
         {!(view === "Review" ? review : entries).length ? <p>No items in this view.</p> : null}
       </section> : null}
       {view === "Card transactions" ? <>
+        {model.manager&&<><DocumentReadingPanel purpose="STATEMENT" label="Read a bank / card statement for matching review" onApply={(reading)=>{if(!reading.lines.length)throw new Error("No dated statement rows were read. Use the bank CSV or correct the scan.");if(statementCsv&&!window.confirm("Replace the prepared statement rows?"))return;const quote=(value:string)=>`"${value.replaceAll('"','""')}"`;setStatementCsv(["transaction_id,date,merchant,amount",...reading.lines.map((line,index)=>[`Scan-${reading.checksum.slice(0,16)}-${index+1}`,line.unitCost,line.description,line.amount].map(quote).join(","))].join("\n"));setNotice("Statement rows prepared. Check dates, credit/debit signs and duplicate transactions before importing to the selected card. No spending or payments were created.");}}/>
+          {statementCsv&&<form className={styles.form} onSubmit={event=>{event.preventDefault();const data=new FormData(event.currentTarget);void execute({action:"IMPORT",accountId:data.get("accountId"),csv:statementCsv},"Reviewed statement transactions imported for matching. No new expenses or payments created.");}}><AccountSelect model={model} kind="CARD"/><label>Reviewed statement rows<textarea value={statementCsv} onChange={event=>setStatementCsv(event.target.value)} rows={7}/></label><button disabled={busy}>Import reviewed rows for matching</button></form>}
+        </>}
         {model.manager ? <section className={styles.panel}><h2>Import posted card transactions</h2><p>Use a bank statement CSV with headers <code>transaction_id,date,merchant,amount</code>. Dates: YYYY-MM-DD. Purchases positive; refunds/payments negative. Up to 500 lines. This does not connect to or control your bank.</p><form className={styles.form} onSubmit={event => { event.preventDefault(); const form = event.currentTarget, data = new FormData(form), file = data.get("statement"); if (file instanceof File) void file.text().then(csv => execute({ action: "IMPORT", accountId: data.get("accountId"), csv })); }}><AccountSelect model={model} kind="CARD" /><label>Statement CSV<input name="statement" accept=".csv,text/csv" type="file" required /></label><button disabled={busy} type="submit">Import statement</button></form></section> : null}
         <section className={styles.panel}><h2>Charges needing an explanation or match</h2>{model.charges.map(charge => <article className={styles.row} key={charge.id}><div><strong>{moneyLabel(charge.amountCents)} · {charge.merchant}</strong><p>{charge.account.label} · {charge.businessDate} · {charge.externalId}</p><small>{charge.matchedEntryId ? "Matched" : "Not matched — record the purchase or investigate it."}</small></div>{!charge.matchedEntryId && model.manager ? <form onSubmit={event => { event.preventDefault(); const selectedId = new FormData(event.currentTarget).get("entryId"); const spending = model.entries.find(row => row.id === selectedId); if (spending) void execute({ action: "MATCH", id: spending.id, version: spending.version, chargeId: charge.id, chargeVersion: charge.version }, "Statement transaction matched; no new expense created."); }}><label>Approved matching record<select name="entryId" required><option value="">Choose after checking the receipt</option>{model.entries.filter(row => ["EXPENSE", "REFUND", "CARD_PAYMENT"].includes(row.kind) && row.approvalStatus === "APPROVED" && !row.reconciledAt && row.accountId === charge.accountId && row.amountCents * (row.kind === "EXPENSE" ? 1 : -1) === charge.amountCents).map(row => <option key={row.id} value={row.id}>{row.businessDate} · {row.merchant || row.purpose} · {label(row.kind)}</option>)}</select></label><button disabled={busy}>Match transaction</button></form> : null}</article>)}{!model.charges.length ? <p>No imported card transactions need attention.</p> : null}</section>
         {model.manager ? <section className={styles.panel}><h2>Record a company card statement payment</h2><p>Record a payment already made. This does not pay the bank or create another expense.</p><form className={styles.form} onSubmit={event => { event.preventDefault(); void execute({ ...Object.fromEntries(new FormData(event.currentTarget)), action: "CARD_PAYMENT", businessDate: day }, "Actual statement payment recorded."); }}><AccountSelect model={model} kind="CARD" /><label>Amount paid ($)<input name="amount" required inputMode="decimal" /></label><label>Bank payment reference<input name="reference" required maxLength={150} /></label><button disabled={busy}>Record actual payment</button></form></section> : null}
@@ -137,6 +142,7 @@ export function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { mod
   const [method, setMethod] = useState(assigned ? "CARD" : "CASH"), [sourceId, setSourceId] = useState(assigned?.id ?? "");
   const [vehicle, setVehicle] = useState(vehicleId), [order, setOrder] = useState(repairOrderId), [busy, setBusy] = useState(false), [notice, setNotice] = useState(""), [failed, setFailed] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
+  const [scannedReceipt,setScannedReceipt]=useState<File|null>(null);
   const [authorizationId, setAuthorizationId] = useState(""), [purchaseApprovalId, setPurchaseApprovalId] = useState(""), [vendorId, setVendorId] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
   const policy = model.authorizations.find(item => item.id === authorizationId);
@@ -160,14 +166,25 @@ export function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { mod
     try {
       const fields = Object.fromEntries([...data.entries()].filter(([key]) => key !== "receipt"));
       const result = await save({ ...fields, action: "RECORD", paymentMethod: method, accountId: sourceId, vehicleId: vehicle, repairOrderId: order, vendorId, authorizationId, purchaseApprovalId }); id = result.id;
-      const file = data.get("receipt");
+      const chosenFile = data.get("receipt");
+      const file = chosenFile instanceof File&&chosenFile.size?chosenFile:scannedReceipt;
       if (id && file instanceof File && file.size) await uploadReceipt(id, file);
       await onSaved(); setNotice(file instanceof File && file.size ? "Spending and receipt saved for review." : "Spending saved. Receipt pending; add it later from My spending.");
-      if (addAnother) { form.reset(); setPurchaseApprovalId(""); resetSave(); }
+      if (addAnother) { form.reset(); setScannedReceipt(null); setPurchaseApprovalId(""); resetSave(); }
     } catch (error) { setFailed(true); setNotice(`${id ? "Spending is saved; receipt or refresh needs attention. " : ""}${error instanceof Error ? error.message : "Try again. Your entries are still here."}`); }
     finally { setBusy(false); }
   }
   return <section className={styles.panel}><h2>Record spending</h2><p>Record actual spending now. A missing receipt or purchase reference will not prevent recording it.</p>
+    <DocumentReadingPanel purpose="EXPENSE" disabled={busy} onApply={(_reading,fields,file)=>{
+      if(file.size>10*1024*1024||!["application/pdf","image/jpeg","image/png"].includes(file.type))throw new Error("Use a PDF, JPEG or PNG receipt up to 10 MB so it can be saved with the spending record.");
+      const similar=model.entries.filter(entry=>entry.kind==="EXPENSE"&&entry.approvalStatus!=="SUPERSEDED"&&entry.businessDate===fields.businessDate&&entry.amountCents===Math.round(Number(fields.amount)*100)&&entry.merchant?.trim().toLowerCase()===fields.merchant?.trim().toLowerCase());
+      if(similar.length&&!window.confirm("Matching spending already exists for this merchant, date and amount. Review My spending before creating another expense. Continue preparing this form?"))return;
+      if(!applyReadingToForm(formRef.current,fields,{amount:"amount",businessDate:"businessDate",merchant:"merchant",category:"category",reference:"reference"}))return;
+      const vendors=model.vendors.filter(v=>v.name.trim().toLowerCase()===fields.merchant?.trim().toLowerCase());
+      if(vendors.length===1&&(!vendorId||vendorId===vendors[0].id||window.confirm("Replace the selected vendor with the exact merchant-name match?")))setVendorId(vendors[0].id);
+      setScannedReceipt(file);resetSave();setNotice("Receipt information prepared. Verify funding, purpose and any vehicle links, then save spending.");
+    }}/>
+    {scannedReceipt&&<p>Reviewed receipt ready to attach: {scannedReceipt.name}. It will be saved with the expense.</p>}
     <form ref={formRef} className={styles.form} onSubmit={event => void submit(event)}>
       {model.authorizations.length ? <div className={styles.wide}><label>Vendor purchasing authorization<select aria-label="Vendor purchasing authorization" value={authorizationId} onChange={event => { const found = model.authorizations.find(item => item.id === event.target.value); setAuthorizationId(event.target.value); setPurchaseApprovalId(""); if (found) { setMethod("CARD"); setSourceId(found.accountId); setVendorId(found.vendorId); } else if (policy) { setSourceId(""); } }}><option value="">Own funding / no vendor authorization selected</option>{model.authorizations.map(item => <option key={item.id} value={item.id}>{item.vendor.name} · {item.employee.name}{item.revokedAt || item.expiresOn < moneyToday() ? " · ended — actual purchase exception" : ""}</option>)}</select></label>{policy ? <><p>{policy.purposeScope} · {policy.categories.join(", ")} · limit {moneyLabel(policy.perPurchaseLimitCents)} · {policy.startsOn} to {policy.expiresOn}. {policy.requiresPriorApproval ? "Prior approval required." : "Above-limit purchases require prior approval."}</p><label>Prior approval (optional for recording an actual purchase)<select aria-label="Prior approval" value={purchaseApprovalId} onChange={event => applyApproval(event.target.value)}><option value="">Not linked — flag if approval was required</option>{model.purchaseApprovals.filter(item => item.authorizationId === policy.id && item.status === "APPROVED" && !item.entry).map(item => <option value={item.id} key={item.id}>{item.businessDate} · {moneyLabel(item.amountCents)} · {item.purpose}</option>)}</select></label><small>Selecting an approval fills its exact purchase details. Changes must match the approval. Missing approval never hides actual spending; it is flagged for independent review.</small></> : null}</div> : null}
       <label>Amount ($)<input name="amount" required inputMode="decimal" placeholder="0.00" autoFocus /></label><label>Date<input name="businessDate" required type="date" defaultValue={model.day} /></label>

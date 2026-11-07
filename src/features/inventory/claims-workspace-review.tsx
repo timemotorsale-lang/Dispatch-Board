@@ -10,6 +10,7 @@ import { ClaimPhotoUploader } from "./claim-photo-uploader";
 import { ClaimRepairWorkflow } from "./claim-repair-workflow";
 import { ClaimCustomerAuthorization } from "./claim-customer-authorization";
 import { claimPermissionStatus } from "@/lib/claim-customer-authorization";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -873,7 +874,7 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
                   <strong>Record reviewed approval</strong>
                   <label className={styles.noteField}>
                     <span>Approved repair amount ($)</span>
-                    <input autoFocus defaultValue={estimateReview.approvedAmountCents !== null ? (estimateReview.approvedAmountCents / 100).toFixed(2) : ""} inputMode="decimal" min="0" max="21474836.47" name="approvedRepairAmount" required step="0.01" type="number" />
+                    <input autoFocus defaultValue={estimateReview.approvedAmountCents !== null ? (estimateReview.approvedAmountCents / 100).toFixed(2) : estimateReview.proposedAmountCents!=null?(estimateReview.proposedAmountCents/100).toFixed(2):""} inputMode="decimal" min="0" max="21474836.47" name="approvedRepairAmount" required step="0.01" type="number" />
                   </label>
                   <label className={styles.noteField}>
                     <span>Supporting document</span>
@@ -899,7 +900,7 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
             <div className={styles.panelHeader}>
               <div>
                 <h2>Carrier Estimate</h2>
-                <p>Uploaded estimates live in claim evidence, feed the approved repair amount, and remain reviewable before billing.</p>
+                <p>Uploaded estimates provide proposed amounts. Staff must record a reviewed approval before amounts are used for billing.</p>
               </div>
               <StatusBadge tone={estimateReview.status === "AMOUNT_FOUND" ? "good" : estimateReview.status === "REVIEW_NEEDED" ? "warning" : "info"}>
                 {estimateReview.status.replaceAll("_", " ").toLowerCase()}
@@ -909,6 +910,7 @@ export function ClaimsWorkspaceReview({ loadError, model, authorizationRequested
               <span className={styles.cardEyebrow}>Approved repairs</span>
               <strong>{estimateReview.approvedAmountLabel}</strong>
               <p>{estimateReview.detail}</p>
+              <DocumentReadingPanel purpose="CLAIM_ESTIMATE" disabled={isWorking} onApply={(_reading,fields)=>{const value=fields.estimateTotal||fields.amount;if(!value)throw new Error("No unambiguous estimate total was read. Review the original before entering an approval.");setApprovedAmountEditorOpen(true);requestAnimationFrame(()=>{const input=document.querySelector<HTMLInputElement>('#approved-repairs-editor input[name="approvedRepairAmount"]');if(input&&(!input.value||window.confirm("Replace the prepared amount with the reviewed document proposal?")))input.value=value;});}}/>
               <div className={styles.estimateFacts}>
                 <div className={styles.fact}>
                   <span>Source</span>

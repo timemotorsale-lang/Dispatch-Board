@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import styles from "./crm-next-shell.module.css";
 import compact from "./crm-next-intake-form.module.css";
 import { BUSINESS_INTAKE_GROUPS } from "@/lib/customer-business-intake";
+import {IdFrontCapture} from "@/features/mobile-capture/id-front-capture";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 
 type IntakeMode = "customer" | "prospect";
 type CapturePurpose = "customer" | "vehicle" | "mileage" | "condition" | "repair" | "parts" | "document" | "signature";
@@ -156,12 +158,13 @@ export function CrmNextIntakeForm() {
   const [customerType, setCustomerType] = useState<"Individual" | "Business">("Individual");
   const [saving, setSaving] = useState(false);
   const drafts = useRef<Record<string, Record<string, string>>>({});
+  const [initialDraft,setInitialDraft]=useState<Record<string,string>>({});
   return <div className={compact.form}>
     <div className={styles.customerTypeRow} role="radiogroup" aria-label="Customer type">
       <span>Customer type</span>
-      {(["Individual", "Business"] as const).map(type => <label key={type}><input checked={customerType === type} disabled={saving} name="customerTypeSelection" onChange={() => setCustomerType(type)} type="radio" value={type} /> {type}</label>)}
+      {(["Individual", "Business"] as const).map(type => <label key={type}><input checked={customerType === type} disabled={saving} name="customerTypeSelection" onChange={() => {setInitialDraft(drafts.current[type]??{});setCustomerType(type);}} type="radio" value={type} /> {type}</label>)}
     </div>
-    <CustomerIntakeForm key={customerType} customerType={customerType} initialDraft={drafts.current[customerType] ?? {}} onSavingChange={setSaving} onDraftChange={draft => { drafts.current[customerType] = draft; }} />
+    <CustomerIntakeForm key={customerType} customerType={customerType} initialDraft={initialDraft} onSavingChange={setSaving} onDraftChange={draft => { drafts.current[customerType] = draft; }} />
   </div>;
 }
 
@@ -175,6 +178,7 @@ function CustomerIntakeForm({ customerType, initialDraft, onDraftChange, onSavin
   const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<IntakeMode>("customer");
   const [assignmentExpanded, setAssignmentExpanded] = useState(false);
+  const [idScanner,setIdScanner]=useState(false);
   const assignmentPanelId = useId();
   const [businessName, setBusinessName] = useState(initialDraft.displayName ?? "");
   const [state, setState] = useState<SaveState>({ kind: "idle" });
@@ -614,10 +618,10 @@ function CustomerIntakeForm({ customerType, initialDraft, onDraftChange, onSavin
         {capturePurpose === "customer" ? (
           <>
             <div className={styles.mobileCaptureGrid}>
-              <Link className={styles.captureUpload} href="/capture?destination=CUSTOMER&kind=ID&returnTo=%2Fcrm-next%2Fnew" rel="noopener noreferrer" target="_blank">
+              <button type="button" className={styles.captureUpload} onClick={()=>setIdScanner(true)}>
                 <span><Camera size={18} /> Scan ID</span>
                 <small>Capture, review, send</small>
-              </Link>
+              </button>
               <Link className={styles.captureUpload} href="/capture?destination=CUSTOMER&kind=BUSINESS_CARD&returnTo=%2Fcrm-next%2Fnew" rel="noopener noreferrer" target="_blank">
                 <span><Camera size={18} /> Scan business card</span>
                 <small>Capture, review, send</small>
@@ -671,14 +675,27 @@ function CustomerIntakeForm({ customerType, initialDraft, onDraftChange, onSavin
             </label>
             <div className={styles.captureRoutePreview}>
               <ClipboardCheck size={18} />
-              <span>This capture route is ready for your review. Live OCR, permanent storage, and workflow updates stay off until approved.</span>
+              <span>ID and business-contact reading prepare reviewable fields. Other evidence stays separate from saving, signatures and workflow approval.</span>
             </div>
           </div>
         )}
 
         <div className={styles.captureFooter}>
           <p>{capturePurpose === "customer" ? captureNotice : "This route shows the intended staff workflow without writing to customer, vehicle, RO, parts, document, or accounting records."}</p>
-          {capturePurpose === "customer" ? <button className={styles.secondaryButton} onClick={applyMobileIdDraft} type="button">Use this customer info</button> : null}
+          {capturePurpose === "customer" ? <><button className={styles.secondaryButton} onClick={applyMobileIdDraft} type="button">Use this customer info</button><DocumentReadingPanel purpose="BUSINESS_CARD" onApply={(_reading,fields)=>{
+            const next={displayName:fields.displayName,address:"",email:fields.email,phoneNumber:fields.phoneNumber};
+            const businessConflict=customerType==="Business"&&fields.companyName&&businessName&&fields.companyName!==businessName;
+            if((businessConflict||Object.entries(next).some(([key,value])=>value&&customerFields[key as keyof CustomerFields]&&customerFields[key as keyof CustomerFields]!==value))&&!window.confirm("Replace existing contact/business entries with reviewed business-card information?"))return;
+            if(customerType==="Business"&&fields.companyName)setBusinessName(fields.companyName);
+            setCustomerFields(current=>({...current,...Object.fromEntries(Object.entries(next).filter(([,value])=>value))}));setCaptureNotice("Reviewed contact details copied. Check duplicates before saving.");
+          }}/></> : null}
+          {idScanner&&<IdFrontCapture onClose={()=>setIdScanner(false)} onComplete={(_file,fields,mismatch)=>{
+            setIdScanner(false);if(mismatch){setCaptureNotice("The ID front and back conflict. Resolve the identity details with the customer before copying them.");return;}
+            if((customerFields.displayName&&customerFields.displayName!==fields.fullName||customerFields.address&&customerFields.address!==fields.address)&&!window.confirm("Replace the entered name/address with the reviewed ID values?"))return;
+            setCustomerFields(current=>({...current,displayName:fields.fullName||current.displayName,address:fields.address||current.address}));
+            if(mobileNameRef.current)mobileNameRef.current.value=fields.fullName;if(mobileAddressRef.current)mobileAddressRef.current.value=fields.address;if(mobileLicenseStateRef.current)mobileLicenseStateRef.current.value=fields.issuingState;if(mobileLicenseEndingRef.current)mobileLicenseEndingRef.current.value=fields.licenseNumber.slice(-4);
+            setMobileIdReviewed(true);setCaptureNotice("Reviewed ID details copied. ID images and full ID numbers are not retained by this intake. Check for an existing customer before saving.");
+          }}/>}
         </div>
       </details>
 
