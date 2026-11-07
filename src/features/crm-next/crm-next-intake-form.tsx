@@ -1,11 +1,13 @@
 "use client";
 
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertCircle, Camera, CarFront, CheckCircle2, ClipboardCheck, FileText, Gauge, PackageCheck, PenLine, ShieldCheck, UserPlus, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import styles from "./crm-next-shell.module.css";
+import compact from "./crm-next-intake-form.module.css";
+import { BUSINESS_INTAKE_GROUPS } from "@/lib/customer-business-intake";
 
 type IntakeMode = "customer" | "prospect";
 type CapturePurpose = "customer" | "vehicle" | "mileage" | "condition" | "repair" | "parts" | "document" | "signature";
@@ -151,10 +153,44 @@ function customerFrom(value: unknown) {
 }
 
 export function CrmNextIntakeForm() {
+  const [customerType, setCustomerType] = useState<"Individual" | "Business">("Individual");
+  const [saving, setSaving] = useState(false);
+  const drafts = useRef<Record<string, Record<string, string>>>({});
+  return <div className={compact.form}>
+    <div className={styles.customerTypeRow} role="radiogroup" aria-label="Customer type">
+      <span>Customer type</span>
+      {(["Individual", "Business"] as const).map(type => <label key={type}><input checked={customerType === type} disabled={saving} name="customerTypeSelection" onChange={() => setCustomerType(type)} type="radio" value={type} /> {type}</label>)}
+    </div>
+    <CustomerIntakeForm key={customerType} customerType={customerType} initialDraft={drafts.current[customerType] ?? {}} onSavingChange={setSaving} onDraftChange={draft => { drafts.current[customerType] = draft; }} />
+  </div>;
+}
+
+function CustomerIntakeForm({ customerType, initialDraft, onDraftChange, onSavingChange }: {
+  customerType: "Individual" | "Business";
+  initialDraft: Record<string, string>;
+  onDraftChange: (draft: Record<string, string>) => void;
+  onSavingChange: (saving: boolean) => void;
+}) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<IntakeMode>("customer");
+  const [assignmentExpanded, setAssignmentExpanded] = useState(false);
+  const assignmentPanelId = useId();
+  const [businessName, setBusinessName] = useState(initialDraft.displayName ?? "");
   const [state, setState] = useState<SaveState>({ kind: "idle" });
-  const [customerFields, setCustomerFields] = useState<CustomerFields>(EMPTY_CUSTOMER_FIELDS);
+  useEffect(() => { onSavingChange(state.kind === "saving"); }, [state.kind, onSavingChange]);
+  const [customerFields, setCustomerFields] = useState<CustomerFields>({
+    ...EMPTY_CUSTOMER_FIELDS,
+    ...Object.fromEntries(Object.keys(EMPTY_CUSTOMER_FIELDS).filter(key => initialDraft[key] !== undefined).map(key => [key, initialDraft[key]]))
+  });
+  useEffect(() => {
+    for (const element of Array.from(formRef.current?.elements ?? [])) {
+      if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) continue;
+      if (!element.name || initialDraft[element.name] === undefined || element.type === "file") continue;
+      if (element instanceof HTMLInputElement && element.type === "checkbox") element.checked = initialDraft[element.name] === "on";
+      else element.value = initialDraft[element.name];
+    }
+  }, [initialDraft]);
   const [capturePurpose, setCapturePurpose] = useState<CapturePurpose>("customer");
   const mobileNameRef = useRef<HTMLInputElement>(null);
   const mobilePhoneRef = useRef<HTMLInputElement>(null);
@@ -203,18 +239,20 @@ export function CrmNextIntakeForm() {
     setState({ kind: "saving", message: "Saving customer..." });
 
     const customerPayload = {
+      customerType,
+      ...(customerType === "Business" ? { businessIntake: Object.fromEntries(BUSINESS_INTAKE_GROUPS.flatMap(group => group.fields.map(([key]) => [key, formText(data, `business:${key}`)]))) } : {}),
       address: formText(data, "address"),
-      dateOfBirth: formText(data, "dateOfBirth"),
+      dateOfBirth: customerType === "Individual" ? formText(data, "dateOfBirth") : "",
       displayName: formText(data, "displayName"),
       email: formText(data, "email"),
-      gender: formText(data, "gender"),
-      idNumber: formText(data, "idNumber"),
-      idState: formText(data, "idState"),
-      idType: formText(data, "idType"),
+      gender: customerType === "Individual" ? formText(data, "gender") : "",
+      idNumber: customerType === "Individual" ? formText(data, "idNumber") : "",
+      idState: customerType === "Individual" ? formText(data, "idState") : "",
+      idType: customerType === "Individual" ? formText(data, "idType") : "",
       locationId: formText(data, "locationId") || DEFAULT_LOCATION_ID,
       phoneNumber: formText(data, "phoneNumber"),
       preferredContactMethod: formText(data, "preferredContactMethod") || "PHONE",
-      ssn: formText(data, "ssn")
+      ssn: customerType === "Individual" ? formText(data, "ssn") : ""
     };
 
     try {
@@ -232,6 +270,10 @@ export function CrmNextIntakeForm() {
       if (!customer) throw new Error("Customer saved, but the customer record could not be opened.");
 
       const customerHref = `/crm-next/customers/${customer.id}`;
+      if (customerType === "Business" && customerJson.duplicate === true) {
+        setState({ kind: "success", customerHref, message: "An existing customer matches this contact information. Open the record to review its business details. Your new business details have not been applied." });
+        return;
+      }
       const selectedWorkCategory = formText(data, "workCategory") || "retail-sale";
       const selectedCategoryConfig = CRM_INTAKE_WORK_CATEGORIES.find((category) => category.id === selectedWorkCategory) ?? CRM_INTAKE_WORK_CATEGORIES[0];
       const selectedWorkPath = selectedCategoryConfig.path;
@@ -283,11 +325,13 @@ export function CrmNextIntakeForm() {
   }
 
   return (
-    <form className={styles.intakeCard} onSubmit={onSubmit}>
+    <form ref={formRef} aria-label={`${customerType} customer intake`} className={`${styles.intakeCard} ${compact.form}`} onSubmit={onSubmit} onChange={() => {
+      if (formRef.current) onDraftChange(Object.fromEntries(Array.from(new FormData(formRef.current).entries()).filter((entry): entry is [string, string] => typeof entry[1] === "string")));
+    }}>
       <header className={styles.panelHeader}>
         <div>
-          <h2>Customer details</h2>
-          <p className={styles.muted}>Start with the person. Add prospect details only when there is a sales opportunity.</p>
+          <h2>{customerType} — Customer details</h2>
+          <p className={styles.muted}>Start with a name and contact method. Expand additional details when needed.</p>
         </div>
         <div className={styles.segmentedControl} aria-label="Intake type">
           <button aria-pressed={mode === "customer"} onClick={() => setMode("customer")} type="button">Customer</button>
@@ -306,23 +350,22 @@ export function CrmNextIntakeForm() {
           <span>CRM record</span>
         </header>
 
-        <div className={styles.customerTypeRow} role="radiogroup" aria-label="Customer type">
-          <span>Customer type</span>
-          <label><input defaultChecked name="customerType" type="radio" value="Individual" /> Individual</label>
-          <label><input name="customerType" type="radio" value="Business" /> Business</label>
-        </div>
+        <input type="hidden" name="customerType" value={customerType} />
 
         <section className={styles.intakeSubsection} aria-label="Buyer Info">
-          <h4>Buyer Info</h4>
+          <h4>{customerType === "Business" ? "Business Info" : "Buyer Info"}</h4>
           <div className={styles.intakeFields}>
-            <label>
+            {customerType === "Individual" ? <label>
               <span>Buyer</span>
-              <input autoComplete="name" name="displayName" onChange={(event) => updateCustomerField("displayName", event.target.value)} placeholder="Customer legal name" required value={customerFields.displayName} />
-            </label>
-            <label>
+              <input autoComplete="name" disabled={customerType !== "Individual"} name="displayName" onChange={(event) => updateCustomerField("displayName", event.target.value)} placeholder="Customer legal name" required value={customerFields.displayName} />
+            </label> : <label>
               <span>Business name</span>
-              <input name="businessName" placeholder="If business customer" />
-            </label>
+              <input autoComplete="organization" disabled={customerType !== "Business"} maxLength={200} name="displayName" onChange={event => setBusinessName(event.target.value)} placeholder="Legal business name" required value={businessName} />
+            </label>}
+          </div>
+          {customerType === "Individual" && <details className={compact.identity}>
+            <summary>Identity and identification details <small>Optional at intake</small></summary>
+            <fieldset disabled={customerType !== "Individual"} className={styles.intakeFields}>
             <label>
               <span>Gender</span>
               <select name="gender" defaultValue="">
@@ -366,17 +409,12 @@ export function CrmNextIntakeForm() {
               <span>Expiration date</span>
               <input name="idExpirationDate" type="date" />
             </label>
+            </fieldset>
+          </details>}
+          <div className={styles.intakeFields}>
             <label>
-              <span>Cell phone</span>
+              <span>{customerType === "Business" ? "Business phone" : "Cell phone"}</span>
               <input aria-label="Customer phone" autoComplete="tel" inputMode="tel" name="phoneNumber" onChange={(event) => updateCustomerField("phoneNumber", event.target.value)} placeholder="612 342 5656" type="tel" value={customerFields.phoneNumber} />
-            </label>
-            <label>
-              <span>Home phone</span>
-              <input inputMode="tel" name="homePhone" placeholder="Optional" type="tel" />
-            </label>
-            <label>
-              <span>Work phone</span>
-              <input inputMode="tel" name="workPhone" placeholder="Optional" type="tel" />
             </label>
             <label>
               <span>Email</span>
@@ -390,20 +428,43 @@ export function CrmNextIntakeForm() {
                 <option value="TEXT">Text</option>
               </select>
             </label>
-            <label>
-              <span>Cash down</span>
-              <input inputMode="decimal" name="cashDown" placeholder="$0.00" />
-            </label>
             <label className={styles.fullField}>
-              <span>Current address</span>
+              <span>{customerType === "Business" ? "Business address" : "Current address"}</span>
               <input autoComplete="street-address" name="address" onChange={(event) => updateCustomerField("address", event.target.value)} placeholder="Street, city, state" value={customerFields.address} />
             </label>
           </div>
+          {customerType === "Individual" && <details>
+            <summary>Additional contact details</summary>
+            <fieldset disabled={customerType !== "Individual"} className={styles.intakeFields}>
+              <label><span>Home phone</span><input inputMode="tel" name="homePhone" placeholder="Optional" type="tel" /></label>
+              <label><span>Work phone</span><input inputMode="tel" name="workPhone" placeholder="Optional" type="tel" /></label>
+              <label><span>Cash down</span><input inputMode="decimal" name="cashDown" placeholder="$0.00" /></label>
+            </fieldset>
+          </details>}
         </section>
 
+        {customerType === "Business" && <div className={compact.businessGroups}>
+          {BUSINESS_INTAKE_GROUPS.map(group => <details className={styles.intakeSubsection} key={group.title} open={group.title === "Business details" || undefined}>
+            <summary>{group.title}</summary>
+            <fieldset disabled={customerType !== "Business"} className={styles.intakeFields}>
+              {group.fields.map(([key, label]) => <label key={key}><span>{label}</span><input
+                name={`business:${key}`} maxLength={key === "taxIdLast4" ? 4 : 300}
+                type={key.toLowerCase().includes("email") ? "email" : key.toLowerCase().includes("phone") ? "tel" : "text"}
+                inputMode={key === "taxIdLast4" ? "numeric" : key === "ownershipPercent" ? "decimal" : undefined}
+                pattern={key === "taxIdLast4" ? "[0-9]{4}" : undefined}
+                autoComplete="off"
+              /></label>)}
+            </fieldset>
+          </details>)}
+          <p className={styles.muted}>Business and representative details are saved as an internal customer intake note. Enter only the last four tax ID digits. Collect sensitive identity documents through the document workflow.</p>
+        </div>}
+
         <section className={styles.intakeSubsection} aria-label="Lead and assignment">
-          <h4>Lead and assignment</h4>
-          <div className={styles.intakeFields}>
+          <button className={compact.expandButton} type="button" aria-expanded={assignmentExpanded} aria-controls={assignmentPanelId} onClick={() => setAssignmentExpanded(current => !current)}>
+            <span aria-hidden="true">{assignmentExpanded ? "−" : "+"}</span>
+            Lead and assignment
+          </button>
+          <div id={assignmentPanelId} hidden={!assignmentExpanded} className={styles.intakeFields}>
             <label>
               <span>Lead type</span>
               <select name="leadType" defaultValue="Walk-in">
@@ -462,8 +523,8 @@ export function CrmNextIntakeForm() {
           </div>
         </section>
 
-        <section className={styles.intakeSubsection} aria-label="Interested Vehicle">
-          <h4>Interested Vehicle</h4>
+        <details className={styles.intakeSubsection} aria-label="Interested Vehicle">
+          <summary>Interested Vehicle</summary>
           <div className={styles.intakeFields}>
             <label>
               <span>Vehicle interest</span>
@@ -481,31 +542,46 @@ export function CrmNextIntakeForm() {
               <span>Trade-in</span>
               <input name="tradeIn" placeholder="Year make model or none" />
             </label>
+            <label>
+              <span>Timeline</span>
+              <input name="desiredTimeline" placeholder="Today, this week, this month..." />
+            </label>
+            <label>
+              <span>Customer need</span>
+              <input name="customerNeed" placeholder="Replace vehicle, first car, trade-in..." />
+            </label>
+            <label className={styles.fullField}>
+              <span>Notes</span>
+              <textarea name="notes" placeholder="Anything the next staff member should know" rows={3} />
+            </label>
           </div>
-        </section>
+        </details>
 
         <div className={styles.intakeQuickAddGrid}>
-          <section className={styles.intakeSubsection} aria-label="Customer Wishlist">
-            <h4>Customer Wishlist</h4>
+          <details className={styles.intakeSubsection} aria-label="Customer Wishlist">
+            <summary>Customer Wishlist</summary>
             <textarea name="customerWishlist" placeholder="Must-haves, nice-to-haves, color, payment goal, features..." rows={4} />
-          </section>
-          <section className={styles.intakeSubsection} aria-label="Referrer">
-            <h4>Referrer</h4>
+          </details>
+          <details className={styles.intakeSubsection} aria-label="Referrer">
+            <summary>Referrer</summary>
             <input name="referrer" placeholder="Who referred this customer?" />
-          </section>
-          <section className={styles.intakeSubsection} aria-label="Employment">
-            <h4>Employment</h4>
+          </details>
+          {customerType === "Individual" && <details className={styles.intakeSubsection} aria-label="Employment">
+            <summary>Employment</summary>
+            <fieldset disabled={customerType !== "Individual"}>
             <input name="employerName" placeholder="Employer" />
             <input name="occupation" placeholder="Occupation" />
-          </section>
-          <section className={styles.intakeSubsection} aria-label="Campaign association">
-            <h4>Campaign</h4>
+            </fieldset>
+          </details>}
+          <details className={styles.intakeSubsection} aria-label="Campaign association">
+            <summary>Campaign</summary>
             <input name="campaign" placeholder="Campaign, ad, or source tag" />
-          </section>
+          </details>
         </div>
       </section>
 
-      <section className={styles.mobileCapturePanel} aria-label="Capture Hub review">
+      <details className={styles.mobileCapturePanel} aria-label="Capture Hub review">
+        <summary>Capture Hub — scan ID, business card or supporting documents</summary>
         <div className={styles.captureIntro}>
           <div>
             <span className={styles.eyebrow}>Capture Hub</span>
@@ -604,35 +680,7 @@ export function CrmNextIntakeForm() {
           <p>{capturePurpose === "customer" ? captureNotice : "This route shows the intended staff workflow without writing to customer, vehicle, RO, parts, document, or accounting records."}</p>
           {capturePurpose === "customer" ? <button className={styles.secondaryButton} onClick={applyMobileIdDraft} type="button">Use this customer info</button> : null}
         </div>
-      </section>
-
-      {mode === "prospect" ? (
-        <section className={styles.prospectFields} aria-label="Prospect details">
-          <h3>Prospect details</h3>
-          <div className={styles.intakeFields}>
-            <label>
-              <span>Vehicle interest</span>
-              <input name="vehicleInterest" placeholder="2021 Toyota RAV4, SUV, financing..." />
-            </label>
-            <label>
-              <span>Timeline</span>
-              <input name="desiredTimeline" placeholder="Today, this week, this month..." />
-            </label>
-            <label>
-              <span>Budget</span>
-              <input name="budget" placeholder="$350/month, under $18k..." />
-            </label>
-            <label>
-              <span>Customer need</span>
-              <input name="customerNeed" placeholder="Replace vehicle, first car, trade-in..." />
-            </label>
-            <label className={styles.fullField}>
-              <span>Notes</span>
-              <textarea name="notes" placeholder="Anything the next staff member should know" rows={3} />
-            </label>
-          </div>
-        </section>
-      ) : null}
+      </details>
 
       {state.kind !== "idle" ? (
         <div className={styles.intakeStatus} data-state={state.kind}>

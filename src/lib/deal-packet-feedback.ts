@@ -8,7 +8,7 @@ export function packetCorrection(message: string): PacketCorrection | null {
   if (/annual rate/.test(value)) return { fields: ["Annual rate (%)"], sections: ["terms", "calculator"] };
   if (/term from 1 to 120/.test(value)) return { fields: ["Term (months)"], sections: ["terms", "calculator"] };
   if (/calculation mode|calculate payment from term/.test(value)) return { fields: ["Calculate using"], sections: ["terms", "calculator"] };
-  if (/signing cash|cash at signing/.test(value)) return { fields: ["Total cash at signing", "Down payment", "Signing amount entry"], sections: ["calculator", "terms"] };
+  if (/signing cash|cash at signing|amount due at signing/.test(value)) return { fields: ["Amount Due at Signing", "Capitalized cost reduction", "Refundable security deposit", "Other upfront charges"], sections: ["calculator", "terms"] };
   if (/delivery.*odometer|delivery.*mileage/.test(value)) return { fields: ["Delivery odometer", "Odometer"], sections: ["vehicle", "unit"] };
   if (/delivery.*date|warranty delivery/.test(value)) return { fields: ["Delivery date / time (local)"], sections: ["vehicle", "unit"] };
   if (/customer selected|select the driver|driver selected/.test(value)) return { fields: ["Customer", "Driver", "Buyer"], sections: ["applicant", "buyer", "renter", "driver"] };

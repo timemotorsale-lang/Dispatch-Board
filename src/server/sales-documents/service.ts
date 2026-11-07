@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canOpenDocumentLibrary, resolveDocumentLibraryPermission } from "@/server/document-library/permission-policy";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { SALES_DOCUMENT_PATHWAYS, isSalesDocumentPathway, salesDocumentRequirements, normalizeSalesDocumentType, type PacketPhase, type SalesDocumentRequirement } from "@/lib/sales-document-pathways";
+import { LIMITED_POA_ID, SECURE_POA_ID } from "@/lib/sales-document-pathways";
 import type { UnifiedCrmContractPacketInput, UnifiedCrmContractPacketResult } from "@/server/unified-crm/contract-packet-contract";
 import { closingChecklist, SalesDocumentsError, type JacketDocument } from "./domain";
 import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } from "@/lib/deal-closing";
@@ -31,7 +32,12 @@ function organization() { return resolveDocumentStorageRuntimeFromEnv().organiza
 function text(value: unknown, max = 240) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)); }
 function metadata(value: Prisma.JsonValue | null) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
-function requirements(jacket: Jacket) { return jacket.requirements as unknown as SalesDocumentRequirement[]; }
+function requirements(jacket: Jacket) {
+  const saved = jacket.requirements as unknown as SalesDocumentRequirement[];
+  if (!isSalesDocumentPathway(jacket.pathway)) return saved;
+  return [...saved, ...salesDocumentRequirements(jacket.pathway).filter(item =>
+    [LIMITED_POA_ID, SECURE_POA_ID].includes(item.id) && !saved.some(existing => existing.id === item.id))];
+}
 
 function documents(jacket: Jacket): JacketDocument[] {
   return [...jacket.packet.documents].sort((left, right) => right.document.createdAt.getTime() - left.document.createdAt.getTime()).map(({ document }) => {
@@ -127,6 +133,10 @@ async function storedBytes(reference: string, checksum: string) {
 export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; signed?: boolean; expectedRevision?: number }) {
   const user = requireSalesDocumentsUser(actor);
   const jacket = await findJacket(id);
+  const documentType = normalizeSalesDocumentType(text(input.documentType)) || "supplemental";
+  if (documentType === SECURE_POA_ID && (input.generated || !jacket.customerId || !jacket.vin || !requirements(jacket).some(item => item.id === SECURE_POA_ID))) {
+    throw new SalesDocumentsError("Attach the completed official Secure POA to a sales or lease jacket with a linked customer and VIN.");
+  }
   if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
   if (!input.bytes.length || input.bytes.length > 25 * 1024 * 1024) throw new SalesDocumentsError("Choose a file up to 25 MB.");
   if (!input.generated) {
@@ -192,13 +202,24 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
         await storedBytes(link.document.storageReference, link.document.checksumSha256 ?? "");
         if (raw.signed === true && link.document.source === "GENERATED") throw new SalesDocumentsError("Upload the signed copy before marking signatures verified.");
         const type = normalizeSalesDocumentType(text(raw.documentType) || link.document.documentType);
+        if ((type === SECURE_POA_ID || link.document.documentType === SECURE_POA_ID) && (
+          type !== SECURE_POA_ID || link.document.documentType !== SECURE_POA_ID || !jacket.customerId || !jacket.vin ||
+          raw.signed !== true || raw.poaVerified !== true || link.document.source === "GENERATED"
+        )) throw new SalesDocumentsError("Verify the uploaded official Secure POA, matching customer and VIN, required disclosures, signatures, dates and original before marking it reviewed.");
+        if (type === LIMITED_POA_ID && raw.signed === true && raw.poaVerified !== true) {
+          throw new SalesDocumentsError("Confirm legal and receiving-agency acceptance of the signed Limited POA before marking it reviewed.");
+        }
         await db.documentLibraryDocument.update({ where: { id: link.documentId }, data: { documentType: type, status: "ACCEPTED", updatedByUserId: user.id, classificationSnapshot: json({ ...metadata(link.document.classificationSnapshot), signed: raw.signed === true, reviewedBy: user.id, reviewedAt: new Date().toISOString() }) } });
         await audit(db, jacket, user, "DOCUMENT_REVIEWED", `${link.document.fileName}: ${type}${raw.signed === true ? "; signatures verified" : ""}.`);
+        if (raw.poaVerified === true && [SECURE_POA_ID, LIMITED_POA_ID].includes(type)) {
+          await audit(db, jacket, user, "POA_VERIFIED", type === SECURE_POA_ID ? "Official form, identity, disclosures, signatures, dates and original verified." : "Legal and receiving-agency acceptance confirmed for this signed Limited POA.");
+        }
       } else if (raw.action === "WAIVE" || raw.action === "APPLICABILITY") {
         const reqs = requirements(jacket);
         const requirement = reqs.find((item) => item.id === raw.requirementId);
         if (!requirement) throw new SalesDocumentsError("Document requirement was not found.");
         if (raw.action === "WAIVE") {
+          if (requirement.id === SECURE_POA_ID) throw new SalesDocumentsError("An applicable official Secure POA must be attached and verified before completion.");
           if (!note) throw new SalesDocumentsError("Record the reason for the document exception.");
           requirement.waiver = { by: user.id, at: new Date().toISOString(), reason: note };
         } else {

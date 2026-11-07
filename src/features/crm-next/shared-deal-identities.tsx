@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { DealCustomerChoice, DealCustomerList, DealVehicleChoice } from "@/lib/deal-continuity";
-import { dealCustomerDisplayNumber } from "@/lib/deal-continuity";
+import { dealCustomerDisplayNumber, prefillDealVehicle } from "@/lib/deal-continuity";
 import styles from "./shared-deal-identities.module.css";
 
 export const SharedDealVehicleContext = createContext<DealVehicleChoice | null>(null);
@@ -14,11 +14,7 @@ export function useCanonicalDealVehicle<Value extends Record<string, unknown>>(s
   const vehicle = useContext(SharedDealVehicleContext);
   useEffect(() => {
     if (!vehicle) return;
-    setValue(current => {
-      const next = { ...current };
-      for (const key of ["vin", "stockNumber", "year", "make", "model", "color", "licensePlate"]) if (key in current) next[key as keyof Value] = vehicle[key as keyof DealVehicleChoice] as Value[keyof Value];
-      return JSON.stringify(current) === JSON.stringify(next) ? current : next;
-    });
+    setValue(current => prefillDealVehicle(current, vehicle));
   }, [vehicle, setValue]);
 }
 class SharedRecordRequestError extends Error {

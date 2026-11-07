@@ -106,9 +106,18 @@ export async function dealVehicle(actor: AuthenticatedUser | null, id: string, d
   const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
   if (!vehicle) throw new SalesDocumentsError("Choose an active canonical vehicle.", 404);
   const unit = vehicle.inventoryUnits[0];
-  const snapshot = vehicle.specificationSnapshot as { specifications?: { trim?: unknown } } | null;
+  const snapshot = vehicle.specificationSnapshot as { specifications?: Record<string, unknown> } | null;
+  const spec = (key: string) => {
+    const value = snapshot?.specifications?.[key];
+    return typeof value === "string" ? value.trim() : "";
+  };
   const recorded = vehicle.odometerObservations?.[0];
-  const supplemental = { trim: typeof snapshot?.specifications?.trim === "string" ? snapshot.specifications.trim : "", recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? "" };
+  const supplemental = {
+    trim: spec("trim"), interiorColor: spec("interiorColor"), bodyStyle: spec("bodyStyle") || spec("bodyClass"),
+    engine: spec("engine") || spec("engineModel"), transmission: spec("transmission") || spec("transmissionStyle"),
+    drivetrain: spec("drivetrain") || spec("driveType"), fuelType: spec("fuelType") || spec("fuelTypePrimary"),
+    recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? ""
+  };
   const active = await database.vehicleUseBooking.findFirst({ where: { organizationId: dealOrganization(), vehicleId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } }, orderBy: { startsAt: "asc" }, select: { status: true, expectedReturnAt: true, context: { select: { draft: { select: { pathway: true } } } } } });
   const eligible = Boolean(vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && active?.status !== "RETURNED_REVIEW");
   return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: active?.status === "RETURNED_REVIEW" ? "Returned — unavailable pending exception review" : active ? `${active.status === "CHECKED_OUT" ? active.context.draft.pathway === "daily-rental" ? "Out on Rental — actual return required" : "Out — actual return required" : "Reserved"} · expected ${active.expectedReturnAt.toISOString()}` : eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use", eligibleForUse: eligible };

@@ -20,6 +20,7 @@ import { NewDealPathway } from "./new-deal-pathway";
 import { VehicleUseTool } from "./vehicle-use-tool";
 import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
 import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
+import { LIMITED_POA_ID, SECURE_POA_ID, SECURE_POA_GUIDANCE } from "@/lib/sales-document-pathways";
 import identityStyles from "./shared-deal-identities.module.css";
 import { TestDriveVehiclePicker } from "./test-drive-vehicle-picker";
 import { GuidedTestDrive } from "./guided-test-drive";
@@ -38,7 +39,7 @@ import { BHPH_FINANCING_VERSION, newBhphFinancingFacts, calculateBhphFinancing, 
 import { testDriveFacts, testDriveAgreementIssue, testDriveDeadline, testDriveDateTime } from "@/lib/test-drive-form-packet";
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, dealerWarrantyPosture, dealerWarrantyDetails } from "@/lib/dealer-warranty-policy";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIELDS, leaseCalculatorInputFromFields, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, DEFAULT_LEASE_CALCULATOR_FIELDS, isLegacyLeasePoa, leaseCalculatorInputFromFields, leaseAgreementCalculationError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
@@ -831,7 +832,7 @@ function RetailSaleExecutionDesk({
   const requiredFormCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required").length;
   const preparedRequiredCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required" && preparedForms.includes(form.id)).length;
   const [vehicleFacts, setVehicleFacts] = useDealDraftState("vehicleFacts", {
-    bodyType: "Auto",
+    bodyType: "",
     color: "",
     driveTrain: "",
     engine: "",
@@ -1038,7 +1039,7 @@ function RetailSaleExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
-          <label><span>Vehicle type</span><select value={vehicleFacts.bodyType} onChange={(event) => updateVehicleFact("bodyType", event.target.value)}><option>Auto</option><option>Truck</option><option>SUV</option><option>Van</option></select></label>
+          <label><span>Vehicle type</span><input value={vehicleFacts.bodyType} onChange={(event) => updateVehicleFact("bodyType", event.target.value)} /></label>
           <label><span>New / used</span><select><option>Used</option><option>New</option></select></label>
           <label><span>VIN</span><input onDoubleClick={() => vinDecoderRef.current?.decodeAndFill()} title="Double-click to decode and fill vehicle details" value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
           <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
@@ -2144,6 +2145,13 @@ function LeaseToOwnExecutionDesk({
   const [vehicleFacts, setVehicleFacts] = useDealDraftState("vehicleFacts", {
     bodyStyle: "",
     color: "",
+    interiorColor: "",
+    engine: "",
+    transmission: "",
+    drivetrain: "",
+    fuelType: "",
+    recordedMileage: "",
+    mileageRecordedAt: "",
     license: "",
     make: "",
     mileage: "",
@@ -2205,6 +2213,8 @@ function LeaseToOwnExecutionDesk({
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
   const previewFingerprint = JSON.stringify({ customerName, vehicle, vehicleFacts, leaseInputs, leaseFacts, dealerWarrantyOffered, forms: [...selectedLeaseForms].sort() });
   const previewChanged = savedPreview.dirty || Boolean(generatedFingerprint && generatedFingerprint !== previewFingerprint);
+  const archivedLegacyPoa = contractPacket?.documents.some(isLegacyLeasePoa);
+  const previewingLegacyPoa = Boolean(previewDocument && isLegacyLeasePoa(previewDocument));
 
   function updateLeaseInput(key: keyof typeof leaseInputs, value: string) {
     setContractPacket(null);
@@ -2212,6 +2222,8 @@ function LeaseToOwnExecutionDesk({
       ...current,
       ...(key === "calculationMode" && value === "TERM" && calculator.contractLength > 0
         ? { contractLength: String(calculator.contractLength) } : {}),
+      ...(["capitalizedCostReduction", "securityDeposit", "otherUpfrontCharges", "titleFee", "registrationFee", "documentPreparationFee", "originationFee", "salesTaxRate"].includes(key) && current.signingPaymentMode === "DOWN_PAYMENT"
+        ? { signingPaymentMode: "CAPITALIZED_REDUCTION" as const, capitalizedCostReduction: formatCurrency(calculator.capitalizedCostReductionCents), downPayment: "" } : {}),
       [key]: key === "paymentFrequency" ? value as LeasePaymentFrequency : value
     }));
   }
@@ -2264,11 +2276,11 @@ function LeaseToOwnExecutionDesk({
 
   const getDocumentContext = useContext(DealDocumentContext);
   const identityDraft = useDealDraft();
-  function generateLeasePacket() {
-    if (!generation.current) generation.current = createLeasePacket().finally(() => { generation.current = null; });
+  function generateLeasePacket(preferredFormId?: string) {
+    if (!generation.current) generation.current = createLeasePacket(preferredFormId).finally(() => { generation.current = null; });
     return generation.current;
   }
-  async function createLeasePacket() {
+  async function createLeasePacket(preferredFormId?: string) {
     setSaveIssue(false);
     if (calculationError) {
       setPacketStatus({ kind: "error", message: calculationError });
@@ -2296,6 +2308,7 @@ function LeaseToOwnExecutionDesk({
         preparedFormIds: preparedForms.length > 0 ? preparedForms : allLeaseToOwnFormIds(),
         salePrice: formatCurrency(calculator.grossCapitalizedCostCents),
         vehicle: {
+          ...vehicleFacts,
           bodyStyle: vehicleFacts.bodyStyle,
           license: vehicleFacts.license,
           mileage: vehicleFacts.mileage,
@@ -2319,7 +2332,7 @@ function LeaseToOwnExecutionDesk({
     const generatedPacket = payload as GeneratedContractPacket;
     setContractPacket(generatedPacket);
     setGeneratedFingerprint(previewFingerprint);
-    setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
+    setPreviewFormId(generatedPacket.documents.find(document => document.formId === preferredFormId)?.formId ?? generatedPacket.documents[0]?.formId ?? null);
     setPacketStatus({ kind: "ready", message: `Archived lease packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents));
     return generatedPacket;
@@ -2327,7 +2340,7 @@ function LeaseToOwnExecutionDesk({
 
   function packetHtml() {
     if (!contractPacket) return "";
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.map((document) => document.html).join("<hr />")}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.filter(document => !isLegacyLeasePoa(document)).map(document => document.html).join("<hr />")}</body></html>`;
   }
 
   function downloadPacket() {
@@ -2451,8 +2464,6 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.retailFieldGrid}><label><span>Agreed price</span><input inputMode="decimal" value={leaseInputs.agreedPrice || (calculator.grossCapitalizedCostTotalCents > 0 ? formatCurrency(calculator.grossCapitalizedCostTotalCents) : "")} onChange={event => updateLeaseInput("agreedPrice", event.target.value)} /></label>{calculatorView === "DETAILED" && leaseInputs.agreedPrice ? <button type="button" onClick={() => updateLeaseInput("agreedPrice", "")}>Use cost-based price</button> : null}</div>
         {calculatorView === "COMPACT" ? <>
           <div className={styles.retailFieldGrid}>
-            <label><span>Signing amount entry</span><select value={leaseInputs.signingPaymentMode} onChange={event => updateLeaseInput("signingPaymentMode", event.target.value)}><option value="CAPITALIZED_REDUCTION">Down payment toward vehicle — fees extra</option><option value="DOWN_PAYMENT">Total cash at signing — fees and first payment included</option></select></label>
-            <label><span>{leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? "Total cash at signing" : "Down payment"}</span><input inputMode="decimal" value={leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? leaseInputs.downPayment : leaseInputs.capitalizedCostReduction} onChange={event => updateLeaseInput(leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? "downPayment" : "capitalizedCostReduction", event.target.value)} /></label>
             <fieldset className={styles.leaseCalculationMode}><legend>Calculate by</legend><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "TERM"} onChange={() => updateLeaseInput("calculationMode", "TERM")} />By lease term</label><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} onChange={() => updateLeaseInput("calculationMode", "PAYMENT_AMOUNT")} />By payment amount</label></fieldset>
             {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <label><span>Target payment amount</span><input inputMode="decimal" value={leaseInputs.targetPayment} onChange={event => updateLeaseInput("targetPayment", event.target.value)} /></label> : <label><span>Number of payments</span><input type="number" min="1" step="1" value={leaseInputs.contractLength} onChange={event => updateLeaseInput("contractLength", event.target.value)} /></label>}
             <label><span>Lease date</span><input type="date" value={leaseFacts.agreementDate} onChange={event => updateLeaseFact("agreementDate", event.target.value)} /></label>
@@ -2478,13 +2489,10 @@ function LeaseToOwnExecutionDesk({
           <label><span>Title fee</span><input value={leaseInputs.titleFee} onChange={(event) => updateLeaseInput("titleFee", event.target.value)} /></label>
           <label><span>Registration fee</span><input value={leaseInputs.registrationFee} onChange={(event) => updateLeaseInput("registrationFee", event.target.value)} /></label>
           <label><span>Document prep fee</span><input value={leaseInputs.documentPreparationFee} onChange={(event) => updateLeaseInput("documentPreparationFee", event.target.value)} /></label>
-          <label><span>Signing amount entry</span><select value={leaseInputs.signingPaymentMode} onChange={(event) => updateLeaseInput("signingPaymentMode", event.target.value)}><option value="CAPITALIZED_REDUCTION">Capitalized cost reduction</option><option value="DOWN_PAYMENT">Total cash at signing</option></select></label>
-          <label><span>Total cash at signing</span><input disabled={leaseInputs.signingPaymentMode !== "DOWN_PAYMENT"} value={leaseInputs.downPayment} onChange={(event) => updateLeaseInput("downPayment", event.target.value)} /></label>
           <label><span>Frequency</span><select value={leaseInputs.paymentFrequency} onChange={(event) => updateLeaseInput("paymentFrequency", event.target.value)}><option>Weekly</option><option>BiWeekly</option><option>Monthly</option></select></label>
           <fieldset className={styles.leaseCalculationMode}><legend>Calculate by</legend><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "TERM"} onChange={() => updateLeaseInput("calculationMode", "TERM")} />By lease term</label><label><input type="radio" name="lease-calculation-mode" checked={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} onChange={() => updateLeaseInput("calculationMode", "PAYMENT_AMOUNT")} />By payment amount</label></fieldset>
           {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <label><span>Target payment amount</span><input inputMode="decimal" value={leaseInputs.targetPayment} onChange={(event) => updateLeaseInput("targetPayment", event.target.value)} /></label> : null}
           <label><span>Number of payments</span><input type="number" min="1" step="1" readOnly={leaseInputs.calculationMode === "PAYMENT_AMOUNT"} value={leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? calculator.contractLength || "" : leaseInputs.contractLength} onChange={(event) => updateLeaseInput("contractLength", event.target.value)} /></label>
-          <label><span>Capitalized cost reduction</span><input readOnly={leaseInputs.signingPaymentMode === "DOWN_PAYMENT"} value={leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? formatCurrency(calculator.capitalizedCostReductionCents) : leaseInputs.capitalizedCostReduction} onChange={(event) => updateLeaseInput("capitalizedCostReduction", event.target.value)} /></label>
           <label><span>Lease date</span><input type="date" value={leaseFacts.agreementDate} onChange={(event) => updateLeaseFact("agreementDate", event.target.value)} /></label>
           <label><span>Next payment date</span><input type="date" value={leaseFacts.firstPaymentDate} onChange={(event) => updateLeaseFact("firstPaymentDate", event.target.value)} /></label>
           <label><span>County</span><input value={leaseFacts.lesseeCounty} onChange={(event) => updateLeaseFact("lesseeCounty", event.target.value)} /></label>
@@ -2493,6 +2501,21 @@ function LeaseToOwnExecutionDesk({
           <label><span>Facility phone</span><input value={leaseFacts.serviceFacilityPhone} onChange={(event) => updateLeaseFact("serviceFacilityPhone", event.target.value)} /></label>
         </div>
         </>}
+        <fieldset>
+          <legend>Signing breakdown</legend>
+          {leaseInputs.signingPaymentMode === "DOWN_PAYMENT" && <p>Uses the saved signing amount until you edit a signing component.</p>}
+          <div className={styles.retailFieldGrid}>
+            <label><span>Capitalized cost reduction</span><input inputMode="decimal" value={leaseInputs.signingPaymentMode === "DOWN_PAYMENT" ? formatCurrency(calculator.capitalizedCostReductionCents) : leaseInputs.capitalizedCostReduction} onChange={event => updateLeaseInput("capitalizedCostReduction", event.target.value)} /></label>
+            <label><span>Refundable security deposit</span><input inputMode="decimal" value={leaseInputs.securityDeposit ?? "$0.00"} onChange={event => updateLeaseInput("securityDeposit", event.target.value)} /></label>
+            <label><span>Other upfront charges</span><input inputMode="decimal" value={leaseInputs.otherUpfrontCharges ?? "$0.00"} onChange={event => updateLeaseInput("otherUpfrontCharges", event.target.value)} /></label>
+          </div>
+          <dl>
+            <dt>First lease payment</dt><dd>{formatCurrency(calculator.firstPeriodicPaymentCents)}</dd>
+            <dt>Title and registration</dt><dd>{formatCurrency(calculatorInput.titleFeeCents + calculatorInput.registrationFeeCents)}</dd>
+            <dt>Upfront sales tax</dt><dd>{formatCurrency(calculator.applicableTaxesCents)}</dd>
+            <dt>Document preparation and origination</dt><dd>{formatCurrency(calculatorInput.documentPreparationFeeCents + calculatorInput.originationFeeCents)}</dd>
+          </dl>
+        </fieldset>
         {leaseInputs.calculationMode === "PAYMENT_AMOUNT" ? <p>Regular payments stay at your entered amount. The final payment covers the exact remaining balance and may be smaller.</p> : null}
         <div className={styles.leaseCalculatorSummary}>
           <div><span>{leaseInputs.agreedPrice || calculatorView === "COMPACT" ? "Agreed price" : "Gross cap cost"}</span><strong>{formatCurrency(calculatorView === "COMPACT" ? calculator.grossCapitalizedCostTotalCents : calculator.grossCapitalizedCostCents)}</strong></div>
@@ -2500,7 +2523,7 @@ function LeaseToOwnExecutionDesk({
           <div><span>Final payment</span><strong>{formatCurrency(calculator.finalPeriodicPaymentCents)}</strong></div>
           <div><span>Residual / purchase option</span><strong>{formatCurrency(calculator.residualValueCents)}</strong></div>
           <div><span>Up-front tax</span><strong>{formatCurrency(calculator.applicableTaxesCents)}</strong></div>
-          <div><span>Due at signing</span><strong>{formatCurrency(calculator.amountDueAtSigningCents)}</strong></div>
+          <div><span>Amount Due at Signing</span><strong>{formatCurrency(calculator.amountDueAtSigningCents)}</strong></div>
           <div><span>Costs / taxes / fees</span><strong>{formatCurrency(calculator.costsTaxesFeesCents)}</strong></div>
           <div><span>Total payments</span><strong>{formatCurrency(calculator.totalOfPaymentsCents)}</strong></div>
           {calculatorView === "DETAILED" ? <div><span>{leaseInputs.agreedPrice ? "Estimated gross (half-price base)" : "Dealer gross"}</span><strong>{formatCurrency(calculator.dealerGrossProfitCents)}</strong></div> : null}
@@ -2545,6 +2568,7 @@ function LeaseToOwnExecutionDesk({
                 <button disabled={!contractPacket || packetStatus.kind === "generating"} type="button" onClick={() => void openPacketPreview()}>Preview generated packet</button>
               </div>
               {savedPreview.error ? <div role="alert" className={styles.retailPacketError}><p>{savedPreview.error}</p><button type="button" disabled={savedPreview.loading} onClick={() => void savedPreview.retry()}>Retry opening saved packet</button></div> : null}
+              {archivedLegacyPoa ? <p role="status" className={styles.retailPacketStatus}>This archived packet contains the older title-authority form. Select Limited Motor Vehicle Power of Attorney and generate a new lease packet for the revised PDF. The original stays in the archive.</p> : null}
               {contractPacket && previewChanged ? <p role="status" className={styles.retailPacketStatus}>Deal details or selected forms have changed. Preview opens the previous saved copy. Select Generate lease packet to include your changes; previous copies stay saved.</p> : null}
               <PacketFeedback status={packetStatus} closeDrawer={() => setPacketDrawerOpen(false)}><SavedPacketLink packet={contractPacket} /></PacketFeedback>
               {saveIssue ? <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void retryDealSave()}>Retry saving this deal</button> : null}
@@ -2555,8 +2579,8 @@ function LeaseToOwnExecutionDesk({
                     <strong>{contractPacket.packetNumber}</strong>
                     <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
                   </div>
-                  <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download form</button>
-                  <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print form</button>
+                  <button disabled={!contractPacket.delivery.downloadReady || previewingLegacyPoa} type="button" onClick={downloadPacket}>Download form</button>
+                  <button disabled={!contractPacket.delivery.printReady || previewingLegacyPoa} type="button" onClick={printPacket}>Print form</button>
                   <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
                   <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
                   <small>{contractPacket.delivery.providerHoldReason}</small>
@@ -2606,6 +2630,11 @@ function LeaseToOwnExecutionDesk({
                           <span>Reviewing</span>
                           <strong>{previewDocument?.label ?? "Generated lease form"}</strong>
                         </div>
+                        {previewingLegacyPoa && <div role="status" className={styles.retailPacketStatus}>
+                          <p>Older archived form. Generate a new packet to preview the revised Limited POA.</p>
+                          {selectedLeaseForms.includes(LIMITED_POA_ID) ? <button type="button" disabled={packetStatus.kind === "generating"} onClick={() => void generateLeasePacket(LIMITED_POA_ID)}>Generate revised Limited POA</button> : <p>Close this preview and select Limited Motor Vehicle Power of Attorney first.</p>}
+                          {packetStatus.kind === "error" && <p>{packetStatus.message}</p>}
+                        </div>}
                         {previewDocument?.contentBase64 && previewDocument.contentType === "application/pdf" ? (
                           <iframe src={documentDataUrl(previewDocument)} title={previewDocument.label} />
                         ) : (
@@ -4706,7 +4735,7 @@ function DealStartDesk({
     const facts = savedDeal?.read(`${workflowId}:facts`);
     if (facts && typeof facts === "object") savedDeal?.write(`${workflowId}:facts`, { ...facts, licenseVerified: false, insuranceVerified: false, keysReturned: false });
     const fields = savedDeal?.read("fields") as Record<string, unknown> | undefined;
-    if (fields) savedDeal?.write("fields", Object.fromEntries(Object.entries(fields).filter(([key]) => !key.startsWith(workflowId + ":"))));
+    if (fields && identity.vehicleId) savedDeal?.write("fields", Object.fromEntries(Object.entries(fields).filter(([key]) => !key.startsWith(workflowId + ":"))));
     setIdentity(current => ({ ...current, vehicleId: vehicle.id, inventoryUnitId: vehicle.inventoryUnitId, vehicle }));
     setForm(current => ({ ...current, vehicle: [vehicle.label, vehicle.vin, vehicle.stockNumber].filter(Boolean).join(" / ") }));
     await savedDeal?.save();
@@ -4860,7 +4889,7 @@ function DealStartDesk({
   function getDocumentContext() {
     const key = `crm-next:document-jacket:${form.customerId}:${workflowId}:${form.vehicle.trim()}`;
     const reference = savedDeal?.reference(key) ?? crypto.randomUUID();
-    return { dealNumber: savedDeal?.dealNumber() ?? "", workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
+    return { dealNumber: savedDeal?.dealNumber() ?? "", workflowContextId: savedDeal?.draftId() ?? "", jacketReference: reference, dealReference: reference, pathway: workflowId, customerName: effectiveCustomerName, customerId: identity.customerId, vehicleId: identity.vehicleId, inventoryUnitId: identity.inventoryUnitId ?? "", vin: identity.vehicle?.vin ?? "", stockNumber: identity.vehicle?.stockNumber ?? "", vehicleReference: form.vehicle.trim() || "Vehicle not assigned" };
   }
 
   function archiveSelectedFile(input: HTMLInputElement) {
@@ -4872,9 +4901,13 @@ function DealStartDesk({
     setDocumentArchiveMessage("Saving document to the deal jacket...");
     documentUploadQueue.current = documentUploadQueue.current.then(async () => {
       try {
+        if ([LIMITED_POA_ID, SECURE_POA_ID].includes(documentType) && (!savedDeal || !await savedDeal.save())) throw new Error("Save the deal with its linked customer and vehicle before attaching the POA.");
         const created = await fetch("/api/sales-documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(context) });
         const jacket = await created.json();
         if (!created.ok) throw new Error(jacket.error || "The deal jacket could not be created.");
+        if ([LIMITED_POA_ID, SECURE_POA_ID].includes(documentType) && (jacket.customerId !== context.customerId || jacket.vin !== context.vin)) {
+          throw new Error("The jacket must match the selected customer and VIN before attaching a POA.");
+        }
         const upload = new FormData(); upload.set("file", file); upload.set("documentType", documentType);
         const saved = await fetch(`/api/sales-documents/${encodeURIComponent(jacket.id)}/documents`, { method: "POST", body: upload });
         const payload = await saved.json();
@@ -4912,7 +4945,7 @@ function DealStartDesk({
       </div>
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
-      {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div></section>}
+      {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div>{["SALES", "LEASING"].includes(dealGroup(workflowId)) && <fieldset><legend>Minnesota title authority</legend><p>{SECURE_POA_GUIDANCE}</p><p>Limited POA is for permitted title and registration transactions. The generated revision is for acceptance review.</p><div className={styles.retailFieldGrid}>{[[LIMITED_POA_ID, "Attach signed Limited POA"], [SECURE_POA_ID, "Attach completed official Minnesota Secure POA"]].map(([id, label]) => <label key={id}><span>{label}</span><input type="file" data-document-type={id} accept="application/pdf,image/png,image/jpeg" disabled={documentUploadBusy || !identity.customerId || !identity.vehicle?.vin} /></label>)}</div></fieldset>}</section>}
       {workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
       <div hidden={workspaceSection !== "completion"}>{workflowId !== "daily-rental" && rentalLikeWorkflow && <VehicleUseTool pathway={workflowId} />}</div>
       {workspaceSection === "activity" && <DealActivityPanel key={savedDeal?.draftId()} draftId={savedDeal?.draftId() ?? ""} saved={saveState.saved} />}
