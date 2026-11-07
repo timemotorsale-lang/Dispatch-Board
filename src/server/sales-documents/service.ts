@@ -14,6 +14,7 @@ import type { UnifiedCrmContractPacketInput, UnifiedCrmContractPacketResult } fr
 import { closingChecklist, SalesDocumentsError, type JacketDocument } from "./domain";
 import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } from "@/lib/deal-closing";
 import { prepareClosingReview } from "./closing-review";
+import { MAX_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
 
 const include = {
   packet: { include: { documents: { include: { document: { include: { versions: true } } } }, auditEvents: { orderBy: { occurredAt: "desc" as const }, take: 30 } } },
@@ -130,7 +131,7 @@ async function storedBytes(reference: string, checksum: string) {
   return bytes;
 }
 
-export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; signed?: boolean; expectedRevision?: number }) {
+export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; signed?: boolean; expectedRevision?: number; captureMethod?: "DOCUMENT_SCAN" }) {
   const user = requireSalesDocumentsUser(actor);
   const jacket = await findJacket(id);
   const documentType = normalizeSalesDocumentType(text(input.documentType)) || "supplemental";
@@ -139,16 +140,27 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
   }
   if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
   if (!input.bytes.length || input.bytes.length > 25 * 1024 * 1024) throw new SalesDocumentsError("Choose a file up to 25 MB.");
+  if (input.captureMethod && (input.generated || input.contentType !== "application/pdf")) throw new SalesDocumentsError("Save document scans as a reviewed PDF.");
   if (!input.generated) {
     const bytes = Buffer.from(input.bytes);
     if (input.contentType === "application/pdf") {
       if (bytes.subarray(0, 5).toString() !== "%PDF-") throw new SalesDocumentsError("This file is not a PDF.");
-      await PDFDocument.load(bytes).catch(() => { throw new SalesDocumentsError("Upload a readable, unencrypted PDF."); });
+      const pdf = await PDFDocument.load(bytes).catch(() => { throw new SalesDocumentsError("Upload a readable, unencrypted PDF."); });
+      if (input.captureMethod && (pdf.getPageCount() < 1 || pdf.getPageCount() > MAX_SCAN_PAGES)) throw new SalesDocumentsError(`Scan 1–${MAX_SCAN_PAGES} pages per document.`);
     } else if (input.contentType === "image/png") {
       if (bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") throw new SalesDocumentsError("This file is not a PNG image.");
     } else if (input.contentType === "image/jpeg") {
       if (bytes.subarray(0, 3).toString("hex") !== "ffd8ff") throw new SalesDocumentsError("This file is not a JPEG image.");
     } else throw new SalesDocumentsError("Upload a PDF, PNG, or JPEG file.");
+  }
+  if (input.captureMethod) {
+    const checksum = createHash("sha256").update(input.bytes).digest("hex");
+    const existing = jacket.packet.documents.find(({ document }) =>
+      document.source === "MANUAL_UPLOAD" && document.documentType === documentType && document.checksumSha256 === checksum);
+    if (existing) {
+      await storedBytes(existing.document.storageReference, checksum);
+      return view(jacket);
+    }
   }
   const runtime = resolveDocumentStorageRuntimeFromEnv();
   if (!runtime.adapter) throw new SalesDocumentsError("Permanent document storage is not configured. The document was not saved.", 503);
@@ -159,8 +171,8 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
     const current = await findJacket(id, db);
     if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(current.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
     await lock(db, current, input.expectedRevision ?? jacket.revision);
-    await db.documentLibraryDocument.create({ data: { id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType: normalizeSalesDocumentType(text(input.documentType)) || "supplemental", fileName: input.fileName, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", storageProvider: "INTERNAL", storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, currentVersionId: versionId, classificationSnapshot: json({ jacketId: id, signed: !input.generated && input.signed === true }), createdByUserId: user.id, versions: { create: { id: versionId, organizationId: jacket.organizationId, version: 1, storageProvider: "INTERNAL", storageReference: object.reference, fileName: input.fileName, contentType: object.contentType, sizeBytes: object.sizeBytes, checksumSha256: object.checksumSha256, createdByUserId: user.id } }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
-    await audit(db, jacket, user, "DOCUMENT_SAVED", `${input.fileName} saved as ${input.generated ? "working form" : "uploaded document"}.`);
+    await db.documentLibraryDocument.create({ data: { id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType: normalizeSalesDocumentType(text(input.documentType)) || "supplemental", fileName: input.fileName, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", storageProvider: "INTERNAL", storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, currentVersionId: versionId, classificationSnapshot: json({ jacketId: id, signed: !input.generated && input.signed === true, ...(input.captureMethod ? { captureMethod: input.captureMethod } : {}) }), createdByUserId: user.id, versions: { create: { id: versionId, organizationId: jacket.organizationId, version: 1, storageProvider: "INTERNAL", storageReference: object.reference, fileName: input.fileName, contentType: object.contentType, sizeBytes: object.sizeBytes, checksumSha256: object.checksumSha256, createdByUserId: user.id } }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
+    await audit(db, jacket, user, "DOCUMENT_SAVED", `${input.fileName} saved as ${input.generated ? "working form" : input.captureMethod ? "scanned PDF pending review" : "uploaded document"}.`);
   });
   return getSalesDocumentJacket(user, id);
 }

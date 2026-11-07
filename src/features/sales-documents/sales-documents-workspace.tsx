@@ -7,11 +7,12 @@ import { SALES_DOCUMENT_PATHWAYS, type SalesDocumentPathway } from "@/lib/sales-
 import { LIMITED_POA_ID, SECURE_POA_ID } from "@/lib/sales-document-pathways";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import { ClosingReviewPanel } from "./closing-review-panel";
+import { SalesDocumentScan } from "./sales-document-scan";
 import styles from "./sales-documents-workspace.module.css";
 
 const stateLabel = (state: string) => ({ WORKING: "Working", CHECKED_OUT: "Checked out", CLOSED: "Closed", DELIVERED_FUNDING_PENDING: "Funding pending", UNWIND_PENDING: "Unwind review pending" }[state] ?? state);
 
-export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initialError, canWaive, initialQuery = "", customerId = "", initialRequirementId = "" }: { initialJackets: SalesDocumentJacketView[]; initialSelected: SalesDocumentJacketView | null; initialError: string; canWaive: boolean; initialQuery?: string; customerId?: string; initialRequirementId?: string }) {
+export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initialError, canWaive, initialQuery = "", customerId = "", initialRequirementId = "", initialScan = false, phoneOrigin = "" }: { initialJackets: SalesDocumentJacketView[]; initialSelected: SalesDocumentJacketView | null; initialError: string; canWaive: boolean; initialQuery?: string; customerId?: string; initialRequirementId?: string; initialScan?: boolean; phoneOrigin?: string }) {
   const [jackets, setJackets] = useState(initialJackets), [selected, setSelected] = useState(initialSelected);
   const [query, setQuery] = useState(initialQuery), [pathway, setPathway] = useState("");
   const [error, setError] = useState(initialError), [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
@@ -100,6 +101,7 @@ export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initi
         {!selected ? <div className={styles.empty}><FileText size={28} /><h2>Deal jacket</h2><p>No jacket selected</p></div> : <>
           <header className={styles.detailHeader}><div><h2>{selected.customerName}</h2><p>{selected.dealNumber} · {selected.pathwayLabel}</p><small>{selected.vehicleReference}{selected.vin ? ` · ${selected.vin}` : ""}</small></div><span className={styles.badge}>{stateLabel(selected.state)}</span></header>
           <ClosingReviewPanel key={`${selected.id}-${selected.revision}`} jacket={selected} canReview={canWaive} busy={busy} onSave={update} />
+          <div hidden={tab !== "working"}><SalesDocumentScan key={selected.id} jacket={selected} initialScan={initialScan} initialRequirementId={initialRequirementId} phoneOrigin={phoneOrigin} onSaved={accept} onBusyChange={setBusy} /></div>
           <nav className={styles.tabs} aria-label="Packet views"><button aria-pressed={tab === "working"} onClick={() => setTab("working")}>Working Documents</button><button aria-pressed={tab === "final"} onClick={() => setTab("final")}>Final Packets ({selected.versions.length})</button></nav>
           {tab === "final" ? <section className={styles.versions}>
             {!selected.versions.length ? <p>No finalized packet yet.</p> : selected.versions.map((version) => <article key={version.id}><div><strong>Version {version.version} · {version.phase.toLowerCase()}</strong><p>{stateLabel(version.disposition)} · {new Date(version.finalizedAt).toLocaleString()}</p><small>Finalized by {version.finalizedBy}</small></div><div className={styles.actions}><a title="Download combined PDF" href={`/api/sales-documents/${selected.id}/export?version=${version.version}&format=pdf`}><FileText size={16} /> PDF</a><a title="Download original documents" href={`/api/sales-documents/${selected.id}/export?version=${version.version}&format=zip`}><Download size={16} /> Originals</a></div></article>)}

@@ -60,5 +60,9 @@ describe("scanned PDF assembly", () => {
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBe(2);
     expect(document.getPages().map((page) => page.getRotation().angle)).toEqual([0, 90]);
+    const letter = await PDFDocument.load(await buildScannedPdf([{ bytes: jpeg, rotation: 0 }], "LETTER"));
+    expect(letter.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
+    const a4 = await PDFDocument.load(await buildScannedPdf([{ bytes: jpeg, rotation: 0 }], "A4"));
+    expect(a4.getPage(0).getSize()).toEqual({ width: 595.28, height: 841.89 });
   });
 });

@@ -1,14 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { PDFDocument } from "pdf-lib";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-const db = vi.hoisted(() => ({ findFirst: vi.fn(), packet: vi.fn(), draft: vi.fn() }));
+const db = vi.hoisted(() => ({ findFirst: vi.fn(), packet: vi.fn(), draft: vi.fn(), readFile: vi.fn() }));
+vi.mock("node:fs/promises", () => ({ readFile: db.readFile }));
 vi.mock("@/server/db/client", () => ({ prisma: { salesDocumentJacket: { findFirst: db.findFirst }, salesDocumentGeneratedPacket: { findFirst: db.packet }, dealDeskDraft: { findFirst: db.draft } } }));
-vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org", localPrivateRoot: null }) }));
+vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org", localPrivateRoot: "scan-private" }) }));
 import { getSalesDocumentJacket, requireSalesDocumentsUser, saveSalesDocument, readLatestSalesPacket } from "@/server/sales-documents/service";
 
 const actor = (roles = ["Sales"]): AuthenticatedUser => ({ id: "staff", name: "Staff", email: "staff@local.test", isActive: true, roles, duties: { direct: [], roleDefaults: [], all: [] } });
 
 describe("Sales Documents access boundaries", () => {
+  it("recovers an already saved scan after a lost response without adding another document", async () => {
+    const pdf = await PDFDocument.create();
+    pdf.addPage();
+    const bytes = Buffer.from(await pdf.save());
+    const checksum = createHash("sha256").update(bytes).digest("hex");
+    db.readFile.mockResolvedValue(bytes);
+    db.findFirst.mockResolvedValue({
+      id: "scan-jacket", customerName: "Sample customer", customerId: "customer-1", vehicleReference: "Sample vehicle", vin: "SAMPLE", stockNumber: "S1",
+      dealNumber: "D1", pathway: "retail-sale", state: "WORKING", revision: 2, requirements: [], versions: [], updatedAt: new Date(),
+      packet: { auditEvents: [], documents: [{ document: { id: "saved-scan", source: "MANUAL_UPLOAD", documentType: "sales-agreement", checksumSha256: checksum,
+        storageReference: "local-private://receipt.pdf", status: "PENDING_REVIEW", classificationSnapshot: { signed: true }, currentVersionId: "v1",
+        versions: [], fileName: "scan.pdf", contentType: "application/pdf", createdAt: new Date() } }] }
+    });
+    const result = await saveSalesDocument(actor(), "scan-jacket", { bytes, fileName: "scan.pdf", contentType: "application/pdf", documentType: "sales-agreement", signed: true, expectedRevision: 1, captureMethod: "DOCUMENT_SCAN" });
+    expect(result.revision).toBe(2);
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0].id).toBe("saved-scan");
+    expect(db.readFile).toHaveBeenCalledOnce();
+  });
+  it("rejects scan PDFs exceeding the page limit before writing storage", async () => {
+    db.findFirst.mockResolvedValue({ state: "WORKING" });
+    const pdf = await PDFDocument.create();
+    for (let page = 0; page < 13; page += 1) pdf.addPage();
+    await expect(saveSalesDocument(actor(), "scan-jacket", { bytes: await pdf.save(), fileName: "scan.pdf", contentType: "application/pdf", documentType: "supplemental", captureMethod: "DOCUMENT_SCAN" })).rejects.toThrow("1–12 pages");
+  });
   beforeEach(() => { db.findFirst.mockReset(); db.packet.mockReset(); db.draft.mockReset(); });
   it("rejects anonymous, inactive and unrelated roles", () => {
     expect(() => requireSalesDocumentsUser(null)).toThrow("Sign in");
