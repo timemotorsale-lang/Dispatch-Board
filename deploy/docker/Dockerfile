@@ -126,6 +126,7 @@ ENV APP_RELEASE_SHA=${RELEASE_SHA}
 
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/docs/sales-signing-package/final/forms ./docs/sales-signing-package/final/forms
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=node:node /app/node_modules/@prisma/client ./node_modules/@prisma/client

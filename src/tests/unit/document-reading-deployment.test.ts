@@ -13,4 +13,9 @@ describe("production document reading",()=>{
   expect(worker).toBeDefined();for(const value of ['user: node','target: tooling','restart: unless-stopped','"documents:worker"','document_library_data:/app/data/document-library','DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm','condition: service_healthy','- backend','- no-new-privileges:true'])expect(worker).toContain(value);expect(worker).not.toContain("ports:");
   expect(readFileSync(".github/workflows/deploy-production.yml","utf8")).toContain("compose exec -T document-reader node deploy/docker/scripts/verify-document-reader.mjs");
  });
+ it("ships only the signing-library PDF directory required by runtime form generation",()=>{
+  const ignore=readFileSync("deploy/docker/Dockerfile.dockerignore","utf8"),docker=readFileSync("deploy/docker/Dockerfile","utf8");
+  expect(ignore).toContain("docs/*");expect(ignore).toContain("!docs/sales-signing-package/final/forms/*.pdf");
+  expect(docker).toContain("COPY --from=builder --chown=node:node /app/docs/sales-signing-package/final/forms ./docs/sales-signing-package/final/forms");
+ });
 });

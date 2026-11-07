@@ -24,7 +24,14 @@ blob-report
 
 *.log
 *.tsbuildinfo
-docs
+docs/*
+!docs/sales-signing-package/
+docs/sales-signing-package/*
+!docs/sales-signing-package/final/
+docs/sales-signing-package/final/*
+!docs/sales-signing-package/final/forms/
+docs/sales-signing-package/final/forms/*
+!docs/sales-signing-package/final/forms/*.pdf
 public/mockups
 **/.next
 **/.next*
