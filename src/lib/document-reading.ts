@@ -1,3 +1,4 @@
+import {readPartsTable,readStatementColumns} from "./document-reading-tables";
 export const DOCUMENT_READING_PROFILES = {
   EXPENSE: {label:"Spending receipt",href:"/money-resources",maxPages:10},
   PURCHASE: {label:"Inventory purchase",href:"/vehicles/import-export?mode=import&kind=documents",maxPages:28},
@@ -74,12 +75,11 @@ export function parseDocumentReading(purpose:DocumentReadingPurpose,pages:ReadPa
  if(purpose==="WARRANTY"){
   add("returnNumber","Return / warranty reference",/\b(?:RMA|return authorization|warranty claim)\s*(?:number|no\.?|#)?\s*[:#]\s*([A-Z0-9-]+)/gi);add("credit","Credit amount ($)",/\bcredit (?:amount|total)\s*[:$ ]+\$?\s*([\d,]+\.\d{2})/gi,money);
  }
- if(purpose==="PARTS")for(const page of pages)for(const row of page.text.split(/\n/)){
-  const m=row.trim().match(/^([A-Z0-9][A-Z0-9-]{2,})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})$/i);
-  if(m){const qty=Number(m[3]),unit=money(m[4]),amount=money(m[5]);if(Math.round(qty*Number(unit)*100)!==Math.round(Number(amount)*100)){warnings.push(`Part ${m[1]} has conflicting quantity, unit cost and total.`);continue;}lines.push({partNumber:m[1],description:m[2],quantity:m[3],unitCost:unit,amount,page:page.page,source:row.trim()});}
- }
+ if(purpose==="PARTS"){const table=readPartsTable(pages);lines.push(...table.lines);warnings.push(...table.warnings);}
  if(purpose==="STATEMENT"){
+  const columns=readStatementColumns(pages);lines.push(...columns.lines);warnings.push(...columns.warnings);
   for(const page of pages)for(const row of page.text.split(/\n/)){
+   if(columns.handled.has(`${page.page}:${row}`))continue;
    const m=row.trim().match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})(?:\s+(CR|DR))?$/i);
    if(m&&date(m[1])){const value=money(m[3].replace(/^-/,'').replace('$',''));lines.push({partNumber:"",description:m[2],quantity:"1",unitCost:date(m[1]),amount:(m[3].startsWith('-')||m[4]?.toUpperCase()==="CR"?"-":"")+value,page:page.page,source:row.trim()});}
   }warnings.push("Statement rows require date, debit/credit direction, account and duplicate review. They are not new expenses or recorded payments.");

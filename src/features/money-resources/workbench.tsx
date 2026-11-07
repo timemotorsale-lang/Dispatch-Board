@@ -1,5 +1,6 @@
 "use client";
 import {DocumentReadingPanel,applyReadingToForm} from "@/features/document-library/document-reading-panel";
+import {normalizedBusinessName} from "@/lib/document-reading-matches";
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -181,8 +182,8 @@ export function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { mod
       const similar=model.entries.filter(entry=>entry.kind==="EXPENSE"&&entry.approvalStatus!=="SUPERSEDED"&&entry.businessDate===fields.businessDate&&entry.amountCents===Math.round(Number(fields.amount)*100)&&entry.merchant?.trim().toLowerCase()===fields.merchant?.trim().toLowerCase());
       if(similar.length&&!window.confirm("Matching spending already exists for this merchant, date and amount. Review My spending before creating another expense. Continue preparing this form?"))return;
       if(!applyReadingToForm(formRef.current,fields,{amount:"amount",businessDate:"businessDate",merchant:"merchant",category:"category",reference:"reference"}))return;
-      const vendors=model.vendors.filter(v=>v.name.trim().toLowerCase()===fields.merchant?.trim().toLowerCase());
-      if(vendors.length===1&&(!vendorId||vendorId===vendors[0].id||window.confirm("Replace the selected vendor with the exact merchant-name match?")))setVendorId(vendors[0].id);
+      const vendors=model.vendors.filter(v=>normalizedBusinessName(v.name)===normalizedBusinessName(fields.merchant||""));
+      if(vendors.length===1&&vendorId!==vendors[0].id&&window.confirm(`${vendorId?"Replace the selected vendor with":"Use"} ${vendors[0].name}, matched from the reviewed business name?`))setVendorId(vendors[0].id);
       setReceiptReadingJob(_reading.jobId);setScannedReceipt(file);resetSave();setNotice("Receipt information prepared. Verify funding, purpose and any vehicle links, then save spending.");
     }}/>
     {scannedReceipt&&<p>Reviewed receipt ready to attach: {scannedReceipt.name}. It will be saved with the expense.</p>}

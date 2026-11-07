@@ -10,6 +10,7 @@ vi.mock("@/server/auth/store",()=>({createPrismaAuthStore:()=>({findUserByEmail:
 import {prisma} from "@/server/db/client";
 import {createReadingJob,readingJobView,readJobOriginal,retryReadingJob,runReadingJob,saveReadingReview,scopedReadingJob} from "@/server/document-library/reading-jobs";
 import {attachReadingReceipt,readMoneyReceipt} from "@/server/money-resources/receipts";
+import {checkReadingReferences} from "@/server/document-library/reading-checks";
 const actor={id:"reading-test-staff",name:"Fictional Staff",email:"reading-test@example.test",isActive:true,roles:["General Manager"],duties:{all:[],direct:[],roleDefaults:[]}};
 const suite=process.env.RUN_DOCUMENT_READING_DATABASE==="1"?describe:describe.skip;
 let root="";
@@ -64,5 +65,17 @@ suite("durable reading with real isolated PostgreSQL",()=>{
   const count=await prisma.documentLibraryDocument.count();const linked=await attachReadingReceipt(actor,entry.id,job.id);expect(linked.documentId).toBe(view.reading!.originalDocumentId);expect(await prisma.documentLibraryDocument.count()).toBe(count);
   expect((await prisma.moneyEntry.findUniqueOrThrow({where:{id:entry.id}})).approvalStatus).toBe("PENDING");expect((await readMoneyReceipt(actor,entry.id)).bytes).toEqual(Buffer.from(bytes));expect((await attachReadingReceipt(actor,entry.id,job.id)).duplicate).toBe(true);
   const duplicate=await create();await expect(attachReadingReceipt(actor,duplicate.id,job.id)).rejects.toMatchObject({status:409});
+ });
+ it("finds reviewed duplicate scans and authorized vendor / VIN matches without changing business records",async()=>{
+  const text="Vendor: Fictional Collision & Glass\nInvoice #: INV-100\nDate: 11/07/2026\nTotal 108.00\nVIN: 1HGCM82633A004352\nStock #: IT-100";
+  mock.extract.mockResolvedValue({text,method:"PLAIN_TEXT",warnings:[]});
+  const first=await createReadingJob(actor,"VENDOR_INVOICE",textFile(text)),second=await createReadingJob(actor,"VENDOR_INVOICE",textFile(text+"\nAnother scan"));await runReadingJob(first.id);await runReadingJob(second.id);
+  await prisma.vendor.create({data:{organizationId:mock.org,vendorNumber:"V-IT-100",name:"Fictional Collision and Glass",normalizedName:"fictional collision and glass",category:"RECON_REPAIR_VENDOR",status:"PREFERRED"}});
+  await prisma.vehicle.create({data:{organizationId:mock.org,vehicleNumber:"VH-IT-100",vin:"1HGCM82633A004352",stockNumber:"IT-100",year:2024,make:"Toyota",model:"Highlander"}});
+  const view=await readingJobView(actor,second.id),fields=Object.fromEntries(view.reading!.fields.map(f=>[f.key,f.value]));
+  const before=await prisma.moneyEntry.count(),reviews=await prisma.documentReadingEvent.count({where:{action:"REVIEW_SAVED"}});
+  const checks=await checkReadingReferences(actor,second.id,fields);expect(checks.duplicates).toEqual(expect.arrayContaining([expect.objectContaining({href:expect.stringContaining(first.id)})]));expect(checks.matches.map(m=>m.kind).sort()).toEqual(["VEHICLE","VENDOR"]);
+  expect(await prisma.moneyEntry.count()).toBe(before);expect(await prisma.documentReadingEvent.count({where:{action:"REVIEW_SAVED"}})).toBe(reviews);
+  const changed=await checkReadingReferences(actor,second.id,{...fields,amount:"109.00",reference:"INV-101"});expect(changed.duplicates).toEqual([]);
  });
 });
