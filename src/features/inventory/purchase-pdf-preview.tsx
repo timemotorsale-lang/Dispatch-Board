@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, ZoomIn, ZoomOut } from "lucide-react";
 import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from "pdfjs-dist";
 import styles from "./inventory-transfer-workspace.module.css";
 
-export function PurchasePdfPreview({ file }: { file: File }) {
+export function PurchasePdfPreview({ file, label = "Original purchase PDF" }: { file: File; label?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState("");
@@ -41,7 +41,7 @@ export function PurchasePdfPreview({ file }: { file: File }) {
     }).catch(() => { if (active) setError("This PDF page could not be displayed. Open the original PDF to review it."); });
     return () => { active = false; task?.cancel(); };
   }, [document, page, zoom, key]);
-  return <div aria-label="Original purchase PDF" aria-busy={!error && (!document || rendered !== key)}>
+  return <div aria-label={label} aria-busy={!error && (!document || rendered !== key)}>
     {error ? <p role="alert" className={styles.error}>{error}</p> : null}
     <div className={styles.toolbar}>
       <button title="Previous document page" aria-label="Previous document page" disabled={!document || page === 1} onClick={() => setPage(value => value - 1)}><ArrowLeft size={16} /></button>

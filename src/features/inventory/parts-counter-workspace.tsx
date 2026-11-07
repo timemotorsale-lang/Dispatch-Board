@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
 
 type Part = { id: string; partNumber: string; description: string; standardCostCents: number; balances: Array<{ stockLocationId: string; onHandQuantity: number; allocatedQuantity: number; availableQuantity: number; orderedQuantity: number; stockLocation: { code: string; name: string } }> };
@@ -57,6 +58,7 @@ export function PartsCounterWorkspace({ initial }: { initial: Model }) {
   return <section className="page-stack">
     <header className="page-copy"><span className="eyebrow">Wave 1 · Milestones 5E–5G</span><h1>Enterprise parts counter and inventory control</h1><p>Resolve scanner input to canonical parts, execute counter work, reconcile physical inventory through independent variance approval, and review explainable replenishment or obsolescence advice.</p><div className="form-actions"><Link className="pill pill-secondary" href="/vehicles/parts-operations">Parts Operations overview</Link><Link className="pill pill-secondary" href="/vehicles/parts">Demand &amp; reservations</Link><Link className="pill pill-secondary" href="/vehicles/service-close-parts">Purchasing &amp; recovery</Link><Link className="pill pill-secondary" href="/settings/vehicle-operations">Rollout &amp; health</Link></div></header>
     <Notice value={notice} />
+    <DocumentReadingPanel purpose="WARRANTY" disabled={busy} onApply={(reading,fields)=>{if(counter.sourceId&&!window.confirm("Replace the prepared return / warranty reference?"))return;setCounter(current=>({...current,sourceId:fields.returnNumber||fields.reference||reading.fileName}));setNotice("Reviewed return/warranty reference prepared. Select the correct part, quantity and transaction type before saving; no credit or stock movement has been recorded.");}}/>
 
     <form className="panel-card page-stack" onSubmit={resolveScan}><span className="eyebrow">5G · Barcode-ready counter</span><h2>Scan or enter a part identifier</h2><div className="form-actions"><Field label="Barcode, OEM number, or part number"><input autoFocus ref={scanRef} value={scan} onChange={(event) => setScan(event.target.value)} /></Field><button className="button button-primary">Resolve canonical part</button></div>{selectedPart ? <div><h3>{selectedPart.partNumber} · {selectedPart.description}</h3>{selectedPart.balances.length ? selectedPart.balances.map((balance) => <p key={balance.stockLocationId}>{balance.stockLocation.code}: on hand <strong>{balance.onHandQuantity}</strong> · allocated {balance.allocatedQuantity} · available {balance.availableQuantity} · ordered {balance.orderedQuantity}</p>) : <p>No stock balance has been posted.</p>}</div> : null}</form>
 

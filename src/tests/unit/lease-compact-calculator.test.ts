@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { calculateLeaseToOwn, leaseAgreementCalculationError, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { calculateLeaseToOwn, isLegacyLeasePoa, leaseAgreementCalculationError, leaseCalculatorInputFromFields, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 const input: LeaseToOwnCalculatorInput = { agreedPriceCents: 2000000, additionalItemsCents: 0, capitalizedCostReductionCents: 300000, contractLength: 36, documentPreparationFeeCents: 30000, gpsCostCents: 0, multiplierBasisPoints: 20000, originationFeeCents: 0, otherRoadWorthyCostCents: 0, paymentFrequency: "Monthly", registrationFeeCents: 51600, salesTaxRateBasisPoints: 687.5, titleFeeCents: 10280, warrantyCostCents: 0, wholesaleCostCents: 1000000 };
 describe("compact lease price and exact payments", () => {
+  it("distinguishes archived HTML title authority from the revised Limited POA PDF", () => {
+    expect(isLegacyLeasePoa({ formId: "power-of-attorney", contentType: "text/html" })).toBe(true);
+    expect(isLegacyLeasePoa({ formId: "power-of-attorney", contentType: "application/pdf" })).toBe(true);
+    expect(isLegacyLeasePoa({ formId: "power-of-attorney", contentType: "application/pdf", contentBase64: "JVBERi0=" })).toBe(false);
+    expect(isLegacyLeasePoa({ formId: "lease-summary", contentType: "text/html" })).toBe(false);
+  });
   it("matches the existing half-price times two calculator without mutating the saved costs", () => {
     const before = structuredClone(input);
     expect(calculateLeaseToOwn(input)).toEqual(calculateLeaseToOwn({ ...input, agreedPriceCents: undefined }));
@@ -29,5 +35,18 @@ describe("compact lease price and exact payments", () => {
     const result = calculateLeaseToOwn({ ...input, calculationMode: "PAYMENT_AMOUNT", targetPaymentCents: 5000000 });
     expect(result.contractLength).toBe(1); expect(result.firstPeriodicPaymentCents).toBe(result.finalPeriodicPaymentCents);
     expect(result.amountDueAtSigningCents).toBe(result.capitalizedCostReductionCents + result.costsTaxesFeesCents + result.totalBasePeriodicPaymentsCents);
+  });
+  it("adds upfront charges and a refundable deposit without changing monthly payments or cap cost", () => {
+    const baseline = calculateLeaseToOwn(input);
+    const result = calculateLeaseToOwn({ ...input, securityDepositCents: 25000, otherUpfrontChargesCents: 1500 });
+    expect(result.amountDueAtSigningCents).toBe(baseline.amountDueAtSigningCents + 26500);
+    expect(result.adjustedCapitalizedCostCents).toBe(baseline.adjustedCapitalizedCostCents);
+    expect(result.totalPeriodicPaymentCents).toBe(baseline.totalPeriodicPaymentCents);
+    expect(result.totalOfPaymentsCents).toBe(baseline.totalOfPaymentsCents + 1500);
+  });
+  it("retains the signing cash and monthly payment on a saved legacy cash-target deal", () => {
+    const legacy = calculateLeaseToOwn(leaseCalculatorInputFromFields({ agreedPrice: "20000", signingPaymentMode: "DOWN_PAYMENT", downPayment: "5000", registrationFee: "516" }));
+    expect(legacy.amountDueAtSigningCents).toBe(500000);
+    expect(legacy.totalPeriodicPaymentCents).toBe(43302);
   });
 });

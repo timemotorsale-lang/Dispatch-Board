@@ -4,9 +4,11 @@ import { Download, FileText, Printer, Upload, X } from "lucide-react";
 import { CLAIM_AUTHORIZATION_CLAUSES, CLAIM_AUTHORIZATION_HEADER, claimPermissionStatus, type ClaimPermissionCategory } from "@/lib/claim-customer-authorization";
 import type { ClaimReadModel } from "@/server/claims-workspace/service";
 import styles from "./claim-repair-workflow.module.css";
+import {DocumentReadingPanel,applyReadingToForm} from "@/features/document-library/document-reading-panel";
 
 export function ClaimCustomerAuthorization({ model, open, onOpen, onClose }: { model: ClaimReadModel; open: boolean; onOpen: () => void; onClose: () => void }) {
   const [pdf, setPdf] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [capacity, setCapacity] = useState("OWNER"); const close = useRef<HTMLButtonElement>(null);
+  const signedForm=useRef<HTMLFormElement>(null),[reviewedPdf,setReviewedPdf]=useState<File|null>(null);
   const endpoint = `/api/claims-workspace/claims/${encodeURIComponent(model.claim.id)}/authorization`;
   useEffect(() => {
     if (!open) return;
@@ -24,6 +26,7 @@ export function ClaimCustomerAuthorization({ model, open, onOpen, onClose }: { m
   }
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); const form = new FormData(event.currentTarget);
+    const selected=form.get("file");if((!(selected instanceof File)||!selected.size)&&reviewedPdf)form.set("file",reviewedPdf);
     for (const key of ["communicationSelected", "signatureVerified", "copyProvided", "directPaySelected"]) form.set(key, form.get(key) === "on" ? "true" : "false");
     form.set("category", "CLAIM_COMMUNICATION"); form.set("title", "Signed claim communication authorization and payment election");
     form.set("relationshipTargets", "CLAIM,CUSTOMER,VEHICLE");
@@ -72,8 +75,10 @@ export function ClaimCustomerAuthorization({ model, open, onOpen, onClose }: { m
         <p>Printed signer name: ____________________<br />Capacity: Owner / Authorized representative<br />Representative&apos;s authority: ____________________</p>
         <p>Customer / authorized signer signature: ____________________ Date: __________<br />Dealership representative: ____________________ Copy provided on: __________</p>
       </article> : null}
-      <h3>Verify signed copy</h3><form onSubmit={upload}><fieldset disabled={busy || closed}>
-        <label>Signed PDF<input name="file" type="file" accept="application/pdf,.pdf" required /></label>
+      <h3>Verify signed copy</h3><DocumentReadingPanel purpose="CLAIM_AUTHORIZATION" disabled={busy||closed} onApply={(_reading,fields,file)=>{if(file.type!=="application/pdf")throw new Error("Scan or upload a PDF so the same reviewed original can be retained as the signed copy.");if(applyReadingToForm(signedForm.current,fields,{signer:"signer",signedDate:"signedDate"}))setReviewedPdf(file);}}/>
+      {reviewedPdf&&<p>Reviewed PDF ready: {reviewedPdf.name}. Verify all permissions and signer authority below.</p>}
+      <form ref={signedForm} onSubmit={upload}><fieldset disabled={busy || closed}>
+        <label>Signed PDF<input name="file" type="file" accept="application/pdf,.pdf" required={!reviewedPdf} /></label>
         <label>Printed signer name<input name="signer" required maxLength={200} defaultValue={model.claim.customerName} /></label>
         <label>Signer capacity<select name="capacity" value={capacity} onChange={(event) => setCapacity(event.target.value)}><option value="OWNER">Vehicle owner</option><option value="AUTHORIZED_REPRESENTATIVE">Authorized representative</option></select></label>
         {capacity === "AUTHORIZED_REPRESENTATIVE" ? <label>Authority to sign<input name="authorityDetails" required maxLength={500} /></label> : null}

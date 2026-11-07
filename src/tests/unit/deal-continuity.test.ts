@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { normalizeVehicleUseCommand, vehicleUseOverlaps } from "@/lib/deal-continuity";
+import { normalizeVehicleUseCommand, prefillDealVehicle, vehicleUseOverlaps } from "@/lib/deal-continuity";
 
 const reserve = { action: "RESERVE", operationKey: "request-12345678", reason: "Temporary transport while lease delivery is pending", startsAt: "2026-10-01T10:00:00Z", expectedReturnAt: "2026-10-02T10:00:00Z" };
 const handoff = { ...reserve, action: "HANDOFF", bookingId: "booking-1", expectedVersion: 1, occurredAt: "2026-10-01T10:00:00Z", odometer: 12000, fuel: "Full", condition: "Recorded condition report", recipient: "Test customer", evidence: ["condition-report-1"], keysVerified: true, driverVerified: true };
 
 describe("shared deal vehicle use", () => {
+  it("fills available vehicle facts while preserving edits and leaving delivery mileage unverified", () => {
+    const current = { vin: "", color: "Staff-entered silver", interiorColor: "", bodyStyle: "", fuelType: "", recordedMileage: "", mileage: "" };
+    const selected = {
+      id: "vehicle-1", label: "Sample vehicle", vin: "1NXBR32E85Z123456", stockNumber: "STOCK-1", inventoryUnitId: "inventory-1",
+      year: "2005", make: "Toyota", model: "Corolla", color: "Gray", interiorColor: "Black", bodyStyle: "Sedan",
+      recordedMileage: "54000", licensePlate: "", locationId: null, availability: "Ready", eligibleForUse: true
+    };
+    expect(prefillDealVehicle(current, selected)).toEqual({
+      vin: selected.vin, color: current.color, interiorColor: "Black", bodyStyle: "Sedan", fuelType: "", recordedMileage: "54000", mileage: ""
+    });
+  });
   it("accepts a bounded reservation and normalizes a stable retry payload", () => {
     expect(normalizeVehicleUseCommand(reserve)).toMatchObject({ action: "RESERVE", expectedVersion: 0, operationKey: reserve.operationKey });
     expect(normalizeVehicleUseCommand(reserve)).toEqual(normalizeVehicleUseCommand(reserve));

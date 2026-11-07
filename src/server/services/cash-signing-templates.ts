@@ -6,7 +6,7 @@ import map from "./cash-signing-template-map.json";
 import { cashTitleFeeTotal, cashCents, cashMoney, cashSaleTotals } from "@/lib/cash-retail-sale";
 import type { Input } from "./cash-retail-sale-documents";
 import { CASH_SIGNING_TEMPLATE_VERSION } from "@/lib/cash-sale-print-library";
-export function cashSigningTemplate(id:string) { return Object.hasOwn(map,id) ? map[id as keyof typeof map] : null; }
+export function cashSigningTemplate(id:string) { return id !== "power-of-attorney" && Object.hasOwn(map,id) ? map[id as keyof typeof map] : null; }
 export function cashSigningTemplateSource(id:string) {
   const template=cashSigningTemplate(id);if(!template)throw new Error("Cash signing template was not found.");
   const bytes=fs.readFileSync(path.join(process.cwd(),"docs/sales-signing-package/final/forms",template.file));
@@ -26,6 +26,14 @@ export async function cashSigningTemplatePdf(id:string,input:Input) {
   values.warrantor=[f.dealerName,f.dealerAddress].filter(Boolean).join(" / ");values.warrantyContact=[f.authorizedAgent,f.dealerPhone].filter(Boolean).join(" / ");
   const continuation:Array<{label:string;value:string}>=[];
   if (id === "sales-agreement" && input.funding) continuation.push({ label: "Financing arrangement - not a payment receipt", value: `${input.funding.label}. Agreed down payment: ${input.funding.downPayment}. Financed portion under the separate credit agreement: ${input.funding.amountFinanced}. These amounts do not verify received or cleared funds. The front-page remaining balance shows the sale price less payments actually recorded; financing and down-payment collection remain separate.` });
+  if (id === "sales-agreement") {
+    const vehicle = input.vehicle;
+    const specs = [
+      ["Trim", vehicle.trim], ["Interior color", vehicle.interiorColor], ["Body style", vehicle.bodyStyle],
+      ["Engine", vehicle.engine], ["Transmission", vehicle.transmission], ["Drivetrain", vehicle.drivetrain], ["Fuel type", vehicle.fuelType]
+    ].filter(([, value]) => value && value !== "Not captured").map(([label, value]) => `${label}: ${value}`);
+    if (specs.length) continuation.push({ label: "Vehicle specifications", value: specs.join(" | ") });
+  }
   if(id==="warranty-disclosure" && f.warrantyDuration && !values.term_60 && !values.term_30 && !values.term_15)continuation.push({label:"Staff-entered warranty term",value:f.warrantyDuration});
   for(const field of template.fields){
     const value=field.signature ? "" : safe(values[field.key] || "");

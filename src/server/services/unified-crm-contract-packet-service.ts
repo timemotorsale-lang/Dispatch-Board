@@ -4,6 +4,7 @@ import { BHPH_FINANCING_VERSION, bhphFinancingFacts, bhphFinancingIssue, calcula
 import { BHPH_PAYMENT_VERSION, calculateBhphPayment, bhphPaymentSummary } from "@/lib/bhph-payment";
 import { bhphOptionalProductRows } from "@/lib/bhph-optional-products";
 import { cashSalePdf, cashSaleDocumentHtml } from "./cash-retail-sale-documents";
+import { LIMITED_POA_ID, SECURE_POA_ID } from "@/lib/sales-document-pathways";
 import type { Input as SaleLibraryDocumentInput } from "./cash-retail-sale-documents";
 import { pathwayDocumentPdf } from "./shared-sale-library-documents";
 import { saleLibraryCatalog, saleLibraryDefaultIds, type SaleLibraryPathway } from "@/lib/cash-sale-print-library";
@@ -63,8 +64,15 @@ function formIds(value: unknown, forms: PacketFormItem[], requiredIds: string[])
 function vehicleFacts(value: unknown) {
   const vehicle = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
-    bodyStyle: text(vehicle.bodyStyle, ""),
-    license: text(vehicle.license, ""),
+    bodyStyle: text(vehicle.bodyStyle ?? vehicle.bodyType, ""),
+    license: text(vehicle.license ?? vehicle.licensePlate, ""),
+    interiorColor: text(vehicle.interiorColor, ""),
+    engine: text(vehicle.engine, ""),
+    transmission: text(vehicle.transmission, ""),
+    drivetrain: text(vehicle.drivetrain ?? vehicle.driveTrain, ""),
+    fuelType: text(vehicle.fuelType, ""),
+    recordedMileage: text(vehicle.recordedMileage, ""),
+    mileageRecordedAt: text(vehicle.mileageRecordedAt, ""),
     mileage: text(vehicle.mileage, ""),
     color: text(vehicle.color, "Not captured"),
     make: text(vehicle.make, "Not captured"),
@@ -164,6 +172,8 @@ function leaseCalculatorInput(value: unknown): LeaseToOwnCalculatorInput {
     targetPaymentCents: moneyCents(input.targetPaymentCents),
     contractLength: numberValue(input.contractLength),
     documentPreparationFeeCents: moneyCents(input.documentPreparationFeeCents),
+    securityDepositCents: input.securityDepositCents === undefined ? 0 : Number.isSafeInteger(input.securityDepositCents) ? input.securityDepositCents as number : NaN,
+    otherUpfrontChargesCents: input.otherUpfrontChargesCents === undefined ? 0 : Number.isSafeInteger(input.otherUpfrontChargesCents) ? input.otherUpfrontChargesCents as number : NaN,
     downPaymentCents: moneyCents(input.downPaymentCents),
     signingPaymentMode: input.signingPaymentMode === "CAPITALIZED_REDUCTION" ? "CAPITALIZED_REDUCTION" : input.signingPaymentMode === "DOWN_PAYMENT" ? "DOWN_PAYMENT" : undefined,
     gpsCostCents: moneyCents(input.gpsCostCents),
@@ -208,7 +218,7 @@ function publicPdfBytes(templatePath: string) {
   return readFileSync(join(process.cwd(), "public", safePath));
 }
 
-async function filledPdfBase64(templatePath: string, fieldValues: Record<string, string>, insuranceFacts?: Record<string, unknown>) {
+async function filledPdfBase64(templatePath: string, fieldValues: Record<string, string>, insuranceFacts?: Record<string, unknown>, upfrontDisclosure?: { cents: number; vin: string }) {
   const templateBytes = publicPdfBytes(templatePath);
   if (Object.keys(fieldValues).length === 0) return templateBytes.toString("base64");
   const pdf = await PDFDocument.load(templateBytes);
@@ -223,6 +233,13 @@ async function filledPdfBase64(templatePath: string, fieldValues: Record<string,
     }
   }
   const font = await pdf.embedFont(StandardFonts.Helvetica);
+  if (upfrontDisclosure) {
+    const page = pdf.addPage([612, 792]);
+    page.drawText("Lease signing itemization continuation", { x: 36, y: 750, size: 16, font });
+    page.drawText(`Vehicle VIN: ${upfrontDisclosure.vin}`, { x: 36, y: 724, size: 10, font });
+    page.drawText(`Other upfront charges: ${formatCurrency(upfrontDisclosure.cents)}`, { x: 36, y: 702, size: 10, font });
+    page.drawText("Included in the Amount Due at Lease Signing or Delivery shown on page 1.", { x: 36, y: 680, size: 10, font });
+  }
   if (insuranceFacts && [insuranceFacts.insuranceCompany, insuranceFacts.insurancePolicyNumber, insuranceFacts.insuranceExpirationDate].some(value => typeof value === "string" && value.trim())) {
     const page = pdf.addPage([612, 792]);
     page.drawText("Recorded insurance details", { x: 36, y: 750, size: 18, font });
@@ -248,7 +265,7 @@ export async function personalReferencesPdfBase64(input: {
   generatedAt: string;
   paymentFunding: string;
   salePrice: string;
-  vehicle: ReturnType<typeof vehicleFacts>;
+  vehicle: Pick<ReturnType<typeof vehicleFacts>, "year" | "make" | "model" | "trim" | "vin" | "stockNumber">;
 }) {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([612, 792]);
@@ -431,7 +448,7 @@ function leaseTemplateFieldValues(input: {
       "undefined_3": "0.00",
       "undefined_4": "0.00",
       "undefined_5": formatFormMoney(input.calculator.totalOfPaymentsCents),
-      "undefined_6": "0.00",
+      "undefined_6": formatFormMoney(input.leaseInput.securityDepositCents ?? 0),
       "undefined_7": formatFormMoney(input.calculator.capitalizedCostReductionCents),
       "undefined_8": formatFormMoney(input.leaseInput.registrationFeeCents),
       "undefined_9": formatFormMoney(input.calculator.firstPeriodicPaymentCents),
@@ -1646,6 +1663,9 @@ export async function generateUnifiedCrmContractPacket(
   const sharedFacts = shared ? cashSaleFacts(shared.facts) : null;
   const cashMode = packetType === "MINNESOTA_RETAIL_SALE" && input.retailCash !== undefined;
   const cashFacts = cashSaleFacts(input.retailCash);
+  if (Array.isArray(input.preparedFormIds) && input.preparedFormIds.includes(SECURE_POA_ID)) {
+    throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", "Attach the completed authorized Minnesota Secure POA in Sales Documents.");
+  }
   let packetForms: PacketFormItem[] = packetType === "TEST_DRIVE" ? TEST_DRIVE_FORM_PACKET : packetType === "LEASE_TO_OWN"
     ? LEASE_TO_OWN_FORM_PACKET
     : packetType === "VEHICLE_LOANER"
@@ -1829,7 +1849,9 @@ export async function generateUnifiedCrmContractPacket(
         ["Title / registration", `${formatCurrency(leaseInput.titleFeeCents)} / ${formatCurrency(leaseInput.registrationFeeCents)}`],
         ["Document preparation", formatCurrency(leaseInput.documentPreparationFeeCents)],
         ["Origination", formatCurrency(leaseInput.originationFeeCents)],
-        ["Total due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)]
+        ["Refundable security deposit", formatCurrency(leaseInput.securityDepositCents ?? 0)],
+        ["Other upfront charges", formatCurrency(leaseInput.otherUpfrontChargesCents ?? 0)],
+        ["Amount Due at Signing", formatCurrency(leaseOutput.amountDueAtSigningCents)]
       ] },
       payments: { heading: "Payment schedule & lease cost", rows: [
         ["Frequency", frequency],
@@ -1849,7 +1871,13 @@ export async function generateUnifiedCrmContractPacket(
   }
 
   const documents = await Promise.all(selectedForms.map(async (form) => {
-    const libraryCommonInput = sharedDocumentInput && (CASH_SALE_FORM_IDS.includes(form.id) || form.id === "trade-documents") ? sharedDocumentInput : null;
+    const limitedPoaInput = form.id === LIMITED_POA_ID ? {
+      customerName, dealNumber, vehicle, salePrice: text(input.salePrice, ""),
+      facts: sharedFacts ?? (packetType === "LEASE_TO_OWN"
+        ? cashSaleFacts({ coBuyer: leaseFacts.coLesseeName, buyerAddress: leaseFacts.lesseeAddress, authorizedAgent: leaseFacts.agentName })
+        : cashFacts)
+    } : null;
+    const libraryCommonInput = limitedPoaInput ?? (sharedDocumentInput && (CASH_SALE_FORM_IDS.includes(form.id) || form.id === "trade-documents") ? sharedDocumentInput : null);
     const librarySupplementHtml = shared && !libraryCommonInput && packetType === "BHPH" ? buildBhphDocumentHtml({ bhph: bhphInput, customerName, dealNumber, form: form as BhphFormItem, generatedAt, vehicle }) : shared && !libraryCommonInput ? buildDocumentHtml({ customerName, dealNumber, dealType, feeTotal, generatedAt, label: form.label, paymentFunding, salePrice, sourceBasis: form.basis, trigger: form.trigger, vehicle, packetIntro: "Pathway-specific supporting document; final signed lender agreements remain separately required." }) : null;
     const isDealerWarranty = (packetType === "BHPH" && form.id === BHPH_WARRANTY_FORM_ID) || (packetType === "LEASE_TO_OWN" && form.id === LEASE_WARRANTY_FORM_ID);
     const warrantyDocumentInput = isDealerWarranty ? {
@@ -1911,7 +1939,10 @@ export async function generateUnifiedCrmContractPacket(
         }),
         contentType: "application/pdf" as const
       } : hasPdfTemplate(form) && packetType === "LEASE_TO_OWN" ? {
-        contentBase64: await filledPdfBase64(form.templatePath, leaseFieldValues, form.id === "insurance-binder" ? { ...leaseFacts, customerName, vin: vehicle.vin } : undefined),
+        contentBase64: await filledPdfBase64(
+          form.templatePath, leaseFieldValues, form.id === "insurance-binder" ? { ...leaseFacts, customerName, vin: vehicle.vin } : undefined,
+          form.templatePath.endsWith("/w2-lease.pdf") && leaseInput.otherUpfrontChargesCents ? { cents: leaseInput.otherUpfrontChargesCents, vin: vehicle.vin } : undefined
+        ),
         contentType: "application/pdf" as const,
         fieldValues: leaseFieldValues,
         templatePath: form.templatePath

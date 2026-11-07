@@ -3,9 +3,10 @@ import { cashSigningTemplate, cashSigningTemplatePdf } from "./cash-signing-temp
 import fs from "node:fs";
 import path from "node:path";
 import { PDFDocument, PDFTextField, StandardFonts, rgb } from "pdf-lib";
+import { dealDeskLogoHtml } from "./deal-desk-document-brand";
 import { CASH_SALE_LABELS, cashTitleFeeItems, cashTitleFeeTotal, cashCents, cashMoney, cashSaleTotals, type CashSaleFacts } from "@/lib/cash-retail-sale";
 
-export type Input = { customerName: string; dealNumber: string; salePrice: string; facts: CashSaleFacts; funding?: { label: string; amountFinanced: string; downPayment: string }; pricing?: ReturnType<typeof cashSaleTotals>; itemization?: Array<[string,string]>; vehicle: { vin: string; stockNumber: string; year: string; make: string; model: string; color: string } };
+export type Input = { customerName: string; dealNumber: string; salePrice: string; facts: CashSaleFacts; funding?: { label: string; amountFinanced: string; downPayment: string }; pricing?: ReturnType<typeof cashSaleTotals>; itemization?: Array<[string,string]>; vehicle: { vin: string; stockNumber: string; year: string; make: string; model: string; color: string; trim?: string; bodyStyle?: string; interiorColor?: string; engine?: string; transmission?: string; drivetrain?: string; fuelType?: string } };
 type Section = { title: string; rows?: Array<[string, string]>; paragraphs?: string[] };
 const DISCLOSURE = "IMPORTANT: THIS MAY BE A BINDING CONTRACT AND YOU MAY LOSE ANY DEPOSITS IF YOU DO NOT PERFORM ACCORDING TO ITS TERMS.";
 const safe = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"');
@@ -21,7 +22,15 @@ function sections(id: string, input: Input): Section[] {
   if (id === "sales-agreement") return [identity, prices, warranty, { title: "Agreement and written promises", rows: [["Promised repairs / items", f.promises || "None recorded"], ["Target completion", f.promiseDue]], paragraphs: [input.funding ? `Purchase terms for ${input.funding.label}. The separate signed installment contract or lender agreement governs credit obligations and disclosures. Agreed down payment ${input.funding.downPayment}; amount financed ${input.funding.amountFinanced}. These figures do not verify received or cleared funds. All promises and agreed repairs must be in writing.` : "Buyer agrees to purchase the identified vehicle at the itemized cash price. This is a cash sale; no installment financing is created. Payment, title filing and actual delivery are recorded separately. All promises and agreed repairs must be in writing. Buyer and dealer receive a completed copy of this agreement and its attachments."] }];
   if (id === "binding-contract-disclosure") return [identity, { title: "Before signing", paragraphs: ["Review the completed purchase agreement, all charges, payment obligations, warranty terms and written promises. Do not sign incomplete documents. The deposit-forfeiture portion may be crossed out at signing when forfeiture is not possible."] }];
   if (id === "odometer-disclosure") return [identity, { title: "Odometer certification", rows: [["Mileage (no tenths)", f.mileage], ["Mileage status", f.odometerStatus], ["Exemption basis, if applicable", f.odometerExemption]], paragraphs: ["Federal and state law require that you state the mileage upon transfer of ownership. Failure to complete or providing a false statement may result in fines and/or imprisonment. The transferor certifies that the reading and selected mileage status above are true to the best of the transferor's knowledge. Complete the required title or secure odometer disclosure where applicable; this supplemental form does not replace a required secure document."] }, { title: "Damage and title disclosure", rows: [["Title brand", f.titleBrand], ["Known damage disclosure", f.damageDisclosure]] }];
-  if (id === "power-of-attorney") return [identity, { title: "Limited appointment", rows: [["Principal / vehicle owner", input.customerName], ["Additional principal", f.coBuyer], ["Attorney-in-fact / named agent", f.authorizedAgent], ["Dealership", f.dealerName], ["Expires", f.poaExpiration]], paragraphs: ["For the identified vehicle and sale only, I appoint the named agent to complete, sign where legally permitted, and submit title/registration applications and administrative corrections consistent with the completed sale documents; pay the stated filing taxes and fees; and receive related correspondence. This authority ends when the identified transfer is completed or on the expiration date, whichever occurs first. I may revoke it by written notice to the agent, subject to applicable law and acts already lawfully completed.", "This is not a general financial power of attorney. It does not authorize a new sale, borrowing, a new lien, changed price or ownership, receipt of sale proceeds, or waiver of statutory rights. It does not authorize signing both sides of an odometer disclosure or substitute for a required secure power of attorney. Use the required original secure authority and title documents when applicable."] }, { title: "Execution / acknowledgment", paragraphs: ["The principal(s) must review and sign this limited appointment. Agent acceptance and any acknowledgment required by the filing office must be completed before use. Do not prefill signatures, notarization or verification."] }];
+  if (id === "power-of-attorney") return [
+    { title: "Principal and vehicle", rows: [["Principal / owner", input.customerName], ["Additional owner", f.coBuyer], ["Principal address", f.buyerAddress], ["Deal / stock", [input.dealNumber, input.vehicle.stockNumber].filter(Boolean).join(" / ")], ["Vehicle", [input.vehicle.year, input.vehicle.make, input.vehicle.model].filter(Boolean).join(" ")], ["VIN", input.vehicle.vin], ["Agent legal name", f.authorizedAgent], ["Agent business address", f.dealerAddress]] },
+    { title: "Specific authority - check only what is authorized", paragraphs: ["[ ] Apply for title / registration for the identified vehicle.", "[ ] Submit a duplicate-title application where permitted.", "[ ] Correct only the clerical error identified below.", "[ ] Submit and receive documents for the stated title transaction."] },
+    { title: "Scope and limits", rows: [["Specific transaction / permitted clerical correction", ""], ["Effective date", ""]], paragraphs: [
+      "I appoint the named agent to perform only the selected acts for this vehicle and transaction. The agent must use accurate information, may not delegate without my written consent, and must provide copies of documents signed or submitted on my behalf upon request.",
+      "This authority does not permit borrowing, changing price or credit terms, transferring beneficial ownership beyond the identified transaction, releasing claims, endorsing checks, confessing judgment, or signing both sides of an odometer disclosure. It cannot replace an official secure odometer POA or authorize acts prohibited by federal odometer law.",
+      "Authority ends on completion of the identified transaction. I may revoke it by written notice to the agent, without undoing lawful acts completed before receipt. Confirm the receiving agency's prescribed form and acknowledgment requirements."
+    ] }
+  ];
   if (id === "tax-fee-receipt") return [{ ...identity, rows: identity.rows?.filter(([label]) => ["Buyer", "Vehicle", "VIN", "Sale date"].includes(label)) }, { ...prices, rows: prices.rows?.filter(([label]) => !["Payment recorded by staff", "Remaining balance"].includes(label)) }, { title: "Collection and filing status", paragraphs: ["This itemization records the sale calculation. It does not certify that taxes were remitted or accepted. Attach the actual deputy registrar / DVS receipt after filing. A payment record is separate from this calculation."] }];
   if (id === "title-registration-application") return [identity, { ...prices, rows: prices.rows?.filter(([label]) => label.startsWith("Title / transfer / plate item: ") || ["Agreed vehicle price", "Taxable vehicle amount", "Motor vehicle sales tax", "Motor vehicle trade allowance", "Title, transfer & plate fees (total)", "Registration tax / tabs", "Tax basis / override reason"].includes(label)) }, title];
   if (id === "title-assignment") return [identity, { ...title, rows: [["Title brand", f.titleBrand]] }, { title: "Attach original supporting documents", paragraphs: ["[ ] Assigned title or MCO.  [ ] Required buyer/seller signatures.", "[ ] Lien releases, if any.  [ ] Required secure reassignment / odometer authority.", "[ ] Signed official application or VTAP.  [ ] Filing confirmation / registrar receipt.", "Blank boxes mean not verified. This control sheet does not transfer ownership."] }];
@@ -33,12 +42,14 @@ function sections(id: string, input: Input): Section[] {
   return [identity, { title: "Delivery acknowledgment", rows: [["Actual delivery date (complete at handoff)", f.deliveryDate], ["Odometer", f.mileage], ["Keys", f.keys], ["Fuel", f.fuel], ["Delivery notes", f.deliveryNotes]], paragraphs: ["Customer and staff sign only at actual delivery after checking vehicle identity, condition, keys, insurance and the required delivery documents. Generating this page does not release the vehicle or mark delivery complete."] }];
 }
 export function cashSaleDocumentHtml(id: string, input: Input) {
+  if(id === "power-of-attorney") return `<html><body>${dealDeskLogoHtml(true)}<h1>${esc(CASH_SALE_LABELS[id])}</h1><p>Review copy only. Minnesota legal and DVS acceptance review required before use.</p><p>Review the complete PDF. ${esc(input.dealNumber)} | ${esc(input.customerName)} | ${esc(input.vehicle.vin)}</p></body></html>`;
   if(cashSigningTemplate(id)) return `<html><body><h1>${esc(CASH_SALE_LABELS[id] || id)}</h1><p>Customer signing form - complete all applicable fields before signing</p><p>The generated PDF preserves the committed TMS-MN-SIGNING-1.0 form and HDR-02 header. Read all pages of the PDF. ${esc(input.dealNumber)} | ${esc(input.customerName)} | ${esc(input.vehicle.vin)}</p></body></html>`;
   return `<html><body><h1>${esc(CASH_SALE_LABELS[id] || id)}</h1><p>${esc(input.facts.dealerName)} | ${esc(input.dealNumber)}</p>${sections(id, input).map(s => `<h2>${esc(s.title)}</h2>${(s.rows || []).map(([k, v]) => `<p><b>${esc(k)}:</b> ${esc(v || "Not recorded")}</p>`).join("")}${(s.paragraphs || []).map(p => `<p>${esc(p)}</p>`).join("")}`).join("")}<p>Unsigned document. Review before signing.</p></body></html>`;
 }
 export async function cashSalePdf(id: string, input: Input) {
   if (id === "buyers-guide") return officialBuyersGuide(input);
-  if (cashSigningTemplate(id)) return cashSigningTemplatePdf(id,input);
+  const limitedPoa = id === "power-of-attorney";
+  if (!limitedPoa && cashSigningTemplate(id)) return cashSigningTemplatePdf(id,input);
   const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica), bold = await pdf.embedFont(StandardFonts.HelveticaBold), form = pdf.getForm();
   const logo = await pdf.embedPng(fs.readFileSync(path.join(process.cwd(),"public/brand/time-motor-sales-horizontal.png")));
   let page = pdf.addPage([612, 792]), y = 680, count = 0;
@@ -52,7 +63,7 @@ export async function cashSalePdf(id: string, input: Input) {
     page.drawLine({start:{x:40,y:695},end:{x:570,y:695},thickness:1,color:rgb(.2,.32,.6)});
     page.drawText(safe(CASH_SALE_LABELS[id]), { x:40,y:675,size:13,font:bold,color:ink });
     page.drawText(safe(`${input.dealNumber} | ${input.facts.saleDate} | VIN ${input.vehicle.vin}`), { x:40,y:659,size:8,font,color:muted });
-    page.drawText("Unsigned dealership document - review, complete and sign before use.", { x:36,y:22,size:8,font,color:muted });
+    page.drawText(limitedPoa ? "REVIEW COPY ONLY - Minnesota legal and DVS acceptance review required before use." : "Unsigned dealership document - review, complete and sign before use.", { x:36,y:22,size:8,font,color:muted });
     y = 638;
   }
   function space(height: number) { if (y - height < 52) { page = pdf.addPage([612, 792]); header(); } }
@@ -62,7 +73,7 @@ export async function cashSalePdf(id: string, input: Input) {
     if (line) { space(15); page.drawText(line, { x: 40, y, size, font: f, color: ink }); y -= 15; }
   }
   function field(label: string, value: string, name?: string, x = 40, width = 530) {
-    const height = Math.max(23, Math.ceil(value.length / Math.max(1, Math.floor(width / 5))) * 11 + 5);
+    const height = Math.max(limitedPoa ? 15 : 23, Math.ceil(value.length / Math.max(1, Math.floor(width / 5))) * 11 + 5);
     space(height + 28);
     page.drawText(safe(label).slice(0, width > 300 ? 95 : 46), { x, y, size: 8, font: bold, color: ink }); y -= 14;
     const f = form.createTextField(name || `cash_${id}_${count++}`); f.enableMultiline(); f.setText(safe(value));
@@ -70,9 +81,10 @@ export async function cashSalePdf(id: string, input: Input) {
     f.setFontSize(9); y -= height + 8;
   }
   header();
-  text(input.facts.dealerAddress, false, 9); text([input.facts.dealerPhone, input.facts.dealerEmail].filter(Boolean).join(" | "), false, 9); y -= 8;
+  if (limitedPoa) text("REVIEW COPY ONLY - confirm Minnesota legal and DVS acceptance.", true, 9);
+  else { text(input.facts.dealerAddress, false, 9); text([input.facts.dealerPhone, input.facts.dealerEmail].filter(Boolean).join(" | "), false, 9); y -= 8; }
   for (const section of sections(id, input)) {
-    space(80); text(section.title, true, 12); y -= 4;
+    space(limitedPoa ? 45 : 80); text(section.title, true, 12); y -= 4;
     const rows = section.rows || [];
     for (let i = 0; i < rows.length; i++) {
       if (rows[i][1].length > 65 || rows[i][0].length > 46) { field(rows[i][0], rows[i][1]); continue; }
@@ -80,17 +92,30 @@ export async function cashSalePdf(id: string, input: Input) {
       field(rows[i][0], rows[i][1], undefined, 40, 258);
       if (rows[i + 1] && rows[i + 1][1].length <= 65 && rows[i + 1][0].length <= 46) { y = rowY; i++; field(rows[i][0], rows[i][1], undefined, 312, 258); }
     }
-    for (const paragraph of section.paragraphs || []) { text(paragraph); y -= 6; }
+    for (const paragraph of section.paragraphs || []) {
+      if (limitedPoa && paragraph.startsWith("[ ] ")) {
+        space(16);
+        form.createCheckBox(`poa_authority_${count++}`).addToPage(page, { x: 40, y: y - 1, width: 9, height: 9, borderWidth: 0.5 });
+        page.drawText(paragraph.slice(4), { x: 56, y, size: 9, font, color: ink });
+        y -= 16;
+      } else {
+        text(paragraph, false, limitedPoa ? 9 : 10);
+        y -= limitedPoa ? 1 : 6;
+      }
+    }
     y -= 8;
   }
   const needsSignatures = !["title-registration-application", "tax-fee-receipt"].includes(id);
   if (needsSignatures) {
-  space(input.facts.coBuyer ? 160 : 110);
+  space(limitedPoa ? 51 : input.facts.coBuyer ? 160 : 110);
   if (["sales-agreement", "binding-contract-disclosure"].includes(id)) { space(210); text(DISCLOSURE, true, 10); }
-  field(id === "odometer-disclosure" ? "Transferor / seller signature and date" : "Buyer / principal signature and date", "", "buyer_signature");
-  if (input.facts.coBuyer) field("Co-buyer / additional principal signature and date", "", "co_buyer_signature");
-  field(id === "odometer-disclosure" ? "Transferee / buyer signature and date" : "Dealer / agent signature and date", "", "dealer_signature");
-  if (id === "power-of-attorney") { space(180); text("Acknowledgment - complete only when required by the filing office", true); field("State / county / date / personally appeared", "", "notary_appearance"); field("Notary signature / commission expiration / seal", "", "notary_signature"); }
+  const signatureY = y;
+  field(id === "odometer-disclosure" ? "Transferor / seller signature and date" : "Buyer / principal signature and date", "", "buyer_signature", 40, limitedPoa ? 258 : 530);
+  if (limitedPoa) { y = signatureY; field("Additional owner signature and date", "", "co_buyer_signature", 312, 258); }
+  else {
+    if (input.facts.coBuyer) field("Co-buyer / additional principal signature and date", "", "co_buyer_signature");
+    field(id === "odometer-disclosure" ? "Transferee / buyer signature and date" : "Dealer / agent signature and date", "", "dealer_signature");
+  }
   }
   form.updateFieldAppearances(font);
   pdf.getPages().forEach((p, i) => p.drawText(`Page ${i + 1} of ${pdf.getPageCount()}`, { x: 510, y: 22, font, size: 8, color: muted }));

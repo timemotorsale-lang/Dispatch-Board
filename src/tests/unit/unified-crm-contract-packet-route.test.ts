@@ -399,6 +399,26 @@ describe("Unified CRM contract packet route", () => {
     expect(created.status).toBe(400);
     expect((await created.json()).error).toContain("positive target");
   });
+  it("discloses additional cash at signing in the summary and agreement without changing monthly payments", async () => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST",
+      body: JSON.stringify({
+        packetType: "LEASE_TO_OWN", dealerWarrantyOffered: false, preparedFormIds: ["w2-lease"],
+        leaseCalculator: { agreedPriceCents: 2000000, contractLength: 36, capitalizedCostReductionCents: 300000, securityDepositCents: 25000, otherUpfrontChargesCents: 1500 },
+        leaseFacts: { agreementDate: "2026-09-16" },
+        vehicle: { vin: "1NXBR32E85Z123456", recordedMileage: "50000", mileage: "50005" }
+      })
+    }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
+    expect(agreement.fieldValues.undefined_6).toBe("250.00");
+    expect(agreement.fieldValues.undefined_35).toBe("416.11");
+    expect(agreement.fieldValues["Odometer Reading"]).toBe("50005");
+    const pdf = await PDFDocument.load(Buffer.from(agreement.contentBase64, "base64"));
+    expect(pdf.getPageCount()).toBe(4);
+    expect(packet.documents[0].html).toContain("Other upfront charges</th><td>$15.00");
+  });
 
   it.each([
     ["Monthly", 12, "02/28/2026"],
@@ -487,8 +507,8 @@ describe("Unified CRM contract packet route", () => {
       "lease-engine-transmission-warranty-return"
     ]);
     expect(packet.documents.find((document: { formId: string }) => document.formId === "power-of-attorney")).toMatchObject({
-      contentType: "text/html",
-      label: "Power of attorney / title authority"
+      contentType: "application/pdf",
+      label: "Limited Motor Vehicle Power of Attorney"
     });
     expect(packet.documents.find((document: { formId: string }) => document.formId === "personal-references")).toMatchObject({
       contentType: "application/pdf",

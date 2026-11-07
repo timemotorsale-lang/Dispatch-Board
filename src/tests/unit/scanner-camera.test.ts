@@ -17,6 +17,34 @@ describe("scanner camera lifecycle", () => {
     expect(getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ audio: false, video: expect.objectContaining({ facingMode: { ideal: "environment" } }) }));
     session.stop();
     expect(stop).toHaveBeenCalledOnce();
+    expect(video.srcObject).toBeNull();
+  });
+  it("opens an explicitly selected camera", async () => {
+    const stream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;
+    const getUserMedia = vi.fn().mockResolvedValue(stream);
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+    const video = { srcObject: null, play: vi.fn().mockResolvedValue(undefined) } as unknown as HTMLVideoElement;
+    await createCameraSession().open(video, "environment", "rear-macro");
+    expect(getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: expect.objectContaining({ deviceId: { exact: "rear-macro" } }) }));
+  });
+  it("recovers from an unsupported camera constraint using an automatic camera", async () => {
+    const error = new Error("Unsupported");
+    error.name = "OverconstrainedError";
+    const stream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;
+    const getUserMedia = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(stream);
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+    const video = { srcObject: null, play: vi.fn().mockResolvedValue(undefined) } as unknown as HTMLVideoElement;
+    expect(await createCameraSession().open(video, "environment", "unavailable")).toBe(stream);
+    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: false, video: { facingMode: { ideal: "environment" } } });
+  });
+  it("does not retry a denied camera permission", async () => {
+    const error = new Error("Denied");
+    error.name = "NotAllowedError";
+    const getUserMedia = vi.fn().mockRejectedValue(error);
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+    const video = { srcObject: null, play: vi.fn() } as unknown as HTMLVideoElement;
+    await expect(createCameraSession().open(video, "environment")).rejects.toThrow("Denied");
+    expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
   it("releases a late permission result after the scanner was closed", async () => {
