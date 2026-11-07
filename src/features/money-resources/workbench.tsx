@@ -132,8 +132,8 @@ export function MoneyResourcesWorkbench({ vehicleId = "", repairOrderId = "", in
 function AccountSelect({ model, kind, excludeCard = false }: { model: MoneyResourcesModel; kind?: string; excludeCard?: boolean }) {
   return <label>Funding source<select name="accountId" aria-label="Funding source" required><option value="">Choose source</option>{model.accounts.filter(source => source.active && (!kind || source.kind === kind) && (!excludeCard || source.kind !== "CARD")).map(source => <option value={source.id} key={source.id}>{source.label}{source.lastFour ? ` · ${source.lastFour}` : ""}</option>)}</select></label>;
 }
-async function uploadReceipt(id: string, file: File) {
-  const data = new FormData(); data.set("file", file);
+async function uploadReceipt(id: string, file: File, readingJobId?:string) {
+  const data = new FormData(); if(readingJobId)data.set("readingJobId",readingJobId);else data.set("file", file);
   const response = await fetch(`/api/money-resources/${id}/receipt`, { method: "POST", body: data });
   const result = await response.json(); if (!response.ok) throw new Error(result.error || "Receipt upload failed; the spending record is still saved.");
 }
@@ -143,6 +143,7 @@ export function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { mod
   const [vehicle, setVehicle] = useState(vehicleId), [order, setOrder] = useState(repairOrderId), [busy, setBusy] = useState(false), [notice, setNotice] = useState(""), [failed, setFailed] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
   const [scannedReceipt,setScannedReceipt]=useState<File|null>(null);
+  const [receiptReadingJob,setReceiptReadingJob]=useState<string|undefined>();
   const [authorizationId, setAuthorizationId] = useState(""), [purchaseApprovalId, setPurchaseApprovalId] = useState(""), [vendorId, setVendorId] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
   const policy = model.authorizations.find(item => item.id === authorizationId);
@@ -168,7 +169,7 @@ export function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { mod
       const result = await save({ ...fields, action: "RECORD", paymentMethod: method, accountId: sourceId, vehicleId: vehicle, repairOrderId: order, vendorId, authorizationId, purchaseApprovalId }); id = result.id;
       const chosenFile = data.get("receipt");
       const file = chosenFile instanceof File&&chosenFile.size?chosenFile:scannedReceipt;
-      if (id && file instanceof File && file.size) await uploadReceipt(id, file);
+      if (id && file instanceof File && file.size) await uploadReceipt(id, file,chosenFile instanceof File&&chosenFile.size?undefined:receiptReadingJob);
       await onSaved(); setNotice(file instanceof File && file.size ? "Spending and receipt saved for review." : "Spending saved. Receipt pending; add it later from My spending.");
       if (addAnother) { form.reset(); setScannedReceipt(null); setPurchaseApprovalId(""); resetSave(); }
     } catch (error) { setFailed(true); setNotice(`${id ? "Spending is saved; receipt or refresh needs attention. " : ""}${error instanceof Error ? error.message : "Try again. Your entries are still here."}`); }
@@ -182,7 +183,7 @@ export function SpendingForm({ model, vehicleId, repairOrderId, onSaved }: { mod
       if(!applyReadingToForm(formRef.current,fields,{amount:"amount",businessDate:"businessDate",merchant:"merchant",category:"category",reference:"reference"}))return;
       const vendors=model.vendors.filter(v=>v.name.trim().toLowerCase()===fields.merchant?.trim().toLowerCase());
       if(vendors.length===1&&(!vendorId||vendorId===vendors[0].id||window.confirm("Replace the selected vendor with the exact merchant-name match?")))setVendorId(vendors[0].id);
-      setScannedReceipt(file);resetSave();setNotice("Receipt information prepared. Verify funding, purpose and any vehicle links, then save spending.");
+      setReceiptReadingJob(_reading.jobId);setScannedReceipt(file);resetSave();setNotice("Receipt information prepared. Verify funding, purpose and any vehicle links, then save spending.");
     }}/>
     {scannedReceipt&&<p>Reviewed receipt ready to attach: {scannedReceipt.name}. It will be saved with the expense.</p>}
     <form ref={formRef} className={styles.form} onSubmit={event => void submit(event)}>

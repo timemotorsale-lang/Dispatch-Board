@@ -14,9 +14,9 @@ export const DOCUMENT_READING_PROFILES = {
 } as const;
 export type DocumentReadingPurpose=keyof typeof DOCUMENT_READING_PROFILES;
 export type ReadField={key:string;label:string;value:string;page:number;source:string;alternatives?:string[]};
-export type ReadLine={partNumber:string;description:string;quantity:string;unitCost:string;amount:string;page:number};
+export type ReadLine={partNumber:string;description:string;quantity:string;unitCost:string;amount:string;page:number;source?:string};
 export type ReadPage={page:number;text:string;method:string};
-export type DocumentReading={purpose:DocumentReadingPurpose;fileName:string;checksum:string;pageCount:number;pagesRead:number;fields:ReadField[];lines:ReadLine[];warnings:string[];needsReview:true;duplicateMatches?:Array<{label:string;href:string}>};
+export type DocumentReading={purpose:DocumentReadingPurpose;fileName:string;checksum:string;pageCount:number;pagesRead:number;fields:ReadField[];lines:ReadLine[];warnings:string[];needsReview:true;duplicateMatches?:Array<{label:string;href:string}>;jobId?:string;originalDocumentId?:string};
 export function isDocumentReadingPurpose(value:unknown):value is DocumentReadingPurpose{return typeof value==="string"&&Object.hasOwn(DOCUMENT_READING_PROFILES,value);}
 export function documentReadingPurposeFromText(text:string):DocumentReadingPurpose|null{
  if(/\b(?:packing slip|part number|parts invoice)\b/i.test(text))return "PARTS";
@@ -76,12 +76,12 @@ export function parseDocumentReading(purpose:DocumentReadingPurpose,pages:ReadPa
  }
  if(purpose==="PARTS")for(const page of pages)for(const row of page.text.split(/\n/)){
   const m=row.trim().match(/^([A-Z0-9][A-Z0-9-]{2,})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})$/i);
-  if(m){const qty=Number(m[3]),unit=money(m[4]),amount=money(m[5]);if(Math.round(qty*Number(unit)*100)!==Math.round(Number(amount)*100)){warnings.push(`Part ${m[1]} has conflicting quantity, unit cost and total.`);continue;}lines.push({partNumber:m[1],description:m[2],quantity:m[3],unitCost:unit,amount,page:page.page});}
+  if(m){const qty=Number(m[3]),unit=money(m[4]),amount=money(m[5]);if(Math.round(qty*Number(unit)*100)!==Math.round(Number(amount)*100)){warnings.push(`Part ${m[1]} has conflicting quantity, unit cost and total.`);continue;}lines.push({partNumber:m[1],description:m[2],quantity:m[3],unitCost:unit,amount,page:page.page,source:row.trim()});}
  }
  if(purpose==="STATEMENT"){
   for(const page of pages)for(const row of page.text.split(/\n/)){
    const m=row.trim().match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})(?:\s+(CR|DR))?$/i);
-   if(m&&date(m[1])){const value=money(m[3].replace(/^-/,'').replace('$',''));lines.push({partNumber:"",description:m[2],quantity:"1",unitCost:date(m[1]),amount:(m[3].startsWith('-')||m[4]?.toUpperCase()==="CR"?"-":"")+value,page:page.page});}
+   if(m&&date(m[1])){const value=money(m[3].replace(/^-/,'').replace('$',''));lines.push({partNumber:"",description:m[2],quantity:"1",unitCost:date(m[1]),amount:(m[3].startsWith('-')||m[4]?.toUpperCase()==="CR"?"-":"")+value,page:page.page,source:row.trim()});}
   }warnings.push("Statement rows require date, debit/credit direction, account and duplicate review. They are not new expenses or recorded payments.");
  }
  if(purpose==="BUSINESS_CARD"){

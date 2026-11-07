@@ -6,6 +6,29 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { moneyAccess } from "./service";
 import { MoneyError } from "@/lib/money-resources";
+import {scopedReadingJob,readJobOriginal} from "@/server/document-library/reading-jobs";
+import type {SavedDocumentReview} from "@/lib/document-reading-review";
+
+export async function attachReadingReceipt(actor:AuthenticatedUser|null,entryId:string,jobId:string){
+ const {access,entry}=await moneyReceipt(actor,entryId),job=await scopedReadingJob(actor,jobId);
+ if(job.purpose!=="EXPENSE"||job.status!=="READY"||!(job.review as SavedDocumentReview|null)?.confirmed)throw new MoneyError("Finish reviewing this spending receipt first.");
+ if(entry.kind!=="EXPENSE"||entry.reconciledAt||entry.approvalStatus==="SUPERSEDED")throw new MoneyError("Attach receipts to the current unreconciled purchase.");
+ await readJobOriginal(actor,jobId); // Verify retained bytes before linking the same original.
+ return prisma.$transaction(async tx=>{
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`money:${access.organizationId}`}))`;
+  const current=await tx.moneyEntry.findUniqueOrThrow({where:{id:entryId}});
+  if(current.version!==entry.version)throw new MoneyError("This spending changed. Refresh and review it before attaching.",409);
+  const duplicate=await tx.moneyEntry.findFirst({where:{organizationId:access.organizationId,id:{not:entryId},kind:"EXPENSE",approvalStatus:{not:"SUPERSEDED"},receiptDocument:{checksumSha256:job.checksumSha256}},select:{id:true}});
+  if(duplicate)throw new MoneyError("This receipt is already attached to spending. Ask management to review the existing record.",409);
+  if(current.receiptDocumentId===job.originalDocumentId)return {documentId:job.originalDocumentId,duplicate:true};
+  await tx.moneyEntry.update({where:{id:entryId},data:{receiptDocumentId:job.originalDocumentId,approvalStatus:"PENDING",reviewedById:null,version:{increment:1}}});
+  await tx.documentLibraryDocument.update({where:{id:job.originalDocumentId},data:{retentionCategory:"FINANCIAL_RECORD"}});
+  await tx.moneyAudit.create({data:{organizationId:access.organizationId,actorUserId:access.actor.id,action:"ATTACH_RECEIPT",subjectId:entryId,idempotencyKey:`reading-receipt:${entryId}:${job.id}`,requestHash:job.checksumSha256,details:{previousDocumentId:entry.receiptDocumentId,documentId:job.originalDocumentId,readingJobId:job.id},result:{documentId:job.originalDocumentId}}});
+  await tx.documentReadingEvent.create({data:{jobId:job.id,actorId:access.actor.id,action:"LINKED_TO_SPENDING",detail:{entryId,documentId:job.originalDocumentId}}});
+  await tx.documentLibraryAuditEvent.create({data:{organizationId:access.organizationId,documentId:job.originalDocumentId,subjectType:"DOCUMENT",subjectId:job.originalDocumentId,action:"EXPENSE_RECEIPT_ATTACHED",note:"Retained reading original linked to the scoped spending record.",actorUserId:access.actor.id,idempotencyKey:`reading-receipt:${entryId}:${job.id}`,metadata:{moneyEntryId:entryId,readingJobId:job.id}}});
+  return {documentId:job.originalDocumentId};
+ });
+}
 
 export async function moneyReceipt(actor: AuthenticatedUser | null, entryId: string) {
   const access = await moneyAccess(actor);

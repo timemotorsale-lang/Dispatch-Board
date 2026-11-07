@@ -3402,6 +3402,7 @@ model DocumentLibraryDocument {
   updatedAt              DateTime                           @updatedAt
   auditEvents            DocumentLibraryAuditEvent[]
   smartIntakeRecords     DocumentSmartIntakeRecord[]
+  readingJobs            DocumentReadingJob[]
   packetLinks            DocumentLibraryPacketDocument[]
   providerReferences     DocumentLibraryProviderReference[]
   versions               DocumentLibraryObjectVersion[]
@@ -3411,6 +3412,58 @@ model DocumentLibraryDocument {
   @@index([organizationId, legalHold, status])
   @@index([organizationId, updatedAt])
   @@index([storageProvider, storageReference])
+}
+
+model DocumentReadingJob {
+  id                 String @id @default(cuid())
+  organizationId     String
+  createdByUserId    String
+  purpose            String
+  checksumSha256     String
+  originalDocumentId String
+  fileName           String
+  contentType        String
+  pageCount          Int
+  status             String @default("QUEUED")
+  leaseToken         String?
+  leaseExpiresAt     DateTime?
+  attempts           Int @default(0)
+  lastError          String?
+  reading            Json?
+  review             Json?
+  reviewVersion      Int @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  completedAt        DateTime?
+  originalDocument   DocumentLibraryDocument @relation(fields: [originalDocumentId], references: [id], onDelete: Restrict)
+  pages              DocumentReadingPage[]
+  events             DocumentReadingEvent[]
+  @@unique([organizationId, createdByUserId, purpose, checksumSha256], map: "DocumentReadingJob_dedup_key")
+  @@index([organizationId, createdByUserId, purpose, updatedAt], map: "DocumentReadingJob_owner_idx")
+  @@index([status, leaseExpiresAt], map: "DocumentReadingJob_queue_idx")
+}
+
+model DocumentReadingPage {
+  id               String @id @default(cuid())
+  jobId            String
+  page             Int
+  text             String
+  method           String
+  warnings         Json
+  createdAt        DateTime @default(now())
+  job              DocumentReadingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@unique([jobId, page])
+}
+
+model DocumentReadingEvent {
+  id        String @id @default(cuid())
+  jobId     String
+  actorId   String
+  action    String
+  detail    Json
+  createdAt DateTime @default(now())
+  job       DocumentReadingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@index([jobId, createdAt])
 }
 
 model DocumentSmartIntakeRecord {
