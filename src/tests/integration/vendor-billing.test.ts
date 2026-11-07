@@ -8,7 +8,7 @@ import { createVendorRepository } from "@/server/vendors/vendor-repository";
 import { openVendorInvoiceBatch, recordVendorWorkJob, getVendorInvoiceBatchJobs } from "@/server/vendors/vendor-service";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { processVendorInvoicePacket } from "@/server/vendors/invoice-batch-service";
+import { processVendorInvoicePacket, receiveVendorInvoiceUpload } from "@/server/vendors/invoice-batch-service";
 
 const enabled=process.env.RUN_VENDOR_BILLING_DATABASE==="1";
 const org="org-time-motor-sales",today=chicagoDate(),first=today.slice(0,7)+"-01";
@@ -23,6 +23,23 @@ async function draft(vendorId:string,direction="RECEIVABLE",amount="1000",extra:
 async function post(vendorId:string,documentId:string,version=1){return command(vendorId,"POST_DOCUMENT",{documentId,version,reason:"Verified source and approved"});}
 
 describe.skipIf(!enabled)("vendor billing isolated PostgreSQL workflows",()=>{
+ it("prepares intake without a batch, reuses identical uploads, then atomically creates the reviewed batch/job/bill",async()=>{
+  const v=await partner(),pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica),page=pdf.addPage();
+  ["Invoice #: AUTO-100","Invoice Date: 2026-11-07","2020 TOYOTA CAMRY","Engine repair 100.00","Subtotal 100.00","Tax 8.00","Total 108.00"].forEach((text,index)=>page.drawText(text,{x:40,y:740-index*40,font,size:18}));
+  const bytes=await pdf.save(),file=new File([Uint8Array.from(bytes).buffer],"intake.pdf",{type:"application/pdf"});
+  const source=await receiveVendorInvoiceUpload(actor,v.id,file),again=await receiveVendorInvoiceUpload(actor,v.id,new File([Uint8Array.from(bytes).buffer],"renamed.pdf",{type:"application/pdf"}));
+  expect(again.id).toBe(source.id);expect(again.reused).toBe(true);expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(1);
+  const preview=await processVendorInvoicePacket(actor,v.id,{documentId:source.id,batchId:""}) as {groups:Array<{scan:{number:string;workTicketProposal:unknown}}>};expect(preview.groups[0].scan.number).toBe("AUTO-100");expect(preview.groups[0].scan.workTicketProposal).toBeTruthy();
+  expect(await prisma.vendorInvoiceBatch.count({where:{vendorId:v.id}})).toBe(0);expect(await prisma.vendorWorkJob.count({where:{vendorId:v.id}})).toBe(0);
+  const review={documentId:source.id,batchId:"",autoCreateBatch:true,pages:[1],pagesConfirmed:true,reviewed:true,commandKey:randomUUID(),number:"AUTO-100",title:"Engine repair",issueDate:"2026-11-07",dueDate:"2026-11-07",tax:"8.00",scannedTotal:"108.00",paymentTermsBasis:"REVIEW_POLICY",workTicketProposal:preview.groups[0].scan.workTicketProposal,lines:[{description:"Engine repair",amount:"100.00",workJobId:"__NEW_INVOICE_JOB__"}]};
+  let model=await processVendorInvoicePacket(actor,v.id,review,true) as Awaited<ReturnType<typeof readVendorBilling>>;
+  expect(model.documents[0]).toMatchObject({status:"DRAFT",amountCents:10800});expect(model.documents[0].batchId).toBeTruthy();expect(model.jobs).toHaveLength(1);expect(model.jobs[0]).toMatchObject({vehicle:"2020 TOYOTA CAMRY",amountCents:10000,status:"BATCHED",review:undefined});expect(model.documents[0].lines[0].workJobId).toBe(model.jobs[0].id);
+  model=await processVendorInvoicePacket(actor,v.id,review,true) as typeof model;expect(model.jobs).toHaveLength(1);expect(await prisma.vendorInvoiceBatch.count({where:{vendorId:v.id}})).toBe(1);
+  await expect(post(v.id,model.documents[0].id,model.documents[0].version)).rejects.toThrow("Review the approved amount");
+  const other=await partner(),otherSource=await receiveVendorInvoiceUpload(actor,other.id,file);
+  await expect(processVendorInvoicePacket(actor,other.id,{...review,documentId:otherSource.id,commandKey:randomUUID(),number:"ROLLBACK",tax:"7.00"},true)).rejects.toThrow("must match");
+  expect(await prisma.vendorInvoiceBatch.count({where:{vendorId:other.id}})).toBe(0);expect(await prisma.vendorWorkJob.count({where:{vendorId:other.id}})).toBe(0);
+ });
  it("applies original invoice pages to a batch atomically, survives retry, and preserves the link through draft edits",async()=>{
   const v=await partner(),batch=await prisma.vendorInvoiceBatch.create({data:{organizationId:org,vendorId:v.id,batchNumber:randomUUID(),title:"Synthetic invoice import",createdByUserId:actor.id}});
   const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);for(const number of ["A-100","B-200"]){const page=pdf.addPage();page.drawText(`Invoice #: ${number}`,{x:40,y:700,font,size:20});}

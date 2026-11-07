@@ -15,7 +15,7 @@ describe("vendor invoice scan suggestions",()=>{
  it("extracts cents, dates and exact work / batch matches with reconciled lines",()=>{
   const scan=parseVendorInvoice(invoice,"Example Repair LLC",jobs);
   expect(scan).toMatchObject({number:"INV-123",issueDate:"2026-11-06",dueDate:"2026-12-06",total:"160.25",tax:"10.25",batchId:"batch-1",vendorDetected:true});
-  expect(scan.lines).toEqual([{description:"JOB-0012 Repair labor",amount:"100.00",workJobId:"job-1"},{description:"Parts",amount:"50.00",workJobId:""}]);
+  expect(scan.lines).toEqual([{description:"JOB-0012 Repair labor",amount:"100.00",workJobId:"job-1"},{description:"Parts",amount:"50.00",workJobId:"job-1"}]);
  });
  it("does not use balance due, estimates or missing tax to invent invoice values",()=>{
   const scan=parseVendorInvoice("Invoice No: A-100\nBalance Due 50.00\nRepair 200.00\nInvoice Date: 02/30/2026","Other vendor",jobs);

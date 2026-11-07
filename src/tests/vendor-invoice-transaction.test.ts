@@ -15,6 +15,7 @@ beforeEach(()=>{vi.resetAllMocks();mocks.db.vendor.findFirst.mockResolvedValue({
  mocks.db.vendorInvoiceBatch.findFirst.mockResolvedValue({id:"batch-1"});mocks.db.vendorDocument.findMany.mockResolvedValue([]);mocks.db.vendorWorkJob.findFirst.mockResolvedValue({id:"job-1"});
 });
 describe("scanned invoice transaction",()=>{
+ it("requires separate verification before using a calculated tax candidate",async()=>{await expect(commandVendorBilling(user,"vendor-1",{...fields,taxBasis:"CALCULATED_REVIEW",calculatedTaxConfirmed:false},source)).rejects.toThrow("Verify the calculated tax");expect(mocks.db.vendorDocument.create).not.toHaveBeenCalled();});
  it("writes the original and received draft together and audits the source reference",async()=>{
   await expect(commandVendorBilling(user,"vendor-1",fields,source)).rejects.toThrow("TRANSACTION_OBSERVED");
   expect(mocks.db.vendorDocument.create).toHaveBeenCalledWith({data:expect.objectContaining({vendorId:"vendor-1",uploadedByUserId:"staff-1",documentType:"BILL_STATEMENT",fileData:Buffer.from(source.bytes)})});

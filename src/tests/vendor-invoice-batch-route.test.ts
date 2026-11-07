@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks=vi.hoisted(()=>({user:vi.fn(),process:vi.fn()}));
+const mocks=vi.hoisted(()=>({user:vi.fn(),process:vi.fn(),receive:vi.fn()}));
 vi.mock("@/server/auth/current-user",()=>({getCurrentUser:mocks.user}));
-vi.mock("@/server/vendors/invoice-batch-service",()=>({processVendorInvoicePacket:mocks.process}));
+vi.mock("@/server/vendors/invoice-batch-service",()=>({processVendorInvoicePacket:mocks.process,receiveVendorInvoiceUpload:mocks.receive}));
 import { POST, PUT } from "@/app/api/vendors/[vendorId]/invoice-batch/route";
 import { VendorBillingError } from "@/lib/vendor-billing";
 const context={params:Promise.resolve({vendorId:"vendor-1"})};
 const request=(raw:unknown,method="POST",headers:Record<string,string>={})=>new Request("http://localhost/api/vendors/vendor-1/invoice-batch",{method,headers:{"Content-Type":"application/json",...headers},body:JSON.stringify(raw)});
 beforeEach(()=>{vi.resetAllMocks();mocks.user.mockResolvedValue({id:"staff"});mocks.process.mockResolvedValue({pages:[],saved:true});});
 describe("uploaded invoice batch route",()=>{
+ it("receives an upload and immediately prepares it for review without requiring an existing batch",async()=>{mocks.receive.mockResolvedValue({id:"received-1",fileName:"invoice.png",reused:true});const body=new FormData();body.set("file",new File(["image"],"invoice.png",{type:"image/png"}));const response=await POST(new Request("http://localhost/api/vendors/vendor-1/invoice-batch",{method:"POST",body}),context);expect(response.status).toBe(200);expect(mocks.process).toHaveBeenCalledWith({id:"staff"},"vendor-1",{documentId:"received-1",batchId:""});expect((await response.json()).source.reused).toBe(true);});
  it("rejects cross-site and malformed origins before processing",async()=>{for(const headers of [{origin:"https://foreign.test"},{origin:"not a URL"},{"sec-fetch-site":"cross-site"}])expect((await POST(request({},"POST",headers),context)).status).toBe(403);expect(mocks.process).not.toHaveBeenCalled();});
  it("requires authentication",async()=>{mocks.user.mockResolvedValue(null);expect((await POST(request({}),context)).status).toBe(401);expect(mocks.process).not.toHaveBeenCalled();});
  it("keeps preview separate from apply, with private responses",async()=>{const raw={documentId:"document-1",batchId:"batch-1"};const response=await POST(request(raw),context);expect(mocks.process).toHaveBeenLastCalledWith({id:"staff"},"vendor-1",raw,false);expect(response.headers.get("cache-control")).toBe("private, no-store");await PUT(request({...raw,reviewed:true},"PUT"),context);expect(mocks.process).toHaveBeenLastCalledWith({id:"staff"},"vendor-1",{...raw,reviewed:true},true);});

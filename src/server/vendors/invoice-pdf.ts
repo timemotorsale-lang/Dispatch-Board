@@ -2,6 +2,13 @@ import { PDFDocument } from "pdf-lib";
 import { extractDocumentText } from "@/server/document-library/text-extraction";
 import { MAX_INVOICE_BATCH_PAGES, type InvoicePage } from "@/lib/vendor-invoice-batch";
 import { VendorBillingError } from "@/lib/vendor-billing";
+import { parseVendorInvoice } from "@/lib/vendor-invoice-scan";
+export async function invoiceDocumentPdf(bytes:Uint8Array) {
+  if(Buffer.from(bytes.subarray(0,5)).toString()==="%PDF-")return bytes;
+  const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255,png=Buffer.from(bytes.subarray(0,8)).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  if(!jpeg&&!png)throw new VendorBillingError("Choose a PDF, JPEG or PNG invoice.");
+  try{const pdf=await PDFDocument.create({updateMetadata:false}),image=jpeg?await pdf.embedJpg(bytes):await pdf.embedPng(bytes);pdf.addPage([image.width,image.height]).drawImage(image,{x:0,y:0,width:image.width,height:image.height});return await pdf.save();}catch{throw new VendorBillingError("This invoice image could not be read. Choose a clear photo or PDF.");}
+}
 
 export async function loadInvoicePdf(bytes:Uint8Array) {
   let pdf:PDFDocument;
@@ -19,7 +26,16 @@ export async function readInvoicePdfPages(bytes:Uint8Array,extract=extractDocume
   const pdf=await loadInvoicePdf(bytes),pages:InvoicePage[]=[];
   for(let page=1;page<=pdf.getPageCount();page++){
     // Each extraction contains exactly one page: the shared OCR page cap cannot truncate this packet.
-    const result=await extract({bytes:await invoicePdfSubset(pdf,[page]),contentType:"application/pdf",fileName:`invoice-page-${page}.pdf`});
+    const input={bytes:await invoicePdfSubset(pdf,[page]),contentType:"application/pdf",fileName:`invoice-page-${page}.pdf`};
+    let result=await extract(input);
+    if(extract===extractDocumentText&&result.method==="OCR_TEXT"){
+      const scan=parseVendorInvoice(result.text,"");
+      if(!scan.number||!scan.tax||!scan.total||!scan.issueDate){
+        const retry=await extractDocumentText(input,{pdfOcrDpi:320});
+        const score=(text:string)=>{const s=parseVendorInvoice(text,"");return [s.number,s.tax,s.total,s.issueDate].filter(Boolean).length+(s.lines.length?2:0);};
+        if(score(retry.text)>score(result.text))result=retry;
+      }
+    }
     pages.push({page,text:result.text,readable:Boolean(result.text.trim())});
   }
   return pages;

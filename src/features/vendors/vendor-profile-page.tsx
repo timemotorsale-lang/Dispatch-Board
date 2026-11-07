@@ -669,7 +669,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
                   <span>
                     <strong>{document.title}</strong>
                     <small>{document.documentType.replaceAll("_", " ")} · {formatFileSize(document.fileSizeBytes)} · {formatDateTime(document.createdAt)}</small>
-                    {(document.contentType==="application/pdf"||/\.pdf$/i.test(document.fileName))&&<button type="button" onClick={()=>invoiceIntake.current?.process({id:document.id,fileName:document.fileName})}>Process into batch</button>}
+                    {(["application/pdf","image/jpeg","image/png"].includes(document.contentType)||/\.(pdf|png|jpe?g)$/i.test(document.fileName))&&<button type="button" onClick={()=>invoiceIntake.current?.process({id:document.id,fileName:document.fileName})}>Process into batch</button>}
                   </span>
                   <span className="vendor-document-actions">
                     <a aria-label={`View ${document.title}`} href={document.viewHref} target="_blank" rel="noreferrer"><Eye size={16} /></a>
