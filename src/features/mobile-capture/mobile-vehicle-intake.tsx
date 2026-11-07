@@ -21,7 +21,7 @@ export function MobileVehicleIntake({ options, initialVin = "", returnTo = MOBIL
   const [identity, setIdentity] = useState<{ vin: string; year: string; make: string; model: string } | null>(null);
   const [existing, setExisting] = useState<CompactInventoryIntakeContext | null>(null);
   const [locationId, setLocationId] = useState(options.locations.length === 1 ? options.locations[0].id : "");
-  const [ownerUserId, setOwnerUserId] = useState(options.users[0]?.id ?? "");
+  const [ownerUserId, setOwnerUserId] = useState(options.users.length === 1 ? options.users[0].id : "");
   const [source, setSource] = useState("");
   const [acquiredOn, setAcquiredOn] = useState("");
   const [whereabouts, setWhereabouts] = useState("");

@@ -23,6 +23,7 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnT
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [reviewed, setReviewed] = useState(false);
+  const [captureSource, setCaptureSource] = useState(initialFields ? "Reviewed capture" : "Manual entry");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<CustomerReceipt | null>(null);
@@ -38,9 +39,13 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnT
     }).catch(() => { if (!cancelled) setOptionsState("ERROR"); });
     return () => { cancelled = true; };
   }, [retry]);
-  useEffect(() => { if (step === "CONTACT") contactHeading.current?.focus(); }, [step]);
+  useEffect(() => {
+    if (step === "CONTACT") contactHeading.current?.focus();
+    else setCaptureSource("Manual entry");
+  }, [step]);
 
-  function applyFields(next: FrontIdFields) {
+  function applyFields(next: FrontIdFields, source: string) {
+    setCaptureSource(source);
     setFields({ ...next, dateOfBirth: customerDate(next.dateOfBirth) }); setReviewed(false); setScanner(null); setError(""); setStep("CONTACT");
   }
   function update(name: keyof FrontIdFields, value: string) { setFields((previous) => ({ ...previous, [name]: value })); setReviewed(false); }
@@ -69,7 +74,10 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnT
     {receipt ? <div className={styles.card} role="status"><h2>{receipt.customer.displayName}</h2><p>{receipt.duplicate ? "A record with this phone or email already exists. No duplicate was created and the existing ID details were not overwritten. Review the record before using it." : "Customer details saved. You can continue in the customer record."}</p><Link className={styles.primary} href={`/crm-next/customers/${encodeURIComponent(receipt.customer.id)}`}>Review customer record</Link><button type="button" onClick={() => { setReceipt(null); setStep("SCAN"); setReviewed(false); setError(""); }}>Add another customer</button></div> : <>
       {step === "SCAN" ? <div className={styles.card}><h2>Start with an ID</h2><p>Scan the back barcode for the quickest entry, or photograph the front. You’ll review the result before adding contact details.</p><button className={styles.primary} type="button" onClick={() => setScanner("BACK")}>Scan ID barcode</button><button className={styles.primary} type="button" onClick={() => setScanner("FRONT")}>Photograph ID front / back</button><div className={styles.actions}><button type="button" onClick={() => setStep("CONTACT")}>Enter details manually</button></div><p className={styles.hint}>Only reviewed information is saved. ID images are not attached by this customer flow. Scanning does not verify identity or grant messaging consent.</p></div> : <form onSubmit={save}>
         <fieldset disabled={busy} aria-busy={busy}>
-          <div className={styles.card}><h2 ref={contactHeading} tabIndex={-1}>How can we reach them?</h2><p>Add a phone number or email. Scanned information is already filled in.</p>
+          <div className={styles.card}><h2 ref={contactHeading} tabIndex={-1}>Review customer &amp; add contact</h2>
+            <p className={styles.steps}>{captureSource}</p>
+            <p>{fields.fullName ? "Check the captured name, then add a phone number or email." : "Enter the customer name and a phone number or email."}</p>
+            <div className={styles.actions}><button type="button" onClick={() => setScanner("BACK")}>Rescan ID barcode</button><button type="button" onClick={() => setScanner("FRONT")}>Read ID photo</button></div>
             <label htmlFor={`${prefix}-phone`}>Phone number<input id={`${prefix}-phone`} ref={phoneRef} type="tel" autoComplete="tel" value={phone} maxLength={50} onChange={(event) => { setPhone(event.target.value); setReviewed(false); }} /></label>
             <label htmlFor={`${prefix}-email`}>Email address<input id={`${prefix}-email`} type="email" autoComplete="email" value={email} maxLength={200} onChange={(event) => { setEmail(event.target.value); setReviewed(false); }} /></label>
             <label htmlFor={`${prefix}-name`}>Full name<input id={`${prefix}-name`} required maxLength={160} autoComplete="name" value={fields.fullName} onChange={(event) => update("fullName", event.target.value)} /></label>
@@ -90,7 +98,7 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnT
       {optionsState === "ERROR" ? <p className={styles.error} role="alert">Locations could not load. <button type="button" onClick={() => { setOptionsState("LOADING"); setRetry((previous) => previous + 1); }}>Retry locations</button></p> : optionsState === "READY" && !locations.length ? <p className={styles.error} role="alert">Your account does not have customer-creation access at any location. Ask your manager for access; scanning remains available.</p> : null}
     </>}
     {error ? <p className={styles.error} role="alert">{error}</p> : null}
-    {scanner === "BACK" ? <BarcodeScanner idOnly onClose={() => setScanner(null)} onConfirm={(result) => { const scanned = customerFieldsFromBarcode(result.value); if (scanned) applyFields(scanned); else { setScanner(null); setError("This barcode did not contain supported ID details. Try the ID photo or enter details manually."); } }} /> : null}
-    {scanner === "FRONT" ? <IdFrontCapture onClose={() => setScanner(null)} onComplete={(_file, scanned, mismatch) => { applyFields(mismatch ? emptyIdFields() : scanned); if (mismatch) setError("The ID sides disagree. Captured identity details were not applied. Enter only identity details you can verify manually."); }} /> : null}
+    {scanner === "BACK" ? <BarcodeScanner idOnly onClose={() => setScanner(null)} onConfirm={(result) => { const scanned = customerFieldsFromBarcode(result.value); if (scanned) applyFields(scanned, "ID barcode · review required"); else { setScanner(null); setError("This barcode did not contain supported ID details. Try the ID photo or enter details manually."); } }} /> : null}
+    {scanner === "FRONT" ? <IdFrontCapture onClose={() => setScanner(null)} onComplete={(_file, scanned, mismatch) => { if (mismatch) { setScanner(null); setError("The ID sides disagree. Your current entries were retained. Rescan the matching card or verify the details manually."); return; } applyFields(scanned, "ID photo · review required"); }} /> : null}
   </section>;
 }
