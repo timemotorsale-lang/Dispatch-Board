@@ -41,7 +41,6 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnT
   }, [retry]);
   useEffect(() => {
     if (step === "CONTACT") contactHeading.current?.focus();
-    else setCaptureSource("Manual entry");
   }, [step]);
 
   function applyFields(next: FrontIdFields, source: string) {
@@ -71,7 +70,7 @@ export function MobileCustomerIntake({ initialFields, onCancel, onSaved, returnT
     <nav className={styles.nav}><Link href={returnTo}>{returnTo === MOBILE_HOME_HREF ? "← Mobile home" : "← Return to previous screen"}</Link>{onCancel ? <button type="button" disabled={busy} onClick={onCancel}>Back to capture</button> : null}</nav>
     <p className={styles.steps}>{receipt ? "Complete" : step === "SCAN" ? "1 · Capture ID" : "2 · Contact & confirm"}</p>
     <h1>{receipt ? receipt.duplicate ? "Existing customer found" : "Customer added" : "Add customer"}</h1>
-    {receipt ? <div className={styles.card} role="status"><h2>{receipt.customer.displayName}</h2><p>{receipt.duplicate ? "A record with this phone or email already exists. No duplicate was created and the existing ID details were not overwritten. Review the record before using it." : "Customer details saved. You can continue in the customer record."}</p><Link className={styles.primary} href={`/crm-next/customers/${encodeURIComponent(receipt.customer.id)}`}>Review customer record</Link><button type="button" onClick={() => { setReceipt(null); setStep("SCAN"); setReviewed(false); setError(""); }}>Add another customer</button></div> : <>
+    {receipt ? <div className={styles.card} role="status"><h2>{receipt.customer.displayName}</h2><p>{receipt.duplicate ? "A record with this phone or email already exists. No duplicate was created and the existing ID details were not overwritten. Review the record before using it." : "Customer details saved. You can continue in the customer record."}</p><Link className={styles.primary} href={`/crm-next/customers/${encodeURIComponent(receipt.customer.id)}`}>Review customer record</Link><button type="button" onClick={() => { setReceipt(null); setCaptureSource("Manual entry"); setStep("SCAN"); setReviewed(false); setError(""); }}>Add another customer</button></div> : <>
       {step === "SCAN" ? <div className={styles.card}><h2>Start with an ID</h2><p>Scan the back barcode for the quickest entry, or photograph the front. You’ll review the result before adding contact details.</p><button className={styles.primary} type="button" onClick={() => setScanner("BACK")}>Scan ID barcode</button><button className={styles.primary} type="button" onClick={() => setScanner("FRONT")}>Photograph ID front / back</button><div className={styles.actions}><button type="button" onClick={() => setStep("CONTACT")}>Enter details manually</button></div><p className={styles.hint}>Only reviewed information is saved. ID images are not attached by this customer flow. Scanning does not verify identity or grant messaging consent.</p></div> : <form onSubmit={save}>
         <fieldset disabled={busy} aria-busy={busy}>
           <div className={styles.card}><h2 ref={contactHeading} tabIndex={-1}>Review customer &amp; add contact</h2>
