@@ -178,6 +178,7 @@ jobs:
           fi
           compose up -d --remove-orphans
           compose ps
+          compose exec -T document-reader node deploy/docker/scripts/verify-document-reader.mjs </dev/null
           review_container="$(compose ps -q website-preview)"
           test -n "$review_container" || fail_preflight "private website preview container is missing."
           for attempt in {1..30}; do

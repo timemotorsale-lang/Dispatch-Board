@@ -5,6 +5,7 @@ import {isManager} from "@/server/policies/access";
 import {moneyAccess} from "@/server/money-resources/service";
 import {readStructuredDocument} from "@/server/document-library/read-document";
 import {isDocumentReadingPurpose} from "@/lib/document-reading";
+import {checkReadingRequest,readingFailure} from "@/server/document-library/reading-http";
 export const runtime="nodejs";
 export const maxDuration=300;
 const headers={"Cache-Control":"no-store","Pragma":"no-cache"};
@@ -12,8 +13,7 @@ const activeReaders=new Set<string>();
 export async function POST(request:Request){
  const user=await getCurrentUser();if(!user)return NextResponse.json({error:"Sign in to read documents."},{status:401,headers});
  if(!user.isActive)return NextResponse.json({error:"An active account is required."},{status:403,headers});
- if(request.headers.get("origin")&&request.headers.get("origin")!==new URL(request.url).origin)return NextResponse.json({error:"Open document reading from this app."},{status:403,headers});
- if(Number(request.headers.get("content-length"))>25*1024*1024+65536)return NextResponse.json({error:"Use a file under 25 MB."},{status:413,headers});
+ try{checkReadingRequest(request);}catch(error){return readingFailure(error);}
  try{
   const form=await request.formData(),purpose=form.get("purpose"),file=form.get("file");
   if(!isDocumentReadingPurpose(purpose)||!(file instanceof File))return NextResponse.json({error:"Choose a document and its review purpose."},{status:400,headers});
