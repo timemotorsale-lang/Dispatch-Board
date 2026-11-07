@@ -2,9 +2,11 @@
 
 import { Activity, ArrowLeft, ClipboardCheck, Download, ExternalLink, Eye, FileText, LockKeyhole, MessageSquarePlus, PackageCheck, Save, ShieldCheck, Upload, X } from "lucide-react";
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 
 import { VendorBilling } from "./vendor-billing";
+import { VendorInvoiceIntake, type VendorInvoiceIntakeHandle } from "./vendor-invoice-intake";
+import { VendorBatchInvoices } from "./vendor-batch-invoices";
 
 import type { VendorProfile, VendorProfileReadModel } from "@/server/vendors/vendor-service";
 
@@ -111,6 +113,8 @@ function editFormFromJob(job: VendorProfile["workJobs"][number]): VendorJobEditF
 
 export function VendorProfilePage({ initialReadModel }: { initialReadModel: VendorProfileReadModel }) {
   const [vendor, setVendor] = useState(initialReadModel.vendor);
+  const invoiceIntake = useRef<VendorInvoiceIntakeHandle>(null);
+  const [invoiceRefresh, setInvoiceRefresh] = useState(0);
   const [form, setForm] = useState(() => formFromVendor(initialReadModel.vendor));
   const [noteBody, setNoteBody] = useState("");
   const [taskForm, setTaskForm] = useState({
@@ -234,6 +238,10 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
       return;
     }
 
+    if (documentForm.documentType === "BILL_STATEMENT") {
+      invoiceIntake.current?.open([documentForm.file]);
+      return;
+    }
     setBusy(true);
     try {
       const formData = new FormData();
@@ -465,7 +473,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
 
       <div className="vendor-live-notice" aria-live="polite">{notice}</div>
 
-      <VendorBilling vendorId={vendor.id} documents={vendor.documents} refreshKey={JSON.stringify(vendor.workJobs)} />
+          <VendorBilling key={invoiceRefresh} initialPeriod={invoiceRefresh ? "ALL" : "THIS_MONTH"} vendorId={vendor.id} documents={vendor.documents} refreshKey={`${JSON.stringify(vendor.workJobs)}:${invoiceRefresh}`} />
       <div className="vendor-profile-layout">
         <main className="vendor-profile-main">
           <form className="vendor-profile-editor" onSubmit={saveVendor}>
@@ -514,6 +522,11 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
 
             <label>Active work batch<select aria-label="Active vendor work batch" value={openBatch?.id || "__NONE__"} onChange={event => setSelectedBatchId(event.target.value)}><option value="__NONE__">Unbatched work</option>{openBatches.map(batch => <option key={batch.id} value={batch.id}>{batch.batchNumber} · {batch.title}</option>)}</select></label>
             <p>Several batches may be open. Closing a batch groups the work records; receive and approve its vendor bill in Billing separately.</p>
+            {openBatch&&<VendorBatchInvoices key={`${openBatch.id}:${invoiceRefresh}`} vendorId={vendor.id} batchId={openBatch.id} revision={invoiceRefresh} onUse={fields=>{
+              if((batchCloseForm.invoiceNumber||batchCloseForm.totalAmount||batchCloseForm.notes||batchCloseForm.invoiceDate!==todayDate())&&!window.confirm("Replace the current batch closing entries with the reviewed invoice summary?"))return;
+              setBatchCloseForm(fields);
+              setNotice("Reviewed invoice information copied to the batch closing fields. Review before closing the batch.");
+            }}/>}
             <div className="vendor-batch-control">
               <form onSubmit={openInvoiceBatch}>
                 <strong>Begin a batch</strong>
@@ -621,6 +634,14 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
         <aside className="vendor-profile-rail">
           <section className="vendor-profile-section vendor-document-card">
             <header><FileText size={18} /><strong>Documents</strong><span>{vendor.documents.length}</span></header>
+            <VendorInvoiceIntake ref={invoiceIntake} vendorId={vendor.id} batches={openBatches} defaultBatchId={openBatch?.id||""} onSaved={async batchId => {
+              if(batchId)setSelectedBatchId(batchId);
+              setInvoiceRefresh(current => current + 1);
+              const response = await fetch(`/api/vendors/${vendor.id}`, { cache: "no-store" });
+              const payload = await readVendorJson(response) as VendorProfileReadModel;
+              setVendor(payload.vendor);
+              setDocumentForm({ documentType: "GENERAL", file: null, notes: "", title: "" });
+            }} />
             <form className="vendor-document-form" onSubmit={uploadDocument}>
               <input aria-label="Document title" onChange={(event) => setDocumentForm({ ...documentForm, title: event.target.value })} placeholder="Document title" value={documentForm.title} />
               <select aria-label="Document type" onChange={(event) => setDocumentForm({ ...documentForm, documentType: event.target.value })} value={documentForm.documentType}>
@@ -639,7 +660,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
                 <input aria-label="Choose vendor document" onChange={(event) => setDocumentForm({ ...documentForm, file: event.target.files?.[0] ?? null })} type="file" />
               </label>
               <textarea aria-label="Document notes" onChange={(event) => setDocumentForm({ ...documentForm, notes: event.target.value })} placeholder="Optional note for this file..." value={documentForm.notes} />
-              <button disabled={busy || !documentForm.file} type="submit"><Upload size={16} /> Upload file</button>
+              <button disabled={busy || !documentForm.file} type="submit"><Upload size={16} /> {documentForm.documentType === "BILL_STATEMENT" ? "Read invoice and fill billing" : "Upload file"}</button>
             </form>
             <div className="vendor-document-list">
               {vendor.documents.length ? vendor.documents.map((document) => (
@@ -648,6 +669,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
                   <span>
                     <strong>{document.title}</strong>
                     <small>{document.documentType.replaceAll("_", " ")} · {formatFileSize(document.fileSizeBytes)} · {formatDateTime(document.createdAt)}</small>
+                    {(document.contentType==="application/pdf"||/\.pdf$/i.test(document.fileName))&&<button type="button" onClick={()=>invoiceIntake.current?.process({id:document.id,fileName:document.fileName})}>Process into batch</button>}
                   </span>
                   <span className="vendor-document-actions">
                     <a aria-label={`View ${document.title}`} href={document.viewHref} target="_blank" rel="noreferrer"><Eye size={16} /></a>
@@ -758,6 +780,7 @@ export function VendorProfilePage({ initialReadModel }: { initialReadModel: Vend
                   </section>
 
                   <div className="vendor-batch-ticket-list">
+                    <VendorBatchInvoices key={`${batchTickets.batch.id}:${invoiceRefresh}`} vendorId={vendor.id} batchId={batchTickets.batch.id} revision={invoiceRefresh}/>
                     {batchTickets.jobs.length ? batchTickets.jobs.map((job) => (
                       <article key={job.id}>
                         {editingJobId === job.id && jobEditForm ? (

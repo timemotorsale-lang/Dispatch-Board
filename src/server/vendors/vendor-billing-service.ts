@@ -5,6 +5,7 @@ import { prisma } from "@/server/db/client";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { isManager } from "@/server/policies/access";
 import { VendorBillingError, billingCents, billingDate, billingDirection, billingText, chicagoDate, dueBalances, monthlyDate, normalizeBillingLines, repaymentSchedule } from "@/lib/vendor-billing";
+import { invoiceBatchMarker } from "@/lib/vendor-invoice-batch";
 
 const organizationId = INITIAL_ORGANIZATION.id;
 type Tx = Prisma.TransactionClient;
@@ -65,15 +66,16 @@ async function createDocument(db: Tx, vendorId: string, actorId: string, raw: Re
 }
 export async function readVendorBilling(user: AuthenticatedUser | null, vendorId: string) {
   requireVendorBillingUser(user); const partner = await vendor(prisma,vendorId);
-  const [documents,agreements,settlements,events,jobs,reviews] = await prisma.$transaction([
+  const [documents,agreements,settlements,events,jobs,reviews,batchLinks] = await prisma.$transaction([
     prisma.vendorBillingDocument.findMany({ where:{ organizationId,vendorId }, include:{ lines:true,dueItems:{orderBy:{dueDate:"asc"}},allocations:true }, orderBy:{createdAt:"desc"} }),
     prisma.vendorBillingAgreement.findMany({where:{organizationId,vendorId},orderBy:{createdAt:"desc"}}),
     prisma.vendorBillingSettlement.findMany({where:{organizationId,vendorId},include:{allocations:true},orderBy:[{date:"desc"},{createdAt:"desc"}]}),
     prisma.vendorBillingEvent.findMany({where:{organizationId,vendorId},orderBy:{createdAt:"desc"},take:100}),
     prisma.vendorWorkJob.findMany({where:{organizationId,vendorId},include:{batch:{select:{batchNumber:true}}},orderBy:{serviceDate:"desc"}}),
-    prisma.vendorBillingWorkReview.findMany({where:{organizationId,vendorId}})
+    prisma.vendorBillingWorkReview.findMany({where:{organizationId,vendorId}}),
+    prisma.vendorRecordLink.findMany({where:{organizationId,vendorId,recordType:"OTHER",relationshipType:{startsWith:"INVOICE_BATCH:"}},select:{recordId:true,relationshipType:true}})
   ],{isolationLevel:"RepeatableRead"});
-  const rows = documents.map(doc => ({...doc,issueDate:iso(doc.issueDate),dueDate:iso(doc.dueDate),createdAt:doc.createdAt.toISOString(),appliedCents:applied(doc),balanceCents:doc.amountCents - applied(doc),dueItems:dueBalances(doc.dueItems.map(item => ({dueDate:iso(item.dueDate),amountCents:item.amountCents})),applied(doc))}));
+  const rows = documents.map(doc => ({...doc,batchId:batchLinks.find(link=>link.recordId===doc.id)?.relationshipType.slice("INVOICE_BATCH:".length)||null,issueDate:iso(doc.issueDate),dueDate:iso(doc.dueDate),createdAt:doc.createdAt.toISOString(),appliedCents:applied(doc),balanceCents:doc.amountCents - applied(doc),dueItems:dueBalances(doc.dueItems.map(item => ({dueDate:iso(item.dueDate),amountCents:item.amountCents})),applied(doc))}));
   const today=chicagoDate();
   const missingRecurring: Array<{agreementId:string;title:string;dueDate:string;amountCents:number;direction:string}>=[];
   for(const a of agreements.filter(a=>a.active&&a.kind!=="REPAYMENT"))for(let n=0;n<600;n++){
@@ -86,9 +88,12 @@ export async function readVendorBilling(user: AuthenticatedUser | null, vendorId
   const due=(direction:string)=>posted.filter(d=>d.direction===direction).flatMap(d=>d.dueItems).filter(i=>i.dueDate<=today).reduce((sum,i)=>sum+i.outstandingCents,0);
   return {vendor:{id:partner.id,name:partner.name,number:partner.vendorNumber,address:partner.addressSummary,email:partner.primaryEmail},today,canManage:isManager(user),documents:rows,agreements:agreements.map(a=>({...a,startDate:iso(a.startDate),endDate:a.endDate?iso(a.endDate):null})),settlements:settlements.map(s=>({...s,date:iso(s.date),reversed:settlements.some(r=>r.reversalOfId===s.id),unappliedCents:["RECEIPT","PAYMENT"].includes(s.kind) && !settlements.some(r=>r.reversalOfId===s.id)?s.amountCents-s.allocations.reduce((sum,a)=>sum+a.amountCents,0):0})),events:events.map(e=>({...e,actorName:staff.find(u=>u.id===e.actorId)?.name||"Former staff"})),missingRecurring,jobs:jobs.map(job=>({id:job.id,number:job.jobNumber,vehicle:job.vehicleReference,description:job.workDescription||job.workType,batch:job.batch?.batchNumber||"Unbatched",batchId:job.batchId,serviceDate:iso(job.serviceDate),amountCents:job.amount?Math.round(Number(job.amount)*100):null,status:job.status,review:reviews.find(r=>r.workJobId===job.id),reviewCurrent:reviews.some(r=>r.workJobId===job.id&&hash(r.scopeSnapshot)===hash(jobSnapshot(job)))})),summary:{receivableCents:balance("RECEIVABLE"),payableCents:balance("PAYABLE"),receivableDueCents:due("RECEIVABLE"),payableDueCents:due("PAYABLE"),draftCount:rows.filter(d=>d.status==="DRAFT").length,disputedCount:rows.filter(d=>d.status==="DISPUTED").length,unmatchedWork:jobs.filter(j=>j.status!=="CANCELLED"&&!reviews.some(r=>r.workJobId===j.id&&r.accepted&&hash(r.scopeSnapshot)===hash(jobSnapshot(j)))).length},templateVersion:1};
 }
-export async function commandVendorBilling(user: AuthenticatedUser | null,vendorId:string,raw:Record<string,unknown>) {
+export type ScannedInvoiceSource = { bytes: Uint8Array; fileName: string; contentType: string; batchId?:string; sourceDocumentId?:string; pages?:number[] };
+export async function commandVendorBilling(user: AuthenticatedUser | null,vendorId:string,raw:Record<string,unknown>,source?:ScannedInvoiceSource) {
   const action=billingText(raw.action,"Action",40); requireVendorBillingUser(user,action!=="CREATE_DOCUMENT");
-  const commandKey=billingText(raw.commandKey,"Request reference",100), requestHash=hash(raw);
+  if(source && (action!=="CREATE_DOCUMENT" || raw.direction!=="PAYABLE"))throw new VendorBillingError("Scans create received invoice drafts only.");
+  const sourceHash=source?createHash("sha256").update(source.bytes).digest("hex"):null;
+  const commandKey=billingText(raw.commandKey,"Request reference",100), requestHash=hash(source?{...raw,sourceHash,fileName:source!.fileName,contentType:source!.contentType,batchId:source.batchId||null,sourceDocumentId:source.sourceDocumentId||null,pages:source.pages||null}:raw);
   if(!/^[\w-]{8,100}$/.test(commandKey)) throw new VendorBillingError("Refresh the request reference before retrying.");
   try {
     await prisma.$transaction(async db=>{
@@ -98,12 +103,36 @@ export async function commandVendorBilling(user: AuthenticatedUser | null,vendor
       if(replay){if(replay.requestHash!==requestHash)throw new VendorBillingError("This request reference was already used for different details.",409);return;}
       if(["INACTIVE","DO_NOT_USE"].includes(partner.status) && ["CREATE_DOCUMENT","CREATE_AGREEMENT","GENERATE_DUE","POST_DOCUMENT"].includes(action)) throw new VendorBillingError("Review this inactive or blocked vendor before creating new billing obligations.",409);
       let detail:unknown;
-      if(action==="CREATE_DOCUMENT") detail=await createDocument(db,vendorId,user.id,raw);
+      if(action==="CREATE_DOCUMENT") {
+        let values=raw;
+        if(source){
+          const reviewedTotal=billingCents(raw.scannedTotal);
+          if(normalizeBillingLines(raw.lines).reduce((sum,line)=>sum+line.amountCents,0)+billingCents(raw.tax,true)!==reviewedTotal)throw new VendorBillingError("Invoice lines and tax must match the reviewed invoice total.");
+          let notes=`Invoice scan SHA256: ${sourceHash}`;
+          if(await db.vendorDocument.findFirst({where:{organizationId,vendorId,notes:{startsWith:notes}}}))throw new VendorBillingError("This exact invoice file was already received. Review the existing bill before importing again.",409);
+          if(source.batchId){
+            const batch=await db.vendorInvoiceBatch.findFirst({where:{id:source.batchId,organizationId,vendorId,status:"OPEN"}});
+            if(!batch)throw new VendorBillingError("The target batch is no longer open for this vendor.",409);
+            for(const line of normalizeBillingLines(raw.lines))if(line.workJobId&&!await db.vendorWorkJob.findFirst({where:{id:line.workJobId,organizationId,vendorId,batchId:batch.id,status:{not:"CANCELLED"}}}))throw new VendorBillingError("Match work lines to tickets in the selected batch; no tickets have been moved.");
+            if(!source.sourceDocumentId||!source.pages?.length)throw new VendorBillingError("Original uploaded pages are required for batch imports.");
+            const imports=await db.vendorDocument.findMany({where:{organizationId,vendorId,notes:{contains:JSON.stringify({sourceDocumentId:source.sourceDocumentId}).slice(1,-1)}},select:{notes:true}});
+            for(const imported of imports){let metadata;try{metadata=JSON.parse(imported.notes?.split("\n")[1]||"{}");}catch{continue;}if(metadata.sourceDocumentId===source.sourceDocumentId&&Array.isArray(metadata.pages)&&metadata.pages.some((p:number)=>source.pages!.includes(p)))throw new VendorBillingError("These original pages were already imported. Review the existing draft instead of importing them again.",409);}
+            notes+=`\n${JSON.stringify({sourceDocumentId:source.sourceDocumentId,pages:source.pages,batchId:batch.id})}`;
+          }
+          const original=await db.vendorDocument.create({data:{organizationId,vendorId,uploadedByUserId:user.id,title:billingText(raw.number,"Invoice number",100),documentType:"BILL_STATEMENT",fileName:source.fileName,contentType:source.contentType,fileSizeBytes:source.bytes.length,fileData:Buffer.from(source.bytes),notes}});
+          values={...raw,sourceReference:`Vendor document ${original.id}: ${original.title}${source.batchId?` ${invoiceBatchMarker(source.batchId)} Source:${source.sourceDocumentId} Pages:${source.pages!.join(",")}`:""}`};
+        }
+        const created=await createDocument(db,vendorId,user.id,values);
+        if(source?.batchId)await db.vendorRecordLink.create({data:{organizationId,vendorId,recordType:"OTHER",recordId:created.id,relationshipType:`INVOICE_BATCH:${source.batchId}`,labelSnapshot:`Invoice ${String(raw.number)} · batch ${source.batchId}`,createdByUserId:user.id}});
+        detail=created;
+      }
       else if(action==="EDIT_DOCUMENT"){
         if(!Number.isInteger(raw.version))throw new VendorBillingError("Refresh the invoice version.",409);
         const before=await invoice(db,vendorId,raw.documentId,raw.version);
         if(before.status!=="DRAFT")throw new VendorBillingError("Only drafts can be edited. Posted invoices require an adjustment.",409);
         if(raw.direction!==before.direction)throw new VendorBillingError("The billing direction cannot change on an existing draft.");
+        const batchLink=await db.vendorRecordLink.findFirst({where:{organizationId,vendorId,recordType:"OTHER",recordId:before.id,relationshipType:{startsWith:"INVOICE_BATCH:"}}});
+        if(batchLink)for(const line of normalizeBillingLines(raw.lines))if(line.workJobId&&!await db.vendorWorkJob.findFirst({where:{id:line.workJobId,organizationId,vendorId,batchId:batchLink.relationshipType.slice("INVOICE_BATCH:".length),status:{not:"CANCELLED"}}}))throw new VendorBillingError("This invoice belongs to a batch. Match edited work lines to that batch's tickets.");
         detail={before,after:await createDocument(db,vendorId,user.id,raw,{},before)};
       } else if(["POST_DOCUMENT","DISPUTE_DOCUMENT","RESOLVE_DISPUTE","VOID_DRAFT"].includes(action)){
         if(!Number.isInteger(raw.version))throw new VendorBillingError("Refresh the invoice version.",409);

@@ -7,6 +7,8 @@ import { chicagoDate, monthlyDate } from "@/lib/vendor-billing";
 import { createVendorRepository } from "@/server/vendors/vendor-repository";
 import { openVendorInvoiceBatch, recordVendorWorkJob, getVendorInvoiceBatchJobs } from "@/server/vendors/vendor-service";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { processVendorInvoicePacket } from "@/server/vendors/invoice-batch-service";
 
 const enabled=process.env.RUN_VENDOR_BILLING_DATABASE==="1";
 const org="org-time-motor-sales",today=chicagoDate(),first=today.slice(0,7)+"-01";
@@ -21,6 +23,22 @@ async function draft(vendorId:string,direction="RECEIVABLE",amount="1000",extra:
 async function post(vendorId:string,documentId:string,version=1){return command(vendorId,"POST_DOCUMENT",{documentId,version,reason:"Verified source and approved"});}
 
 describe.skipIf(!enabled)("vendor billing isolated PostgreSQL workflows",()=>{
+ it("applies original invoice pages to a batch atomically, survives retry, and preserves the link through draft edits",async()=>{
+  const v=await partner(),batch=await prisma.vendorInvoiceBatch.create({data:{organizationId:org,vendorId:v.id,batchNumber:randomUUID(),title:"Synthetic invoice import",createdByUserId:actor.id}});
+  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);for(const number of ["A-100","B-200"]){const page=pdf.addPage();page.drawText(`Invoice #: ${number}`,{x:40,y:700,font,size:20});}
+  const bytes=await pdf.save(),original=await prisma.vendorDocument.create({data:{organizationId:org,vendorId:v.id,title:"Original combined upload",documentType:"GENERAL",fileName:"combined.pdf",contentType:"application/pdf",fileSizeBytes:bytes.length,fileData:Buffer.from(bytes),uploadedByUserId:actor.id}});
+  const raw={documentId:original.id,batchId:batch.id,pages:[1],pagesConfirmed:true,reviewed:true,commandKey:randomUUID(),number:"A-100",title:"Repair supplies",issueDate:first,dueDate:first,tax:"0",scannedTotal:"100.00",lines:[{description:"Supplies",amount:"100.00",workJobId:""}],unmatchedReason:"Non-vehicle supplies"};
+  let model=await processVendorInvoicePacket(actor,v.id,raw,true) as Awaited<ReturnType<typeof readVendorBilling>>;
+  expect(model.documents).toHaveLength(1);expect(model.documents[0]).toMatchObject({batchId:batch.id,status:"DRAFT",amountCents:10000});
+  model=await processVendorInvoicePacket(actor,v.id,raw,true) as typeof model;expect(model.documents).toHaveLength(1);expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(2);
+  await expect(processVendorInvoicePacket(actor,v.id,{...raw,commandKey:randomUUID(),number:"OVERLAP"},true)).rejects.toMatchObject({status:409});expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(2);
+  const bill=model.documents[0];model=await command(v.id,"EDIT_DOCUMENT",{...raw,commandKey:randomUUID(),documentId:bill.id,sourceReference:"Corrected source description",direction:"PAYABLE",version:bill.version});expect(model.documents[0].batchId).toBe(batch.id);
+  const unbatched=await prisma.vendorWorkJob.create({data:{organizationId:org,vendorId:v.id,jobNumber:randomUUID(),vehicleReference:"Other vehicle",workType:"Repair",serviceDate:new Date(first)}});
+  await expect(command(v.id,"EDIT_DOCUMENT",{...raw,commandKey:randomUUID(),documentId:bill.id,sourceReference:"Incorrect ticket",direction:"PAYABLE",version:model.documents[0].version,lines:[{description:"Other repair",amount:"100.00",workJobId:unbatched.id}]})).rejects.toThrow("that batch's tickets");
+  await expect(processVendorInvoicePacket(actor,v.id,{...raw,commandKey:randomUUID(),pages:[2],number:"B-200",scannedTotal:"200.00"},true)).rejects.toThrow("must match");expect(await prisma.vendorDocument.count({where:{vendorId:v.id}})).toBe(2);expect(await prisma.vendorBillingDocument.count({where:{vendorId:v.id}})).toBe(1);
+  await prisma.vendorInvoiceBatch.update({where:{id:batch.id},data:{status:"CLOSED"}});await expect(processVendorInvoicePacket(actor,v.id,{...raw,pages:[2]},true)).rejects.toMatchObject({status:409});
+  expect((await prisma.vendorDocument.findUniqueOrThrow({where:{id:original.id}})).documentType).toBe("GENERAL");
+ });
  beforeAll(async()=>{
   const url=new URL(process.env.DATABASE_URL!);if(!/^vendor_billing_it_[a-f0-9]{32}$/.test(url.searchParams.get("schema")||""))throw new Error("Isolated schema required");
   await prisma.organization.create({data:{id:org,code:"VENDOR-BILLING-TEST",name:"Isolated vendor test"}});

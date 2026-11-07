@@ -6,10 +6,10 @@ import { billingMoney, billingPeriod, chicagoDate } from "@/lib/vendor-billing";
 import type { readVendorBilling } from "@/server/vendors/vendor-billing-service";
 import styles from "./vendor-billing.module.css";
 type Model=Awaited<ReturnType<typeof readVendorBilling>>;
-type Props={vendorId:string;refreshKey?:string;documents:Array<{id:string;title:string;fileName:string}>};
+type Props={vendorId:string;refreshKey?:string;initialPeriod?:string;documents:Array<{id:string;title:string;fileName:string}>};
 const modes:Record<string,string>={EDIT_DOCUMENT:"Edit draft invoice",BILL:"Bill vendor",RECEIVE_BILL:"Receive vendor bill",CREATE_AGREEMENT:"Monthly agreement / repayment",RECEIPT:"Record money received",PAYMENT:"Record payment made",OFFSET:"Approve offset",CREDIT:"Credit / adjustment",POST_DOCUMENT:"Approve and post invoice",DISPUTE_DOCUMENT:"Dispute invoice",RESOLVE_DISPUTE:"Resolve dispute",VOID_DRAFT:"Void draft",REVIEW_WORK:"Review work and approved amount",APPLY_CASH:"Apply unapplied payment",REVERSE_SETTLEMENT:"Reverse ledger record",RECONCILE:"Reconcile to bank evidence",SET_AGREEMENT_ACTIVE:"Pause / resume agreement",GENERATE_DUE:"Generate due invoices"};
-export function VendorBilling({vendorId,refreshKey,documents:sources}:Props){
- const [model,setModel]=useState<Model|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[tab,setTab]=useState("Invoices"),[mode,setMode]=useState(""),[target,setTarget]=useState(""),[period,setPeriod]=useState("THIS_MONTH"),[basis,setBasis]=useState("DUE"),[direction,setDirection]=useState("ALL"),[query,setQuery]=useState("");
+export function VendorBilling({vendorId,refreshKey,initialPeriod="THIS_MONTH",documents:sources}:Props){
+ const [model,setModel]=useState<Model|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[tab,setTab]=useState("Invoices"),[mode,setMode]=useState(""),[target,setTarget]=useState(""),[period,setPeriod]=useState(initialPeriod),[basis,setBasis]=useState("DUE"),[direction,setDirection]=useState("ALL"),[query,setQuery]=useState("");
  const [form,setForm]=useState<Record<string,string>>({}),[lines,setLines]=useState([{description:"",amount:"",workJobId:""}]),[confirmed,setConfirmed]=useState(false),[selectedVehicle,setSelectedVehicle]=useState<DealVehicleChoice|null>(null);
  const dialog=useRef<HTMLDialogElement>(null),key=useRef(crypto.randomUUID());
  const endpoint=`/api/vendors/${encodeURIComponent(vendorId)}/billing`;

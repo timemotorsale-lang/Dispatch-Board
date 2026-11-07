@@ -1,0 +1,57 @@
+import { billingCents } from "./vendor-billing";
+
+export type InvoiceJob = { id: string; number: string; batch: string; batchId: string | null; vehicle: string; description: string; status: string };
+export type InvoiceScan = {
+  number: string; issueDate: string; dueDate: string; total: string; tax: string; title: string;
+  category: string; batchId: string; vendorDetected: boolean; multipleInvoices: boolean;
+  lines: Array<{ description: string; amount: string; workJobId: string }>;
+  warnings: string[]; text: string;
+};
+export const normalizeInvoiceNumber = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toUpperCase();
+const money = (value: string) => { try { return (billingCents(value, true) / 100).toFixed(2); } catch { return ""; } };
+function date(value: string) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
+  const result = m ? `${m[3]}-${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")}` : value;
+  return /^\d{4}-\d{2}-\d{2}$/.test(result) && Number.isFinite(Date.parse(result)) && new Date(result).toISOString().slice(0,10) === result ? result : "";
+}
+function includesReference(text: string, reference: string) {
+  if (reference.length < 4) return false;
+  const escaped = reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, "i").test(text);
+}
+export function parseVendorInvoice(text: string, vendorName: string, jobs: InvoiceJob[] = []): InvoiceScan {
+  text = text.slice(0,60000).replace(/\r/g,"\n");
+  const warnings: string[] = [];
+  const numbers = [...text.matchAll(/^\s*Invoice\s*(?:Number|No\.?|#)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_./-]{0,99})\s*$/gim)].map(m=>m[1]);
+  const unique = [...new Set(numbers.map(normalizeInvoiceNumber))];
+  const readDate = (label: string) => {
+    const values=[...text.matchAll(new RegExp(`^\\s*(?:${label})\\s*:?\\s*(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}/\\d{1,2}/\\d{4})\\s*$`,"gim"))].map(m=>date(m[1])).filter(Boolean);
+    return new Set(values).size===1?values[0]:"";
+  };
+  const readMoney = (label: string) => {
+    const values = [...text.matchAll(new RegExp(`^\\s*(?:${label})\\s*:?\\s*\\$?([\\d,]+\\.\\d{2})\\s*$`,"gim"))].map(m=>money(m[1])).filter(Boolean);
+    return new Set(values).size === 1 ? values[0] : "";
+  };
+  const total = readMoney("Grand Total|Invoice Total|Total Amount|Total"), tax = readMoney("Sales Tax|Tax");
+  const issueDate = readDate("Invoice Date|Date"), dueDate = readDate("Due Date|Payment Due");
+  const category = /\b(?:collision|repair|labor|reconditioning|body shop)\b/i.test(text) ? "Vehicle repair / recon" : /\b(?:rent|lease premises)\b/i.test(text) ? "Rent" : /\b(?:supplies|parts)\b/i.test(text) ? "Parts / supplies" : "Other / review";
+  const jobMatches=(value:string,job:InvoiceJob)=>includesReference(value,job.number)||(job.vehicle.match(/\b[A-HJ-NPR-Z0-9]{17}\b/gi)||[]).some(vin=>includesReference(value,vin));
+  const matches = jobs.filter(j=>j.status!=="CANCELLED" && jobMatches(text,j));
+  const batches = [...new Set(jobs.filter(j=>j.status!=="CANCELLED" && j.batchId && includesReference(text,j.batch)).map(j=>j.batchId!))];
+  const lines = text.split("\n").flatMap(line=>{
+    const match = /^\s*(.{3,300}?)\s+\$?([\d,]+\.\d{2})\s*$/.exec(line);
+    if (!match || /\b(?:total|tax|balance|amount due|paid|discount|deposit)\b/i.test(match[1])) return [];
+    const amount = money(match[2]); if (!amount || amount==="0.00") return [];
+    const linked = matches.filter(j=>jobMatches(line,j));
+    return [{description:match[1].trim(),amount,workJobId:linked.length===1?linked[0].id:""}];
+  }).slice(0,100);
+  const reconciled = total && tax && lines.length && lines.reduce((sum,l)=>sum+billingCents(l.amount),0)+billingCents(tax,true)===billingCents(total,true);
+  if (!reconciled) warnings.push("Line items need review. No work amounts have been copied from estimates.");
+  if (!tax) warnings.push("Tax was not read reliably. Confirm the separately stated tax, including zero.");
+  if (!total) warnings.push("Invoice total was not read reliably. Check the original total, not a remaining balance.");
+  if (!issueDate || !dueDate) warnings.push("Confirm missing dates. Payment terms and today's date are not assumed.");
+  if (unique.length>1) warnings.push("Several invoice numbers were found. Split this file into one invoice per file before saving.");
+  const vendorDetected = text.toLowerCase().includes(vendorName.toLowerCase());
+  if (!vendorDetected) warnings.push("The selected vendor name was not found. Confirm that this invoice belongs to this vendor.");
+  return {number:unique.length===1?numbers[0]:"",issueDate,dueDate,total,tax,title:category,category,batchId:batches.length===1?batches[0]:"",vendorDetected,multipleInvoices:unique.length>1,lines:reconciled?lines:[],warnings,text};
+}

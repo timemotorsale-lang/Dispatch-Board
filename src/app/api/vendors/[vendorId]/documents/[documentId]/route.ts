@@ -23,6 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ vendorI
     const body = Uint8Array.from(document.fileData).buffer;
     return new NextResponse(body, {
       headers: {
+        "cache-control": "private, no-store",
         "content-disposition": `${disposition}; filename="${safeFileName(document.fileName)}"`,
         "content-length": String(document.fileSizeBytes),
         "content-type": document.contentType || "application/octet-stream"
