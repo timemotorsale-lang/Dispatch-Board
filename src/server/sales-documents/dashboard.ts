@@ -11,6 +11,7 @@ import { summarizeTax, type TaxCalculation } from "@/lib/compliance-tax";
 import { complianceAccess } from "@/server/compliance/service";
 import { closingChecklist, SalesDocumentsError } from "./domain";
 import type { SalesDocumentRequirement } from "@/lib/sales-document-pathways";
+import { currentSalesDocumentRequirements } from "@/lib/sales-document-pathways";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { canManageDeals } from "./dashboard-operations";
 import { DEAL_WORK_VIEWS, dealAgeDays, financialEntry, record, summarizeDealFinancials, taskDealLink, type DealMilestone } from "@/lib/deal-dashboard-enterprise";
@@ -45,7 +46,8 @@ export async function buildDealDashboard(user: AuthenticatedUser, source: Prisma
     const booking = bookings.find(booking => booking.contextId === row.draftId || Boolean(row.jacketId && booking.agreementJacketId === row.jacketId));
     const phase = dealGroup(row.pathway) === "USE" ? jacket?.versions.some(version => version.phase === "CHECKOUT") ? "RETURN" : "CHECKOUT" : "CLOSING";
     const docs = (jacket?.packet.documents || []).map(link => link.document).filter(document => !isExcludedSalesDocument(document.classificationSnapshot)).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()).map(document => ({ id: document.id, type: document.documentType, reviewed: document.status === "ACCEPTED", signed: Boolean(document.classificationSnapshot && typeof document.classificationSnapshot === "object" && !Array.isArray(document.classificationSnapshot) && document.classificationSnapshot.signed === true), source: document.source, versionId: "", checksum: "", fileName: "", contentType: "" }));
-    const checklist = closingChecklist((Array.isArray(jacket?.requirements) ? jacket.requirements : []) as unknown as SalesDocumentRequirement[], docs, phase);
+    const requirements = currentSalesDocumentRequirements(row.pathway, (Array.isArray(jacket?.requirements) ? jacket.requirements : []) as unknown as SalesDocumentRequirement[]);
+    const checklist = closingChecklist(requirements, docs, phase);
     const finished = row.packetState === "CLOSED" && checklist.every(item => !item.blocker) || row.status === "COMPLETED" && !row.packetState;
     const inactive = ["LOST", "CANCELLED", "ARCHIVED"].includes(row.status);
     const corrections = row.packetState === "WORKING" && jacket?.versions.some(version => version.disposition === "CLOSED" || version.disposition === "DELIVERED_FUNDING_PENDING");
@@ -73,7 +75,7 @@ export async function buildDealDashboard(user: AuthenticatedUser, source: Prisma
     const expiration = String((row as SourceRow & { insuranceExpirationDate?: string }).insuranceExpirationDate || "");
     const expiredInsurance = /^\d{4}-\d{2}-\d{2}$/.test(expiration) && expiration < chicagoDate(new Date())!;
     const alerts = [...(rental === "Rental Due Soon" ? ["Rental due within 24 hours · confirm return"] : []),...(overdue ? ["Deal follow-up overdue"] : []), ...(returnOverdue ? ["Vehicle return due"] : []), ...(row.status === "SOLD" && stage !== "Completed" && soldAgeDays >= 3 ? [`Sold ${soldAgeDays} days ago · paperwork pending`] : []), ...(expiredInsurance ? [`Recorded insurance expired ${expiration} · verify coverage`] : []), ...(unattended ? ["No scheduled deal follow-up"] : [])];
-    const documentChecklist = (["CLOSING", "CHECKOUT", "RETURN"] as const).flatMap(packetPhase => closingChecklist((Array.isArray(jacket?.requirements) ? jacket.requirements : []) as unknown as SalesDocumentRequirement[], docs, packetPhase).map(item => {
+    const documentChecklist = (["CLOSING", "CHECKOUT", "RETURN"] as const).flatMap(packetPhase => closingChecklist(requirements, docs, packetPhase).map(item => {
       const latest = docs.find(document => document.type === item.id && document.source !== "GENERATED") || docs.find(document => document.type === item.id);
       return { id: item.id, label: item.label, phase: packetPhase, status: item.waiver ? "Approved exception" : item.ready ? item.signed ? "Signed and reviewed" : "Reviewed" : !item.required && !latest ? "Not required" : !latest ? "Missing" : item.signed && (!latest.signed || latest.source === "GENERATED") ? "Signed copy needed" : "Needs staff review" };
     }));

@@ -58,7 +58,20 @@ export function DealDocumentWorkspace({ jacket, canManage, disabled = false, onS
     });
   }
   const accepted = jacket.checklist.filter(item => item.ready).length;
+  const preparedForms = jacket.documents.filter(doc => doc.source === "GENERATED");
   return <section className={styles.workspace} aria-label="Deal documents workspace">
+    <details className={styles.preparedForms}>
+      <summary>Prepared forms · {preparedForms.length} — expand to review</summary>
+      <p>Review and download working forms for signing. Signed copies still require staff verification. Generating again keeps the existing form; exclude it through Replace before preparing a corrected copy.</p>
+      {preparedForms.length ? <ul className={styles.requirements}>{preparedForms.map(doc => <li key={doc.id}>
+        <div><strong>{jacket.requirements.find(item => item.id === doc.type)?.label || doc.type}</strong><small>{doc.fileName}</small><small>Working form · {doc.reviewed ? "Reviewed" : "Review needed"}</small></div>
+        <div className={styles.actions}>
+          <a href={href(doc)} target="_blank" rel="noreferrer">Review form</a>
+          <a href={`${href(doc)}?download=1`} download={doc.fileName}>Download</a>
+          {!locked && <button type="button" disabled={blocked} onClick={() => setCorrecting({ document: doc, replace: true })}>Replace</button>}
+        </div>
+      </li>)}</ul> : <p>No prepared forms yet.</p>}
+    </details>
     <section aria-label="Required documents and proofs"><header><h3>Required documents &amp; proofs</h3><span>{accepted}/{jacket.checklist.length} complete</span></header>
       <p>Upload into the matching requirement, then verify and accept the saved evidence.</p>
       {locked && <p role="status">Finalized packet preserved. {canManage && jacket.state !== "UNWIND_PENDING" ? "Open a correction addendum to replace or exclude an attachment." : "A manager must open corrections before changing attachments."}</p>}

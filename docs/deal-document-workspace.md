@@ -6,6 +6,10 @@ Open **Deals → Actions → Details & actions → Documents**. The six-column d
 
 The existing pathway/phase checklist shows Missing, Uploaded — review needed, Accepted, Correction needed, approved exceptions and optional items. Choose **Upload / scan** on the relevant row. Staff can upload one or several files into that requirement, or scan up to 28 pages into one PDF. Supplemental evidence uses **Add supporting proof**. Partial multi-file failures preserve files already saved and report how many succeeded.
 
+Sales closing checklists omit odometer disclosure, signed delivery record, taxes and fees receipt, Buyer's Guide, binding contract disclosure and payment schedule. Lease-to-own also omits the signed purchase agreement and uses the signed lease agreement. The same requirements apply to new and existing deals, counts, next actions and finalization blockers. Existing files and earlier finalized snapshots remain available.
+
+Expand **Prepared forms** to review or download generated working forms. Repeating generation reuses the active saved form for that deal and form type. Use **Replace** to exclude an outdated form before preparing a corrected copy.
+
 Open **File actions → Review & accept** to inspect the original, confirm the customer/vehicle, type, pages and readability, and verify signatures where applicable. The existing Secure/Limited POA acceptance guards remain enforced on the server. Generated unsigned forms cannot become signature evidence.
 
 A saved sales/lease draft without a jacket can use **Prepare required document checklist** inside Documents. This reuses the existing lifecycle command and original deal reference. **Review finalization & packet history** leads to the existing packet finalization controls; uploading or auditing does not finalize the sale.

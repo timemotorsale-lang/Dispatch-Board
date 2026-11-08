@@ -6,9 +6,21 @@ vi.mock("@/server/db/client", () => ({ prisma: { $queryRaw: mocks.query, salesDo
 vi.mock("@/server/compliance/service", () => ({ complianceAccess: mocks.access }));
 import { buildDealDashboard } from "@/server/sales-documents/dashboard";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
+import { salesDocumentRequirements } from "@/lib/sales-document-pathways";
 const actor = { id: "staff-1", name: "Staff", isActive: true } as AuthenticatedUser;
 const row = (id: string, status = "IN_PROGRESS") => ({ id, draftId: id, draftRevision: 1, jacketId: null, customerId: "customer-1", ownerId: actor.id, ownerName: actor.name, customerName: "Buyer", pathway: "retail-sale", status, packetState: null, createdAt: new Date("2026-10-01"), updatedAt: new Date("2026-11-01"), statusHistory: [] });
 describe("scoped deal dashboard", () => {
+  it("uses the same shortened checklist for saved lease counts and next actions", async () => {
+    const removed = ["sales-agreement", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure"];
+    const saved = [...removed.map(id => ({ id, label: id, phase: "CLOSING" as const, required: true, signed: true })), ...salesDocumentRequirements("lease-to-own")];
+    mocks.query.mockResolvedValue([{ ...row("lease"), pathway: "lease-to-own", jacketId: "packet" }]);
+    mocks.jackets.mockResolvedValue([{ id: "packet", requirements: saved, versions: [], packet: { documents: [], auditEvents: [] } }]);
+    const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=working"));
+    expect(result.items[0].documentsTotal).toBe(7);
+    expect(result.items[0].nextAction).toBe("DMV / title transfer paperwork");
+    expect(result.items[0].documentChecklist?.some(item => removed.includes(item.id))).toBe(false);
+    expect(saved).toHaveLength(12);
+  });
   it("filters work areas before counts and pagination and preserves the original transaction identifiers", async () => {
     mocks.query.mockResolvedValue([row("working"), ...Array.from({ length: 26 }, (_, index) => ({ ...row(`sold-${index}`, "SOLD"), statusHistory: [{ to: "SOLD", at: "2026-10-01T18:00:00Z" }] })), { ...row("rental"), pathway: "daily-rental" }, row("lost", "LOST")]);
     const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=sold&status=ALL&page=2&pageSize=25&date=2026-11-08"));

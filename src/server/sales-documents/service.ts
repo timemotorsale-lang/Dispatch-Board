@@ -9,7 +9,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canOpenDocumentLibrary, resolveDocumentLibraryPermission } from "@/server/document-library/permission-policy";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { SALES_DOCUMENT_PATHWAYS, isSalesDocumentPathway, salesDocumentRequirements, normalizeSalesDocumentType, type PacketPhase, type SalesDocumentRequirement } from "@/lib/sales-document-pathways";
-import { LIMITED_POA_ID, SECURE_POA_ID } from "@/lib/sales-document-pathways";
+import { LIMITED_POA_ID, SECURE_POA_ID, currentSalesDocumentRequirements } from "@/lib/sales-document-pathways";
 import type { UnifiedCrmContractPacketInput, UnifiedCrmContractPacketResult } from "@/server/unified-crm/contract-packet-contract";
 import { closingChecklist, SalesDocumentsError, type JacketDocument } from "./domain";
 import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } from "@/lib/deal-closing";
@@ -35,7 +35,7 @@ function text(value: unknown, max = 240) { return typeof value === "string" ? va
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)); }
 function metadata(value: Prisma.JsonValue | null) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function requirements(jacket: Jacket) {
-  const saved = jacket.requirements as unknown as SalesDocumentRequirement[];
+  const saved = currentSalesDocumentRequirements(jacket.pathway, jacket.requirements as unknown as SalesDocumentRequirement[]);
   if (!isSalesDocumentPathway(jacket.pathway)) return saved;
   return [...saved, ...salesDocumentRequirements(jacket.pathway).filter(item =>
     [LIMITED_POA_ID, SECURE_POA_ID].includes(item.id) && !saved.some(existing => existing.id === item.id))];
@@ -154,6 +154,14 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
     } else if (input.contentType === "image/jpeg") {
       if (bytes.subarray(0, 3).toString("hex") !== "ffd8ff") throw new SalesDocumentsError("This file is not a JPEG image.");
     } else throw new SalesDocumentsError("Upload a PDF, PNG, or JPEG file.");
+  }
+  if (input.generated) {
+    const existing = jacket.packet.documents.find(({ document }) =>
+      !isExcludedSalesDocument(document.classificationSnapshot) && document.source === "GENERATED" && document.documentType === documentType);
+    if (existing) {
+      await storedBytes(existing.document.storageReference, existing.document.checksumSha256 ?? "");
+      return view(jacket);
+    }
   }
   if (input.captureMethod) {
     const checksum = createHash("sha256").update(input.bytes).digest("hex");

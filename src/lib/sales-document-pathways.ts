@@ -31,6 +31,15 @@ export function isSalesDocumentPathway(value: string): value is SalesDocumentPat
   return Object.hasOwn(SALES_DOCUMENT_PATHWAYS, value);
 }
 
+const LEASE_UNUSED_REQUIREMENTS = new Set(["sales-agreement", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure"]);
+const UNUSED_SALES_REQUIREMENTS = new Set(["odometer-disclosure", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure", "payment-schedule"]);
+
+// Apply the current lease checklist to saved jackets without rewriting their requirements or final snapshots.
+export function currentSalesDocumentRequirements(pathway: string, requirements: SalesDocumentRequirement[]) {
+  const salesPathway = ["retail-sale", "outside-finance-one-pay", "finance", "bhph", "lease-to-own", "wholesale"].includes(pathway);
+  return requirements.filter(item => (!salesPathway || !UNUSED_SALES_REQUIREMENTS.has(item.id)) && (pathway !== "lease-to-own" || !LEASE_UNUSED_REQUIREMENTS.has(item.id)));
+}
+
 export function salesDocumentRequirements(pathway: SalesDocumentPathway): SalesDocumentRequirement[] {
   const returning = ["daily-rental", "vehicle-loaner", "test-drive"].includes(pathway);
   const phase: PacketPhase = returning ? "CHECKOUT" : "CLOSING";
@@ -59,7 +68,7 @@ export function salesDocumentRequirements(pathway: SalesDocumentPathway): SalesD
   if (pathway === "retail-sale") base.push(item("insurance-proof", "Insurance proof"));
   if (pathway === "bhph") base.push(item("retail-installment-contract", "Signed installment contract", true), item("payment-schedule", "Payment schedule"), item("insurance-proof", "Insurance proof"));
   if (pathway === "lease-to-own") base.push(item("lease-agreement", "Signed lease agreement", true), item("payment-schedule", "Payment schedule"), item("insurance-proof", "Insurance proof"));
-  return base;
+  return currentSalesDocumentRequirements(pathway, base);
 }
 
 export function normalizeSalesDocumentType(id: string) {
