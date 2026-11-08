@@ -75,6 +75,13 @@ describe("deal dashboard operations", () => {
     await expect(manageDealOperations(manager, { ...operation("DEAL_REASSIGN"), assignedUserId: staff.id })).rejects.toThrow("Customer 360");
     expect(mocks.db.dealDeskDraft.update).not.toHaveBeenCalled();
   });
+  it("records title evidence without marking the sale funded, delivered or paid", async () => {
+    await manageDealOperations(manager, { ...operation("DEAL_MILESTONE"), dimension: "TITLE", state: "VERIFIED" });
+    expect(mocks.db.documentLibraryAuditEvent.create.mock.calls[0][0].data).toMatchObject({ action: "DEAL_MILESTONE_RECORDED", packetId: "packet-one", metadata: { dimension: "TITLE", state: "VERIFIED" } });
+    expect(mocks.db.dealDeskDraft.update).not.toHaveBeenCalled();
+    expect(mocks.db.salesDocumentJacket.updateMany).not.toHaveBeenCalled();
+    await expect(manageDealOperations(staff, { ...operation("DEAL_MILESTONE"), dimension: "TITLE", state: "VERIFIED" })).rejects.toMatchObject({ status: 403 });
+  });
   it("allows verified financial corrections on archived deals without reopening them", async () => {
     mocks.db.dealDeskDraft.findFirst.mockResolvedValue({ ...draft, status: "ARCHIVED" });
     await expect(manageDealOperations(manager, { ...operation(), kind: "AGREED_AMOUNT", amountCents: 0 })).resolves.toEqual({ saved: true });

@@ -24,17 +24,19 @@ test("staff can save, review, finalize and retrieve checkout and return packets"
   const pdf = await PDFDocument.create();
   pdf.addPage().drawText("Sales Documents E2E evidence");
   const bytes = Buffer.from(await pdf.save());
-  const uploadForm = page.locator("form").filter({ has: page.getByRole("heading", { name: "Add photos or documents", exact: true }) });
-  await uploadForm.getByLabel("Document type").selectOption("signed-agreement");
-  await uploadForm.getByLabel("Files", { exact: true }).setInputFiles({ name: "signed-agreement.pdf", mimeType: "application/pdf", buffer: bytes });
-  await uploadForm.getByLabel("Signed copy").check();
+  await page.getByRole("region", { name: "Required documents and proofs" }).getByRole("button", { name: "Upload / scan", exact: true }).first().click();
+  const uploadForm = page.getByRole("region", { name: "Upload deal proof" });
+  await uploadForm.getByLabel("Proof file", { exact: true }).setInputFiles({ name: "signed-agreement.pdf", mimeType: "application/pdf", buffer: bytes });
+  await uploadForm.getByLabel("Signed copy", { exact: false }).check();
   const uploaded = page.waitForResponse((result) => result.url().endsWith(`${url}/documents`));
-  await uploadForm.getByRole("button", { name: "Save files", exact: true }).click();
+  await uploadForm.getByRole("button", { name: "Upload proof", exact: true }).click();
   expect((await uploaded).status()).toBe(201);
-  await page.getByRole("button", { name: "Review signed-agreement.pdf" }).click();
+  await page.locator("summary").filter({ hasText: /^File actions$/ }).click();
+  await page.getByRole("button", { name: "Review & accept", exact: true }).first().click();
+  await page.getByRole("checkbox", { name: /I checked the correct customer/ }).check();
   await page.getByLabel("Required signatures verified").check();
   const reviewed = page.waitForResponse((result) => result.url().endsWith(url) && result.request().method() === "PATCH");
-  await page.getByRole("button", { name: "Mark reviewed" }).click();
+  await page.getByRole("button", { name: "Accept reviewed document" }).click();
   jacket = await (await reviewed).json();
   const agreementId = jacket.documents[0].id;
 

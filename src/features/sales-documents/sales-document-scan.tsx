@@ -6,7 +6,6 @@ import { Camera, Smartphone } from "lucide-react";
 import { DocumentScanner } from "@/features/mobile-capture/document-scanner";
 import { PurchasePdfPreview } from "@/features/inventory/purchase-pdf-preview";
 import { MAX_SCAN_BYTES, MAX_SALES_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
-import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 import { phoneDocumentHandoff } from "@/lib/phone-document-handoff";
 import { SECURE_POA_ID, SECURE_POA_GUIDANCE } from "@/lib/sales-document-pathways";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
@@ -81,12 +80,6 @@ export function SalesDocumentScan({ jacket, initialScan = false, initialRequirem
   return <section className={styles.form} aria-label="Optional sales document scanning">
     <h3>Scan sales documents · optional</h3>
     <p>Capture up to 28 paper pages, straighten and reorder them, then review a single PDF before attaching it to this deal.</p>
-    <DocumentReadingPanel purpose="SALES" disabled={busy||locked} onApply={(_reading,fields,source)=>{
-      if(fields.vin&&jacket.vin&&fields.vin.toUpperCase()!==jacket.vin.toUpperCase())throw new Error("The printed VIN does not match this deal. Resolve the vehicle mismatch before attaching this document.");
-      if(source.type!=="application/pdf")throw new Error("Use Scan with camera to prepare a PDF, or upload the original PDF for this sales jacket.");
-      if(file&&!window.confirm("Replace the prepared scan with this reviewed sales document?"))return;
-      updateFile(source);setName(source.name);setReviewed(false);setReceipt("Document details reviewed. Confirm its type and all signature/POA requirements before saving.");
-    }}/>
     <div className={styles.actions}><button type="button" disabled={busy || locked || Boolean(file)} onClick={() => { setReceipt(""); setScanner(true); }}><Camera size={18} />Scan paper documents</button></div>
     <details><summary><Smartphone size={16} /> Continue scanning on a phone</summary>
       {handoff ? <><p>Open this deal on your phone and sign in with your staff account. The link grants no additional access.</p>{qr && <Image unoptimized src={qr} width={180} height={180} alt="QR code to open this deal scanner on your phone" />}<a href={handoff}>Open phone scanning link</a></> : <p>Phone scanning needs this app’s reachable HTTPS address. Localhost points to the phone itself. Open the secure app address on your phone, or configure AUTH_PUBLIC_BASE_URL for the local review environment.</p>}
