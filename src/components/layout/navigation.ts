@@ -168,6 +168,14 @@ export const dispatchNavigationItems: NavigationItem[] = [
     parentHref: "/board"
   },
   {
+    href: "/board/repair-priorities",
+    title: "Repair Priorities",
+    description: "See the location’s shared repair plan and blockers.",
+    icon: ClipboardCheck,
+    parentHref: "/board",
+    matchExact: true
+  },
+  {
     href: "/tasks",
     title: "Tasks",
     description: "Search, organize, and manage Dispatch work.",
@@ -332,6 +340,13 @@ const technicianNavigationItems: NavigationItem[] = [
     title: "Available Work",
     description: "Eligible work that is ready to claim.",
     icon: BriefcaseBusiness
+  },
+  {
+    href: "/board/repair-priorities",
+    title: "Repair Priorities",
+    description: "See the location’s shared repair plan and blockers.",
+    icon: ClipboardCheck,
+    matchExact: true
   },
   {
     href: "/diagnostics",

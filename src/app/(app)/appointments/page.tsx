@@ -1,6 +1,7 @@
 import { AppointmentBoardLoader } from "@/features/appointments/appointment-board-loader";
 import { AppointmentConsoleNewAppointment, AppointmentConsoleTodayFlow } from "@/features/appointments/appointment-console-refinement";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
@@ -29,6 +30,8 @@ type AppointmentsPageProps = {
     reason?: string;
     title?: string;
     localDate?: string;
+    durationMinutes?: string;
+    purpose?: string;
     q?: string;
     advanced?: string;
     startTime?: string;
@@ -78,6 +81,8 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   }
   if (newAppointmentMode) {
     return (
+      <>
+      {calendarMode && <Link className="pill pill-secondary" href={`/board/repair-priorities${validFlowDate(localDate) ? `?date=${localDate}` : ""}`}>Repair Priorities</Link>}
       <AppointmentConsoleNewAppointment
         key={calendarMode ? `calendar:${focusParams?.q ?? ""}:${focusParams?.advanced ?? ""}:${localDate}` : "new"}
         initialFullCalendar={calendarMode}
@@ -85,6 +90,8 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
           crmCustomerId: focusParams?.crmCustomerId,
           customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
           localDate: focusParams?.localDate ?? "",
+          durationMinutes: Number(focusParams?.durationMinutes),
+          purposeCode: focusParams?.purpose === "repair" ? "SERVICE_REPAIR" : undefined,
           calendarQuery: calendarMode && typeof focusParams?.q === "string" ? focusParams.q.slice(0, 100) : undefined,
           advancedCalendarSearch: calendarMode && focusParams?.advanced === "1",
           viewerName: user.name,
@@ -97,6 +104,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
           vehicleReference: focusParams?.vehicleReference ?? sourceTask?.vehicleReference ?? ""
         }}
       />
+      </>
     );
   }
   if (!boardMode) {

@@ -884,6 +884,8 @@ type AppointmentNewInitialContext = {
   crmCustomerId?: string;
   customerReference?: string;
   localDate?: string;
+  durationMinutes?: number;
+  purposeCode?: string;
   reason?: string;
   returnTo?: string;
   sourceTaskId?: string;
@@ -902,15 +904,17 @@ function validTimeInput(value?: string) {
 }
 
 export function AppointmentConsoleNewAppointment({ initialContext, initialFullCalendar = false }: { initialContext?: AppointmentNewInitialContext; initialFullCalendar?: boolean }) {
-  const [selectedPurposeCode, setSelectedPurposeCode] = useState(defaultAppointmentPurpose.value);
+  const [selectedPurposeCode, setSelectedPurposeCode] = useState(initialContext?.purposeCode ?? defaultAppointmentPurpose.value);
   const selectedPurpose = appointmentPurposes.find(purpose => purpose.value === selectedPurposeCode) ?? defaultAppointmentPurpose;
   const selectedPurposeGroup = appointmentPurposeGroup(selectedPurpose.category, selectedPurpose.value);
+  const initialDuration = initialContext?.durationMinutes ?? selectedPurpose.duration;
   const [form, setForm] = useState({
     customer: initialContext?.customerReference ?? "",
     vehicle: initialContext?.vehicleReference ?? "",
     localDate: validDateInput(initialContext?.localDate),
     startTime: validTimeInput(initialContext?.startTime),
-    durationMinutes: selectedPurpose.duration,
+    durationMinutes: Number.isInteger(initialDuration) && initialDuration >= 1 && initialDuration <= 1440
+      ? initialDuration : selectedPurpose.duration,
     transportation: "Customer Drive",
     reason: initialContext?.reason ?? ""
   });
@@ -1024,6 +1028,9 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     timeZone: defaultTimezone
   }).format(new Date(`${form.localDate}T12:00:00`)), [form.localDate]);
   const returnHref = initialContext?.returnTo || "/appointments";
+  const repairQueueReturn = savedCreation && returnHref.startsWith("/board/repair-priorities?")
+    ? `${returnHref}&linkAppointment=${encodeURIComponent(savedCreation.appointmentNumber)}`
+    : null;
   const sourceTaskLabel = initialContext?.sourceTaskTitle || initialContext?.sourceTaskId || "";
   const hasHandoffContext = Boolean(initialContext?.customerReference || initialContext?.vehicleReference || sourceTaskLabel);
   const activeWorkspace = layoutMode === "expandable" ? expandedWorkspace : null;
@@ -1585,6 +1592,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                     <p>{savedCreation.title} · {formatTime(savedCreation.startsAt)} – {formatTime(savedCreation.endsAt)}</p>
                     <footer>
                       <Link href={boardFocusHref(savedCreation)}>Open saved appointment</Link>
+                      {repairQueueReturn && <Link href={repairQueueReturn}>Link to repair priority</Link>}
                       <button onClick={resetAppointmentDraft} type="button">New appointment</button>
                     </footer>
                   </div>
@@ -2246,6 +2254,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
               <footer>
                 {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> : savedCreation ? <Link href={boardFocusHref(savedCreation)}>Open in Board</Link> : <button type="button">Save Draft</button>}
                 {editingAppointment ? <Link href={boardFocusHref(editingAppointment)}>Open Board</Link> : null}
+                {repairQueueReturn && <Link href={repairQueueReturn}>Link to repair priority</Link>}
                 {savedCreation ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> :
                   <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment)} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save Changes" : "Create Appointment"}</button>}
               </footer>
