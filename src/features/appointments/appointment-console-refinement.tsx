@@ -19,6 +19,7 @@ import { QuickUpdateReminders } from "./quick-update-reminders";
 import { CategoryBadge, categoryAppearance, categoryRowStyle } from "./category-badge";
 import { CalendarDetailDialog } from "./calendar-detail-dialog";
 import { AppointmentDurationField } from "./appointment-duration-field";
+import { isSameAppointmentVisit } from "@/lib/appointment-visit-conflict";
 import { CalendarAdvancedSearch, matchesAdvancedCalendarSearch, type CalendarSearchFilters } from "./calendar-advanced-search";
 import { AppointmentPurposeFields } from "./appointment-purpose-fields";
 import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes, defaultAppointmentPurpose, type AppointmentPurpose } from "./appointment-purposes";
@@ -34,6 +35,8 @@ import { visibleAppointmentOverlaps } from "@/lib/appointment-calendar-availabil
 type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-up" | "intelligence" | "exceptions";
 
 type LiveAppointment = {
+  vehicleDescription?: string | null;
+  visibility?: { relationship?: string };
   viewOnly?: boolean;
   category?: string | null;
   purposeCode?: string | null;
@@ -52,7 +55,7 @@ type LiveAppointment = {
   outcomeNotes?: string | null;
   followUpNotes?: string | null;
   customer: { customerId?: string | null; displayName: string; phoneNumber: string | null; email: string | null } | null;
-  vehicles: Array<{ year: number | null; make: string | null; model: string | null; vehicleNumber: string; vin: string | null }>;
+  vehicles: Array<{ vehicleId?: string; isPrimary?: boolean; year: number | null; make: string | null; model: string | null; vehicleNumber: string; vin: string | null }>;
   taskLinks: Array<{ taskStatus: string; blocksAppointment: boolean }>;
   resourceReservations: Array<{ status: string; resourceName?: string }>;
 };
@@ -71,6 +74,7 @@ type AppointmentCommandCreateResponse = {
   error?: string;
   execution?: {
     rejectionReasons?: string[];
+    resultSnapshot?: { unresolvedWarnings?: Array<{ code?: string; warningKey?: string }> };
     appointment?: Partial<LiveAppointment> | null;
   } | null;
 };
@@ -197,10 +201,11 @@ function sameAppointmentStart(left: string | null, right: string | null) {
   return new Date(left).getTime() === new Date(right).getTime();
 }
 
-export function findPlannerDuplicateAppointment<T extends Pick<LiveAppointment, "id" | "startsAt" | "bookingStatus" | "customer">>(
+export function findPlannerDuplicateAppointment<T extends Pick<LiveAppointment, "id" | "startsAt" | "bookingStatus" | "customer"> & { endsAt?: string | null }>(
   appointments: T[],
-  { startsAt, customerName, customerId, editingId, alreadySaved }: {
+  { startsAt, endsAt, customerName, customerId, editingId, alreadySaved }: {
     startsAt: string;
+    endsAt?: string;
     customerName: string;
     customerId?: string | null;
     editingId?: string;
@@ -213,7 +218,9 @@ export function findPlannerDuplicateAppointment<T extends Pick<LiveAppointment, 
   return appointments.find(appointment =>
     appointment.id !== editingId &&
     ["DRAFT", "PENDING_APPROVAL", "SCHEDULED"].includes(appointment.bookingStatus) &&
-    sameAppointmentStart(appointment.startsAt, startsAt) &&
+    (appointment.startsAt && appointment.endsAt && endsAt
+      ? Date.parse(appointment.startsAt) < Date.parse(endsAt) && Date.parse(appointment.endsAt) > Date.parse(startsAt)
+      : sameAppointmentStart(appointment.startsAt, startsAt)) &&
     (customerId && appointment.customer?.customerId
       ? customerId === appointment.customer.customerId
       : normalizedAppointmentCustomerName(appointment.customer?.displayName) === name)
@@ -252,7 +259,7 @@ function appointmentDurationMinutes(appointment: LiveAppointment) {
 
 function vehicleLabel(appointment: LiveAppointment) {
   const vehicle = appointment.vehicles[0];
-  if (!vehicle) return "No vehicle";
+  if (!vehicle) return appointment.vehicleDescription ?? "No vehicle";
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber || "Vehicle";
 }
 
@@ -998,13 +1005,29 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       return leftStartsAt - rightStartsAt || left.appointmentNumber.localeCompare(right.appointmentNumber);
     });
   }, [appointmentWindow.data?.appointments, appointmentWindow.startDate, appointmentWindow.endDate, appointmentWindow.status, createdAppointments, fullPageCalendarOpen]);
-  const duplicateCustomerTimeAppointment = findPlannerDuplicateAppointment(visibleAppointments, {
+  const customerTimeMatch = {
     startsAt: startsAtIso,
+    endsAt: endsAtIso,
     customerName: form.customer,
     customerId: selectedCustomer?.id ?? (form.customer === editingAppointment?.customer?.displayName ? editingAppointment?.customer?.customerId : null),
     editingId: editingAppointment?.id,
     alreadySaved: Boolean(savedCreation)
+  };
+  const visit = { purpose: appointmentPurposeCode, vehicleId: selectedVehicle?.id };
+  const sameVisit = (appointment: LiveAppointment) => isSameAppointmentVisit(visit, {
+    purpose: appointment.purposeCode,
+    vehicleId: (appointment.vehicles.find((vehicle) => vehicle.isPrimary) ?? appointment.vehicles[0])?.vehicleId
   });
+  const duplicateCustomerTimeAppointment = findPlannerDuplicateAppointment(visibleAppointments.filter(sameVisit), customerTimeMatch);
+  const separateCustomerTimeAppointment = findPlannerDuplicateAppointment(visibleAppointments.filter((appointment) => !sameVisit(appointment)), customerTimeMatch);
+  const [showConflictSlots, setShowConflictSlots] = useState(false);
+  const [keepExistingId, setKeepExistingId] = useState<string | null>(null);
+  const [rescheduleWarning, setRescheduleWarning] = useState<{ fingerprint: string; warningKey: string; reason: string } | null>(null);
+  const rescheduleFingerprint = `${editingAppointment?.id}:${editingAppointment?.version}:${startsAtIso}:${endsAtIso}`;
+  const activeRescheduleWarning = rescheduleWarning?.fingerprint === rescheduleFingerprint ? rescheduleWarning : null;
+  const canApproveRescheduleOverlap = editingAppointment?.visibility?.relationship === "MANAGER";
+  const rescheduleApprovalMissing = Boolean(activeRescheduleWarning &&
+    (!canApproveRescheduleOverlap || activeRescheduleWarning.reason.trim().length < 10));
   const openSlots = useMemo(() => appointmentWindow.status === "ready" ? appointmentTimeSlots.filter(slot => {
     const start = localDateTimeToIso(form.localDate, slot);
     return !visibleAppointmentOverlaps(visibleAppointments, start, addMinutesToIso(start, form.durationMinutes), editingAppointment?.id);
@@ -1189,7 +1212,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
   function chooseTimeSlot(slot: string, source: "quick" | "timeline") {
     updateField("startTime", slot);
-    setNotice(`${formatTime(localDateTimeToIso(form.localDate, slot))} selected from the ${source === "timeline" ? "day timeline" : "quick slots"}.`);
+    setNotice(`${formatTime(localDateTimeToIso(form.localDate, slot))} selected from the ${source === "timeline" ? "day timeline" : "quick slots"}. ${editingAppointment ? "Save changes to update the appointment." : "Save appointment draft to keep this time."}`);
     if (fullPageCalendarOpen) {
       setCalendarInsightCard("draft");
     }
@@ -1399,14 +1422,21 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 endsAt: endsAtIso,
                 schedulingTimezone: defaultTimezone,
                 reasonCode: "PLANNER_RESCHEDULE",
-                reasonNotes: form.reason.trim()
+                reasonNotes: form.reason.trim(),
+                customerOverlapApproval: canApproveRescheduleOverlap && activeRescheduleWarning &&
+                  activeRescheduleWarning.reason.trim().length >= 10
+                  ? { warningKey: activeRescheduleWarning.warningKey, reason: activeRescheduleWarning.reason.trim() }
+                  : undefined
               }
             })
           });
           const result = await response.json().catch(() => null) as AppointmentCommandCreateResponse | null;
 
           if (!response.ok || !result?.accepted) {
-            throw new Error(result?.error ?? result?.command?.errorMessage ?? "Unable to reschedule the appointment.");
+            const warningKey = result?.execution?.resultSnapshot?.unresolvedWarnings
+              ?.find((warning) => warning.code === "DUPLICATE_CUSTOMER_TIME")?.warningKey;
+            if (warningKey) setRescheduleWarning({ fingerprint: rescheduleFingerprint, warningKey, reason: "" });
+            throw new Error(result?.execution?.rejectionReasons?.join(" ") || result?.error || result?.command?.errorMessage || "Unable to reschedule the appointment.");
           }
 
           expectedAppointmentVersion = result.execution?.appointment?.version ?? expectedAppointmentVersion + 1;
@@ -1500,7 +1530,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
       const creationSucceeded = result?.duplicate ? result.command?.status === "SUCCEEDED" : result?.accepted;
       if (!response.ok || !result || !creationSucceeded) {
-        if (result?.command?.status === "REJECTED" || result?.command?.status === "FAILED") createAttempt.current = null;
+        if (["REJECTED", "FAILED", "FAILED_TERMINAL"].includes(result?.command?.status ?? "")) createAttempt.current = null;
         if (result?.accepted === false) appointmentWindow.refresh();
         const reason = result?.error || result?.execution?.rejectionReasons?.join(" ") || result?.command?.errorMessage;
         throw new Error(reason || (result?.duplicate && result.accepted ? "The appointment is still saving. Try again shortly." : "Unable to create the appointment."));
@@ -1514,7 +1544,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
       upsertLocalAppointment(createdAppointment);
       setSavedCreation(createdAppointment);
-      setNotice(`Appointment ${createdAppointment.appointmentNumber} was created and added to this planner.`);
+      setNotice(`Draft ${createdAppointment.appointmentNumber} saved. Open it on the Schedule Board to review and schedule it.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to create the appointment right now.");
     } finally {
@@ -1523,12 +1553,43 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     }
   }
 
-  const duplicateWarning = duplicateCustomerTimeAppointment && (
+  const customerTimeConflict = duplicateCustomerTimeAppointment ?? separateCustomerTimeAppointment;
+  const duplicateWarning = (customerTimeConflict || activeRescheduleWarning) && (
     <div className="appointment-duplicate-warning" role="alert">
-      <strong>Appointment already exists</strong>
-      <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
-      <Link href={boardFocusHref(duplicateCustomerTimeAppointment)}>Open existing appointment</Link>
-      <p>Choose another time to create a separate appointment.</p>
+      <strong>{duplicateCustomerTimeAppointment ? "This visit already has an appointment" : "This customer already has a visit at this time"}</strong>
+      {customerTimeConflict && <>
+        <p>{customerTimeConflict.title} · {vehicleLabel(customerTimeConflict)} · {formatTime(customerTimeConflict.startsAt)}–{formatTime(customerTimeConflict.endsAt)} · {customerTimeConflict.bookingStatus.toLowerCase().replaceAll("_", " ")}</p>
+        <Link href={boardFocusHref(customerTimeConflict)}>Open existing appointment · {customerTimeConflict.appointmentNumber}</Link>
+      </>}
+      {duplicateCustomerTimeAppointment && !editingAppointment && (
+        keepExistingId === duplicateCustomerTimeAppointment.id ? <div>
+          <p>Keep {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(duplicateCustomerTimeAppointment.startsAt)}? Your unsaved draft will be discarded.</p>
+          <button onClick={() => {
+            resetAppointmentDraft();
+            setKeepExistingId(null);
+            setShowConflictSlots(false);
+            expandAppointmentPreview(duplicateCustomerTimeAppointment);
+            setNotice(`Kept ${duplicateCustomerTimeAppointment.appointmentNumber} at ${formatTime(duplicateCustomerTimeAppointment.startsAt)}.`);
+          }} type="button">Confirm keep existing appointment</button>
+          <button onClick={() => setKeepExistingId(null)} type="button">Continue editing draft</button>
+        </div> : <button onClick={() => setKeepExistingId(duplicateCustomerTimeAppointment.id)} type="button">Keep existing appointment</button>
+      )}
+      {separateCustomerTimeAppointment && !duplicateCustomerTimeAppointment && <p>{editingAppointment ? "Moving this visit to this time" : "You can save a separate draft. Scheduling it at this time"} requires manager approval and available staff and resources.</p>}
+      {activeRescheduleWarning && canApproveRescheduleOverlap && <label>
+        Manager approval reason
+        <textarea maxLength={500} value={activeRescheduleWarning.reason} onChange={(event) => {
+          setRescheduleWarning({ ...activeRescheduleWarning, reason: event.target.value });
+        }} />
+      </label>}
+      <button aria-expanded={showConflictSlots} onClick={() => setShowConflictSlots(!showConflictSlots)} type="button">Choose another slot</button>
+      {showConflictSlots && <div className="time-picker-options">
+        <p>{openSlots.length ? "Times with no visible calendar overlap. Staff and resources are checked when scheduling." : "No clear slots on this date. Select another date or time above."}</p>
+        {openSlots.slice(0, 6).map((slot) => (
+          <button key={slot} onClick={() => { setShowConflictSlots(false); chooseTimeSlot(slot, "quick"); }} type="button">
+            {formatTime(localDateTimeToIso(form.localDate, slot))}
+          </button>
+        ))}
+      </div>}
     </div>
   );
 
@@ -1541,7 +1602,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                         calendarInsightCard === "advisor" ? "Advisor routing" :
                           calendarInsightCard === "categories" ? "Categories" :
                             calendarInsightCard === "appointment" && expandedAppointment ? expandedAppointment.appointmentNumber || expandedAppointment.title :
-                            editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : savedCreation ? "Appointment saved" : "Create appointment"}
+                            editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : savedCreation ? "Appointment draft saved" : "Create appointment"}
                   </strong>
                   <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
                 </header>
@@ -1591,7 +1652,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                   <div className="calendar-enterprise-draft-form">
                     <p>{savedCreation.title} · {formatTime(savedCreation.startsAt)} – {formatTime(savedCreation.endsAt)}</p>
                     <footer>
-                      <Link href={boardFocusHref(savedCreation)}>Open saved appointment</Link>
+                      <Link href={boardFocusHref(savedCreation)}>Review and schedule draft</Link>
                       {repairQueueReturn && <Link href={repairQueueReturn}>Link to repair priority</Link>}
                       <button onClick={resetAppointmentDraft} type="button">New appointment</button>
                     </footer>
@@ -1631,7 +1692,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                     <footer>
                       <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
                       {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New draft</button> : null}
-                      <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment)} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save changes" : "Create appointment"}</button>
+                      <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment) || rescheduleApprovalMissing} type="submit">{isSaving ? "Saving..." : activeRescheduleWarning && canApproveRescheduleOverlap ? "Approve overlap and save" : editingAppointment ? "Save changes" : "Save appointment draft"}</button>
                     </footer>
                   </div>
                 )}
@@ -2252,11 +2313,11 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
               <p className="appointment-command-notice" role="status">{notice}</p>
               {!savedCreation && !duplicateCustomerTimeAppointment && selectedTimeOverlaps && <p>Another appointment overlaps this time. Review staff and resources before confirming.</p>}
               <footer>
-                {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> : savedCreation ? <Link href={boardFocusHref(savedCreation)}>Open in Board</Link> : <button type="button">Save Draft</button>}
+                {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> : savedCreation ? <Link href={boardFocusHref(savedCreation)}>Review and schedule draft</Link> : null}
                 {editingAppointment ? <Link href={boardFocusHref(editingAppointment)}>Open Board</Link> : null}
                 {repairQueueReturn && <Link href={repairQueueReturn}>Link to repair priority</Link>}
                 {savedCreation ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> :
-                  <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment)} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save Changes" : "Create Appointment"}</button>}
+                  <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment) || rescheduleApprovalMissing} type="submit">{isSaving ? "Saving..." : activeRescheduleWarning && canApproveRescheduleOverlap ? "Approve overlap and save" : editingAppointment ? "Save Changes" : "Save appointment draft"}</button>}
               </footer>
             </section>
             <section className="appointment-panel advanced-links">

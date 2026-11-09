@@ -5810,6 +5810,13 @@ function getExecutionResultSnapshot(result: unknown) {
     : {};
 }
 
+function getCustomerOverlapWarningKey(result: unknown) {
+  const warnings = getExecutionResultSnapshot(result).unresolvedWarnings;
+  if (!Array.isArray(warnings)) return null;
+  const warning = warnings.find((entry) => entry?.code === "DUPLICATE_CUSTOMER_TIME");
+  return typeof warning?.warningKey === "string" ? warning.warningKey : null;
+}
+
 function getGeneratedFollowUpAppointmentNumbers(result: unknown) {
   return getStringArray(getExecutionResultSnapshot(result).generatedFollowUpAppointmentNumbers);
 }
@@ -6126,6 +6133,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     useState<AppointmentOpsIntelligencePreset>("leadership-daily");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
+  const [customerOverlap, setCustomerOverlap] = useState<{ appointmentId: string; version: number; warningKey: string } | null>(null);
+  const [customerOverlapReason, setCustomerOverlapReason] = useState("");
 
   async function loadLiveAppointments(options: { suppressSuccessNotice?: boolean } = {}) {
     setIsLiveLoading(true);
@@ -11397,7 +11406,18 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     }
   }
 
-  async function submitUnscheduledDraftSchedule() {
+  function recordCustomerOverlap(result: unknown) {
+    const warningKey = getCustomerOverlapWarningKey(result);
+    if (!warningKey || !selectedAppointment.recordId || !selectedAppointment.recordVersion) return;
+    setCustomerOverlap({
+      appointmentId: selectedAppointment.recordId,
+      version: selectedAppointment.recordVersion,
+      warningKey
+    });
+    setCustomerOverlapReason("");
+  }
+
+  async function submitUnscheduledDraftSchedule(customerOverlapApproval?: { warningKey: string; reason: string }) {
     if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
       setActionNotice(
         `Schedule Draft is wired to the live command API, but ${selectedAppointment.id} is still preview data.`
@@ -11462,6 +11482,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             endsAt,
             schedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone,
             reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED",
+            customerOverlapApproval,
             reasonNotes: buildResourceReasonNote(
               `Scheduled unscheduled draft ${selectedAppointment.id} from Appointment Board draft lane for ${scheduleDraft.localDate} at ${scheduleDraft.startTime}.`,
               scheduleDraft.reasonNotes
@@ -11476,7 +11497,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
 
         if (conflict) {
           await recoverFromAppointmentVersionConflict({
-            actionLabel: "Schedule Draft",
+          actionLabel: "Schedule Draft",
             appointmentId: selectedAppointment.id,
             appointmentRecordId: selectedAppointment.recordId,
             conflict
@@ -11484,6 +11505,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           return;
         }
 
+        recordCustomerOverlap(result);
         throw new Error(
           result?.error ||
             result?.execution?.rejectionReasons?.join(" ") ||
@@ -11491,6 +11513,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
         );
       }
 
+      setCustomerOverlap(null);
       setAppointmentStatusOverrides((current) => ({
         ...current,
         [selectedAppointment.id]: "confirmed"
@@ -11543,7 +11566,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     );
   }
 
-  async function submitOperationalCommand(commandType: OperationalCommand) {
+  async function submitOperationalCommand(commandType: OperationalCommand, customerOverlapApproval?: { warningKey: string; reason: string }) {
     const label = commandLabel(commandType);
 
     if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
@@ -11619,6 +11642,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
               ? {
                   startsAt: selectedAppointment.startsAtIso,
                   endsAt: selectedAppointment.endsAtIso,
+                  customerOverlapApproval,
                   schedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
                 }
               : {})
@@ -11640,12 +11664,14 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           return;
         }
 
+        if (commandType === "SCHEDULE") recordCustomerOverlap(result);
         throw new Error(
           result?.error ||
             result?.execution?.rejectionReasons?.join(" ") ||
             `${label} could not be completed.`
         );
       }
+      if (commandType === "SCHEDULE") setCustomerOverlap(null);
 
       setAppointmentStatusOverrides((current) => ({
         ...current,
@@ -16194,6 +16220,23 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             <p><MapPin size={16} aria-hidden="true" />{selectedAppointment.location}</p>
           </div>
 
+          {customerOverlap && customerOverlap.appointmentId === selectedAppointment.recordId &&
+            customerOverlap.version === selectedAppointment.recordVersion && (
+            <div className="appointment-duplicate-warning">
+              <strong>Separate visit overlaps this customer’s appointment</strong>
+              <p>Choose a different time, or have an authorized manager confirm why both visits should be scheduled together.</p>
+              {selectedAppointment.staffRole === "Manager-visible" && <>
+                <label>Manager approval reason
+                  <textarea maxLength={500} value={customerOverlapReason} onChange={(event) => setCustomerOverlapReason(event.target.value)} />
+                </label>
+                <button disabled={isCommandPending || customerOverlapReason.trim().length < 10} type="button" onClick={() => {
+                  const approval = { warningKey: customerOverlap.warningKey, reason: customerOverlapReason.trim() };
+                  if (selectedAppointmentIsUnscheduledDraft) void submitUnscheduledDraftSchedule(approval);
+                  else void submitOperationalCommand("SCHEDULE", approval);
+                }}>Approve overlap and schedule</button>
+              </>}
+            </div>
+          )}
           <div className="appointment-detail-actions">
             <button
               disabled={selectedAppointment.dataSource !== "live" || isEditSaving || isCancelSaving}

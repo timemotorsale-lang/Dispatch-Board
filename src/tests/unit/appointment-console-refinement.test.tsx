@@ -55,6 +55,13 @@ describe("Appointment Console refinement", () => {
     expect(findPlannerDuplicateAppointment([booking], { ...input, editingId: booking.id })).toBeNull();
     expect(findPlannerDuplicateAppointment([booking], { ...input, customerId: "customer-2" })).toBeNull();
     expect(findPlannerDuplicateAppointment([booking], { ...input, startsAt: "2026-11-09T16:00:00.000Z" })).toBeNull();
+    const timedBooking = { ...booking, endsAt: "2026-11-09T16:00:00.000Z" };
+    expect(findPlannerDuplicateAppointment([timedBooking], {
+      ...input, startsAt: "2026-11-09T15:45:00.000Z", endsAt: "2026-11-09T16:15:00.000Z"
+    })).toBe(timedBooking);
+    expect(findPlannerDuplicateAppointment([timedBooking], {
+      ...input, startsAt: "2026-11-09T16:00:00.000Z", endsAt: "2026-11-09T16:30:00.000Z"
+    })).toBeNull();
     expect(findPlannerDuplicateAppointment([{ ...booking, bookingStatus: "CANCELLED" }], input)).toBeNull();
   });
 
@@ -132,7 +139,7 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("Appointment reason");
     expect(markup).toContain("Add appointment reason");
     expect(markup).toContain("Ready to create appointment.");
-    expect(markup).toContain("Create Appointment");
+    expect(markup).toContain("Save appointment draft");
     expect(markup).toContain("Staff conflicts");
     expect(markup).not.toContain("command ledger");
     expect(markup).not.toContain("Canonical command");

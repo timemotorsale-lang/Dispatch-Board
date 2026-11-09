@@ -10,7 +10,8 @@ import {
   type AppointmentLifecycleTransactionRepository,
   type AppointmentLifecycleTransactionResult
 } from "@/server/appointments/appointment-lifecycle-transaction-service";
-import type { AppointmentLocationAccessGrant } from "@/server/policies/access";
+import { isManager, type AppointmentLocationAccessGrant } from "@/server/policies/access";
+import { isSameAppointmentVisit } from "@/lib/appointment-visit-conflict";
 import {
   previewAppointmentStaffConflicts,
   type AppointmentStaffConflictPreviewOptions
@@ -144,11 +145,17 @@ function sameCustomer(left: unknown, right: unknown) {
   return Boolean(leftCustomer.name && leftCustomer.name === rightCustomer.name);
 }
 
-function isDuplicateCustomerTimeConfirmed(payload: Record<string, unknown>) {
-  return payload.duplicateCustomerTimeConfirmed === true;
+function visitIdentity(purposeSnapshot: unknown, vehicleSnapshot: unknown) {
+  const purpose = snapshotRecord(purposeSnapshot);
+  const vehicle = snapshotRecord(vehicleSnapshot);
+  const code = purpose?.purposeCode ?? purpose?.code;
+  return {
+    purpose: typeof code === "string" ? code : null,
+    vehicleId: typeof vehicle?.vehicleId === "string" ? vehicle.vehicleId : null
+  };
 }
 
-async function getDuplicateCustomerTimeWarning(input: {
+async function getCustomerTimeConflict(input: {
   appointment: AppointmentCommandAppointmentRecord | null;
   commandRepository: AppointmentCommandRepository;
   organizationId: string;
@@ -160,8 +167,9 @@ async function getDuplicateCustomerTimeWarning(input: {
   }
 
   const startsAt = parsePayloadDate(input.payload.startsAt) ?? input.appointment?.startsAt ?? null;
+  const endsAt = parsePayloadDate(input.payload.endsAt) ?? input.appointment?.endsAt ?? null;
 
-  if (!startsAt) {
+  if (!startsAt || !endsAt || endsAt <= startsAt) {
     return null;
   }
 
@@ -176,29 +184,37 @@ async function getDuplicateCustomerTimeWarning(input: {
     organizationId: input.organizationId,
     locationId: input.locationId,
     startsAt,
+    endsAt,
     excludeAppointmentId: input.appointment?.id ?? null
   });
-  const duplicate = candidates.find((candidate) =>
+  const overlaps = candidates.filter((candidate) =>
     sameCustomer(customerSnapshot, candidate.customerSnapshot)
   );
+  const visit = visitIdentity(
+    input.payload.purposeSnapshot ?? input.appointment?.purposeSnapshot,
+    input.payload.vehicleSnapshot ?? input.appointment?.vehicleSnapshot
+  );
+  const duplicate = overlaps.find((candidate) =>
+    isSameAppointmentVisit(visit, visitIdentity(candidate.purposeSnapshot, candidate.vehicleSnapshot))
+  );
+  if (duplicate) return { duplicate, warning: null };
+  if (!overlaps.length) return null;
 
-  if (!duplicate) {
-    return null;
-  }
-
-  return {
+  const warning = {
     warningKey: [
       "CUSTOMER",
       "DUPLICATE_CUSTOMER_TIME",
       customer.id ?? customer.name ?? "unknown-customer",
       startsAt.toISOString(),
-      duplicate.id
+      endsAt.toISOString(),
+      ...overlaps.map((candidate) => `${candidate.id}:${candidate.version}`).sort()
     ].join("|"),
     code: "DUPLICATE_CUSTOMER_TIME",
     source: "CUSTOMER",
-    message: `${customer.label} already has appointment ${duplicate.appointmentNumber} at ${startsAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: input.appointment?.schedulingTimezone ?? "America/Chicago" })}. Confirm before double scheduling.`,
-    managerOverrideRequired: false
+    message: `${customer.label} has overlapping work in ${overlaps.map((candidate) => candidate.appointmentNumber).join(", ")}. Choose another slot or obtain manager approval to schedule the separate visit.`,
+    managerOverrideRequired: true
   } satisfies AppointmentWarning;
+  return { duplicate: null, warning };
 }
 
 function isLateStaleUpdateError(error: unknown) {
@@ -414,6 +430,7 @@ async function getLifecyclePayload(input: {
   locationId: string;
   payload: Record<string, unknown>;
   user: AuthenticatedUser | null;
+  locationAccess: AppointmentLocationAccessGrant | null;
   now: Date;
   staffConflictPreview: StaffConflictPreviewForSchedule;
 }) {
@@ -425,7 +442,7 @@ async function getLifecyclePayload(input: {
   }
 
   let payload = input.payload;
-  const duplicateWarning = await getDuplicateCustomerTimeWarning({
+  const customerConflict = await getCustomerTimeConflict({
     appointment: input.appointment,
     commandRepository: input.commandRepository,
     organizationId: input.organizationId,
@@ -433,24 +450,44 @@ async function getLifecyclePayload(input: {
     payload
   });
 
-  if (duplicateWarning) {
+  if (customerConflict?.duplicate) {
+    return {
+      ...payload,
+      hardConflicts: [...((payload.hardConflicts as unknown[]) ?? []), {
+        code: "DUPLICATE_CUSTOMER_VISIT",
+        source: "CUSTOMER",
+        message: `This visit already has appointment ${customerConflict.duplicate.appointmentNumber}. Open it or choose another slot.`
+      }]
+    };
+  }
+
+  const duplicateWarning = customerConflict?.warning;
+  if (duplicateWarning && input.commandType !== "CREATE_DRAFT") {
     const existingWarnings = (payload.warnings as unknown[]) ?? [];
     const existingUnresolvedWarnings = (payload.unresolvedWarnings as unknown[]) ?? [];
+    const approval = snapshotRecord(payload.customerOverlapApproval);
+    const reason = typeof approval?.reason === "string" ? approval.reason.trim() : "";
+    const approved = isManager(input.user) && input.locationAccess?.canManageAppointments &&
+      approval?.warningKey === duplicateWarning.warningKey && reason.length >= 10 && reason.length <= 500;
 
     payload = {
       ...payload,
       warnings: [...existingWarnings, duplicateWarning],
-      unresolvedWarnings: isDuplicateCustomerTimeConfirmed(payload)
+      ...(approved ? {
+        reasonNotes: [payload.reasonNotes, `Manager approved customer overlap: ${reason}`].filter(Boolean).join(" ")
+      } : {}),
+      unresolvedWarnings: approved
         ? existingUnresolvedWarnings
         : [...existingUnresolvedWarnings, duplicateWarning]
     };
   }
 
-  if (input.commandType !== "SCHEDULE" || !input.appointment) {
+  if (!input.appointment || (input.commandType !== "SCHEDULE" && input.commandType !== "RESCHEDULE")) {
     return payload;
   }
 
   if (
+    input.commandType === "SCHEDULE" &&
     !Array.isArray(payload.reservationCandidates) &&
     input.commandRepository.findHeldReservationCommitCandidates
   ) {
@@ -590,6 +627,7 @@ export async function submitAndExecuteAppointmentCommand(
     locationId,
     payload: commandRequest.payload,
     user,
+    locationAccess,
     now,
     staffConflictPreview
   });
