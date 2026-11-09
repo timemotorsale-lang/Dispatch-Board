@@ -14,7 +14,11 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain("time-motor-sales-horizontal");
     expect(markup).toContain("Simple capture");
     expect(markup).toContain("Task tools");
-    expect(markup).toContain("Intake type");
+    expect(markup).toContain("Work type");
+    expect(markup).toContain("Quick add task");
+    expect(markup).toContain("More options");
+    expect(markup).toContain("Does not repeat");
+    expect(markup).toContain("Find tasks or appointments by category");
     expect(markup).toContain("Assignee and collaborators");
     expect(markup).toContain("Task context");
     expect(markup).toContain("Controls");
@@ -28,7 +32,7 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain("Production intake");
     expect(markup).toContain("Save Draft");
     expect(markup).toContain("Create Task");
-    expect(markup).toContain("Review &amp; Create");
+    expect(markup).not.toContain("% ready");
     expect(markup).not.toContain("Enterprise Task Intake");
     expect(markup).not.toContain("Guided Intake");
     expect(markup).not.toContain("Task Readiness");

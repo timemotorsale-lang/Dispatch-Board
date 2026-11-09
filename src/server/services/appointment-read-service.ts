@@ -138,6 +138,7 @@ export type AppointmentReadVisibility = {
 
 export type AppointmentReadModel = {
   category?: string | null;
+  purposeCode?: string | null;
   id: string;
   appointmentNumber: string;
   organizationId: string;
@@ -524,7 +525,8 @@ function toAppointmentReadModel(input: {
     organizationId: input.appointment.organizationId,
     locationId: input.appointment.locationId,
     title: input.appointment.title,
-    category: input.appointment.purposeSnapshot && typeof input.appointment.purposeSnapshot === "object" && "category" in input.appointment.purposeSnapshot && typeof input.appointment.purposeSnapshot.category === "string" ? input.appointment.purposeSnapshot.category : null,
+    category: stringFromSnapshot(input.appointment.purposeSnapshot, "category"),
+    purposeCode: stringFromSnapshot(input.appointment.purposeSnapshot, "purposeCode") ?? stringFromSnapshot(input.appointment.purposeSnapshot, "code"),
     sourceType: input.appointment.sourceType,
     sourceReference: input.appointment.sourceReference,
     schedulingTimezone: input.appointment.schedulingTimezone,

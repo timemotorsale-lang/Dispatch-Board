@@ -17,6 +17,7 @@ export const appointmentCategoryColors: Record<string, { label: string; color: s
   SAFETY: { label: "Safety", color: "#b91c1c", background: "#fef2f2" },
   TRAINING: { label: "Training", color: "#be185d", background: "#fdf2f8" },
   SERVICE: { label: "Service / Repair", color: "#0f766e", background: "#f0fdfa" },
+  COLLISION: { label: "Body Shop & Collision", color: "#9a3412", background: "#ffedd5" },
   WARRANTY: { label: "Warranty", color: "#155e75", background: "#ecfeff" },
   DMV: { label: "Title / DMV", color: "#6b21a8", background: "#faf5ff" },
   DELIVERY: { label: "Delivery", color: "#0369a1", background: "#f0f9ff" },

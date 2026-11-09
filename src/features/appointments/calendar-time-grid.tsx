@@ -37,7 +37,7 @@ const hourLabels = Array.from({ length: 24 }, (_, hour) => `${hour % 12 || 12} $
 const gridSlots = Array.from({ length: 48 }, (_, index) => `${String(Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
 
 export function CalendarTimeGrid({ days, today, selectedDate, selectedTime, onDate, onSlot }: {
-  days: Array<{ date: string; weekday: string; dayNumber: string; events: CalendarGridEvent[] }>;
+  days: Array<{ date: string; weekday: string; dayNumber: string; events: CalendarGridEvent[]; allDayTasks?: Array<{ id: string; title: string; onOpen: () => void }> }>;
   today: string;
   selectedDate: string;
   selectedTime: string;
@@ -45,6 +45,7 @@ export function CalendarTimeGrid({ days, today, selectedDate, selectedTime, onDa
   onSlot: (date: string, time: string) => void;
 }) {
   const scroll = useRef<HTMLDivElement>(null);
+  const showAllDay = days.some(day => day.allDayTasks?.length);
   useEffect(() => { if (scroll.current) scroll.current.scrollTop = 8 * 64; }, []);
   return <div className={styles.timeScroll} ref={scroll} aria-label={days.length === 1 ? "Day time grid" : "Week time grid"}>
     <div className={styles.timeGrid} style={{ "--day-count": days.length } as CSSProperties}>
@@ -52,6 +53,12 @@ export function CalendarTimeGrid({ days, today, selectedDate, selectedTime, onDa
       {days.map(day => <button className={styles.dayHeading} key={day.date} type="button" onClick={() => onDate(day.date)} aria-current={day.date === today ? "date" : undefined}>
         <span>{day.weekday}</span><strong>{day.dayNumber}</strong>
       </button>)}
+      {showAllDay && <>
+        <div className={styles.allDay}>All day</div>
+        {days.map(day => <div key={day.date} className={styles.allDay}>
+          {day.allDayTasks?.map(task => <button type="button" key={task.id} title={task.title} onClick={task.onOpen}>{task.title}</button>)}
+        </div>)}
+      </>}
       <div className={styles.hours} aria-hidden="true">{hourLabels.map(hour => <span key={hour}>{hour}</span>)}</div>
       {days.map(day => <div className={styles.timeColumn} key={day.date}>
         {gridSlots.map((slot, index) => <button className={styles.slot} key={slot} type="button" tabIndex={-1} aria-label={`Create appointment on ${day.date} at ${hourLabels[Math.floor(index / 2)].replace(" ", index % 2 ? ":30 " : ":00 ")}`} aria-pressed={selectedDate === day.date && selectedTime === slot} onClick={() => onSlot(day.date, slot)} />)}

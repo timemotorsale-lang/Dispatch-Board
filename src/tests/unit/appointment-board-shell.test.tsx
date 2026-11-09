@@ -93,13 +93,11 @@ describe("appointment board shell", () => {
     expect(markup).toContain("1101 E. Lake Street");
     expect(markup).toContain("New Appointment");
     expect(markup).toContain("Total Appointments");
-    expect(markup).toContain("Service / Repair");
-    expect(markup).toContain("Business Appointment");
-    expect(markup).toContain("Banker / Lender");
+    expect(markup).toContain("Service &amp; Warranty");
+    expect(markup).toContain("Staff &amp; Dealership Operations");
+    expect(markup).toContain("Body Shop &amp; Collision");
     expect(markup).toContain("Insurance");
-    expect(markup).toContain("Licensing / Permit");
-    expect(markup).toContain("Phone / Utility Company");
-    expect(markup).toContain("Administrative / Managerial");
+    expect(markup).toContain("Title, Registration &amp; Compliance");
     expect(markup).toContain("Edit appointment");
     expect(markup).toContain("Cancel appointment");
     expect(markup).toContain("Show Cancelled");

@@ -18,11 +18,16 @@ import Link from "next/link";
 import { QuickUpdateReminders } from "./quick-update-reminders";
 import { CategoryBadge, categoryAppearance, categoryRowStyle } from "./category-badge";
 import { CalendarDetailDialog } from "./calendar-detail-dialog";
+import { AppointmentDurationField } from "./appointment-duration-field";
+import { CalendarAdvancedSearch, matchesAdvancedCalendarSearch, type CalendarSearchFilters } from "./calendar-advanced-search";
+import { AppointmentPurposeFields } from "./appointment-purpose-fields";
+import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes, defaultAppointmentPurpose, type AppointmentPurpose } from "./appointment-purposes";
 import { CalendarTimeGrid } from "./calendar-time-grid";
+import { CalendarTaskDetails, QuickCalendarTaskDialog, calendarTaskTeams, useCalendarTasks, type CalendarTask } from "@/features/tasks/quick-calendar-task";
 import { PersonalCalendarEditor, personalCalendarKey, usePersonalSchedule, type PersonalEvent } from "./personal-calendar";
 import workspaceStyles from "./calendar-workspace.module.css";
 import agendaStyles from "./calendar-agenda.module.css";
-import { useEffect, useMemo, useState, type ComponentProps, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
 import { visibleAppointmentOverlaps } from "@/lib/appointment-calendar-availability";
 
@@ -31,6 +36,7 @@ type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-u
 type LiveAppointment = {
   viewOnly?: boolean;
   category?: string | null;
+  purposeCode?: string | null;
   id: string;
   version: number;
   appointmentNumber: string;
@@ -42,10 +48,13 @@ type LiveAppointment = {
   attendanceStatus: string;
   executionStatus: string;
   owner: { name: string } | null;
-  customer: { displayName: string; phoneNumber: string | null; email: string | null } | null;
+  participants?: Array<{ displayName: string }>;
+  outcomeNotes?: string | null;
+  followUpNotes?: string | null;
+  customer: { customerId?: string | null; displayName: string; phoneNumber: string | null; email: string | null } | null;
   vehicles: Array<{ year: number | null; make: string | null; model: string | null; vehicleNumber: string; vin: string | null }>;
   taskLinks: Array<{ taskStatus: string; blocksAppointment: boolean }>;
-  resourceReservations: Array<{ status: string }>;
+  resourceReservations: Array<{ status: string; resourceName?: string }>;
 };
 
 type AppointmentApiResponse = {
@@ -57,9 +66,11 @@ type AppointmentApiResponse = {
 
 type AppointmentCommandCreateResponse = {
   accepted?: boolean;
-  command?: { errorMessage?: string | null } | null;
+  duplicate?: boolean;
+  command?: { status?: string; errorMessage?: string | null } | null;
   error?: string;
   execution?: {
+    rejectionReasons?: string[];
     appointment?: Partial<LiveAppointment> | null;
   } | null;
 };
@@ -93,111 +104,20 @@ const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
 
-type AppointmentPurposeOption = {
-  category: string;
-  duration: number;
-  label: string;
-  value: string;
-};
-
-type AppointmentPurposeGroup = {
-  label: string;
-  options: AppointmentPurposeOption[];
-};
-
-const appointmentPurposeGroups: AppointmentPurposeGroup[] = [
-  {
-    label: "Customer & Follow-up",
-    options: [
-      { value: "CUSTOMER_ISSUE", label: "Customer Issue / Resolution", duration: 60, category: "customer" },
-      { value: "CUSTOMER_FOLLOW_UP", label: "Customer Follow-up", duration: 30, category: "customer" },
-      { value: "GENERAL_FOLLOW_UP", label: "General Follow-up", duration: 30, category: "general" },
-      { value: "COMPLAINT_RESOLUTION", label: "Complaint / Concern Resolution", duration: 60, category: "customer" }
-    ]
-  },
-  {
-    label: "Sales & Revenue",
-    options: [
-      { value: "SALES_CONSULTATION", label: "Sales Consultation", duration: 60, category: "sales" },
-      { value: "TEST_DRIVE", label: "Test Drive", duration: 45, category: "sales" },
-      { value: "DEAL_REVIEW", label: "Deal Review / Closing", duration: 60, category: "sales" },
-      { value: "TRADE_APPRAISAL", label: "Trade Appraisal", duration: 45, category: "sales" },
-      { value: "BUSINESS_SALES_APPOINTMENT", label: "Business Sales Appointment", duration: 60, category: "business" }
-    ]
-  },
-  {
-    label: "Finance, Banking & Payments",
-    options: [
-      { value: "FINANCE_PAPERWORK", label: "Finance Paperwork", duration: 60, category: "finance" },
-      { value: "BANKER_APPOINTMENT", label: "Banker / Lender Appointment", duration: 60, category: "banking" },
-      { value: "CREDIT_APPLICATION", label: "Credit Application / Approval", duration: 45, category: "finance" },
-      { value: "PAYMENT_COLLECTION", label: "Payment / Collections", duration: 30, category: "collections" },
-      { value: "ACCOUNTING_RECONCILIATION", label: "Accounting / Reconciliation", duration: 45, category: "finance" }
-    ]
-  },
-  {
-    label: "Insurance, Title, Licensing & Permits",
-    options: [
-      { value: "INSURANCE_VERIFICATION", label: "Insurance Verification", duration: 30, category: "insurance" },
-      { value: "INSURANCE_BINDER", label: "Insurance Binder / Coverage Review", duration: 45, category: "insurance" },
-      { value: "TITLE_DOCUMENTATION", label: "Title / Documentation Issue", duration: 45, category: "dmv" },
-      { value: "DMV_TITLE", label: "DMV / Title Follow-up", duration: 45, category: "dmv" },
-      { value: "LICENSING_PERMIT", label: "Licensing / Permit Appointment", duration: 45, category: "licensing" },
-      { value: "REGISTRATION_PLATES", label: "Registration / Plates", duration: 45, category: "dmv" }
-    ]
-  },
-  {
-    label: "Service, Warranty & Vehicle Care",
-    options: [
-      { value: "SERVICE_REPAIR", label: "Service / Repair Appointment", duration: 60, category: "service" },
-      { value: "WARRANTY_REVIEW", label: "Warranty Review / Claim", duration: 45, category: "warranty" },
-      { value: "INSPECTION_DIAGNOSTIC", label: "Inspection / Diagnostic", duration: 60, category: "service" },
-      { value: "PARTS_ACCESSORY", label: "Parts / Accessory Appointment", duration: 45, category: "inventory" }
-    ]
-  },
-  {
-    label: "Rental, Leasing & Delivery",
-    options: [
-      { value: "DAILY_RENTAL", label: "Daily Rental / Loaner", duration: 30, category: "rental" },
-      { value: "LEASE_REVIEW", label: "Lease Review / Renewal", duration: 60, category: "leasing" },
-      { value: "VEHICLE_DELIVERY", label: "Vehicle Delivery / Selling Paperwork", duration: 60, category: "delivery" },
-      { value: "TRANSPORTATION_LOGISTICS", label: "Transportation / Logistics", duration: 45, category: "delivery" }
-    ]
-  },
-  {
-    label: "Business, Vendor & Operations",
-    options: [
-      { value: "BUSINESS_APPOINTMENT", label: "Business Appointment", duration: 60, category: "business" },
-      { value: "VENDOR_APPOINTMENT", label: "Vendor / Partner Appointment", duration: 45, category: "vendor" },
-      { value: "INVENTORY_OPERATION", label: "Inventory / Lot / Vehicle Operation", duration: 45, category: "inventory" },
-      { value: "PHOTO_MARKETING", label: "Photos / Marketing / Advertising", duration: 45, category: "marketing" },
-      { value: "FACILITY_APPOINTMENT", label: "Facility / Property Appointment", duration: 45, category: "facility" }
-    ]
-  },
-  {
-    label: "Administration, Management & Compliance",
-    options: [
-      { value: "ADMINISTRATIVE_APPOINTMENT", label: "Administrative Appointment", duration: 45, category: "administration" },
-      { value: "MANAGERIAL_APPOINTMENT", label: "Managerial Appointment", duration: 45, category: "administration" },
-      { value: "PHONE_COMPANY_MANAGERIAL", label: "Phone Company / Utility Appointment", duration: 45, category: "utilities" },
-      { value: "LEGAL_COMPLIANCE", label: "Legal / Compliance Appointment", duration: 60, category: "compliance" },
-      { value: "STAFF_TRAINING", label: "Staff / Training Appointment", duration: 45, category: "staff" },
-      { value: "OTHER_APPOINTMENT", label: "Other Appointment", duration: 30, category: "general" }
-    ]
-  }
-] ;
-
-const purposeOptions = appointmentPurposeGroups.flatMap((group) => group.options);
-const appointmentDurationOptions = [15, 30, 45, 60, 75, 90, 120];
-const appointmentCategories = Array.from(new Set(purposeOptions.map((purpose) => purpose.category)));
-
-function calendarCategoryStyle(category?: string | null) {
-  const appearance = categoryAppearance(category);
+function calendarCategoryStyle(category?: string | null, purposeCode?: string | null, title?: string | null) {
+  const appearance = categoryAppearance(appointmentPurposeGroup(category, purposeCode, title).category);
   return {
     "--appointment-category-accent": appearance.color,
     "--appointment-category-bg-light": appearance.background,
     "--appointment-category-text-light": appearance.color
   } as CSSProperties;
+}
+
+function existingAppointmentPurpose(appointment: LiveAppointment) {
+  return appointmentPurposes.find(purpose => purpose.value === appointment.purposeCode)
+    ?? appointmentPurposes.find(purpose => purpose.label === appointment.title && purpose.label !== "Other")
+    ?? appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).options.at(-1)
+    ?? defaultAppointmentPurpose;
 }
 
 function todayDateKey() {
@@ -269,16 +189,35 @@ function normalizedAppointmentCustomerName(value: string | null | undefined) {
   return normalized || null;
 }
 
-function activeDuplicateBookingStatus(appointment: LiveAppointment) {
-  return ["DRAFT", "PENDING_APPROVAL", "SCHEDULED"].includes(appointment.bookingStatus);
-}
-
 function sameAppointmentStart(left: string | null, right: string | null) {
   if (!left || !right) {
     return false;
   }
 
   return new Date(left).getTime() === new Date(right).getTime();
+}
+
+export function findPlannerDuplicateAppointment<T extends Pick<LiveAppointment, "id" | "startsAt" | "bookingStatus" | "customer">>(
+  appointments: T[],
+  { startsAt, customerName, customerId, editingId, alreadySaved }: {
+    startsAt: string;
+    customerName: string;
+    customerId?: string | null;
+    editingId?: string;
+    alreadySaved: boolean;
+  }
+) {
+  const name = normalizedAppointmentCustomerName(customerName);
+  if (alreadySaved || !name) return null;
+
+  return appointments.find(appointment =>
+    appointment.id !== editingId &&
+    ["DRAFT", "PENDING_APPROVAL", "SCHEDULED"].includes(appointment.bookingStatus) &&
+    sameAppointmentStart(appointment.startsAt, startsAt) &&
+    (customerId && appointment.customer?.customerId
+      ? customerId === appointment.customer.customerId
+      : normalizedAppointmentCustomerName(appointment.customer?.displayName) === name)
+  ) ?? null;
 }
 
 function isoDateKey(value: string | null) {
@@ -308,7 +247,7 @@ function isoTimeInput(value: string | null) {
 function appointmentDurationMinutes(appointment: LiveAppointment) {
   if (!appointment.startsAt || !appointment.endsAt) return 60;
   const minutes = Math.round((new Date(appointment.endsAt).getTime() - new Date(appointment.startsAt).getTime()) / 60_000);
-  return [30, 45, 60, 75, 90, 120].includes(minutes) ? minutes : Math.max(15, minutes);
+  return Math.max(1, minutes);
 }
 
 function vehicleLabel(appointment: LiveAppointment) {
@@ -567,9 +506,9 @@ function useAppointmentConsoleData(date: string) {
   return { data: data?.date === date ? data : null, status: data && data.date !== date ? "loading" as const : status };
 }
 
-function useAppointmentWindow(dateKey: string, view: CalendarView, liveRefresh: boolean) {
-  const startDate = view === "week" ? weekStart(dateKey) : view === "month" ? weekStart(monthStart(dateKey)) : dateKey;
-  const endDate = addDays(startDate, view === "month" ? 42 : view === "week" ? 7 : 1);
+function useAppointmentWindow(dateKey: string, view: CalendarView, liveRefresh: boolean, range?: { from: string; to: string }) {
+  const startDate = range?.from ?? (view === "week" ? weekStart(dateKey) : view === "month" ? weekStart(monthStart(dateKey)) : dateKey);
+  const endDate = range ? addDays(range.to, 1) : addDays(startDate, view === "month" ? 42 : view === "week" ? 7 : 1);
   const [reload, setReload] = useState(0);
   const requestKey = `${startDate}:${endDate}:${reload}`;
   const [result, setResult] = useState<{ key: string; data: AppointmentApiResponse | null } | null>(null);
@@ -939,6 +878,9 @@ function LegacyAppointmentConsoleNewAppointment() {
 void LegacyAppointmentConsoleNewAppointment;
 
 type AppointmentNewInitialContext = {
+  calendarQuery?: string;
+  advancedCalendarSearch?: boolean;
+  viewerName?: string;
   crmCustomerId?: string;
   customerReference?: string;
   localDate?: string;
@@ -960,8 +902,9 @@ function validTimeInput(value?: string) {
 }
 
 export function AppointmentConsoleNewAppointment({ initialContext, initialFullCalendar = false }: { initialContext?: AppointmentNewInitialContext; initialFullCalendar?: boolean }) {
-  const [selectedPurposeCode, setSelectedPurposeCode] = useState<(typeof purposeOptions)[number]["value"]>("CUSTOMER_ISSUE");
-  const selectedPurpose = purposeOptions.find((purpose) => purpose.value === selectedPurposeCode) ?? purposeOptions[0];
+  const [selectedPurposeCode, setSelectedPurposeCode] = useState(defaultAppointmentPurpose.value);
+  const selectedPurpose = appointmentPurposes.find(purpose => purpose.value === selectedPurposeCode) ?? defaultAppointmentPurpose;
+  const selectedPurposeGroup = appointmentPurposeGroup(selectedPurpose.category, selectedPurpose.value);
   const [form, setForm] = useState({
     customer: initialContext?.customerReference ?? "",
     vehicle: initialContext?.vehicleReference ?? "",
@@ -976,17 +919,26 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [fullPageCalendarOpen, setFullPageCalendarOpen] = useState(initialFullCalendar);
   const [calendarRailOpen, setCalendarRailOpen] = useState(true);
-  const [calendarSearchOpen, setCalendarSearchOpen] = useState(false);
-  const [calendarSearch, setCalendarSearch] = useState("");
+  const [calendarSearchOpen, setCalendarSearchOpen] = useState(Boolean(initialContext?.calendarQuery));
+  const [calendarSearch, setCalendarSearch] = useState(initialContext?.calendarQuery ?? "");
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(Boolean(initialContext?.advancedCalendarSearch));
+  const [advancedSearch, setAdvancedSearch] = useState<CalendarSearchFilters | null>(null);
+  const [taskCategory, setTaskCategory] = useState("all");
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
   const [layoutMode, setLayoutMode] = useState<"compact" | "expandable">("compact");
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
-  const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
-  const [confirmedDuplicateAppointmentKey, setConfirmedDuplicateAppointmentKey] = useState<string | null>(null);
+  const [savedCreation, setSavedCreation] = useState<LiveAppointment | null>(null);
+  const createdAppointmentNumber = savedCreation?.appointmentNumber;
+  const submitInProgress = useRef(false);
+  const createAttempt = useRef<{ fingerprint: string; appointmentNumber: string } | null>(null);
   const [createdAppointments, setCreatedAppointments] = useState<LiveAppointment[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<LiveAppointment | null>(null);
+  const unchangedPurpose = editingAppointment && existingAppointmentPurpose(editingAppointment).value === selectedPurpose.value ? editingAppointment : null;
+  const appointmentTitle = unchangedPurpose?.title ?? (selectedPurpose.label === "Other" ? `Other · ${selectedPurposeGroup.label}` : selectedPurpose.label);
+  const appointmentCategory = unchangedPurpose?.category ?? selectedPurpose.category;
+  const appointmentPurposeCode = unchangedPurpose?.purposeCode ?? selectedPurpose.value;
   const [expandedAppointment, setExpandedAppointment] = useState<LiveAppointment | null>(null);
   const [customerQuery, setCustomerQuery] = useState(initialContext?.customerReference ?? "");
   const [vehicleQuery, setVehicleQuery] = useState(initialContext?.vehicleReference ?? "");
@@ -996,7 +948,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(null);
   const [hiddenCalendars, setHiddenCalendars] = useState<string[]>([]);
   const [personalDraft, setPersonalDraft] = useState<ComponentProps<typeof PersonalCalendarEditor>["draft"] | null>(null);
-  const appointmentWindow = useAppointmentWindow(form.localDate, calendarView, fullPageCalendarOpen);
+  const [taskDraft, setTaskDraft] = useState<{ date: string; time?: string } | null>(null);
+  const [openTask, setOpenTask] = useState<CalendarTask | null>(null);
+  const [showCalendarTasks, setShowCalendarTasks] = useState(true);
+  const appointmentWindow = useAppointmentWindow(form.localDate, calendarView, fullPageCalendarOpen, advancedSearch ?? undefined);
+  const calendarTasks = useCalendarTasks(new URLSearchParams({ start: appointmentWindow.startDate, end: appointmentWindow.endDate }).toString(),
+    fullPageCalendarOpen && (showCalendarTasks || advancedSearch?.scope === "tasks" || advancedSearch?.scope === "all"));
   const personalSchedule = usePersonalSchedule(
     localDateTimeToIso(appointmentWindow.startDate, "00:00"),
     localDateTimeToIso(appointmentWindow.endDate, "00:00"),
@@ -1037,30 +994,13 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       return leftStartsAt - rightStartsAt || left.appointmentNumber.localeCompare(right.appointmentNumber);
     });
   }, [appointmentWindow.data?.appointments, appointmentWindow.startDate, appointmentWindow.endDate, appointmentWindow.status, createdAppointments, fullPageCalendarOpen]);
-  const duplicateCustomerTimeAppointment = useMemo(() => {
-    const customerName = normalizedAppointmentCustomerName(form.customer);
-
-    if (!customerName) {
-      return null;
-    }
-
-    return visibleAppointments.find((appointment) =>
-      appointment.id !== editingAppointment?.id &&
-      activeDuplicateBookingStatus(appointment) &&
-      sameAppointmentStart(appointment.startsAt, startsAtIso) &&
-      normalizedAppointmentCustomerName(appointment.customer?.displayName) === customerName
-    ) ?? null;
-  }, [editingAppointment?.id, form.customer, startsAtIso, visibleAppointments]);
-  const duplicateCustomerTimeKey = duplicateCustomerTimeAppointment
-    ? [
-        duplicateCustomerTimeAppointment.id,
-        startsAtIso,
-        normalizedAppointmentCustomerName(form.customer) ?? "customer"
-      ].join("|")
-    : null;
-  const duplicateCustomerTimeConfirmed = Boolean(
-    duplicateCustomerTimeKey && confirmedDuplicateAppointmentKey === duplicateCustomerTimeKey
-  );
+  const duplicateCustomerTimeAppointment = findPlannerDuplicateAppointment(visibleAppointments, {
+    startsAt: startsAtIso,
+    customerName: form.customer,
+    customerId: selectedCustomer?.id ?? (form.customer === editingAppointment?.customer?.displayName ? editingAppointment?.customer?.customerId : null),
+    editingId: editingAppointment?.id,
+    alreadySaved: Boolean(savedCreation)
+  });
   const openSlots = useMemo(() => appointmentWindow.status === "ready" ? appointmentTimeSlots.filter(slot => {
     const start = localDateTimeToIso(form.localDate, slot);
     return !visibleAppointmentOverlaps(visibleAppointments, start, addMinutesToIso(start, form.durationMinutes), editingAppointment?.id);
@@ -1091,12 +1031,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
   function selectedAppointmentPayload() {
     return {
-      title: selectedPurpose.label,
+      title: appointmentTitle,
       schedulingTimezone: defaultTimezone,
       purposeSnapshot: {
-        code: selectedPurpose.value,
-        category: selectedPurpose.category,
-        categoryLabel: selectedPurpose.label,
+        code: appointmentPurposeCode,
+        category: appointmentCategory,
+        categoryLabel: appointmentTitle,
         reason: form.reason.trim(),
         transportation: form.transportation
       },
@@ -1131,11 +1071,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     version: number;
   }): LiveAppointment {
     return {
-      category: selectedPurpose.category,
+      category: appointmentCategory,
+      purposeCode: appointmentPurposeCode,
       id: input.id,
       version: input.version,
       appointmentNumber: input.appointmentNumber,
-      title: selectedPurpose.label,
+      title: appointmentTitle,
       startsAt: startsAtIso,
       endsAt: endsAtIso,
       bookingStatus: input.base?.bookingStatus ?? "DRAFT",
@@ -1176,12 +1117,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   }
 
   function hydrateAppointmentForEdit(appointment: LiveAppointment) {
-    const appointmentPurpose = purposeOptions.find((purpose) => purpose.category === appointment.category) ??
-      purposeOptions.find((purpose) => purpose.label === appointment.title) ??
-      purposeOptions[0];
+    if (submitInProgress.current) return;
+    const appointmentPurpose = existingAppointmentPurpose(appointment);
     const customerName = appointment.customer?.displayName ?? "";
     const vehicleName = vehicleLabel(appointment) === "No vehicle" ? "" : vehicleLabel(appointment);
 
+    setSavedCreation(null);
     setEditingAppointment(appointment);
     setExpandedAppointment(null);
     setSelectedPurposeCode(appointmentPurpose.value);
@@ -1209,10 +1150,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   }
 
   function startNewAppointmentDraft(startTime = form.startTime) {
-    const defaultPurpose = purposeOptions[0];
+    if (submitInProgress.current) return;
+    const defaultPurpose = defaultAppointmentPurpose;
     setEditingAppointment(null);
     setExpandedAppointment(null);
-    setCreatedAppointmentNumber(null);
+    setSavedCreation(null);
+    createAttempt.current = null;
     setSelectedPurposeCode(defaultPurpose.value);
     setSelectedCustomer(null);
     setSelectedVehicle(null);
@@ -1251,10 +1194,9 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     setCalendarInsightCard(null);
   }
 
-  function chooseCalendarCategory(category: string) {
-    const nextPurpose = purposeOptions.find((purpose) => purpose.category === category) ?? selectedPurpose;
-    changePurpose(nextPurpose.value);
-    setNotice(`${category} category selected.`);
+  function chooseCalendarCategory(group: (typeof appointmentPurposeGroups)[number]) {
+    changePurpose(group.options[0]);
+    setNotice(`${group.label} category selected.`);
   }
 
   useEffect(() => {
@@ -1319,13 +1261,14 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     setNotice(`Selected canonical vehicle ${label}.`);
   }
 
-  function changePurpose(value: string) {
-    const purpose = purposeOptions.find((option) => option.value === value) ?? purposeOptions[0];
+  function changePurpose(purpose: AppointmentPurpose) {
     setSelectedPurposeCode(purpose.value);
     setForm((current) => ({
       ...current,
       durationMinutes: purpose.duration,
-      reason: current.reason || purpose.label
+      reason: current.reason === selectedPurpose.label
+        ? purpose.label === "Other" ? "" : purpose.label
+        : current.reason || (purpose.label === "Other" ? "" : purpose.label)
     }));
   }
 
@@ -1372,6 +1315,8 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   }
 
   function closeFullPageCalendar() {
+    setAdvancedSearch(null);
+    setAdvancedSearchOpen(false);
     setFullPageCalendarOpen(false);
     setNotice("Returned to the standard appointment setup workspace.");
   }
@@ -1395,17 +1340,19 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
   async function createAppointment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitInProgress.current || (savedCreation && !editingAppointment)) return;
 
     if (!form.reason.trim()) {
       setNotice(editingAppointment ? "Please document why this appointment is changing." : "Please document the appointment reason before creating it.");
       return;
     }
 
-    if (duplicateCustomerTimeAppointment && !duplicateCustomerTimeConfirmed) {
-      setNotice(`${form.customer.trim()} already has ${duplicateCustomerTimeAppointment.appointmentNumber} at ${formatTime(startsAtIso)}. Confirm the duplicate appointment before saving.`);
+    if (duplicateCustomerTimeAppointment) {
+      setNotice(`Open ${duplicateCustomerTimeAppointment.appointmentNumber} or choose another time.`);
       return;
     }
 
+    submitInProgress.current = true;
     setIsSaving(true);
     setNotice(editingAppointment ? "Saving appointment changes..." : "Creating appointment...");
 
@@ -1413,8 +1360,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       if (editingAppointment) {
         const timeChanged = editingAppointment.startsAt !== startsAtIso || editingAppointment.endsAt !== endsAtIso;
         const detailsChanged =
-          editingAppointment.title !== selectedPurpose.label ||
-          editingAppointment.category !== selectedPurpose.category ||
+          !unchangedPurpose ||
           (editingAppointment.customer?.displayName ?? "") !== form.customer.trim() ||
           (vehicleLabel(editingAppointment) === "No vehicle" ? "" : vehicleLabel(editingAppointment)) !== form.vehicle.trim();
 
@@ -1445,7 +1391,6 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 startsAt: startsAtIso,
                 endsAt: endsAtIso,
                 schedulingTimezone: defaultTimezone,
-                duplicateCustomerTimeConfirmed,
                 reasonCode: "PLANNER_RESCHEDULE",
                 reasonNotes: form.reason.trim()
               }
@@ -1488,14 +1433,17 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
         upsertLocalAppointment(updatedAppointment);
         setEditingAppointment(updatedAppointment);
-        setCreatedAppointmentNumber(updatedAppointment.appointmentNumber);
         setNotice(`Appointment ${updatedAppointment.appointmentNumber} was updated and refreshed in this planner.`);
         return;
       }
 
-      const appointmentNumber = createAppointmentNumber();
-      const idempotencyKey = `appointment-console-draft-${appointmentNumber}`;
       const appointmentPayload = selectedAppointmentPayload();
+      const fingerprint = JSON.stringify([startsAtIso, endsAtIso, appointmentPayload]);
+      if (createAttempt.current?.fingerprint !== fingerprint) {
+        createAttempt.current = { fingerprint, appointmentNumber: createAppointmentNumber() };
+      }
+      const { appointmentNumber } = createAttempt.current;
+      const idempotencyKey = `appointment-console-draft-${appointmentNumber}`;
       const response = await fetch("/api/appointments/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1516,7 +1464,6 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             purposeSnapshot: appointmentPayload.purposeSnapshot,
             customerSnapshot: appointmentPayload.customerSnapshot,
             vehicleSnapshot: appointmentPayload.vehicleSnapshot,
-            duplicateCustomerTimeConfirmed,
             sourceSnapshot: initialContext?.sourceTaskId
               ? {
                   taskId: initialContext.sourceTaskId,
@@ -1544,8 +1491,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       });
       const result = await response.json().catch(() => null) as AppointmentCommandCreateResponse | null;
 
-      if (!response.ok || !result?.accepted) {
-        throw new Error(result?.error ?? result?.command?.errorMessage ?? "Unable to create the appointment.");
+      const creationSucceeded = result?.duplicate ? result.command?.status === "SUCCEEDED" : result?.accepted;
+      if (!response.ok || !result || !creationSucceeded) {
+        if (result?.command?.status === "REJECTED" || result?.command?.status === "FAILED") createAttempt.current = null;
+        if (result?.accepted === false) appointmentWindow.refresh();
+        const reason = result?.error || result?.execution?.rejectionReasons?.join(" ") || result?.command?.errorMessage;
+        throw new Error(reason || (result?.duplicate && result.accepted ? "The appointment is still saving. Try again shortly." : "Unable to create the appointment."));
       }
 
       const createdAppointment = buildVisibleAppointment({
@@ -1555,14 +1506,24 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       });
 
       upsertLocalAppointment(createdAppointment);
-      setCreatedAppointmentNumber(createdAppointment.appointmentNumber);
+      setSavedCreation(createdAppointment);
       setNotice(`Appointment ${createdAppointment.appointmentNumber} was created and added to this planner.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to create the appointment right now.");
     } finally {
+      submitInProgress.current = false;
       setIsSaving(false);
     }
   }
+
+  const duplicateWarning = duplicateCustomerTimeAppointment && (
+    <div className="appointment-duplicate-warning" role="alert">
+      <strong>Appointment already exists</strong>
+      <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
+      <Link href={boardFocusHref(duplicateCustomerTimeAppointment)}>Open existing appointment</Link>
+      <p>Choose another time to create a separate appointment.</p>
+    </div>
+  );
 
   const calendarDetail = calendarInsightCard ? (
               <CalendarDetailDialog onClose={() => setCalendarInsightCard(null)} onSubmit={(event) => void createAppointment(event)}>
@@ -1573,22 +1534,22 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                         calendarInsightCard === "advisor" ? "Advisor routing" :
                           calendarInsightCard === "categories" ? "Categories" :
                             calendarInsightCard === "appointment" && expandedAppointment ? expandedAppointment.appointmentNumber || expandedAppointment.title :
-                            editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : "Create appointment"}
+                            editingAppointment ? `Edit ${editingAppointment.appointmentNumber}` : savedCreation ? "Appointment saved" : "Create appointment"}
                   </strong>
                   <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
                 </header>
                 {calendarInsightCard === "categories" ? (
                   <div className="calendar-category-picker">
-                    {appointmentCategories.map((category) => (
+                    {appointmentPurposeGroups.map((group) => (
                       <button
-                        className={selectedPurpose.category === category ? "active" : ""}
-                        key={category}
-                        onClick={() => chooseCalendarCategory(category)}
-                        style={calendarCategoryStyle(category)}
+                        className={selectedPurposeGroup.id === group.id ? "active" : ""}
+                        key={group.id}
+                        onClick={() => chooseCalendarCategory(group)}
+                        style={calendarCategoryStyle(group.category)}
                         type="button"
                       >
-                        <strong>{category}</strong>
-                        <span>{purposeOptions.filter((purpose) => purpose.category === category).length} purpose{purposeOptions.filter((purpose) => purpose.category === category).length === 1 ? "" : "s"}</span>
+                        <strong>{group.label}</strong>
+                        <span>{group.options.length} purposes</span>
                       </button>
                     ))}
                   </div>
@@ -1619,9 +1580,21 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                       <button onClick={() => hydrateAppointmentForEdit(expandedAppointment)} type="button">Edit appointment</button>
                     </footer></>}
                   </div>
+                ) : savedCreation ? (
+                  <div className="calendar-enterprise-draft-form">
+                    <p>{savedCreation.title} · {formatTime(savedCreation.startsAt)} – {formatTime(savedCreation.endsAt)}</p>
+                    <footer>
+                      <Link href={boardFocusHref(savedCreation)}>Open saved appointment</Link>
+                      <button onClick={resetAppointmentDraft} type="button">New appointment</button>
+                    </footer>
+                  </div>
                 ) : (
-                  <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category)}>
+                  <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category, selectedPurpose.value)}>
                     {fullPageCalendarOpen && <p>Company calendar · Visible to staff. {!editingAppointment && <button type="button" onClick={() => { setCalendarInsightCard(null); setPersonalDraft({ kind: "event", date: form.localDate, time: form.startTime, duration: form.durationMinutes }); }}>Create a private event instead</button>}</p>}
+                    {fullPageCalendarOpen && !editingAppointment && <button type="button" onClick={() => {
+                      setCalendarInsightCard(null);
+                      setTaskDraft({ date: form.localDate, time: form.startTime });
+                    }}>Add a task instead</button>}
                     <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
                     {customerQuery.trim().length >= 2 && !selectedCustomer ? (
                       <div className="appointment-identity-results" aria-label="Matching customers">
@@ -1636,79 +1609,123 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                         {!effectiveIdentityResults.vehicles.length ? <p>{effectiveIdentityStatus === "loading" ? "Searching vehicles..." : "No match. Select an existing vehicle to link its record."}</p> : null}
                       </div>
                     ) : null}
-                    <label><span>Purpose</span><select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>{appointmentPurposeGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}</optgroup>)}</select></label>
+                    <AppointmentPurposeFields purpose={selectedPurpose} onChange={changePurpose} />
                     <div className="calendar-enterprise-draft-row">
                       <label><span>Date</span><input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} /></label>
                       <label><span>Time</span><input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} /></label>
-                      <label><span>Duration</span><select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>{Array.from(new Set([...appointmentDurationOptions, form.durationMinutes])).sort((a, b) => a - b).map((duration) => <option key={duration} value={duration}>{duration} min</option>)}</select></label>
+                      <AppointmentDurationField value={form.durationMinutes} onChange={minutes => updateField("durationMinutes", minutes)} disabled={isSaving} />
                     </div>
                     <div className="calendar-enterprise-draft-row">
                       <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
                     </div>
                     <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
-                    {duplicateCustomerTimeAppointment && duplicateCustomerTimeKey ? (
-                      <div className="appointment-duplicate-warning" role="alert">
-                        <strong>Possible double appointment</strong>
-                        <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
-                        <label>
-                          <input
-                            checked={duplicateCustomerTimeConfirmed}
-                            onChange={(event) => setConfirmedDuplicateAppointmentKey(event.target.checked ? duplicateCustomerTimeKey : null)}
-                            type="checkbox"
-                          />
-                          Confirm this duplicate time intentionally.
-                        </label>
-                      </div>
-                    ) : null}
+                    {duplicateWarning}
                     <footer>
                       <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
                       {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New draft</button> : null}
-                      <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save changes" : "Create appointment"}</button>
+                      <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment)} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save changes" : "Create appointment"}</button>
                     </footer>
                   </div>
                 )}
-                {selectedTimeOverlaps && <p>Another appointment overlaps this time. Review staff and resources before confirming.</p>}
+                {!savedCreation && calendarInsightCard === "draft" && !duplicateCustomerTimeAppointment && selectedTimeOverlaps && <p>Another appointment overlaps this time. Review staff and resources before confirming.</p>}
                 {notice ? <p role="status">{notice}</p> : null}
               </CalendarDetailDialog>
             ) : null;
 
+  const searchTokens = calendarSearch.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const matchesSearch = (...values: Array<string | null | undefined>) => {
+    const haystack = values.filter(Boolean).join(" ").toLowerCase();
+    return searchTokens.every(token => haystack.includes(token));
+  };
+  const appointmentSearchKeywords = (appointment: LiveAppointment) => [
+    appointment.title, appointment.customer?.displayName, appointment.owner?.name, vehicleLabel(appointment), appointment.appointmentNumber,
+    appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).label, appointment.category
+  ];
   const matchesCalendarFilter = (appointment: LiveAppointment) =>
-    !hiddenCalendars.includes("company") && !hiddenCategories.includes(appointment.category ?? "") &&
-    [appointment.title, appointment.customer?.displayName, appointment.owner?.name, vehicleLabel(appointment), appointment.appointmentNumber]
-      .some(value => value?.toLowerCase().includes(calendarSearch.trim().toLowerCase()));
+    !hiddenCalendars.includes("company") && !hiddenCategories.includes(appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).id) &&
+    matchesSearch(...appointmentSearchKeywords(appointment));
+  const taskSearchLabel = (task: CalendarTask) => task.scope === "personal"
+    ? calendarTasks.lists.find(list => list.id === task.listId)?.name ?? "Personal"
+    : calendarTaskTeams.find(([id]) => id === task.workflowArea)?.[1];
+  const matchesTaskCategory = (task: CalendarTask) => taskCategory === "all" ||
+    taskCategory === (task.scope === "personal" ? `personal:${task.listId ?? ""}` : task.workflowArea ?? "");
   const visiblePersonalEvents = personalSchedule.events.filter(event =>
     !hiddenCalendars.includes(event.calendarId ?? personalCalendarKey) &&
-    event.title.toLowerCase().includes(calendarSearch.trim().toLowerCase()));
+    matchesSearch(event.title, personalSchedule.calendars.find(calendar => calendar.id === event.calendarId)?.name));
+  const visibleTasks = fullPageCalendarOpen && showCalendarTasks
+    ? calendarTasks.tasks.filter(task => matchesTaskCategory(task) && matchesSearch(task.title, taskSearchLabel(task), task.workType, task.workflowArea))
+    : [];
+  const tasksForDate = (date: string) => visibleTasks.filter(task => task.localDate === date);
+  const taskTitle = (task: CalendarTask) => `${task.completed ? "✓" : "☐"} ${task.title}`;
+  const taskStyle = { "--appointment-category-accent": "#17624a", "--appointment-category-bg-light": "#ddf5ea" } as CSSProperties;
   const personalStyle = { "--appointment-category-accent": "#7051a5", "--appointment-category-bg-light": "#eee6fc" } as CSSProperties;
   const openPersonalEvent = (event: PersonalEvent) => setPersonalDraft({
     kind: "event", event, date: isoDateKey(event.startsAt), time: isoTimeInput(event.startsAt),
     duration: Math.round((Date.parse(event.endsAt) - Date.parse(event.startsAt)) / 60000)
   });
   const agendaPersonalEvents = fullPageCalendarOpen ? visiblePersonalEvents.filter(event => isoDateKey(event.startsAt) === form.localDate) : [];
+  const agendaTasks = tasksForDate(form.localDate);
   const agendaAppointments = fullPageCalendarOpen ? selectedDayAppointments.filter(matchesCalendarFilter) : selectedDayAppointments;
 
   const dayAgenda = (
     <section className={agendaStyles.agenda} aria-label="Day agenda">
-      <header><strong>{appointmentDateLabel} · {agendaAppointments.length + agendaPersonalEvents.length} events</strong><button type="button" onClick={openAppointmentDraftPanel}>{editingAppointment ? "Return to appointment edit" : "Open appointment draft"}</button></header>
-      {appointmentWindow.status === "loading" ? <p role="status">Loading live schedule…</p> : appointmentWindow.status === "unavailable" ? <p role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p> : agendaAppointments.length === 0 && agendaPersonalEvents.length === 0 ? <p>No events on this date.</p> : (
+      <header><strong>{appointmentDateLabel} · {agendaAppointments.length + agendaPersonalEvents.length} events{agendaTasks.length ? ` · ${agendaTasks.length} tasks` : ""}</strong><button type="button" onClick={openAppointmentDraftPanel}>{editingAppointment ? "Return to appointment edit" : "Open appointment draft"}</button></header>
+      {appointmentWindow.status === "loading" ? <p role="status">Loading live schedule…</p> : appointmentWindow.status === "unavailable" ? <p role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p> : agendaAppointments.length === 0 && agendaPersonalEvents.length === 0 && agendaTasks.length === 0 ? <p>No events or tasks on this date.</p> : (
         <ul>{agendaAppointments.map(appointment => <li key={appointment.id}><button type="button" onClick={() => expandAppointmentPreview(appointment)}>
           <span>{formatTime(appointment.startsAt)} – {formatTime(appointment.endsAt)}</span><strong>{appointment.title}</strong><small>{appointment.customer?.displayName ?? "No customer"} · {vehicleLabel(appointment)}</small>
         </button></li>)}{agendaPersonalEvents.map(event => <li key={event.id}><button type="button" onClick={() => openPersonalEvent(event)}>
           <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span><strong>{event.title}</strong><small>Private</small>
         </button></li>)}</ul>
       )}
+      {agendaTasks.length > 0 && <ul aria-label="Tasks for this date">{agendaTasks.map(task => <li key={task.id}><button type="button" onClick={() => setOpenTask(task)}>
+        <span>{task.localTime ? formatTime(localDateTimeToIso(form.localDate, task.localTime)) : "All day"}</span><strong>{taskTitle(task)}</strong><small>{task.scope === "personal" ? "Personal task" : "Dispatch task"}</small>
+      </button></li>)}</ul>}
       <QuickUpdateReminders key={form.localDate} date={form.localDate} />
     </section>
   );
 
   if (fullPageCalendarOpen) {
     const styles = workspaceStyles;
+    const scope = advancedSearch?.scope;
+    const searchAppointments = scope === "all" || scope === "appointments" || (scope === "active" && !hiddenCalendars.includes("company"));
+    const searchTasks = scope === "all" || scope === "tasks" || (scope === "active" && showCalendarTasks);
+    const searchEvents = scope === "all" || scope === "personal" || scope === "active";
+    const searchResults: Array<{ id: string; title: string; date: string; time: string; kind: string; open: () => void }> = [];
+    if (advancedSearch) {
+      if (searchAppointments) for (const item of visibleAppointments) {
+        const group = appointmentPurposeGroup(item.category, item.purposeCode, item.title);
+        if (!item.startsAt || (scope === "active" && hiddenCategories.includes(group.id))) continue;
+        if (!matchesAdvancedCalendarSearch(advancedSearch, {
+          keywords: [...appointmentSearchKeywords(item), item.outcomeNotes, item.followUpNotes],
+          people: [item.owner?.name, item.customer?.displayName, ...(item.participants ?? []).map(person => person.displayName)],
+          places: [appointmentWindow.data?.location.name, ...item.resourceReservations.map(resource => resource.resourceName)]
+        })) continue;
+        searchResults.push({ id: `appointment:${item.id}`, title: item.title, date: isoDateKey(item.startsAt), time: isoTimeInput(item.startsAt), kind: group.label, open: () => expandAppointmentPreview(item) });
+      }
+      if (searchTasks) for (const item of calendarTasks.tasks) {
+        if (!item.localDate || (scope === "active" && !matchesTaskCategory(item))) continue;
+        if (!matchesAdvancedCalendarSearch(advancedSearch, {
+          keywords: [item.title, item.notes, taskSearchLabel(item), item.workType, item.workflowArea],
+          people: [initialContext?.viewerName, item.creatorName], places: []
+        })) continue;
+        searchResults.push({ id: `task:${item.id}`, title: taskTitle(item), date: item.localDate, time: item.localTime ?? "", kind: taskSearchLabel(item) ?? "Task", open: () => setOpenTask(item) });
+      }
+      if (searchEvents) for (const item of personalSchedule.events) {
+        if (scope === "active" && hiddenCalendars.includes(item.calendarId ?? personalCalendarKey)) continue;
+        const label = personalSchedule.calendars.find(calendar => calendar.id === item.calendarId)?.name ?? "Private event";
+        if (!matchesAdvancedCalendarSearch(advancedSearch, { keywords: [item.title, label], people: [initialContext?.viewerName], places: [] })) continue;
+        searchResults.push({ id: `event:${item.id}`, title: item.title, date: isoDateKey(item.startsAt), time: isoTimeInput(item.startsAt), kind: label, open: () => openPersonalEvent(item) });
+      }
+      searchResults.sort((left, right) => left.date.localeCompare(right.date) || left.time.localeCompare(right.time) || left.title.localeCompare(right.title));
+    }
+    const searching = (searchAppointments && appointmentWindow.status === "loading") ||
+      (searchTasks && calendarTasks.loading) || (searchEvents && personalSchedule.loading);
     const today = todayDateKey();
     const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const dayEvents = (date: string) => [
       ...(appointmentsByDate.get(date) ?? []).filter(matchesCalendarFilter).map(appointment => ({
         id: appointment.id, title: appointment.title, startsAt: appointment.startsAt, endsAt: appointment.endsAt,
-        style: calendarCategoryStyle(appointment.category), onOpen: () => expandAppointmentPreview(appointment)
+        style: calendarCategoryStyle(appointment.category, appointment.purposeCode, appointment.title), onOpen: () => expandAppointmentPreview(appointment)
       })),
       ...visiblePersonalEvents.filter(event => isoDateKey(event.startsAt) === date).map(event => ({
         ...event, id: `personal-${event.id}`, style: personalStyle, onOpen: () => openPersonalEvent(event)
@@ -1723,13 +1740,20 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       { id: personalCalendarKey, name: "Personal", private: true },
       ...personalSchedule.calendars.map(calendar => ({ ...calendar, private: true }))
     ];
-    const movePeriod = (direction: number) => updateField("localDate", calendarView === "month"
-      ? addMonths(form.localDate, direction)
-      : addDays(form.localDate, direction * (calendarView === "week" ? 7 : 1)));
+    const movePeriod = (direction: number) => {
+      setAdvancedSearch(null);
+      updateField("localDate", calendarView === "month"
+        ? addMonths(form.localDate, direction)
+        : addDays(form.localDate, direction * (calendarView === "week" ? 7 : 1)));
+    };
     const openSlot = (date: string, time: string) => {
       if (editingAppointment || createdAppointmentNumber) startNewAppointmentDraft(time);
       else openAppointmentDraftPanel();
       setForm(current => ({ ...current, localDate: date, startTime: time }));
+    };
+    const navigateCalendarDate = (date: string) => {
+      setAdvancedSearch(null);
+      updateField("localDate", date);
     };
 
     return (
@@ -1740,13 +1764,16 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             <CalendarDays size={24} aria-hidden="true" /><h1>Calendar</h1>
           </div>
           <div className={styles.navigation}>
-            <button type="button" onClick={() => updateField("localDate", today)}>Today</button>
+            <button type="button" onClick={() => navigateCalendarDate(today)}>Today</button>
             <button aria-label="Previous period" type="button" onClick={() => movePeriod(-1)}><ChevronLeft size={20} /></button>
             <button aria-label="Next period" type="button" onClick={() => movePeriod(1)}><ChevronRight size={20} /></button>
             <strong aria-live="polite">{calendarView === "week" || calendarView === "month" ? monthLabel(form.localDate) : appointmentDateLabel}</strong>
           </div>
           <div className={styles.actions}>
-            <button type="button" aria-label="Search appointments in this view" aria-expanded={calendarSearchOpen} onClick={() => { setCalendarSearchOpen(open => !open); setCalendarSearch(""); }}><Search size={20} /></button>
+            <button type="button" aria-label="Search tasks and appointments" aria-expanded={advancedSearchOpen || (calendarSearchOpen && !advancedSearch)} onClick={() => {
+              if (advancedSearch) setAdvancedSearchOpen(true);
+              else { setCalendarSearchOpen(open => !open); setCalendarSearch(""); }
+            }}><Search size={20} /></button>
             <details className={styles.tools}>
               <summary aria-label="Scheduling tools"><Settings size={20} /></summary>
               <div>
@@ -1754,16 +1781,37 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 <Link href={`/appointments?view=board&localDate=${form.localDate}`}>Schedule board</Link>
               </div>
             </details>
-            <select aria-label="Calendar view" value={calendarView} onChange={event => setCalendarView(event.target.value as CalendarView)}>
+            <select aria-label="Calendar view" value={calendarView} onChange={event => {
+              setAdvancedSearch(null);
+              setCalendarView(event.target.value as CalendarView);
+            }}>
               {calendarViews.map(view => <option key={view} value={view}>{view === "agenda" ? "Schedule" : view[0].toUpperCase() + view.slice(1)}</option>)}
             </select>
-            <button className={styles.primary} type="button" onClick={() => editingAppointment || createdAppointmentNumber ? startNewAppointmentDraft() : openAppointmentDraftPanel()}><Plus size={18} /> Create</button>
+            <details className={styles.tools}>
+              <summary className={styles.primary}><Plus size={18} aria-hidden="true" /> Create</summary>
+              <div>
+                <button type="button" onClick={event => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  if (editingAppointment || createdAppointmentNumber) startNewAppointmentDraft();
+                  else openAppointmentDraftPanel();
+                }}>Appointment</button>
+                <button type="button" onClick={event => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  setTaskDraft({ date: form.localDate });
+                }}>Task</button>
+                <button type="button" onClick={event => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  newPersonalEvent();
+                }}>Private event</button>
+              </div>
+            </details>
             {initialFullCalendar ? <Link href="/appointments?section=today">Exit calendar</Link> : <button type="button" onClick={closeFullPageCalendar}>Back</button>}
           </div>
         </header>
-        {calendarSearchOpen && <div className={styles.search}>
-          <label>Search this view <input autoFocus type="search" placeholder="Title, customer, vehicle, or staff" value={calendarSearch} onChange={event => setCalendarSearch(event.target.value)} /></label>
-          {calendarSearch.trim() && <span role="status">{visibleAppointments.filter(matchesCalendarFilter).length + visiblePersonalEvents.length} matches</span>}
+        {calendarSearchOpen && !advancedSearch && <div className={styles.search}>
+          <label>Search this date range <input autoFocus type="search" maxLength={100} placeholder="Title, category, team, or list" value={calendarSearch} onChange={event => setCalendarSearch(event.target.value)} /></label>
+          {!advancedSearch && calendarSearch.trim() && <span role="status">{visibleAppointments.filter(matchesCalendarFilter).length + visiblePersonalEvents.length + visibleTasks.length} matches</span>}
+          <button type="button" onClick={() => setAdvancedSearchOpen(true)}>Advanced search</button>
         </div>}
         <div className={styles.body}>
           <aside id="calendar-sidebar" className={styles.rail} hidden={!calendarRailOpen}>
@@ -1774,7 +1822,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             </div>
             <div className={styles.miniGrid}>
               {weekdays.map(day => <span key={day}>{day.slice(0, 2)}</span>)}
-              {monthCells.map(cell => <button key={cell.dateKey} type="button" aria-label={cell.dateKey} aria-current={cell.dateKey === today ? "date" : undefined} aria-pressed={cell.selected} className={cell.muted ? styles.muted : undefined} onClick={() => updateField("localDate", cell.dateKey)}>{cell.day}</button>)}
+              {monthCells.map(cell => <button key={cell.dateKey} type="button" aria-label={cell.dateKey} aria-current={cell.dateKey === today ? "date" : undefined} aria-pressed={cell.selected} className={cell.muted ? styles.muted : undefined} onClick={() => navigateCalendarDate(cell.dateKey)}>{cell.day}</button>)}
             </div>
             <details className={styles.filters} open>
               <summary>My calendars</summary>
@@ -1787,29 +1835,57 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
               </label>)}
               <button type="button" onClick={() => newPersonalEvent()}>+ Personal event</button>
               <button type="button" onClick={() => setPersonalDraft({ kind: "calendar" })}>+ Personal calendar</button>
+              <label style={taskStyle}><input type="checkbox" checked={showCalendarTasks} onChange={event => setShowCalendarTasks(event.target.checked)} /> Tasks</label>
+              {showCalendarTasks && <label>Task category <select value={taskCategory} onChange={event => setTaskCategory(event.target.value)}>
+                <option value="all">All task categories</option>
+                <optgroup label="Dispatch teams">{calendarTaskTeams.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</optgroup>
+                <optgroup label="Personal lists"><option value="personal:">Personal</option>{calendarTasks.lists.map(list => <option key={list.id} value={`personal:${list.id}`}>{list.name}</option>)}</optgroup>
+              </select></label>}
+              {showCalendarTasks && calendarTasks.unavailable && <p role="status">Tasks unavailable. <button type="button" onClick={calendarTasks.refresh}>Retry</button></p>}
               {personalSchedule.unavailable && <p role="status">Personal calendars unavailable. <button type="button" onClick={personalSchedule.refresh}>Retry</button></p>}
             </details>
             <details className={styles.filters}>
               <summary>Appointment categories</summary>
-              {appointmentCategories.map(category => <label key={category} style={calendarCategoryStyle(category)}>
-                <input type="checkbox" checked={!hiddenCategories.includes(category)} onChange={event => {
+              {appointmentPurposeGroups.map(group => <label key={group.id} style={calendarCategoryStyle(group.category)}>
+                <input type="checkbox" checked={!hiddenCategories.includes(group.id)} onChange={event => {
                   const checked = event.target.checked;
-                  setHiddenCategories(current => checked ? current.filter(value => value !== category) : [...current, category]);
+                  setHiddenCategories(current => checked ? current.filter(value => value !== group.id) : [...current, group.id]);
                 }} />
-                {category}
+                {group.label}
               </label>)}
             </details>
           </aside>
           <div className={styles.schedule}>
-            {appointmentWindow.status === "loading" && <p className={styles.status} role="status">Loading appointments…</p>}
-            {appointmentWindow.status === "unavailable" && <p className={styles.status} role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p>}
-            {calendarView === "day" || calendarView === "week" ? (
+            {!advancedSearch && appointmentWindow.status === "loading" && <p className={styles.status} role="status">Loading appointments…</p>}
+            {!advancedSearch && appointmentWindow.status === "unavailable" && <p className={styles.status} role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p>}
+            {advancedSearch ? (
+              <section className={styles.searchResults} aria-label="Calendar search results">
+                <header>
+                  <div><h2>Search results</h2><span>{advancedSearch.from} through {advancedSearch.to}</span></div>
+                  <button type="button" onClick={() => setAdvancedSearchOpen(true)}>Edit search</button>
+                  <button type="button" onClick={() => setAdvancedSearch(null)}>Back to calendar</button>
+                </header>
+                {searchAppointments && appointmentWindow.status === "unavailable" && <p role="status">Appointments unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p>}
+                {searchTasks && calendarTasks.unavailable && <p role="status">Tasks unavailable. <button type="button" onClick={calendarTasks.refresh}>Retry</button></p>}
+                {searchEvents && personalSchedule.unavailable && <p role="status">Private events unavailable. <button type="button" onClick={personalSchedule.refresh}>Retry</button></p>}
+                {searching ? <p role="status">Searching…</p> : <p role="status">{searchResults.length ? `${searchResults.length} results` : "No matching items in this date range."}</p>}
+                {searchResults.length > 0 && <ul>{searchResults.map(result => <li key={result.id}>
+                  <button type="button" onClick={result.open}>
+                    <span>{result.date} · {result.time ? formatTime(localDateTimeToIso(result.date, result.time)) : "All day"}</span>
+                    <strong>{result.title}</strong><small>{result.kind}</small>
+                  </button>
+                </li>)}</ul>}
+              </section>
+            ) : calendarView === "day" || calendarView === "week" ? (
               <CalendarTimeGrid
                 days={(calendarView === "day" ? [form.localDate] : weekDays).map(date => ({
                   date,
                   weekday: weekdays[noonDate(date).getDay()],
                   dayNumber: String(noonDate(date).getDate()),
-                  events: dayEvents(date).map(appointment => {
+                  allDayTasks: tasksForDate(date).filter(task => !task.localTime).map(task => ({
+                    id: task.id, title: taskTitle(task), onOpen: () => setOpenTask(task)
+                  })),
+                  events: [...dayEvents(date).map(appointment => {
                     const startMinute = slotMinutes(isoTimeInput(appointment.startsAt));
                     return {
                       id: appointment.id,
@@ -1820,7 +1896,14 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                       style: appointment.style,
                       onOpen: appointment.onOpen
                     };
-                  })
+                  }), ...tasksForDate(date).flatMap(task => {
+                    if (!task.localTime) return [];
+                    const startMinute = slotMinutes(task.localTime);
+                    return [{
+                      id: `task-${task.id}`, title: taskTitle(task), timeLabel: `${formatTime(localDateTimeToIso(date, task.localTime))} · Task`,
+                      startMinute, endMinute: startMinute + 15, style: taskStyle, onOpen: () => setOpenTask(task)
+                    }];
+                  })]
                 }))}
                 today={today}
                 selectedDate={form.localDate}
@@ -1833,10 +1916,15 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 {weekdays.map(day => <strong className={styles.monthHeading} key={day}>{day}</strong>)}
                 {monthCells.map(cell => {
                   const appointments = dayEvents(cell.dateKey);
+                  const tasks = tasksForDate(cell.dateKey);
+                  const items = [
+                    ...appointments.map(appointment => ({ ...appointment, label: `${formatTime(appointment.startsAt)} · ${appointment.title}` })),
+                    ...tasks.map(task => ({ id: `task-${task.id}`, title: task.title, label: taskTitle(task), style: taskStyle, onOpen: () => setOpenTask(task) }))
+                  ];
                   return <div className={styles.monthCell} key={cell.dateKey}>
                     <button type="button" className={cell.muted ? styles.muted : undefined} aria-label={`Open schedule for ${cell.dateKey}`} aria-current={cell.dateKey === today ? "date" : undefined} onClick={() => openDayAgenda(cell.dateKey)}>{cell.day}</button>
-                    {appointments.slice(0, 2).map(appointment => <button className={styles.monthEvent} type="button" key={appointment.id} title={appointment.title} style={appointment.style} onClick={appointment.onOpen}>{formatTime(appointment.startsAt)} · {appointment.title}</button>)}
-                    {appointments.length > 2 && <button type="button" onClick={() => openDayAgenda(cell.dateKey)}>+{appointments.length - 2} more</button>}
+                    {items.slice(0, 2).map(item => <button className={styles.monthEvent} type="button" key={item.id} title={item.title} style={item.style} onClick={item.onOpen}>{item.label}</button>)}
+                    {items.length > 2 && <button type="button" onClick={() => openDayAgenda(cell.dateKey)}>+{items.length - 2} more</button>}
                   </div>;
                 })}
               </div>
@@ -1844,6 +1932,20 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
           </div>
         </div>
         {calendarDetail}
+        {advancedSearchOpen && <CalendarAdvancedSearch initial={advancedSearch ?? {
+          scope: "active", what: calendarSearch, who: "", where: "", exclude: "",
+          from: appointmentWindow.startDate, to: addDays(appointmentWindow.endDate, -1)
+        }} onClose={() => setAdvancedSearchOpen(false)} onSearch={filters => {
+          setAdvancedSearch(filters);
+          setAdvancedSearchOpen(false);
+        }} />}
+        {taskDraft && <QuickCalendarTaskDialog {...taskDraft} onClose={() => setTaskDraft(null)} onSaved={task => {
+          setShowCalendarTasks(true);
+          setTaskCategory("all");
+          if (task.localDate) updateField("localDate", task.localDate);
+          calendarTasks.refresh();
+        }} />}
+        {openTask && <CalendarTaskDetails task={openTask} onClose={() => setOpenTask(null)} onChanged={calendarTasks.refresh} />}
         {personalDraft && <PersonalCalendarEditor
           draft={personalDraft}
           calendars={personalSchedule.calendars}
@@ -1961,16 +2063,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                   )) : <p>{effectiveIdentityStatus === "loading" ? "Searching vehicles..." : "No matching vehicle found. Typed vehicle details will be preserved as draft context."}</p>}
                 </div>
               ) : null}
-              <label>
-                <span>Purpose</span>
-                <select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>
-                  {appointmentPurposeGroups.map((group) => (
-                    <optgroup key={group.label} label={group.label}>
-                      {group.options.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
+              <AppointmentPurposeFields purpose={selectedPurpose} onChange={changePurpose} />
               <label>
                 <span>Date</span>
                 <input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} />
@@ -1979,12 +2072,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 <span>Start time</span>
                 <input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} />
               </label>
-              <label>
-                <span>Duration</span>
-                <select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>
-                  {Array.from(new Set([...appointmentDurationOptions, form.durationMinutes])).sort((a, b) => a - b).map((duration) => <option key={duration} value={duration}>{duration} min</option>)}
-                </select>
-              </label>
+              <AppointmentDurationField value={form.durationMinutes} onChange={minutes => updateField("durationMinutes", minutes)} disabled={isSaving} />
               <label>
                 <span>Reason / notes</span>
                 <textarea
@@ -2064,7 +2152,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                         title={appointment.title}
                         key={appointment.id}
                         onClick={() => expandAppointmentPreview(appointment)}
-                        style={{ ...calendarCategoryStyle(appointment.category), top: appointmentTop(appointment), height: 58 }}
+                        style={{ ...calendarCategoryStyle(appointment.category, appointment.purposeCode, appointment.title), top: appointmentTop(appointment), height: 58 }}
                         type="button"
                       >
                         <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
@@ -2145,20 +2233,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 <span>Appointment reason</span>
                 <textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Example: customer called about title paperwork, repair status, sales visit, payment, or another issue." value={form.reason} />
               </label>
-              {duplicateCustomerTimeAppointment && duplicateCustomerTimeKey ? (
-                <div className="appointment-duplicate-warning" role="alert">
-                  <strong>Possible double appointment</strong>
-                  <p>{form.customer.trim()} already has {duplicateCustomerTimeAppointment.appointmentNumber} at {formatTime(startsAtIso)}.</p>
-                  <label>
-                    <input
-                      checked={duplicateCustomerTimeConfirmed}
-                      onChange={(event) => setConfirmedDuplicateAppointmentKey(event.target.checked ? duplicateCustomerTimeKey : null)}
-                      type="checkbox"
-                    />
-                    Confirm this duplicate time intentionally.
-                  </label>
-                </div>
-              ) : null}
+              {duplicateWarning}
               <h3>Readiness Checklist</h3>
               {[
                 ["ready", "Purpose selected"],
@@ -2167,11 +2242,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 ["ready", editingAppointment ? "Appointment command will be edited" : "Appointment draft will be created"]
               ].map(([state, item]) => <p className={state} key={item}>{state === "ready" ? "✓" : "•"} {item}</p>)}
               <p className="appointment-command-notice" role="status">{notice}</p>
-              {selectedTimeOverlaps && <p>Another appointment overlaps this time. Review staff and resources before confirming.</p>}
+              {!savedCreation && !duplicateCustomerTimeAppointment && selectedTimeOverlaps && <p>Another appointment overlaps this time. Review staff and resources before confirming.</p>}
               <footer>
-                {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> : createdAppointmentNumber ? <Link href={`/appointments?view=board&appointment=${encodeURIComponent(createdAppointmentNumber)}`}>Open in Board</Link> : <button type="button">Save Draft</button>}
+                {editingAppointment ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> : savedCreation ? <Link href={boardFocusHref(savedCreation)}>Open in Board</Link> : <button type="button">Save Draft</button>}
                 {editingAppointment ? <Link href={boardFocusHref(editingAppointment)}>Open Board</Link> : null}
-                <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save Changes" : "Create Appointment"}</button>
+                {savedCreation ? <button onClick={resetAppointmentDraft} type="button">New Appointment</button> :
+                  <button className="primary" disabled={isSaving || Boolean(duplicateCustomerTimeAppointment)} type="submit">{isSaving ? "Saving..." : editingAppointment ? "Save Changes" : "Create Appointment"}</button>}
               </footer>
             </section>
             <section className="appointment-panel advanced-links">

@@ -26,6 +26,7 @@ export function usePersonalSchedule(start: string, end: string, enabled: boolean
   return {
     calendars: result?.data?.calendars ?? [],
     events: result?.key === key ? result.data?.events ?? [] : [],
+    loading: result?.key !== key,
     unavailable: result?.key === key && !result.data,
     refresh: () => setRevision(value => value + 1)
   };

@@ -9,6 +9,7 @@ const taskCreateAllowedKeys = new Set([
   "appointmentAutomationTriggerCode",
   "blockerReason",
   "boardDate",
+  "calendarAllDay",
   "customerReference",
   "collaboratorIds",
   "collaboratorRequests",
@@ -68,6 +69,7 @@ export type NormalizedTaskCreateInput = {
   appointmentAutomationTriggerCode?: string;
   blockerReason?: string;
   boardDate: string;
+  calendarAllDay?: boolean;
   customerReference?: string;
   description: string;
   dueAt: Date;
@@ -365,6 +367,9 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
   };
 
   const intakeMetadata = normalizeIntakeMetadata(input.intakeMetadata);
+  if (input.calendarAllDay !== undefined) {
+    normalizedInput.calendarAllDay = normalizeBoolean(input.calendarAllDay, "Task creation requires calendarAllDay to be boolean.");
+  }
   const conversionContext = normalizeConversionContext(input.conversionContext);
   if (conversionContext) {
     normalizedInput.conversionContext = conversionContext;
