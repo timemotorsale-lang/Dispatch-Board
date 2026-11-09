@@ -20577,6 +20577,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   color: #334155;
   font-size:11.5px;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .appointment-detail-list svg {

@@ -893,6 +893,8 @@ type AppointmentReadModel = {
   category: string | null;
   purposeCode?: string | null;
   sourceReference: string | null;
+  reason?: string | null;
+  vehicleDescription?: string | null;
   schedulingTimezone: string;
   startsAt: string | null;
   endsAt: string | null;
@@ -5606,7 +5608,7 @@ function resolveVehicleLabel(appointment: AppointmentReadModel) {
     appointment.vehicles.find((vehicle) => vehicle.isPrimary) ?? appointment.vehicles[0];
 
   if (!primaryVehicle) {
-    return "No vehicle attached";
+    return appointment.vehicleDescription ?? "No vehicle attached";
   }
 
   const yearMakeModel = [primaryVehicle.year, primaryVehicle.make, primaryVehicle.model]
@@ -5647,8 +5649,8 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     staffRole: appointment.visibility.relationship === "MANAGER" ? "Manager-visible" : "Owner / participant",
     startMinutes: startsAt ?? 9 * 60,
     durationMinutes: startsAt !== null && endsAt !== null ? Math.max(30, endsAt - startsAt) : 60,
-    phone: appointment.customer?.phoneNumber ?? fallbackDealershipPhone,
-    complaint: appointment.sourceReference ?? "Live appointment record from the read model.",
+    phone: appointment.customer?.phoneNumber ?? "",
+    complaint: appointment.reason ?? "",
     location: "Time Motor Sales",
     confirmation: appointment.confirmationStatus.replaceAll("_", " ").toLowerCase(),
     needsFollowUp: Boolean(
@@ -10344,7 +10346,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       title: selectedAppointment.title,
       customer: selectedAppointment.customer === "Internal / No customer" ? "" : selectedAppointment.customer,
       vehicle: selectedAppointment.vehicle === "No vehicle attached" ? "" : selectedAppointment.vehicle,
-      reason: `Update appointment details for ${selectedAppointment.id}.`
+      reason: selectedAppointment.complaint
     });
     setEditOpen(true);
     setCancelOpen(false);
@@ -16180,13 +16182,16 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           </div>
 
           <div className="appointment-detail-list">
+            <p><Users size={16} aria-hidden="true" /><span><strong>Customer</strong> · {selectedAppointment.customer}</span></p>
+            {selectedAppointment.complaint && selectedAppointment.complaint !== selectedAppointment.title ? (
+              <p><MessageCircle size={16} aria-hidden="true" /><span><strong>Reason</strong> · {selectedAppointment.complaint}</span></p>
+            ) : null}
+            <p><Car size={16} aria-hidden="true" /><span><strong>Vehicle</strong> · {selectedAppointment.vehicle}</span></p>
             <p><CalendarDays size={16} aria-hidden="true" />{selectedAppointmentBusinessDate}</p>
             <p><Clock3 size={16} aria-hidden="true" />{appointmentTimeRangeLabel(selectedAppointment)}</p>
-            <p><UserRound size={16} aria-hidden="true" />{selectedStaff.name} ({selectedStaff.role})</p>
-            <p><Phone size={16} aria-hidden="true" />{selectedAppointment.phone}</p>
-            <p><Car size={16} aria-hidden="true" />{selectedAppointment.vehicle}</p>
+            <p><UserRound size={16} aria-hidden="true" /><span><strong>Assigned to</strong> · {selectedStaff.name}</span></p>
+            {selectedAppointment.phone ? <p><Phone size={16} aria-hidden="true" />{selectedAppointment.phone}</p> : null}
             <p><MapPin size={16} aria-hidden="true" />{selectedAppointment.location}</p>
-            <p><MessageCircle size={16} aria-hidden="true" />{selectedAppointment.complaint}</p>
           </div>
 
           <div className="appointment-detail-actions">

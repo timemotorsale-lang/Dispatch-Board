@@ -146,6 +146,8 @@ export type AppointmentReadModel = {
   title: string;
   sourceType: string;
   sourceReference: string | null;
+  reason: string | null;
+  vehicleDescription: string | null;
   schedulingTimezone: string;
   startsAt: string | null;
   endsAt: string | null;
@@ -529,6 +531,16 @@ function toAppointmentReadModel(input: {
     purposeCode: stringFromSnapshot(input.appointment.purposeSnapshot, "purposeCode") ?? stringFromSnapshot(input.appointment.purposeSnapshot, "code"),
     sourceType: input.appointment.sourceType,
     sourceReference: input.appointment.sourceReference,
+    reason: accessLevel === "LIMITED_DETAIL"
+      ? stringFromSnapshot(input.appointment.purposeSnapshot, "reason") ??
+        (input.appointment.sourceType === "MANUAL" ? input.appointment.sourceReference : null)
+      : null,
+    vehicleDescription: accessLevel === "LIMITED_DETAIL"
+      ? stringFromSnapshot(input.appointment.vehicleSnapshot, "displayName") ??
+        stringFromSnapshot(input.appointment.vehicleSnapshot, "vehicleNumber") ??
+        stringFromSnapshot(input.appointment.vehicleSnapshot, "stockNumber") ??
+        stringFromSnapshot(input.appointment.vehicleSnapshot, "vin")
+      : null,
     schedulingTimezone: input.appointment.schedulingTimezone,
     startsAt: input.appointment.startsAt?.toISOString() ?? null,
     endsAt: input.appointment.endsAt?.toISOString() ?? null,
@@ -598,6 +610,8 @@ function appointmentMatchesSearch(appointment: AppointmentReadModel, searchText:
     appointment.appointmentNumber,
     appointment.title,
     appointment.sourceReference,
+    appointment.reason,
+    appointment.vehicleDescription,
     appointment.bookingStatus,
     appointment.confirmationStatus,
     appointment.attendanceStatus,
