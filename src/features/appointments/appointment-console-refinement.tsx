@@ -350,7 +350,9 @@ function hasCalendarAppointmentContent(appointment: LiveAppointment) {
 }
 
 function boardFocusHref(appointment: LiveAppointment, anchor = "") {
-  return `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}${anchor}`;
+  const query = new URLSearchParams({ view: "board", appointment: appointment.appointmentNumber });
+  if (appointment.startsAt) query.set("localDate", isoDateKey(appointment.startsAt));
+  return `/appointments?${query}${anchor}`;
 }
 
 function dateKeyFromDate(date: Date) {
@@ -1749,7 +1751,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
               <summary aria-label="Scheduling tools"><Settings size={20} /></summary>
               <div>
                 {(["recommendations", "resources", "advisor"] as const).map((tool, index) => <button key={tool} type="button" onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); setCalendarInsightCard(tool); }}>{["Openings", "Resources", "Advisor"][index]}</button>)}
-                <Link href="/appointments?view=board">Schedule board</Link>
+                <Link href={`/appointments?view=board&localDate=${form.localDate}`}>Schedule board</Link>
               </div>
             </details>
             <select aria-label="Calendar view" value={calendarView} onChange={event => setCalendarView(event.target.value as CalendarView)}>

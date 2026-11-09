@@ -48,6 +48,13 @@ import {
 } from "@/features/appointments/appointment-board-shell";
 
 describe("appointment board shell", () => {
+  it("opens on the selected calendar date and links back to that date", () => {
+    const markup = renderToStaticMarkup(<AppointmentBoardShell initialFocus={{ localDate: "2026-11-09" }} />);
+
+    expect(markup).toContain("Monday, November 9, 2026");
+    expect(markup).toContain("/appointments?view=calendar&amp;localDate=2026-11-09");
+  });
+
   it("publishes the compact UX smoke-gate contract for day-one browser proof", () => {
     expect(appointmentConsoleUxSmokeGate.viewport).toEqual({
       width: 1280,
@@ -74,6 +81,11 @@ describe("appointment board shell", () => {
 
     expect(markup).toContain("Appointment Board");
     expect(markup).toContain("appointment-board-simplified");
+    expect(markup).toContain("appointment-schedule-board");
+    expect(markup).toContain('aria-label="Schedule view"');
+    expect(markup).toContain('<details class="appointment-schedule-filters"');
+    expect(markup).toContain('aria-label="Appointment details" hidden=""');
+    expect(markup).toContain("Scheduling tools");
     expect(markup).toContain('aria-label="Appointment status summary"');
     expect(markup).toContain('aria-label="Exceptions"');
     expect(markup).toContain("Group by");
