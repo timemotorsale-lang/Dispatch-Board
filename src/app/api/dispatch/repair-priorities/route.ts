@@ -64,7 +64,18 @@ export async function GET(request: Request) {
             { task: { status: { not: "COMPLETED" } } }
           ] }
         ] },
-        include: {
+        select: {
+          id: true,
+          version: true,
+          summary: true,
+          vehicle: true,
+          planDate: true,
+          priority: true,
+          status: true,
+          nextAction: true,
+          blocker: true,
+          durationMinutes: true,
+          ownerUserId: true,
           appointment: { select: { appointmentNumber: true, bookingStatus: true, startsAt: true } },
           task: { select: { id: true, status: true, dueAt: true } }
         },
@@ -79,7 +90,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       date, canPlan, viewerId: user.id,
       staff: staff.map(({ user: member }) => member),
-      rows: rows.map(({ locationId, checklistItemId, sourceKey, ...row }) => row)
+      rows
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return failure(error);
