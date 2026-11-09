@@ -389,6 +389,42 @@ describe("Unified CRM contract packet route", () => {
     expect(warranty.html).toContain("does not apply to a legally required warranty refund");
   });
 
+  it.each([100000, 300000])("shows the trade payoff of %s cents in the generated lease and signing summary", async tradePayoffCents => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST", body: JSON.stringify({
+        packetType: "LEASE_TO_OWN", dealerWarrantyOffered: false, preparedFormIds: ["w2-lease"],
+        leaseCalculator: { agreedPriceCents: 2000000, calculationMode: "PAYMENT_AMOUNT", targetPaymentCents: 50000,
+          capitalizedCostReductionCents: 300000, tradeAllowanceCents: 200000, tradePayoffCents },
+        leaseFacts: { tradeYear: "2003", tradeMake: "Honda", tradeModel: "Accord", tradeVin: " 1hgcm82633a004352 " }
+      })
+    }));
+    expect(response.status).toBe(201);
+    const packet = await response.json();
+    const agreement = packet.documents.find((document: { formId: string }) => document.formId === "w2-lease");
+    const summary = packet.documents.find((document: { formId: string }) => document.formId === "lease-summary");
+    expect(agreement.fieldValues).toMatchObject({
+      Year_2: "2003", Make_2: "Honda", Model_2: "Accord", VIN_2: "1HGCM82633A004352",
+      "B TRADE-IN VEHICLE DESCRIPTION: Gross Agreed-Upon Value of Trade-In": "2000.00",
+      "less Payoff Estimated, Prior Credit or Lease Balance on Trade-In": (tradePayoffCents / 100).toFixed(2),
+      "Total Amount Due at Lease Signing or Delivery": "3500.00",
+      undefined_19: tradePayoffCents === 100000 ? "1000.00" : "0.00",
+      undefined_21: tradePayoffCents === 100000 ? "2500.00" : "3500.00"
+    });
+    expect(summary.html).toContain(tradePayoffCents === 100000 ? "$2,500.00" : "$4,500.00");
+  });
+
+  it.each(["", "1HGCM82633A004351", "1HGCM82633A0043520", "1HGCM82633A00435I"])("rejects a missing or invalid trade VIN (%s) before saving a lease packet", async tradeVin => {
+    const response = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      method: "POST", body: JSON.stringify({
+        packetType: "LEASE_TO_OWN", dealerWarrantyOffered: false, preparedFormIds: ["w2-lease"],
+        leaseCalculator: { agreedPriceCents: 2000000, contractLength: 36, tradeAllowanceCents: 100000 },
+        leaseFacts: { tradeVin }
+      })
+    }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/trade-in VIN/);
+  });
+
   it.each([0, -100])("rejects target payment %s during packet generation", async (targetPaymentCents) => {
     const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
       method: "POST", body: JSON.stringify({

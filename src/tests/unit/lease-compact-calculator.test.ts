@@ -2,6 +2,30 @@ import { describe, expect, it } from "vitest";
 import { calculateLeaseToOwn, isLegacyLeasePoa, leaseAgreementCalculationError, leaseCalculatorInputFromFields, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 const input: LeaseToOwnCalculatorInput = { agreedPriceCents: 2000000, additionalItemsCents: 0, capitalizedCostReductionCents: 300000, contractLength: 36, documentPreparationFeeCents: 30000, gpsCostCents: 0, multiplierBasisPoints: 20000, originationFeeCents: 0, otherRoadWorthyCostCents: 0, paymentFrequency: "Monthly", registrationFeeCents: 51600, salesTaxRateBasisPoints: 687.5, titleFeeCents: 10280, warrantyCostCents: 0, wholesaleCostCents: 1000000 };
 describe("compact lease price and exact payments", () => {
+  it.each([150000, 350000])("applies the trade payoff of %s cents only to cash due, not the lease balance", tradePayoffCents => {
+    const base = calculateLeaseToOwn(input);
+    const values = { ...input, tradeAllowanceCents: 250000, tradePayoffCents };
+    const output = calculateLeaseToOwn(values);
+    expect(output.netTradeEquityCents).toBe(250000 - tradePayoffCents);
+    expect(output.cashDueAtSigningCents).toBe(base.amountDueAtSigningCents - output.netTradeEquityCents);
+    expect(output.totalPeriodicPaymentCents).toBe(base.totalPeriodicPaymentCents);
+    expect(output.totalOfPaymentsCents).toBe(base.totalOfPaymentsCents);
+    expect(leaseAgreementCalculationError(values, output)).toBeNull();
+  });
+  it.each(["TERM", "PAYMENT_AMOUNT"] as const)("uses cash plus net trade equity to solve the %s calculation", calculationMode => {
+    const values = leaseCalculatorInputFromFields({ agreedPrice: "20000", calculationMode, targetPayment: "500",
+      signingPaymentMode: "DOWN_PAYMENT", downPayment: "5000", tradeAllowance: "2500", tradePayoff: "1500" });
+    const output = calculateLeaseToOwn(values);
+    expect(output.netTradeEquityCents).toBe(100000);
+    expect(output.tradeCreditAppliedCents).toBe(100000);
+    expect(output.cashDueAtSigningCents).toBe(500000);
+    expect(output.amountDueAtSigningCents).toBe(600000);
+    expect(leaseAgreementCalculationError(values, output)).toBeNull();
+  });
+  it("rejects invalid trade figures and unapplied positive equity before generating forms", () => {
+    expect(leaseAgreementCalculationError({ ...input, tradePayoffCents: -1 })).toMatch(/nonnegative trade/);
+    expect(leaseAgreementCalculationError({ ...input, tradeAllowanceCents: 1000000 })).toMatch(/exceeds the lease signing total/);
+  });
   it("distinguishes archived HTML title authority from the revised Limited POA PDF", () => {
     expect(isLegacyLeasePoa({ formId: "power-of-attorney", contentType: "text/html" })).toBe(true);
     expect(isLegacyLeasePoa({ formId: "power-of-attorney", contentType: "application/pdf" })).toBe(true);

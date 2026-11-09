@@ -25,6 +25,7 @@ for (const legacyFee of [undefined, "$375.00"]) {
         expect(body.leaseCalculator.documentPreparationFeeCents).toBe(legacyFee ? 37500 : 30000);
         expect(body.leaseCalculator.registrationFeeCents).toBe(41700); expect(body.leaseCalculator.capitalizedCostReductionCents).toBe(500000);
         expect(body.leaseCalculator.securityDepositCents).toBe(50000); expect(body.leaseCalculator.otherUpfrontChargesCents).toBe(15000);
+        expect(body.leaseCalculator.tradeAllowanceCents).toBe(250000); expect(body.leaseCalculator.tradePayoffCents).toBe(150000);
         expect(body.leaseCalculator).not.toHaveProperty("downPaymentCents");
         expect(body.leaseFacts.insurancePolicyNumber).toBe("POLICY-SAMPLE-123"); expect(body.leaseFacts.insuranceExpirationDate).toBe("2027-11-01");
       }
@@ -37,7 +38,7 @@ for (const legacyFee of [undefined, "$375.00"]) {
     await expect(calculator.getByRole("button", { name: "Compact", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(calculator.getByLabel("Agreed price", { exact: true })).toHaveValue("$20,000.00");
     await expect(calculator.getByText("Amount Due at Signing", { exact: true })).toBeVisible();
-    await expect(calculator.getByText(/down payment|signing amount entry/i)).toHaveCount(0);
+    await expect(calculator.getByLabel("Cash due at signing target", { exact: true })).toBeVisible();
     await expect(calculator.getByLabel("Wholesale cost", { exact: true })).toHaveCount(0);
     await page.getByLabel("Insurance company", { exact: true }).fill("Example Insurance");
     await page.getByLabel("Insurance policy number", { exact: true }).fill("POLICY-SAMPLE-123"); await page.getByLabel("Insurance expiration date", { exact: true }).fill("2027-11-01");
@@ -46,11 +47,24 @@ for (const legacyFee of [undefined, "$375.00"]) {
     await calculator.getByLabel("Lease date", { exact: true }).fill("2026-11-01");
     const regular = calculator.locator("span").filter({ hasText: /^Base payment$/ }).locator("..").locator("strong");
     for (const amount of ["300", "500.00"]) { await calculator.getByLabel("Target payment amount", { exact: true }).fill(amount); await expect(regular).toHaveText(`$${Number(amount).toFixed(2)}`); }
+    await calculator.getByLabel("Trade-in allowance", { exact: true }).fill("2500");
+    await calculator.getByLabel("Trade-in loan payoff", { exact: true }).fill("1500");
+    const tradeVin = calculator.getByLabel("Trade-in VIN", { exact: true });
+    await tradeVin.fill("1HGCM82633A004351");
+    await expect(tradeVin).toHaveAttribute("aria-invalid", "true");
+    await tradeVin.fill("1hgcm82633a004352");
+    await expect(tradeVin).toHaveAttribute("aria-invalid", "false");
+    const cashTarget = calculator.getByLabel("Cash due at signing target", { exact: true });
+    await cashTarget.fill("5000");
+    const cashDue = calculator.locator("span").filter({ hasText: /^Cash Due at Signing$/ }).locator("..").locator("strong");
+    await expect(cashDue).toHaveText("$5,000.00");
     await calculator.getByText("Adjust fees and payment schedule", { exact: true }).click();
     await calculator.getByLabel("Registration fee", { exact: true }).fill("417");
     await expect(calculator.getByLabel("Sales tax rate", { exact: true })).toHaveValue("6.875"); await expect(calculator.getByLabel("Title fee", { exact: true })).toHaveValue("$102.80");
     await calculator.getByRole("button", { name: "Detailed", exact: true }).click();
-    await expect(calculator.getByText(/down payment|signing amount entry/i)).toHaveCount(0);
+    await expect(cashTarget).toHaveValue("5000");
+    await expect(cashDue).toHaveText("$5,000.00");
+    await cashTarget.clear();
     await expect(calculator.getByLabel("Calculation base (agreed price ÷2)", { exact: true })).toHaveValue("$15,000.00");
     await expect(calculator.getByLabel("Document prep fee", { exact: true })).toHaveValue(legacyFee || "$300.00"); await expect(regular).toHaveText("$500.00");
     await calculator.getByRole("button", { name: "Compact", exact: true }).click(); await expect(regular).toHaveText("$500.00");
@@ -67,5 +81,8 @@ for (const legacyFee of [undefined, "$375.00"]) {
     await page.reload(); await expect(page.getByLabel("Insurance policy number", { exact: true })).toHaveValue("POLICY-SAMPLE-123");
     await expect(page.getByLabel("Insurance expiration date", { exact: true })).toHaveValue("2027-11-01");
     await expect(calculator.getByLabel("Target payment amount", { exact: true })).toHaveValue("500.00"); await expect(regular).toHaveText("$500.00");
+    await expect(calculator.getByLabel("Trade-in allowance", { exact: true })).toHaveValue("2500");
+    await expect(calculator.getByLabel("Trade-in loan payoff", { exact: true })).toHaveValue("1500");
+    await expect(tradeVin).toHaveValue("1HGCM82633A004352");
   });
 }
