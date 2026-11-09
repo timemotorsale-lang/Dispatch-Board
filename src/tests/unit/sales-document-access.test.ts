@@ -4,15 +4,46 @@ import { PDFDocument } from "pdf-lib";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { salesDocumentRequirements } from "@/lib/sales-document-pathways";
 
-const db = vi.hoisted(() => ({ findFirst: vi.fn(), packet: vi.fn(), draft: vi.fn(), readFile: vi.fn() }));
+const db = vi.hoisted(() => ({ findFirst: vi.fn(), packet: vi.fn(), draft: vi.fn(), readFile: vi.fn(), lock: vi.fn(), update: vi.fn(), create: vi.fn(), audit: vi.fn(), writeObject: vi.fn(), storageEnabled: false }));
 vi.mock("node:fs/promises", () => ({ readFile: db.readFile }));
-vi.mock("@/server/db/client", () => ({ prisma: { salesDocumentJacket: { findFirst: db.findFirst }, salesDocumentGeneratedPacket: { findFirst: db.packet }, dealDeskDraft: { findFirst: db.draft } } }));
-vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org", localPrivateRoot: "scan-private" }) }));
+vi.mock("@/server/db/client", () => ({ prisma: { salesDocumentJacket: { findFirst: db.findFirst }, salesDocumentGeneratedPacket: { findFirst: db.packet }, dealDeskDraft: { findFirst: db.draft }, $transaction: (run: (tx: unknown) => unknown) => run({
+  salesDocumentJacket: { findFirst: db.findFirst, updateMany: db.lock }, documentLibraryDocument: { update: db.update, create: db.create }, documentLibraryAuditEvent: { create: db.audit }
+}) } }));
+vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org", localPrivateRoot: "scan-private", adapter: db.storageEnabled ? { writeObject: db.writeObject } : null }) }));
 import { getSalesDocumentJacket, requireSalesDocumentsUser, saveSalesDocument, readLatestSalesPacket } from "@/server/sales-documents/service";
 
 const actor = (roles = ["Sales"]): AuthenticatedUser => ({ id: "staff", name: "Staff", email: "staff@local.test", isActive: true, roles, duties: { direct: [], roleDefaults: [], all: [] } });
 
 describe("Sales Documents access boundaries", () => {
+  it("updates a prepared lease in place after a trade change and reuses the version on repeat generation", async () => {
+    const bytes = Buffer.from("lease with trade-in");
+    const checksumSha256 = createHash("sha256").update(bytes).digest("hex");
+    const prepared = { id: "lease-form", source: "GENERATED", documentType: "lease-agreement", classificationSnapshot: { generationFingerprint: "before-trade" },
+      fileName: "old.pdf", status: "ACCEPTED", storageReference: "local-private://old.pdf", currentVersionId: "old-version", createdAt: new Date(), versions: [{ version: 1 }] };
+    db.findFirst.mockResolvedValue({ id: "jacket", organizationId: "test-org", pathway: "lease-to-own", state: "WORKING", revision: 2,
+      requirements: [], versions: [], updatedAt: new Date(), packet: { auditEvents: [], documents: [{ document: prepared }] } });
+    db.lock.mockResolvedValue({ count: 1 });
+    db.storageEnabled = true;
+    db.writeObject.mockResolvedValue({ reference: "local-private://updated.pdf", checksumSha256, sizeBytes: bytes.length, contentType: "application/pdf" });
+    db.readFile.mockResolvedValue(bytes);
+    try {
+      const request = { bytes, fileName: "updated.pdf", contentType: "application/pdf", documentType: "w2-lease", generated: true, generationFingerprint: "after-trade" };
+      await saveSalesDocument(actor(), "jacket", request);
+      expect(db.writeObject).toHaveBeenCalledWith(expect.objectContaining({ documentId: "lease-form", version: 2 }));
+      expect(db.create).not.toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "lease-form" }, data: expect.objectContaining({
+        status: "PENDING_REVIEW", classificationSnapshot: expect.objectContaining({ generationFingerprint: "after-trade" }),
+        versions: { create: expect.objectContaining({ version: 2, checksumSha256 }) }
+      }) }));
+      Object.assign(prepared, { classificationSnapshot: { generationFingerprint: "after-trade" }, checksumSha256, storageReference: "local-private://updated.pdf" });
+      await saveSalesDocument(actor(), "jacket", { ...request, fileName: "another-generation.pdf" });
+      expect(db.writeObject).toHaveBeenCalledOnce();
+      expect(db.update).toHaveBeenCalledOnce();
+    } finally {
+      db.storageEnabled = false;
+      db.readFile.mockReset();
+    }
+  });
   it("reuses a prepared form even when a repeat generation changes its filename and bytes", async () => {
     const bytes = Buffer.from("original prepared form");
     db.readFile.mockResolvedValue(bytes);

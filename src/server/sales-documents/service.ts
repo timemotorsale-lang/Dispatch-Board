@@ -133,7 +133,7 @@ async function storedBytes(reference: string, checksum: string) {
   return bytes;
 }
 
-export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; signed?: boolean; expectedRevision?: number; captureMethod?: "DOCUMENT_SCAN" }) {
+export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; generationFingerprint?: string; signed?: boolean; expectedRevision?: number; captureMethod?: "DOCUMENT_SCAN" }) {
   const user = requireSalesDocumentsUser(actor);
   const jacket = await findJacket(id);
   const documentType = normalizeSalesDocumentType(text(input.documentType)) || "supplemental";
@@ -155,13 +155,11 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
       if (bytes.subarray(0, 3).toString("hex") !== "ffd8ff") throw new SalesDocumentsError("This file is not a JPEG image.");
     } else throw new SalesDocumentsError("Upload a PDF, PNG, or JPEG file.");
   }
-  if (input.generated) {
-    const existing = jacket.packet.documents.find(({ document }) =>
-      !isExcludedSalesDocument(document.classificationSnapshot) && document.source === "GENERATED" && document.documentType === documentType);
-    if (existing) {
-      await storedBytes(existing.document.storageReference, existing.document.checksumSha256 ?? "");
-      return view(jacket);
-    }
+  const prepared = input.generated ? jacket.packet.documents.find(({ document }) =>
+    !isExcludedSalesDocument(document.classificationSnapshot) && document.source === "GENERATED" && document.documentType === documentType)?.document : undefined;
+  if (prepared && (!input.generationFingerprint || metadata(prepared.classificationSnapshot).generationFingerprint === input.generationFingerprint)) {
+    await storedBytes(prepared.storageReference, prepared.checksumSha256 ?? "");
+    return view(jacket);
   }
   if (input.captureMethod) {
     const checksum = createHash("sha256").update(input.bytes).digest("hex");
@@ -174,14 +172,24 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
   }
   const runtime = resolveDocumentStorageRuntimeFromEnv();
   if (!runtime.adapter) throw new SalesDocumentsError("Permanent document storage is not configured. The document was not saved.", 503);
-  const documentId = `sales-doc-${randomUUID()}`, versionId = `sales-object-${randomUUID()}`;
-  const object = await runtime.adapter.writeObject({ bytes: input.bytes, fileName: input.fileName, contentType: input.contentType, documentId, organizationId: jacket.organizationId, owner: { type: "SALE", id: jacket.id, label: jacket.customerName }, version: 1 });
-  await storedBytes(object.reference, object.checksumSha256);
+  const documentId = prepared?.id ?? `sales-doc-${randomUUID()}`, versionId = `sales-object-${randomUUID()}`;
+  const version = prepared ? Math.max(0, ...prepared.versions.map(item => item.version)) + 1 : 1;
+  const adapter = runtime.adapter;
   await prisma.$transaction(async (db) => {
     const current = await findJacket(id, db);
     if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(current.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
     await lock(db, current, input.expectedRevision ?? jacket.revision);
-    await db.documentLibraryDocument.create({ data: { id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType: normalizeSalesDocumentType(text(input.documentType)) || "supplemental", fileName: input.fileName, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", storageProvider: "INTERNAL", storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, currentVersionId: versionId, classificationSnapshot: json({ jacketId: id, signed: !input.generated && input.signed === true, ...(input.captureMethod ? { captureMethod: input.captureMethod } : {}) }), createdByUserId: user.id, versions: { create: { id: versionId, organizationId: jacket.organizationId, version: 1, storageProvider: "INTERNAL", storageReference: object.reference, fileName: input.fileName, contentType: object.contentType, sizeBytes: object.sizeBytes, checksumSha256: object.checksumSha256, createdByUserId: user.id } }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
+    const object = await adapter.writeObject({ bytes: input.bytes, fileName: input.fileName, contentType: input.contentType, documentId, organizationId: jacket.organizationId, owner: { type: "SALE", id: jacket.id, label: jacket.customerName }, version });
+    await storedBytes(object.reference, object.checksumSha256);
+    const file = { storageProvider: "INTERNAL" as const, storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, fileName: input.fileName };
+    const classificationSnapshot = json({ jacketId: id, signed: !input.generated && input.signed === true, ...(input.captureMethod ? { captureMethod: input.captureMethod } : {}), ...(input.generationFingerprint ? { generationFingerprint: input.generationFingerprint } : {}) });
+    const versionRecord = { ...file, id: versionId, organizationId: jacket.organizationId, version, createdByUserId: user.id };
+    if (prepared) {
+      await db.documentLibraryDocument.update({ where: { id: documentId }, data: { ...file, currentVersionId: versionId, status: "PENDING_REVIEW", classificationSnapshot, versions: { create: versionRecord } } });
+      await audit(db, jacket, user, "DOCUMENT_REGENERATED", `${input.fileName} saved as working form version ${version}.`);
+      return;
+    }
+    await db.documentLibraryDocument.create({ data: { ...file, id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", currentVersionId: versionId, classificationSnapshot, createdByUserId: user.id, versions: { create: versionRecord }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
     await audit(db, jacket, user, "DOCUMENT_SAVED", `${input.fileName} saved as ${input.generated ? "working form" : input.captureMethod ? "scanned PDF pending review" : "uploaded document"}.`);
   });
   return getSalesDocumentJacket(user, id);
@@ -334,13 +342,20 @@ export async function exportSalesDocumentPacket(actor: AuthenticatedUser | null,
   return { bytes: pdf ? await pdf.save() : zipSync(files), contentType: pdf ? "application/pdf" : "application/zip", fileName: `${jacket.dealNumber.replace(/[^a-zA-Z0-9_-]/g, "_")}-v${versionNumber}.${pdf ? "pdf" : "zip"}` };
 }
 
+function leaseGenerationFingerprint(raw: Record<string, unknown>) {
+  const inputs = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "idempotencyKey" && key !== "preparedFormIds"));
+  return createHash("sha256").update(JSON.stringify(inputs, (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value)).digest("hex");
+}
+
 export async function archiveGeneratedSalesPacket(actor: AuthenticatedUser | null, raw: UnifiedCrmContractPacketInput & Record<string, unknown>, packet: UnifiedCrmContractPacketResult) {
   const user = requireSalesDocumentsUser(actor);
   const inferred: Record<string, string> = { BHPH: "bhph", LEASE_TO_OWN: "lease-to-own", DAILY_RENTAL: "daily-rental", VEHICLE_LOANER: "vehicle-loaner", TEST_DRIVE: "test-drive" };
   const pathway = text(raw.pathway) || inferred[text(raw.packetType)] || "retail-sale";
   const vehicle = raw.vehicle && typeof raw.vehicle === "object" ? raw.vehicle as Record<string, unknown> : {};
   const jacket = await createSalesDocumentJacket(user, { pathway, dealReference: text(raw.jacketReference) || packet.packetId, dealNumber: text(raw.dealNumber) || packet.packetNumber, customerName: text(raw.customerName) || "Customer not selected", customerId: raw.customerId, vehicleReference: text(raw.vehicleReference) || text(vehicle.vin) || text(vehicle.stockNumber) || [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle not assigned", vin: vehicle.vin, stockNumber: vehicle.stockNumber });
-  for (const doc of packet.documents) await saveSalesDocument(user, jacket.id, { bytes: doc.contentBase64 ? Buffer.from(doc.contentBase64, "base64") : Buffer.from(doc.html), contentType: doc.contentType ?? "text/html", fileName: doc.downloadFileName, documentType: doc.formId, generated: true });
+  const generationFingerprint = pathway === "lease-to-own" ? leaseGenerationFingerprint(raw) : undefined;
+  for (const doc of packet.documents) await saveSalesDocument(user, jacket.id, { bytes: doc.contentBase64 ? Buffer.from(doc.contentBase64, "base64") : Buffer.from(doc.html), contentType: doc.contentType ?? "text/html", fileName: doc.downloadFileName, documentType: doc.formId, generated: true, generationFingerprint });
   const result = { ...packet, jacketId: jacket.id, salesDocumentsHref: `/sales-documents?jacketId=${encodeURIComponent(jacket.id)}` };
   await prisma.salesDocumentGeneratedPacket.create({ data: { id: packet.packetId, jacketId: jacket.id, payload: json(result) } });
   return result;

@@ -62,7 +62,7 @@ export function DealDocumentWorkspace({ jacket, canManage, disabled = false, onS
   return <section className={styles.workspace} aria-label="Deal documents workspace">
     <details className={styles.preparedForms}>
       <summary>Prepared forms · {preparedForms.length} — expand to review</summary>
-      <p>Review and download working forms for signing. Signed copies still require staff verification. Generating again keeps the existing form; exclude it through Replace before preparing a corrected copy.</p>
+      <p>Review and download working forms for signing. Signed copies still require staff verification. {jacket.pathway === "lease-to-own" ? "Regenerating after lease changes updates the current working form and retains the prior version." : "Generating again keeps the existing form; use Replace before preparing a corrected copy."}</p>
       {preparedForms.length ? <ul className={styles.requirements}>{preparedForms.map(doc => <li key={doc.id}>
         <div><strong>{jacket.requirements.find(item => item.id === doc.type)?.label || doc.type}</strong><small>{doc.fileName}</small><small>Working form · {doc.reviewed ? "Reviewed" : "Review needed"}</small></div>
         <div className={styles.actions}>

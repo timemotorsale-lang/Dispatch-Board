@@ -38,13 +38,17 @@ export async function resolveDealSource(actor: AuthenticatedUser | null, source:
   return { sourceDraftId: draft?.id ?? "", sourceJacketId: jacket?.id ?? "", customerId: customerId ?? "", customerName: original.customerName, sourceVehicleId: vehicleId ?? "", sourceVehicleReference: original.vehicleReference, pathway: original.pathway };
 }
 
-export async function persistDealContext(actor: AuthenticatedUser | null, db: Tx, draftId: string, customerId: string | null, snapshot: Record<string, unknown>) {
+export async function persistDealContext(actor: AuthenticatedUser | null, db: Tx, draftId: string, customerId: string | null, snapshot: Record<string, unknown>, options: { allowVehicleOnlyDraft?: boolean } = {}) {
   const identity = object(snapshot["desk:identity"]), organizationId = dealOrganization();
   if (!identity.customerId && !identity.vehicleId && !identity.sourceDraftId && !identity.sourceJacketId) return;
   await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":deal-context:" + draftId}, 0))`;
+  const vehicleId = text(identity.vehicleId) || null;
+  if (options.allowVehicleOnlyDraft && vehicleId && !customerId && !identity.customerId && !identity.sourceDraftId && !identity.sourceJacketId && !identity.sourceVehicleId) {
+    await dealVehicle(actor, vehicleId, db);
+    return;
+  }
   if (!customerId || customerId !== identity.customerId) throw new SalesDocumentsError("Choose one shared CRM customer for this deal.");
   await dealCustomer(actor, customerId, db);
-  const vehicleId = text(identity.vehicleId) || null;
   const vehicle = vehicleId ? await dealVehicle(actor, vehicleId, db) : null;
   const sourceDraftId = text(identity.sourceDraftId) || null, sourceJacketId = text(identity.sourceJacketId) || null;
   const source = sourceDraftId || sourceJacketId ? await resolveDealSource(actor, { sourceDraftId: sourceDraftId ?? undefined, sourceJacketId: sourceJacketId ?? undefined }, db) : null;

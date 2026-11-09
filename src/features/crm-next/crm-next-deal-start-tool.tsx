@@ -2601,10 +2601,10 @@ function LeaseToOwnExecutionDesk({
                     <strong>{contractPacket.packetNumber}</strong>
                     <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
                   </div>
-                  <button disabled={!contractPacket.delivery.downloadReady || previewingLegacyPoa} type="button" onClick={downloadPacket}>Download form</button>
-                  <button disabled={!contractPacket.delivery.printReady || previewingLegacyPoa} type="button" onClick={printPacket}>Print form</button>
-                  <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
-                  <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+                  <button disabled={previewChanged || !contractPacket.delivery.downloadReady || previewingLegacyPoa} type="button" onClick={downloadPacket}>Download form</button>
+                  <button disabled={previewChanged || !contractPacket.delivery.printReady || previewingLegacyPoa} type="button" onClick={printPacket}>Print form</button>
+                  <button disabled={previewChanged || !contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+                  <button disabled={previewChanged || !contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
                   <small>{contractPacket.delivery.providerHoldReason}</small>
                 </div>
               ) : null}
@@ -2630,7 +2630,7 @@ function LeaseToOwnExecutionDesk({
                       <div>
                         <span>Packet preview</span>
                         <strong>{contractPacket.packetNumber}</strong>
-                        <small>{previewChanged ? "Previous saved copy. Close this preview and generate the checked forms to include your changes." : "Review generated lease forms before download, print, text, or email. Finalization is a separate step."}</small>
+                        <small>{previewChanged ? "Previous saved copy. Update the packet to include your current lease and trade-in details." : "Review generated lease forms before download, print, text, or email. Finalization is a separate step."}</small>
                       </div>
                       <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
                     </header>
@@ -2657,7 +2657,11 @@ function LeaseToOwnExecutionDesk({
                           {selectedLeaseForms.includes(LIMITED_POA_ID) ? <button type="button" disabled={packetStatus.kind === "generating"} onClick={() => void generateLeasePacket(LIMITED_POA_ID)}>Generate revised Limited POA</button> : <p>Close this preview and select Limited Motor Vehicle Power of Attorney first.</p>}
                           {packetStatus.kind === "error" && <p>{packetStatus.message}</p>}
                         </div>}
-                        {previewDocument?.contentBase64 && previewDocument.contentType === "application/pdf" ? (
+                        {previewChanged && !previewingLegacyPoa && <div className={styles.retailPacketStatus}>
+                          <button type="button" disabled={packetStatus.kind === "generating"} onClick={() => void generateLeasePacket(previewDocument?.formId)}>{packetStatus.kind === "generating" ? "Updating packet…" : "Update packet with current details"}</button>
+                          {packetStatus.kind === "error" && <p role="alert">{packetStatus.message}</p>}
+                        </div>}
+                        {previewChanged && !previewingLegacyPoa ? <p>Update the packet to review and sign the current copy.</p> : previewDocument?.contentBase64 && previewDocument.contentType === "application/pdf" ? (
                           <iframe src={documentDataUrl(previewDocument)} title={previewDocument.label} />
                         ) : (
                           <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated lease form preview"} />
