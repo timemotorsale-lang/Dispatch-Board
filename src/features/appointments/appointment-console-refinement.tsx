@@ -21,6 +21,7 @@ import { CalendarDetailDialog } from "./calendar-detail-dialog";
 import { AppointmentPurposeFields } from "./appointment-purpose-fields";
 import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes, defaultAppointmentPurpose, type AppointmentPurpose } from "./appointment-purposes";
 import { CalendarTimeGrid } from "./calendar-time-grid";
+import { CalendarTaskDetails, QuickCalendarTaskDialog, calendarTaskTeams, useCalendarTasks, type CalendarTask } from "@/features/tasks/quick-calendar-task";
 import { PersonalCalendarEditor, personalCalendarKey, usePersonalSchedule, type PersonalEvent } from "./personal-calendar";
 import workspaceStyles from "./calendar-workspace.module.css";
 import agendaStyles from "./calendar-agenda.module.css";
@@ -873,6 +874,7 @@ function LegacyAppointmentConsoleNewAppointment() {
 void LegacyAppointmentConsoleNewAppointment;
 
 type AppointmentNewInitialContext = {
+  calendarQuery?: string;
   crmCustomerId?: string;
   customerReference?: string;
   localDate?: string;
@@ -911,8 +913,9 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [fullPageCalendarOpen, setFullPageCalendarOpen] = useState(initialFullCalendar);
   const [calendarRailOpen, setCalendarRailOpen] = useState(true);
-  const [calendarSearchOpen, setCalendarSearchOpen] = useState(false);
-  const [calendarSearch, setCalendarSearch] = useState("");
+  const [calendarSearchOpen, setCalendarSearchOpen] = useState(Boolean(initialContext?.calendarQuery));
+  const [calendarSearch, setCalendarSearch] = useState(initialContext?.calendarQuery ?? "");
+  const [taskCategory, setTaskCategory] = useState("all");
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
   const [layoutMode, setLayoutMode] = useState<"compact" | "expandable">("compact");
@@ -937,7 +940,11 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(null);
   const [hiddenCalendars, setHiddenCalendars] = useState<string[]>([]);
   const [personalDraft, setPersonalDraft] = useState<ComponentProps<typeof PersonalCalendarEditor>["draft"] | null>(null);
+  const [taskDraft, setTaskDraft] = useState<{ date: string; time?: string } | null>(null);
+  const [openTask, setOpenTask] = useState<CalendarTask | null>(null);
+  const [showCalendarTasks, setShowCalendarTasks] = useState(true);
   const appointmentWindow = useAppointmentWindow(form.localDate, calendarView, fullPageCalendarOpen);
+  const calendarTasks = useCalendarTasks(new URLSearchParams({ start: appointmentWindow.startDate, end: appointmentWindow.endDate }).toString(), fullPageCalendarOpen && showCalendarTasks);
   const personalSchedule = usePersonalSchedule(
     localDateTimeToIso(appointmentWindow.startDate, "00:00"),
     localDateTimeToIso(appointmentWindow.endDate, "00:00"),
@@ -1573,6 +1580,10 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 ) : (
                   <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category, selectedPurpose.value)}>
                     {fullPageCalendarOpen && <p>Company calendar · Visible to staff. {!editingAppointment && <button type="button" onClick={() => { setCalendarInsightCard(null); setPersonalDraft({ kind: "event", date: form.localDate, time: form.startTime, duration: form.durationMinutes }); }}>Create a private event instead</button>}</p>}
+                    {fullPageCalendarOpen && !editingAppointment && <button type="button" onClick={() => {
+                      setCalendarInsightCard(null);
+                      setTaskDraft({ date: form.localDate, time: form.startTime });
+                    }}>Add a task instead</button>}
                     <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
                     {customerQuery.trim().length >= 2 && !selectedCustomer ? (
                       <div className="appointment-identity-results" aria-label="Matching customers">
@@ -1610,31 +1621,52 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
               </CalendarDetailDialog>
             ) : null;
 
+  const searchTokens = calendarSearch.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const matchesSearch = (...values: Array<string | null | undefined>) => {
+    const haystack = values.filter(Boolean).join(" ").toLowerCase();
+    return searchTokens.every(token => haystack.includes(token));
+  };
   const matchesCalendarFilter = (appointment: LiveAppointment) =>
     !hiddenCalendars.includes("company") && !hiddenCategories.includes(appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).id) &&
-    [appointment.title, appointment.customer?.displayName, appointment.owner?.name, vehicleLabel(appointment), appointment.appointmentNumber]
-      .some(value => value?.toLowerCase().includes(calendarSearch.trim().toLowerCase()));
+    matchesSearch(appointment.title, appointment.customer?.displayName, appointment.owner?.name, vehicleLabel(appointment), appointment.appointmentNumber,
+      appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).label, appointment.category);
   const visiblePersonalEvents = personalSchedule.events.filter(event =>
     !hiddenCalendars.includes(event.calendarId ?? personalCalendarKey) &&
-    event.title.toLowerCase().includes(calendarSearch.trim().toLowerCase()));
+    matchesSearch(event.title, personalSchedule.calendars.find(calendar => calendar.id === event.calendarId)?.name));
+  const visibleTasks = fullPageCalendarOpen && showCalendarTasks
+    ? calendarTasks.tasks.filter(task => {
+      const category = task.scope === "personal" ? `personal:${task.listId ?? ""}` : task.workflowArea ?? "";
+      const label = task.scope === "personal"
+        ? calendarTasks.lists.find(list => list.id === task.listId)?.name ?? "Personal"
+        : calendarTaskTeams.find(([id]) => id === task.workflowArea)?.[1];
+      return (taskCategory === "all" || taskCategory === category) && matchesSearch(task.title, label, task.workType, task.workflowArea);
+    })
+    : [];
+  const tasksForDate = (date: string) => visibleTasks.filter(task => task.localDate === date);
+  const taskTitle = (task: CalendarTask) => `${task.completed ? "✓" : "☐"} ${task.title}`;
+  const taskStyle = { "--appointment-category-accent": "#17624a", "--appointment-category-bg-light": "#ddf5ea" } as CSSProperties;
   const personalStyle = { "--appointment-category-accent": "#7051a5", "--appointment-category-bg-light": "#eee6fc" } as CSSProperties;
   const openPersonalEvent = (event: PersonalEvent) => setPersonalDraft({
     kind: "event", event, date: isoDateKey(event.startsAt), time: isoTimeInput(event.startsAt),
     duration: Math.round((Date.parse(event.endsAt) - Date.parse(event.startsAt)) / 60000)
   });
   const agendaPersonalEvents = fullPageCalendarOpen ? visiblePersonalEvents.filter(event => isoDateKey(event.startsAt) === form.localDate) : [];
+  const agendaTasks = tasksForDate(form.localDate);
   const agendaAppointments = fullPageCalendarOpen ? selectedDayAppointments.filter(matchesCalendarFilter) : selectedDayAppointments;
 
   const dayAgenda = (
     <section className={agendaStyles.agenda} aria-label="Day agenda">
-      <header><strong>{appointmentDateLabel} · {agendaAppointments.length + agendaPersonalEvents.length} events</strong><button type="button" onClick={openAppointmentDraftPanel}>{editingAppointment ? "Return to appointment edit" : "Open appointment draft"}</button></header>
-      {appointmentWindow.status === "loading" ? <p role="status">Loading live schedule…</p> : appointmentWindow.status === "unavailable" ? <p role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p> : agendaAppointments.length === 0 && agendaPersonalEvents.length === 0 ? <p>No events on this date.</p> : (
+      <header><strong>{appointmentDateLabel} · {agendaAppointments.length + agendaPersonalEvents.length} events{agendaTasks.length ? ` · ${agendaTasks.length} tasks` : ""}</strong><button type="button" onClick={openAppointmentDraftPanel}>{editingAppointment ? "Return to appointment edit" : "Open appointment draft"}</button></header>
+      {appointmentWindow.status === "loading" ? <p role="status">Loading live schedule…</p> : appointmentWindow.status === "unavailable" ? <p role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p> : agendaAppointments.length === 0 && agendaPersonalEvents.length === 0 && agendaTasks.length === 0 ? <p>No events or tasks on this date.</p> : (
         <ul>{agendaAppointments.map(appointment => <li key={appointment.id}><button type="button" onClick={() => expandAppointmentPreview(appointment)}>
           <span>{formatTime(appointment.startsAt)} – {formatTime(appointment.endsAt)}</span><strong>{appointment.title}</strong><small>{appointment.customer?.displayName ?? "No customer"} · {vehicleLabel(appointment)}</small>
         </button></li>)}{agendaPersonalEvents.map(event => <li key={event.id}><button type="button" onClick={() => openPersonalEvent(event)}>
           <span>{formatTime(event.startsAt)} – {formatTime(event.endsAt)}</span><strong>{event.title}</strong><small>Private</small>
         </button></li>)}</ul>
       )}
+      {agendaTasks.length > 0 && <ul aria-label="Tasks for this date">{agendaTasks.map(task => <li key={task.id}><button type="button" onClick={() => setOpenTask(task)}>
+        <span>{task.localTime ? formatTime(localDateTimeToIso(form.localDate, task.localTime)) : "All day"}</span><strong>{taskTitle(task)}</strong><small>{task.scope === "personal" ? "Personal task" : "Dispatch task"}</small>
+      </button></li>)}</ul>}
       <QuickUpdateReminders key={form.localDate} date={form.localDate} />
     </section>
   );
@@ -1684,7 +1716,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             <strong aria-live="polite">{calendarView === "week" || calendarView === "month" ? monthLabel(form.localDate) : appointmentDateLabel}</strong>
           </div>
           <div className={styles.actions}>
-            <button type="button" aria-label="Search appointments in this view" aria-expanded={calendarSearchOpen} onClick={() => { setCalendarSearchOpen(open => !open); setCalendarSearch(""); }}><Search size={20} /></button>
+            <button type="button" aria-label="Search tasks and appointments" aria-expanded={calendarSearchOpen} onClick={() => { setCalendarSearchOpen(open => !open); setCalendarSearch(""); }}><Search size={20} /></button>
             <details className={styles.tools}>
               <summary aria-label="Scheduling tools"><Settings size={20} /></summary>
               <div>
@@ -1695,13 +1727,30 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             <select aria-label="Calendar view" value={calendarView} onChange={event => setCalendarView(event.target.value as CalendarView)}>
               {calendarViews.map(view => <option key={view} value={view}>{view === "agenda" ? "Schedule" : view[0].toUpperCase() + view.slice(1)}</option>)}
             </select>
-            <button className={styles.primary} type="button" onClick={() => editingAppointment || createdAppointmentNumber ? startNewAppointmentDraft() : openAppointmentDraftPanel()}><Plus size={18} /> Create</button>
+            <details className={styles.tools}>
+              <summary className={styles.primary}><Plus size={18} aria-hidden="true" /> Create</summary>
+              <div>
+                <button type="button" onClick={event => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  if (editingAppointment || createdAppointmentNumber) startNewAppointmentDraft();
+                  else openAppointmentDraftPanel();
+                }}>Appointment</button>
+                <button type="button" onClick={event => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  setTaskDraft({ date: form.localDate });
+                }}>Task</button>
+                <button type="button" onClick={event => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  newPersonalEvent();
+                }}>Private event</button>
+              </div>
+            </details>
             {initialFullCalendar ? <Link href="/appointments?section=today">Exit calendar</Link> : <button type="button" onClick={closeFullPageCalendar}>Back</button>}
           </div>
         </header>
         {calendarSearchOpen && <div className={styles.search}>
-          <label>Search this view <input autoFocus type="search" placeholder="Title, customer, vehicle, or staff" value={calendarSearch} onChange={event => setCalendarSearch(event.target.value)} /></label>
-          {calendarSearch.trim() && <span role="status">{visibleAppointments.filter(matchesCalendarFilter).length + visiblePersonalEvents.length} matches</span>}
+          <label>Search this date range <input autoFocus type="search" maxLength={100} placeholder="Title, category, team, or list" value={calendarSearch} onChange={event => setCalendarSearch(event.target.value)} /></label>
+          {calendarSearch.trim() && <span role="status">{visibleAppointments.filter(matchesCalendarFilter).length + visiblePersonalEvents.length + visibleTasks.length} matches</span>}
         </div>}
         <div className={styles.body}>
           <aside id="calendar-sidebar" className={styles.rail} hidden={!calendarRailOpen}>
@@ -1725,6 +1774,13 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
               </label>)}
               <button type="button" onClick={() => newPersonalEvent()}>+ Personal event</button>
               <button type="button" onClick={() => setPersonalDraft({ kind: "calendar" })}>+ Personal calendar</button>
+              <label style={taskStyle}><input type="checkbox" checked={showCalendarTasks} onChange={event => setShowCalendarTasks(event.target.checked)} /> Tasks</label>
+              {showCalendarTasks && <label>Task category <select value={taskCategory} onChange={event => setTaskCategory(event.target.value)}>
+                <option value="all">All task categories</option>
+                <optgroup label="Dispatch teams">{calendarTaskTeams.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</optgroup>
+                <optgroup label="Personal lists"><option value="personal:">Personal</option>{calendarTasks.lists.map(list => <option key={list.id} value={`personal:${list.id}`}>{list.name}</option>)}</optgroup>
+              </select></label>}
+              {showCalendarTasks && calendarTasks.unavailable && <p role="status">Tasks unavailable. <button type="button" onClick={calendarTasks.refresh}>Retry</button></p>}
               {personalSchedule.unavailable && <p role="status">Personal calendars unavailable. <button type="button" onClick={personalSchedule.refresh}>Retry</button></p>}
             </details>
             <details className={styles.filters}>
@@ -1747,7 +1803,10 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                   date,
                   weekday: weekdays[noonDate(date).getDay()],
                   dayNumber: String(noonDate(date).getDate()),
-                  events: dayEvents(date).map(appointment => {
+                  allDayTasks: tasksForDate(date).filter(task => !task.localTime).map(task => ({
+                    id: task.id, title: taskTitle(task), onOpen: () => setOpenTask(task)
+                  })),
+                  events: [...dayEvents(date).map(appointment => {
                     const startMinute = slotMinutes(isoTimeInput(appointment.startsAt));
                     return {
                       id: appointment.id,
@@ -1758,7 +1817,14 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                       style: appointment.style,
                       onOpen: appointment.onOpen
                     };
-                  })
+                  }), ...tasksForDate(date).flatMap(task => {
+                    if (!task.localTime) return [];
+                    const startMinute = slotMinutes(task.localTime);
+                    return [{
+                      id: `task-${task.id}`, title: taskTitle(task), timeLabel: `${formatTime(localDateTimeToIso(date, task.localTime))} · Task`,
+                      startMinute, endMinute: startMinute + 15, style: taskStyle, onOpen: () => setOpenTask(task)
+                    }];
+                  })]
                 }))}
                 today={today}
                 selectedDate={form.localDate}
@@ -1771,10 +1837,15 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 {weekdays.map(day => <strong className={styles.monthHeading} key={day}>{day}</strong>)}
                 {monthCells.map(cell => {
                   const appointments = dayEvents(cell.dateKey);
+                  const tasks = tasksForDate(cell.dateKey);
+                  const items = [
+                    ...appointments.map(appointment => ({ ...appointment, label: `${formatTime(appointment.startsAt)} · ${appointment.title}` })),
+                    ...tasks.map(task => ({ id: `task-${task.id}`, title: task.title, label: taskTitle(task), style: taskStyle, onOpen: () => setOpenTask(task) }))
+                  ];
                   return <div className={styles.monthCell} key={cell.dateKey}>
                     <button type="button" className={cell.muted ? styles.muted : undefined} aria-label={`Open schedule for ${cell.dateKey}`} aria-current={cell.dateKey === today ? "date" : undefined} onClick={() => openDayAgenda(cell.dateKey)}>{cell.day}</button>
-                    {appointments.slice(0, 2).map(appointment => <button className={styles.monthEvent} type="button" key={appointment.id} title={appointment.title} style={appointment.style} onClick={appointment.onOpen}>{formatTime(appointment.startsAt)} · {appointment.title}</button>)}
-                    {appointments.length > 2 && <button type="button" onClick={() => openDayAgenda(cell.dateKey)}>+{appointments.length - 2} more</button>}
+                    {items.slice(0, 2).map(item => <button className={styles.monthEvent} type="button" key={item.id} title={item.title} style={item.style} onClick={item.onOpen}>{item.label}</button>)}
+                    {items.length > 2 && <button type="button" onClick={() => openDayAgenda(cell.dateKey)}>+{items.length - 2} more</button>}
                   </div>;
                 })}
               </div>
@@ -1782,6 +1853,13 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
           </div>
         </div>
         {calendarDetail}
+        {taskDraft && <QuickCalendarTaskDialog {...taskDraft} onClose={() => setTaskDraft(null)} onSaved={task => {
+          setShowCalendarTasks(true);
+          setTaskCategory("all");
+          if (task.localDate) updateField("localDate", task.localDate);
+          calendarTasks.refresh();
+        }} />}
+        {openTask && <CalendarTaskDetails task={openTask} onClose={() => setOpenTask(null)} onChanged={calendarTasks.refresh} />}
         {personalDraft && <PersonalCalendarEditor
           draft={personalDraft}
           calendars={personalSchedule.calendars}

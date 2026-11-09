@@ -228,6 +228,12 @@
   accent-color: var(--appointment-category-accent, var(--accent));
 }
 
+.filters select {
+  min-width: 0;
+  max-width: 100%;
+  font-size: .8rem;
+}
+
 .filters small {
   margin-inline-start: auto;
   color: var(--muted);
@@ -268,6 +274,7 @@
 }
 
 .timeGrid {
+  --day-header-height: 4.25rem;
   display: grid;
   grid-template-columns: 3.75rem repeat(var(--day-count), minmax(0, 1fr));
   min-width: calc(3.75rem + var(--day-count) * 6rem);
@@ -295,8 +302,38 @@
   justify-items: center;
   gap: .15rem;
   padding: .45rem;
+  min-height: var(--day-header-height);
   font-size: .74rem;
   text-transform: uppercase;
+}
+
+.allDay {
+  position: sticky;
+  top: var(--day-header-height);
+  z-index: 2;
+  display: grid;
+  align-content: start;
+  gap: .2rem;
+  padding: .3rem;
+  min-width: 0;
+  max-height: 6rem;
+  overflow: auto;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
+  font-size: .75rem;
+}
+
+.allDay button {
+  min-width: 0;
+  padding: .2rem .3rem;
+  border-radius: .3rem;
+  background: #ddf5ea;
+  color: #143e31;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dayHeading strong {

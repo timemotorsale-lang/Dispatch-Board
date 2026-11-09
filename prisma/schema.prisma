@@ -2037,7 +2037,64 @@ model PersonalCalendarEvent {
   @@index([userId, startsAt])
 }
 
+model PersonalCalendarTask {
+  id          String    @id @default(cuid())
+  userId      String
+  requestId   String
+  title       String
+  notes       String    @default("")
+  localDate   String?
+  localTime   String?
+  completedAt DateTime?
+  archivedAt  DateTime?
+  starredAt   DateTime?
+  position    Int       @default(0)
+  deadline    String?
+  repeat      Json?
+  listId      String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list        PersonalTaskList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  occurrences PersonalTaskOccurrence[]
+
+  @@unique([userId, requestId])
+  @@index([userId, localDate])
+}
+
+model PersonalTaskList {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks  PersonalCalendarTask[]
+
+  @@unique([userId, name])
+}
+
+model PersonalTaskOccurrence {
+  taskId      String
+  localDate   String
+  completedAt DateTime @default(now())
+  task        PersonalCalendarTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, localDate])
+}
+
+model DispatchTaskRepeatBatch {
+  userId      String
+  requestId   String
+  fingerprint String
+  firstTaskId String?
+  taskCount   Int @default(0)
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, requestId])
+}
+
 model User {
+  dispatchTaskRepeatBatches DispatchTaskRepeatBatch[]
+  personalTaskLists PersonalTaskList[]
+  personalCalendarTasks PersonalCalendarTask[]
   personalCalendars PersonalCalendar[]
   personalCalendarEvents PersonalCalendarEvent[]
   autobodyDrafts AutobodyEstimateDraft[]

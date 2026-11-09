@@ -63,6 +63,10 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("My calendars");
     expect(markup).toContain("Time Motor Sales");
     expect(markup).toContain("Personal calendar");
+    expect(markup).toContain("Private event");
+    expect(markup).toContain("> Tasks</label>");
+    expect(markup).toContain("All task categories");
+    expect(markup).toContain("Search tasks and appointments");
   });
 
   it("renders the approved Today Flow landing without duplicating the app shell sidebar", () => {
