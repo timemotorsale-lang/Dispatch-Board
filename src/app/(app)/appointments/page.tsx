@@ -58,7 +58,8 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   const sourceTask = focusParams?.sourceTask
     ? await getTaskReadModelById(user, focusParams.sourceTask).catch(() => null)
     : null;
-  const newAppointmentMode = focusParams?.action === "new";
+  const calendarMode = focusParams?.view === "calendar";
+  const newAppointmentMode = focusParams?.action === "new" || calendarMode;
   const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
 
   if ((focusParams?.launch === "advisor" || (workspaceKey === "ADVISOR" && !managerContext)) && !newAppointmentMode && !boardMode && !focusParams?.section) {
@@ -74,6 +75,8 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   if (newAppointmentMode) {
     return (
       <AppointmentConsoleNewAppointment
+        key={calendarMode ? "calendar" : "new"}
+        initialFullCalendar={calendarMode}
         initialContext={{
           crmCustomerId: focusParams?.crmCustomerId,
           customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",

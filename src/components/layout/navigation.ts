@@ -81,11 +81,11 @@ export const appointmentConsoleNavigationItems: NavigationItem[] = [
     activeQuery: { action: null, section: null, view: null, workspace: null }
   },
   {
-    href: "/appointments?action=new",
+    href: "/appointments?view=calendar",
     title: "Calendar",
     description: "Calendar-first appointment creation with capacity context.",
     icon: CalendarDays,
-    activeQuery: { action: "new" }
+    activeQuery: { view: "calendar" }
   },
   {
     href: "/appointments?section=planning",

@@ -2013,7 +2013,33 @@ model DiagnosticWorkspaceDraft {
   @@index([userId, updatedAt])
 }
 
+model PersonalCalendar {
+  id     String                  @id @default(cuid())
+  userId String
+  name   String
+  user   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events PersonalCalendarEvent[]
+
+  @@unique([id, userId])
+  @@unique([userId, name])
+}
+
+model PersonalCalendarEvent {
+  id         String            @id @default(cuid())
+  userId     String
+  calendarId String?
+  title      String
+  startsAt   DateTime
+  endsAt     DateTime
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendar   PersonalCalendar? @relation(fields: [calendarId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@index([userId, startsAt])
+}
+
 model User {
+  personalCalendars PersonalCalendar[]
+  personalCalendarEvents PersonalCalendarEvent[]
   autobodyDrafts AutobodyEstimateDraft[]
   dispatchPresence DispatchPresence?
   dispatchSentHandoffs DispatchHandoff[] @relation("DispatchSender")
