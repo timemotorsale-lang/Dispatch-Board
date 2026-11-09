@@ -2852,6 +2852,7 @@ model Location {
   appointments                       Appointment[]
   appointmentCommandLedgerEntries    AppointmentCommandLedger[]
   userAccess                         UserLocationAccess[]
+  repairPriorities                   RepairPriority[]
   resources                          SchedulableResource[]
   enterpriseAggregateVersions        EnterpriseAggregateVersion[]
   enterpriseCommandLedgerEntries     EnterpriseCommandLedger[]
@@ -3088,6 +3089,7 @@ model AppointmentAutomationExecutionEvent {
 }
 
 model Appointment {
+  repairPriorities                RepairPriority[]
   id                              String                                 @id @default(cuid())
   appointmentNumber               String                                 @unique
   organizationId                  String
@@ -8135,6 +8137,33 @@ model WorkdayChecklistItem {
   @@index([workbookId, sourceType, sourceId])
 }
 
+model RepairPriority {
+  id              String   @id @default(cuid())
+  locationId      String
+  checklistItemId String
+  sourceKey       String
+  planDate        String
+  vehicle         String   @default("")
+  summary         String
+  nextAction      String   @default("")
+  blocker         String   @default("")
+  priority        Int      @default(2)
+  status          String   @default("READY")
+  durationMinutes Int?
+  ownerUserId     String?
+  taskId          String?
+  appointmentId   String?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  task            Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@unique([locationId, checklistItemId, sourceKey])
+  @@index([locationId, planDate, priority])
+}
+
 model WorkdayDailyFocusItem {
   dispatchPresences DispatchPresence[]
   id                     String                  @id @default(cuid())
@@ -8850,6 +8879,7 @@ model UnifiedCrmSavedView {
 }
 
 model Task {
+  repairPriorities RepairPriority[]
   dispatchPresences DispatchPresence[]
   dispatchHandoffs DispatchHandoff[]
   id                         String                          @id @default(cuid())
