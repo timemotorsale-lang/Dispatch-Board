@@ -30,6 +30,7 @@ type AppointmentsPageProps = {
     title?: string;
     localDate?: string;
     q?: string;
+    advanced?: string;
     startTime?: string;
     returnTo?: string;
   }>;
@@ -78,13 +79,15 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   if (newAppointmentMode) {
     return (
       <AppointmentConsoleNewAppointment
-        key={calendarMode ? `calendar:${focusParams?.q ?? ""}:${localDate}` : "new"}
+        key={calendarMode ? `calendar:${focusParams?.q ?? ""}:${focusParams?.advanced ?? ""}:${localDate}` : "new"}
         initialFullCalendar={calendarMode}
         initialContext={{
           crmCustomerId: focusParams?.crmCustomerId,
           customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
           localDate: focusParams?.localDate ?? "",
           calendarQuery: calendarMode && typeof focusParams?.q === "string" ? focusParams.q.slice(0, 100) : undefined,
+          advancedCalendarSearch: calendarMode && focusParams?.advanced === "1",
+          viewerName: user.name,
           reason: focusParams?.reason ?? sourceTask?.description ?? "",
           returnTo: safeRoute(focusParams?.returnTo) ?? (sourceTask ? `/tasks/${sourceTask.id}` : undefined),
           sourceTaskId: sourceTask?.id ?? focusParams?.sourceTask ?? "",

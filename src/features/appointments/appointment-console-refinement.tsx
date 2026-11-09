@@ -18,6 +18,8 @@ import Link from "next/link";
 import { QuickUpdateReminders } from "./quick-update-reminders";
 import { CategoryBadge, categoryAppearance, categoryRowStyle } from "./category-badge";
 import { CalendarDetailDialog } from "./calendar-detail-dialog";
+import { AppointmentDurationField } from "./appointment-duration-field";
+import { CalendarAdvancedSearch, matchesAdvancedCalendarSearch, type CalendarSearchFilters } from "./calendar-advanced-search";
 import { AppointmentPurposeFields } from "./appointment-purpose-fields";
 import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes, defaultAppointmentPurpose, type AppointmentPurpose } from "./appointment-purposes";
 import { CalendarTimeGrid } from "./calendar-time-grid";
@@ -46,10 +48,13 @@ type LiveAppointment = {
   attendanceStatus: string;
   executionStatus: string;
   owner: { name: string } | null;
+  participants?: Array<{ displayName: string }>;
+  outcomeNotes?: string | null;
+  followUpNotes?: string | null;
   customer: { customerId?: string | null; displayName: string; phoneNumber: string | null; email: string | null } | null;
   vehicles: Array<{ year: number | null; make: string | null; model: string | null; vehicleNumber: string; vin: string | null }>;
   taskLinks: Array<{ taskStatus: string; blocksAppointment: boolean }>;
-  resourceReservations: Array<{ status: string }>;
+  resourceReservations: Array<{ status: string; resourceName?: string }>;
 };
 
 type AppointmentApiResponse = {
@@ -98,7 +103,6 @@ type AppointmentIdentitySearchResponse = {
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
-const appointmentDurationOptions = [15, 30, 45, 60, 75, 90, 120];
 
 function calendarCategoryStyle(category?: string | null, purposeCode?: string | null, title?: string | null) {
   const appearance = categoryAppearance(appointmentPurposeGroup(category, purposeCode, title).category);
@@ -243,7 +247,7 @@ function isoTimeInput(value: string | null) {
 function appointmentDurationMinutes(appointment: LiveAppointment) {
   if (!appointment.startsAt || !appointment.endsAt) return 60;
   const minutes = Math.round((new Date(appointment.endsAt).getTime() - new Date(appointment.startsAt).getTime()) / 60_000);
-  return [30, 45, 60, 75, 90, 120].includes(minutes) ? minutes : Math.max(15, minutes);
+  return Math.max(1, minutes);
 }
 
 function vehicleLabel(appointment: LiveAppointment) {
@@ -502,9 +506,9 @@ function useAppointmentConsoleData(date: string) {
   return { data: data?.date === date ? data : null, status: data && data.date !== date ? "loading" as const : status };
 }
 
-function useAppointmentWindow(dateKey: string, view: CalendarView, liveRefresh: boolean) {
-  const startDate = view === "week" ? weekStart(dateKey) : view === "month" ? weekStart(monthStart(dateKey)) : dateKey;
-  const endDate = addDays(startDate, view === "month" ? 42 : view === "week" ? 7 : 1);
+function useAppointmentWindow(dateKey: string, view: CalendarView, liveRefresh: boolean, range?: { from: string; to: string }) {
+  const startDate = range?.from ?? (view === "week" ? weekStart(dateKey) : view === "month" ? weekStart(monthStart(dateKey)) : dateKey);
+  const endDate = range ? addDays(range.to, 1) : addDays(startDate, view === "month" ? 42 : view === "week" ? 7 : 1);
   const [reload, setReload] = useState(0);
   const requestKey = `${startDate}:${endDate}:${reload}`;
   const [result, setResult] = useState<{ key: string; data: AppointmentApiResponse | null } | null>(null);
@@ -875,6 +879,8 @@ void LegacyAppointmentConsoleNewAppointment;
 
 type AppointmentNewInitialContext = {
   calendarQuery?: string;
+  advancedCalendarSearch?: boolean;
+  viewerName?: string;
   crmCustomerId?: string;
   customerReference?: string;
   localDate?: string;
@@ -915,6 +921,8 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [calendarRailOpen, setCalendarRailOpen] = useState(true);
   const [calendarSearchOpen, setCalendarSearchOpen] = useState(Boolean(initialContext?.calendarQuery));
   const [calendarSearch, setCalendarSearch] = useState(initialContext?.calendarQuery ?? "");
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(Boolean(initialContext?.advancedCalendarSearch));
+  const [advancedSearch, setAdvancedSearch] = useState<CalendarSearchFilters | null>(null);
   const [taskCategory, setTaskCategory] = useState("all");
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
@@ -943,8 +951,9 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [taskDraft, setTaskDraft] = useState<{ date: string; time?: string } | null>(null);
   const [openTask, setOpenTask] = useState<CalendarTask | null>(null);
   const [showCalendarTasks, setShowCalendarTasks] = useState(true);
-  const appointmentWindow = useAppointmentWindow(form.localDate, calendarView, fullPageCalendarOpen);
-  const calendarTasks = useCalendarTasks(new URLSearchParams({ start: appointmentWindow.startDate, end: appointmentWindow.endDate }).toString(), fullPageCalendarOpen && showCalendarTasks);
+  const appointmentWindow = useAppointmentWindow(form.localDate, calendarView, fullPageCalendarOpen, advancedSearch ?? undefined);
+  const calendarTasks = useCalendarTasks(new URLSearchParams({ start: appointmentWindow.startDate, end: appointmentWindow.endDate }).toString(),
+    fullPageCalendarOpen && (showCalendarTasks || advancedSearch?.scope === "tasks" || advancedSearch?.scope === "all"));
   const personalSchedule = usePersonalSchedule(
     localDateTimeToIso(appointmentWindow.startDate, "00:00"),
     localDateTimeToIso(appointmentWindow.endDate, "00:00"),
@@ -1306,6 +1315,8 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   }
 
   function closeFullPageCalendar() {
+    setAdvancedSearch(null);
+    setAdvancedSearchOpen(false);
     setFullPageCalendarOpen(false);
     setNotice("Returned to the standard appointment setup workspace.");
   }
@@ -1602,7 +1613,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                     <div className="calendar-enterprise-draft-row">
                       <label><span>Date</span><input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} /></label>
                       <label><span>Time</span><input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} /></label>
-                      <label><span>Duration</span><select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>{Array.from(new Set([...appointmentDurationOptions, form.durationMinutes])).sort((a, b) => a - b).map((duration) => <option key={duration} value={duration}>{duration} min</option>)}</select></label>
+                      <AppointmentDurationField value={form.durationMinutes} onChange={minutes => updateField("durationMinutes", minutes)} disabled={isSaving} />
                     </div>
                     <div className="calendar-enterprise-draft-row">
                       <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
@@ -1626,21 +1637,23 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
     const haystack = values.filter(Boolean).join(" ").toLowerCase();
     return searchTokens.every(token => haystack.includes(token));
   };
+  const appointmentSearchKeywords = (appointment: LiveAppointment) => [
+    appointment.title, appointment.customer?.displayName, appointment.owner?.name, vehicleLabel(appointment), appointment.appointmentNumber,
+    appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).label, appointment.category
+  ];
   const matchesCalendarFilter = (appointment: LiveAppointment) =>
     !hiddenCalendars.includes("company") && !hiddenCategories.includes(appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).id) &&
-    matchesSearch(appointment.title, appointment.customer?.displayName, appointment.owner?.name, vehicleLabel(appointment), appointment.appointmentNumber,
-      appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).label, appointment.category);
+    matchesSearch(...appointmentSearchKeywords(appointment));
+  const taskSearchLabel = (task: CalendarTask) => task.scope === "personal"
+    ? calendarTasks.lists.find(list => list.id === task.listId)?.name ?? "Personal"
+    : calendarTaskTeams.find(([id]) => id === task.workflowArea)?.[1];
+  const matchesTaskCategory = (task: CalendarTask) => taskCategory === "all" ||
+    taskCategory === (task.scope === "personal" ? `personal:${task.listId ?? ""}` : task.workflowArea ?? "");
   const visiblePersonalEvents = personalSchedule.events.filter(event =>
     !hiddenCalendars.includes(event.calendarId ?? personalCalendarKey) &&
     matchesSearch(event.title, personalSchedule.calendars.find(calendar => calendar.id === event.calendarId)?.name));
   const visibleTasks = fullPageCalendarOpen && showCalendarTasks
-    ? calendarTasks.tasks.filter(task => {
-      const category = task.scope === "personal" ? `personal:${task.listId ?? ""}` : task.workflowArea ?? "";
-      const label = task.scope === "personal"
-        ? calendarTasks.lists.find(list => list.id === task.listId)?.name ?? "Personal"
-        : calendarTaskTeams.find(([id]) => id === task.workflowArea)?.[1];
-      return (taskCategory === "all" || taskCategory === category) && matchesSearch(task.title, label, task.workType, task.workflowArea);
-    })
+    ? calendarTasks.tasks.filter(task => matchesTaskCategory(task) && matchesSearch(task.title, taskSearchLabel(task), task.workType, task.workflowArea))
     : [];
   const tasksForDate = (date: string) => visibleTasks.filter(task => task.localDate === date);
   const taskTitle = (task: CalendarTask) => `${task.completed ? "✓" : "☐"} ${task.title}`;
@@ -1673,6 +1686,40 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
 
   if (fullPageCalendarOpen) {
     const styles = workspaceStyles;
+    const scope = advancedSearch?.scope;
+    const searchAppointments = scope === "all" || scope === "appointments" || (scope === "active" && !hiddenCalendars.includes("company"));
+    const searchTasks = scope === "all" || scope === "tasks" || (scope === "active" && showCalendarTasks);
+    const searchEvents = scope === "all" || scope === "personal" || scope === "active";
+    const searchResults: Array<{ id: string; title: string; date: string; time: string; kind: string; open: () => void }> = [];
+    if (advancedSearch) {
+      if (searchAppointments) for (const item of visibleAppointments) {
+        const group = appointmentPurposeGroup(item.category, item.purposeCode, item.title);
+        if (!item.startsAt || (scope === "active" && hiddenCategories.includes(group.id))) continue;
+        if (!matchesAdvancedCalendarSearch(advancedSearch, {
+          keywords: [...appointmentSearchKeywords(item), item.outcomeNotes, item.followUpNotes],
+          people: [item.owner?.name, item.customer?.displayName, ...(item.participants ?? []).map(person => person.displayName)],
+          places: [appointmentWindow.data?.location.name, ...item.resourceReservations.map(resource => resource.resourceName)]
+        })) continue;
+        searchResults.push({ id: `appointment:${item.id}`, title: item.title, date: isoDateKey(item.startsAt), time: isoTimeInput(item.startsAt), kind: group.label, open: () => expandAppointmentPreview(item) });
+      }
+      if (searchTasks) for (const item of calendarTasks.tasks) {
+        if (!item.localDate || (scope === "active" && !matchesTaskCategory(item))) continue;
+        if (!matchesAdvancedCalendarSearch(advancedSearch, {
+          keywords: [item.title, item.notes, taskSearchLabel(item), item.workType, item.workflowArea],
+          people: [initialContext?.viewerName, item.creatorName], places: []
+        })) continue;
+        searchResults.push({ id: `task:${item.id}`, title: taskTitle(item), date: item.localDate, time: item.localTime ?? "", kind: taskSearchLabel(item) ?? "Task", open: () => setOpenTask(item) });
+      }
+      if (searchEvents) for (const item of personalSchedule.events) {
+        if (scope === "active" && hiddenCalendars.includes(item.calendarId ?? personalCalendarKey)) continue;
+        const label = personalSchedule.calendars.find(calendar => calendar.id === item.calendarId)?.name ?? "Private event";
+        if (!matchesAdvancedCalendarSearch(advancedSearch, { keywords: [item.title, label], people: [initialContext?.viewerName], places: [] })) continue;
+        searchResults.push({ id: `event:${item.id}`, title: item.title, date: isoDateKey(item.startsAt), time: isoTimeInput(item.startsAt), kind: label, open: () => openPersonalEvent(item) });
+      }
+      searchResults.sort((left, right) => left.date.localeCompare(right.date) || left.time.localeCompare(right.time) || left.title.localeCompare(right.title));
+    }
+    const searching = (searchAppointments && appointmentWindow.status === "loading") ||
+      (searchTasks && calendarTasks.loading) || (searchEvents && personalSchedule.loading);
     const today = todayDateKey();
     const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const dayEvents = (date: string) => [
@@ -1693,13 +1740,20 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       { id: personalCalendarKey, name: "Personal", private: true },
       ...personalSchedule.calendars.map(calendar => ({ ...calendar, private: true }))
     ];
-    const movePeriod = (direction: number) => updateField("localDate", calendarView === "month"
-      ? addMonths(form.localDate, direction)
-      : addDays(form.localDate, direction * (calendarView === "week" ? 7 : 1)));
+    const movePeriod = (direction: number) => {
+      setAdvancedSearch(null);
+      updateField("localDate", calendarView === "month"
+        ? addMonths(form.localDate, direction)
+        : addDays(form.localDate, direction * (calendarView === "week" ? 7 : 1)));
+    };
     const openSlot = (date: string, time: string) => {
       if (editingAppointment || createdAppointmentNumber) startNewAppointmentDraft(time);
       else openAppointmentDraftPanel();
       setForm(current => ({ ...current, localDate: date, startTime: time }));
+    };
+    const navigateCalendarDate = (date: string) => {
+      setAdvancedSearch(null);
+      updateField("localDate", date);
     };
 
     return (
@@ -1710,13 +1764,16 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             <CalendarDays size={24} aria-hidden="true" /><h1>Calendar</h1>
           </div>
           <div className={styles.navigation}>
-            <button type="button" onClick={() => updateField("localDate", today)}>Today</button>
+            <button type="button" onClick={() => navigateCalendarDate(today)}>Today</button>
             <button aria-label="Previous period" type="button" onClick={() => movePeriod(-1)}><ChevronLeft size={20} /></button>
             <button aria-label="Next period" type="button" onClick={() => movePeriod(1)}><ChevronRight size={20} /></button>
             <strong aria-live="polite">{calendarView === "week" || calendarView === "month" ? monthLabel(form.localDate) : appointmentDateLabel}</strong>
           </div>
           <div className={styles.actions}>
-            <button type="button" aria-label="Search tasks and appointments" aria-expanded={calendarSearchOpen} onClick={() => { setCalendarSearchOpen(open => !open); setCalendarSearch(""); }}><Search size={20} /></button>
+            <button type="button" aria-label="Search tasks and appointments" aria-expanded={advancedSearchOpen || (calendarSearchOpen && !advancedSearch)} onClick={() => {
+              if (advancedSearch) setAdvancedSearchOpen(true);
+              else { setCalendarSearchOpen(open => !open); setCalendarSearch(""); }
+            }}><Search size={20} /></button>
             <details className={styles.tools}>
               <summary aria-label="Scheduling tools"><Settings size={20} /></summary>
               <div>
@@ -1724,7 +1781,10 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 <Link href={`/appointments?view=board&localDate=${form.localDate}`}>Schedule board</Link>
               </div>
             </details>
-            <select aria-label="Calendar view" value={calendarView} onChange={event => setCalendarView(event.target.value as CalendarView)}>
+            <select aria-label="Calendar view" value={calendarView} onChange={event => {
+              setAdvancedSearch(null);
+              setCalendarView(event.target.value as CalendarView);
+            }}>
               {calendarViews.map(view => <option key={view} value={view}>{view === "agenda" ? "Schedule" : view[0].toUpperCase() + view.slice(1)}</option>)}
             </select>
             <details className={styles.tools}>
@@ -1748,9 +1808,10 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             {initialFullCalendar ? <Link href="/appointments?section=today">Exit calendar</Link> : <button type="button" onClick={closeFullPageCalendar}>Back</button>}
           </div>
         </header>
-        {calendarSearchOpen && <div className={styles.search}>
+        {calendarSearchOpen && !advancedSearch && <div className={styles.search}>
           <label>Search this date range <input autoFocus type="search" maxLength={100} placeholder="Title, category, team, or list" value={calendarSearch} onChange={event => setCalendarSearch(event.target.value)} /></label>
-          {calendarSearch.trim() && <span role="status">{visibleAppointments.filter(matchesCalendarFilter).length + visiblePersonalEvents.length + visibleTasks.length} matches</span>}
+          {!advancedSearch && calendarSearch.trim() && <span role="status">{visibleAppointments.filter(matchesCalendarFilter).length + visiblePersonalEvents.length + visibleTasks.length} matches</span>}
+          <button type="button" onClick={() => setAdvancedSearchOpen(true)}>Advanced search</button>
         </div>}
         <div className={styles.body}>
           <aside id="calendar-sidebar" className={styles.rail} hidden={!calendarRailOpen}>
@@ -1761,7 +1822,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             </div>
             <div className={styles.miniGrid}>
               {weekdays.map(day => <span key={day}>{day.slice(0, 2)}</span>)}
-              {monthCells.map(cell => <button key={cell.dateKey} type="button" aria-label={cell.dateKey} aria-current={cell.dateKey === today ? "date" : undefined} aria-pressed={cell.selected} className={cell.muted ? styles.muted : undefined} onClick={() => updateField("localDate", cell.dateKey)}>{cell.day}</button>)}
+              {monthCells.map(cell => <button key={cell.dateKey} type="button" aria-label={cell.dateKey} aria-current={cell.dateKey === today ? "date" : undefined} aria-pressed={cell.selected} className={cell.muted ? styles.muted : undefined} onClick={() => navigateCalendarDate(cell.dateKey)}>{cell.day}</button>)}
             </div>
             <details className={styles.filters} open>
               <summary>My calendars</summary>
@@ -1795,9 +1856,27 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
             </details>
           </aside>
           <div className={styles.schedule}>
-            {appointmentWindow.status === "loading" && <p className={styles.status} role="status">Loading appointments…</p>}
-            {appointmentWindow.status === "unavailable" && <p className={styles.status} role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p>}
-            {calendarView === "day" || calendarView === "week" ? (
+            {!advancedSearch && appointmentWindow.status === "loading" && <p className={styles.status} role="status">Loading appointments…</p>}
+            {!advancedSearch && appointmentWindow.status === "unavailable" && <p className={styles.status} role="status">Schedule unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p>}
+            {advancedSearch ? (
+              <section className={styles.searchResults} aria-label="Calendar search results">
+                <header>
+                  <div><h2>Search results</h2><span>{advancedSearch.from} through {advancedSearch.to}</span></div>
+                  <button type="button" onClick={() => setAdvancedSearchOpen(true)}>Edit search</button>
+                  <button type="button" onClick={() => setAdvancedSearch(null)}>Back to calendar</button>
+                </header>
+                {searchAppointments && appointmentWindow.status === "unavailable" && <p role="status">Appointments unavailable. <button type="button" onClick={appointmentWindow.refresh}>Retry</button></p>}
+                {searchTasks && calendarTasks.unavailable && <p role="status">Tasks unavailable. <button type="button" onClick={calendarTasks.refresh}>Retry</button></p>}
+                {searchEvents && personalSchedule.unavailable && <p role="status">Private events unavailable. <button type="button" onClick={personalSchedule.refresh}>Retry</button></p>}
+                {searching ? <p role="status">Searching…</p> : <p role="status">{searchResults.length ? `${searchResults.length} results` : "No matching items in this date range."}</p>}
+                {searchResults.length > 0 && <ul>{searchResults.map(result => <li key={result.id}>
+                  <button type="button" onClick={result.open}>
+                    <span>{result.date} · {result.time ? formatTime(localDateTimeToIso(result.date, result.time)) : "All day"}</span>
+                    <strong>{result.title}</strong><small>{result.kind}</small>
+                  </button>
+                </li>)}</ul>}
+              </section>
+            ) : calendarView === "day" || calendarView === "week" ? (
               <CalendarTimeGrid
                 days={(calendarView === "day" ? [form.localDate] : weekDays).map(date => ({
                   date,
@@ -1853,6 +1932,13 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
           </div>
         </div>
         {calendarDetail}
+        {advancedSearchOpen && <CalendarAdvancedSearch initial={advancedSearch ?? {
+          scope: "active", what: calendarSearch, who: "", where: "", exclude: "",
+          from: appointmentWindow.startDate, to: addDays(appointmentWindow.endDate, -1)
+        }} onClose={() => setAdvancedSearchOpen(false)} onSearch={filters => {
+          setAdvancedSearch(filters);
+          setAdvancedSearchOpen(false);
+        }} />}
         {taskDraft && <QuickCalendarTaskDialog {...taskDraft} onClose={() => setTaskDraft(null)} onSaved={task => {
           setShowCalendarTasks(true);
           setTaskCategory("all");
@@ -1986,12 +2072,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 <span>Start time</span>
                 <input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} />
               </label>
-              <label>
-                <span>Duration</span>
-                <select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>
-                  {Array.from(new Set([...appointmentDurationOptions, form.durationMinutes])).sort((a, b) => a - b).map((duration) => <option key={duration} value={duration}>{duration} min</option>)}
-                </select>
-              </label>
+              <AppointmentDurationField value={form.durationMinutes} onChange={minutes => updateField("durationMinutes", minutes)} disabled={isSaving} />
               <label>
                 <span>Reason / notes</span>
                 <textarea

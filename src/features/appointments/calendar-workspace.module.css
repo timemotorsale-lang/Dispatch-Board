@@ -148,6 +148,20 @@
   color: inherit;
 }
 
+.advancedSearch { display: grid; gap: .8rem; }
+.advancedSearch label { display: grid; gap: .3rem; min-width: 0; }
+.advancedSearch :is(input, select) { min-width: 0; padding: .55rem; border: 1px solid #aebdd2; border-radius: .5rem; background: transparent; color: inherit; font: inherit; }
+.advancedSearch footer, .searchDates { display: flex; flex-wrap: wrap; gap: .65rem; }
+.advancedSearch footer { justify-content: flex-end; }
+.searchDates label { flex: 1 1 9rem; }
+.searchResults { padding: 1rem; }
+.searchResults header { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.searchResults header > div { margin-inline-end: auto; }
+.searchResults h2 { margin: 0; }
+.searchResults ul { display: grid; gap: .35rem; list-style: none; padding: 0; }
+.searchResults li button { display: grid; gap: .25rem; width: 100%; padding: .65rem; border: 1px solid var(--line); border-radius: .5rem; text-align: left; }
+.searchResults button:hover { background: var(--selected); }
+
 .body {
   display: flex;
   flex: 1;

@@ -35,6 +35,7 @@ import {
 } from "@/features/appointments/appointment-reporting-snapshots";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { AppointmentPurposeFields } from "./appointment-purpose-fields";
+import { AppointmentDurationField } from "./appointment-duration-field";
 import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes } from "./appointment-purposes";
 
 type AppointmentCategory =
@@ -16572,26 +16573,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   value={scheduleDraft.startTime}
                 />
               </label>
-              <label className="appointment-outcome-label">
-                Duration
-                <select
-                  disabled={isCommandPending}
-                  onChange={(event) =>
-                    setScheduleDraft((current) => ({
-                      ...current,
-                      durationMinutes: Number(event.target.value)
-                    }))
-                  }
-                  value={scheduleDraft.durationMinutes}
-                >
-                  <option value={30}>30 min</option>
-                  <option value={45}>45 min</option>
-                  <option value={60}>1 hr</option>
-                  <option value={75}>1 hr 15 min</option>
-                  <option value={90}>1 hr 30 min</option>
-                  <option value={120}>2 hr</option>
-                </select>
-              </label>
+              <AppointmentDurationField value={scheduleDraft.durationMinutes} disabled={isCommandPending}
+                onChange={durationMinutes => setScheduleDraft(current => ({ ...current, durationMinutes }))} />
               <label className="appointment-outcome-label">
                 Scheduling reason
                 <textarea
@@ -17501,20 +17484,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   onChange={(event) => setDraftAppointment((current) => ({ ...current, startTime: event.target.value }))}
                 />
               </label>
-              <label>
-                Duration
-                <select
-                  value={draftAppointment.durationMinutes}
-                  onChange={(event) => setDraftAppointment((current) => ({ ...current, durationMinutes: Number(event.target.value) }))}
-                >
-                  <option value={15}>15 minutes</option>
-                  <option value={30}>30 minutes</option>
-                  <option value={45}>45 minutes</option>
-                  <option value={60}>1 hour</option>
-                  <option value={75}>1 hour 15 minutes</option>
-                  <option value={90}>1 hour 30 minutes</option>
-                </select>
-              </label>
+              <AppointmentDurationField value={draftAppointment.durationMinutes}
+                onChange={durationMinutes => setDraftAppointment(current => ({ ...current, durationMinutes }))} />
               <label className="appointment-modal-span">
                 Reason
                 <textarea

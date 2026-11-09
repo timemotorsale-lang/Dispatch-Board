@@ -18,6 +18,7 @@ export type CalendarTask = {
   canComplete?: boolean;
   workflowArea?: string;
   workType?: string | null;
+  creatorName?: string;
   listId?: string | null;
   seriesId?: string;
   repeat?: TaskRepeat | null;

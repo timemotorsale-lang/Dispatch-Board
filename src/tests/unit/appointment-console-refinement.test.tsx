@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { matchesAdvancedCalendarSearch, validCalendarSearchDates, type CalendarSearchFilters } from "@/features/appointments/calendar-advanced-search";
+import { customDurationMinutes } from "@/features/appointments/appointment-duration-field";
 import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes } from "@/features/appointments/appointment-purposes";
 import { placeCalendarEvents, type CalendarGridEvent } from "@/features/appointments/calendar-time-grid";
 
@@ -10,6 +12,24 @@ import {
 } from "@/features/appointments/appointment-console-refinement";
 
 describe("Appointment Console refinement", () => {
+  it("matches advanced search fields independently and excludes keywords", () => {
+    const filters: CalendarSearchFilters = { scope: "active", what: "service warranty", who: "Morgan", where: "Bay 2", exclude: "cancelled", from: "2026-11-01", to: "2026-11-30" };
+    const fields = { keywords: ["Service & Warranty", "Warranty inspection"], people: ["Morgan Manager"], places: ["Service Bay 2"] };
+    expect(matchesAdvancedCalendarSearch(filters, fields)).toBe(true);
+    expect(matchesAdvancedCalendarSearch({ ...filters, where: "Morgan" }, fields)).toBe(false);
+    expect(matchesAdvancedCalendarSearch({ ...filters, exclude: "inspection" }, fields)).toBe(false);
+    expect(validCalendarSearchDates("2026-11-01", "2026-12-12")).toBe(true);
+    expect(validCalendarSearchDates("2026-11-01", "2026-12-13")).toBe(false);
+  });
+
+  it("accepts custom appointment durations in whole minutes or fractional hours", () => {
+    expect(customDurationMinutes("20", "minutes")).toBe(20);
+    expect(customDurationMinutes("1.25", "hours")).toBe(75);
+    expect(customDurationMinutes("0", "minutes")).toBeNull();
+    expect(customDurationMinutes("1.5", "minutes")).toBeNull();
+    expect(customDurationMinutes("25", "hours")).toBeNull();
+  });
+
   it("offers a unique purpose code and an Other option in every dealership category", () => {
     expect(appointmentPurposeGroups).toHaveLength(13);
     expect(new Set(appointmentPurposes.map(purpose => purpose.value)).size).toBe(appointmentPurposes.length);

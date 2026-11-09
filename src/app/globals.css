@@ -32536,6 +32536,12 @@ html[data-app-theme="dark"] .app-content :where(
 
 .calendar-detail-dialog::backdrop { background: rgb(12 23 41 / 35%); }
 .calendar-detail-dialog-form { padding: 14px; }
+.appointment-duration-field { display: grid; gap: .4rem; min-width: 0; }
+.appointment-duration-field label { display: grid; gap: .3rem; min-width: 0; }
+.appointment-duration-field select, .appointment-duration-field input { max-width: 100%; }
+.appointment-duration-field fieldset { display: flex; flex-wrap: wrap; gap: .4rem; min-width: 0; margin: 0; padding: .5rem; border: 1px solid #aebdd2; border-radius: .5rem; }
+.appointment-duration-field fieldset label { flex: 1 1 5rem; }
+.appointment-duration-field small { flex-basis: 100%; }
 .calendar-detail-dialog-form > header {
   position: sticky;
   top: -14px;

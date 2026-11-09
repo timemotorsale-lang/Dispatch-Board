@@ -643,6 +643,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           <label>Category, team, or list <input type="search" name="q" required maxLength={100} placeholder="Example: Service & Warranty" /></label>
           <button type="submit">Search Calendar</button>
         </form>
+        <Link href={`/appointments?view=calendar&advanced=1&localDate=${encodeURIComponent(draft.dueDate)}`}>Advanced Calendar search</Link>
       </details>
 
       <div className="task-intake-layout task-intake-layout-capture">

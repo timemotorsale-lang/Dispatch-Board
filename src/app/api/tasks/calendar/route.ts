@@ -75,7 +75,8 @@ async function readTasks(request: Request) {
     }),
     start && end ? prisma.task.findMany({
       where: { assignedUserId: user.id, dueAt: { gte: new Date(flowMidnight(start)), lt: new Date(flowMidnight(end)) } },
-      select: { id: true, title: true, dueAt: true, status: true, workflowArea: true, requiresManagerApproval: true, templateSnapshot: true },
+      select: { id: true, title: true, description: true, dueAt: true, status: true, workflowArea: true, requiresManagerApproval: true, templateSnapshot: true,
+        createdByUser: { select: { name: true } } },
       orderBy: { dueAt: "asc" }
     }) : [],
     prisma.personalTaskList.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } })
@@ -102,6 +103,8 @@ async function readTasks(request: Request) {
         return {
           id: task.id, title: task.title, scope: "dispatch", localDate: flowDay(task.dueAt.toISOString()),
           workflowArea: task.workflowArea,
+          notes: task.description,
+          creatorName: task.createdByUser?.name,
           workType: intake && typeof intake === "object" && !Array.isArray(intake) && typeof intake.intakeType === "string" ? intake.intakeType : null,
           localTime: allDay ? null : timeFormat.format(task.dueAt), completed: task.status === "COMPLETED",
           canComplete: !task.requiresManagerApproval && (task.status === "NOT_STARTED" || task.status === "IN_PROGRESS")
