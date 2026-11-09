@@ -33,10 +33,10 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
         )) ORDER BY j."updatedAt" DESC LIMIT 1
     ) j ON TRUE WHERE d."organizationId" = ${organizationId} ${team ? Prisma.empty : Prisma.sql`AND d."ownerUserId" = ${user.id}`}
   ), packet_archives AS (
-    SELECT j."id", BOOL_AND(d."status" = 'ARCHIVED') AS archived
+    SELECT j."id", BOOL_AND(d."status" = 'ARCHIVED' OR d."pathway" <> j."pathway") AS archived
     FROM "SalesDocumentJacket" j JOIN "DealDeskDraft" d
-      ON d."organizationId" = j."organizationId" AND d."pathway" = j."pathway"
-      AND (j."id" = d."snapshot" -> 'jackets' ->> d."pathway" OR j."dealReference" IN (
+      ON d."organizationId" = j."organizationId"
+      AND (j."id" = d."snapshot" -> 'jackets' ->> j."pathway" OR j."dealReference" IN (
         SELECT value FROM jsonb_each_text(CASE WHEN jsonb_typeof(d."snapshot" -> 'references') = 'object' THEN d."snapshot" -> 'references' ELSE '{}'::jsonb END)
       ))
     WHERE j."organizationId" = ${organizationId} GROUP BY j."id"

@@ -7,24 +7,25 @@ import { FINANCIAL_KINDS } from "@/lib/deal-dashboard-enterprise";
 import type { DealOperationsView } from "@/server/sales-documents/dashboard-operations";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import { DealDocumentWorkspace } from "@/features/sales-documents/deal-document-workspace";
-import { DealPathwayChange } from "./deal-pathway-change";
+import { DealPathwayChange, type DealPathwayChangeResult } from "./deal-pathway-change";
+import { DEAL_WORK_AREAS, dealAreaAfterPathwayChange } from "@/lib/deal-work-areas";
 import { RentalOperationsPanel } from "./rental-operations-panel";
 import styles from "./deal-draft-workspace.module.css";
 
-export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = [], onClose, onChanged }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string }; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void }) {
+export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = [], onClose, onChanged, onPathwayChanged, onFindEditableDeal }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string }; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void; onPathwayChanged?: (result: DealPathwayChangeResult) => void; onFindEditableDeal?: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null), pending = useRef<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [data, setData] = useState<DealOperationsView | null>(null), [packet, setPacket] = useState<SalesDocumentJacketView | null>(null);
   const [tab, setTab] = useState(deal.pathway === "daily-rental" && initialTab === "Documents" ? "Rental" : initialTab), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [message, setMessage] = useState("");
   const [financialKind, setFinancialKind] = useState("PAYMENT");
+  const [updatedDraft, setUpdatedDraft] = useState<DealPathwayChangeResult | null>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams({ view: "operations", ...(deal.draftId ? { draftId: deal.draftId } : {}), ...(deal.jacketId ? { jacketId: deal.jacketId } : {}) });
+      const params = new URLSearchParams({ view: "operations", ...(deal.draftId ? { draftId: deal.draftId } : deal.jacketId ? { jacketId: deal.jacketId } : {}) });
       const response = await fetch(`/api/crm/v1/deal-drafts?${params}`, { signal }), body = await response.json();
       if (!response.ok) throw new Error(body.error || "Deal details could not be loaded.");
-      let jacket = null;
-      if (body.jacketId) { const response = await fetch(`/api/sales-documents/${encodeURIComponent(body.jacketId)}`, { signal }); jacket = await response.json(); if (!response.ok) throw new Error(jacket.error || "The packet could not be loaded."); }
-      if (!signal?.aborted) { setData(body); setPacket(jacket); }
+      if (!signal?.aborted) { setData(body); setPacket(null); }
+      if (body.jacketId) { const response = await fetch(`/api/sales-documents/${encodeURIComponent(body.jacketId)}`, { signal }); const jacket = await response.json(); if (!response.ok) throw new Error(jacket.error || "The packet could not be loaded."); if (!signal?.aborted) setPacket(jacket); }
     } catch (caught) { if (!signal?.aborted) setError(caught instanceof Error ? caught.message : "Connection interrupted. Select Refresh to try again."); }
     finally { if (!signal?.aborted) setLoading(false); }
   }, [deal.draftId, deal.jacketId]);
@@ -62,8 +63,14 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
     <div className={styles.tabs} role="tablist" aria-label="Deal detail sections" onKeyDown={event => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')); const current = buttons.findIndex(button => button.getAttribute("aria-selected") === "true"); const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length; setTab(buttons[next].textContent || "Documents"); buttons[next].focus(); }}>{[...(rental ? ["Rental"] : []), "Documents", "Completion", "Pathway", "Follow-ups", "Money", "History", ...(data?.canManage ? ["Manager"] : [])].map(label => <button key={label} id={`deal-detail-${label}`} role="tab" aria-controls="deal-details-panel" tabIndex={tab === label ? 0 : -1} aria-selected={tab === label} onClick={() => setTab(label)}>{label}</button>)}</div>
     <p><button disabled={busy || loading} onClick={() => { pending.current = null; void load(); }}>Refresh details</button></p>
     {loading && <p role="status">Loading this deal…</p>}{error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
+    {updatedDraft && <p><Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(updatedDraft.id)}`}>Open updated deal</Link></p>}
     {!loading && data && <div id="deal-details-panel" role="tabpanel" aria-labelledby={`deal-detail-${tab}`}>
-      {tab === "Pathway" && data.draftId && data.draftRevision !== null && <DealPathwayChange key={`${data.draftId}:${data.draftRevision}`} id={data.draftId} revision={data.draftRevision} pathway={data.pathway} status={data.draftStatus ?? undefined} disabled={!data.canEdit && !data.canManage} onSaved={() => { setMessage("Revenue pathway changed. Review the new terms and prepare the appropriate paperwork."); onChanged(); void load(); }} />}
+      {tab === "Pathway" && (data.draftId && data.draftRevision !== null ? <DealPathwayChange key={`${data.draftId}:${data.draftRevision}`} id={data.draftId} revision={data.draftRevision} pathway={data.pathway} status={data.draftStatus ?? undefined} disabled={!data.canEdit && !data.canManage} onSaved={result => {
+        setUpdatedDraft(result);
+        setMessage(`Pathway changed. You can find this same deal in ${DEAL_WORK_AREAS[dealAreaAfterPathwayChange(result.pathway)]}.`);
+        if (onPathwayChanged) onPathwayChanged(result); else onChanged();
+        void load();
+      }} /> : <><p>This row is a saved paperwork packet. Open the editable deal to change its pathway.</p>{onFindEditableDeal && <button type="button" onClick={onFindEditableDeal}>Find editable deal</button>}</>)}
       {tab === "Rental" && <><RentalOperationsPanel key={data.draftId} draftId={data.draftId} packetClosed={packet?.state === "CLOSED"} inactive={data.inactive} /><h3>Rental follow-ups</h3>{data.tasks.length ? <ul>{data.tasks.map(task => <li key={task.id}><Link href={`/tasks/${encodeURIComponent(task.id)}`}>{task.title}</Link> · {task.status.replaceAll("_", " ")} · {new Date(task.dueAt).toLocaleString()}</li>)}</ul> : <p>No return follow-up exists yet. Activation creates it automatically; review any legacy active rental missing a task.</p>}</>}
       {tab === "Documents" && <>
         <div className={styles.progressBadges}><span>Paperwork: {packet?.state === "CLOSED" ? "Finalized" : "Pending"}</span>{!rental && <><span>Funding: {badge("FUNDING")}</span><span>Delivery: {badge("DELIVERY")}</span><span>Title: {badge("TITLE")}</span></>}{rental && <span>Actual checkout and return: see Rental Operations</span>}</div>

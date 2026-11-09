@@ -4596,6 +4596,7 @@ function DealStartDesk({
   const savedDeal = useDealDraft();
   const saveState = useDealSaveState();
   const [pathwayTarget, setPathwayTarget] = useState<string | null>(null);
+  const pathwayChangePanel = useRef<HTMLDetailsElement>(null);
   const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
   const [documentEditor, setDocumentEditor] = useState(false);
   const workspaceRoot = useRef<HTMLElement>(null);
@@ -4958,7 +4959,16 @@ function DealStartDesk({
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
     <section ref={workspaceRoot} className={styles.dealStartTool} data-test-drive-review={reviewTestDrive && testDriveWorkflow ? "true" : undefined} aria-label="Revenue execution desk" onChangeCapture={(event) => { if (event.target instanceof HTMLInputElement) archiveSelectedFile(event.target); }}>
-      {saveState.record && <details open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary><DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} status={saveState.record.status} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={() => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(saveState.record!.id)}&pathwayRevision=${saveState.record!.revision + 1}`)} /></details>}
+      {saveState.record && <section aria-label="Deal pathway actions">
+        {["SALES", "LEASING"].includes(dealGroup(workflowId)) && <div className={workspaceStyles.actions}><button type="button" onClick={() => {
+          setPathwayTarget("test-drive");
+          if (pathwayChangePanel.current) pathwayChangePanel.current.open = true;
+        }}>Switch to Test Drive</button></div>}
+        <details ref={pathwayChangePanel} open={Boolean(pathwayTarget)}><summary>Change revenue pathway</summary>
+          {saveState.dirty && <button type="button" disabled={saveState.busy} onClick={saveDraft}>Save draft before switching</button>}
+          <DealPathwayChange key={`${saveState.record.id}:${pathwayTarget}`} id={saveState.record.id} revision={saveState.record.revision} pathway={workflowId} status={saveState.record.status} initialPathway={pathwayTarget ?? undefined} disabled={saveState.dirty || saveState.busy} onSaved={result => router.push(`/crm-next/deals/start?draftId=${encodeURIComponent(result.id)}&pathwayRevision=${result.revision}`)} />
+        </details>
+      </section>}
       {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p>{savedDeal.read("desk:assignmentPathway") === "test-drive" ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope> : <VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} />}</section>}
       {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />

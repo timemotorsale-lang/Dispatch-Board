@@ -7,6 +7,12 @@ export const DEAL_WORK_AREAS = {
 } as const;
 export type DealWorkArea = keyof typeof DEAL_WORK_AREAS;
 export const isDealWorkArea = (value: string): value is DealWorkArea => Object.hasOwn(DEAL_WORK_AREAS, value);
+export function dealAreaAfterPathwayChange(pathway: string): DealWorkArea {
+  if (pathway === "test-drive") return "drives";
+  if (pathway === "daily-rental" || pathway === "vehicle-loaner") return "rentals";
+  if (pathway === "repairs") return "repairs";
+  return "working";
+}
 type AreaRecord = Pick<DashboardDeal, "pathway" | "status" | "packetState" | "stage" | "soldDate" | "indicators">;
 export function isRecordedSale(row: AreaRecord) {
   return dealGroup(row.pathway) === "SALES" && (row.status === "SOLD" || row.status === "COMPLETED" || Boolean(row.soldDate) || ["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(row.packetState || ""));

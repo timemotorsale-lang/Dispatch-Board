@@ -16,7 +16,7 @@ import { DealHomeQuickLinks } from "./deal-home-quick-links";
 import { dealTimeShortcut } from "@/lib/deal-workspace-navigation";
 import overviewStyles from "./deal-workspace-overview.module.css";
 import { DealRowActions, DealRowStatus, type DealLibraryRow } from "./deal-row-controls";
-import { DEAL_WORK_AREAS, DEAL_AREA_HELP, isDealWorkArea, type DealWorkArea } from "@/lib/deal-work-areas";
+import { DEAL_WORK_AREAS, DEAL_AREA_HELP, dealAreaAfterPathwayChange, isDealWorkArea, type DealWorkArea } from "@/lib/deal-work-areas";
 import { moneyLabel } from "@/lib/money-resources";
 
 type SavedDeal = DealLibraryRow;
@@ -153,7 +153,19 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     {dashboard && data?.dashboard && !loading && ["overview", "report"].includes(section) && <DealDashboardPanels data={data.dashboard} report={section === "report"} onFilter={selectBucket} />}
     {error && !archiving ? <p role="alert">{error}</p> : null}
     {message ? <p role="status">{message}</p> : null}
-    {detailedDeal && <DealOperationsDrawer deal={detailedDeal} initialTab={detailsTab} alerts={detailedDeal.indicators?.alerts} onClose={() => setDetails(null)} onChanged={() => setReload(value => value + 1)} />}
+    {detailedDeal && <DealOperationsDrawer deal={detailedDeal} initialTab={detailsTab} alerts={detailedDeal.indicators?.alerts} onClose={() => setDetails(null)} onChanged={() => setReload(value => value + 1)} onPathwayChanged={result => {
+      if (dashboard) {
+        selectArea(dealAreaAfterPathwayChange(result.pathway));
+        setOwner("ALL");
+        setSearch(detailedDeal.dealNumber || result.id);
+      } else setReload(value => value + 1);
+    }} onFindEditableDeal={dashboard && detailedDeal.dealNumber ? () => {
+      setDetails(null);
+      selectArea("all");
+      setStatus("CURRENT");
+      setOwner("ALL");
+      setSearch(detailedDeal.dealNumber || "");
+    } : undefined} />}
     {lifecycle?.deal.draftId && <DealLifecycleDialog deal={{ ...lifecycle.deal, draftId: lifecycle.deal.draftId }} action={lifecycle.action} onClose={() => setLifecycle(null)} onSaved={text => { setLifecycle(null); setMessage(text); setReload(value => value + 1); }} />}
     {archiving ? <dialog ref={archiveDialog} className={styles.archiveDialog} aria-label="Archive duplicate deal" onCancel={event => { if (archiveBusy) event.preventDefault(); else setArchiving(null); }}>
       <h2>Archive this duplicate?</h2><p><strong>{archiving.customerName}</strong> · {archiving.vehicleReference} · {SALES_DOCUMENT_PATHWAYS[archiving.pathway as keyof typeof SALES_DOCUMENT_PATHWAYS]}</p>

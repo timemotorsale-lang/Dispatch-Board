@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { belongsToDealArea, dealProgress, isDealWorkArea } from "@/lib/deal-work-areas";
+import { belongsToDealArea, dealAreaAfterPathwayChange, dealProgress, isDealWorkArea } from "@/lib/deal-work-areas";
 import { summarizeDealFinancials } from "@/lib/deal-dashboard-enterprise";
 import type { DashboardDeal } from "@/lib/deal-dashboard";
 
 const row = (changes: Partial<DashboardDeal> = {}) => ({ pathway: "retail-sale", status: "IN_PROGRESS", packetState: null, stage: "Working", soldDate: null, ...changes }) as DashboardDeal;
 describe("transaction work areas", () => {
+  it.each([["test-drive", "drives"], ["lease-to-own", "working"], ["retail-sale", "working"], ["daily-rental", "rentals"], ["vehicle-loaner", "rentals"], ["repairs", "repairs"]] as const)("follows a changed %s deal to a work area that lists it", (pathway, area) => {
+    expect(dealAreaAfterPathwayChange(pathway)).toBe(area);
+    expect(belongsToDealArea(row({ pathway, status: "PENDING" }), area)).toBe(true);
+  });
   it("removes sold transactions from working even with unfinished paperwork or corrections", () => {
     for (const changes of [{ status: "SOLD" }, { status: "PENDING", soldDate: "2026-11-01" }, { packetState: "CLOSED" }, { packetState: "DELIVERED_FUNDING_PENDING" }, { status: "COMPLETED" }]) {
       expect(belongsToDealArea(row(changes), "working")).toBe(false);
