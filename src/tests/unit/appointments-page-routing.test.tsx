@@ -54,13 +54,24 @@ vi.mock("@/features/appointments/appointment-board-loader", () => ({
 }));
 
 vi.mock("@/features/appointments/appointment-console-refinement", () => ({
-  AppointmentConsoleNewAppointment: () => <section data-testid="new-appointment">New Appointment Calendar</section>,
+  AppointmentConsoleNewAppointment: ({ initialFullCalendar }: { initialFullCalendar?: boolean }) => (
+    <section data-testid="new-appointment">{initialFullCalendar ? "Full Calendar" : "New Appointment Calendar"}</section>
+  ),
   AppointmentConsoleTodayFlow: () => <section data-testid="appointment-console">Appointment Console Today Flow</section>
 }));
 
 describe("appointments page routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("opens the full calendar directly without taking the advisor shortcut", async () => {
+    const html = renderToStaticMarkup(await AppointmentsPage({
+      searchParams: Promise.resolve({ view: "calendar", launch: "advisor" })
+    }));
+
+    expect(html).toContain("Full Calendar");
+    expect(navigation.redirect).not.toHaveBeenCalled();
   });
 
   it("redirects to the service advisor workspace for operations coordinator advisor launch", async () => {

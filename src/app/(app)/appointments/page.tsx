@@ -8,6 +8,7 @@ import { resolveWorkspacePreference, WORKSPACE_COOKIE_NAME } from "@/server/auth
 import { getAppointmentBoardSettings } from "@/server/services/appointment-admin-settings";
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import { getTaskReadModelById } from "@/server/services/task-read";
+import { validFlowDate } from "@/features/advisor/workbook-flow-dates";
 
 type AppointmentsPageProps = {
   searchParams?: Promise<{
@@ -58,7 +59,9 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   const sourceTask = focusParams?.sourceTask
     ? await getTaskReadModelById(user, focusParams.sourceTask).catch(() => null)
     : null;
-  const newAppointmentMode = focusParams?.action === "new";
+  const calendarMode = focusParams?.view === "calendar";
+  const localDate = focusParams?.localDate ?? "";
+  const newAppointmentMode = focusParams?.action === "new" || calendarMode;
   const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
 
   if ((focusParams?.launch === "advisor" || (workspaceKey === "ADVISOR" && !managerContext)) && !newAppointmentMode && !boardMode && !focusParams?.section) {
@@ -74,6 +77,8 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   if (newAppointmentMode) {
     return (
       <AppointmentConsoleNewAppointment
+        key={calendarMode ? "calendar" : "new"}
+        initialFullCalendar={calendarMode}
         initialContext={{
           crmCustomerId: focusParams?.crmCustomerId,
           customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
@@ -98,7 +103,8 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
       boardSettings={boardSettings}
       initialFocus={{
         appointmentNumber: focusParams?.appointment ?? null,
-        sourceTaskId: focusParams?.sourceTask ?? null
+        sourceTaskId: focusParams?.sourceTask ?? null,
+        localDate: validFlowDate(localDate) ? localDate : null
       }}
       showAdvisorReturn={showAdvisorReturn}
     />

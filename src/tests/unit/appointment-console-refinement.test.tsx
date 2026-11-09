@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { placeCalendarEvents, type CalendarGridEvent } from "@/features/appointments/calendar-time-grid";
 
 import {
   AppointmentConsoleNewAppointment,
@@ -7,6 +8,33 @@ import {
 } from "@/features/appointments/appointment-console-refinement";
 
 describe("Appointment Console refinement", () => {
+  it("gives overlapping appointments separate lanes and restores full width for later appointments", () => {
+    const event = (id: string, startMinute: number, endMinute: number): CalendarGridEvent => ({
+      id, startMinute, endMinute, title: id, timeLabel: "", style: {}, onOpen: () => {}
+    });
+    const placed = placeCalendarEvents([
+      event("Test drive", 480, 525),
+      event("Quick visit", 510, 525),
+      event("Delivery", 540, 600)
+    ]);
+
+    expect(placed.map(({ lane, laneCount }) => [lane, laneCount])).toEqual([[0, 2], [1, 2], [0, 1]]);
+  });
+
+  it("opens the dedicated calendar in Week view with direct creation and date controls", () => {
+    const markup = renderToStaticMarkup(<AppointmentConsoleNewAppointment initialFullCalendar />);
+
+    expect(markup).toContain('aria-label="Full-page appointment calendar"');
+    expect(markup).toContain('aria-label="Week time grid"');
+    expect(markup).toContain('aria-label="Toggle calendar sidebar"');
+    expect(markup).toContain('aria-label="Create appointment on');
+    expect(markup).toContain('aria-label="Calendar view"');
+    expect(markup).toContain("Appointment categories");
+    expect(markup).toContain("My calendars");
+    expect(markup).toContain("Time Motor Sales");
+    expect(markup).toContain("Personal calendar");
+  });
+
   it("renders the approved Today Flow landing without duplicating the app shell sidebar", () => {
     const markup = renderToStaticMarkup(<AppointmentConsoleTodayFlow />);
 
@@ -28,6 +56,7 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("Back to Appointment Console");
     expect(markup).toContain("Appointment Setup");
     expect(markup).toContain("Open full calendar");
+    expect(markup).toContain(">Agenda</button>");
     expect(markup).not.toContain("Expand calendar");
     expect(markup).toContain("Customer search");
     expect(markup).toContain("Vehicle search");
