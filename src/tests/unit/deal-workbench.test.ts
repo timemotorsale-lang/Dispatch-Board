@@ -39,7 +39,8 @@ describe("Deal workbench retrieval", () => {
     expect(query).toContain('"status" <> \'ARCHIVED\'');
     expect(query).toContain('d."revision" AS "draftRevision"');
     expect(query).toContain('NOT EXISTS (SELECT 1 FROM drafts');
-    expect(query).toContain('BOOL_AND(d."status" = \'ARCHIVED\')');
+    expect(query).toContain('BOOL_AND(d."status" = \'ARCHIVED\' OR d."pathway" <> j."pathway")');
+    expect(query).toContain('j."id" = d."snapshot" -> \'jackets\' ->> j."pathway"');
     expect(query).toContain('SELECT 1 FROM packet_archives');
   });
 });

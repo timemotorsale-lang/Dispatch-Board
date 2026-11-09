@@ -42,7 +42,11 @@ export function savedDealSummary(record: SavedDealReviewRecord) {
         {label:"Document preparation and origination",value:cashMoney(input.documentPreparationFeeCents + input.originationFeeCents)},
         {label:"Other upfront charges",value:cashMoney(input.otherUpfrontChargesCents ?? 0)},
         {label:"Residual / purchase option",value:cashMoney(result.residualValueCents)});
+      if (input.tradeAllowanceCents || input.tradePayoffCents) structure.push(
+        {label:"Trade allowance",value:cashMoney(input.tradeAllowanceCents ?? 0)}, {label:"Trade payoff",value:cashMoney(input.tradePayoffCents ?? 0)},
+        {label:"Net trade equity",value:cashMoney(result.netTradeEquityCents)});
       highlights.push({label:"Amount Due at Signing",value:cashMoney(result.amountDueAtSigningCents),emphasis:true},
+        {label:"Cash Due at Signing",value:cashMoney(result.cashDueAtSigningCents),emphasis:true},
         {label:"Base payment",value:cashMoney(result.basePeriodicPaymentCents),emphasis:true},
         {label:"Payment schedule",value:`${result.contractLength} payments · ${input.paymentFrequency === "BiWeekly" ? "Every two weeks" : input.paymentFrequency}`},
         {label:"Final payment",value:cashMoney(result.finalPeriodicPaymentCents)},

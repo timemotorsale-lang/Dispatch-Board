@@ -18,7 +18,7 @@ import { testDriveAgreementHtml, testDriveAgreementPdfBase64 } from "./test-driv
 import { BHPH_WARRANTY_FORM_ID, LEASE_WARRANTY_FORM_ID, DEALER_WARRANTY_POSTURE, dealerWarrantyPosture, dealerWarrantyDetails, dealerWarrantyError } from "@/lib/dealer-warranty-policy";
 import { dealerWarrantyHtml, dealerWarrantyPdfBase64 } from "./dealer-warranty-document";
 import { COURTESY_LOANER_FORM_PACKET, DAILY_RENTAL_FORM_PACKET, requiredCourtesyLoanerFormIds, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
-import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, leaseCalculationInputs, leaseNextPaymentDate, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, leaseAgreementCalculationError, leaseCalculationInputs, leaseNextPaymentDate, leaseTradeVinError, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -175,6 +175,8 @@ function leaseCalculatorInput(value: unknown): LeaseToOwnCalculatorInput {
     securityDepositCents: input.securityDepositCents === undefined ? 0 : Number.isSafeInteger(input.securityDepositCents) ? input.securityDepositCents as number : NaN,
     otherUpfrontChargesCents: input.otherUpfrontChargesCents === undefined ? 0 : Number.isSafeInteger(input.otherUpfrontChargesCents) ? input.otherUpfrontChargesCents as number : NaN,
     downPaymentCents: moneyCents(input.downPaymentCents),
+    tradeAllowanceCents: input.tradeAllowanceCents === undefined ? 0 : Number.isSafeInteger(input.tradeAllowanceCents) ? input.tradeAllowanceCents as number : NaN,
+    tradePayoffCents: input.tradePayoffCents === undefined ? 0 : Number.isSafeInteger(input.tradePayoffCents) ? input.tradePayoffCents as number : NaN,
     signingPaymentMode: input.signingPaymentMode === "CAPITALIZED_REDUCTION" ? "CAPITALIZED_REDUCTION" : input.signingPaymentMode === "DOWN_PAYMENT" ? "DOWN_PAYMENT" : undefined,
     gpsCostCents: moneyCents(input.gpsCostCents),
     multiplierBasisPoints: numberValue(input.multiplierBasisPoints, 10000),
@@ -420,6 +422,13 @@ function leaseTemplateFieldValues(input: {
     const disclosedPayment = paymentCount === 1 ? input.calculator.firstPeriodicPaymentCents : input.calculator.totalPeriodicPaymentCents;
     return {
       ...common,
+      "B TRADE-IN VEHICLE DESCRIPTION: Gross Agreed-Upon Value of Trade-In": formatFormMoney(input.leaseInput.tradeAllowanceCents ?? 0),
+      "less Payoff Estimated, Prior Credit or Lease Balance on Trade-In": formatFormMoney(input.leaseInput.tradePayoffCents ?? 0),
+      "equals Net Trade-In Allowance if less than 0 then enter 0": formatFormMoney(Math.max(0, input.calculator.netTradeEquityCents)),
+      "Year_2": text(input.leaseFacts.tradeYear, ""),
+      "Make_2": text(input.leaseFacts.tradeMake, ""),
+      "Model_2": text(input.leaseFacts.tradeModel, ""),
+      "VIN_2": text(input.leaseFacts.tradeVin, "").toUpperCase(),
       "Amount to be paid in cash 1": "N/A",
       "CO-LESSEE": "",
       "Amount to be paid in cash 2": "N/A",
@@ -461,9 +470,9 @@ function leaseTemplateFieldValues(input: {
       "undefined_16": "0.00",
       "undefined_17": "0.00",
       "undefined_18": formatFormMoney(input.calculator.applicableTaxesCents),
-      "undefined_19": "0.00",
+      "undefined_19": formatFormMoney(input.calculator.tradeCreditAppliedCents),
       "undefined_20": "0.00",
-      "undefined_21": formatFormMoney(input.calculator.amountDueAtSigningCents),
+      "undefined_21": formatFormMoney(input.calculator.amountDueAtSigningCents - input.calculator.tradeCreditAppliedCents),
       "undefined_22": "0.00",
       "undefined_23": "0.00",
       "undefined_24": "0.00",
@@ -1802,7 +1811,7 @@ export async function generateUnifiedCrmContractPacket(
   const leaseFacts = input.leaseFacts && typeof input.leaseFacts === "object" ? input.leaseFacts as Record<string, unknown> : {};
   const leaseWarrantyInput = { deliveryAt: text(leaseFacts.deliveryAt, ""), deliveryMileage: vehicle.mileage };
   if (packetType === "LEASE_TO_OWN") {
-    const error = leaseAgreementCalculationError(leaseInput, leaseOutput);
+    const error = leaseTradeVinError(leaseFacts, leaseInput) || leaseAgreementCalculationError(leaseInput, leaseOutput);
     if (error) throw new UnifiedCrmContractPacketError("CONTRACT_PACKET_INVALID", error);
     for (const key of ["agreementDate", "firstPaymentDate"]) {
       const value = text(leaseFacts[key], "");
@@ -1825,6 +1834,8 @@ export async function generateUnifiedCrmContractPacket(
     ["Base periodic payment", formatCurrency(leaseOutput.basePeriodicPaymentCents)],
     ["Applicable taxes", formatCurrency(leaseOutput.applicableTaxesCents)],
     ["Amount due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)],
+    ["Net trade equity", formatCurrency(leaseOutput.netTradeEquityCents)],
+    ["Cash due at signing (including any remaining trade payoff)", formatCurrency(leaseOutput.cashDueAtSigningCents)],
     ["Total of payments", formatCurrency(leaseOutput.totalOfPaymentsCents)]
   ] : [];
 
@@ -1841,7 +1852,7 @@ export async function generateUnifiedCrmContractPacket(
         ["Vehicle", `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim === "Not captured" ? "" : ` ${vehicle.trim}`} | VIN: ${vehicle.vin}`],
         ["Deal / lease date / mileage", `${dealNumber} / ${formDate(agreementDate)} / ${vehicle.mileage || "Not captured"}`]
       ],
-      highlights: [["Due at signing", formatCurrency(leaseOutput.amountDueAtSigningCents)], [leaseInput.contractLength === 1 ? "Single final payment" : "Regular payment", formatCurrency(leaseInput.contractLength === 1 ? leaseOutput.firstPeriodicPaymentCents : leaseOutput.totalPeriodicPaymentCents)], ["Next payment", leaseInput.contractLength > 1 ? formDate(nextDate) : "None"], ["End purchase price", formatCurrency(leaseOutput.residualValueCents)]],
+      highlights: [["Cash due at signing", formatCurrency(leaseOutput.cashDueAtSigningCents)], [leaseInput.contractLength === 1 ? "Single final payment" : "Regular payment", formatCurrency(leaseInput.contractLength === 1 ? leaseOutput.firstPeriodicPaymentCents : leaseOutput.totalPeriodicPaymentCents)], ["Next payment", leaseInput.contractLength > 1 ? formDate(nextDate) : "None"], ["End purchase price", formatCurrency(leaseOutput.residualValueCents)]],
       signing: { heading: "Signing breakdown", rows: [
         ["Capitalized cost reduction", formatCurrency(leaseOutput.capitalizedCostReductionCents)],
         ["First payment (included)", formatCurrency(leaseOutput.firstPeriodicPaymentCents)],
@@ -1851,7 +1862,8 @@ export async function generateUnifiedCrmContractPacket(
         ["Origination", formatCurrency(leaseInput.originationFeeCents)],
         ["Refundable security deposit", formatCurrency(leaseInput.securityDepositCents ?? 0)],
         ["Other upfront charges", formatCurrency(leaseInput.otherUpfrontChargesCents ?? 0)],
-        ["Amount Due at Signing", formatCurrency(leaseOutput.amountDueAtSigningCents)]
+        ["Amount Due at Signing", formatCurrency(leaseOutput.amountDueAtSigningCents)],
+        ...(leaseOutput.netTradeEquityCents ? [[leaseOutput.netTradeEquityCents > 0 ? "Trade credit applied" : "Trade payoff due upfront", formatCurrency(Math.abs(leaseOutput.netTradeEquityCents))] as [string, string]] : [])
       ] },
       payments: { heading: "Payment schedule & lease cost", rows: [
         ["Frequency", frequency],

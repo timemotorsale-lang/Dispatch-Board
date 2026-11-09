@@ -28,6 +28,7 @@ export type DashboardDeal = {
   ownerId: string; ownerName: string; dealStage?: string | null; stage: string; nextAction: string; dueAt: string | null; taskHref: string | null;
   completedDate: string | null; createdDate: string | null; documentsReady: number; documentsTotal: number; needsAttention: boolean;
   soldDate?: string | null;
+  outstandingItems?: string[];
   indicators?: DealWorkIndicators;
   documentChecklist?: Array<{ id: string; label: string; phase: string; status: string }>;
 };

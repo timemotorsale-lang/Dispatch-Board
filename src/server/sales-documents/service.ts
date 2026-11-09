@@ -9,12 +9,13 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canOpenDocumentLibrary, resolveDocumentLibraryPermission } from "@/server/document-library/permission-policy";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { SALES_DOCUMENT_PATHWAYS, isSalesDocumentPathway, salesDocumentRequirements, normalizeSalesDocumentType, type PacketPhase, type SalesDocumentRequirement } from "@/lib/sales-document-pathways";
-import { LIMITED_POA_ID, SECURE_POA_ID } from "@/lib/sales-document-pathways";
+import { LIMITED_POA_ID, SECURE_POA_ID, currentSalesDocumentRequirements } from "@/lib/sales-document-pathways";
 import type { UnifiedCrmContractPacketInput, UnifiedCrmContractPacketResult } from "@/server/unified-crm/contract-packet-contract";
 import { closingChecklist, SalesDocumentsError, type JacketDocument } from "./domain";
 import { closingReviewSummary, suggestedClosingPathway, type ClosingReview } from "@/lib/deal-closing";
 import { prepareClosingReview } from "./closing-review";
 import { MAX_SALES_SCAN_PAGES } from "@/features/mobile-capture/document-pdf";
+import { assessSalesDocument, isExcludedSalesDocument } from "@/lib/sales-document-audit";
 
 const include = {
   packet: { include: { documents: { include: { document: { include: { versions: true } } } }, auditEvents: { orderBy: { occurredAt: "desc" as const }, take: 30 } } },
@@ -34,14 +35,14 @@ function text(value: unknown, max = 240) { return typeof value === "string" ? va
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)); }
 function metadata(value: Prisma.JsonValue | null) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function requirements(jacket: Jacket) {
-  const saved = jacket.requirements as unknown as SalesDocumentRequirement[];
+  const saved = currentSalesDocumentRequirements(jacket.pathway, jacket.requirements as unknown as SalesDocumentRequirement[]);
   if (!isSalesDocumentPathway(jacket.pathway)) return saved;
   return [...saved, ...salesDocumentRequirements(jacket.pathway).filter(item =>
     [LIMITED_POA_ID, SECURE_POA_ID].includes(item.id) && !saved.some(existing => existing.id === item.id))];
 }
 
-function documents(jacket: Jacket): JacketDocument[] {
-  return [...jacket.packet.documents].sort((left, right) => right.document.createdAt.getTime() - left.document.createdAt.getTime()).map(({ document }) => {
+function documents(jacket: Jacket, excluded = false): JacketDocument[] {
+  return [...jacket.packet.documents].filter(({ document }) => isExcludedSalesDocument(document.classificationSnapshot) === excluded).sort((left, right) => right.document.createdAt.getTime() - left.document.createdAt.getTime()).map(({ document }) => {
     const meta = metadata(document.classificationSnapshot);
     return { id: document.id, type: document.documentType, reviewed: document.status === "ACCEPTED", signed: meta.signed === true, source: document.source, versionId: document.currentVersionId ?? "", checksum: document.checksumSha256 ?? "", fileName: document.fileName, contentType: document.contentType ?? "application/octet-stream" };
   });
@@ -59,6 +60,7 @@ function view(jacket: Jacket) {
     state: jacket.state, revision: jacket.revision, phase, requirements: requirements(jacket), checklist,
     closingReview, closingReadiness: closingReviewSummary(closingReview, jacket.revision),
     documents: docs, updatedAt: jacket.updatedAt.toISOString(),
+    excludedDocumentCount: jacket.packet.documents.filter(({ document }) => isExcludedSalesDocument(document.classificationSnapshot)).length,
     versions: jacket.versions.map((item) => ({ id: item.id, version: item.version, phase: item.phase, disposition: item.disposition, finalizedAt: item.finalizedAt.toISOString(), finalizedBy: text(metadata(item.snapshot).finalizedByName) || item.finalizedByUserId })),
     history: jacket.packet.auditEvents.map((event) => ({ id: event.id, action: event.action, note: event.note, actorId: text(metadata(event.metadata).actorName) || event.actorUserId, at: event.occurredAt.toISOString() }))
   };
@@ -131,7 +133,7 @@ async function storedBytes(reference: string, checksum: string) {
   return bytes;
 }
 
-export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; signed?: boolean; expectedRevision?: number; captureMethod?: "DOCUMENT_SCAN" }) {
+export async function saveSalesDocument(actor: AuthenticatedUser | null, id: string, input: { bytes: Uint8Array; fileName: string; contentType: string; documentType: string; generated?: boolean; generationFingerprint?: string; signed?: boolean; expectedRevision?: number; captureMethod?: "DOCUMENT_SCAN" }) {
   const user = requireSalesDocumentsUser(actor);
   const jacket = await findJacket(id);
   const documentType = normalizeSalesDocumentType(text(input.documentType)) || "supplemental";
@@ -153,10 +155,16 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
       if (bytes.subarray(0, 3).toString("hex") !== "ffd8ff") throw new SalesDocumentsError("This file is not a JPEG image.");
     } else throw new SalesDocumentsError("Upload a PDF, PNG, or JPEG file.");
   }
+  const prepared = input.generated ? jacket.packet.documents.find(({ document }) =>
+    !isExcludedSalesDocument(document.classificationSnapshot) && document.source === "GENERATED" && document.documentType === documentType)?.document : undefined;
+  if (prepared && (!input.generationFingerprint || metadata(prepared.classificationSnapshot).generationFingerprint === input.generationFingerprint)) {
+    await storedBytes(prepared.storageReference, prepared.checksumSha256 ?? "");
+    return view(jacket);
+  }
   if (input.captureMethod) {
     const checksum = createHash("sha256").update(input.bytes).digest("hex");
     const existing = jacket.packet.documents.find(({ document }) =>
-      document.source === "MANUAL_UPLOAD" && document.documentType === documentType && document.checksumSha256 === checksum);
+      !isExcludedSalesDocument(document.classificationSnapshot) && document.source === "MANUAL_UPLOAD" && document.documentType === documentType && document.checksumSha256 === checksum);
     if (existing) {
       await storedBytes(existing.document.storageReference, checksum);
       return view(jacket);
@@ -164,14 +172,24 @@ export async function saveSalesDocument(actor: AuthenticatedUser | null, id: str
   }
   const runtime = resolveDocumentStorageRuntimeFromEnv();
   if (!runtime.adapter) throw new SalesDocumentsError("Permanent document storage is not configured. The document was not saved.", 503);
-  const documentId = `sales-doc-${randomUUID()}`, versionId = `sales-object-${randomUUID()}`;
-  const object = await runtime.adapter.writeObject({ bytes: input.bytes, fileName: input.fileName, contentType: input.contentType, documentId, organizationId: jacket.organizationId, owner: { type: "SALE", id: jacket.id, label: jacket.customerName }, version: 1 });
-  await storedBytes(object.reference, object.checksumSha256);
+  const documentId = prepared?.id ?? `sales-doc-${randomUUID()}`, versionId = `sales-object-${randomUUID()}`;
+  const version = prepared ? Math.max(0, ...prepared.versions.map(item => item.version)) + 1 : 1;
+  const adapter = runtime.adapter;
   await prisma.$transaction(async (db) => {
     const current = await findJacket(id, db);
     if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(current.state)) throw new SalesDocumentsError("This packet is preserved. A manager must reopen finalized paperwork for corrections; pending unwind reviews remain locked.", 409);
     await lock(db, current, input.expectedRevision ?? jacket.revision);
-    await db.documentLibraryDocument.create({ data: { id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType: normalizeSalesDocumentType(text(input.documentType)) || "supplemental", fileName: input.fileName, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", storageProvider: "INTERNAL", storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, currentVersionId: versionId, classificationSnapshot: json({ jacketId: id, signed: !input.generated && input.signed === true, ...(input.captureMethod ? { captureMethod: input.captureMethod } : {}) }), createdByUserId: user.id, versions: { create: { id: versionId, organizationId: jacket.organizationId, version: 1, storageProvider: "INTERNAL", storageReference: object.reference, fileName: input.fileName, contentType: object.contentType, sizeBytes: object.sizeBytes, checksumSha256: object.checksumSha256, createdByUserId: user.id } }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
+    const object = await adapter.writeObject({ bytes: input.bytes, fileName: input.fileName, contentType: input.contentType, documentId, organizationId: jacket.organizationId, owner: { type: "SALE", id: jacket.id, label: jacket.customerName }, version });
+    await storedBytes(object.reference, object.checksumSha256);
+    const file = { storageProvider: "INTERNAL" as const, storageReference: object.reference, checksumSha256: object.checksumSha256, sizeBytes: object.sizeBytes, contentType: object.contentType, fileName: input.fileName };
+    const classificationSnapshot = json({ jacketId: id, signed: !input.generated && input.signed === true, ...(input.captureMethod ? { captureMethod: input.captureMethod } : {}), ...(input.generationFingerprint ? { generationFingerprint: input.generationFingerprint } : {}) });
+    const versionRecord = { ...file, id: versionId, organizationId: jacket.organizationId, version, createdByUserId: user.id };
+    if (prepared) {
+      await db.documentLibraryDocument.update({ where: { id: documentId }, data: { ...file, currentVersionId: versionId, status: "PENDING_REVIEW", classificationSnapshot, versions: { create: versionRecord } } });
+      await audit(db, jacket, user, "DOCUMENT_REGENERATED", `${input.fileName} saved as working form version ${version}.`);
+      return;
+    }
+    await db.documentLibraryDocument.create({ data: { ...file, id: documentId, organizationId: jacket.organizationId, ownerType: "SALE", ownerId: id, ownerLabel: jacket.customerName, documentType, status: "PENDING_REVIEW", sensitivity: "CONFIDENTIAL", source: input.generated ? "GENERATED" : "MANUAL_UPLOAD", retentionCategory: "SALE_DEAL_PACKET", currentVersionId: versionId, classificationSnapshot, createdByUserId: user.id, versions: { create: versionRecord }, packetLinks: { create: { organizationId: jacket.organizationId, packetId: jacket.packetId, linkedByUserId: user.id } } } });
     await audit(db, jacket, user, "DOCUMENT_SAVED", `${input.fileName} saved as ${input.generated ? "working form" : input.captureMethod ? "scanned PDF pending review" : "uploaded document"}.`);
   });
   return getSalesDocumentJacket(user, id);
@@ -183,7 +201,16 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
     const jacket = await findJacket(id, db);
     await lock(db, jacket, raw.revision);
     const note = text(raw.note, 1000);
-    if (raw.action === "CLOSING_REVIEW") {
+    if (raw.action === "DOCUMENT_AUDIT") {
+      const document = jacket.packet.documents.find(item => item.documentId === raw.documentId)?.document;
+      if (!document || isExcludedSalesDocument(document.classificationSnapshot)) throw new SalesDocumentsError("Choose a current document on this deal.", 404);
+      const job = await db.documentReadingJob.findFirst({ where: { id: text(raw.jobId), organizationId: jacket.organizationId, createdByUserId: user.id, purpose: "SALES", status: "READY", checksumSha256: document.checksumSha256 ?? "" } });
+      const review = metadata(job?.review ?? null);
+      if (!job || review.confirmed !== true) throw new SalesDocumentsError("Finish and confirm the saved read of this exact document before recording its audit.");
+      const fields = Object.fromEntries(Object.entries(metadata(review.fields as Prisma.JsonValue)).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+      const assessment = assessSalesDocument(fields, jacket);
+      await audit(db, jacket, user, "DOCUMENT_AUDIT_RECORDED", `${document.fileName}: ${assessment.status}. Signatures and document acceptance remain separate.`, { documentId: document.id, checksum: document.checksumSha256, jobId: job.id, reviewVersion: job.reviewVersion, assessment });
+    } else if (raw.action === "CLOSING_REVIEW") {
       if (!suggestedClosingPathway(jacket.pathway)) throw new SalesDocumentsError("Purchase closing reviews are not supported for this jacket's operational pathway.");
       const review = { ...prepareClosingReview(raw, user.id, jacket.revision + 1), savedByName: user.name };
       await db.salesDocumentJacket.update({ where: { id }, data: { closingReview: json(review) } });
@@ -203,9 +230,19 @@ export async function updateSalesDocumentJacket(actor: AuthenticatedUser | null,
       await audit(db, jacket, user, "UNWIND_REQUESTED", `${note} Review pending. Original final packets preserved. Customer refunds, lender funding, title, vehicle return and tax corrections must be reconciled separately. No funds were reversed.`);
     } else {
       if (["CLOSED", "DELIVERED_FUNDING_PENDING", "UNWIND_PENDING"].includes(jacket.state)) throw new SalesDocumentsError("Finalized documents are preserved. A manager must open an addendum before corrections. Unwind requests require financial review.", 409);
-      if (raw.action === "REVIEW") {
+      if (raw.action === "EXCLUDE_DOCUMENT") {
+        const document = jacket.packet.documents.find(item => item.documentId === raw.documentId)?.document;
+        if (!document) throw new SalesDocumentsError("Document is not part of this jacket.", 404);
+        if (note.length < 10) throw new SalesDocumentsError("Record why this attachment was uploaded by mistake (at least 10 characters).");
+        if (isExcludedSalesDocument(document.classificationSnapshot)) throw new SalesDocumentsError("This attachment is already excluded. Refresh the Documents section.", 409);
+        const preserved = jacket.versions.some(version => (version.snapshot as unknown as { documents?: JacketDocument[] }).documents?.some(doc => doc.id === document.id));
+        if (preserved) requireSalesDocumentsUser(user, true);
+        await db.documentLibraryDocument.update({ where: { id: document.id }, data: { status: "REJECTED", sensitivity: "RESTRICTED", updatedByUserId: user.id, classificationSnapshot: json({ ...metadata(document.classificationSnapshot), excludedFromDeal: true, excludedAt: new Date().toISOString(), excludedBy: user.id, exclusionReason: note }) } });
+        await audit(db, jacket, user, "DOCUMENT_EXCLUDED", `${document.fileName}: uploaded by mistake. ${note} Excluded from current requirements and future packets; earlier final versions preserved.`, { documentId: document.id, preserved });
+      } else if (raw.action === "REVIEW") {
         const link = jacket.packet.documents.find((item) => item.documentId === raw.documentId);
         if (!link) throw new SalesDocumentsError("Document is not part of this jacket.", 404);
+        if (isExcludedSalesDocument(link.document.classificationSnapshot)) throw new SalesDocumentsError("This attachment was excluded from the deal. Upload the correct document instead.", 409);
         const referenced = jacket.versions.some((version) => {
           const snapshot = version.snapshot as unknown as { documents?: JacketDocument[] };
           return snapshot.documents?.some((document) => document.id === link.documentId);
@@ -270,6 +307,7 @@ export async function getSalesDocumentContent(actor: AuthenticatedUser | null, i
   const user = requireSalesDocumentsUser(actor), jacket = await findJacket(id);
   const source = jacket.packet.documents.find((item) => item.documentId === documentId)?.document;
   if (!source) throw new SalesDocumentsError("Document was not found in this jacket.", 404);
+  if (isExcludedSalesDocument(source.classificationSnapshot)) requireSalesDocumentsUser(user, true);
   const bytes = await storedBytes(source.storageReference, source.checksumSha256 ?? "");
   await audit(prisma, jacket, user, "DOCUMENT_OPENED", source.fileName);
   return { bytes, fileName: source.fileName, contentType: source.contentType ?? "application/octet-stream" };
@@ -280,6 +318,7 @@ export async function exportSalesDocumentPacket(actor: AuthenticatedUser | null,
   const version = jacket.versions.find((item) => item.version === versionNumber);
   if (!version) throw new SalesDocumentsError("Choose a finalized packet version.", 404);
   const snapshot = version.snapshot as unknown as { documents: JacketDocument[] };
+  if (jacket.packet.documents.some(item => isExcludedSalesDocument(item.document.classificationSnapshot) && snapshot.documents.some(doc => doc.id === item.documentId))) requireSalesDocumentsUser(user, true);
   const files: Record<string, Uint8Array> = { "packet-manifest.json": strToU8(JSON.stringify({ ...metadata(version.snapshot), finalizedAt: version.finalizedAt, finalizedBy: version.finalizedByUserId, version: version.version }, null, 2)) };
   const pdf = combined ? await PDFDocument.create() : null;
   for (const [index, doc] of snapshot.documents.entries()) {
@@ -303,13 +342,20 @@ export async function exportSalesDocumentPacket(actor: AuthenticatedUser | null,
   return { bytes: pdf ? await pdf.save() : zipSync(files), contentType: pdf ? "application/pdf" : "application/zip", fileName: `${jacket.dealNumber.replace(/[^a-zA-Z0-9_-]/g, "_")}-v${versionNumber}.${pdf ? "pdf" : "zip"}` };
 }
 
+function leaseGenerationFingerprint(raw: Record<string, unknown>) {
+  const inputs = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "idempotencyKey" && key !== "preparedFormIds"));
+  return createHash("sha256").update(JSON.stringify(inputs, (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value)).digest("hex");
+}
+
 export async function archiveGeneratedSalesPacket(actor: AuthenticatedUser | null, raw: UnifiedCrmContractPacketInput & Record<string, unknown>, packet: UnifiedCrmContractPacketResult) {
   const user = requireSalesDocumentsUser(actor);
   const inferred: Record<string, string> = { BHPH: "bhph", LEASE_TO_OWN: "lease-to-own", DAILY_RENTAL: "daily-rental", VEHICLE_LOANER: "vehicle-loaner", TEST_DRIVE: "test-drive" };
   const pathway = text(raw.pathway) || inferred[text(raw.packetType)] || "retail-sale";
   const vehicle = raw.vehicle && typeof raw.vehicle === "object" ? raw.vehicle as Record<string, unknown> : {};
   const jacket = await createSalesDocumentJacket(user, { pathway, dealReference: text(raw.jacketReference) || packet.packetId, dealNumber: text(raw.dealNumber) || packet.packetNumber, customerName: text(raw.customerName) || "Customer not selected", customerId: raw.customerId, vehicleReference: text(raw.vehicleReference) || text(vehicle.vin) || text(vehicle.stockNumber) || [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle not assigned", vin: vehicle.vin, stockNumber: vehicle.stockNumber });
-  for (const doc of packet.documents) await saveSalesDocument(user, jacket.id, { bytes: doc.contentBase64 ? Buffer.from(doc.contentBase64, "base64") : Buffer.from(doc.html), contentType: doc.contentType ?? "text/html", fileName: doc.downloadFileName, documentType: doc.formId, generated: true });
+  const generationFingerprint = pathway === "lease-to-own" ? leaseGenerationFingerprint(raw) : undefined;
+  for (const doc of packet.documents) await saveSalesDocument(user, jacket.id, { bytes: doc.contentBase64 ? Buffer.from(doc.contentBase64, "base64") : Buffer.from(doc.html), contentType: doc.contentType ?? "text/html", fileName: doc.downloadFileName, documentType: doc.formId, generated: true, generationFingerprint });
   const result = { ...packet, jacketId: jacket.id, salesDocumentsHref: `/sales-documents?jacketId=${encodeURIComponent(jacket.id)}` };
   await prisma.salesDocumentGeneratedPacket.create({ data: { id: packet.packetId, jacketId: jacket.id, payload: json(result) } });
   return result;
