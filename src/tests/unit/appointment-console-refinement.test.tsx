@@ -1,13 +1,43 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes } from "@/features/appointments/appointment-purposes";
 import { placeCalendarEvents, type CalendarGridEvent } from "@/features/appointments/calendar-time-grid";
 
 import {
   AppointmentConsoleNewAppointment,
-  AppointmentConsoleTodayFlow
+  AppointmentConsoleTodayFlow,
+  findPlannerDuplicateAppointment
 } from "@/features/appointments/appointment-console-refinement";
 
 describe("Appointment Console refinement", () => {
+  it("offers a unique purpose code and an Other option in every dealership category", () => {
+    expect(appointmentPurposeGroups).toHaveLength(13);
+    expect(new Set(appointmentPurposes.map(purpose => purpose.value)).size).toBe(appointmentPurposes.length);
+    for (const group of appointmentPurposeGroups) {
+      expect(group.options.at(-1)?.label).toBe("Other");
+      expect(appointmentPurposeGroup(group.category, group.options.at(-1)?.value)).toBe(group);
+    }
+    expect(appointmentPurposeGroup("warranty", "WARRANTY_REVIEW").label).toBe("Service & Warranty");
+    expect(appointmentPurposeGroup("sales", "DEAL_REVIEW").label).toBe("Financing, Leasing & Signing");
+    expect(appointmentPurposeGroup("delivery", null, "Transportation / Logistics").label).toBe("Inventory, Recon & Transport");
+  });
+
+  it("only flags a separate active booking for the same customer and time", () => {
+    const startsAt = "2026-11-09T15:30:00.000Z";
+    const input = { startsAt, customerId: "customer-1", customerName: "Example Customer", alreadySaved: false };
+    const booking = {
+      id: "appointment-1", startsAt, bookingStatus: "SCHEDULED",
+      customer: { customerId: "customer-1", displayName: input.customerName, phoneNumber: null, email: null }
+    };
+
+    expect(findPlannerDuplicateAppointment([booking], input)).toBe(booking);
+    expect(findPlannerDuplicateAppointment([booking], { ...input, alreadySaved: true })).toBeNull();
+    expect(findPlannerDuplicateAppointment([booking], { ...input, editingId: booking.id })).toBeNull();
+    expect(findPlannerDuplicateAppointment([booking], { ...input, customerId: "customer-2" })).toBeNull();
+    expect(findPlannerDuplicateAppointment([booking], { ...input, startsAt: "2026-11-09T16:00:00.000Z" })).toBeNull();
+    expect(findPlannerDuplicateAppointment([{ ...booking, bookingStatus: "CANCELLED" }], input)).toBeNull();
+  });
+
   it("gives overlapping appointments separate lanes and restores full width for later appointments", () => {
     const event = (id: string, startMinute: number, endMinute: number): CalendarGridEvent => ({
       id, startMinute, endMinute, title: id, timeLabel: "", style: {}, onOpen: () => {}
@@ -64,14 +94,10 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("VIN, stock #, plate, or vehicle");
     expect(markup).toContain("Purpose");
     expect(markup).toContain("Customer Issue / Resolution");
-    expect(markup).toContain("Title / Documentation Issue");
-    expect(markup).toContain("Daily Rental / Loaner");
-    expect(markup).toContain("Photos / Marketing / Advertising");
-    expect(markup).toContain("Business Appointment");
-    expect(markup).toContain("Banker / Lender Appointment");
-    expect(markup).toContain("Licensing / Permit Appointment");
-    expect(markup).toContain("Phone Company / Utility Appointment");
-    expect(markup).toContain("Managerial Appointment");
+    for (const group of appointmentPurposeGroups) {
+      expect(markup).toContain(`value="${group.id}"`);
+    }
+    expect(markup).toContain("OTHER_CARE");
     expect(markup).toContain("2:30 PM");
     expect(markup).toContain("8:00 AM");
     expect(markup).toContain("5:00 PM");

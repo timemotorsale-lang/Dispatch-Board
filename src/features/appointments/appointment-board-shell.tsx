@@ -34,10 +34,13 @@ import {
   buildAppointmentReportingSnapshotEntries
 } from "@/features/appointments/appointment-reporting-snapshots";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+import { AppointmentPurposeFields } from "./appointment-purpose-fields";
+import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes } from "./appointment-purposes";
 
 type AppointmentCategory =
   | "sales"
   | "service"
+  | "collision"
   | "delivery"
   | "customer"
   | "dmv"
@@ -77,6 +80,7 @@ type ResourceAuditAction = "warning-override" | "release" | "replace";
 
 type DraftAppointmentForm = {
   category: AppointmentCategory;
+  purposeCode: string;
   title: string;
   customer: string;
   vehicle: string;
@@ -135,6 +139,7 @@ type AppointmentAutomationExecution = {
 
 type Appointment = {
   id: string;
+  purposeCode?: string | null;
   recordId?: string;
   recordVersion?: number;
   startsAtIso?: string | null;
@@ -885,6 +890,7 @@ type AppointmentReadModel = {
   appointmentNumber: string;
   title: string;
   category: string | null;
+  purposeCode?: string | null;
   sourceReference: string | null;
   schedulingTimezone: string;
   startsAt: string | null;
@@ -1612,6 +1618,7 @@ const staffMembers: StaffMember[] = [
 const categoryMeta: Record<AppointmentCategory, { label: string; className: string }> = {
   sales: { label: "Sales / Test Drive", className: "appointment-kind-sales" },
   service: { label: "Service / Repair", className: "appointment-kind-service" },
+  collision: { label: "Body Shop & Collision", className: "appointment-kind-service" },
   delivery: { label: "Vehicle Delivery", className: "appointment-kind-delivery" },
   customer: { label: "Customer Issue", className: "appointment-kind-customer" },
   dmv: { label: "Documentation / DMV", className: "appointment-kind-dmv" },
@@ -1640,7 +1647,7 @@ const appointmentCategoryGroups: Array<{ label: string; categories: AppointmentC
   { label: "Sales & Revenue", categories: ["sales", "business"] },
   { label: "Finance, Banking & Payments", categories: ["finance", "banking", "collections"] },
   { label: "Insurance, Title, Licensing & Permits", categories: ["insurance", "dmv", "licensing"] },
-  { label: "Service, Warranty & Vehicle Care", categories: ["service", "warranty"] },
+  { label: "Service, Warranty & Vehicle Care", categories: ["service", "warranty", "collision"] },
   { label: "Rental, Leasing & Delivery", categories: ["rental", "leasing", "delivery"] },
   { label: "Business, Vendor & Operations", categories: ["vendor", "inventory", "marketing", "facility"] },
   { label: "Administration, Management & Compliance", categories: ["administration", "utilities", "compliance", "staff"] }
@@ -5615,6 +5622,7 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
 
   return {
     id: appointment.appointmentNumber,
+    purposeCode: appointment.purposeCode,
     recordId: appointment.id,
     recordVersion: appointment.version,
     startsAtIso: appointment.startsAt,
@@ -5943,7 +5951,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   });
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<AppointmentCategory | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [staffFilter, setStaffFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
@@ -5982,6 +5990,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const [isOutcomeSaving, setIsOutcomeSaving] = useState(false);
   const [draftAppointment, setDraftAppointment] = useState<DraftAppointmentForm>({
     category: "service",
+    purposeCode: "SERVICE_REPAIR",
     title: "Service / Repair",
     customer: "",
     vehicle: "",
@@ -5990,6 +5999,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     durationMinutes: 60,
     reason: ""
   });
+  const draftPurpose = appointmentPurposes.find(purpose => purpose.value === draftAppointment.purposeCode)!;
   const [editAppointment, setEditAppointment] = useState<EditAppointmentForm>({
     category: "service",
     title: "Service / Repair",
@@ -6475,7 +6485,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       const searchTarget = `${appointment.title} ${appointment.customer} ${appointment.vehicle} ${appointment.id} ${appointment.phone}`.toLowerCase();
       return (
         (!normalizedQuery || searchTarget.includes(normalizedQuery)) &&
-        (categoryFilter === "all" || appointment.category === categoryFilter) &&
+        (categoryFilter === "all" || appointmentPurposeGroup(appointment.category, appointment.purposeCode, appointment.title).id === categoryFilter) &&
         (staffFilter === "all" || appointment.staffId === staffFilter) &&
         (statusFilter === "all" || appointment.status === statusFilter) &&
         (!conflictsOnly || appointment.conflict)
@@ -10262,6 +10272,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             endsAt,
             schedulingTimezone: boardTimezone,
             purposeSnapshot: {
+              code: draftAppointment.purposeCode,
               category: draftAppointment.category,
               categoryLabel: categoryMeta[draftAppointment.category].label,
               reason: draftAppointment.reason.trim()
@@ -10372,6 +10383,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           payload: {
             title: editAppointment.title.trim(),
             purposeSnapshot: {
+              ...(editAppointment.category === selectedAppointment.category && selectedAppointment.purposeCode ? { code: selectedAppointment.purposeCode } : {}),
               category: editAppointment.category,
               categoryLabel: categoryMeta[editAppointment.category].label,
               reason: editAppointment.reason.trim()
@@ -12651,10 +12663,10 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
         }}>
           <summary><Filter size={15} aria-hidden="true" /> Filters{categoryFilter !== "all" || staffFilter !== "all" || statusFilter !== "all" || conflictsOnly || includeCancelledAppointments ? " •" : ""}</summary>
           <div className="appointment-date-filters" aria-label="Appointment board filters">
-          <select aria-label="Filter appointment category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as AppointmentCategory | "all")}>
+          <select aria-label="Filter appointment category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
             <option value="all">All Categories</option>
-            {Object.entries(categoryMeta).map(([key, value]) => (
-              <option key={key} value={key}>{value.label}</option>
+            {appointmentPurposeGroups.map(group => (
+              <option key={group.id} value={group.id}>{group.label}</option>
             ))}
           </select>
           <select aria-label="Filter appointment staff" value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)}>
@@ -17436,28 +17448,13 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             </div>
             <p>Create a draft for {activeBusinessDate}. You can confirm the time and check availability after saving.</p>
             <div className="appointment-modal-grid">
-              <label>
-                Category
-                <select
-                  value={draftAppointment.category}
-                  onChange={(event) => {
-                    const category = event.target.value as AppointmentCategory;
-                    setDraftAppointment((current) => ({
-                      ...current,
-                      category,
-                      title: categoryMeta[category].label
-                    }));
-                  }}
-                >
-                  {appointmentCategoryGroups.map((group) => (
-                    <optgroup key={group.label} label={group.label}>
-                      {group.categories.map((category) => (
-                        <option key={category} value={category}>{categoryMeta[category].label}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
+              <AppointmentPurposeFields purpose={draftPurpose} onChange={purpose => setDraftAppointment(current => ({
+                ...current,
+                purposeCode: purpose.value,
+                category: purpose.category as AppointmentCategory,
+                title: purpose.label === "Other" ? `Other · ${appointmentPurposeGroup(purpose.category, purpose.value).label}` : purpose.label,
+                durationMinutes: purpose.duration
+              }))} />
               <label>
                 Owner
                 <select disabled value="current-user">
@@ -17510,6 +17507,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   value={draftAppointment.durationMinutes}
                   onChange={(event) => setDraftAppointment((current) => ({ ...current, durationMinutes: Number(event.target.value) }))}
                 >
+                  <option value={15}>15 minutes</option>
                   <option value={30}>30 minutes</option>
                   <option value={45}>45 minutes</option>
                   <option value={60}>1 hour</option>
