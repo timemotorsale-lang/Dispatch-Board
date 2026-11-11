@@ -1,25 +1,16 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { parseTaskRepeat, taskOccurrences } from "@/lib/calendar-task-repeat";
-import { shiftFlowDate, validFlowDate } from "@/features/advisor/workbook-flow-dates";
+import { validateDispatchTaskRepeat } from "@/lib/calendar-task-repeat";
 import { locationLocalDateMinuteToInstant } from "@/server/appointments/location-time-service";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 import { createTaskCreateRepository } from "@/server/repositories/task-create-repository";
 import { createManualTask } from "./task-create-service";
 
-const maxOccurrences = 60;
-
 export function dispatchRepeatDates(anchor: string, value: unknown) {
-  const rule = parseTaskRepeat(value);
-  if (!validFlowDate(anchor) || !rule?.until || rule.until <= anchor || Date.parse(rule.until) - Date.parse(anchor) > 12 * 366 * 86400000) {
-    throw new Error("Task creation requires a repeat end date after the first date and within 12 years.");
-  }
-  const dates = taskOccurrences(anchor, rule, anchor, shiftFlowDate(rule.until, 1));
-  if (dates.length < 2 || dates.length > maxOccurrences) {
-    throw new Error("Task creation requires between 2 and 60 occurrences. Adjust the repeat interval or end date.");
-  }
-  return dates;
+  const result = validateDispatchTaskRepeat(anchor, value);
+  if (!result.dates) throw new Error(`Task creation requires a valid repeat schedule. ${result.error}`);
+  return result.dates;
 }
 
 export async function createRepeatingDispatchTask(user: AuthenticatedUser | null, input: Record<string, unknown>, repeat: unknown, requestId: unknown, time: unknown) {

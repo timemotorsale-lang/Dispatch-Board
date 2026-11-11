@@ -1,5 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
+import { CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_SEARCH_HREF, crmNextCustomer360Href } from "@/features/crm/crm-route-authority";
 import { getInitialMinneapolisLocation } from "@/server/appointments/location-foundation";
 import {
   getLocationLocalDate,
@@ -2377,11 +2377,20 @@ function timelineFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextTimeline
 }
 
 function searchGroupsFromUnifiedCrm(search: UnifiedCrmGlobalSearchReadModel): CrmNextSearchGroup[] {
+  function resultHref(result: UnifiedCrmGlobalSearchReadModel["groups"][number]["results"][number] | undefined) {
+    if (!result) return CRM_NEXT_SEARCH_HREF;
+    if (result.entity === "customer") return crmNextCustomer360Href(result.id);
+    if (result.entity === "contact") {
+      const customerId = /^\/crm\/customers\/([a-zA-Z0-9_-]+)$/.exec(result.href)?.[1];
+      return customerId ? crmNextCustomer360Href(customerId) : CRM_NEXT_SEARCH_HREF;
+    }
+    return result.href;
+  }
   return search.groups.map((group) => ({
     id: `live-${group.entity}`,
     label: group.label,
     description: group.results.slice(0, 3).map((result) => result.label).join(" · ") || "No matching source records.",
-    href: group.results[0]?.href ?? "/crm-next/search",
+    href: resultHref(group.results[0]),
     count: group.count,
     safety: "Live read-only result from existing Customer search. Open the source record to execute approved work."
   }));

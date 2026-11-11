@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CalendarDetailDialog } from "@/features/appointments/calendar-detail-dialog";
-import type { TaskRepeat } from "@/lib/calendar-task-repeat";
+import { validateDispatchTaskRepeat, type TaskRepeat } from "@/lib/calendar-task-repeat";
 import { noTaskRepeat, TaskRepeatFields, toTaskRepeat } from "./task-repeat-fields";
 import styles from "./quick-calendar-task.module.css";
 
@@ -80,8 +80,14 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
   const [saved, setSaved] = useState<{ id: string; title: string; taskCount?: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const confirmation = useRef<HTMLParagraphElement>(null);
   const submission = useRef<{ requestId: string; fingerprint: string } | null>(null);
   const inFlight = useRef(false);
+  const repeat = when === "none" ? null : toTaskRepeat(repeatDraft);
+  const repeatPlan = scope === "dispatch" && repeat ? validateDispatchTaskRepeat(selectedDate, repeat) : null;
+  useEffect(() => {
+    if (saved) confirmation.current?.focus();
+  }, [saved]);
   useEffect(() => {
     if (scope !== "personal" || lists) return;
     const controller = new AbortController();
@@ -106,7 +112,6 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
     event.preventDefault();
     if (inFlight.current || saved) return;
     const fields = new FormData(event.currentTarget);
-    const repeat = when === "none" ? null : toTaskRepeat(repeatDraft);
     const context = fields.get("operatingContext");
     const notes = String(fields.get("notes") ?? "");
     const input = {
@@ -119,34 +124,43 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
       vehicleReference: fields.get("vehicleReference") || undefined
     };
     if (!input.title) { setError("Enter a task title."); return; }
+    if (repeatPlan?.error) { setError(repeatPlan.error); return; }
     const fingerprint = JSON.stringify(input);
     if (submission.current?.fingerprint !== fingerprint) submission.current = { fingerprint, requestId: crypto.randomUUID() };
     inFlight.current = true;
     setBusy(true);
     setError("");
+    let savedTask: { id: string; title: string; taskCount?: number };
     try {
       const response = await fetch(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...input, requestId: submission.current.requestId })
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.task?.id) throw new Error(data?.error ?? "Unable to save the task.");
-      setSaved({ ...data.task, taskCount: data.taskCount });
-      onSaved({ id: data.task.id, title: data.task.title, scope, localDate: input.localDate });
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Unable to save the task.");
+      if (response.status >= 500) throw new Error("Missing save confirmation.");
+      if (!response.ok) {
+        setError(data?.error ?? "The server rejected the save. Check your details and try again.");
+        return;
+      }
+      if (!data?.task?.id) throw new Error("Missing save confirmation.");
+      savedTask = { ...data.task, taskCount: data.taskCount };
+      setSaved(savedTask);
+    } catch {
+      setError("No save confirmation received. Check the calendar before retrying to avoid a duplicate.");
+      return;
     } finally {
       inFlight.current = false;
       setBusy(false);
     }
+    onSaved({ id: savedTask.id, title: savedTask.title, scope, localDate: input.localDate });
   }
 
   return <CalendarDetailDialog onClose={() => { if (!busy) onClose(); }} onSubmit={event => void save(event)}>
     <header><strong>{saved ? "Task saved" : "New task"}</strong><button type="button" onClick={onClose} disabled={busy}>Close</button></header>
     {saved ? <div className={styles.form}>
-      <p role="status">{saved.taskCount ? `Saved ${saved.taskCount} Dispatch tasks for “${saved.title}”.` : `${saved.title} was saved.`}</p>
+      <p className={styles.confirmation} ref={confirmation} role="status" tabIndex={-1}>{saved.taskCount ? `Saved ${saved.taskCount} Dispatch tasks for “${saved.title}”.` : `“${saved.title}” was saved.`}</p>
       <Link href={scope === "dispatch" ? `/tasks/${encodeURIComponent(saved.id)}` : "/my-tasks?personal=1"}>{saved.taskCount ? "Open first task" : "Open saved task"}</Link>
-    </div> : <div className={styles.form}>
+    </div> : <div className={styles.form} onChange={() => { if (error) setError(""); }}>
       <label>Title<input autoFocus name="title" required maxLength={160} placeholder="What needs to be done?" /></label>
       <label>List<select value={scope} onChange={event => {
         const next = event.target.value === "dispatch" ? "dispatch" : "personal";
@@ -172,6 +186,8 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
           {(lists ?? availableLists).map(list => <option key={list.id} value={list.id}>{list.name}</option>)}
         </select></label>}
       {when !== "none" && <TaskRepeatFields date={selectedDate} draft={repeatDraft} onChange={setRepeatDraft} shared={scope === "dispatch"} />}
+      {repeatPlan?.dates && <p role="status">This schedule will create {repeatPlan.dates.length} Dispatch tasks.</p>}
+      {repeatDraft.until && repeatPlan?.error && <p className={styles.saveError}>{repeatPlan.error}</p>}
       {scope === "dispatch" && <div className={styles.row}>
         <label>Team<select name="team" defaultValue={defaultTeam ?? teams[0][0]}>{teams.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
         <label>Assign to<select name="owner" defaultValue={defaultOwnerId ?? ""}><option value="">Me</option>{(ownerOptions ?? staff).map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
@@ -186,8 +202,11 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
           <label>Operating context<textarea name="operatingContext" rows={2} maxLength={1000} placeholder="Example: All overdue titles for this month" /></label>
         </>}
       </details>
-      {error && <p role="alert">{error}</p>}
-      <footer><button className="primary" disabled={busy} type="submit">{busy ? "Saving…" : "Save task"}</button></footer>
+      <footer className={styles.saveFooter}>
+        {error && <p className={styles.saveError} role="alert">{error.startsWith("No save confirmation") ? error : `Task not saved. ${error}`}</p>}
+        {busy && <p role="status">Saving your task. Please wait.</p>}
+        <button className="primary" disabled={busy} type="submit">{busy ? "Saving…" : "Save task"}</button>
+      </footer>
     </div>}
   </CalendarDetailDialog>;
 }

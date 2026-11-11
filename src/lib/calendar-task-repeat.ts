@@ -40,3 +40,15 @@ export function taskOccurrences(anchor: string, rule: TaskRepeat, start: string,
   }
   return dates;
 }
+
+export function validateDispatchTaskRepeat(anchor: string, value: unknown): { dates: string[]; error?: never } | { error: string; dates?: never } {
+  const rule = parseTaskRepeat(value);
+  if (!validFlowDate(anchor) || !rule?.until || rule.until <= anchor || Date.parse(rule.until) - Date.parse(anchor) > 12 * 366 * 86400000) {
+    return { error: "Choose a repeat end date after the first date and within 12 years." };
+  }
+  const dates = taskOccurrences(anchor, rule, anchor, shiftFlowDate(rule.until, 1));
+  if (dates.length < 2 || dates.length > 60) {
+    return { error: `This schedule creates ${dates.length} tasks. Choose an end date or interval that creates between 2 and 60 tasks.` };
+  }
+  return { dates };
+}
