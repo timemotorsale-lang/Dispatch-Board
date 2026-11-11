@@ -3,8 +3,10 @@ type MockTable = Record<string, ReturnType<typeof vi.fn>>;
 type MockDatabase = { $executeRaw: ReturnType<typeof vi.fn>; dealWorkflowContext: MockTable; dealContinuityEvent: MockTable; vehicleUseBooking: MockTable; salesDocumentJacket: MockTable; salesDocumentPacketVersion: MockTable; documentLibraryDocument: MockTable; vehicleOdometerObservation: MockTable; vehicleCustodyEvent: MockTable; task: MockTable };
 const state = vi.hoisted(() => ({ db: {} as MockDatabase, capability: vi.fn(), createTask: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ prisma: { $transaction: (execute: (db: unknown) => unknown) => execute(state.db) } }));
-vi.mock("@/server/sales-documents/service", () => ({ requireSalesDocumentsUser: (actor: unknown) => { if (!actor) throw new Error("Sign in"); return actor; } }));
-vi.mock("@/server/policies/access", () => ({ isManager: () => false }));
+vi.mock("@/server/policies/access", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/server/policies/access")>(),
+  isManager: () => false
+}));
 vi.mock("@/server/deal-continuity/identities", () => ({ dealOrganization: () => "registry", dealDocumentOrganization: () => "documents", dealCustomer: vi.fn(), dealVehicle: () => ({ eligibleForUse: true, vin: "VIN", locationId: "lot" }) }));
 vi.mock("@/server/enterprise-command/repository", () => ({ createEnterpriseCommandRepository: () => ({ listCapabilityGrants: async () => [] }) }));
 vi.mock("@/server/enterprise-command/vehicle-capabilities", () => ({ assertVehicleCapability: state.capability }));
@@ -13,7 +15,7 @@ vi.mock("@/server/repositories/task-create-repository", () => ({ createTaskCreat
 import { executeVehicleUse } from "@/server/deal-continuity/service";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-const actor = { id: "staff", name: "Staff" } as AuthenticatedUser;
+const actor = { id: "staff", name: "Staff", isActive: true } as AuthenticatedUser;
 const due = new Date(Date.now() + 86400000);
 const command = { action: "HANDOFF", operationKey: "activate-12345678", bookingId: "booking", expectedVersion: 1, reason: "Customer collected rental", occurredAt: new Date(Date.now() - 60000).toISOString(), odometer: 1000, fuel: "Full", condition: "Checked all panels", recipient: "Customer", evidence: ["checkout-report"], keysVerified: true, driverVerified: true, physicalHandover: true, insuranceVerified: true, insuranceValidUntil: due.toISOString(), timezone: "America/Chicago", agreementJacketId: "jacket" };
 describe("rental activation transaction", () => {
