@@ -3,7 +3,7 @@ import { DELETE, GET, PATCH, POST } from "@/app/api/tasks/calendar/route";
 import { parseTaskRepeat, taskOccurrences } from "@/lib/calendar-task-repeat";
 
 const mocks = vi.hoisted(() => ({
-  user: vi.fn(), canAssign: vi.fn(), staff: vi.fn(), create: vi.fn(),
+  user: vi.fn(), canAssign: vi.fn(), staff: vi.fn(), create: vi.fn(), findSchedules: vi.fn(), stopSchedule: vi.fn(),
   findPersonal: vi.fn(), findDispatch: vi.fn(), upsert: vi.fn(), complete: vi.fn(), findSeries: vi.fn(), findLists: vi.fn(), findList: vi.fn(), completeOccurrence: vi.fn()
 }));
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.user }));
@@ -13,6 +13,7 @@ vi.mock("@/server/services/task-create-service", () => ({ createManualTask: mock
 vi.mock("@/server/db/client", () => ({ prisma: {
   personalCalendarTask: { findMany: mocks.findPersonal, upsert: mocks.upsert, updateMany: mocks.complete, findFirst: mocks.findSeries },
   task: { findMany: mocks.findDispatch },
+  dispatchTaskRepeatBatch: { findMany: mocks.findSchedules, updateMany: mocks.stopSchedule },
   personalTaskList: { findMany: mocks.findLists, findFirst: mocks.findList },
   personalTaskOccurrence: { upsert: mocks.completeOccurrence }
 } }));
@@ -30,6 +31,7 @@ describe("calendar quick tasks", () => {
     mocks.findPersonal.mockResolvedValue([]);
     mocks.findDispatch.mockResolvedValue([]);
     mocks.findLists.mockResolvedValue([]);
+    mocks.findSchedules.mockResolvedValue([]);
   });
 
   it("reads only the signed-in owner's private and assigned Dispatch tasks", async () => {
@@ -68,6 +70,16 @@ describe("calendar quick tasks", () => {
     mocks.complete.mockResolvedValue({ count: 0 });
     expect((await PATCH(request("PATCH", { id: "other-task", completed: true }))).status).toBe(404);
     expect(mocks.complete).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "other-task", userId: "owner" }) }));
+  });
+
+  it("only stops an ongoing Dispatch schedule owned by the signed-in user", async () => {
+    mocks.stopSchedule.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+    expect((await PATCH(request("PATCH", { action: "stopDispatchRepeat", id: "first-task", userId: "other" }))).status).toBe(404);
+    expect((await PATCH(request("PATCH", { action: "stopDispatchRepeat", id: "first-task" }))).status).toBe(200);
+    expect(mocks.stopSchedule).toHaveBeenLastCalledWith({
+      where: { userId: "owner", firstTaskId: "first-task", nextDate: { not: null } },
+      data: { nextDate: null }
+    });
   });
 
   it("marks only the selected occurrence and rejects dates outside the series", async () => {

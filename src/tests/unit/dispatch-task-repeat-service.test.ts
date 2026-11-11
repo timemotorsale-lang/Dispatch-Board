@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createRepeatingDispatchTask, dispatchRepeatDates } from "@/server/services/dispatch-task-repeat-service";
+import { createRepeatingDispatchTask, dispatchRepeatDates, extendOngoingDispatchTasks } from "@/server/services/dispatch-task-repeat-service";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
 const mocks = vi.hoisted(() => {
-  const batch = { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() };
+  const batch = { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() };
   return {
     batch,
     transaction: vi.fn(async (run: (db: { dispatchTaskRepeatBatch: typeof batch }) => unknown) => run({ dispatchTaskRepeatBatch: batch })),
-    createTask: vi.fn()
+    createTask: vi.fn(),
+    findUserByEmail: vi.fn()
   };
 });
 vi.mock("@/server/db/client", () => ({ prisma: { $transaction: mocks.transaction, dispatchTaskRepeatBatch: mocks.batch } }));
+vi.mock("@/server/auth/store", () => ({ createPrismaAuthStore: () => ({ findUserByEmail: mocks.findUserByEmail }) }));
 vi.mock("@/server/repositories/task-create-repository", () => ({ createTaskCreateRepository: () => "transaction repository" }));
 vi.mock("@/server/services/task-create-service", () => ({ createManualTask: mocks.createTask }));
 
@@ -44,5 +46,27 @@ describe("repeating Dispatch tasks", () => {
   it("requires an end date and rejects batches with more than 60 tasks", () => {
     expect(() => dispatchRepeatDates(draft.boardDate, { unit: "day", every: 1 })).toThrow("end date");
     expect(() => dispatchRepeatDates(draft.boardDate, { unit: "day", every: 1, until: "2027-02-01" })).toThrow("2 and 60");
+  });
+
+  it("saves an open-ended series and advances it without duplicating a concurrently claimed occurrence", async () => {
+    const rule = { unit: "week", every: 1 };
+    mocks.createTask.mockResolvedValue({ id: "first", title: draft.title });
+    await expect(createRepeatingDispatchTask(user, draft, rule, requestId, "09:00", true)).resolves.toMatchObject({ ongoing: true, taskCount: 5 });
+    const { ongoing, nextDate } = mocks.batch.create.mock.calls[0][0].data;
+    expect(nextDate).toBe("2026-11-29");
+    expect(ongoing).toMatchObject({ rule, minuteOfDay: 540 });
+    mocks.batch.findMany.mockResolvedValue([{ userId: user.id, requestId, ongoing, nextDate, user: { email: "staff@example.test" } }]);
+    mocks.findUserByEmail.mockResolvedValue({ ...user, isActive: true });
+    const now = new Date("2026-11-07T18:00:00Z");
+    mocks.batch.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    await expect(extendOngoingDispatchTasks(now)).resolves.toEqual({ schedules: 1, created: 1, failed: 0 });
+    expect(mocks.createTask.mock.calls.at(-1)?.[1].boardDate).toBe("2026-12-04");
+    expect(mocks.batch.updateMany).toHaveBeenLastCalledWith({
+      where: { userId: user.id, requestId, nextDate },
+      data: { nextDate: "2026-12-07", taskCount: { increment: 1 } }
+    });
+    mocks.batch.updateMany.mockResolvedValue({ count: 0 });
+    await expect(extendOngoingDispatchTasks(now)).resolves.toMatchObject({ created: 0 });
+    expect(mocks.createTask).toHaveBeenCalledTimes(6);
   });
 });

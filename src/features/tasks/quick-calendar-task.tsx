@@ -23,6 +23,7 @@ export type CalendarTask = {
   seriesId?: string;
   repeat?: TaskRepeat | null;
   repeatEnded?: boolean;
+  canStopDispatchRepeat?: boolean;
   deadline?: string | null;
   starredAt?: string | null;
   archivedAt?: string | null;
@@ -31,6 +32,7 @@ export type CalendarTask = {
 
 export type PersonalTaskList = { id: string; name: string };
 type TaskOwner = { id: string; name: string };
+type SavedCalendarTask = { id: string; title: string; taskCount?: number; ongoing?: boolean };
 const endpoint = "/api/tasks/calendar";
 export const calendarTaskTeams = [
   ["GENERAL_MANAGER", "General / Management"], ["SALES", "Sales"], ["SHOP", "Shop / Recon"],
@@ -77,14 +79,15 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
   const [repeatDraft, setRepeatDraft] = useState(noTaskRepeat);
   const [availableLists, setAvailableLists] = useState<PersonalTaskList[]>([]);
   const [staff, setStaff] = useState<TaskOwner[]>([]);
-  const [saved, setSaved] = useState<{ id: string; title: string; taskCount?: number } | null>(null);
+  const [saved, setSaved] = useState<SavedCalendarTask | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const confirmation = useRef<HTMLParagraphElement>(null);
   const submission = useRef<{ requestId: string; fingerprint: string } | null>(null);
   const inFlight = useRef(false);
   const repeat = when === "none" ? null : toTaskRepeat(repeatDraft);
-  const repeatPlan = scope === "dispatch" && repeat ? validateDispatchTaskRepeat(selectedDate, repeat) : null;
+  const noEnd = scope === "dispatch" && !!repeat && repeatDraft.noEnd === true;
+  const repeatPlan = scope === "dispatch" && repeat && !noEnd ? validateDispatchTaskRepeat(selectedDate, repeat) : null;
   useEffect(() => {
     if (saved) confirmation.current?.focus();
   }, [saved]);
@@ -119,7 +122,7 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
       localDate: when === "none" ? null : String(fields.get("date") ?? ""),
       localTime: when === "timed" ? clockChoice === "custom" ? String(fields.get("time") ?? "") : clockChoice : null,
       assignedUserId: fields.get("owner"), workflowArea: fields.get("team"),
-      listId: fields.get("listId") || null, deadline: fields.get("deadline") || null, repeat,
+      listId: fields.get("listId") || null, deadline: fields.get("deadline") || null, repeat, noEnd,
       customerReference: fields.get("customerReference") || undefined,
       vehicleReference: fields.get("vehicleReference") || undefined
     };
@@ -130,7 +133,7 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
     inFlight.current = true;
     setBusy(true);
     setError("");
-    let savedTask: { id: string; title: string; taskCount?: number };
+    let savedTask: SavedCalendarTask;
     try {
       const response = await fetch(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -143,7 +146,7 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
         return;
       }
       if (!data?.task?.id) throw new Error("Missing save confirmation.");
-      savedTask = { ...data.task, taskCount: data.taskCount };
+      savedTask = { ...data.task, taskCount: data.taskCount, ongoing: data.ongoing };
       setSaved(savedTask);
     } catch {
       setError("No save confirmation received. Check the calendar before retrying to avoid a duplicate.");
@@ -158,13 +161,17 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
   return <CalendarDetailDialog onClose={() => { if (!busy) onClose(); }} onSubmit={event => void save(event)}>
     <header><strong>{saved ? "Task saved" : "New task"}</strong><button type="button" onClick={onClose} disabled={busy}>Close</button></header>
     {saved ? <div className={styles.form}>
-      <p className={styles.confirmation} ref={confirmation} role="status" tabIndex={-1}>{saved.taskCount ? `Saved ${saved.taskCount} Dispatch tasks for “${saved.title}”.` : `“${saved.title}” was saved.`}</p>
+      <p className={styles.confirmation} ref={confirmation} role="status" tabIndex={-1}>{saved.ongoing
+        ? `Ongoing schedule saved for “${saved.title}”. Created ${saved.taskCount} so far; more will be added automatically.`
+        : saved.taskCount ? `Saved ${saved.taskCount} Dispatch tasks for “${saved.title}”.` : `“${saved.title}” was saved.`}</p>
       <Link href={scope === "dispatch" ? `/tasks/${encodeURIComponent(saved.id)}` : "/my-tasks?personal=1"}>{saved.taskCount ? "Open first task" : "Open saved task"}</Link>
+      {saved.ongoing && <p>To stop the schedule, open its first task on the calendar.</p>}
     </div> : <div className={styles.form} onChange={() => { if (error) setError(""); }}>
       <label>Title<input autoFocus name="title" required maxLength={160} placeholder="What needs to be done?" /></label>
       <label>List<select value={scope} onChange={event => {
         const next = event.target.value === "dispatch" ? "dispatch" : "personal";
         setScope(next);
+        setRepeatDraft(draft => ({ ...draft, noEnd: false }));
         if (next === "dispatch" && when === "none") setWhen("day");
       }}>
         <option value="dispatch">Dispatch Board · Shared work</option>
@@ -185,7 +192,7 @@ export function QuickCalendarTaskDialog({ date, time, defaultScope = "dispatch",
       {scope === "personal" && <label>Personal list<select name="listId" defaultValue={defaultListId ?? ""}><option value="">Personal</option>
           {(lists ?? availableLists).map(list => <option key={list.id} value={list.id}>{list.name}</option>)}
         </select></label>}
-      {when !== "none" && <TaskRepeatFields date={selectedDate} draft={repeatDraft} onChange={setRepeatDraft} shared={scope === "dispatch"} />}
+      {when !== "none" && <TaskRepeatFields date={selectedDate} draft={repeatDraft} onChange={setRepeatDraft} shared={scope === "dispatch"} allowNoEnd />}
       {repeatPlan?.dates && <p role="status">This schedule will create {repeatPlan.dates.length} Dispatch tasks.</p>}
       {repeatDraft.until && repeatPlan?.error && <p className={styles.saveError}>{repeatPlan.error}</p>}
       {scope === "dispatch" && <div className={styles.row}>
@@ -264,6 +271,24 @@ export function CalendarTaskDetails({ task, onClose, onChanged }: {
       setBusy(false);
     }
   }
+  async function stopDispatchRepeat() {
+    if (busy || !window.confirm("Stop creating new tasks for this schedule? Tasks already created will stay.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(endpoint, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stopDispatchRepeat", id: task.id })
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Unable to stop the schedule.");
+      setRepeatStopped(true);
+      onChanged();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to stop the schedule.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return <CalendarDetailDialog onClose={onClose} onSubmit={event => event.preventDefault()}>
     <header><strong>{task.title}</strong><button type="button" onClick={onClose}>Close</button></header>
     <div className={styles.form}>
@@ -271,6 +296,9 @@ export function CalendarTaskDetails({ task, onClose, onChanged }: {
       {task.notes && <p>{task.notes}</p>}
       {task.repeat && <p>{repeatStopped ? "Repeat schedule ends after this occurrence." : task.repeatEnded ? "Repeat schedule ended" : "Repeating task · completion applies to this date"}</p>}
       {task.seriesId && !repeatStopped && task.repeat?.until !== task.localDate && <button type="button" disabled={busy} onClick={() => void stopRepeat()}>End repeat after this date</button>}
+      {task.canStopDispatchRepeat && (repeatStopped
+        ? <p role="status">Schedule stopped. Tasks already created will stay.</p>
+        : <button type="button" disabled={busy} onClick={() => void stopDispatchRepeat()}>Stop creating new tasks</button>)}
       {task.deadline && <p>Deadline {task.deadline}</p>}
       <label className={styles.checkbox}><input type="checkbox" checked={completed} disabled={busy || task.repeatEnded || (task.scope === "dispatch" && (completed || !task.canComplete))} onChange={() => void changeStatus()} /> Completed</label>
       {error && <p role="alert">{error}</p>}

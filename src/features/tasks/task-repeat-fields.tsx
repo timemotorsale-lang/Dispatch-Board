@@ -2,7 +2,7 @@ import type { TaskRepeat } from "@/lib/calendar-task-repeat";
 import styles from "./quick-calendar-task.module.css";
 
 type RepeatChoice = "none" | "custom" | TaskRepeat["unit"];
-export type TaskRepeatDraft = { choice: RepeatChoice; unit?: TaskRepeat["unit"]; every?: number; until?: string; weekdays?: number[] };
+export type TaskRepeatDraft = { choice: RepeatChoice; unit?: TaskRepeat["unit"]; every?: number; until?: string; weekdays?: number[]; noEnd?: boolean };
 export const noTaskRepeat: TaskRepeatDraft = { choice: "none" };
 
 export function toTaskRepeat(draft: TaskRepeatDraft): TaskRepeat | null {
@@ -11,16 +11,17 @@ export function toTaskRepeat(draft: TaskRepeatDraft): TaskRepeat | null {
   return {
     unit: custom ? draft.unit ?? "week" : draft.choice as TaskRepeat["unit"],
     every: custom ? draft.every ?? 1 : 1,
-    ...(draft.until ? { until: draft.until } : {}),
+    ...(draft.until && !draft.noEnd ? { until: draft.until } : {}),
     ...(custom && (draft.unit ?? "week") === "week" && draft.weekdays?.length ? { weekdays: draft.weekdays } : {})
   };
 }
 
-export function TaskRepeatFields({ date, draft, onChange, shared = false }: {
+export function TaskRepeatFields({ date, draft, onChange, shared = false, allowNoEnd = false }: {
   date: string;
   draft: TaskRepeatDraft;
   onChange: (draft: TaskRepeatDraft) => void;
   shared?: boolean;
+  allowNoEnd?: boolean;
 }) {
   const parsedDate = new Date(`${date}T12:00:00Z`);
   const valid = Number.isFinite(parsedDate.getTime());
@@ -48,7 +49,12 @@ export function TaskRepeatFields({ date, draft, onChange, shared = false }: {
         })} />{day}</label>)}
       </fieldset>}
     </>}
-    {draft.choice !== "none" && (shared || draft.choice === "custom") && <label>End date{shared ? " (required)" : " (optional)"}<input type="date" min={date || undefined} value={draft.until ?? ""} onChange={event => onChange({ ...draft, until: event.target.value })} required={shared} /></label>}
-    {shared && draft.choice !== "none" && <small>Creates up to 60 separate Dispatch tasks through the end date. Each is completed independently.</small>}
+    {shared && allowNoEnd && draft.choice !== "none" && <label>Ends<select value={draft.noEnd ? "never" : "date"} onChange={event => onChange({ ...draft, noEnd: event.target.value === "never" })}>
+      <option value="date">On a date</option><option value="never">No end</option>
+    </select></label>}
+    {draft.choice !== "none" && (shared || draft.choice === "custom") && !draft.noEnd && <label>End date{shared ? " (required)" : " (optional)"}<input type="date" min={date || undefined} value={draft.until ?? ""} onChange={event => onChange({ ...draft, until: event.target.value })} required={shared} /></label>}
+    {shared && draft.choice !== "none" && <small>{draft.noEnd
+      ? "Tasks are created about 30 days ahead and repeat until you stop the schedule. Each task is completed independently."
+      : "Creates up to 60 separate Dispatch tasks through the end date. Each is completed independently."}</small>}
   </div>;
 }
