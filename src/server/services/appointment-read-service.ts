@@ -6,6 +6,7 @@ import {
 } from "@/server/appointments/appointment-privacy";
 import {
   canMutateAppointment,
+  canUseStaffCalendar,
   canViewAppointmentLimitedData,
   canViewAppointmentSchedule,
   isManager,
@@ -665,13 +666,15 @@ export async function listAppointmentReadModels(
     await repository.findActiveLocationAccess(actor.id, normalizedQuery.locationId, now)
   );
 
-  if (!locationAccess || !canViewAppointmentSchedule({ actor, locationAccess })) {
+  if (!locationAccess || !canUseStaffCalendar(actor)) {
     throw new Error("Appointment schedule is not authorized.");
   }
 
   const appointments = await repository.listAppointmentsForLocationWindow(normalizedQuery);
+  const canViewSharedSchedule = canViewAppointmentSchedule({ actor, locationAccess });
   const readModels = appointments
     .filter((appointment) => appointment.locationId === normalizedQuery.locationId)
+    .filter((appointment) => canViewSharedSchedule || appointment.ownerUserId === actor.id)
     .map((appointment) =>
       toAppointmentReadModel({
         actor,
@@ -708,7 +711,8 @@ export async function getAppointmentReadModelById(
     await repository.findActiveLocationAccess(actor.id, appointment.locationId, now)
   );
 
-  if (!locationAccess || !canViewAppointmentSchedule({ actor, locationAccess })) {
+  if (!locationAccess || !canUseStaffCalendar(actor) ||
+      (appointment.ownerUserId !== actor.id && !canViewAppointmentSchedule({ actor, locationAccess }))) {
     throw new Error("Appointment detail is not available.");
   }
 

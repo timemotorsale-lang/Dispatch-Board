@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { createSalesDocumentJacket, requireSalesDocumentsUser, updateSalesDocumentJacket } from "./service";
+import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
 import { SalesDocumentsError } from "./domain";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { canManageDeals } from "./dashboard-operations";
@@ -11,7 +12,8 @@ const object = (value: unknown): Record<string, unknown> => value && typeof valu
 export async function manageDealLifecycle(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
   const action = String(raw.action || "");
   if (!["MARK_SOLD", "PREPARE_PAPERWORK", "FINISH", "REOPEN", "REQUEST_UNWIND"].includes(action)) throw new SalesDocumentsError("Choose a supported deal action.");
-  const user = requireSalesDocumentsUser(actor, ["REOPEN", "REQUEST_UNWIND"].includes(action));
+  const user = requireOwnDealUser(actor);
+  if (["REOPEN", "REQUEST_UNWIND"].includes(action)) requireSalesDocumentsUser(user, true);
   if (typeof raw.id !== "string" || !Number.isInteger(raw.revision)) throw new SalesDocumentsError("Refresh this deal before continuing.", 409);
   const organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
   const note = typeof raw.note === "string" ? raw.note.trim().slice(0, 1000) : "";

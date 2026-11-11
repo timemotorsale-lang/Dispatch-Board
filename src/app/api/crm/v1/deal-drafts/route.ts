@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isTrustedAppMutation } from "@/lib/app-request-origin";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getDealsUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft } from "@/server/sales-documents/deal-drafts";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { listDealWorkbench } from "@/server/sales-documents/deal-workbench";

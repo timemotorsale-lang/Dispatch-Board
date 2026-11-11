@@ -6,6 +6,7 @@ import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
 import { searchDealCustomers } from "@/server/deal-continuity/identities";
 import type { DealCustomerList } from "@/lib/deal-continuity";
 import { notFound } from "next/navigation";
+import { canUseOwnDeals } from "@/server/policies/access";
 
 type CrmNextDealStartPageProps = {
   searchParams?: Promise<{ customerId?: string; pathway?: string; vehicleId?: string; review?: string }>;
@@ -13,7 +14,8 @@ type CrmNextDealStartPageProps = {
 
 export default async function CrmNextDealStartPage({ searchParams }: CrmNextDealStartPageProps = {}) {
   const user = await requireCurrentUser();
-  const access = resolveCrmNextAccess(user);
+  if (!canUseOwnDeals(user)) return <p role="alert">Deals access is restricted for your account. Contact the General Manager.</p>;
+  const access = resolveCrmNextAccess(user, { ownDeals: true });
 
   if (!access.allowed) {
     return <CrmNextUnavailable fallbackHref={access.fallbackHref} reason={access.reason} />;

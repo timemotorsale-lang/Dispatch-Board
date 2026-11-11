@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getDealsUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { executeVehicleUse, readDealContinuity } from "@/server/deal-continuity/service";
 import { dealIdentityFailure } from "@/server/deal-continuity/http";
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {

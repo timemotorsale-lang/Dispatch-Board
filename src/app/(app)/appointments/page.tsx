@@ -10,6 +10,7 @@ import { getAppointmentBoardSettings } from "@/server/services/appointment-admin
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { validFlowDate } from "@/features/advisor/workbook-flow-dates";
+import { canUseStaffCalendar } from "@/server/policies/access";
 
 type AppointmentsPageProps = {
   searchParams?: Promise<{
@@ -51,6 +52,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     cookies()
   ]);
 
+  if (!canUseStaffCalendar(user)) return <p role="alert">Calendar access is restricted for your account. Contact the General Manager.</p>;
   const permittedWorkspaces = getPermittedWorkspaces(user);
   const preferredWorkspace = resolveWorkspacePreference(user, cookieStore.get(WORKSPACE_COOKIE_NAME)?.value);
   const workspaceKey = getWorkspaceKey(user, preferredWorkspace);

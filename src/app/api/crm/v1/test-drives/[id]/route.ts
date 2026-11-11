@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isTrustedAppMutation } from "@/lib/app-request-origin";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getDealsUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { executeTestDrive, readTestDrive } from "@/server/deal-continuity/test-drive";
 import { dealIdentityFailure } from "@/server/deal-continuity/http";
 type Context = { params: Promise<{ id: string }> };

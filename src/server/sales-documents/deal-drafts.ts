@@ -6,7 +6,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { isSalesDocumentPathway } from "@/lib/sales-document-pathways";
 import { isSavedDealStatus } from "@/lib/saved-deal-status";
-import { requireSalesDocumentsUser } from "./service";
+import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
 import { SalesDocumentsError } from "./domain";
 
 const text = (value: unknown) => typeof value === "string" ? value.trim().slice(0, 240) : "";
@@ -16,7 +16,7 @@ export function sanitizeDealDraftSnapshot(value: unknown): unknown {
   return Object.fromEntries(Object.entries(value).filter(([key]) => !/ssn|itin|social.?security|routing.?number|bank.?account|credit.?card.?number|__proto__|^constructor$|^prototype$/i.test(key)).map(([key, item]) => [key, sanitizeDealDraftSnapshot(item)]));
 }
 function scope(actor: AuthenticatedUser | null) {
-  const user = requireSalesDocumentsUser(actor);
+  const user = requireOwnDealUser(actor);
   return { organizationId: resolveDocumentStorageRuntimeFromEnv().organizationId, ownerUserId: user.id };
 }
 
