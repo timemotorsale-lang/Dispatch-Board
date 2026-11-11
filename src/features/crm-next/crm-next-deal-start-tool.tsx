@@ -4600,6 +4600,8 @@ function DealStartDesk({
   const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
   const [documentEditor, setDocumentEditor] = useState(false);
   const workspaceRoot = useRef<HTMLElement>(null);
+  const identityPanel = useRef<HTMLDivElement>(null);
+  const [identityNavigation, setIdentityNavigation] = useState(0);
   const [packetRequested, setPacketRequested] = useState(false);
   useEffect(() => {
     const navigate = (event: Event) => {
@@ -4619,8 +4621,15 @@ function DealStartDesk({
   }, [packetRequested]);
   function navigateWorkspace(section: DealWorkspaceSection) {
     setWorkspaceSection(section);
+    if (section === "identity") setIdentityNavigation(value => value + 1);
     if (section === "terms") setExecutionOpen(true);
   }
+  useEffect(() => {
+    if (!identityNavigation || workspaceSection !== "identity") return;
+    const panel = identityPanel.current;
+    panel?.focus({ preventScroll: true });
+    panel?.scrollIntoView({ block: "center" });
+  }, [identityNavigation, workspaceSection]);
   function openDocumentPreparation() {
     setExecutionOpen(true); setDocumentEditor(true); setWorkspaceSection("documents"); setPacketRequested(true);
   }
@@ -4955,6 +4964,15 @@ function DealStartDesk({
     });
   }
 
+  const customerVehiclePicker = (
+    <div ref={identityPanel} role="group" aria-label="Choose customer and vehicle" tabIndex={-1} data-deal-workspace-section="identity" hidden={!testDriveWorkflow && workspaceSection !== "identity"}>
+      <div className={identityStyles.identityGrid}>
+        <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
+        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
+      </div>
+    </div>
+  );
+
   return (
     <SharedDealVehicleContext.Provider value={identity.vehicle ?? null}>
     <DealDocumentContext.Provider value={getDocumentContext}>
@@ -4972,13 +4990,8 @@ function DealStartDesk({
       {typeof savedDeal?.read("desk:assignmentPathway") === "string" && savedDeal.read("desk:assignmentPathway") !== workflowId && ["daily-rental", "vehicle-loaner", "test-drive"].includes(String(savedDeal.read("desk:assignmentPathway"))) && <section aria-label="Original vehicle assignment"><h2>Original vehicle assignment · record return or cancellation</h2><p>The pathway has changed. This original vehicle assignment remains open until its actual return or cancellation is recorded.</p>{savedDeal.read("desk:assignmentPathway") === "test-drive" ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope> : <VehicleUseTool returnOnly key={`original:${savedDeal.draftId()}`} pathway={String(savedDeal.read("desk:assignmentPathway"))} />}</section>}
       {workflowId === "daily-rental" && <VehicleUseTool key={savedDeal?.draftId()} pathway={workflowId} onNavigate={navigateWorkspace} />}
       <DealWorkspaceOverview savedSummary={saveState.record ? <DealSavedSummary record={saveState.record} dirty={saveState.dirty} busy={saveState.busy} viewer={model.userName} viewerId={model.userId} onNavigate={navigateWorkspace} onPreparePacket={openDocumentPreparation} onComplete={() => void savedDeal?.completeSale()} onSaveAndClose={() => { if (!saveState.dirty && !saveState.busy) { router.push(CRM_NEXT_DEALS_HREF); return; } void savedDeal?.save().then(saved => { if (saved) router.push(CRM_NEXT_DEALS_HREF); }); }} /> : undefined} customer={selectedCustomer?.name ?? (form.customerId === MANUAL_CUSTOMER_ID ? manualCustomerName : "")} vehicle={identity.vehicle?.label ?? form.vehicle} pathway={workflowId} pathwayLabel={selectedPreset?.label ?? workflow.label} owner={model.userName} status={savedDeal?.saleStatus ?? "IN_PROGRESS"} finalized={savedDeal?.paperworkComplete ?? false} saved={saveState.saved} saveStatus={saveState.message} section={workspaceSection} onNavigate={navigateWorkspace} pathwayOptions={DEAL_START_PRESETS.map(preset => ({id:preset.id,label:preset.label}))} selectedPreset={selectedPreset.id} onPathway={id => { const preset=DEAL_START_PRESETS.find(preset=>preset.id===id); if(preset){applyPreset(preset);setWorkspaceSection("overview");} }} />
-      {testDriveWorkflow && <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} /></DealDraftScope>}
       <div role={workspaceSection === "overview" ? undefined : "tabpanel"} id={workspaceSection === "overview" ? undefined : "deal-workspace-panel"} aria-labelledby={workspaceSection === "overview" ? undefined : `deal-workspace-tab-${workspaceSection}`}>
-      <div data-deal-workspace-section="identity" hidden={workspaceSection !== "identity"}><div className={identityStyles.identityGrid}>
-        <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
-        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
-      </div>
-      </div>
+      {testDriveWorkflow ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} identityPicker={customerVehiclePicker} showIdentityPicker={workspaceSection === "identity"} /></DealDraftScope> : customerVehiclePicker}
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
       {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div>{["SALES", "LEASING"].includes(dealGroup(workflowId)) && <fieldset><legend>Minnesota title authority</legend><p>{SECURE_POA_GUIDANCE}</p><p>Limited POA is for permitted title and registration transactions. The generated revision is for acceptance review.</p><div className={styles.retailFieldGrid}>{[[LIMITED_POA_ID, "Attach signed Limited POA"], [SECURE_POA_ID, "Attach completed official Minnesota Secure POA"]].map(([id, label]) => <label key={id}><span>{label}</span><input type="file" data-document-type={id} accept="application/pdf,image/png,image/jpeg" disabled={documentUploadBusy || !identity.customerId || !identity.vehicle?.vin} /></label>)}</div></fieldset>}</section>}

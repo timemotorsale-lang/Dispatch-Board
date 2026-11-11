@@ -7,9 +7,10 @@ import {cashSigningTemplate,cashSigningTemplateSource,cashSigningTemplatePdf} fr
 const facts={...EMPTY_CASH_SALE,warrantyType:"Dealer limited warranty"};
 async function document(id:string,pages:number){const pdf=await PDFDocument.create();for(let i=0;i<pages;i++)pdf.addPage([612,792]);return {formId:id,contentBase64:Buffer.from(await pdf.save()).toString("base64"),contentType:"application/pdf",signatureStatus:"UNSIGNED"};}
 describe("cash print library",()=>{
- it("does not carry a legacy dealer license number into newly generated signing packets",async()=>{
+ it("omits the seller detail fields from newly generated purchase agreements",async()=>{
   const pdf=await PDFDocument.load(Buffer.from(await cashSigningTemplatePdf("sales-agreement",{customerName:"Sample Buyer",dealNumber:"REVIEW",salePrice:"10000",facts:{...EMPTY_CASH_SALE,dealerLicense:"LEGACY-LICENSE"},vehicle:{vin:"2T3W1RFVXRW333586",year:"2024",make:"Toyota",model:"RAV4",stockNumber:"333586",color:"Silver"}}),"base64"));
-  expect(pdf.getForm().getTextField("dealerLicense").getText()||"").toBe("");
+  for (const field of ["dealerName", "dealerAddress", "dealerPhone", "dealerLicense"]) expect(pdf.getForm().getFieldMaybe(field)).toBeUndefined();
+  expect(pdf.getForm().getTextField("dealNumber").getText()).toBe("REVIEW");
  });
  it("deduplicates packs and excludes optional arbitration and conflicting As Is forms",()=>{const ids=cashPrintPackIds(["cash-signing","full"],facts);expect(new Set(ids).size).toBe(ids.length);expect(ids).not.toContain("as-is-acknowledgment");expect(ids).not.toContain("arbitration-agreement");expect(cashDefaultFormIds(facts)).not.toContain("arbitration-agreement");});
  it("keeps warranty elections consistent and requires actual trade details",()=>{const noWarranty={...facts,warrantyType:"No dealer warranty - eligibility reviewed"};expect(cashFormUnavailable("warranty-disclosure",noWarranty)).toBeTruthy();expect(cashFormUnavailable("as-is-acknowledgment",noWarranty)).toBe("");expect(cashPrintPackIds(["cash-signing"],noWarranty)).toContain("as-is-acknowledgment");expect(cashFormUnavailable("trade-documents",facts)).toBeTruthy();});

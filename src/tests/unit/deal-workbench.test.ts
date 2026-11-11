@@ -8,9 +8,9 @@ const actor: AuthenticatedUser = { id: "workbench-user", name: "Staff", email: "
 
 describe("Deal workbench retrieval", () => {
   beforeEach(() => vi.resetAllMocks());
-  it("denies anonymous and non-staff retrieval", async () => {
+  it("denies anonymous and restricted staff retrieval", async () => {
     await expect(listDealWorkbench(null, new URLSearchParams())).rejects.toMatchObject({ status: 401 });
-    await expect(listDealWorkbench({ ...actor, roles: ["Technician"] }, new URLSearchParams())).rejects.toMatchObject({ status: 403 });
+    await expect(listDealWorkbench({ ...actor, dealsRestricted: true }, new URLSearchParams())).rejects.toMatchObject({ status: 403 });
     expect(mocks.query).not.toHaveBeenCalled();
   });
   it("returns packet-only transactions without requiring a draft", async () => {
@@ -19,6 +19,7 @@ describe("Deal workbench retrieval", () => {
     const query = mocks.query.mock.calls[0][0];
     expect(query.values).toContain(actor.id); expect(query.values).toContain("workbench-org");
     expect(query.text).toContain('NOT EXISTS (SELECT 1 FROM drafts');
+    expect(query.text).toContain('j."createdByUserId" =');
     expect(query.text).toContain('"snapshot" -> \'jackets\'');
   });
   it("binds search values and paginates in the database", async () => {

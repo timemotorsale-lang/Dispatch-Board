@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { requireSalesDocumentsUser } from "@/server/sales-documents/service";
+import { requireOwnDealUser } from "./own-deal-access";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { isManager } from "@/server/policies/access";
 import { dealCustomer, dealDocumentOrganization, dealOrganization, dealVehicle } from "./identities";
@@ -20,7 +20,7 @@ const text = (value: unknown) => typeof value === "string" ? value.trim().slice(
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
 export async function resolveDealSource(actor: AuthenticatedUser | null, source: { sourceDraftId?: string; sourceJacketId?: string }, db: Tx = prisma) {
-  const user = requireSalesDocumentsUser(actor), organizationId = dealOrganization();
+  const user = requireOwnDealUser(actor), organizationId = dealOrganization();
   const documentOrganizationId = dealDocumentOrganization();
   if (Boolean(source.sourceDraftId) === Boolean(source.sourceJacketId)) throw new SalesDocumentsError("Choose one original deal or agreement.");
   const draft = source.sourceDraftId ? await db.dealDeskDraft.findFirst({ where: { id: source.sourceDraftId, organizationId: documentOrganizationId, ...(isManager(user) ? {} : { ownerUserId: user.id }) }, include: { continuity: true } }) : null;
@@ -64,7 +64,7 @@ export async function persistDealContext(actor: AuthenticatedUser | null, db: Tx
 }
 
 export async function contextFor(actor: AuthenticatedUser | null, id: string, db: Tx = prisma) {
-  const user = requireSalesDocumentsUser(actor);
+  const user = requireOwnDealUser(actor);
   const context = await db.dealWorkflowContext.findFirst({ where: { id, organizationId: dealOrganization() }, include: { draft: true, bookings: { orderBy: { createdAt: "desc" } } } });
   if (!context) throw new SalesDocumentsError("Save a deal with its shared customer and vehicle first.", 404);
   if (context.draft.ownerUserId !== user.id && !isManager(user)) throw new SalesDocumentsError("This deal is outside your authorized scope.", 403);
@@ -81,7 +81,7 @@ export async function readDealContinuity(actor: AuthenticatedUser | null, id: st
 }
 
 export async function executeVehicleUse(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>) {
-  const user = requireSalesDocumentsUser(actor), data = normalizeVehicleUseCommand(raw), organizationId = dealOrganization();
+  const user = requireOwnDealUser(actor), data = normalizeVehicleUseCommand(raw), organizationId = dealOrganization();
   const requestHash = createHash("sha256").update(JSON.stringify({ id, actorId: user.id, ...data, ...(data.action === "HANDOFF" ? { handover: { physicalHandover: raw.physicalHandover === true, insuranceVerified: raw.insuranceVerified === true, insuranceValidUntil: String(raw.insuranceValidUntil ?? ""), timezone: String(raw.timezone ?? "") } } : {}) })).digest("hex");
   return prisma.$transaction(async db => {
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":operation:" + data.operationKey}, 0))`;

@@ -13,7 +13,8 @@ if (!Number.isFinite(intervalMs) || intervalMs < 60_000) {
 const routes = [
   "/api/cron/generate-board",
   "/api/cron/evaluate-concerns",
-  "/api/cron/evaluate-purchase-imports"
+  "/api/cron/evaluate-purchase-imports",
+  "/api/cron/extend-dispatch-repeats"
 ];
 
 const delay = (milliseconds) =>
@@ -25,7 +26,7 @@ async function invoke(route) {
 
   try {
     const response = await fetch(new URL(route, baseUrl), {
-      method: route === "/api/cron/evaluate-purchase-imports" ? "POST" : "GET",
+      method: ["/api/cron/evaluate-purchase-imports", "/api/cron/extend-dispatch-repeats"].includes(route) ? "POST" : "GET",
       headers: {
         authorization: `Bearer ${cronSecret}`
       },

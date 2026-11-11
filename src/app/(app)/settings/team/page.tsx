@@ -1,5 +1,7 @@
 import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { TeamManagementPanel } from "@/features/settings/team-management-panel";
+import { StaffWorkflowAccess } from "@/features/settings/staff-workflow-access";
+import { prisma } from "@/server/db/client";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { listPasswordRecoveryRequests } from "@/server/auth/password-recovery";
 import { listStaffInvites } from "@/server/auth/staff-invite";
@@ -76,6 +78,12 @@ export default async function TeamManagementSettingsPage() {
     );
   }
 
+  const workflowStaff = canGrantManagerPowers(user) ? await prisma.user.findMany({
+    where: { isActive: true, userRoles: { none: { role: { name: "General Manager" } } } },
+    select: { id: true, name: true, dealsRestricted: true, calendarRestricted: true },
+    orderBy: { name: "asc" }
+  }) : null;
+
   const visibleDutyCount = snapshot.duties.filter(
     (duty) => duty.name.trim().toLowerCase() !== DELEGATED_MANAGER_DUTY_NAME.toLowerCase()
   ).length;
@@ -106,6 +114,7 @@ export default async function TeamManagementSettingsPage() {
           <strong>Team management</strong>
         </div>
 
+        {workflowStaff && <StaffWorkflowAccess staff={workflowStaff} />}
         <TeamManagementPanel
           canGrantManagerPowers={canGrantManagerPowers(user)}
           duties={snapshot.duties}

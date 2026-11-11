@@ -845,7 +845,7 @@ describe("appointment read service", () => {
     });
   });
 
-  it("rejects unauthenticated users and users without active schedule access", async () => {
+  it("rejects unauthenticated users and hides other appointments without shared schedule access", async () => {
     await expect(
       listAppointmentReadModels(
         null,
@@ -877,7 +877,7 @@ describe("appointment read service", () => {
         }),
         now
       )
-    ).rejects.toThrow("Appointment schedule is not authorized.");
+    ).resolves.toMatchObject({ appointments: [] });
   });
 
   it("returns direct appointment detail through the same masked read projection", async () => {

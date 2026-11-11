@@ -14,6 +14,8 @@ export function cashSigningTemplateSource(id:string) {
   return {bytes,template};
 }
 const safe=(value:string)=>value.replace(/[\u2013\u2014]/g,"-").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"');
+const omittedAgreementSellerFields = new Set(["dealerName", "dealerAddress", "dealerPhone", "dealerLicense"]);
+
 export async function cashSigningTemplatePdf(id:string,input:Input) {
   const {bytes,template}=cashSigningTemplateSource(id),pdf=await PDFDocument.load(bytes),form=pdf.getForm(),font=await pdf.embedFont(StandardFonts.Helvetica);
   const f=input.facts,t=input.pricing ?? cashSaleTotals(input.salePrice,f),m=cashMoney;
@@ -27,6 +29,7 @@ export async function cashSigningTemplatePdf(id:string,input:Input) {
   const continuation:Array<{label:string;value:string}>=[];
   if (id === "sales-agreement" && input.funding) continuation.push({ label: "Financing arrangement - not a payment receipt", value: `${input.funding.label}. Agreed down payment: ${input.funding.downPayment}. Financed portion under the separate credit agreement: ${input.funding.amountFinanced}. These amounts do not verify received or cleared funds. The front-page remaining balance shows the sale price less payments actually recorded; financing and down-payment collection remain separate.` });
   if (id === "sales-agreement") {
+    pdf.getPage(0).drawRectangle({ x: 65, y: 600, width: 482, height: 38, color: rgb(1, 1, 1) });
     const vehicle = input.vehicle;
     const specs = [
       ["Trim", vehicle.trim], ["Interior color", vehicle.interiorColor], ["Body style", vehicle.bodyStyle],
@@ -36,6 +39,7 @@ export async function cashSigningTemplatePdf(id:string,input:Input) {
   }
   if(id==="warranty-disclosure" && f.warrantyDuration && !values.term_60 && !values.term_30 && !values.term_15)continuation.push({label:"Staff-entered warranty term",value:f.warrantyDuration});
   for(const field of template.fields){
+    if (id === "sales-agreement" && field.page === 0 && omittedAgreementSellerFields.has(field.key)) continue;
     const value=field.signature ? "" : safe(values[field.key] || "");
     if(field.key.startsWith("term_")){
       const checkbox=form.createCheckBox(field.name);checkbox.addToPage(pdf.getPage(field.page),{x:field.x,y:field.y,width:field.width,height:9.5,borderWidth:.7,borderColor:rgb(.2,.25,.3)});if(value==="X")checkbox.check();continue;

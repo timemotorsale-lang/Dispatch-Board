@@ -6,6 +6,11 @@
 .checkbox input { width: auto; }
 .form p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .form footer { display: flex; justify-content: flex-end; }
+.form .saveFooter { align-items: center; gap: .75rem; flex-wrap: wrap; }
+.saveFooter p { flex: 1 1 16rem; }
+.saveError, .confirmation { border: 1px solid currentColor; border-radius: .5rem; padding: .65rem; }
+.saveError { color: #a62620; background: #fff4f2; }
+.confirmation { color: #175c39; background: #edf9f0; }
 .row { display: flex; flex-wrap: wrap; gap: .6rem; }
 .row > label { flex: 1 1 8rem; }
 .repeat { display: grid; gap: .55rem; }

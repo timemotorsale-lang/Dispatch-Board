@@ -61,6 +61,11 @@ async function readTasks(request: Request) {
     }) });
   }
   const today = flowDay(new Date().toISOString());
+  const stoppable = start && end ? await prisma.dispatchTaskRepeatBatch.findMany({
+    where: { userId: user.id, nextDate: { not: null }, firstTaskId: { not: null } },
+    select: { firstTaskId: true }
+  }) : [];
+  const stoppableTaskIds = new Set(stoppable.flatMap(batch => batch.firstTaskId ? [batch.firstTaskId] : []));
   const [personal, dispatch, lists] = await Promise.all([
     prisma.personalCalendarTask.findMany({
       where: {
@@ -74,8 +79,11 @@ async function readTasks(request: Request) {
       orderBy: [{ completedAt: { sort: "asc", nulls: "first" } }, { localDate: "asc" }, { createdAt: "desc" }]
     }),
     start && end ? prisma.task.findMany({
-      where: { assignedUserId: user.id, dueAt: { gte: new Date(flowMidnight(start)), lt: new Date(flowMidnight(end)) } },
-      select: { id: true, title: true, description: true, dueAt: true, status: true, workflowArea: true, requiresManagerApproval: true, templateSnapshot: true,
+      where: {
+        ...(stoppableTaskIds.size ? { OR: [{ assignedUserId: user.id }, { id: { in: [...stoppableTaskIds] } }] } : { assignedUserId: user.id }),
+        dueAt: { gte: new Date(flowMidnight(start)), lt: new Date(flowMidnight(end)) }
+      },
+      select: { id: true, title: true, description: true, dueAt: true, assignedUserId: true, status: true, workflowArea: true, requiresManagerApproval: true, templateSnapshot: true,
         createdByUser: { select: { name: true } } },
       orderBy: { dueAt: "asc" }
     }) : [],
@@ -102,12 +110,13 @@ async function readTasks(request: Request) {
         const intake = details?.intake;
         return {
           id: task.id, title: task.title, scope: "dispatch", localDate: flowDay(task.dueAt.toISOString()),
+          canStopDispatchRepeat: stoppableTaskIds.has(task.id),
           workflowArea: task.workflowArea,
           notes: task.description,
           creatorName: task.createdByUser?.name,
           workType: intake && typeof intake === "object" && !Array.isArray(intake) && typeof intake.intakeType === "string" ? intake.intakeType : null,
           localTime: allDay ? null : timeFormat.format(task.dueAt), completed: task.status === "COMPLETED",
-          canComplete: !task.requiresManagerApproval && (task.status === "NOT_STARTED" || task.status === "IN_PROGRESS")
+          canComplete: task.assignedUserId === user.id && !task.requiresManagerApproval && (task.status === "NOT_STARTED" || task.status === "IN_PROGRESS")
         };
       })
     ]
@@ -174,7 +183,7 @@ async function saveTask(request: Request) {
         customerReference: input.customerReference,
         vehicleReference: input.vehicleReference
       };
-      if (input.repeat) return reply(await createRepeatingDispatchTask(user, taskInput, input.repeat, requestId, localTime ?? "23:59"), 201);
+      if (input.repeat) return reply(await createRepeatingDispatchTask(user, taskInput, input.repeat, requestId, localTime ?? "23:59", input.noEnd === true), 201);
       const task = await createManualTask(user, taskInput);
       return reply({ task }, 201);
     } catch (error) {
@@ -207,6 +216,14 @@ export async function PATCH(request: Request) {
   const user = await getCurrentUser();
   if (!user) return reply({ error: "Authentication required." }, 401);
   const input = await request.json().catch(() => null);
+  if (input?.action === "stopDispatchRepeat") {
+    if (typeof input.id !== "string" || !input.id) return reply({ error: "Choose a schedule." }, 400);
+    const result = await prisma.dispatchTaskRepeatBatch.updateMany({
+      where: { userId: user.id, firstTaskId: input.id, nextDate: { not: null } },
+      data: { nextDate: null }
+    });
+    return result.count ? reply({ saved: true }) : reply({ error: "No active schedule found for this task." }, 404);
+  }
   if (input?.action === "stopRepeat") {
     if (typeof input.id !== "string" || typeof input.occurrence !== "string" || !validFlowDate(input.occurrence)) return reply({ error: "Choose an occurrence." }, 400);
     const task = await prisma.personalCalendarTask.findFirst({ where: { id: input.id, userId: user.id }, select: { localDate: true, repeat: true } });
