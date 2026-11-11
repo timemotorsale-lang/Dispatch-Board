@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { DealCustomerChoice, DealCustomerList, DealVehicleChoice } from "@/lib/deal-continuity";
 import { dealCustomerDisplayNumber, prefillDealVehicle } from "@/lib/deal-continuity";
+import type { CrmVehicleDecodeResult } from "@/lib/crm-vehicle-decode";
 import styles from "./shared-deal-identities.module.css";
 
 export const SharedDealVehicleContext = createContext<DealVehicleChoice | null>(null);
@@ -30,6 +31,10 @@ function AddSharedRecord({ vehicle, onCustomer, onVehicle, onCancel, initialName
   const [matches, setMatches] = useState<DealCustomerChoice[]>([]);
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [locationsLoading, setLocationsLoading] = useState(true), [locationReload, setLocationReload] = useState(0);
+  const decodeRequest = useRef<AbortController | null>(null);
+  const [decoding, setDecoding] = useState(false);
+  const [decodeStatus, setDecodeStatus] = useState("");
+  useEffect(() => () => decodeRequest.current?.abort(), []);
   useEffect(() => {
     const controller = new AbortController();
     void fetch(`/api/crm/v1/deal-identities?type=options&recordType=${vehicle ? "vehicle" : "customer"}`, { signal: controller.signal }).then(async response => {
@@ -42,8 +47,44 @@ function AddSharedRecord({ vehicle, onCustomer, onVehicle, onCancel, initialName
     }).catch(error => { if (!controller.signal.aborted) setError(error.message); }).finally(() => { if (!controller.signal.aborted) setLocationsLoading(false); });
     return () => controller.abort();
   }, [vehicle, locationReload]);
+  async function decodeVin() {
+    if (!vehicle || busy || decoding) return;
+    const vin = values.vin.trim().toUpperCase();
+    setError("");
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+      setDecodeStatus("Enter a 17-character VIN without I, O, or Q.");
+      return;
+    }
+    const controller = new AbortController();
+    decodeRequest.current = controller;
+    setDecoding(true);
+    setDecodeStatus("Decoding VIN…");
+    try {
+      const response = await fetch("/api/crm/v1/vehicle-decode", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vin }), signal: controller.signal
+      });
+      const result: CrmVehicleDecodeResult & { error?: string } = await response.json();
+      if (controller.signal.aborted) return;
+      if (!response.ok) throw new Error(result.error ?? "VIN lookup failed.");
+      const fields = ["year", "make", "model"] as const;
+      const details = Object.fromEntries(fields.flatMap(field => {
+        const value = result.proposals.find(proposal => proposal.field === field)?.value;
+        return value ? [[field, value]] : [];
+      }));
+      const count = Object.keys(details).length;
+      setValues(current => ({ ...current, vin, ...details }));
+      setDecodeStatus(count === fields.length ? "VIN decoded. Review the year, make and model before saving."
+        : count ? "Some details were decoded. Review them and fill in any missing fields before saving."
+          : "No vehicle details were found for this VIN. Verify the VIN or enter the details manually.");
+    } catch (error) {
+      if (!controller.signal.aborted) setDecodeStatus(`${error instanceof Error ? error.message : "VIN lookup failed."} You can retry or enter details manually.`);
+    } finally {
+      if (!controller.signal.aborted) setDecoding(false);
+    }
+  }
   async function save() {
-    if (busy) return;
+    if (busy || decoding) return;
     if (locationsLoading) { setError("Company locations are loading. Please try again shortly."); return; }
     if (!locations.some(location => location.id === values.locationId)) { setError(locations.length ? "Choose a company location before saving." : "No authorized location is available. Retry locations or ask a manager to review access; your entries are retained."); return; }
     setBusy(true); setError(""); setMatches([]);
@@ -60,7 +101,7 @@ function AddSharedRecord({ vehicle, onCustomer, onVehicle, onCancel, initialName
     finally { setBusy(false); }
   }
   const fields = vehicle ? [["vin", "VIN"], ["year", "Year"], ["make", "Make"], ["model", "Model"]] : [["displayName", "Customer name"], ["phoneNumber", "Phone"], ["email", "Email"], ["address", "Address (optional)"]];
-return <div className={styles.add} role="group" aria-label={vehicle ? "Add shared vehicle" : "Add shared customer"}><strong>{vehicle ? "Add vehicle once to the registry" : "Add customer once to shared CRM"}</strong><div className={styles.fields}>{fields.map(([key, label]) => <label key={key}>{label}<input value={values[key as keyof typeof values]} onChange={event => { setMatches([]); setError(""); setValues(current => ({ ...current, [key]: event.target.value })); }} /></label>)}<label>Location<select disabled={busy || locationsLoading || !locations.length} value={values.locationId} onChange={event => setValues(current => ({ ...current, locationId: event.target.value }))}><option value="">{locationsLoading ? "Loading locations…" : locations.length ? "Select location" : "No locations available"}</option>{locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label></div><p>{vehicle ? "An existing VIN is reused. Inventory eligibility is separate from creating the vehicle." : "Possible matches are held for selection; names alone never merge customers."}</p><button type="button" disabled={busy || locationsLoading || !locations.length} onClick={() => void save()}>{busy ? "Saving…" : vehicle ? "Save vehicle & select" : "Save customer & select"}</button><button type="button" onClick={onCancel}>Cancel</button>{error && <p role="alert">{error}</p>}{matches.length > 0 && <section aria-label="Existing customer matches"><h3>Existing customer found</h3><p>Select the matching record to continue. This will not overwrite its contact information with the values entered above.</p><ul>{matches.map(match => <li key={match.id}><CustomerLabel customer={match} /><button type="button" disabled={busy} onClick={() => void selectMatch(match.id)}>Select existing customer · {match.name}</button></li>)}</ul><p>If this is a different person sharing a phone or email, ask a manager to review the records. Do not change contact information just to bypass the match.</p></section>}{!locationsLoading && !locations.length ? <button type="button" onClick={() => { setError(""); setLocationsLoading(true); setLocationReload(value => value + 1); }}>Retry locations</button> : null}</div>;
+return <div className={styles.add} role="group" aria-label={vehicle ? "Add shared vehicle" : "Add shared customer"}><strong>{vehicle ? "Add vehicle once to the registry" : "Add customer once to shared CRM"}</strong><div className={styles.fields}>{fields.map(([key, label]) => <label key={key}>{label}<input value={values[key as keyof typeof values]} disabled={vehicle && decoding && key !== "vin"} onKeyDown={vehicle && key === "vin" ? event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); void decodeVin(); } } : undefined} onChange={event => { setMatches([]); setError(""); if (key === "vin") { decodeRequest.current?.abort(); setDecoding(false); setDecodeStatus(""); } setValues(current => ({ ...current, [key]: event.target.value })); }} /></label>)}<label>Location<select disabled={busy || locationsLoading || !locations.length} value={values.locationId} onChange={event => setValues(current => ({ ...current, locationId: event.target.value }))}><option value="">{locationsLoading ? "Loading locations…" : locations.length ? "Select location" : "No locations available"}</option>{locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label></div>{vehicle && <><button type="button" disabled={busy || decoding} onClick={() => void decodeVin()}>{decoding ? "Decoding…" : "Decode VIN"}</button><p role="status">{decodeStatus || "Enter the VIN and press Enter to fill in the vehicle details."}</p></>}<p>{vehicle ? "An existing VIN is reused. Inventory eligibility is separate from creating the vehicle." : "Possible matches are held for selection; names alone never merge customers."}</p><button type="button" disabled={busy || decoding || locationsLoading || !locations.length} onClick={() => void save()}>{busy ? "Saving…" : vehicle ? "Save vehicle & select" : "Save customer & select"}</button><button type="button" onClick={onCancel}>Cancel</button>{error && <p role="alert">{error}</p>}{matches.length > 0 && <section aria-label="Existing customer matches"><h3>Existing customer found</h3><p>Select the matching record to continue. This will not overwrite its contact information with the values entered above.</p><ul>{matches.map(match => <li key={match.id}><CustomerLabel customer={match} /><button type="button" disabled={busy} onClick={() => void selectMatch(match.id)}>Select existing customer · {match.name}</button></li>)}</ul><p>If this is a different person sharing a phone or email, ask a manager to review the records. Do not change contact information just to bypass the match.</p></section>}{!locationsLoading && !locations.length ? <button type="button" onClick={() => { setError(""); setLocationsLoading(true); setLocationReload(value => value + 1); }}>Retry locations</button> : null}</div>;
 }
 export function SharedDealCustomerPicker({ selected, initialItems = [], initialCustomerList, onSelect }: { selected?: DealCustomerChoice | null; initialItems?: DealCustomerChoice[]; initialCustomerList?: DealCustomerList; onSelect: (value: DealCustomerChoice) => void }) {
   const [query, setQuery] = useState(""), [items, setItems] = useState(initialCustomerList?.items ?? initialItems), [cursor, setCursor] = useState<string | null>(initialCustomerList?.nextCursor ?? null), [adding, setAdding] = useState(false), [open, setOpen] = useState(false), [error, setError] = useState(initialCustomerList?.error ?? ""), [busy, setBusy] = useState(false);
