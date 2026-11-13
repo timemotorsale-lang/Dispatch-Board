@@ -35,6 +35,13 @@ vi.mock("next/navigation", () => ({
   redirect: navigation.redirect
 }));
 
+vi.mock("@/server/services/task-read", () => ({
+  getTaskReadModelById: vi.fn(async () => ({
+    id: "task-1", title: "Follow up", description: "Discuss next visit",
+    customerReference: "Customer 123", vehicleReference: "Vehicle 456",
+  }))
+}));
+
 vi.mock("@/server/advisor-workspace/service", () => ({
   getServiceAdvisorWorkspace: vi.fn(async () => ({
     advisor: { id: "ancilla", name: "Ancilla Ops" },
@@ -54,8 +61,8 @@ vi.mock("@/features/appointments/appointment-board-loader", () => ({
 }));
 
 vi.mock("@/features/appointments/appointment-console-refinement", () => ({
-  AppointmentConsoleNewAppointment: ({ initialFullCalendar }: { initialFullCalendar?: boolean }) => (
-    <section data-testid="new-appointment">{initialFullCalendar ? "Full Calendar" : "New Appointment Calendar"}</section>
+  AppointmentConsoleNewAppointment: ({ initialFullCalendar, initialContext }: { initialFullCalendar?: boolean; initialContext?: unknown }) => (
+    <section data-testid="new-appointment" data-context={JSON.stringify(initialContext)}>{initialFullCalendar ? "Full Calendar" : "New Appointment Calendar"}</section>
   ),
   AppointmentConsoleTodayFlow: () => <section data-testid="appointment-console">Appointment Console Today Flow</section>
 }));
@@ -105,7 +112,23 @@ describe("appointments page routing", () => {
       searchParams: Promise.resolve({ action: "new" })
     }));
 
-    expect(html).toContain("New Appointment Calendar");
+    expect(html).toContain("Full Calendar");
     expect(html).not.toContain("Appointment Board");
+  });
+
+  it("opens the full calendar from a task link and keeps its scheduling context", async () => {
+    const html = renderToStaticMarkup(await AppointmentsPage({
+      searchParams: Promise.resolve({ sourceTask: "task-1", returnTo: "/manager-workspace?mode=coo", localDate: "2026-11-17", startTime: "09:30" })
+    }));
+    for (const value of ["Full Calendar", "task-1", "Discuss next visit", "Customer 123", "Vehicle 456", "/manager-workspace?mode=coo", "2026-11-17", "09:30"]) {
+      expect(html).toContain(value);
+    }
+  });
+
+  it("keeps explicit board links with task context on the board", async () => {
+    const html = renderToStaticMarkup(await AppointmentsPage({
+      searchParams: Promise.resolve({ view: "board", sourceTask: "task-1" })
+    }));
+    expect(html).toContain("Appointment Board");
   });
 });

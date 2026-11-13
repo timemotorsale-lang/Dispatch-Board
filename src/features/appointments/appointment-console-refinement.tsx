@@ -929,7 +929,12 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
   const [calendarInsightCard, setCalendarInsightCard] = useState<CalendarInsightCard>(null);
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [fullPageCalendarOpen, setFullPageCalendarOpen] = useState(initialFullCalendar);
-  const [calendarRailOpen, setCalendarRailOpen] = useState(true);
+  const [calendarRailOpen, setCalendarRailOpen] = useState(false);
+  const calendarRailToggle = useRef<HTMLButtonElement>(null);
+  function closeCalendarRail() {
+    setCalendarRailOpen(false);
+    calendarRailToggle.current?.focus();
+  }
   const [calendarSearchOpen, setCalendarSearchOpen] = useState(Boolean(initialContext?.calendarQuery));
   const [calendarSearch, setCalendarSearch] = useState(initialContext?.calendarQuery ?? "");
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(Boolean(initialContext?.advancedCalendarSearch));
@@ -1829,7 +1834,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
       <section className={styles.workspace} aria-label="Full-page appointment calendar">
         <header className={styles.toolbar}>
           <div className={styles.brand}>
-            <button aria-controls="calendar-sidebar" aria-expanded={calendarRailOpen} aria-label="Toggle calendar sidebar" type="button" onClick={() => setCalendarRailOpen(open => !open)}><Menu size={20} /></button>
+            <button ref={calendarRailToggle} aria-controls="calendar-sidebar" aria-expanded={calendarRailOpen} aria-label="Toggle calendar sidebar" type="button" onClick={() => setCalendarRailOpen(open => !open)}><Menu size={20} /></button>
             <CalendarDays size={24} aria-hidden="true" /><h1>Calendar</h1>
           </div>
           <div className={styles.navigation}>
@@ -1874,7 +1879,7 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
                 }}>Private event</button>
               </div>
             </details>
-            {initialFullCalendar ? <Link href="/appointments?section=today">Exit calendar</Link> : <button type="button" onClick={closeFullPageCalendar}>Back</button>}
+            {initialFullCalendar ? <Link href={initialContext?.returnTo ?? "/appointments?section=today"}>{initialContext?.returnTo ? "Back to source workspace" : "Exit calendar"}</Link> : <button type="button" onClick={closeFullPageCalendar}>Back</button>}
           </div>
         </header>
         {calendarSearchOpen && !advancedSearch && <div className={styles.search}>
@@ -1883,7 +1888,8 @@ export function AppointmentConsoleNewAppointment({ initialContext, initialFullCa
           <button type="button" onClick={() => setAdvancedSearchOpen(true)}>Advanced search</button>
         </div>}
         <div className={styles.body}>
-          <aside id="calendar-sidebar" className={styles.rail} hidden={!calendarRailOpen}>
+          {calendarRailOpen && <button className={styles.railBackdrop} aria-label="Close calendar sidebar" type="button" onClick={closeCalendarRail} />}
+          <aside id="calendar-sidebar" className={styles.rail} hidden={!calendarRailOpen} onKeyDown={event => { if (event.key === "Escape") closeCalendarRail(); }}>
             <div className={styles.miniHeader}>
               <strong>{monthLabel(form.localDate)}</strong>
               <button aria-label="Previous month" type="button" onClick={() => updateField("localDate", addMonths(form.localDate, -1))}><ChevronLeft size={16} /></button>
