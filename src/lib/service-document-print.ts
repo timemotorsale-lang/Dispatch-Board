@@ -2,7 +2,7 @@
 
 // Deliberately independent of global app CSS, navigation, dialogs and web fonts.
 export const SERVICE_DOCUMENT_PRINT_CSS = `
-@page { size: letter; margin: 14mm; }
+@page { size: letter; margin: 12mm; }
 * { box-sizing: border-box; }
 body { margin: 0; background: white; color: #172334; font: 11px/1.5 Arial, sans-serif; }
 article { width: 100%; max-width: 900px; margin: 24px auto; padding: 20px; }
@@ -10,6 +10,11 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 h1 { margin: 0; font-size: 25px; line-height: 1.2; color: #142e4d; } h2 { font-size: 13px; break-after: avoid; }
 header > div { min-width: 0; text-align: right; font-size: 10px; overflow-wrap: anywhere; }
 header span, header strong { display: block; } header span { color: #526477; }
+header > [data-document-title] { text-align: left; }
+[data-document-title] small { display: block; margin-top: 3px; font-size: 9px; color: #526477; }
+[data-estimate-summary] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: end; break-inside: avoid; }
+[data-estimate-summary] > dl { grid-area: 1 / 2; width: 100%; }
+[data-estimate-summary] > [data-document-signature] { grid-area: 1 / 1; }
 [data-document-parties] { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; padding: 8px 0; break-inside: avoid; }
 [data-document-brand] { min-width: 0; font-size: 10px; color: #526477; }
 [data-document-brand] img { display: block; width: 240px; max-width: 100%; height: auto; margin-bottom: 12px; }
@@ -41,7 +46,23 @@ article > dl dt:last-of-type, article > dl dd:last-of-type { font-weight: bold; 
 [data-document-signature] > span { display: block; border-top: 1px solid #172334; padding-top: 6px; }
 footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid #cbd5e1; margin-top: 24px; padding-top: 10px; font-size: 9px; color: #526477; break-inside: avoid; }
 .print-controls { padding: 12px; background: #f1f5fa; font-size: 13px; } .print-controls button { padding: 8px 20px; cursor: pointer; } .print-controls span { margin-left: 12px; }
-@media print { article { max-width: none; margin: 0; padding: 0; } .print-controls { display: none; } a { color: inherit; text-decoration: none; } }
+@media print {
+  article { max-width: none; margin: 0; padding: 0; }
+  header { padding: 10px 0; }
+  [data-document-parties] { padding: 4px 0; }
+  [data-document-brand] img { width: 205px; margin-bottom: 6px; }
+  [data-document-brand] p, [data-document-customer] p { margin: 4px 0; }
+  section { margin: 8px 0; }
+  [data-print-vehicle], [data-document-concern] { padding: 8px; }
+  table { margin: 10px 0; }
+  th, td { padding: 5px; }
+  [aria-label="Other charges"] > div { padding: 4px 0; }
+  dl { gap: 4px 16px; padding: 6px 0; }
+  [data-document-signature] { padding-top: 18px; }
+  footer { margin-top: 12px; padding-top: 6px; }
+  .print-controls { display: none; }
+  a { color: inherit; text-decoration: none; }
+}
 `;
 
 export async function openServiceDocumentPrint(source: HTMLElement | null, autoPrint = true) {

@@ -1,6 +1,10 @@
 import type { ServiceDocumentContent } from "@/server/repair-order/service-documents";
 import { formatEstimateDate } from "./estimate-details";
 
+export function isEstimateExpirationNote(note: string) {
+  return note.startsWith("Estimate valid through ") || note === "Estimate expiration not recorded.";
+}
+
 export function estimateCorrectionNotes(content: ServiceDocumentContent) {
   const details = content.estimateDetails;
   if (!details) return content.notes;
