@@ -66,12 +66,12 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   const sourceTask = focusParams?.sourceTask
     ? await getTaskReadModelById(user, focusParams.sourceTask).catch(() => null)
     : null;
-  const calendarMode = focusParams?.view === "calendar";
-  const localDate = focusParams?.localDate ?? "";
-  const newAppointmentMode = focusParams?.action === "new" || calendarMode;
   const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
+  const calendarMode = focusParams?.view === "calendar" ||
+    (!boardMode && (focusParams?.action === "new" || Boolean(focusParams?.sourceTask)));
+  const localDate = focusParams?.localDate ?? "";
 
-  if ((focusParams?.launch === "advisor" || (workspaceKey === "ADVISOR" && !managerContext)) && !newAppointmentMode && !boardMode && !focusParams?.section) {
+  if ((focusParams?.launch === "advisor" || (workspaceKey === "ADVISOR" && !managerContext)) && !calendarMode && !boardMode && !focusParams?.section) {
     const query = new URLSearchParams();
     if (focusParams?.inbox) query.set("inbox", focusParams.inbox);
     if (focusParams?.queue) query.set("queue", focusParams.queue);
@@ -81,21 +81,21 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     if (focusParams?.launch) query.set("launch", focusParams.launch);
     redirect(`/vehicles/advisor${query.size ? `?${query.toString()}` : ""}`);
   }
-  if (newAppointmentMode) {
+  if (calendarMode) {
     return (
       <>
-      {calendarMode && <Link className="pill pill-secondary" href={`/board/repair-priorities${validFlowDate(localDate) ? `?date=${localDate}` : ""}`}>Repair Priorities</Link>}
+      <Link className="pill pill-secondary" href={`/board/repair-priorities${validFlowDate(localDate) ? `?date=${localDate}` : ""}`}>Repair Priorities</Link>
       <AppointmentConsoleNewAppointment
-        key={calendarMode ? `calendar:${focusParams?.q ?? ""}:${focusParams?.advanced ?? ""}:${localDate}` : "new"}
-        initialFullCalendar={calendarMode}
+        key={JSON.stringify([focusParams?.sourceTask, focusParams?.crmCustomerId, focusParams?.customerReference, focusParams?.vehicleReference, focusParams?.returnTo, localDate, focusParams?.startTime, focusParams?.durationMinutes, focusParams?.purpose, focusParams?.reason, focusParams?.title, focusParams?.q, focusParams?.advanced])}
+        initialFullCalendar
         initialContext={{
           crmCustomerId: focusParams?.crmCustomerId,
           customerReference: focusParams?.customerReference ?? sourceTask?.customerReference ?? "",
           localDate: focusParams?.localDate ?? "",
           durationMinutes: Number(focusParams?.durationMinutes),
           purposeCode: focusParams?.purpose === "repair" ? "SERVICE_REPAIR" : undefined,
-          calendarQuery: calendarMode && typeof focusParams?.q === "string" ? focusParams.q.slice(0, 100) : undefined,
-          advancedCalendarSearch: calendarMode && focusParams?.advanced === "1",
+          calendarQuery: typeof focusParams?.q === "string" ? focusParams.q.slice(0, 100) : undefined,
+          advancedCalendarSearch: focusParams?.advanced === "1",
           viewerName: user.name,
           reason: focusParams?.reason ?? sourceTask?.description ?? "",
           returnTo: safeRoute(focusParams?.returnTo) ?? (sourceTask ? `/tasks/${sourceTask.id}` : undefined),

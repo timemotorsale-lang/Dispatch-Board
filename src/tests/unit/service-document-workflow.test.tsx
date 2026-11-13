@@ -26,10 +26,17 @@ describe("single document workflow", () => {
     expect(html).toContain("Service Advisor");
     expect(html).toContain("Oct 29, 2026");
   });
-  it("offers invoice conversion only after a matching accepted approval", () => {
+  it("shows the signature line on the estimate and leaves it off the invoice", () => {
+    const content = { ...estimate.content, totals: { subtotalCents: 22563, discountCents: 0, taxCents: 1120, totalCents: 23683 } };
+    expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[{ ...estimate, content }]} selectedId={estimate.id} />)).toContain("Customer / authorized representative signature");
+    expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[{ ...estimate, kind: "INVOICE", content: { ...content, title: "Final Service Invoice" } }]} selectedId={estimate.id} />)).not.toContain("Customer / authorized representative signature");
+  });
+  it("continues the same repair order after a matching accepted approval", () => {
     const approval: WorkflowDocument = { ...estimate, id: "decision-1", sourceId: "approval-1", kind: "AUTHORIZATION", content: { ...estimate.content, decision: { disposition: "ACCEPTED", actor: "Customer", channel: "IN_PERSON", approvedLineKeys: [], declinedLineKeys: [], undecidedLineKeys: [] }, notes: ["Source estimate estimate-1, version 1;"] } };
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[approval, estimate]} selectedId={estimate.id} />);
-    expect(html).toContain("Convert to invoice");
+    expect(html).toContain("Continue repair");
+    expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1"');
+    expect(html).toContain("Review invoice requirements");
     const unrelated = { ...approval, content: { ...approval.content, notes: ["Source estimate old-estimate, version 1;"] } };
     expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[unrelated, estimate]} selectedId={estimate.id} />)).toContain("Record customer approval");
     const revoked = { ...approval, id: "revoked", content: { ...approval.content, decision: { ...approval.content.decision!, disposition: "REVOKED" } } };

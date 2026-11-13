@@ -58,7 +58,12 @@ export function ServiceBillingWorkspace({ repairOrderId: initialId, onDocumentRe
       if (onDocumentReady && typeof sourceId === "string" && sourceId) { setPending(null); onDocumentReady(sourceId); return; }
       setPending(null); setNotice(body.duplicate ? "Original receipt recovered; no duplicate financial entry was made." : command.action === "POST_INVOICE" ? "Invoice generated. Open the issued invoice below to print or save as PDF." : command.action === "PAYMENT" ? "Payment recorded and receipt generated. Open the receipt below to print or save as PDF." : "Financial activity recorded. Review the frozen document below.");
       const refreshed = await load();
-      if (command.action === "PREPARE_INVOICE") {
+      if (command.action === "POST_INVOICE") {
+        const task = nextBillingTask(refreshed);
+        setAction(task.action);
+        setSubjectId(task.subjectId);
+        setReason("");
+      } else if (command.action === "PREPARE_INVOICE") {
         const task = nextBillingTask(refreshed);
         const ready = task.action === "POST_INVOICE";
         setAction(task.action);

@@ -32,6 +32,16 @@ function foundation(): EnterpriseCommandRepository {
 }
 
 describe("service close parts service", () => {
+  it("allows only managers to change the purchasing restriction", async () => {
+    const setPurchaseApprovalPolicy = vi.fn().mockResolvedValue({ result: { purchaseApprovalRequired: true } });
+    const repository = { aggregateVersion: vi.fn().mockResolvedValue(0), setPurchaseApprovalPolicy } as unknown as ServiceClosePartsRepository;
+    const input = { repository, foundationRepository: foundation(), enforceRollout: false };
+    const change = { action: "SET_PURCHASE_APPROVAL_POLICY", required: true, idempotencyKey: "purchase-policy-test" };
+    await expect(executeServiceClosePartsCommand({ ...manager, roles: ["Parts"] }, change, input)).rejects.toThrow("Only a manager");
+    expect(setPurchaseApprovalPolicy).not.toHaveBeenCalled();
+    await executeServiceClosePartsCommand(manager, change, input);
+    expect(setPurchaseApprovalPolicy).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: manager.id }), true);
+  });
   it("rejects a recon exception for customer work even with an inventory link", async () => {
     const repository = { overview: vi.fn().mockResolvedValue({ repairOrders: [{
       id: "ro-customer", origin: "CUSTOMER_REPAIR", inventoryUnit: { id: "inventory-1" },

@@ -455,3 +455,5 @@
     padding-left: 14px;
   }
 }
+.signature { display: grid; grid-template-columns: minmax(0, 1fr) minmax(64px, 25%); gap: 16px; margin: 24px 0 16px; break-inside: avoid; }
+.signature span { border-top: 1px solid #64748b; padding-top: 5px; font-size: 11px; }

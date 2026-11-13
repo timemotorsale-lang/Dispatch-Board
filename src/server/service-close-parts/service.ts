@@ -88,7 +88,11 @@ export async function getServiceClosePartsWorkspace(actor: AuthenticatedUser | n
   const context = dependencies(input);
   await authorize(actor, "SHOP_OPERATIONS", false, null, context);
   await authorize(actor, "PARTS_OPERATIONS", false, null, context);
-  return context.repository.overview(context.organizationId);
+  const [overview, purchaseApprovalRequired] = await Promise.all([
+    context.repository.overview(context.organizationId),
+    context.repository.purchaseApprovalRequired(context.organizationId),
+  ]);
+  return { ...overview, purchaseApprovalRequired, canSetPurchaseApproval: Boolean(actor && isManager(actor)) };
 }
 
 export async function getPartsOperationsSource(actor: AuthenticatedUser | null, input: Dependencies = {}) {
@@ -111,12 +115,23 @@ export async function getPartsOperationsSource(actor: AuthenticatedUser | null, 
 
 export async function executeServiceClosePartsCommand(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
   const raw = object(value), action = required(raw.action, "Action", 80).toUpperCase(), context = dependencies(input);
+  if (action === "SET_PURCHASE_APPROVAL_POLICY") {
+    const user = await authorize(actor, "PARTS_OPERATIONS", true, null, context);
+    if (!isManager(user)) throw new Error("Only a manager can change the purchase approval requirement.");
+    if (typeof raw.required !== "boolean") throw new Error("Choose whether purchase approval is required.");
+    const subjectType = "PART_PURCHASE_APPROVAL_POLICY";
+    const subjectId = `parts-purchase-approval:${context.organizationId}`;
+    const version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", subjectType, subjectId);
+    return context.repository.setPurchaseApprovalPolicy(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), organizationId: context.organizationId, payload: { required: raw.required }, reason: raw.required ? "Require manager approval for parts purchases." : "Allow parts purchases without manager approval.", subjectId, subjectType }), raw.required);
+  }
   const view = await context.repository.overview(context.organizationId);
   const shop = ["GENERATE_INVOICE_PACKAGE", "TRANSITION_INVOICE_HANDOFF", "CLOSE_REPAIR_ORDER", "REOPEN_REPAIR_ORDER"].includes(action);
   const subjectId = typeof raw.subjectId === "string" ? raw.subjectId.trim() : "";
   const order = shop ? view.repairOrders.find((item) => item.id === (action === "TRANSITION_INVOICE_HANDOFF" ? itemInvoiceOrder(view.repairOrders, subjectId) : subjectId)) : null;
   const receivePurchaseOrder = action === "RECEIVE_PURCHASE_ORDER" ? view.purchaseOrders.find((item) => item.id === subjectId) ?? null : null;
-  const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, receivePurchaseOrder?.locationId ?? order?.locationId ?? null, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
+  const purchaseOrder = ["TRANSITION_PURCHASE_ORDER", "REVISE_PURCHASE_ORDER"].includes(action) ? view.purchaseOrders.find(item => item.id === subjectId) : null;
+  const purchaseLocation = action === "CREATE_PURCHASE_ORDER" ? normalizePurchaseOrder(raw).locationId : purchaseOrder?.locationId;
+  const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, receivePurchaseOrder?.locationId ?? purchaseLocation ?? order?.locationId ?? null, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
 
   const receipt = shop ? await context.repository.commandReceipt?.(context.organizationId, action, String(raw.idempotencyKey ?? "")) : null;
   if (action === "GENERATE_INVOICE_PACKAGE") {

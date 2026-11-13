@@ -23,20 +23,27 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
   if (vendorKeys.some(key => vendorReturns.filter(item => item.lineKeys.includes(key)).length !== 1)) mismatchCodes.push("INVOICE_VENDOR_RETURN_REVIEW_REQUIRED");
   if (!ledger.lines.some(line => line.type === "LABOR") && (!vendorKeys.length || ledger.lines.some(line => !vendorKeys.includes(line.key)))) mismatchCodes.push("INVOICE_EXECUTABLE_SCOPE_MISSING");
   const jobs = order.repairJobs.filter(job => job.authorizationId === authorization.id && ledger.lines.some(line => line.key === job.authorizedLineKey));
+  const customerInvoice = order.origin === "CUSTOMER_REPAIR";
   if (jobs.some(job => job.qualityInspections[0] && ((job.qualityInspections[0].peerVerificationRequired && !job.qualityInspections[0].peerVerificationPassed) || (job.qualityInspections[0].roadTestRequired && job.qualityInspections[0].roadTestOutcome !== "PASSED") || job.laborClocks.some(clock => clock.finishedAt && clock.finishedAt > job.qualityInspections[0].inspectedAt)))) mismatchCodes.push("INVOICE_QC_EVIDENCE_INCOMPLETE");
-  if (jobs.some(job => job.laborClocks.length === 0 || job.laborClocks.some(clock => clock.state !== "FINISHED" || !clock.finishedAt))) mismatchCodes.push("INVOICE_MEASURED_CLOCK_INCOMPLETE");
-  for (const line of ledger.lines.filter(line => line.type === "PART")) {
+  if (jobs.some(job => (customerInvoice && job.laborClocks.length === 0) || job.laborClocks.some(clock => clock.state !== "FINISHED" || !clock.finishedAt))) mismatchCodes.push("INVOICE_MEASURED_CLOCK_INCOMPLETE");
+  const partLines = ledger.lines.filter(line => line.type === "PART");
+  for (const line of partLines) {
     const linked = line.laborLineKey ? jobs.filter(job => job.authorizedLineKey === line.laborLineKey) : jobs.length === 1 ? jobs : [];
-    const partNumber = (line as typeof line & { partNumber?: string }).partNumber;
-    if (!partNumber) { mismatchCodes.push("INVOICE_PART_IDENTITY_MISSING"); continue; }
+    const partNumber = line.partNumber;
+    if (!partNumber?.trim()) continue;
     const quantity = linked.flatMap(job => job.partCustodyEvents).filter(event => event.type === "INSTALL" && event.part.partNumber.trim().toUpperCase() === partNumber.trim().toUpperCase()).reduce((total, event) => total + event.quantity, 0);
     const events = linked.flatMap(job => job.partCustodyEvents).filter(event => event.part.partNumber.trim().toUpperCase() === partNumber.trim().toUpperCase());
     if (events.some(event => ["UNUSED_RETURN","WARRANTY_SHIP","VENDOR_SHIP"].includes(event.type) && events.some(installation => installation.type === "INSTALL" && installation.occurredAt <= event.occurredAt))) mismatchCodes.push("INVOICE_PART_RETURN_NEEDS_REVIEW");
-    if (quantity !== line.quantity) mismatchCodes.push("INVOICE_INSTALL_QUANTITY_MISMATCH");
+    if ((customerInvoice || events.length > 0) && quantity !== line.quantity) mismatchCodes.push("INVOICE_INSTALL_QUANTITY_MISMATCH");
   }
-  for (const job of jobs) if (job.partsRequired && !job.partCustodyEvents.some(event => event.type === "INSTALL")) mismatchCodes.push("INVOICE_INSTALL_EVIDENCE_MISSING");
+  for (const job of jobs) {
+    const descriptionOnly = order.origin === "CUSTOMER_REPAIR" && partLines.some(line =>
+      !line.partNumber?.trim() && (line.laborLineKey ? line.laborLineKey === job.authorizedLineKey : jobs.length === 1)
+    );
+    if (customerInvoice && job.partsRequired && !descriptionOnly && !job.partCustodyEvents.some(event => event.type === "INSTALL")) mismatchCodes.push("INVOICE_INSTALL_EVIDENCE_MISSING");
+  }
   const sourceDocument = await database.serviceDocument.findFirst({ where: { organizationId, kind: "ESTIMATE", sourceId: estimate.id }, orderBy: { sourceVersion: "desc" } });
-  if (!sourceDocument) mismatchCodes.push("INVOICE_FROZEN_ESTIMATE_DOCUMENT_MISSING");
+  if (customerInvoice && !sourceDocument) mismatchCodes.push("INVOICE_FROZEN_ESTIMATE_DOCUMENT_MISSING");
   const identity = sourceDocument ? (sourceDocument.content as unknown as ServiceDocumentContent).identity : null;
   const clockedLaborMinutes = jobs.flatMap(job => job.laborClocks).reduce((total, clock) => total + clock.accumulatedMinutes, 0);
   const installedPartsCostCents = jobs.flatMap(job => job.partCustodyEvents).filter(event => event.type === "INSTALL").reduce((total, event) => total + event.quantity * event.unitCostCents, 0);

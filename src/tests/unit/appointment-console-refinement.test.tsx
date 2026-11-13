@@ -84,6 +84,8 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain('aria-label="Full-page appointment calendar"');
     expect(markup).toContain('aria-label="Week time grid"');
     expect(markup).toContain('aria-label="Toggle calendar sidebar"');
+    expect(markup).toContain('aria-expanded="false" aria-label="Toggle calendar sidebar"');
+    expect(markup).toMatch(/id="calendar-sidebar"[^>]* hidden=""/);
     expect(markup).toContain('aria-label="Create appointment on');
     expect(markup).toContain('aria-label="Calendar view"');
     expect(markup).toContain("Appointment categories");
