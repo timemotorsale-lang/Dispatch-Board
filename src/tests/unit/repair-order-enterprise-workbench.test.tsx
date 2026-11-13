@@ -16,6 +16,19 @@ const order = {
 };
 
 describe("enterprise repair-order workbench", () => {
+  it.each([
+    [[], "Record approval", "authorization"],
+    [[{ id: "approved", disposition: "ACCEPTED" }], "Release approved jobs", "parts"],
+    [[{ id: "revoked", disposition: "REVOKED" }, { id: "approved", disposition: "ACCEPTED" }], "Record approval", "authorization"],
+  ])("continues a saved estimate from its latest decision", (authorizations, action, step) => {
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={{
+      ...order, stage: "AUTHORIZATION",
+      estimateVersions: [{ id: "estimate", version: 1, status: "PRESENTED", totalCents: 23683, authorizations }],
+    }} options={{ users: [] }} />);
+    expect(html).toContain(action);
+    expect(html).toContain(`/prototype/repair-workbench?repairOrderId=ro-1&amp;step=${step}`);
+    expect(html).not.toContain("Labor Guide estimate is next");
+  });
   it("renders the simplified vehicle summary card with always-visible detail panels and a full-detail link", () => {
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench

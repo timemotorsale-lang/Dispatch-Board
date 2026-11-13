@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { notifyRepairReviewSaved } from "@/lib/repair-workflow-review";
+import { invoiceHoldLabel } from "@/lib/service-billing-workflow";
 import styles from "./repair-workflow.module.css";
 export function RepairHandoffTool({ repairOrderId, vehicleId, internal, closed }: { repairOrderId: string; vehicleId: string; internal: boolean; closed: boolean }) {
   const [recipient, setRecipient] = useState(""), [odometer, setOdometer] = useState(""), [evidence, setEvidence] = useState(""), [keys, setKeys] = useState(false), [checked, setChecked] = useState(false);
@@ -22,7 +23,11 @@ export function RepairHandoffTool({ repairOrderId, vehicleId, internal, closed }
       pending.current = null;
       const outcome = body.result ?? body;
       const blockers = outcome.blockerCodes ?? outcome.mismatchCodes ?? [];
-      setNotice(action === "CLOSE_REPAIR_ORDER" ? "Repair closed and handoff recorded." : `${action === "READINESS" ? "Handoff readiness" : "Financial package"}: ${outcome.disposition ?? outcome.status ?? "saved"}.${blockers.length ? ` Resolve: ${blockers.join(", ")}.` : ""}`);
+      const label = action === "READINESS" ? "Handoff readiness" : internal ? "Internal cost package" : "Financial package";
+      setNotice(action === "CLOSE_REPAIR_ORDER" ? "Repair closed and handoff recorded." : blockers.length
+        ? `${label} needs attention. ${blockers.map(invoiceHoldLabel).join(" ")}`
+        : action === "GENERATE_INVOICE_PACKAGE" && internal ? "Internal costs reconciled. Check handoff readiness next."
+        : `${label}: ${outcome.disposition ?? outcome.status ?? "saved"}.`);
       if (action === "CLOSE_REPAIR_ORDER") notifyRepairReviewSaved(repairOrderId);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request interrupted. Retry unchanged."); }
     finally { setBusy(false); }

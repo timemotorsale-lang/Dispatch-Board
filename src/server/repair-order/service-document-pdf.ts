@@ -131,6 +131,13 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   }
   if (content.totals) {
     space(115); y -= 10;
+    if (title === "Repair Estimate" && !content.decision) {
+      const signatureY = y - 58;
+      page!.drawLine({ start: { x: left, y: signatureY }, end: { x: 251, y: signatureY }, thickness: .7, color: rule });
+      page!.drawLine({ start: { x: 267, y: signatureY }, end: { x: 344, y: signatureY }, thickness: .7, color: rule });
+      draw("Customer / authorized representative signature", left, signatureY - 12, 8);
+      draw("Date", 267, signatureY - 12, 8);
+    }
     for (const [label, value] of [["Subtotal", content.totals.subtotalCents], ["Discount", content.totals.discountCents], ["Tax", content.totals.taxCents], ["Total", content.totals.totalCents]] as const) {
       const size = label === "Total" ? 13 : 10, face = label === "Total" ? bold : font;
       draw(label, 365, y, size, face); const amount = money(value); draw(amount, right - face.widthOfTextAtSize(amount, size), y, size, face); y -= label === "Total" ? 28 : 20;

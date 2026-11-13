@@ -47,6 +47,14 @@
 .document table th:not(:first-child), .document table td:not(:first-child) { text-align: right; white-space: nowrap; }
 .laborDetail { display: block; color: #526477; font-size: 11px; margin-top: 4px; }
 .totals { padding: 14px 0; border-top: 1px solid #cbd5e1; break-inside: avoid; }
+.estimateSummary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 38%); gap: 28px; align-items: end; break-inside: avoid; }
+.estimateSummary .totals { grid-column: 2; grid-row: 1; width: 100%; }
+.document .signature { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(64px, 26%); gap: 16px; padding: 24px 0 14px; }
+.signature span { border-top: 1px solid #64748b; padding-top: 6px; font-size: 11px; }
+@media screen and (max-width: 600px) {
+  .estimateSummary { grid-template-columns: 1fr; gap: 0; }
+  .estimateSummary .totals, .document .signature { grid-column: auto; grid-row: auto; }
+}
 .totals dt:last-of-type, .totals dd:last-of-type { font-size: 18px; font-weight: 700; border-top: 1px solid #cbd5e1; margin-top: 8px; padding-top: 8px; }
 .receipt { border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin: 20px 0; }
 .receipt h2 { font-size: 18px; margin-top: 0; }

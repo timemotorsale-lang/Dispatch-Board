@@ -21,7 +21,7 @@ type Discrepancy = Named & { receipt?: { purchaseOrder?: { requisition?: { deman
 type CustodyEvent = Named & { repairJob?: { jobNumber: string; repairOrder?: { id?: string; repairOrderNumber: string } } | null };
 type Transfer = Named & { locationId: string; transferNumber: string };
 type Recovery = Named & { actualCreditCents: number | null; expectedCreditCents?: number; partId: string; sourceReference?: string; type: string; vendor?: { name: string } | null };
-type Model = { custodyEvents: CustodyEvent[]; demands: Demand[]; discrepancies: Discrepancy[]; interchanges: Named[]; locations: Named[]; offers: Offer[]; parts: Named[]; purchaseOrders: PurchaseOrder[]; receipts: Receipt[]; recoveries: Recovery[]; repairOrders: RepairOrder[]; requisitions: Requisition[]; stockLocations: Named[]; transfers: Transfer[]; vendors: Named[] };
+type Model = { purchaseApprovalRequired?: boolean; canSetPurchaseApproval?: boolean; custodyEvents: CustodyEvent[]; demands: Demand[]; discrepancies: Discrepancy[]; interchanges: Named[]; locations: Named[]; offers: Offer[]; parts: Named[]; purchaseOrders: PurchaseOrder[]; receipts: Receipt[]; recoveries: Recovery[]; repairOrders: RepairOrder[]; requisitions: Requisition[]; stockLocations: Named[]; transfers: Transfer[]; vendors: Named[] };
 
 type Props = { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
 type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "progress" | "use" | "return";
@@ -258,7 +258,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const scopedReceipts = model.receipts.filter((item) => item.purchaseOrder?.requisition?.demand?.repairOrder?.repairOrderNumber === selectedNumber);
   const scopedPurchaseOrders = model.purchaseOrders.filter((item) => item.requisition?.demand?.repairOrder?.repairOrderNumber === selectedNumber);
   const openPurchaseOrders = scopedPurchaseOrders.filter((item) => !["CLOSED", "CANCELLED"].includes(item.status ?? ""));
-  const purchaseOrdersNeedingApproval = openPurchaseOrders.filter((item) => item.status === "DRAFT");
+  const purchaseOrdersNeedingApproval = model.purchaseApprovalRequired ? openPurchaseOrders.filter((item) => item.status === "DRAFT") : [];
   const scopedDiscrepancies = model.discrepancies.filter((item) => item.receipt?.purchaseOrder?.requisition?.demand?.repairOrder?.repairOrderNumber === selectedNumber);
   const scopedCustodyEvents = model.custodyEvents.filter((item) => item.repairJob?.repairOrder?.repairOrderNumber === selectedNumber);
   const openRecoveries = model.recoveries.filter((item) => item.sourceReference?.includes(`RO:${selectedOrder?.id}|`) && !["CREDITED", "WRITTEN_OFF"].includes(item.status ?? ""));
@@ -273,7 +273,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const overBudgetCents = Math.max(0, -remainingReconBudgetCents);
   const budgetRatio = maxReconBudgetCents ? partsCommittedCents / maxReconBudgetCents : hasReconBudget ? 1 : 0;
   const budgetTone = remainingReconBudgetCents < 0 ? "danger" : !hasReconBudget || budgetRatio >= 0.8 ? "warning" : "success";
-  const budgetDecision = !hasReconBudget ? "Recon budget not set" : remainingReconBudgetCents < 0 ? "Manager approval required" : budgetRatio >= 0.8 ? "Review before more spend" : "Spend room available";
+  const budgetDecision = !hasReconBudget ? "Recon budget not set" : remainingReconBudgetCents < 0 ? (model.purchaseApprovalRequired ? "Manager approval required" : "Over recon budget") : budgetRatio >= 0.8 ? "Review before more spend" : "Spend room available";
   const budgetSourceLabel = appraisalBudget?.source === "TAI" ? "TAI recon budget guardrail" : "Recorded recon budget";
   const canRaiseBudget = isInternalRecon && Boolean(selectedOrder?.inventoryUnit?.id);
 
@@ -458,20 +458,6 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     return createAndSelectManualOffer(requisitionId as string, partId, vendorId, line);
   }
 
-  async function ensurePurchaseOrderAcknowledged(purchaseOrder: PurchaseOrder) {
-    if (purchaseOrder.status === "DRAFT") {
-      throw new Error(`Manager approval needed before receiving ${purchaseOrder.purchaseOrderNumber}. Approve the purchase order first, then receive after an authorized user okays the PO.`);
-    }
-    if (purchaseOrder.status === "APPROVED") {
-      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-issue purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ISSUED" });
-      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-acknowledge purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ACKNOWLEDGED" });
-      return;
-    }
-    if (purchaseOrder.status === "ISSUED") {
-      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-acknowledge purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ACKNOWLEDGED" });
-    }
-  }
-
   async function recordModeNote(target: DeskMode) {
     if (!selectedOrder) throw new Error("Repair order is required.");
     const lines = noteLines(notes[target]);
@@ -515,7 +501,6 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         receiptsByPurchaseOrder.set(purchaseOrder.id, draft);
       }
       for (const draft of receiptsByPurchaseOrder.values()) {
-        await ensurePurchaseOrderAcknowledged(draft.purchaseOrder);
         const stockLocationId = await ensureStockLocationFor(draft.purchaseOrder.locationId);
         await request({ action: "RECEIVE_PURCHASE_ORDER", invoiceReference: null, lines: draft.lines, packingSource: `NOTE-${crypto.randomUUID()}`, reason: `Received parts note: ${draft.notes.join("; ")}`, receivedAt: now(), stockLocationId, subjectId: draft.purchaseOrder.id });
       }
@@ -824,7 +809,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       ? `Source or buy ${openNeededParts.length} needed part${openNeededParts.length === 1 ? "" : "s"} before the vendor can continue.`
       : "No needed parts are blocking this repair order."
     : mode === "order"
-      ? remainingReconBudgetCents < 0 ? "Record purchase details, then review the recon budget before approving more spend." : nextPurchaseOrder ? `Coordinate pickup from ${pickupSupplierName} and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"}.` : "Record the bought part so its movement can be coordinated."
+      ? model.purchaseApprovalRequired && remainingReconBudgetCents < 0 ? "Record purchase details, then review the recon budget before approving more spend." : nextPurchaseOrder ? `Coordinate pickup from ${pickupSupplierName} and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"}.` : "Record the part you bought, the supplier, and the quantity."
       : mode === "budget"
         ? remainingReconBudgetCents < 0
           ? `General Manager decision required: this RO is ${money(overBudgetCents)} over the recommended recon budget.`
@@ -844,7 +829,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
               : mode === "return"
                 ? "Open credit, warranty, core, or vendor-return tickets."
                 : "Record sourcing quotes and availability.";
-  const workflowStep: { detail: string; label: string; mode: DeskMode; title: string } = remainingReconBudgetCents < 0
+  const workflowStep: { detail: string; label: string; mode: DeskMode; title: string } = model.purchaseApprovalRequired && remainingReconBudgetCents < 0
     ? { detail: `Recorded purchases are ${money(overBudgetCents)} over the recon budget. Review the exception before approving more spend.`, label: "Review budget exception", mode: "budget", title: "Resolve the recon budget exception" }
     : nextPurchaseOrder
       ? activeVendorWork
@@ -1043,16 +1028,20 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       {remainingReconBudgetCents < 0 || !hasReconBudget ? <div className="scp-budget-approval">
         <div>
           <span>Manager exception</span>
-          <strong>{hasReconBudget ? `This vehicle needs approval for ${money(overBudgetCents)} before another purchase.` : "Set the internal recon allowance."}</strong>
+          <strong>{hasReconBudget ? (model.purchaseApprovalRequired ? `This vehicle needs approval for ${money(overBudgetCents)} before another purchase.` : `Recorded purchases are ${money(overBudgetCents)} above the recon budget.`) : "Set the internal recon allowance."}</strong>
         </div>
         <button disabled={!canRaiseBudget} onClick={openBudgetApproval} type="button">{hasReconBudget ? "Review this overage" : "Set recon budget"}</button>
       </div> : null}
     </section> : <section className="scp-budget success" aria-label="Customer vehicle parts purchases">
       <div><span>Customer vehicle</span><strong>{selectedOrder?.customer?.displayName ?? "Customer repair"}</strong><small>Supplier costs are recorded against this repair order. Customer pricing stays on the approved estimate.</small></div>
       <div><span>Recorded parts purchases</span><strong>{money(partsCommittedCents)}</strong></div>
-      <div><span>Purchase approvals</span><strong>{purchaseOrdersNeedingApproval.length} pending</strong></div>
+      {model.purchaseApprovalRequired && <div><span>Purchase approvals</span><strong>{purchaseOrdersNeedingApproval.length} pending</strong></div>}
     </section>}
 
+    {model.canSetPurchaseApproval && <details><summary>Manager purchasing controls</summary>
+      <p>{model.purchaseApprovalRequired ? "Manager approval is required before staff can issue or receive new draft orders." : "Staff with purchasing access can record purchases without approval."}</p>
+      <button disabled={busy} type="button" onClick={() => void run(() => request({ action: "SET_PURCHASE_APPROVAL_POLICY", required: !model.purchaseApprovalRequired }), model.purchaseApprovalRequired ? "Purchase approval is now optional." : "Manager purchase approval is now required.")}>{model.purchaseApprovalRequired ? "Remove approval requirement" : "Require manager approval"}</button>
+    </details>}
     <nav className="scp-lanes" aria-label="Parts process">
       {lanes.map(({ id, icon: Icon, label, sub }) => <button aria-current={mode === id ? "step" : undefined} className={mode === id ? "active" : ""} key={id} onClick={() => setMode(id)} type="button"><Icon size={18} /><span>{label}<small>{sub}</small></span><b>{laneCounts[id]}</b></button>)}
     </nav>
@@ -1072,7 +1061,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           ) : null}
           {mode === "receive" && purchaseOrdersNeedingApproval.length ? (
             <div className="scp-needed-strip scp-approval-strip">
-              {purchaseOrdersNeedingApproval.map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} · {money(item.orderedTotalCents)}</span><small>Approval age {safeDate(item.createdAt)}</small><button disabled={busy} onClick={() => approvePurchaseOrder(item)} type="button">Approve purchase order</button></article>)}
+              {purchaseOrdersNeedingApproval.map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} · {money(item.orderedTotalCents)}</span><small>Approval age {safeDate(item.createdAt)}</small>{model.canSetPurchaseApproval && <button disabled={busy} onClick={() => approvePurchaseOrder(item)} type="button">Approve purchase order</button>}</article>)}
             </div>
           ) : null}
           {mode !== "budget" ? <section className="scp-lane-audit" aria-label={`${activeConfig.label} records behind the count`}>
@@ -1216,7 +1205,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           <h3>Requisitions</h3>
           {scopedRequisitions.length ? scopedRequisitions.map((item) => <article key={item.id}><strong>{item.demand.part.partNumber}</strong><span>{item.selectedOffer?.vendor.name ?? "No vendor selected"}</span><small>{format(item.status)}</small></article>) : <p>No sourcing requisitions yet.</p>}
           <h3>Purchase orders</h3>
-          {openPurchaseOrders.length ? openPurchaseOrders.slice(0, 8).map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} - {money(item.orderedTotalCents)}</span><small>{format(item.status)}</small><div>{item.status === "DRAFT" ? <button disabled={busy} onClick={() => approvePurchaseOrder(item)} type="button">Approve</button> : null}{item.status === "APPROVED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ISSUED" }), "Purchase order issued.")} type="button">Issue</button> : null}{item.status === "ISSUED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ACKNOWLEDGED" }), "Vendor acknowledgement recorded.")} type="button">Acknowledge</button> : null}</div></article>) : <p>No open purchase orders.</p>}
+          {openPurchaseOrders.length ? openPurchaseOrders.slice(0, 8).map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} - {money(item.orderedTotalCents)}</span><small>{format(item.status)}</small><div>{item.status === "DRAFT" && (!model.purchaseApprovalRequired || model.canSetPurchaseApproval) ? <button disabled={busy} onClick={() => model.purchaseApprovalRequired ? approvePurchaseOrder(item) : void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Record parts order.", subjectId: item.id, toStatus: "ISSUED" }), "Purchase order issued.")} type="button">{model.purchaseApprovalRequired ? "Approve" : "Issue order"}</button> : null}{item.status === "APPROVED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ISSUED" }), "Purchase order issued.")} type="button">Issue</button> : null}{item.status === "ISSUED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ACKNOWLEDGED" }), "Vendor acknowledgement recorded.")} type="button">Acknowledge</button> : null}</div></article>) : <p>No open purchase orders.</p>}
           <h3>Received and used</h3>
           {scopedReceipts.length ? scopedReceipts.map((item) => <article key={item.id}><strong>{item.purchaseOrder?.purchaseOrderNumber ?? "Receipt"}</strong><span>{item.stockLocation?.code ?? "Stock"} - {safeDate(item.receivedAt)}</span><small>{format(item.status)}</small></article>) : <p>No receipts linked to this RO yet.</p>}
           {scopedCustodyEvents.slice(0, 5).map((item) => <article key={item.id}><strong>{item.partNumber ?? item.part?.partNumber ?? "Part"}</strong><span>{format(item.type)} movement</span><small>{format(item.status)}</small></article>)}

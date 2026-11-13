@@ -29,6 +29,16 @@
 @media(max-width:450px) { .recordedStrip { gap: 10px; } }
 .task { padding: 10px 0; }
 .task h2 { margin: 0; font-size: 18px; }
+.qcDiagnostics { margin-bottom: 12px; border: 1px solid #ccd7e4; border-radius: 8px; overflow: hidden; }
+.qcDiagnostics header, .qcDiagnostics li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 12px; }
+.qcDiagnostics header { background: var(--surface-secondary, #edf3fa); }
+.qcDiagnostics h3 { margin: 0; font-size: 15px; }
+.qcDiagnostics strong, .qcDiagnostics a { font-size: 13px; }
+.qcDiagnostics ul { margin: 0; padding: 0; list-style: none; }
+.qcDiagnostics li + li { border-top: 1px solid #ccd7e4; }
+.qcDiagnostics p { margin: 4px 0 0; font-size: 13px; }
+.qcDiagnostics > p { padding: 8px 12px; margin: 0; }
+.qcDiagnostics a { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
 .tool { min-width: 0; padding: 12px; background: var(--surface, #fff); border: 1px solid #ccd7e4; border-radius: 6px; }
 .form { display: grid; gap: 10px; max-width: 850px; }
 .form label { display: grid; gap: 4px; font-size: 13px; }
