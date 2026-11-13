@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import VehicleDetailsPage from "@/app/(app)/vehicles/[id]/details/page";
+import VehicleRecordPage from "@/app/(app)/vehicles/[id]/page";
 
 const mocks = vi.hoisted(() => ({ relationships: vi.fn(), journey: vi.fn(), pricing: vi.fn(), costs: vi.fn(), media: vi.fn(), intake: vi.fn(), gallery: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); }, notFound: () => { throw new Error("not-found"); } }));
@@ -11,7 +12,6 @@ vi.mock("@/server/vehicle-360/service", () => ({ getVehicle360: mocks.media, get
 vi.mock("@/server/inventory-unit/intake-service", () => ({ getVehicleIntake: mocks.intake }));
 vi.mock("@/features/inventory/frontline-preparation-workspace", () => ({ FrontlinePreparationWorkspace: () => null }));
 
-const open = () => VehicleDetailsPage({ params: Promise.resolve({ id: "v1" }) });
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.relationships.mockResolvedValue([{ relationshipType: "DEALERSHIP_OWNED" }]);
@@ -20,9 +20,13 @@ beforeEach(() => {
   mocks.intake.mockResolvedValue(null);
   mocks.gallery.mockResolvedValue({ items: [], canManage: false });
 });
-describe("inventory vehicle detail landing", () => {
+describe.each([
+  ["/vehicles/:id/details", VehicleDetailsPage],
+  ["/vehicles/:id", VehicleRecordPage]
+] as const)("vehicle detail landing at %s", (_route, Page) => {
+  const open = () => Page({ params: Promise.resolve({ id: "v1" }) });
   it("opens Media and intake coverage directly from Vehicle 360", async () => {
-    const page = await VehicleDetailsPage({ params: Promise.resolve({ id: "v1" }), searchParams: Promise.resolve({ tab: "media", purpose: "intake" }) });
+    const page = await Page({ params: Promise.resolve({ id: "v1" }), searchParams: Promise.resolve({ tab: "media", purpose: "intake" }) });
     expect(page.props.initialTab).toBe("Media");
     expect(page.props.initialMediaKind).toBe("intake");
   });
