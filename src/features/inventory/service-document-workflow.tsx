@@ -8,6 +8,7 @@ import { ServiceDocument } from "./service-document";
 import { ServiceBillingWorkspace } from "./service-billing-workspace";
 import { DocumentApproval } from "./document-approval";
 import { ServiceDocumentReview } from "./service-document-review";
+import { EstimateDetailsCorrection } from "./estimate-details-correction";
 import styles from "./service-document-workflow.module.css";
 import { openServiceDocumentPrint, serviceDocumentPdfHref } from "@/lib/service-document-print";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
@@ -21,6 +22,7 @@ export function ServiceDocumentWorkflow({ repairOrderId, documents, selectedId }
   const [notice, setNotice] = useState("");
   const [printError, setPrintError] = useState("");
   const [printing, setPrinting] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const documentRef = useRef<HTMLElement>(null);
   async function printDocument() {
     if (actionLocked || printing) return;
@@ -58,6 +60,10 @@ export function ServiceDocumentWorkflow({ repairOrderId, documents, selectedId }
     <nav className={styles.steps} aria-label="Document progress">{["Estimate", "Approval", "Invoice", "Receipt"].map((label, index) => <span key={label} aria-current={stage === index ? "step" : undefined}><b>{index + 1}</b>{label}</span>)}</nav>
     <div className={styles.controls}><p>{stage === 0 ? "Your estimate is ready. Print it or record the customer’s approval to continue." : stage === 1 ? "Approval recorded. Review the approved charges and create the invoice when work is complete." : stage === 2 ? "Invoice issued. Record a verified payment to create its receipt." : "Payment or adjustment recorded. This saved receipt is ready to print."}</p><details><summary>Document history · {documents.length}</summary><ul>{documents.map(document => <li key={document.id}><button type="button" disabled={actionLocked} onClick={() => openSavedDocument(document.id)} aria-current={document.id === selected.id ? "true" : undefined}>{document.content.revisionLabel ?? (document.content.customerDetailsEdited ? "Customer details updated" : document.kind === "ESTIMATE" ? (documents.some(other => other.kind === "ESTIMATE" && other.sourceId !== document.sourceId) ? "Estimate revision" : "Estimate created") : document.kind === "AUTHORIZATION" ? `Approval · ${document.content.decision?.disposition.toLowerCase() ?? "recorded"}` : document.kind === "INVOICE" ? "Invoice issued" : document.kind === "PAYMENT" ? "Payment received" : document.content.title)} · {document.content.number}<small>{new Date(document.createdAt ?? document.content.issuedAt).toLocaleString("en-US", { timeZone: document.content.identity.timezone, month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}{document.createdByName ? ` · ${document.createdByName}` : ""}</small></button></li>)}</ul></details></div>
     {printError && <p role="alert">{printError}</p>}
+    {selected.kind === "ESTIMATE" && panel === "document" && <section className={styles.controls}>
+      <button type="button" disabled={actionLocked} aria-expanded={correcting} onClick={() => setCorrecting(value => !value)}>{correcting ? "Close estimate corrections" : "Correct estimate details"}</button>
+      {correcting && <EstimateDetailsCorrection repairOrderId={repairOrderId} document={selected} onSaved={openSavedDocument} onLockChange={setActionLocked} />}
+    </section>}
     {notice && <p className={styles.controls} role="status">{notice}</p>}
     <div className={`${styles.content} ${panel !== "document" ? styles.withPanel : ""}`}><div className={styles.paper}><>{preview && <p className={styles.draftNotice} role="status">Unsaved preview — save changes before approval or printing.</p>}<ServiceDocument documentRef={documentRef} showControls={false} content={preview ?? selected.content} sha256={selected.sha256} templateVersion={selected.templateVersion} /></></div>
     {panel !== "document" && <aside ref={actionPanel} tabIndex={-1} className={styles.panel} aria-label={panel === "review" ? "Document review" : panel === "approval" ? "Approval actions" : "Invoice and payment actions"}><button type="button" disabled={actionLocked} onClick={() => setPanel("document")}>Close actions · view document</button>{panel === "review" ? <ServiceDocumentReview content={selected.content} onPreview={setPreview} repairOrderId={repairOrderId} documentId={selected.id} onSaved={openSavedDocument} onEstimate={openDocument} onLockChange={setActionLocked} /> : panel === "approval" ? <DocumentApproval customerName={selected.content.identity.customer} repairOrderId={repairOrderId} estimateId={estimateSourceId ?? ""} onLockChange={setActionLocked} onApproved={() => { setActionLocked(false); setApprovalRecorded(true); setNotice("Customer approval recorded."); setPanel("billing"); router.refresh(); }} /> : <ServiceBillingWorkspace repairOrderId={repairOrderId} onDocumentReady={openDocument} onLockChange={setActionLocked} />}</aside>}</div>

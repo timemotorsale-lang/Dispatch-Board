@@ -1,4 +1,5 @@
 import type { DocumentCustomerDetails } from "@/lib/service-document-review";
+import type { EstimateDetails } from "@/lib/estimate-details";
 import type { Prisma } from "@prisma/client";
 import { CUSTOMER_ESTIMATE_APPROVAL_NOTE } from "@/lib/service-document-notes";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
@@ -8,6 +9,7 @@ export const SERVICE_DOCUMENT_TEMPLATE = "service-document-v4";
 export type ServiceIdentity = { customer: string; vehicle: string; vin: string; vehicleNumber: string; concern: string; repairOrderNumber: string; store: string; address: string; timezone: string; customerContact?: { phone?: string; email?: string; address?: string }; color?: string | null; stockNumber?: string | null; licensePlate?: string | null; licensePlateState?: string | null; odometer?: { reading: number; unit: "MILES" | "KILOMETERS"; observedAt: string } | null };
 export type ServiceDocumentContent = {
   title: string; number: string; issuedAt: string; identity: ServiceIdentity; customerDetailsEdited?: boolean; revisionLabel?: string;
+  estimateDetails?: EstimateDetails & { mileage: { reading: number; unit: "MILES" | "KILOMETERS" } | null; reason: string; previousDocumentId: string };
   receipt?: { invoiceNumber: string; kind: string; amountCents: number; method: string | null; reference: string; balanceCents: number };
   lines: { key: string; type?: string; taxable?: boolean; description: string; quantity: number; unitPriceCents: number; totalCents: number; hours?: number; planningHourlyRateCents?: number }[];
   totals?: { subtotalCents: number; discountCents: number; taxCents: number; totalCents: number };

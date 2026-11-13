@@ -11,6 +11,7 @@ import { billingAccess } from "@/server/service-billing/service";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { presentRepairEstimate } from "@/server/shop-planning/service";
 import { normalizeDocumentCustomer } from "@/lib/service-document-review";
+import { normalizeEstimateCorrection } from "@/lib/estimate-details";
 import { normalizeServiceCharges, serviceChargeLines, serviceQuoteTax, SERVICE_CHARGES_POLICY, SHOP_SUPPLIES_KEY } from "@/lib/service-charges";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
 import { commercialLines } from "@/lib/service-commercial-ledger";
@@ -43,6 +44,7 @@ export async function getServiceDocumentReview(actor: AuthenticatedUser | null, 
   const options = estimate?.optionGroups as { servicePricing?: { taxRatePercent?: number } } | null;
   return { customer: { name: identity.customer, phone: identity.customerContact?.phone ?? "", email: identity.customerContact?.email ?? "", address: identity.customerContact?.address ?? "" }, documentHash: current.document.sha256,
     canEditCustomer: current.canManage && latestDocument?.id === current.document.id,
+    canCorrectEstimate: current.canManage && latestDocument?.id === current.document.id && current.document.kind === "ESTIMATE",
     canEditCharges: current.canManage && latestDocument?.id === current.document.id && !invoice && !current.order.closedAt && current.document.kind === "ESTIMATE" && current.document.sourceId === estimate?.id,
     chargeEditReason: !current.canManage ? "Your account has read-only access to these charges." : invoice ? "Charges on an issued invoice stay fixed. Use billing adjustments for corrections." : current.order.closedAt ? "Reopen this repair order before changing charges." : "Open the latest estimate to change charges.",
     estimateId: estimate?.id, expectedVersion: current.order.version, discountCents: current.document.kind === "INVOICE" ? current.content.totals?.discountCents ?? 0 : estimate?.discountCents ?? 0,
@@ -55,24 +57,36 @@ export async function getServiceDocumentReview(actor: AuthenticatedUser | null, 
     taxRatePercent: options?.servicePricing?.taxRatePercent ?? null,
   };
 }
-export async function updateServiceDocumentCustomer(actor: AuthenticatedUser | null, repairOrderId: string, raw: Record<string, unknown>) {
+export async function updateServiceDocumentCustomer(actor: AuthenticatedUser | null, repairOrderId: string, raw: Record<string, unknown>, correctEstimate = false) {
   const documentId = String(raw.documentId ?? ""), current = await context(actor, repairOrderId, documentId, true);
   if (!["ESTIMATE", "INVOICE"].includes(current.document.kind)) throw new Error("Customer details can be edited on an estimate or invoice.");
   if (typeof raw.idempotencyKey !== "string" || raw.idempotencyKey.length > 200) throw new Error("Invalid save request key.");
-  const customer = normalizeDocumentCustomer(raw.customer);
-  const command = normalizeEnterpriseCommand({ organizationId, actorUserId: current.user.id, domain: "SHOP_OPERATIONS", subjectType: "SERVICE_DOCUMENT", subjectId: documentId, commandType: "UPDATE_DOCUMENT_CUSTOMER_DETAILS", expectedVersion: current.document.sourceVersion, idempotencyKey: String(raw.idempotencyKey ?? ""), locationId: current.order.locationId, payload: { documentId, expectedHash: raw.documentHash, customer }, reason: "Update customer billing/contact details during service document review; preserve financial charges and prior document." });
+  if (correctEstimate && current.document.kind !== "ESTIMATE") throw new Error("Estimate details can only be corrected on an estimate.");
+  const correction = correctEstimate ? normalizeEstimateCorrection(raw) : null;
+  const customer = correctEstimate ? null : normalizeDocumentCustomer(raw.customer);
+  const content: ServiceDocumentContent = correction ? {
+    ...current.content,
+    estimateDetails: { ...correction.details, mileage: correction.reading === null ? null : { reading: correction.reading, unit: correction.unit }, reason: correction.reason, previousDocumentId: documentId },
+    revisionLabel: "Estimate details corrected"
+  } : {
+    ...current.content,
+    identity: { ...current.content.identity, customer: customer!.name, customerContact: { phone: customer!.phone, email: customer!.email, address: customer!.address } },
+    customerDetailsEdited: true,
+    revisionLabel: "Customer details updated"
+  };
+  const command = normalizeEnterpriseCommand({ organizationId, actorUserId: current.user.id, domain: "SHOP_OPERATIONS", subjectType: "SERVICE_DOCUMENT", subjectId: documentId, commandType: correctEstimate ? "CORRECT_ESTIMATE_DETAILS" : "UPDATE_DOCUMENT_CUSTOMER_DETAILS", expectedVersion: current.document.sourceVersion, idempotencyKey: String(raw.idempotencyKey ?? ""), locationId: current.order.locationId, payload: { documentId, expectedHash: raw.documentHash, ...(correction ? { correction } : { customer }) }, reason: correction?.reason ?? "Update customer billing/contact details during service document review; preserve financial charges and prior document." });
   return prisma.$transaction(async tx => {
     const receipt = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: command.domain, commandType: command.commandType, idempotencyKey: command.idempotencyKey } } });
     if (receipt) {
-      if (receipt.requestHash !== command.requestHash) throw new EnterpriseCommandConflictError("This request key was used with different customer details.", "IDEMPOTENCY_KEY_REUSED");
+      if (receipt.requestHash !== command.requestHash) throw new EnterpriseCommandConflictError("This request key was used with different document details.", "IDEMPOTENCY_KEY_REUSED");
       return receipt.resultSnapshot;
     }
     const latest = await tx.serviceDocument.findFirst({ where: { organizationId, repairOrderId, kind: current.document.kind, sourceId: current.document.sourceId }, orderBy: { sourceVersion: "desc" } });
-    if (latest?.id !== documentId || latest.sha256 !== raw.documentHash) throw new EnterpriseCommandConflictError("This document changed. Open the latest version before editing customer details.", "VERSION_CONFLICT");
-    const document = await recordServiceDocument(tx, { organizationId, repairOrderId, kind: current.document.kind, sourceId: current.document.sourceId, sourceVersion: latest.sourceVersion + 1, createdByUserId: current.user.id, content: { ...current.content, identity: { ...current.content.identity, customer: customer.name, customerContact: { phone: customer.phone, email: customer.email, address: customer.address } }, customerDetailsEdited: true, revisionLabel: "Customer details updated" } });
+    if (latest?.id !== documentId || latest.sha256 !== raw.documentHash) throw new EnterpriseCommandConflictError("This document changed. Open the latest version before editing details.", "VERSION_CONFLICT");
+    const document = await recordServiceDocument(tx, { organizationId, repairOrderId, kind: current.document.kind, sourceId: current.document.sourceId, sourceVersion: latest.sourceVersion + 1, createdByUserId: current.user.id, content });
     const result = { documentId: document.id };
     const ledger = await tx.enterpriseCommandLedger.create({ data: { organizationId, locationId: current.order.locationId, actorUserId: current.user.id, domain: command.domain, subjectType: command.subjectType, subjectId: documentId, commandType: command.commandType, status: "SUCCEEDED", idempotencyKey: command.idempotencyKey, requestHash: command.requestHash, correlationId: command.correlationId, expectedVersion: latest.sourceVersion, resultingVersion: document.sourceVersion, resultSnapshot: result, completedAt: new Date() } });
-    await tx.enterpriseAuditEvent.create({ data: { organizationId, locationId: current.order.locationId, actorUserId: current.user.id, commandId: ledger.id, domain: command.domain, subjectType: command.subjectType, subjectId: documentId, eventType: "DOCUMENT_CUSTOMER_DETAILS_UPDATED", reason: command.reason, priorValue: { documentId, sha256: latest.sha256 }, newValue: { documentId: document.id, sha256: document.sha256 }, metadata: { financialAmountsChanged: false }, correlationId: command.correlationId } });
+    await tx.enterpriseAuditEvent.create({ data: { organizationId, locationId: current.order.locationId, actorUserId: current.user.id, commandId: ledger.id, domain: command.domain, subjectType: command.subjectType, subjectId: documentId, eventType: correctEstimate ? "ESTIMATE_DETAILS_CORRECTED" : "DOCUMENT_CUSTOMER_DETAILS_UPDATED", reason: command.reason, priorValue: { documentId, sha256: latest.sha256 }, newValue: { documentId: document.id, sha256: document.sha256 }, metadata: { financialAmountsChanged: false }, correlationId: command.correlationId } });
     return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

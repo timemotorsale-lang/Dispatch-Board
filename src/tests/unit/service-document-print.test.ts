@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { openServiceDocumentPrint, serviceDocumentPdfHref } from "@/lib/service-document-print";
+import { openServiceDocumentPrint, SERVICE_DOCUMENT_PRINT_CSS, serviceDocumentPdfHref } from "@/lib/service-document-print";
 afterEach(() => vi.unstubAllGlobals());
 function printFixture() {
   const copy = { querySelectorAll: vi.fn().mockReturnValue([]) };
@@ -13,6 +13,9 @@ function printFixture() {
   return { copy, source, popup, window, frame, document };
 }
 describe("isolated document printing", () => {
+  it("draws both signature field borders in the isolated print frame", () => {
+    expect(SERVICE_DOCUMENT_PRINT_CSS).toMatch(/\[data-document-signature\] > span\s*\{[^}]*border-top: 1px solid/);
+  });
   it("prepares immediately from the click and prints only a cloned document, never the app window", async () => {
     const { source, copy, popup, window, document } = printFixture();
     const pending = openServiceDocumentPrint(source as never);

@@ -9,6 +9,13 @@ import { SERVICE_DOCUMENT_PRINT_CSS } from "@/lib/service-document-print";
 const content: ServiceDocumentContent = { title: "Official repair estimate", number: "RO-123 / v1", issuedAt: "2026-10-28T18:30:00Z", identity: { customer: "Customer", vehicle: "Actual vehicle", vin: "VIN", vehicleNumber: "VEH-1", concern: "Repair", repairOrderNumber: "RO-123", store: "Time Motor Sales", address: "1101 E. Lake Street, Minneapolis MN 55407", timezone: "America/Chicago" }, lines: [], notes: [] };
 
 describe("branded service document header", () => {
+  it("renders corrected dates and mileage while preserving issuance and hiding the internal reason", () => {
+    const saved = { ...content, notes: ["Valid until 2026-11-20T18:30:00Z."], totals: { subtotalCents: 0, taxCents: 0, discountCents: 0, totalCents: 0 }, estimateDetails: { estimateDate: "2026-09-26", serviceDate: "2026-09-27", validThrough: null, mileage: { reading: 81234, unit: "MILES" as const }, reason: "Internal source verification", previousDocumentId: "prior" } };
+    const html = renderToStaticMarkup(<ServiceDocument content={saved} sha256="proof" templateVersion="v4" />);
+    for (const text of ["Issued Oct 28, 2026", "September 26, 2026", "September 27, 2026", "81,234 mi", "Estimate expiration not recorded.", "data-document-signature"]) expect(html).toContain(text);
+    expect(html).not.toContain("November 20");
+    expect(html).not.toContain(saved.estimateDetails.reason);
+  });
   it("groups document metadata above the parties, then vehicle and concerns without losing saved details", async () => {
     const saved = { ...content, identity: { ...content.identity, customer: "Charles Semakula", customerContact: { phone: "612 321 8463", email: "semakula@gmail.com", address: "1101 E. Lake Street, Minneapolis, MN 55407" }, vehicle: "2024 TOYOTA RAV4", vin: "2T3W1RFVXRW333586", stockNumber: "333586", color: "Silver", concern: "Vehicle recently purchased at auction with front-end damage. Inspect damaged front bumper cover and deployed knee and steering-wheel airbags. Confirm repair scope and required parts." }, lines: [{ key: "labor", type: "LABOR", description: "Initial damage inspection", quantity: 1, unitPriceCents: 12500, totalCents: 12500 }], totals: { subtotalCents: 12500, discountCents: 0, taxCents: 0, totalCents: 12500 } };
     const original = JSON.stringify(saved);

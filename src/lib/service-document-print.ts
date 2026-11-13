@@ -37,6 +37,8 @@ dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; max-width: 3
 dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 article > dl dt:last-of-type, article > dl dd:last-of-type { font-weight: bold; font-size: 15px; border-top: 1px solid #cbd5e1; margin-top: 5px; padding-top: 8px; }
 [aria-label="Payment details"] dl { max-width: none; }
+[data-document-signature] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(64px, 26%); gap: 16px; padding-top: 24px; break-inside: avoid; }
+[data-document-signature] > span { display: block; border-top: 1px solid #172334; padding-top: 6px; }
 footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid #cbd5e1; margin-top: 24px; padding-top: 10px; font-size: 9px; color: #526477; break-inside: avoid; }
 .print-controls { padding: 12px; background: #f1f5fa; font-size: 13px; } .print-controls button { padding: 8px 20px; cursor: pointer; } .print-controls span { margin-left: 12px; }
 @media print { article { max-width: none; margin: 0; padding: 0; } .print-controls { display: none; } a { color: inherit; text-decoration: none; } }

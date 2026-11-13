@@ -1,4 +1,19 @@
 import type { ServiceDocumentContent } from "@/server/repair-order/service-documents";
+import { formatEstimateDate } from "./estimate-details";
+
+export function estimateCorrectionNotes(content: ServiceDocumentContent) {
+  const details = content.estimateDetails;
+  if (!details) return content.notes;
+  return [
+    ...(details.memo ? [`Memo: ${details.memo}`] : []),
+    details.validThrough ? `Estimate valid through ${formatEstimateDate(details.validThrough)}.` : "Estimate expiration not recorded.",
+    ...content.notes.filter(note => !note.startsWith("Valid until "))
+  ];
+}
+
+export function serviceDocumentMileage(content: ServiceDocumentContent) {
+  return content.estimateDetails ? content.estimateDetails.mileage : content.identity.odometer;
+}
 
 export const CUSTOMER_ESTIMATE_APPROVAL_NOTE = "Work begins after your approval. Any additional work or charges require your approval before proceeding.";
 

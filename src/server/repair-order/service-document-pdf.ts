@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { drawDealDeskPdfLogo } from "@/server/services/deal-desk-document-brand";
-import { customerDocumentNotes, legacyReceiptDetails } from "@/lib/service-document-notes";
+import { customerDocumentNotes, estimateCorrectionNotes, legacyReceiptDetails, serviceDocumentMileage } from "@/lib/service-document-notes";
+import { formatEstimateDate } from "@/lib/estimate-details";
 import type { ServiceDocumentContent } from "./service-documents";
 
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -57,6 +58,8 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   const titleLines = lines(title, 270, 21, bold);
   titleLines.forEach((line, index) => draw(line, left, 723 - index * 25, 21, bold));
   const metadata = [...lines(content.number, 230, 9, bold), ...lines(`Issued ${issued}`, 230, 8), ...lines(`Repair order: ${content.identity.repairOrderNumber}`, 230, 8)];
+  if (content.estimateDetails?.estimateDate) metadata.push(...lines(`Original estimate date: ${formatEstimateDate(content.estimateDetails.estimateDate)}`, 230, 8));
+  if (content.estimateDetails?.serviceDate) metadata.push(...lines(`Service date: ${formatEstimateDate(content.estimateDetails.serviceDate)}`, 230, 8));
   metadata.forEach((line, index) => { const face = index === 0 ? bold : font, size = index === 0 ? 9 : 8; draw(line, right - face.widthOfTextAtSize(line, size), 735 - index * 12, size, face); });
   y = Math.min(723 - titleLines.length * 25, 735 - metadata.length * 12) - 4;
   page!.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: .7, color: rule });
@@ -95,7 +98,8 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
       if (index < rows.length) addPage();
     }
   };
-  boxedText("VEHICLE", [identity.vehicle, `VIN: ${identity.vin}`, `Mileage: ${identity.odometer ? `${identity.odometer.reading.toLocaleString("en-US")} ${identity.odometer.unit === "KILOMETERS" ? "km" : "mi"}` : "Not recorded"}`, identity.licensePlate ? `Plate: ${[identity.licensePlate, identity.licensePlateState].filter(Boolean).join(" ")}` : "", identity.color ? `Color: ${identity.color}` : "", identity.stockNumber ? `Stock #: ${identity.stockNumber}` : `Vehicle ID: ${identity.vehicleNumber}`].filter(Boolean).join("  |  "), true);
+  const mileage = serviceDocumentMileage(content);
+  boxedText("VEHICLE", [identity.vehicle, `VIN: ${identity.vin}`, `Mileage: ${mileage ? `${mileage.reading.toLocaleString("en-US")} ${mileage.unit === "KILOMETERS" ? "km" : "mi"}` : "Not recorded"}`, identity.licensePlate ? `Plate: ${[identity.licensePlate, identity.licensePlateState].filter(Boolean).join(" ")}` : "", identity.color ? `Color: ${identity.color}` : "", identity.stockNumber ? `Stock #: ${identity.stockNumber}` : `Vehicle ID: ${identity.vehicleNumber}`].filter(Boolean).join("  |  "), true);
   boxedText("CONCERNS / SERVICE REQUESTED", identity.concern);
   const receipt = content.receipt ?? legacyReceiptDetails(content);
   if (receipt) {
@@ -131,6 +135,13 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   }
   if (content.totals) {
     space(115); y -= 10;
+    if (title === "Repair Estimate" && !content.decision) {
+      const signatureY = y - 58;
+      page!.drawLine({ start: { x: left, y: signatureY }, end: { x: 251, y: signatureY }, thickness: .7, color: rule });
+      page!.drawLine({ start: { x: 267, y: signatureY }, end: { x: 344, y: signatureY }, thickness: .7, color: rule });
+      draw("Customer / authorized representative signature", left, signatureY - 12, 8);
+      draw("Date", 267, signatureY - 12, 8);
+    }
     for (const [label, value] of [["Subtotal", content.totals.subtotalCents], ["Discount", content.totals.discountCents], ["Tax", content.totals.taxCents], ["Total", content.totals.totalCents]] as const) {
       const size = label === "Total" ? 13 : 10, face = label === "Total" ? bold : font;
       draw(label, 365, y, size, face); const amount = money(value); draw(amount, right - face.widthOfTextAtSize(amount, size), y, size, face); y -= label === "Total" ? 28 : 20;
@@ -142,7 +153,7 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
     for (const [label, keys] of [["Approved", content.decision.approvedLineKeys], ["Declined", content.decision.declinedLineKeys], ["Undecided", content.decision.undecidedLineKeys]] as const) paragraph(`${label}: ${keys.map(key => content.lines.find(line => line.key === key)?.description ?? key).join("; ") || "None"}`, 8);
   }
   y -= 8;
-  for (const note of customerDocumentNotes(content.notes.filter(note => !receipt || !note.startsWith("Original invoice ")), content.identity.timezone)) { paragraph(note, 8); y -= 4; }
+  for (const note of customerDocumentNotes(estimateCorrectionNotes(content).filter(note => !receipt || !note.startsWith("Original invoice ")), content.identity.timezone)) { paragraph(note, 8); y -= 4; }
   pdf.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: left, y: 44 }, end: { x: right, y: 44 }, thickness: .6, color: rule });
     sheet.drawText("Thank you for choosing Time Motor Sales.", { x: left, y: 30, size: 8, font, color: muted });
