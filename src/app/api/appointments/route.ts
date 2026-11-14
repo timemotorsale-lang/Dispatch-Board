@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getCalendarUser as getCurrentUser } from "@/server/auth/workflow-user";
+import { prisma } from "@/server/db/client";
 import { getInitialMinneapolisLocation } from "@/server/appointments/location-foundation";
 import {
   getLocationLocalDate,
@@ -100,6 +101,33 @@ export async function GET(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to load appointments right now.";
+
+    if (user?.isActive && message === "Appointment schedule is not authorized.") {
+      const params = new URL(request.url).searchParams;
+      if (params.get("calendar") === "company" && !params.has("locationId")) {
+        const { date, windowStart, windowEnd } = getReadWindow(params, new Date());
+        const range = +windowEnd - +windowStart;
+        if (Number.isFinite(range) && range > 0 && range <= 43 * 86400000) {
+          // Staff without location access see the shared time blocks only.
+          const blocks = await prisma.appointment.findMany({
+            where: {
+              organizationId: defaultLocation.organizationId,
+              locationId: defaultLocation.id,
+              bookingStatus: { not: "CANCELLED" },
+              startsAt: { gte: windowStart, lt: windowEnd }
+            },
+            select: { id: true, startsAt: true, endsAt: true, bookingStatus: true },
+            orderBy: { startsAt: "asc" }
+          });
+          const appointments = blocks.map(block => ({
+            ...block, title: "Company appointment", appointmentNumber: "", viewOnly: true,
+            customer: null, owner: null, vehicles: [], taskLinks: [], resourceReservations: []
+          }));
+          return NextResponse.json({ date, appointmentCount: appointments.length, appointments, location: defaultLocation },
+            { headers: { "Cache-Control": "private, no-store" } });
+        }
+      }
+    }
 
     return NextResponse.json(
       {

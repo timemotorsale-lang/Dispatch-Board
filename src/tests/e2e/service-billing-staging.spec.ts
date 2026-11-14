@@ -15,7 +15,9 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   expect((await request.get(billingUrl)).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
   await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Isolated synthetic billing verification; not starting a real operational workday.");
-  await page.goto(`/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
+  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=qc`);
+  await page.getByRole("link", { name: "Review and create invoice", exact: true }).click();
+  await expect(page).toHaveURL(`/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Service Billing", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review final invoice", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Invoice package", exact: true })).toHaveCount(0);
@@ -63,7 +65,8 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   await page.getByRole("link", { name: "View / Print saved estimate", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Repair Estimate" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Customer and vehicle", exact: true }).getByText("Original frozen synthetic customer", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Convert to invoice", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue repair", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Customer signature", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "$50.00", exact: true })).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await page.pdf({ path: "test-results/labor-staging/frozen-estimate.pdf", format: "Letter", printBackground: true });

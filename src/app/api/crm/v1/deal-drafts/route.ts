@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { isTrustedAppMutation } from "@/lib/app-request-origin";
+import { getDealsUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft } from "@/server/sales-documents/deal-drafts";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { listDealWorkbench } from "@/server/sales-documents/deal-workbench";
@@ -35,17 +36,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const origin = request.headers.get("origin");
-  // TLS terminates at the production proxy; request.url can have an internal HTTP origin.
-  const host = request.headers.get("host") || new URL(request.url).host;
-  let trustedOrigin = request.headers.get("sec-fetch-site") !== "cross-site";
-  if (origin) {
-    try {
-      const source = new URL(origin);
-      trustedOrigin &&= ["http:", "https:"].includes(source.protocol) && source.host === host && source.origin === origin;
-    } catch { trustedOrigin = false; }
-  }
-  if (!trustedOrigin) return NextResponse.json({ error: "Reload this deal from the application, then try the action again. The request did not match this website." }, { status: 403 });
+  if (!isTrustedAppMutation(request)) return NextResponse.json({ error: "Reload this deal from the application, then try the action again. The request did not match this website." }, { status: 403 });
   try {
     const body = await request.json().catch(() => null);
     if (!body) throw new SalesDocumentsError("Choose a deal action.");

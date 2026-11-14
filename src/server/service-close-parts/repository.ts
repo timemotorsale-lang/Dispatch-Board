@@ -6,7 +6,7 @@ import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { assertPartStockLocationWritable } from "@/server/parts-ledger/count-freeze";
-import { assertIndependentPartsApproval, type PurchaseLine, type ReceiptLine, type TransferLine } from "./domain";
+import { assertIndependentPartsApproval, normalizePurchaseTransition, type PurchaseLine, type ReceiptLine, type TransferLine } from "./domain";
 import { assertPurchaseOrderDuplicateGate, type PurchaseOrderDuplicateGateFact } from "./purchase-order-control";
 
 type StockMovement = {
@@ -49,8 +49,30 @@ function total(lines: PurchaseLine[]) {
   return lines.reduce((sum, line) => sum + line.quantity * line.unitCostCents, 0);
 }
 
+const purchaseApprovalCode = "PARTS_PURCHASE_APPROVAL_REQUIRED";
+
+async function purchaseApprovalRequired(database: Pick<AggregateTx, "vehicleOperationsFeatureFlag">, organizationId: string) {
+  const policy = await database.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId, locationId: null, code: purchaseApprovalCode }, select: { mode: true } });
+  return policy?.mode === "GENERAL";
+}
+
 export function createServiceClosePartsRepository(database: PrismaClient = prisma) {
   return {
+    purchaseApprovalRequired(organizationId: string) {
+      return purchaseApprovalRequired(database, organizationId);
+    },
+    setPurchaseApprovalPolicy(command: EnterpriseCommandCommitInput, required: boolean) {
+      return executeAggregateMutation(database, command, "vehicle-operations.parts", async tx => {
+        const previous = await tx.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId: command.organizationId, locationId: null, code: purchaseApprovalCode } });
+        const mode = required ? "GENERAL" : "OFF";
+        if (previous) {
+          await tx.vehicleOperationsFeatureFlag.update({ where: { id: previous.id }, data: { mode, updatedByUserId: command.actorUserId, version: { increment: 1 } } });
+        } else {
+          await tx.vehicleOperationsFeatureFlag.create({ data: { id: command.subjectId, organizationId: command.organizationId, code: purchaseApprovalCode, mode, allowedUserIds: [], updatedByUserId: command.actorUserId } });
+        }
+        return { previous, result: { purchaseApprovalRequired: required } };
+      });
+    },
     commandReceipt(organizationId: string, commandType: string, idempotencyKey: string) {
       return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType, idempotencyKey } }, select: { expectedVersion: true } });
     },
@@ -327,7 +349,8 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           await tx.partRequisition.update({ where: { id: requisition.id }, data: { status: "ORDERED", version: { increment: 1 } } });
         }
         const reason = data.duplicateOverrideReason ? `${data.reason} Duplicate-control override: ${data.duplicateOverrideReason}` : data.reason;
-        const record = await tx.partPurchaseOrder.create({ data: { createdByUserId: data.createdByUserId, id: command.subjectId, lines: toJson(data.lines), locationId: data.locationId, orderedTotalCents: total(data.lines), organizationId: command.organizationId, purchaseOrderNumber: data.purchaseOrderNumber, reason, requisitionId: data.requisitionId, vendorId: data.vendorId } });
+        const approvalRequired = await purchaseApprovalRequired(tx, command.organizationId);
+        const record = await tx.partPurchaseOrder.create({ data: { createdByUserId: data.createdByUserId, id: command.subjectId, lines: toJson(data.lines), locationId: data.locationId, orderedTotalCents: total(data.lines), organizationId: command.organizationId, purchaseOrderNumber: data.purchaseOrderNumber, reason, requisitionId: data.requisitionId, vendorId: data.vendorId, status: approvalRequired ? "DRAFT" : "ISSUED", issuedAt: approvalRequired ? null : new Date() } });
         return { result: { id: record.id, orderedTotalCents: record.orderedTotalCents, purchaseOrderNumber: record.purchaseOrderNumber, status: record.status } };
       });
     },
@@ -336,7 +359,9 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId } });
         if (!record) throw new Error("Purchase order was not found.");
-        if (data.toStatus === "APPROVED") assertIndependentPartsApproval("PURCHASE_APPROVAL", record.createdByUserId, command.actorUserId, { allowFinalAuthoritySelfApproval: data.allowFinalAuthoritySelfApproval === true });
+        normalizePurchaseTransition({ ...data, idempotencyKey: command.idempotencyKey, reason: command.reason, occurredAt: data.occurredAt.toISOString() }, record.status);
+        if (data.toStatus === "APPROVED" && !data.allowFinalAuthoritySelfApproval) throw new Error("Only a manager can approve a restricted purchase order.");
+        if (record.status === "DRAFT" && data.toStatus === "ISSUED" && await purchaseApprovalRequired(tx, command.organizationId)) throw new Error("Manager approval is required before issuing this purchase order.");
         const procurementBudget = data.toStatus === "APPROVED" ? await checkReconPurchaseApproval(tx, {
           organizationId: command.organizationId, purchaseOrderId: record.id,
           requisitionId: record.requisitionId, managerAuthority: data.allowFinalAuthoritySelfApproval === true,
@@ -358,8 +383,10 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receiptId: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
-        const order = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId, status: { in: ["ACKNOWLEDGED", "PARTIALLY_RECEIVED"] } }, include: { receipts: true } });
-        if (!order) throw new Error("Acknowledged purchase order was not found.");
+        const approvalRequired = await purchaseApprovalRequired(tx, command.organizationId);
+        const order = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId }, include: { receipts: true } });
+        if (!order || !["DRAFT", "APPROVED", "ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED"].includes(order.status)) throw new Error("Open purchase order was not found.");
+        if (approvalRequired && order.status === "DRAFT") throw new Error("Manager approval is required before receiving this purchase order.");
         const stockLocation = await tx.partStockLocation.findFirst({ where: { id: data.stockLocationId, organizationId: command.organizationId, locationId: order.locationId, isActive: true } });
         if (!stockLocation) throw new Error("Receipt stock location must be active at the purchase-order location.");
         const ordered = order.lines as PurchaseLine[], priorLines = order.receipts.flatMap((item) => item.lines as ReceiptLine[]);

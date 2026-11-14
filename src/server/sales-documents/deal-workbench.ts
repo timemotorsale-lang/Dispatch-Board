@@ -4,7 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { isSalesDocumentPathway } from "@/lib/sales-document-pathways";
 import { isSavedDealStatus, type SavedDealStatus } from "@/lib/saved-deal-status";
-import { requireSalesDocumentsUser } from "./service";
+import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
 import { SalesDocumentsError } from "./domain";
 import { buildDealDashboard } from "./dashboard";
 import { canManageDeals } from "./dashboard-operations";
@@ -12,7 +12,7 @@ import { canManageDeals } from "./dashboard-operations";
 type WorkbenchRow = { id: string; draftId: string | null; draftRevision: number | null; jacketId: string | null; customerName: string; vehicleReference: string; pathway: string; status: SavedDealStatus; packetState: string | null; dealNumber: string | null; updatedAt: Date };
 
 export async function listDealWorkbench(actor: AuthenticatedUser | null, params: URLSearchParams) {
-  const user = requireSalesDocumentsUser(actor), organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
+  const user = requireOwnDealUser(actor), organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
   const search = (params.get("search") || "").trim().slice(0, 240), status = params.get("status") || "ALL", pathway = params.get("pathway") || "ALL", page = Number(params.get("page") || 1);
   if (!Number.isInteger(page) || page < 1 || page > 100000) throw new SalesDocumentsError("Choose a valid deals page.");
   if (status !== "ALL" && status !== "CURRENT" && !isSavedDealStatus(status)) throw new SalesDocumentsError("Choose a valid deal status.");
@@ -33,10 +33,10 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
         )) ORDER BY j."updatedAt" DESC LIMIT 1
     ) j ON TRUE WHERE d."organizationId" = ${organizationId} ${team ? Prisma.empty : Prisma.sql`AND d."ownerUserId" = ${user.id}`}
   ), packet_archives AS (
-    SELECT j."id", BOOL_AND(d."status" = 'ARCHIVED') AS archived
+    SELECT j."id", BOOL_AND(d."status" = 'ARCHIVED' OR d."pathway" <> j."pathway") AS archived
     FROM "SalesDocumentJacket" j JOIN "DealDeskDraft" d
-      ON d."organizationId" = j."organizationId" AND d."pathway" = j."pathway"
-      AND (j."id" = d."snapshot" -> 'jackets' ->> d."pathway" OR j."dealReference" IN (
+      ON d."organizationId" = j."organizationId"
+      AND (j."id" = d."snapshot" -> 'jackets' ->> j."pathway" OR j."dealReference" IN (
         SELECT value FROM jsonb_each_text(CASE WHEN jsonb_typeof(d."snapshot" -> 'references') = 'object' THEN d."snapshot" -> 'references' ELSE '{}'::jsonb END)
       ))
     WHERE j."organizationId" = ${organizationId} GROUP BY j."id"
@@ -47,6 +47,7 @@ export async function listDealWorkbench(actor: AuthenticatedUser | null, params:
       CASE WHEN EXISTS (SELECT 1 FROM packet_archives a WHERE a."id" = j."id" AND a.archived) THEN 'ARCHIVED' WHEN j."state" = 'CLOSED' THEN 'COMPLETED' WHEN j."state" IN ('DELIVERED_FUNDING_PENDING', 'UNWIND_PENDING') THEN 'PENDING' ELSE 'IN_PROGRESS' END AS "status",
       j."state" AS "packetState", j."dealNumber", j."updatedAt"
     FROM "SalesDocumentJacket" j WHERE j."organizationId" = ${organizationId}
+      ${team ? Prisma.empty : Prisma.sql`AND j."createdByUserId" = ${user.id}`}
       AND NOT EXISTS (SELECT 1 FROM drafts d WHERE d."jacketId" = j."id")
   )`;
   if (params.get("dashboard") === "1") return buildDealDashboard(user, source, params);

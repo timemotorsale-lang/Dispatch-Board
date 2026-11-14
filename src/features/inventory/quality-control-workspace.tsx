@@ -17,7 +17,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
-import { notifyRepairReviewSaved, scopedRepairOrders } from "@/lib/repair-workflow-review";
+import { notifyRepairReviewSaved, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type User = { id: string; name: string };
@@ -323,7 +323,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   async function refresh() {
-    const next = scopedRepairOrders(await request("/api/quality-control") as Model, reviewOrderId);
+    const query = reviewOrderId ? `?${new URLSearchParams({ repairOrderId: reviewOrderId })}` : "";
+    const next = scopedRepairOrders(await request(`/api/quality-control${query}`) as Model, reviewOrderId);
     setModel(next);
   }
 
@@ -804,8 +805,19 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </section>
       ) : null}
 
-      {order?.releaseAuthorization ? (
-        <section className="frontline-qc-complete"><CheckCircle2 /><div><strong>Final Frontline QC complete</strong><span>This repair order is cleared for photos, merchandising, and its next frontline-readiness handoff.</span></div></section>
+      {order && (order.releaseAuthorization || (allPassed && order.origin === "CUSTOMER_REPAIR" && order.customer)) ? (
+        <section className="frontline-qc-complete">
+          <CheckCircle2 />
+          {order.origin === "CUSTOMER_REPAIR" ? <div>
+            <strong>{order.releaseAuthorization ? "Final QC complete" : "Repair quality checks passed"}</strong>
+            <span>Continue to billing to review the approved estimate and any remaining invoice requirements.</span>
+            {order.customer && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link>}
+          </div> : <div>
+            <strong>Final Frontline QC complete</strong>
+            <span>This repair order is cleared for photos, merchandising, and its next frontline-readiness handoff.</span>
+            <Link className="pill pill-primary" href={repairReviewHref(order.id, "handoff")}>Continue handoff</Link>
+          </div>}
+        </section>
       ) : null}
 
       <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean((order && job) || showVendorReturnQc)}>

@@ -1,3 +1,5 @@
+import { waitingJobPartsReady } from "./repair-job-parts-readiness";
+
 export const repairWorkflowSteps = ["inspection", "diagnosis", "estimate", "authorization", "parts", "assignment", "repair", "qc", "handoff"] as const;
 export type RepairWorkflowStep = typeof repairWorkflowSteps[number];
 export const repairWorkflowLabels: Record<RepairWorkflowStep, string> = { inspection: "Inspect", diagnosis: "Diagnose / scope", estimate: "Estimate", authorization: "Authorize", parts: "Parts & release", assignment: "Assign", repair: "Repair", qc: "Quality check", handoff: "Closeout / handoff" };
@@ -8,14 +10,14 @@ export function currentRepairWorkflowStep(order: {
   closedAt?: unknown; stage: string; releaseAuthorization?: unknown;
   inspectionVersions: unknown[]; diagnosisVersions: unknown[];
   estimateVersions: { authorizations: { disposition: string }[] }[];
-  repairJobs: { status: string }[];
+  repairJobs: ({ status: string } & Parameters<typeof waitingJobPartsReady>[0])[];
   vendorWorks?: { status: string; approvalStatus: string }[];
 }): RepairWorkflowStep {
   const jobs = order.repairJobs.filter(job => !["CANCELLED", "CANCELED"].includes(job.status));
   if (order.closedAt || ["CLOSED", "HANDOFF"].includes(order.stage) || order.releaseAuthorization) return "handoff";
   if (jobs.some(job => ["QC_FAILED", "REWORK_REQUIRED", "PAUSED"].includes(job.status))) return "repair";
   if (jobs.length && jobs.every(job => ["READY_FOR_QC", "QC_PASSED", "COMPLETED"].includes(job.status))) return "qc";
-  if (jobs.some(job => job.status === "WAITING_PARTS")) return "parts";
+  if (jobs.some(job => job.status === "WAITING_PARTS" && !waitingJobPartsReady(job))) return "parts";
   if (jobs.some(job => ["DISPATCHED", "IN_PROGRESS"].includes(job.status))) return "repair";
   if (jobs.length) return "assignment";
   const vendor = order.vendorWorks?.find(work => !["CANCELLED", "COMPLETED"].includes(work.status));

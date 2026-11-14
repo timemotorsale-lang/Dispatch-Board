@@ -232,6 +232,7 @@ export type AppointmentCommandRepository = {
     organizationId: string;
     locationId: string;
     startsAt: Date;
+    endsAt: Date;
     excludeAppointmentId?: string | null;
   }): Promise<AppointmentCommandAppointmentRecord[]>;
 };
@@ -372,7 +373,8 @@ export function createAppointmentCommandRepository(
         where: {
           organizationId: input.organizationId,
           locationId: input.locationId,
-          startsAt: input.startsAt,
+          startsAt: { lt: input.endsAt },
+          endsAt: { gt: input.startsAt },
           bookingStatus: {
             in: ["DRAFT", "PENDING_APPROVAL", "SCHEDULED"]
           },

@@ -2,7 +2,8 @@
 import { useRef, useState } from "react";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
 import styles from "./crm-next-shell.module.css";
-export function DealPathwayChange({ id, revision, pathway, status = "IN_PROGRESS", initialPathway, disabled = false, onSaved }: { id: string; revision: number; pathway: string; status?: string; initialPathway?: string; disabled?: boolean; onSaved: () => void }) {
+export type DealPathwayChangeResult = { id: string; pathway: string; revision: number };
+export function DealPathwayChange({ id, revision, pathway, status = "IN_PROGRESS", initialPathway, disabled = false, onSaved }: { id: string; revision: number; pathway: string; status?: string; initialPathway?: string; disabled?: boolean; onSaved: (result: DealPathwayChangeResult) => void }) {
   const [target, setTarget] = useState(initialPathway ?? ""), [reason, setReason] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const pending = useRef(false);
   const moveToPending = status === "SOLD" || status === "COMPLETED";
@@ -13,7 +14,7 @@ export function DealPathwayChange({ id, revision, pathway, status = "IN_PROGRESS
     try {
       const response = await fetch("/api/crm/v1/deal-drafts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "CHANGE_PATHWAY", id, revision, pathway: target, reason }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error || "The pathway could not be changed. Your entries remain here.");
-      onSaved();
+      onSaved({ id, pathway: target, revision: body.revision });
     } catch (caught) { setError(caught instanceof Error ? caught.message : "The connection was interrupted. Refresh the saved deal before retrying."); }
     finally { pending.current = false; setBusy(false); }
   }
@@ -21,6 +22,7 @@ export function DealPathwayChange({ id, revision, pathway, status = "IN_PROGRESS
     <form data-deal-transient className={styles.retailSection} aria-label="Change revenue pathway" onSubmit={event => { event.preventDefault(); void submit(); }}>
       <h3>Change revenue pathway</h3>
       <p>The same deal number, customer, vehicle and history are kept. Review the new pricing and paperwork; the previous amount stays in history.</p>
+      {target === "test-drive" && <p>After confirming, review the driver and prepare a separate test-drive agreement. The prepared sale or lease packet stays on file and does not count as test-drive paperwork.</p>}
       <p>Current pathway: {SALES_DOCUMENT_PATHWAYS[pathway as keyof typeof SALES_DOCUMENT_PATHWAYS] ?? pathway}</p>
       {moveToPending && <p>This action moves the deal back to Pending and changes its pathway together, so staff can review and edit the new terms.</p>}
       <div className={styles.retailFieldGrid}>

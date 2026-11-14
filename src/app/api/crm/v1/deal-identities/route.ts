@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getDealsUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { dealIdentityFailure } from "@/server/deal-continuity/http";
 import { createDealCustomer, createDealVehicle, dealCustomer, dealVehicle, dealIdentityOptions, searchDealCustomers, searchDealVehicles } from "@/server/deal-continuity/identities";
 import { resolveDealSource } from "@/server/deal-continuity/service";

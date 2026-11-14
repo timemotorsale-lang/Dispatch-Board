@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { attachMoneyReceipt, readMoneyReceipt } from "@/server/money-resources/receipts";
+import { attachMoneyReceipt, attachReadingReceipt, readMoneyReceipt } from "@/server/money-resources/receipts";
 import { MoneyError } from "@/lib/money-resources";
 import { moneyError, requireMoneyOrigin } from "@/server/money-resources/http";
 
@@ -17,6 +17,8 @@ export async function POST(request: Request, context: { params: Promise<{ entryI
     const actor = await getCurrentUser();
     if (!actor?.isActive) throw new MoneyError("Sign in before attaching a receipt.", 401);
     const form = await request.formData(), file = form.get("file");
+    const jobId=form.get("readingJobId");
+    if(typeof jobId==="string"&&jobId.length<150)return NextResponse.json(await attachReadingReceipt(actor,(await context.params).entryId,jobId),{headers:{"cache-control":"no-store"}});
     if (!(file instanceof File)) throw new MoneyError("Choose a receipt file.");
     return NextResponse.json(await attachMoneyReceipt(actor, (await context.params).entryId, file), { headers: { "cache-control": "no-store" } });
   } catch (error) { return moneyError(error); }

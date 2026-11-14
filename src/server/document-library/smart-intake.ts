@@ -1,8 +1,9 @@
 import { extractDocumentText, type DocumentTextExtractionResult } from "./text-extraction";
+import {documentReadingPurposeFromText,DOCUMENT_READING_PROFILES,parseDocumentReading,isDocumentReadingPurpose,type DocumentReadingPurpose} from "@/lib/document-reading";
 
 export const DOCUMENT_SMART_INTAKE_CONTRACT_VERSION = "document-smart-intake/v1";
 
-export type SmartDocumentClassification = "BUSINESS_CARD" | "GOVERNMENT_ID" | "INSURANCE_ESTIMATE" | "UNKNOWN";
+export type SmartDocumentClassification = DocumentReadingPurpose | "GOVERNMENT_ID" | "INSURANCE_ESTIMATE" | "UNKNOWN";
 export type SmartDocumentReviewStatus = "READY_FOR_REVIEW" | "NEEDS_REVIEW" | "LOW_CONFIDENCE" | "SENSITIVE_REVIEW";
 
 export type SmartDocumentField = {
@@ -148,8 +149,9 @@ function classifyText(input: { contentType: string; fileName: string; text: stri
   ].filter(Boolean).length;
 
   if (idSignals >= 2) return { classification: "GOVERNMENT_ID" as const, confidence: Math.min(96, 60 + idSignals * 10) };
-  if (cardSignals >= 2) return { classification: "BUSINESS_CARD" as const, confidence: Math.min(94, 52 + cardSignals * 11) };
+  const purpose=documentReadingPurposeFromText(input.text);if(purpose)return {classification:purpose,confidence:65};
   if (estimateSignals >= 2) return { classification: "INSURANCE_ESTIMATE" as const, confidence: Math.min(92, 58 + estimateSignals * 9) };
+  if (cardSignals >= 2) return { classification: "BUSINESS_CARD" as const, confidence: Math.min(94, 52 + cardSignals * 11) };
   return { classification: "UNKNOWN" as const, confidence: input.text.trim() ? 35 : 10 };
 }
 
@@ -182,7 +184,7 @@ function extractEstimateFields(text: string) {
   const claim = matchFirst(text, [/\bclaim\s*(?:number|#|no\.?)\s*[:#-]?\s*([A-Z0-9-]{4,})\b/i]);
   const vin = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i)?.[0] ?? "";
   return [
-    field("approvedAmount", "Estimate total", amount ? `$${amount}` : "", 78),
+    field("estimateTotal", "Proposed estimate total", amount ? `$${amount}` : "", 78),
     field("claimNumber", "Claim number", claim, 70),
     field("vin", "VIN", vin, 84)
   ].filter(Boolean) as SmartDocumentField[];
@@ -202,7 +204,7 @@ function routingTarget(classification: SmartDocumentClassification): SmartDocume
 }
 
 function classificationLabel(classification: SmartDocumentClassification) {
-  if (classification === "BUSINESS_CARD") return "Business card";
+  if(isDocumentReadingPurpose(classification))return DOCUMENT_READING_PROFILES[classification].label;
   if (classification === "GOVERNMENT_ID") return "Government ID";
   if (classification === "INSURANCE_ESTIMATE") return "Insurance estimate";
   return "Needs review";
@@ -221,9 +223,10 @@ export async function analyzeSmartDocumentIntake(input: {
     classified.classification === "BUSINESS_CARD" ? extractBusinessCardFields(text, lines) :
       classified.classification === "GOVERNMENT_ID" ? extractGovernmentIdFields(text, lines) :
         classified.classification === "INSURANCE_ESTIMATE" ? extractEstimateFields(text) :
-          [];
+          isDocumentReadingPurpose(classified.classification)?parseDocumentReading(classified.classification,[{page:1,text,method:extraction.method}]).fields.filter(f=>f.value).map(f=>({key:f.key,label:f.label,value:f.value,confidence:65,sensitive:["signer","owner"].includes(f.key)})):[];
   const sensitiveFieldKeys = extractedFields.filter((item) => item.sensitive).map((item) => item.key);
   const warnings = [
+    "Reading scores describe parser rules, not measured accuracy. Review every proposed value before use.",
     ...extraction.warnings,
     ...(classified.classification === "UNKNOWN" ? ["Document type could not be classified confidently."] : []),
     ...(sensitiveFieldKeys.length > 0 ? ["Sensitive identity fields require staff review before use."] : [])
@@ -258,8 +261,8 @@ export async function persistSmartDocumentIntakeRecord(input: {
       contentType: metadata.contentType ?? null,
       createdByUserId: metadata.createdByUserId ?? null,
       documentId: metadata.documentId ?? null,
-      extractedFields: draft.extractedFields,
-      extractedText: draft.extractedText || null,
+      extractedFields: draft.classification==="GOVERNMENT_ID"?draft.extractedFields.map(field=>field.key==="licenseNumber"?{...field,value:`••••${field.value.slice(-4)}`}:field):draft.extractedFields,
+      extractedText: draft.classification==="GOVERNMENT_ID"?null:draft.extractedText || null,
       extractionMethod: draft.extractionMethod,
       fileName: metadata.fileName,
       organizationId: metadata.organizationId,

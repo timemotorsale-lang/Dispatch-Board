@@ -153,6 +153,14 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("QC CLEARED");
     expect(html).toContain("Green vehicle · ready for photos and frontline merchandising");
     expect(html).toContain("Green in QC list / ready for photos");
+    expect(html).toContain("Continue handoff");
+    expect(html).not.toContain("Review and create invoice");
+
+    clearedModel.repairOrders[0].origin = "CUSTOMER_REPAIR";
+    const customerHtml = renderToStaticMarkup(<QualityControlWorkspace initial={clearedModel} />);
+    expect(customerHtml).toContain('href="/vehicles/service-billing?repairOrderId=ro_1"');
+    expect(customerHtml).toContain("Review and create invoice");
+    expect(customerHtml).not.toContain("Final Frontline QC complete");
   });
 
   it("opens a vendor-return QC decision when outside vendor work comes back for inspection", () => {

@@ -20568,6 +20568,17 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   gap: 5px;
 }
 
+.repair-priority-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+}
+
+.repair-priority-fields label {
+  display: grid;
+  gap: 0.25rem;
+}
+
 .appointment-detail-list p {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
@@ -20577,6 +20588,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   color: #334155;
   font-size:11.5px;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .appointment-detail-list svg {
@@ -21948,6 +21960,11 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .task-intake-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px 12px; padding:16px; }.task-intake-form-grid label { display:grid; gap:5px; min-width:0; }.task-intake-form-grid label>span,.task-intake-required-updates legend { color:#354963; font-size:10px; font-weight:850; }
 .task-intake-form-grid input,.task-intake-form-grid select,.task-intake-form-grid textarea { width:100%; min-width:0; border:1px solid #cad6e6; border-radius:9px; padding:9px 10px; color:#172a44; background:#fbfdff; font-size:11px; outline:none; }.task-intake-form-grid input,.task-intake-form-grid select { min-height:38px; }.task-intake-form-grid textarea { resize:vertical; line-height:1.45; }.task-intake-form-grid input:focus,.task-intake-form-grid select:focus,.task-intake-form-grid textarea:focus { border-color:#4f88ee; box-shadow:0 0 0 3px rgb(37 105 226 / 10%); background:#fff; }.task-intake-span-2 { grid-column:1/-1; }
 .task-intake-enterprise-column { display:grid; gap:10px; }
+.task-intake-layout.task-intake-layout-capture { grid-template-columns: minmax(0, 1fr); max-width: 58rem; margin-inline: auto; }
+.task-intake-more-options { padding: .65rem 1rem; }
+.task-intake-more-options summary { cursor: pointer; font-weight: 650; }
+.task-intake-more-options[open] summary { margin-bottom: .75rem; }
+.task-intake-more-options > label { margin-bottom: .65rem; }
 .task-intake-enterprise-panel { display:grid; gap:12px; border-radius:13px; padding:13px; }
 .task-intake-enterprise-panel header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .task-intake-enterprise-panel header p,.task-intake-enterprise-panel header strong { margin:0; }
@@ -32531,6 +32548,12 @@ html[data-app-theme="dark"] .app-content :where(
 
 .calendar-detail-dialog::backdrop { background: rgb(12 23 41 / 35%); }
 .calendar-detail-dialog-form { padding: 14px; }
+.appointment-duration-field { display: grid; gap: .4rem; min-width: 0; }
+.appointment-duration-field label { display: grid; gap: .3rem; min-width: 0; }
+.appointment-duration-field select, .appointment-duration-field input { max-width: 100%; }
+.appointment-duration-field fieldset { display: flex; flex-wrap: wrap; gap: .4rem; min-width: 0; margin: 0; padding: .5rem; border: 1px solid #aebdd2; border-radius: .5rem; }
+.appointment-duration-field fieldset label { flex: 1 1 5rem; }
+.appointment-duration-field small { flex-basis: 100%; }
 .calendar-detail-dialog-form > header {
   position: sticky;
   top: -14px;
@@ -32747,5 +32770,247 @@ html[data-app-theme="dark"] .app-content :where(
   .etw-compact-task-card .etw-note-composer .rich-text-composer:not(.rich-text-composer-expanded) textarea {
     min-height: 104px;
     max-height: 40dvh;
+  }
+}
+
+/* Full-page scheduling surface. */
+.app-frame:has(.appointment-schedule-board) > .console-sidebar,
+.app-frame:has(.appointment-schedule-board) > .app-workspace > .app-topbar {
+  display: none;
+}
+
+.appointment-board-page.appointment-schedule-board {
+  --schedule-padding: clamp(.6rem, 2vw, 1.5rem);
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: block;
+  max-width: none;
+  padding: var(--schedule-padding);
+  overflow: auto;
+  background: var(--background, #f3f6fb);
+}
+
+.appointment-schedule-board.appointment-workspace-open > .appointment-enterprise-shell {
+  width: 100%;
+  margin: 0;
+}
+
+.appointment-schedule-board .appointment-enterprise-main {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 2 * var(--schedule-padding));
+  gap: .65rem;
+}
+
+.appointment-schedule-board .appointment-enterprise-main > :is(.appointment-board-toolbar, .appointment-date-row, .appointment-upcoming-card) {
+  width: 100%;
+}
+
+.appointment-schedule-board .appointment-board-toolbar,
+.appointment-schedule-board .appointment-toolbar-actions,
+.appointment-schedule-board .appointment-date-row {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .5rem;
+}
+
+.appointment-schedule-board .appointment-board-toolbar {
+  justify-content: space-between;
+}
+
+.appointment-schedule-board .appointment-board-toolbar > div:first-child,
+.appointment-schedule-board .appointment-date-picker-wrap {
+  min-width: 0;
+}
+
+.appointment-schedule-board .appointment-toolbar-actions {
+  width: auto;
+  min-width: 0;
+}
+
+.appointment-schedule-search {
+  position: relative;
+}
+
+.appointment-schedule-board .appointment-schedule-search .appointment-search {
+  position: absolute;
+  z-index: 26;
+  top: calc(100% + .35rem);
+  right: 0;
+  width: min(21rem, calc(100vw - 2rem));
+  min-width: 0;
+  padding: .5rem;
+}
+
+.appointment-schedule-board .appointment-date-row {
+  position: relative;
+}
+
+.appointment-schedule-board .appointment-date-display strong {
+  white-space: normal;
+}
+
+.appointment-schedule-board .appointment-main-grid {
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  align-items: stretch;
+}
+
+.appointment-schedule-board .appointment-board-card {
+  min-height: min(32rem, 70dvh);
+  border-radius: 1.4rem;
+}
+
+.appointment-schedule-board .appointment-date-row > :is(select, a),
+.appointment-schedule-search > summary,
+.appointment-schedule-filters > summary,
+.appointment-schedule-filters > .appointment-date-filters > button,
+.appointment-schedule-detail-bar > button {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 2rem;
+  padding: .25rem .6rem;
+  border: 1px solid #dce3ed;
+  border-radius: .7rem;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.appointment-schedule-search > summary::-webkit-details-marker,
+.appointment-schedule-filters > summary::-webkit-details-marker {
+  display: none;
+}
+
+.appointment-schedule-board .appointment-schedule-filters > .appointment-date-filters {
+  position: absolute;
+  top: calc(100% + .35rem);
+  left: 0;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  width: min(100%, 42rem);
+  min-width: 0;
+  padding: .7rem;
+  border: 1px solid #dce3ed;
+  border-radius: .9rem;
+  background: var(--surface, #fff);
+  box-shadow: 0 10px 25px rgb(15 23 42 / 14%);
+}
+
+.appointment-schedule-filters .appointment-date-filters > label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.appointment-schedule-filters .appointment-status-strip {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+}
+
+.appointment-schedule-board .appointment-day-card-board {
+  min-width: 0;
+  background: transparent;
+}
+
+.appointment-schedule-board .appointment-day-card-lanes {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+.appointment-schedule-board .appointment-day-card-lane,
+.appointment-schedule-board .appointment-day-card {
+  min-height: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.appointment-schedule-board .appointment-calendar-shell {
+  overflow: auto;
+}
+
+.appointment-schedule-board .appointment-calendar-shell :is(.appointment-calendar-header, .appointment-calendar-body) {
+  grid-template-columns: 3.5rem repeat(var(--schedule-lanes), minmax(8rem, 1fr));
+  min-width: 0;
+}
+
+.appointment-schedule-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .55rem;
+  flex: 1;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted, #526176);
+}
+
+.appointment-schedule-error,
+.appointment-schedule-board .appointment-upcoming-card {
+  padding: .6rem .8rem;
+}
+
+.appointment-schedule-board .appointment-upcoming-card summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.appointment-schedule-board .appointment-workspace-sidebar,
+.appointment-schedule-board .appointment-detail-panel {
+  position: fixed;
+  top: .65rem;
+  bottom: .65rem;
+  height: auto;
+  max-height: none;
+  overflow: auto;
+  z-index: 30;
+  align-content: start;
+}
+
+.appointment-schedule-board .appointment-workspace-sidebar {
+  left: .65rem;
+  width: min(24rem, calc(100vw - 1.3rem));
+  border-radius: 1rem;
+}
+
+.appointment-schedule-board .appointment-detail-panel {
+  right: .65rem;
+  width: min(34rem, calc(100vw - 1.3rem));
+  padding: .85rem;
+  box-shadow: 0 12px 35px rgb(15 23 42 / 22%);
+}
+
+.appointment-schedule-board .appointment-detail-panel[hidden] {
+  display: none;
+}
+
+.appointment-schedule-detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid #dce3ed;
+}
+
+@media (max-width: 700px) {
+  .appointment-schedule-board .appointment-toolbar-actions {
+    position: relative;
+  }
+
+  .appointment-schedule-search {
+    position: static;
+  }
+
+  .appointment-schedule-board .appointment-schedule-search .appointment-search {
+    left: 0;
+    right: auto;
   }
 }

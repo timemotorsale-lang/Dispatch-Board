@@ -131,3 +131,12 @@
 .rowActionMenu [role="menuitem"]:hover, .rowActionMenu [role="menuitem"]:focus-visible { background: #edf3fb; }
 .rowActionMenu [role="separator"] { height: 1px; margin: 5px; background: #dce3e9; }
 .library .rowActionMenu .rowCautionAction { color: #8f3038; }
+.areaHeading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; padding: 8px 0 0; }
+.library .areaHeading h2 { font-size: 15px; line-height: 1.3; }
+.areaHeading details { font-size: 12px; color: #536879; }
+.areaHeading summary { cursor: pointer; }
+.areaHeading details[open] { flex-basis: 100%; }
+.areaHeading p { margin: 6px 0; font-size: 12px; line-height: 1.4; }
+.library .compact .rowStatus { font-size: 12px; line-height: 1.35; }
+.library .compact td small { font-size: 11px; line-height: 1.35; }
+.rowPopoverPanel .rowProgress dt, .rowPopoverPanel .rowProgress dd { font-size: 12px; line-height: 1.35; margin: 0; }

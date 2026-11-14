@@ -16,10 +16,32 @@ export function dealCustomerDisplayNumber(customer: { id: string; customerNumber
 }
 export type DealVehicleChoice = {
   trim?: string; recordedMileage?: string; mileageRecordedAt?: string;
+  interiorColor?: string; bodyStyle?: string; engine?: string; transmission?: string; drivetrain?: string; fuelType?: string;
   id: string; label: string; vin: string; stockNumber: string; inventoryUnitId: string | null;
   year: string; make: string; model: string; color: string; licensePlate: string; locationId: string | null;
   availability: string; eligibleForUse: boolean;
 };
+export function inventoryVehicleDetails(vehicle: DealVehicleChoice) {
+  return {
+    vin: vehicle.vin, stockNumber: vehicle.stockNumber, year: vehicle.year, make: vehicle.make, model: vehicle.model,
+    trim: vehicle.trim, color: vehicle.color, interiorColor: vehicle.interiorColor, bodyStyle: vehicle.bodyStyle,
+    engine: vehicle.engine, transmission: vehicle.transmission, drivetrain: vehicle.drivetrain, fuelType: vehicle.fuelType,
+    recordedMileage: vehicle.recordedMileage, mileageRecordedAt: vehicle.mileageRecordedAt,
+    licensePlate: vehicle.licensePlate
+  };
+}
+export function prefillDealVehicle<Value extends Record<string, unknown>>(current: Value, vehicle: DealVehicleChoice): Value {
+  const details = { ...inventoryVehicleDetails(vehicle), license: vehicle.licensePlate, bodyType: vehicle.bodyStyle, driveTrain: vehicle.drivetrain };
+  const next = { ...current };
+  let changed = false;
+  for (const [key, value] of Object.entries(details)) {
+    if (key in current && value && current[key] === "") {
+      next[key as keyof Value] = value as Value[keyof Value];
+      changed = true;
+    }
+  }
+  return changed ? next : current;
+}
 export type DealIdentity = { customerId: string; vehicleId: string; inventoryUnitId: string | null; sourceDraftId?: string; sourceJacketId?: string; sourceVehicleId?: string; vehicle?: DealVehicleChoice | null };
 export const emptyDealIdentity: DealIdentity = { customerId: "", vehicleId: "", inventoryUnitId: null, sourceDraftId: "", sourceJacketId: "", sourceVehicleId: "", vehicle: null };
 export function vehicleUseOverlaps(existing: { status: string; startsAt: Date; expectedReturnAt: Date }, startsAt: Date, endsAt: Date) {

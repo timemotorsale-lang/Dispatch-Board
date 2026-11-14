@@ -6,9 +6,34 @@ vi.mock("@/server/db/client", () => ({ prisma: { $queryRaw: mocks.query, salesDo
 vi.mock("@/server/compliance/service", () => ({ complianceAccess: mocks.access }));
 import { buildDealDashboard } from "@/server/sales-documents/dashboard";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
+import { salesDocumentRequirements } from "@/lib/sales-document-pathways";
 const actor = { id: "staff-1", name: "Staff", isActive: true } as AuthenticatedUser;
 const row = (id: string, status = "IN_PROGRESS") => ({ id, draftId: id, draftRevision: 1, jacketId: null, customerId: "customer-1", ownerId: actor.id, ownerName: actor.name, customerName: "Buyer", pathway: "retail-sale", status, packetState: null, createdAt: new Date("2026-10-01"), updatedAt: new Date("2026-11-01"), statusHistory: [] });
 describe("scoped deal dashboard", () => {
+  it("uses the same shortened checklist for saved lease counts and next actions", async () => {
+    const removed = ["sales-agreement", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure"];
+    const saved = [...removed.map(id => ({ id, label: id, phase: "CLOSING" as const, required: true, signed: true })), ...salesDocumentRequirements("lease-to-own")];
+    mocks.query.mockResolvedValue([{ ...row("lease"), pathway: "lease-to-own", jacketId: "packet" }]);
+    mocks.jackets.mockResolvedValue([{ id: "packet", requirements: saved, versions: [], packet: { documents: [], auditEvents: [] } }]);
+    const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=working"));
+    expect(result.items[0].documentsTotal).toBe(7);
+    expect(result.items[0].nextAction).toBe("DMV / title transfer paperwork");
+    expect(result.items[0].documentChecklist?.some(item => removed.includes(item.id))).toBe(false);
+    expect(saved).toHaveLength(12);
+  });
+  it("filters work areas before counts and pagination and preserves the original transaction identifiers", async () => {
+    mocks.query.mockResolvedValue([row("working"), ...Array.from({ length: 26 }, (_, index) => ({ ...row(`sold-${index}`, "SOLD"), statusHistory: [{ to: "SOLD", at: "2026-10-01T18:00:00Z" }] })), { ...row("rental"), pathway: "daily-rental" }, row("lost", "LOST")]);
+    const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=sold&status=ALL&page=2&pageSize=25&date=2026-11-08"));
+    expect(result.total).toBe(26); expect(result.items).toHaveLength(1);
+    expect(result.items[0].draftId).toBe(result.items[0].id);
+    expect(result.dashboard.areaCounts).toMatchObject({ working: 1, sold: 26, rentals: 1, archive: 1 });
+    expect(result.counts).toEqual({ SOLD: 26 });
+    const working = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=working"));
+    expect(working.items.map(item => item.id)).toEqual(["working"]);
+    const history = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=archive&status=ALL"));
+    expect(history.items.map(item => item.id)).toEqual(["lost"]);
+    await expect(buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("area=__proto__"))).rejects.toMatchObject({ status: 400 });
+  });
   it("shows active rentals and return alerts independently of generic working status", async () => {
     mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental" }]);
     mocks.bookings.mockResolvedValue([{ contextId: "rental", agreementJacketId: null, status: "CHECKED_OUT", expectedReturnAt: new Date(Date.now() - 1000) }]);

@@ -4,7 +4,8 @@ import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { contextFor } from "./service";
 import { dealOrganization, dealVehicle, dealDocumentOrganization } from "./identities";
-import { requireSalesDocumentsUser, archiveGeneratedSalesPacket, readArchivedSalesPacket, getSalesDocumentJacket, updateSalesDocumentJacket } from "@/server/sales-documents/service";
+import { archiveGeneratedSalesPacket, readArchivedSalesPacket, getSalesDocumentJacket, updateSalesDocumentJacket } from "@/server/sales-documents/service";
+import { requireOwnDealUser } from "./own-deal-access";
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
 import { generateUnifiedCrmContractPacket } from "@/server/services/unified-crm-contract-packet-service";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
@@ -43,7 +44,7 @@ export async function readTestDrive(actor: AuthenticatedUser | null, id: string)
 }
 
 export async function executeTestDrive(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>) {
-  const user = requireSalesDocumentsUser(actor), organizationId = dealOrganization();
+  const user = requireOwnDealUser(actor), organizationId = dealOrganization();
   const action = String(raw.action);
   if (!["GENERATE", "RELEASE", "RETURN", "RESOLVE_EXCEPTION"].includes(action)) throw new SalesDocumentsError("Choose a supported test-drive action.");
   const key = String(raw.operationKey ?? "");

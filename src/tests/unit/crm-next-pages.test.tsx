@@ -321,6 +321,12 @@ describe("CRM Next pages", () => {
     expect(newCustomer).toContain("Vehicle delivery / transport");
     expect(newCustomer).toContain("Customer issue / complaint");
     expect(newCustomer).toContain("Interested Vehicle");
+    expect(newCustomer).toMatch(/<details[^>]*aria-label="Interested Vehicle"/);
+    expect(newCustomer.match(/name="vehicleInterest"/g)).toHaveLength(1);
+    expect(newCustomer.match(/name="budget"/g)).toHaveLength(1);
+    expect(newCustomer).toContain('name="desiredTimeline"');
+    expect(newCustomer).toContain('name="customerNeed"');
+    expect(newCustomer).not.toContain('aria-label="Prospect details"');
     expect(newCustomer).toContain("Customer Wishlist");
     expect(newCustomer).toContain("Referrer");
     expect(newCustomer).toContain("Employment");

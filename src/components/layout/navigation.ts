@@ -81,11 +81,11 @@ export const appointmentConsoleNavigationItems: NavigationItem[] = [
     activeQuery: { action: null, section: null, view: null, workspace: null }
   },
   {
-    href: "/appointments?action=new",
+    href: "/appointments?view=calendar",
     title: "Calendar",
     description: "Calendar-first appointment creation with capacity context.",
     icon: CalendarDays,
-    activeQuery: { action: "new" }
+    activeQuery: { view: "calendar" }
   },
   {
     href: "/appointments?section=planning",
@@ -166,6 +166,14 @@ export const dispatchNavigationItems: NavigationItem[] = [
     description: "Your assigned work and next actions.",
     icon: UserRoundCheck,
     parentHref: "/board"
+  },
+  {
+    href: "/board/repair-priorities",
+    title: "Repair Priorities",
+    description: "See the location’s shared repair plan and blockers.",
+    icon: ClipboardCheck,
+    parentHref: "/board",
+    matchExact: true
   },
   {
     href: "/tasks",
@@ -332,6 +340,13 @@ const technicianNavigationItems: NavigationItem[] = [
     title: "Available Work",
     description: "Eligible work that is ready to claim.",
     icon: BriefcaseBusiness
+  },
+  {
+    href: "/board/repair-priorities",
+    title: "Repair Priorities",
+    description: "See the location’s shared repair plan and blockers.",
+    icon: ClipboardCheck,
+    matchExact: true
   },
   {
     href: "/diagnostics",

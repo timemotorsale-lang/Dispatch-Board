@@ -547,7 +547,7 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
     setSelectedParts((current) => current.map((part) => part.id === id ? {
       ...part,
       name: partDraft.name.trim() || part.name,
-      number: partDraft.number.trim() || part.number,
+      number: partDraft.number.trim(),
       pricingStatus: Number.isFinite(unitPrice) && unitPrice >= 0 && partDraft.unitPrice.trim() ? "ESTIMATED" : "PRICE_PENDING",
       quantity: Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : part.quantity,
       unitPrice: Number.isFinite(unitPrice) && unitPrice >= 0 ? Number(unitPrice.toFixed(2)) : part.unitPrice,
@@ -754,7 +754,7 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
       quantity: part.quantity,
       taxable: part.taxable !== false,
       type: "PART" as const,
-      partNumber: part.number,
+      partNumber: part.number.trim() || undefined,
       laborLineKey: lineKey("labor", estimateLabor.find(item => item.rowId === part.laborRowId || item.id === part.laborRowId)?.rowId ?? part.laborRowId),
       unitPriceCents: Math.round(part.unitPrice * 100),
       workTypeCode: "PART",
@@ -854,6 +854,7 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
     setNotice("");
     try {
       for (const part of estimateParts) {
+        if (!part.number.trim() && !part.catalogPartId) continue;
         const partQuery = await request<{ parts?: PartsWorkspacePart[] }>(`/api/parts?query=${encodeURIComponent(part.number)}`);
         let partId = part.catalogPartId ?? partQuery.parts?.find((item) => item.partNumber.toLocaleUpperCase() === part.number.toLocaleUpperCase())?.id;
         if (!partId) {
@@ -1150,7 +1151,7 @@ export function EnterpriseLaborGuideConsole({ reviewWorkflow = false, initialExp
                         <header><div><h4>Edit estimate part</h4><p>Update the retail charge and quantity before this line is sent to the estimate or parts workflow.</p></div><span>{partSourceLabel(part)}</span></header>
                         <div className={styles.partEditorFields}>
                           <label>Description<input aria-label={`Part description for ${part.name}`} onChange={(event) => setPartDraft((current) => ({ ...current, name: event.target.value }))} value={partDraft.name} /></label>
-                          <label>Part #<input aria-label={`Part number for ${part.name}`} onChange={(event) => setPartDraft((current) => ({ ...current, number: event.target.value }))} value={partDraft.number} /></label>
+                          <label>Part # (optional)<input aria-label={`Part number for ${part.name}`} onChange={(event) => setPartDraft((current) => ({ ...current, number: event.target.value }))} value={partDraft.number} /></label>
                           <label>Quantity<input aria-label={`Quantity for ${part.name}`} inputMode="numeric" min="1" onChange={(event) => setPartDraft((current) => ({ ...current, quantity: event.target.value }))} type="number" value={partDraft.quantity} /></label>
                           <label>Retail unit price<input aria-label={`Retail unit price for ${part.name}`} inputMode="decimal" min="0" onChange={(event) => setPartDraft((current) => ({ ...current, unitPrice: event.target.value }))} placeholder="Enter retail price" step="0.01" type="number" value={partDraft.unitPrice} /></label>
                         </div>

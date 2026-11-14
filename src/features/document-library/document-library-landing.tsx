@@ -1089,6 +1089,7 @@ export function DocumentLibraryLanding({ error, initialLibrary, initialOwnerId, 
         </aside>
 
         <main className={styles.docConsoleMain}>
+          <a href="/capture/documents">Read and review receipts, sales packets (up to 28 pages), parts, titles, transport and warranty documents</a>
           <form className={styles.docIntakePanel} id="document-intake" onSubmit={(event) => void submitIntake(event)}>
             <header>
               <div><span>Document intake</span><h2>Add or link document</h2></div>

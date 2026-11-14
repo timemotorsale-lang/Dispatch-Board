@@ -6,6 +6,7 @@ import {
 } from "@/server/appointments/appointment-privacy";
 import {
   canMutateAppointment,
+  canUseStaffCalendar,
   canViewAppointmentLimitedData,
   canViewAppointmentSchedule,
   isManager,
@@ -138,6 +139,7 @@ export type AppointmentReadVisibility = {
 
 export type AppointmentReadModel = {
   category?: string | null;
+  purposeCode?: string | null;
   id: string;
   appointmentNumber: string;
   organizationId: string;
@@ -145,6 +147,8 @@ export type AppointmentReadModel = {
   title: string;
   sourceType: string;
   sourceReference: string | null;
+  reason: string | null;
+  vehicleDescription: string | null;
   schedulingTimezone: string;
   startsAt: string | null;
   endsAt: string | null;
@@ -524,9 +528,20 @@ function toAppointmentReadModel(input: {
     organizationId: input.appointment.organizationId,
     locationId: input.appointment.locationId,
     title: input.appointment.title,
-    category: input.appointment.purposeSnapshot && typeof input.appointment.purposeSnapshot === "object" && "category" in input.appointment.purposeSnapshot && typeof input.appointment.purposeSnapshot.category === "string" ? input.appointment.purposeSnapshot.category : null,
+    category: stringFromSnapshot(input.appointment.purposeSnapshot, "category"),
+    purposeCode: stringFromSnapshot(input.appointment.purposeSnapshot, "purposeCode") ?? stringFromSnapshot(input.appointment.purposeSnapshot, "code"),
     sourceType: input.appointment.sourceType,
     sourceReference: input.appointment.sourceReference,
+    reason: accessLevel === "LIMITED_DETAIL"
+      ? stringFromSnapshot(input.appointment.purposeSnapshot, "reason") ??
+        (input.appointment.sourceType === "MANUAL" ? input.appointment.sourceReference : null)
+      : null,
+    vehicleDescription: accessLevel === "LIMITED_DETAIL"
+      ? stringFromSnapshot(input.appointment.vehicleSnapshot, "displayName") ??
+        stringFromSnapshot(input.appointment.vehicleSnapshot, "vehicleNumber") ??
+        stringFromSnapshot(input.appointment.vehicleSnapshot, "stockNumber") ??
+        stringFromSnapshot(input.appointment.vehicleSnapshot, "vin")
+      : null,
     schedulingTimezone: input.appointment.schedulingTimezone,
     startsAt: input.appointment.startsAt?.toISOString() ?? null,
     endsAt: input.appointment.endsAt?.toISOString() ?? null,
@@ -596,6 +611,8 @@ function appointmentMatchesSearch(appointment: AppointmentReadModel, searchText:
     appointment.appointmentNumber,
     appointment.title,
     appointment.sourceReference,
+    appointment.reason,
+    appointment.vehicleDescription,
     appointment.bookingStatus,
     appointment.confirmationStatus,
     appointment.attendanceStatus,
@@ -649,13 +666,15 @@ export async function listAppointmentReadModels(
     await repository.findActiveLocationAccess(actor.id, normalizedQuery.locationId, now)
   );
 
-  if (!locationAccess || !canViewAppointmentSchedule({ actor, locationAccess })) {
+  if (!locationAccess || !canUseStaffCalendar(actor)) {
     throw new Error("Appointment schedule is not authorized.");
   }
 
   const appointments = await repository.listAppointmentsForLocationWindow(normalizedQuery);
+  const canViewSharedSchedule = canViewAppointmentSchedule({ actor, locationAccess });
   const readModels = appointments
     .filter((appointment) => appointment.locationId === normalizedQuery.locationId)
+    .filter((appointment) => canViewSharedSchedule || appointment.ownerUserId === actor.id)
     .map((appointment) =>
       toAppointmentReadModel({
         actor,
@@ -692,7 +711,8 @@ export async function getAppointmentReadModelById(
     await repository.findActiveLocationAccess(actor.id, appointment.locationId, now)
   );
 
-  if (!locationAccess || !canViewAppointmentSchedule({ actor, locationAccess })) {
+  if (!locationAccess || !canUseStaffCalendar(actor) ||
+      (appointment.ownerUserId !== actor.id && !canViewAppointmentSchedule({ actor, locationAccess }))) {
     throw new Error("Appointment detail is not available.");
   }
 

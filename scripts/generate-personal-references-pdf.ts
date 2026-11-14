@@ -11,7 +11,7 @@ async function main() {
     generatedAt: "",
     paymentFunding: "",
     salePrice: "",
-    vehicle: { bodyStyle: "", color: "", license: "", make: "", mileage: "", model: "", stockNumber: "", trim: "", vin: "", year: "" }
+    vehicle: { make: "", model: "", stockNumber: "", trim: "", vin: "", year: "" }
   });
   writeFileSync(join(process.cwd(), "public/forms/minnesota-retail-sale/personal-references.pdf"), Buffer.from(content, "base64"));
 }

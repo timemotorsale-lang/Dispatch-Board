@@ -7,17 +7,24 @@ describe("shop execution workspace", () => {
   const users = [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }];
   const resources = [{ code: "TECH-WALTER", id: "resource-1", locationId: "location-1", name: "Walter Mechanic", resourceType: { kind: "STAFF", name: "Technician" }, userId: "tech-1" }];
 
-  it("carries the intake technician into the dispatch form with readable vehicle selection", () => {
+  it.each([
+    { status: "READY_FOR_REPAIR", reserved: 0, bookable: true },
+    { status: "WAITING_PARTS", reserved: 2, bookable: true },
+    { status: "WAITING_PARTS", reserved: 1, bookable: false },
+    { status: "READY_FOR_REPAIR", reserved: 0, bookable: true, missingProcedure: true },
+  ])("uses the intake technician and shows booking only when allowed ($status, $reserved reserved, procedure missing $missingProcedure)", ({ status, reserved, bookable, missingProcedure }) => {
     const html = renderToStaticMarkup(<ShopExecutionWorkspace initial={{
       jobs: [{
-        description: "Inspect warning lights", dispatches: [], id: "job-1", jobNumber: "JOB-1", laborClocks: [], plannedCorrection: "Diagnose warning indicators", status: "READY_FOR_REPAIR",
+        description: "Inspect warning lights", dispatches: [], id: "job-1", jobNumber: "JOB-1", laborClocks: [], plannedCorrection: "Diagnose warning indicators", status,
+        partsRequired: status === "WAITING_PARTS", workTypeCode: "TIRE_SERVICE",
+        partDemands: [{ status: reserved === 2 ? "RESERVED" : "PARTIALLY_RESERVED", quantityRequired: 2, quantityReserved: reserved }],
         repairOrder: {
           id: "ro-100", assignedTechnician: { id: "tech-1", name: "Walter Mechanic" }, customer: null, inventoryUnit: { inventoryNumber: "INV-100" },
           location: { id: "location-1", name: "Minneapolis" }, locationId: "location-1", ownerUser: { id: "advisor-1", name: "Alex Advisor" }, repairOrderNumber: "RO-100",
           serviceVisit: { concernSummary: "Warning lights are illuminated.", promisedAt: null }, vehicle: { make: "Honda", model: "Accord", vehicleNumber: "VEH-100", year: 2019 },
         },
       }],
-      resources, users,
+      resources, users, procedures: missingProcedure ? [] : undefined, canPublishProcedure: true,
     }} initialRepairOrderId="ro-100" />);
 
     expect(html).toContain("Repair job assignment");
@@ -29,7 +36,13 @@ describe("shop execution workspace", () => {
     expect(html).toContain("Warning lights are illuminated.");
     expect(html).toContain('<option value="tech-1" selected="">Walter Mechanic</option>');
     expect(html).toContain("Save technician");
-    expect(html).toContain("Book work");
+    expect(html.includes("Book work")).toBe(bookable);
+    if (missingProcedure) {
+      expect(html).toContain("Procedure required");
+      expect(html).toContain("Publish work procedure");
+      expect(html).not.toContain("Ready to book");
+      expect(html).toMatch(/disabled="">Book work/);
+    }
   });
 
   it("keeps technician assignment available before a repair job exists", () => {

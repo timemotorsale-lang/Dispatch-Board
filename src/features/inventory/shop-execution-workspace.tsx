@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { catalogJobRequirements } from "@/lib/catalog-job-readiness";
+import { waitingJobPartsReady } from "@/lib/repair-job-parts-readiness";
 import { notifyRepairReviewSaved } from "@/lib/repair-workflow-review";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -24,11 +26,17 @@ type RepairOrderSummary = {
   serviceVisit: { concernSummary: string; promisedAt: string | null };
 };
 type Job = {
+  workTypeCode?: string;
+  authorizedLineKey?: string;
+  laborGuideMinutes?: number;
   id: string;
   jobNumber: string;
   description: string;
   plannedCorrection: string;
   status: string;
+  partsRequired?: boolean;
+  executionBlockerReason?: string | null;
+  partDemands?: { status: string; quantityRequired: number; quantityReserved: number }[];
   dispatches: Dispatch[];
   laborClocks: Clock[];
   repairOrder: {
@@ -45,6 +53,8 @@ type Job = {
   };
 };
 type Model = {
+  canPublishProcedure?: boolean;
+  procedures?: { workTypeCode: string; effectiveFrom: string; effectiveTo: string | null }[];
   jobs: Job[];
   repairOrders?: RepairOrderSummary[];
   users: User[];
@@ -53,7 +63,8 @@ type Model = {
 type SourceVehicle = { id: string; vehicleNumber: string; vin: string | null; stockNumber: string | null; year: number | null; make: string | null; model: string | null };
 
 const local = (value: Date) => new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-const executableJob = (job: Job) => ["READY_FOR_REPAIR", "DISPATCHED", "IN_PROGRESS", "PAUSED", "READY_FOR_QC"].includes(job.status);
+const executableJob = (job: Job) => ["READY_FOR_REPAIR", "DISPATCHED", "IN_PROGRESS", "PAUSED", "READY_FOR_QC"].includes(job.status) ||
+  (job.status === "WAITING_PARTS" && waitingJobPartsReady(job));
 const vehicleName = (vehicle: { year: number | null; make: string | null; model: string | null }) => [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle";
 const shortConcern = (value: string, length = 70) => value.length > length ? `${value.slice(0, length - 1)}…` : value;
 const stageLabel = (value: string) => value.replaceAll("_", " ").toLowerCase();
@@ -123,6 +134,12 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
   const selectedOrder = repairOrders.find((order) => order.id === repairOrderId);
   const orderJobs = model.jobs.filter((job) => job.repairOrder.id === repairOrderId);
   const selectedJob = orderJobs.find((job) => job.id === jobId);
+  const workTypeCode = selectedJob && (catalogJobRequirements(selectedJob.authorizedLineKey ?? "").workTypeCode ?? selectedJob.workTypeCode);
+  const procedureMissing = Boolean(workTypeCode && model.procedures && !model.procedures.some(procedure =>
+    procedure.workTypeCode === workTypeCode &&
+    Date.parse(procedure.effectiveFrom) <= Date.parse(assignment.scheduledStartAt) &&
+    (!procedure.effectiveTo || Date.parse(procedure.effectiveTo) >= Date.parse(assignment.scheduledEndAt))
+  ));
   const matchingVehicleOrder = initialVehicleId ? repairOrders.find((order) => order.vehicle.id === initialVehicleId) : null;
   const incomingRepairOrderMissing = Boolean(initialRepairOrderId && !repairOrders.some((order) => order.id === initialRepairOrderId));
   const sourceVehicleWithoutRepairOrder = Boolean(initialVehicleId && sourceVehicle && !matchingVehicleOrder);
@@ -132,6 +149,11 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     return repairTechnicians.length ? repairTechnicians : staff;
   }, [model]);
   const locationResources = model.resources.filter((resource) => !selectedOrder || resource.locationId === selectedOrder.locationId);
+  const locationStaff = model.users.filter(user => locationResources.some(resource => resource.resourceType.kind === "STAFF" && resource.userId === user.id));
+  const preferredTechnicians = locationStaff.filter(user => user.roles?.some(role => ["Mechanic", "Technician"].includes(role)));
+  const locationTechnicians = preferredTechnicians.length ? preferredTechnicians : locationStaff;
+  const technicianUserId = locationTechnicians.some(user => user.id === assignment.technicianUserId)
+    ? assignment.technicianUserId : locationTechnicians[0]?.id ?? "";
   const openDispatches = model.jobs.flatMap((job) => job.dispatches.filter((dispatch) => ["ACTIVE", "STAGED"].includes(dispatch.status)).map((dispatch) => ({ job, ...dispatch })));
 
   async function request(url: string, init?: RequestInit) {
@@ -191,7 +213,7 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     </section>
 
     <section className="panel-card page-stack shop-dispatch-desk">
-      <header><div><span className="eyebrow">One-step assignment</span><h2>Repair job assignment</h2></div><span className={selectedJob && executableJob(selectedJob) ? "shop-dispatch-ready" : "shop-dispatch-waiting"}>{selectedJob && executableJob(selectedJob) ? "Ready to book" : "Planning assignment"}</span></header>
+      <header><div><span className="eyebrow">One-step assignment</span><h2>Repair job assignment</h2></div><span className={selectedJob && executableJob(selectedJob) && !procedureMissing ? "shop-dispatch-ready" : "shop-dispatch-waiting"}>{selectedJob && executableJob(selectedJob) && !procedureMissing ? "Ready to book" : procedureMissing ? "Procedure required" : "Planning assignment"}</span></header>
 
       <section className="shop-dispatch-picker" aria-label="Choose vehicle for dispatch">
         <header><strong>Choose the vehicle first</strong><span>Pick by vehicle, stock/inventory, concern, and current stage — not by internal RO codes.</span></header>
@@ -221,19 +243,45 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
       {selectedOrder ? <>
         <section className="shop-dispatch-vehicle-summary"><div><small>Selected vehicle</small><strong>{vehicleName(selectedOrder.vehicle)}</strong><span>{selectedOrder.vehicle.vehicleNumber} · {selectedOrder.inventoryUnit?.inventoryNumber ? `Stock ${selectedOrder.inventoryUnit.inventoryNumber} · ` : ""}{selectedOrder.repairOrderNumber} · {selectedOrder.location.name}</span></div><div><small>Concern</small><strong>{selectedOrder.serviceVisit.concernSummary}</strong><span>Next: {selectedOrder.nextAction || "Complete repair planning"}</span></div></section>
 
-        <form className="shop-dispatch-preassign" onSubmit={(event: FormEvent) => { event.preventDefault(); submit(`/api/repair-orders/${selectedOrder.id}/technician-assignment`, { technicianUserId: assignment.technicianUserId, reason: "Preassign the accountable technician from the Shop Dispatch assignment desk." }, "Technician assignment saved."); }}>
-          <label className="form-field"><span>Technician</span><select aria-label="Technician" value={assignment.technicianUserId} onChange={(event) => setAssignment((current) => ({ ...current, technicianUserId: event.target.value }))}>{technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></label>
-          <button className="button button-secondary" disabled={busy || !assignment.technicianUserId}>Save technician</button>
-          <small>This selection carries forward. Final booking stays protected until an authorized repair job is ready.</small>
+        {!locationTechnicians.length && <p role="status">No technician is set up at {selectedOrder.location.name}. Ask a manager to add an active staff resource at this location in <Link href="/settings/appointments">Appointment settings</Link>.</p>}
+        <form className="shop-dispatch-preassign" onSubmit={(event: FormEvent) => { event.preventDefault(); if (technicianUserId) submit(`/api/repair-orders/${selectedOrder.id}/technician-assignment`, { technicianUserId, reason: "Preassign the accountable technician from the Shop Dispatch assignment desk." }, "Technician assignment saved."); }}>
+          <label className="form-field"><span>Technician</span><select aria-label="Technician" disabled={!locationTechnicians.length} value={technicianUserId} onChange={(event) => setAssignment((current) => ({ ...current, technicianUserId: event.target.value }))}>{locationTechnicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></label>
+          {!reviewOrderId && <button className="button button-secondary" disabled={busy || !technicianUserId}>Save technician</button>}
+          {!reviewOrderId && <small>This selection carries forward. Final booking stays protected until an authorized repair job is ready.</small>}
         </form>
 
-        {selectedJob && executableJob(selectedJob) ? <form className="shop-dispatch-booking-grid" onSubmit={(event: FormEvent) => { event.preventDefault(); submit(`/api/repair-jobs/${selectedJob.id}/dispatch`, { ...assignment, reason: "Assign qualified technician and protected resources to repair work." }, "Repair job dispatched."); }}>
+        {procedureMissing && selectedJob && executableJob(selectedJob) && <section className="notice notice-info" aria-label="Work procedure required">
+          <p><strong>Work procedure required for {selectedJob.description}</strong></p>
+          <p>No active procedure for {workTypeCode} covers the scheduled work. Choose a covered time or have a manager publish the shop’s reviewed procedure.</p>
+          {model.canPublishProcedure && <details key={workTypeCode}><summary>Publish work procedure</summary>
+            <form onSubmit={event => {
+              event.preventDefault();
+              const fields = new FormData(event.currentTarget);
+              const entries = (name: string) => String(fields.get(name) ?? "").split("\n").map(value => value.trim()).filter(Boolean);
+              void submit("/api/shop-execution/procedures", {
+                workTypeCode, title: fields.get("title"), effectiveFrom: new Date().toISOString(),
+                standardMinutes: selectedJob.laborGuideMinutes ?? 0,
+                instructions: entries("instructions"), safetySteps: entries("safetySteps"),
+                requiredEvidence: entries("requiredEvidence"), qcRules: entries("qcRules"),
+                reason: "Publish the reviewed shop procedure for this repair work type.",
+              }, "Procedure published. Review the booking time and book work.");
+            }}>
+              <label>Procedure title <input name="title" required maxLength={200} /></label>
+              <label>Work instructions <textarea name="instructions" required /></label>
+              <label>Safety steps <textarea name="safetySteps" required /></label>
+              <label>Required evidence <textarea name="requiredEvidence" required /></label>
+              <label>QC checks <textarea name="qcRules" required /></label>
+              <button disabled={busy} type="submit">Publish procedure</button>
+            </form>
+          </details>}
+        </section>}
+        {selectedJob && executableJob(selectedJob) ? <form className="shop-dispatch-booking-grid" onSubmit={(event: FormEvent) => { event.preventDefault(); if (technicianUserId && !procedureMissing) submit(`/api/repair-jobs/${selectedJob.id}/dispatch`, { ...assignment, technicianUserId, reason: "Assign qualified technician and protected resources to repair work." }, "Repair job dispatched."); }}>
           <label className="form-field"><span>Queue position</span><select value={assignment.position} onChange={(event) => setAssignment((current) => ({ ...current, position: event.target.value }))}><option value="CURRENT">Current</option><option value="NEXT">Next</option></select></label>
           <label className="form-field"><span>Service bay</span><select value={assignment.bayResourceId} onChange={(event) => setAssignment((current) => ({ ...current, bayResourceId: event.target.value }))}><option value="">No dedicated bay</option>{locationResources.filter((resource) => resource.resourceType.kind === "SERVICE_BAY").map((resource) => <option key={resource.id} value={resource.id}>{resource.code} · {resource.name}</option>)}</select></label>
           <label className="form-field"><span>Start</span><input type="datetime-local" value={assignment.scheduledStartAt} onChange={(event) => setAssignment((current) => ({ ...current, scheduledStartAt: event.target.value }))} /></label>
           <label className="form-field"><span>End</span><input type="datetime-local" value={assignment.scheduledEndAt} onChange={(event) => setAssignment((current) => ({ ...current, scheduledEndAt: event.target.value }))} /></label>
           <label className="form-field shop-dispatch-override"><span>Conflict note (only if needed)</span><input value={assignment.overrideReason} onChange={(event) => setAssignment((current) => ({ ...current, overrideReason: event.target.value }))} /></label>
-          <button className="button button-primary" disabled={busy}>Book work</button>
+          <button className="button button-primary" disabled={busy || !technicianUserId || procedureMissing}>Book work</button>
         </form> : <section className="shop-dispatch-gate"><div><strong>{orderJobs.length ? "Repair job is not ready to book" : "Repair job has not been created"}</strong><span>Your technician choice can be saved now. Finish the repair plan, authorization, and parts readiness; then booking unlocks here.</span></div><Link className="button button-primary" href={`/vehicles/repair-workbench?repairOrderId=${selectedOrder.id}`}>Prepare repair job</Link></section>}
       </> : <div className="shop-dispatch-empty"><strong>Select a vehicle or repair order</strong><span>The technician assignment appears immediately—even before the repair job is ready.</span></div>}
     </section>

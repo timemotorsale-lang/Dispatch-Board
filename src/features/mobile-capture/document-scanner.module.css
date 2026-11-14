@@ -1,6 +1,7 @@
 .backdrop { position: fixed; inset: 0; z-index: 210; display: grid; place-items: center; padding: 12px; background: #060f1ee6; }
 .dialog { box-sizing: border-box; width: min(100%, 760px); max-height: calc(100dvh - 24px); overflow: auto; padding: 20px; border: 1px solid #34455e; border-radius: 18px; background: #101d31; color: #fff; font-family: system-ui, sans-serif; }
 .dialog * { box-sizing: border-box; }
+.dialog select { min-height: 44px; max-width: 100%; border: 1px solid #526d94; border-radius: 8px; padding: 8px; font: inherit; font-size: 16px; background: #fff; color: #10233f; }
 .dialog header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #101d31; padding-bottom: 10px; }
 .dialog h2 { margin: 4px 0; color: #fff; }
 .dialog p, .dialog small { color: #d5e6ff; line-height: 1.5; }

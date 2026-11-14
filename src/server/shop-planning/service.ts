@@ -111,7 +111,7 @@ export async function createApprovedRepairJobs(actor:AuthenticatedUser|null,repa
     throw new Error("The approved scope does not contain an executable labor line.");
   }
   const diagnosisVersionId=order.diagnosisVersions[0]?.id??null;
-  const allocations=allocateApprovedJobParts(lines,authorizedKeys,order.partDemands,order.repairJobs.map(job=>job.authorizedLineKey));
+  const allocations=allocateApprovedJobParts(lines,authorizedKeys,order.partDemands,order.repairJobs.map(job=>job.authorizedLineKey),order.origin==="CUSTOMER_REPAIR");
   const createdJobs=[];
   for(const line of executable){
     const result=await createAuthorizedRepairJob(actor,repairOrderId,{authorizationId:latestAuthorization.id,authorizedLineKey:line.key,bayRequirements:[],dependencyJobIds:[],description:line.description,diagnosisVersionId,idempotencyKey:`${idempotencyKey}:${line.key}`,laborGuideMinutes:line.laborGuideMinutes,partDemandIds:allocations.get(line.key)!.partDemandIds,partsRequired:allocations.get(line.key)!.partsRequired,plannedCorrection:line.plannedCorrection,priority:"NORMAL",reason,requiredCertifications:[],requiredSkills:[],toolRequirements:[],workTypeCode:line.workTypeCode},input);

@@ -1,11 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { PDFDocument } from "pdf-lib";
 
 for (const legacyFee of [undefined, "$375.00"]) {
   test(`compact lease shares detailed calculations and preserves insurance (saved fee: ${legacyFee || "new default"})`, async ({ page }) => {
     test.setTimeout(120000); page.setDefaultTimeout(20000);
     let saved: { id: string; revision: number; status: string; pathway: string; customerName: string; vehicleReference: string; updatedAt: string; snapshot: Record<string, unknown> } = { id: "compact-lease-draft", revision: 1, status: "IN_PROGRESS", pathway: "lease-to-own", customerName: "Sample buyer", vehicleReference: "Sample vehicle", updatedAt: new Date().toISOString(), snapshot: { "desk:workflowId": "lease-to-own", "desk:executionOpen": true, "desk:manualCustomerName": "Sample buyer", "lease-to-own:leaseInputs": { wholesaleCost: "10000", capitalizedCostReduction: "3000", ...(legacyFee ? { documentPreparationFee: legacyFee } : {}) } } };
     let generated = 0;
-    const packet = { packetId: "compact-preview", packetNumber: "COMPACT-SAMPLE", generatedAt: new Date().toISOString(), documents: [{ formId: "lease-summary", label: "Sample lease summary", html: "<h1>Sample lease</h1>" }], delivery: { downloadReady: true, printReady: true, emailReady: false, textReady: false } };
+    const samplePdf = await PDFDocument.create();
+    samplePdf.addPage();
+    const revisedPoa = { formId: "power-of-attorney", label: "Limited Motor Vehicle Power of Attorney", contentType: "application/pdf", contentBase64: await samplePdf.saveAsBase64() };
+    const packet = { packetId: "compact-preview", packetNumber: "COMPACT-SAMPLE", generatedAt: new Date().toISOString(), documents: [{ formId: "lease-summary", label: "Sample lease summary", html: "<h1>Sample lease</h1>" }, revisedPoa], delivery: { downloadReady: true, printReady: true, emailReady: false, textReady: false } };
+    const oldPacket = { ...packet, packetId: "legacy-preview", packetNumber: "LEGACY-SAMPLE", documents: [{ formId: "power-of-attorney", label: "Power of attorney / title authority", contentType: "text/html", html: "<h1>Older title authority</h1>" }] };
+    saved.snapshot["lease-to-own:generatedPacketId"] = oldPacket.packetId;
     await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: { error: "Outside compact calculator test" } }));
     await page.route("**/api/crm/v1/deal-drafts*", route => {
       if (route.request().method() === "POST") saved = { ...route.request().postDataJSON(), revision: saved.revision + 1, updatedAt: new Date().toISOString() };
@@ -17,10 +23,13 @@ for (const legacyFee of [undefined, "$375.00"]) {
         const body = route.request().postDataJSON();
         expect(body.leaseCalculator.agreedPriceCents).toBe(3000000); expect(body.leaseCalculator.targetPaymentCents).toBe(50000);
         expect(body.leaseCalculator.documentPreparationFeeCents).toBe(legacyFee ? 37500 : 30000);
-        expect(body.leaseCalculator.registrationFeeCents).toBe(41700); expect(body.leaseCalculator.signingPaymentMode).toBe("DOWN_PAYMENT"); expect(body.leaseCalculator.downPaymentCents).toBe(1500000);
+        expect(body.leaseCalculator.registrationFeeCents).toBe(41700); expect(body.leaseCalculator.capitalizedCostReductionCents).toBe(500000);
+        expect(body.leaseCalculator.securityDepositCents).toBe(50000); expect(body.leaseCalculator.otherUpfrontChargesCents).toBe(15000);
+        expect(body.leaseCalculator.tradeAllowanceCents).toBe(250000); expect(body.leaseCalculator.tradePayoffCents).toBe(150000);
+        expect(body.leaseCalculator).not.toHaveProperty("downPaymentCents");
         expect(body.leaseFacts.insurancePolicyNumber).toBe("POLICY-SAMPLE-123"); expect(body.leaseFacts.insuranceExpirationDate).toBe("2027-11-01");
       }
-      return route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, json: packet });
+      return route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, json: route.request().url().endsWith("/legacy-preview") ? oldPacket : packet });
     });
     await page.goto("/login"); await page.getByLabel("Email").fill("morgan.manager@local.test"); await page.getByLabel("Password", { exact: true }).fill("dispatch123!");
     const login = page.waitForResponse(response => response.url().endsWith("/api/auth/login")); await page.getByRole("button", { name: "Sign in", exact: true }).click(); expect((await login).ok()).toBe(true);
@@ -28,27 +37,52 @@ for (const legacyFee of [undefined, "$375.00"]) {
     const calculator = page.locator("#lease-calculator");
     await expect(calculator.getByRole("button", { name: "Compact", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(calculator.getByLabel("Agreed price", { exact: true })).toHaveValue("$20,000.00");
+    await expect(calculator.getByText("Amount Due at Signing", { exact: true })).toBeVisible();
+    await expect(calculator.getByLabel("Cash due at signing target", { exact: true })).toBeVisible();
     await expect(calculator.getByLabel("Wholesale cost", { exact: true })).toHaveCount(0);
     await page.getByLabel("Insurance company", { exact: true }).fill("Example Insurance");
     await page.getByLabel("Insurance policy number", { exact: true }).fill("POLICY-SAMPLE-123"); await page.getByLabel("Insurance expiration date", { exact: true }).fill("2027-11-01");
-    await calculator.getByLabel("Agreed price", { exact: true }).fill("30000"); await calculator.getByLabel("Down payment", { exact: true }).fill("5000");
+    await calculator.getByLabel("Agreed price", { exact: true }).fill("30000"); await calculator.getByLabel("Capitalized cost reduction", { exact: true }).fill("5000");
     await calculator.getByRole("radio", { name: "By payment amount", exact: true }).check();
     await calculator.getByLabel("Lease date", { exact: true }).fill("2026-11-01");
     const regular = calculator.locator("span").filter({ hasText: /^Base payment$/ }).locator("..").locator("strong");
     for (const amount of ["300", "500.00"]) { await calculator.getByLabel("Target payment amount", { exact: true }).fill(amount); await expect(regular).toHaveText(`$${Number(amount).toFixed(2)}`); }
+    await calculator.getByLabel("Trade-in allowance", { exact: true }).fill("2500");
+    await calculator.getByLabel("Trade-in loan payoff", { exact: true }).fill("1500");
+    const tradeVin = calculator.getByLabel("Trade-in VIN", { exact: true });
+    await tradeVin.fill("1HGCM82633A004351");
+    await expect(tradeVin).toHaveAttribute("aria-invalid", "true");
+    await tradeVin.fill("1hgcm82633a004352");
+    await expect(tradeVin).toHaveAttribute("aria-invalid", "false");
+    const cashTarget = calculator.getByLabel("Cash due at signing target", { exact: true });
+    await cashTarget.fill("5000");
+    const cashDue = calculator.locator("span").filter({ hasText: /^Cash Due at Signing$/ }).locator("..").locator("strong");
+    await expect(cashDue).toHaveText("$5,000.00");
     await calculator.getByText("Adjust fees and payment schedule", { exact: true }).click();
     await calculator.getByLabel("Registration fee", { exact: true }).fill("417");
     await expect(calculator.getByLabel("Sales tax rate", { exact: true })).toHaveValue("6.875"); await expect(calculator.getByLabel("Title fee", { exact: true })).toHaveValue("$102.80");
     await calculator.getByRole("button", { name: "Detailed", exact: true }).click();
+    await expect(cashTarget).toHaveValue("5000");
+    await expect(cashDue).toHaveText("$5,000.00");
+    await cashTarget.clear();
     await expect(calculator.getByLabel("Calculation base (agreed price ÷2)", { exact: true })).toHaveValue("$15,000.00");
     await expect(calculator.getByLabel("Document prep fee", { exact: true })).toHaveValue(legacyFee || "$300.00"); await expect(regular).toHaveText("$500.00");
     await calculator.getByRole("button", { name: "Compact", exact: true }).click(); await expect(regular).toHaveText("$500.00");
-    await calculator.getByRole("combobox", { name: "Signing amount entry", exact: true }).selectOption("DOWN_PAYMENT"); await calculator.getByLabel("Total cash at signing", { exact: true }).fill("15000"); await expect(regular).toHaveText("$500.00");
-    await page.getByRole("button", { name: "Open lease packet", exact: true }).click(); await page.getByRole("button", { name: "Generate lease packet", exact: true }).click();
+    await calculator.getByLabel("Refundable security deposit", { exact: true }).fill("500");
+    await calculator.getByLabel("Other upfront charges", { exact: true }).fill("150"); await expect(regular).toHaveText("$500.00");
+    await page.getByRole("button", { name: "Open lease packet", exact: true }).click();
+    await expect(page.getByText("This archived packet contains the older title-authority form.", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: "Preview generated packet" }).click();
+    const preview = page.getByRole("complementary", { name: "Lease packet preview" });
+    await preview.getByRole("button", { name: "Generate revised Limited POA" }).click();
+    await expect(preview.locator('iframe[title="Limited Motor Vehicle Power of Attorney"]')).toHaveAttribute("src", /application\/pdf/);
     await expect(page.locator('[aria-label="Generated lease packet archive"]')).toContainText("COMPACT-SAMPLE");
     await expect.poll(() => saved.snapshot["lease-to-own:generatedPacketId"]).toBe("compact-preview"); expect(generated).toBe(1);
     await page.reload(); await expect(page.getByLabel("Insurance policy number", { exact: true })).toHaveValue("POLICY-SAMPLE-123");
     await expect(page.getByLabel("Insurance expiration date", { exact: true })).toHaveValue("2027-11-01");
     await expect(calculator.getByLabel("Target payment amount", { exact: true })).toHaveValue("500.00"); await expect(regular).toHaveText("$500.00");
+    await expect(calculator.getByLabel("Trade-in allowance", { exact: true })).toHaveValue("2500");
+    await expect(calculator.getByLabel("Trade-in loan payoff", { exact: true })).toHaveValue("1500");
+    await expect(tradeVin).toHaveValue("1HGCM82633A004352");
   });
 }

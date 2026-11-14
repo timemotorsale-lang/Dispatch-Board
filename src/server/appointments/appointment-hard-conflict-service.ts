@@ -30,6 +30,7 @@ import {
 } from "@/server/appointments/staff-availability-service";
 
 export const APPOINTMENT_HARD_CONFLICT_CODES = [
+  "DUPLICATE_CUSTOMER_VISIT",
   "INVALID_TIME",
   "INACTIVE_TEMPLATE",
   "REQUIRED_CONTEXT_MISSING",
@@ -44,6 +45,7 @@ export type AppointmentHardConflictCode =
   (typeof APPOINTMENT_HARD_CONFLICT_CODES)[number];
 
 export type AppointmentHardConflictSource =
+  | "CUSTOMER"
   | "TIME"
   | "TEMPLATE"
   | "LOCATION"

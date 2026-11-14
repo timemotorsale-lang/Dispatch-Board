@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { deflateSync } from "node:zlib";
 
-import { extractDocumentText } from "@/server/document-library/text-extraction";
+import { extractDocumentText, hasMeaningfulText } from "@/server/document-library/text-extraction";
 
 function minimalPdfWithText(text: string) {
   const stream = `BT /F1 12 Tf 72 720 Td (${text.replace(/[()\\]/g, "\\$&")}) Tj ET`;
@@ -17,6 +17,10 @@ endobj
 }
 
 describe("document text extraction", () => {
+  it("rejects binary image-stream noise even when it contains accidental words and money-like strings",()=>{
+    expect(hasMeaningfulText("accidental random invoice words compressed binary image text $1,234.56 \u008f\u009c\u0090")).toBe(false);
+    expect(hasMeaningfulText("Invoice # 2123 Repair labor $1,452.00 Tax $6.47 Total $1,544.47")).toBe(true);
+  });
   afterEach(() => {
     delete process.env.DOCUMENT_TEXT_OCR_MODE;
   });

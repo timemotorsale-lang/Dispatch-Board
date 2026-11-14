@@ -43,6 +43,7 @@ import { WorkbookAppointmentFlow } from "./workbook-appointment-flow";
 import { QuickUpdateEditor } from "./quick-update-editor";
 import { QuickUpdateContext } from "./quick-update-context";
 import { CrmContactImport } from "./crm-contact-import";
+import { PublishRepairPriorities } from "./publish-repair-priorities";
 
 type Action = ServiceAdvisorWorkspaceModel["actionQueue"][number];
 type InboxItem = ServiceAdvisorWorkspaceModel["inbox"][number];
@@ -3618,6 +3619,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
             <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={date => persistChecklistItem(item.id, { reminderDate: date })} />
+            {effectiveWorkbookView === "COO" && <PublishRepairPriorities disabled={isClosed} item={item} />}
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
       </section> : null}

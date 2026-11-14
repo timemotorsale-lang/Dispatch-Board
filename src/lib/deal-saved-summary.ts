@@ -35,10 +35,18 @@ export function savedDealSummary(record: SavedDealReviewRecord) {
       if (invalid) throw new Error(invalid);
       structure.push({label:"Agreed vehicle price",value:cashMoney(result.grossCapitalizedCostTotalCents)},
         {label:"Capitalized cost reduction",value:cashMoney(result.capitalizedCostReductionCents)},
+        {label:"First lease payment",value:cashMoney(result.firstPeriodicPaymentCents)},
+        {label:"Refundable security deposit",value:cashMoney(input.securityDepositCents ?? 0)},
+        {label:"Title and registration",value:cashMoney(input.titleFeeCents + input.registrationFeeCents)},
         {label:"Up-front tax",value:cashMoney(result.applicableTaxesCents)},
-        {label:"Costs, taxes & fees",value:cashMoney(result.costsTaxesFeesCents)},
+        {label:"Document preparation and origination",value:cashMoney(input.documentPreparationFeeCents + input.originationFeeCents)},
+        {label:"Other upfront charges",value:cashMoney(input.otherUpfrontChargesCents ?? 0)},
         {label:"Residual / purchase option",value:cashMoney(result.residualValueCents)});
-      highlights.push({label:"Due at signing",value:cashMoney(result.amountDueAtSigningCents),emphasis:true},
+      if (input.tradeAllowanceCents || input.tradePayoffCents) structure.push(
+        {label:"Trade allowance",value:cashMoney(input.tradeAllowanceCents ?? 0)}, {label:"Trade payoff",value:cashMoney(input.tradePayoffCents ?? 0)},
+        {label:"Net trade equity",value:cashMoney(result.netTradeEquityCents)});
+      highlights.push({label:"Amount Due at Signing",value:cashMoney(result.amountDueAtSigningCents),emphasis:true},
+        {label:"Cash Due at Signing",value:cashMoney(result.cashDueAtSigningCents),emphasis:true},
         {label:"Base payment",value:cashMoney(result.basePeriodicPaymentCents),emphasis:true},
         {label:"Payment schedule",value:`${result.contractLength} payments · ${input.paymentFrequency === "BiWeekly" ? "Every two weeks" : input.paymentFrequency}`},
         {label:"Final payment",value:cashMoney(result.finalPeriodicPaymentCents)},
@@ -62,6 +70,16 @@ export function savedDealSummary(record: SavedDealReviewRecord) {
     error = caught instanceof Error ? caught.message : "Review the saved amounts in Terms & Payments.";
   }
   const jackets = fields(snapshot.jackets);
+  if (["retail-sale", "bhph", "finance", "outside-finance-one-pay", "wholesale", "lease-to-own"].includes(scope)) {
+    const vehicleFields = [
+      ["Trim", vehicle.trim || canonicalVehicle.trim], ["Exterior color", vehicle.color || canonicalVehicle.color],
+      ["Interior color", vehicle.interiorColor || canonicalVehicle.interiorColor], ["Body style", vehicle.bodyStyle || vehicle.bodyType || canonicalVehicle.bodyStyle],
+      ["Engine", vehicle.engine || canonicalVehicle.engine], ["Transmission", vehicle.transmission || canonicalVehicle.transmission],
+      ["Drivetrain", vehicle.drivetrain || vehicle.driveTrain || canonicalVehicle.drivetrain], ["Fuel type", vehicle.fuelType || canonicalVehicle.fuelType],
+      ["Inventory mileage", canonicalVehicle.recordedMileage], ["Delivery odometer", scope === "bhph" ? fields(snapshot[`${scope}:terms`]).deliveryMileage : scope === "lease-to-own" ? vehicle.mileage : scope === "retail-sale" ? cash.mileage : fields(snapshot[`${scope}:sharedSaleFacts`]).mileage]
+    ];
+    for (const [label, value] of vehicleFields) if (value) structure.push({ label, value });
+  }
   return {
     pathway:scope, customer:record.customerName, vehicle:record.vehicleReference,
     vin:canonicalVehicle.vin || vehicle.vin || "", stock:canonicalVehicle.stockNumber || vehicle.stockNumber || "",

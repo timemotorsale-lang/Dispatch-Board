@@ -1,4 +1,11 @@
+import { LIMITED_POA_ID } from "./sales-document-pathways";
+import { isValidVin } from "./vin";
+
 export type LeaseToOwnFormCategory = "Required" | "Conditional";
+
+export function isLegacyLeasePoa(document: { formId: string; contentType?: string; contentBase64?: string }) {
+  return document.formId === LIMITED_POA_ID && (document.contentType !== "application/pdf" || !document.contentBase64);
+}
 
 export type LeaseToOwnFormItem = {
   basis: string;
@@ -22,7 +29,11 @@ export type LeaseToOwnCalculatorInput = {
   capitalizedCostReductionCents: number;
   contractLength: number;
   documentPreparationFeeCents: number;
+  securityDepositCents?: number;
+  otherUpfrontChargesCents?: number;
   downPaymentCents?: number;
+  tradeAllowanceCents?: number;
+  tradePayoffCents?: number;
   signingPaymentMode?: "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION";
   gpsCostCents: number;
   multiplierBasisPoints: number;
@@ -40,6 +51,9 @@ export type LeaseToOwnCalculatorOutput = {
   contractLength: number;
   adjustedCapitalizedCostCents: number;
   amountDueAtSigningCents: number;
+  cashDueAtSigningCents: number;
+  netTradeEquityCents: number;
+  tradeCreditAppliedCents: number;
   applicableTaxesCents: number;
   basePeriodicPaymentCents: number;
   capitalizedCostReductionCents: number;
@@ -139,14 +153,14 @@ export const LEASE_TO_OWN_FORM_PACKET: LeaseToOwnFormItem[] = [
     trigger: "Before delivery"
   },
   {
-    basis: "Minnesota DVS title and registration support",
-    category: "Required",
-    description: "Authorization for the dealership to complete title, registration, correction, lien, or related vehicle paperwork for the lessee/customer when needed.",
+    basis: "Time Motor Sales Limited POA, pending Minnesota legal and DVS acceptance review",
+    category: "Conditional",
+    description: "Review copy for specific permitted title and registration acts. Use the separate official Secure POA workflow when required.",
     fieldMappings: ["Lessee", "Co-lessee", "Vehicle", "VIN", "Title/registration authority", "Date"],
-    id: "power-of-attorney",
-    label: "Power of attorney / title authority",
-    sourceFileName: "Generated power of attorney / title authority form",
-    trigger: "Dealer handles title, registration, correction, lien, or DVS paperwork"
+    id: LIMITED_POA_ID,
+    label: "Limited Motor Vehicle Power of Attorney",
+    sourceFileName: "Limited Motor Vehicle Power of Attorney.pdf",
+    trigger: "Review for permitted title or registration transactions"
   },
   {
     basis: "Dealership credit underwriting and account servicing control",
@@ -228,11 +242,16 @@ export function calculateLeaseToOwn(input: LeaseToOwnCalculatorInput): LeaseToOw
   const taxBaseBeforeReductionCents = input.documentPreparationFeeCents + input.originationFeeCents + grossCapitalizedCostTotalCents - residualValueCents;
   const applicableTaxesCents = roundCents((taxBaseBeforeReductionCents * input.salesTaxRateBasisPoints) / 10000);
   const costsTaxesFeesCents = input.titleFeeCents + input.registrationFeeCents + input.documentPreparationFeeCents + input.originationFeeCents + applicableTaxesCents;
+  const securityDepositCents = input.securityDepositCents ?? 0;
+  const otherUpfrontChargesCents = input.otherUpfrontChargesCents ?? 0;
+  const upfrontCostsCents = costsTaxesFeesCents + securityDepositCents + otherUpfrontChargesCents;
+  const netTradeEquityCents = (input.tradeAllowanceCents ?? 0) - (input.tradePayoffCents ?? 0);
+  const signingFundsCents = (input.downPaymentCents ?? 0) + netTradeEquityCents;
   const hasDownPayment = input.signingPaymentMode === "DOWN_PAYMENT" || (input.signingPaymentMode !== "CAPITALIZED_REDUCTION" && typeof input.downPaymentCents === "number" && Number.isFinite(input.downPaymentCents) && input.downPaymentCents > 0);
   // Signing cash includes the first payment. Solve cash = fees + reduction + (depreciation - reduction) / term.
   const capitalizedCostReductionCents = hasDownPayment
-    ? input.calculationMode === "PAYMENT_AMOUNT" ? Math.max(0, roundCents((input.downPaymentCents ?? 0) - costsTaxesFeesCents - (input.targetPaymentCents ?? 0))) : Math.max(0, roundCents(input.contractLength > 1
-      ? (((input.downPaymentCents ?? 0) - costsTaxesFeesCents) * input.contractLength - (grossCapitalizedCostTotalCents - residualValueCents)) / (input.contractLength - 1)
+    ? input.calculationMode === "PAYMENT_AMOUNT" ? Math.max(0, roundCents(signingFundsCents - upfrontCostsCents - (input.targetPaymentCents ?? 0))) : Math.max(0, roundCents(input.contractLength > 1
+      ? ((signingFundsCents - upfrontCostsCents) * input.contractLength - (grossCapitalizedCostTotalCents - residualValueCents)) / (input.contractLength - 1)
       : 0))
     : input.capitalizedCostReductionCents;
   const adjustedCapitalizedCostCents = grossCapitalizedCostTotalCents - capitalizedCostReductionCents;
@@ -248,15 +267,20 @@ export function calculateLeaseToOwn(input: LeaseToOwnCalculatorInput): LeaseToOw
   const additionalRegistrationFeesCents = input.registrationFeeCents * renewalRegistrationCount;
   const estimatedFeesAndTaxesOverTermCents = input.titleFeeCents + input.registrationFeeCents + applicableTaxesCents + additionalRegistrationFeesCents;
   const firstPeriodicPaymentCents = input.contractLength === 1 ? finalPeriodicPaymentCents : totalPeriodicPaymentCents;
-  const amountDueAtSigningCents = capitalizedCostReductionCents + costsTaxesFeesCents + firstPeriodicPaymentCents;
-  const signingShortfallCents = hasDownPayment ? Math.max(0, amountDueAtSigningCents - roundCents(input.downPaymentCents ?? 0)) : 0;
-  const totalOfPaymentsCents = estimatedFeesAndTaxesOverTermCents + totalBasePeriodicPaymentsCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents;
+  const amountDueAtSigningCents = capitalizedCostReductionCents + upfrontCostsCents + firstPeriodicPaymentCents;
+  const cashDueAtSigningCents = Math.max(0, amountDueAtSigningCents - netTradeEquityCents);
+  const tradeCreditAppliedCents = Math.min(Math.max(0, netTradeEquityCents), Math.max(0, amountDueAtSigningCents));
+  const signingShortfallCents = hasDownPayment ? Math.max(0, cashDueAtSigningCents - roundCents(input.downPaymentCents ?? 0)) : 0;
+  const totalOfPaymentsCents = estimatedFeesAndTaxesOverTermCents + totalBasePeriodicPaymentsCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents + otherUpfrontChargesCents;
   const dealerGrossProfitCents = totalBasePeriodicPaymentsCents + residualValueCents + capitalizedCostReductionCents + input.documentPreparationFeeCents + input.originationFeeCents - subtotalCents;
 
   return {
     contractLength: input.contractLength,
     adjustedCapitalizedCostCents,
     amountDueAtSigningCents,
+    cashDueAtSigningCents,
+    netTradeEquityCents,
+    tradeCreditAppliedCents,
     applicableTaxesCents,
     basePeriodicPaymentCents,
     capitalizedCostReductionCents,
@@ -285,7 +309,7 @@ export function resolveLeasePaymentTerm(input: LeaseToOwnCalculatorInput): Lease
   const balance = seed.grossCapitalizedCostTotalCents - seed.residualValueCents;
   const signingCashMode = input.signingPaymentMode === "DOWN_PAYMENT" ||
     (input.signingPaymentMode !== "CAPITALIZED_REDUCTION" && (input.downPaymentCents ?? 0) > 0);
-  const availableCash = (input.downPaymentCents ?? 0) - seed.costsTaxesFeesCents;
+  const availableCash = (input.downPaymentCents ?? 0) + seed.netTradeEquityCents - seed.costsTaxesFeesCents - (input.securityDepositCents ?? 0) - (input.otherUpfrontChargesCents ?? 0);
   // Cash includes the first payment: remaining balance / (term - 1) determines the payment.
   const term = !Number.isFinite(target) || target < 1 ? 0 : signingCashMode
     ? availableCash >= target && availableCash < balance
@@ -310,6 +334,7 @@ export function leaseNextPaymentDate(agreementDate: string, frequency: LeasePaym
 export function leaseAgreementCalculationError(input: LeaseToOwnCalculatorInput, output = calculateLeaseToOwn(input)): string | null {
   input = leaseCalculationInputs(input);
   if (input.agreedPriceCents !== undefined && (!Number.isSafeInteger(input.agreedPriceCents) || input.agreedPriceCents <= 0)) return "Enter a valid positive agreed price.";
+  if ([input.tradeAllowanceCents ?? 0, input.tradePayoffCents ?? 0].some(value => !Number.isSafeInteger(value) || value < 0)) return "Enter valid, nonnegative trade allowance and loan payoff amounts.";
   if (input.calculationMode === "PAYMENT_AMOUNT") {
     if (!Number.isSafeInteger(input.targetPaymentCents) || (input.targetPaymentCents ?? 0) < 1) return "Enter a positive target payment amount.";
     if (output.contractLength === 0) return "The signing cash must cover fees and the selected first payment, and leave a positive lease payment balance.";
@@ -321,8 +346,19 @@ export function leaseAgreementCalculationError(input: LeaseToOwnCalculatorInput,
     typeof value === "number" && (!Number.isFinite(value) || value < 0)
   )) return "Lease amounts and rates must be valid, nonnegative numbers.";
   if (output.grossCapitalizedCostCents <= 0 || output.totalBasePeriodicPaymentsCents <= 0 || output.finalPeriodicPaymentCents <= 0) return "Enter a vehicle value and signing amount that leave a positive lease payment balance.";
-  if (output.signingShortfallCents > 1) return "The signing cash must cover fees, taxes, and the first lease payment.";
+  if (output.netTradeEquityCents > output.tradeCreditAppliedCents) return "Trade equity exceeds the lease signing total. Adjust the capitalized cost reduction before generating the agreement.";
+  if (output.signingShortfallCents > 1) return "The signing cash and trade credit must cover fees, taxes, the first payment, and any remaining trade payoff.";
   return null;
+}
+
+export function leaseTradeVinError(facts: Record<string, unknown>, input: LeaseToOwnCalculatorInput): string | null {
+  const vin = typeof facts.tradeVin === "string" ? facts.tradeVin.trim().toUpperCase() : "";
+  if ((facts.tradeVin != null && typeof facts.tradeVin !== "string") || (vin && !isValidVin(vin))) {
+    return "Enter a valid 17-character trade-in VIN with the correct check digit. Verify it against the vehicle or title.";
+  }
+  const hasTrade = input.tradeAllowanceCents || input.tradePayoffCents ||
+    [facts.tradeYear, facts.tradeMake, facts.tradeModel].some(value => typeof value === "string" && value.trim());
+  return hasTrade && !vin ? "Enter the trade-in VIN before generating the lease packet." : null;
 }
 
 export const DEFAULT_LEASE_CALCULATOR_FIELDS = {
@@ -331,7 +367,8 @@ export const DEFAULT_LEASE_CALCULATOR_FIELDS = {
   gpsCost: "$0.00", multiplier: "2.00", originationFee: "$0.00", otherRoadWorthyCost: "$0.00",
   paymentFrequency: "Monthly" as LeasePaymentFrequency, registrationFee: "$516.00", salesTaxRate: "6.875",
   signingPaymentMode: "CAPITALIZED_REDUCTION" as "DOWN_PAYMENT" | "CAPITALIZED_REDUCTION", titleFee: "$102.80",
-  warrantyCost: "$0.00", wholesaleCost: "$0.00"
+  warrantyCost: "$0.00", wholesaleCost: "$0.00", securityDeposit: "$0.00", otherUpfrontCharges: "$0.00",
+  tradeAllowance: "", tradePayoff: ""
 };
 
 // Shared conversion for the editable calculator and its saved-deal summary.
@@ -347,7 +384,10 @@ export function leaseCalculatorInputFromFields(savedFields: Record<string, strin
     calculationMode: fields.calculationMode === "PAYMENT_AMOUNT" ? "PAYMENT_AMOUNT" : "TERM",
     targetPaymentCents: money("targetPayment"), additionalItemsCents: money("additionalItems"),
     capitalizedCostReductionCents: money("capitalizedCostReduction"), contractLength: Number(fields.contractLength) || 0,
-    documentPreparationFeeCents: money("documentPreparationFee"), downPaymentCents: money("downPayment"),
+    documentPreparationFeeCents: money("documentPreparationFee"),
+    ...(fields.signingPaymentMode === "DOWN_PAYMENT" ? { downPaymentCents: money("downPayment") } : {}),
+    tradeAllowanceCents: money("tradeAllowance"), tradePayoffCents: money("tradePayoff"),
+    securityDepositCents: money("securityDeposit"), otherUpfrontChargesCents: money("otherUpfrontCharges"),
     gpsCostCents: money("gpsCost"), multiplierBasisPoints: Number.isFinite(multiplier) ? Math.round(multiplier * 10000) : 10000,
     originationFeeCents: money("originationFee"), otherRoadWorthyCostCents: money("otherRoadWorthyCost"),
     paymentFrequency: fields.paymentFrequency === "Weekly" ? "Weekly" : fields.paymentFrequency === "BiWeekly" ? "BiWeekly" : "Monthly",

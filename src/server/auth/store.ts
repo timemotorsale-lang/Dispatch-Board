@@ -6,6 +6,8 @@ export type AuthenticatedUser = {
   name: string;
   email: string;
   isActive: boolean;
+  dealsRestricted?: boolean;
+  calendarRestricted?: boolean;
   mustChangePassword?: boolean;
   roles: string[];
   duties: {
@@ -128,6 +130,8 @@ export function toAuthenticatedUser(user: UserWithAssignments): AuthenticatedUse
     name: user.name,
     email: user.email,
     isActive: user.isActive,
+    ...(user.dealsRestricted ? { dealsRestricted: true } : {}),
+    ...(user.calendarRestricted ? { calendarRestricted: true } : {}),
     mustChangePassword: false,
     roles: uniqueSorted(user.userRoles.map((assignment) => assignment.role.name)),
     duties: {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, FileCheck2, GitBranch, LockKeyhole, Save, ShieldCheck } from "lucide-react";
 import { TITLE_PREPARATION_CHECKS } from "@/server/shop-recon/parallel-title-preparation-domain";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 
 type Operation = {
   id: string;
@@ -67,6 +68,7 @@ export function ShopReconParallelTitlePreparation({ currentStageLabel, initial, 
       <b>{operation ? label(operation.status) : "Available"}</b>
     </header>
     <div className="srv-parallel-boundary"><ShieldCheck /><span><strong>Safe boundary</strong>This packet cannot move recon, declare title readiness, authorize spending, or release the vehicle. Inventory Lifecycle keeps final authority.</span></div>
+    <DocumentReadingPanel purpose="TITLE" disabled={busy||locked} onApply={(reading,fields)=>{const note=`Reviewed ${reading.fileName}: ${Object.entries(fields).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join("; ")}`;setHandoffNote(current=>[current,note].filter(Boolean).join("\n"));setFeedback("Reviewed title details added to the handoff draft. Verify evidence and checklist items, then save separately.");}}/>
     {!operation ? <div className="srv-parallel-start"><div><strong>Start only when it saves time.</strong><span>Owner, source binding, evidence, and handoff are recorded independently from recon.</span></div><button disabled={busy || !workspace.lifecycleInitialized} onClick={() => request("POST", { reason: "Start bounded title and document preparation beside active Inventory Recon work." })} type="button"><GitBranch />{busy ? "Starting…" : "Start parallel preparation"}</button>{!workspace.lifecycleInitialized ? <small>Save the current recon stage once to establish its governed source record.</small> : null}</div> : <>
       <div className="srv-parallel-meta"><p><span>Primary work</span><strong>{currentStageLabel} · unchanged</strong></p><p><span>Preparation owner</span><strong>{operation.ownerName}</strong></p><p><span>Progress</span><strong>{complete}/{TITLE_PREPARATION_CHECKS.length} checks</strong></p><p><span>Join point</span><strong>Inventory review only</strong></p></div>
       {!operation.binding.valid || operation.status === "REVALIDATION_REQUIRED" ? <p className="srv-parallel-warning"><AlertTriangle /><span><strong>Revalidation required</strong>Source identity, inventory unit, or recon scope changed. Inventory must revalidate this packet before it can continue.</span></p> : null}

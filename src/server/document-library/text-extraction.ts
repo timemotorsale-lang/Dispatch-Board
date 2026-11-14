@@ -4,6 +4,7 @@ import { inflateSync } from "node:zlib";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { visualOcrLines } from "@/lib/ocr-reading-order";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,6 +16,7 @@ export type DocumentTextExtractionResult = {
 
 export type DocumentTextExtractionDependencies = {
   recognizeImageText?: (input: { bytes: Uint8Array; contentType: string; fileName: string }) => Promise<string>;
+  pdfOcrDpi?: number;
 };
 
 function decodeUtf8(bytes: Uint8Array) {
@@ -32,9 +34,13 @@ function normalizeExtractedText(value: string) {
     .slice(0, 60_000);
 }
 
-function hasMeaningfulText(value: string) {
+export function hasMeaningfulText(value: string) {
   const text = normalizeExtractedText(value);
   if (text.length < 20) return false;
+  // Compressed image streams can contain accidental PDF-looking strings. They are not embedded text.
+  const readable = text.match(/[\x20-\x7E\n\t\u00C0-\u017F]/g)?.length ?? 0;
+  const controls = text.match(/[\x7F-\x9F]/g)?.length ?? 0;
+  if (readable / text.length < 0.95 || controls > 0) return false;
   const letters = text.match(/[A-Za-z]/g)?.length ?? 0;
   const digits = text.match(/[0-9]/g)?.length ?? 0;
   const words = text.match(/[A-Za-z]{3,}/g)?.length ?? 0;
@@ -133,7 +139,7 @@ function pdfOcrEnabled() {
   return (process.env.DOCUMENT_TEXT_PDF_OCR_MODE ?? process.env.DOCUMENT_TEXT_OCR_MODE ?? "enabled").trim().toLowerCase() !== "disabled";
 }
 
-async function renderPdfPagesForOcr(bytes: Uint8Array) {
+async function renderPdfPagesForOcr(bytes: Uint8Array, dpi?:number) {
   const root = await mkdtemp(join(tmpdir(), "dispatch-pdf-ocr-"));
   const inputPath = join(root, "input.pdf");
   const outputPrefix = join(root, "page");
@@ -143,7 +149,7 @@ async function renderPdfPagesForOcr(bytes: Uint8Array) {
   try { await execFileAsync(renderer, [
     "-png",
     "-r",
-    process.env.DOCUMENT_TEXT_PDF_OCR_DPI?.trim() || "220",
+    dpi?String(Math.max(100,Math.min(320,dpi))):process.env.DOCUMENT_TEXT_PDF_OCR_DPI?.trim() || "220",
     "-f",
     "1",
     "-l",
@@ -172,7 +178,7 @@ async function ocrPdfPages(
 
   let rendered: { files: string[]; root: string } | null = null;
   try {
-    rendered = await renderPdfPagesForOcr(input.bytes);
+    rendered = await renderPdfPagesForOcr(input.bytes,dependencies.pdfOcrDpi);
     const pageTexts: string[] = [];
     for (const file of rendered.files) {
       const pageBytes = await readFile(file);
@@ -249,8 +255,9 @@ async function recognizeImageText(input: { bytes: Uint8Array; contentType: strin
       preserve_interword_spaces: "1",
       tessedit_pageseg_mode: PSM.AUTO
     });
-    const result = await worker.recognize(Buffer.from(input.bytes));
-    return normalizeExtractedText(result.data.text ?? "");
+    const result = await worker.recognize(Buffer.from(input.bytes), {}, {text:true,blocks:true});
+    const words=result.data.blocks?.flatMap(block=>block.paragraphs.flatMap(paragraph=>paragraph.lines.flatMap(line=>line.words)))||[];
+    return normalizeExtractedText(words.length?visualOcrLines(words):result.data.text ?? "");
   } finally {
     await worker.terminate();
   }

@@ -21,7 +21,7 @@ export function MobileVehicleIntake({ options, initialVin = "", returnTo = MOBIL
   const [identity, setIdentity] = useState<{ vin: string; year: string; make: string; model: string } | null>(null);
   const [existing, setExisting] = useState<CompactInventoryIntakeContext | null>(null);
   const [locationId, setLocationId] = useState(options.locations.length === 1 ? options.locations[0].id : "");
-  const [ownerUserId, setOwnerUserId] = useState(options.users[0]?.id ?? "");
+  const [ownerUserId, setOwnerUserId] = useState(options.users.length === 1 ? options.users[0].id : "");
   const [source, setSource] = useState("");
   const [acquiredOn, setAcquiredOn] = useState("");
   const [whereabouts, setWhereabouts] = useState("");
@@ -31,6 +31,7 @@ export function MobileVehicleIntake({ options, initialVin = "", returnTo = MOBIL
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [recentVins, setRecentVins] = useState<Array<{ vin: string; label: string }>>([]);
   const inFlight = useRef(false);
   const started = useRef(false);
   const pending = useRef<{ signature: string; body: string } | null>(null);
@@ -53,6 +54,8 @@ export function MobileVehicleIntake({ options, initialVin = "", returnTo = MOBIL
       setSource(context?.details?.source ?? ""); setAcquiredOn(context?.details?.acquiredOn ?? "");
       setWhereabouts(context?.details?.whereabouts ?? ""); setCondition(context?.details?.condition ?? "");
       setIdentity({ vin: normalized, year: (context?.year ?? decoded?.decoded?.modelYear)?.toString() ?? "", make: context?.make ?? decoded?.decoded?.make ?? "", model: context?.model ?? decoded?.decoded?.model ?? "" });
+      const label = [context?.year ?? decoded?.decoded?.modelYear, context?.make ?? decoded?.decoded?.make, context?.model ?? decoded?.decoded?.model].filter(Boolean).join(" ");
+      setRecentVins(current => [{ vin: normalized, label }, ...current.filter(item => item.vin !== normalized)].slice(0, 6));
       setMessage(context?.inventoryUnitId ? "This VIN is already in inventory. Open the existing record instead of adding it again." : context ? "Vehicle found. This intake will reuse its existing record." : decoded?.decoded ? "VIN decoded. Verify the vehicle and finish the receiving details below." : "Automatic decoding is unavailable. Enter and verify year, make and model below.");
       setOwnership(false); pending.current = null;
     } catch (failure) { setError(failure instanceof Error ? failure.message : "VIN lookup failed. Retry without losing your VIN."); }
@@ -93,6 +96,7 @@ export function MobileVehicleIntake({ options, initialVin = "", returnTo = MOBIL
     <nav className={styles.nav}><Link href={returnTo}>{returnTo === MOBILE_HOME_HREF ? "← Mobile home" : "← Return to previous screen"}</Link><Link href="/vehicles">Inventory</Link></nav>
     <p className={styles.steps}>{receipt ? "Complete" : identity ? "2 · Review & add" : "1 · Capture VIN"}</p>
     <h1>{receipt ? "Vehicle added" : "Add vehicle"}</h1>
+    {!identity && !receipt && recentVins.length > 0 && <details className={styles.card}><summary>Recent VIN checks · this session</summary><p>Recheck availability before continuing. These entries stay only on this screen.</p>{recentVins.map(item => <button key={item.vin} type="button" disabled={busy} onClick={() => void lookup(item.vin)}>{item.label || "Vehicle"} · {item.vin}</button>)}<button type="button" disabled={busy} onClick={() => setRecentVins([])}>Clear recent VIN checks</button></details>}
     {receipt ? <div className={styles.card} role="status"><h2>{[identity?.year, identity?.make, identity?.model].filter(Boolean).join(" ")}</h2><p>Inventory {receipt.inventoryNumber} is saved. Pricing, documents and other missing acquisition details remain pending.</p><Link className={styles.primary} href={`/vehicles/${encodeURIComponent(receipt.vehicleId)}/frontline`}>Open vehicle</Link><button type="button" onClick={reset}>Add another vehicle</button></div> : !identity ? <form className={styles.card} onSubmit={(event) => { event.preventDefault(); void lookup(vin); }}><fieldset disabled={busy}><h2>Scan it. Decode it. Review it.</h2><p>Use the VIN barcode on the door jamb or windshield. You can also choose a photo or enter the VIN.</p><button className={styles.primary} type="button" onClick={() => setScanner(true)}>Scan VIN barcode</button><label htmlFor={`${prefix}-vin`}>VIN<input id={`${prefix}-vin`} autoCapitalize="characters" autoComplete="off" spellCheck={false} minLength={17} maxLength={17} required value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} /></label><button className={styles.primary} type="submit">{busy ? "Checking VIN…" : "Decode & continue"}</button><p className={styles.hint}>Nothing is added until you confirm. Existing VINs are checked first.</p></fieldset></form> : <>
       <p className={styles.notice} role="status">{message}</p>
       {existing?.inventoryUnitId ? <div className={styles.card}><h2>Already in inventory</h2><p>{identity.year} {identity.make} {identity.model} · {existing.inventoryNumber}</p><Link className={styles.primary} href={`/vehicles/${encodeURIComponent(existing.vehicleId)}/frontline`}>Open existing vehicle</Link><button type="button" onClick={reset}>Scan another VIN</button></div> : <form onSubmit={save}>

@@ -1,12 +1,103 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { matchesAdvancedCalendarSearch, validCalendarSearchDates, type CalendarSearchFilters } from "@/features/appointments/calendar-advanced-search";
+import { customDurationMinutes } from "@/features/appointments/appointment-duration-field";
+import { appointmentPurposeGroup, appointmentPurposeGroups, appointmentPurposes } from "@/features/appointments/appointment-purposes";
+import { placeCalendarEvents, type CalendarGridEvent } from "@/features/appointments/calendar-time-grid";
 
 import {
   AppointmentConsoleNewAppointment,
-  AppointmentConsoleTodayFlow
+  AppointmentConsoleTodayFlow,
+  findPlannerDuplicateAppointment
 } from "@/features/appointments/appointment-console-refinement";
 
 describe("Appointment Console refinement", () => {
+  it("matches advanced search fields independently and excludes keywords", () => {
+    const filters: CalendarSearchFilters = { scope: "active", what: "service warranty", who: "Morgan", where: "Bay 2", exclude: "cancelled", from: "2026-11-01", to: "2026-11-30" };
+    const fields = { keywords: ["Service & Warranty", "Warranty inspection"], people: ["Morgan Manager"], places: ["Service Bay 2"] };
+    expect(matchesAdvancedCalendarSearch(filters, fields)).toBe(true);
+    expect(matchesAdvancedCalendarSearch({ ...filters, where: "Morgan" }, fields)).toBe(false);
+    expect(matchesAdvancedCalendarSearch({ ...filters, exclude: "inspection" }, fields)).toBe(false);
+    expect(validCalendarSearchDates("2026-11-01", "2026-12-12")).toBe(true);
+    expect(validCalendarSearchDates("2026-11-01", "2026-12-13")).toBe(false);
+  });
+
+  it("accepts custom appointment durations in whole minutes or fractional hours", () => {
+    expect(customDurationMinutes("20", "minutes")).toBe(20);
+    expect(customDurationMinutes("1.25", "hours")).toBe(75);
+    expect(customDurationMinutes("0", "minutes")).toBeNull();
+    expect(customDurationMinutes("1.5", "minutes")).toBeNull();
+    expect(customDurationMinutes("25", "hours")).toBeNull();
+  });
+
+  it("offers a unique purpose code and an Other option in every dealership category", () => {
+    expect(appointmentPurposeGroups).toHaveLength(13);
+    expect(new Set(appointmentPurposes.map(purpose => purpose.value)).size).toBe(appointmentPurposes.length);
+    for (const group of appointmentPurposeGroups) {
+      expect(group.options.at(-1)?.label).toBe("Other");
+      expect(appointmentPurposeGroup(group.category, group.options.at(-1)?.value)).toBe(group);
+    }
+    expect(appointmentPurposeGroup("warranty", "WARRANTY_REVIEW").label).toBe("Service & Warranty");
+    expect(appointmentPurposeGroup("sales", "DEAL_REVIEW").label).toBe("Financing, Leasing & Signing");
+    expect(appointmentPurposeGroup("delivery", null, "Transportation / Logistics").label).toBe("Inventory, Recon & Transport");
+  });
+
+  it("only flags a separate active booking for the same customer and time", () => {
+    const startsAt = "2026-11-09T15:30:00.000Z";
+    const input = { startsAt, customerId: "customer-1", customerName: "Example Customer", alreadySaved: false };
+    const booking = {
+      id: "appointment-1", startsAt, bookingStatus: "SCHEDULED",
+      customer: { customerId: "customer-1", displayName: input.customerName, phoneNumber: null, email: null }
+    };
+
+    expect(findPlannerDuplicateAppointment([booking], input)).toBe(booking);
+    expect(findPlannerDuplicateAppointment([booking], { ...input, alreadySaved: true })).toBeNull();
+    expect(findPlannerDuplicateAppointment([booking], { ...input, editingId: booking.id })).toBeNull();
+    expect(findPlannerDuplicateAppointment([booking], { ...input, customerId: "customer-2" })).toBeNull();
+    expect(findPlannerDuplicateAppointment([booking], { ...input, startsAt: "2026-11-09T16:00:00.000Z" })).toBeNull();
+    const timedBooking = { ...booking, endsAt: "2026-11-09T16:00:00.000Z" };
+    expect(findPlannerDuplicateAppointment([timedBooking], {
+      ...input, startsAt: "2026-11-09T15:45:00.000Z", endsAt: "2026-11-09T16:15:00.000Z"
+    })).toBe(timedBooking);
+    expect(findPlannerDuplicateAppointment([timedBooking], {
+      ...input, startsAt: "2026-11-09T16:00:00.000Z", endsAt: "2026-11-09T16:30:00.000Z"
+    })).toBeNull();
+    expect(findPlannerDuplicateAppointment([{ ...booking, bookingStatus: "CANCELLED" }], input)).toBeNull();
+  });
+
+  it("gives overlapping appointments separate lanes and restores full width for later appointments", () => {
+    const event = (id: string, startMinute: number, endMinute: number): CalendarGridEvent => ({
+      id, startMinute, endMinute, title: id, timeLabel: "", style: {}, onOpen: () => {}
+    });
+    const placed = placeCalendarEvents([
+      event("Test drive", 480, 525),
+      event("Quick visit", 510, 525),
+      event("Delivery", 540, 600)
+    ]);
+
+    expect(placed.map(({ lane, laneCount }) => [lane, laneCount])).toEqual([[0, 2], [1, 2], [0, 1]]);
+  });
+
+  it("opens the dedicated calendar in Week view with direct creation and date controls", () => {
+    const markup = renderToStaticMarkup(<AppointmentConsoleNewAppointment initialFullCalendar />);
+
+    expect(markup).toContain('aria-label="Full-page appointment calendar"');
+    expect(markup).toContain('aria-label="Week time grid"');
+    expect(markup).toContain('aria-label="Toggle calendar sidebar"');
+    expect(markup).toContain('aria-expanded="false" aria-label="Toggle calendar sidebar"');
+    expect(markup).toMatch(/id="calendar-sidebar"[^>]* hidden=""/);
+    expect(markup).toContain('aria-label="Create appointment on');
+    expect(markup).toContain('aria-label="Calendar view"');
+    expect(markup).toContain("Appointment categories");
+    expect(markup).toContain("My calendars");
+    expect(markup).toContain("Time Motor Sales");
+    expect(markup).toContain("Personal calendar");
+    expect(markup).toContain("Private event");
+    expect(markup).toContain("> Tasks</label>");
+    expect(markup).toContain("All task categories");
+    expect(markup).toContain("Search tasks and appointments");
+  });
+
   it("renders the approved Today Flow landing without duplicating the app shell sidebar", () => {
     const markup = renderToStaticMarkup(<AppointmentConsoleTodayFlow />);
 
@@ -28,6 +119,7 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("Back to Appointment Console");
     expect(markup).toContain("Appointment Setup");
     expect(markup).toContain("Open full calendar");
+    expect(markup).toContain(">Agenda</button>");
     expect(markup).not.toContain("Expand calendar");
     expect(markup).toContain("Customer search");
     expect(markup).toContain("Vehicle search");
@@ -35,14 +127,10 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("VIN, stock #, plate, or vehicle");
     expect(markup).toContain("Purpose");
     expect(markup).toContain("Customer Issue / Resolution");
-    expect(markup).toContain("Title / Documentation Issue");
-    expect(markup).toContain("Daily Rental / Loaner");
-    expect(markup).toContain("Photos / Marketing / Advertising");
-    expect(markup).toContain("Business Appointment");
-    expect(markup).toContain("Banker / Lender Appointment");
-    expect(markup).toContain("Licensing / Permit Appointment");
-    expect(markup).toContain("Phone Company / Utility Appointment");
-    expect(markup).toContain("Managerial Appointment");
+    for (const group of appointmentPurposeGroups) {
+      expect(markup).toContain(`value="${group.id}"`);
+    }
+    expect(markup).toContain("OTHER_CARE");
     expect(markup).toContain("2:30 PM");
     expect(markup).toContain("8:00 AM");
     expect(markup).toContain("5:00 PM");
@@ -53,7 +141,7 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("Appointment reason");
     expect(markup).toContain("Add appointment reason");
     expect(markup).toContain("Ready to create appointment.");
-    expect(markup).toContain("Create Appointment");
+    expect(markup).toContain("Save appointment draft");
     expect(markup).toContain("Staff conflicts");
     expect(markup).not.toContain("command ledger");
     expect(markup).not.toContain("Canonical command");

@@ -329,7 +329,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const selectedAuthorizedLineKey = job.authorizedLineKey || creatableAuthorizedLineKeys[0] || authorizedLaborLines[0]?.key || "";
   const selectedReleaseLine = authorizedLaborLines.find((line) => line.key === selectedAuthorizedLineKey) ?? null;
   const existingJobForSelectedLine = selected?.repairJobs.find((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ?? null;
-  const hasRepairJob = (selected?.repairJobs.length ?? 0) > 0;
+  const hasRepairJob = Boolean(selected?.repairJobs.some(job => job.status !== "CANCELLED"));
   const directPath = repairPath === "DIRECT_BODY";
   const vendorPath = repairPath === "VENDOR";
   const currentVendorWork = activeVendorWork(selected);
@@ -357,7 +357,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const orderPathLabel = vendorPath ? "Vehicle ready for outside vendor route" : directPath ? "Vehicle selected for bodywork repair" : "Vehicle released for diagnosis";
   const recentRepairUpdates = (selected?.advisorUpdates ?? []).slice(0, 6);
   const latestRepairUpdate = selected?.advisorUpdates?.[0] ?? null;
-  const qcReady = Boolean(latestRepairUpdate && qcReadyStatuses.has(latestRepairUpdate.statusCode));
+  const qcReady = Boolean(selected?.repairJobs.some(job => ["READY_FOR_QC", "QC_PASSED"].includes(job.status)));
   const qcHref = reviewOrderId ? repairReviewHref(reviewOrderId, "qc") : selected ? `/vehicles/quality-control?repairOrderId=${encodeURIComponent(selected.id)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/quality-control";
   const dispatchHref = reviewOrderId ? repairReviewHref(reviewOrderId, "assignment") : selected ? `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/shop-dispatch";
   const partsHref = selected ? `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}` : "/vehicles/service-close-parts";
@@ -922,6 +922,10 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     const statusCode = statusOverride ?? repairProgress.statusCode;
     const customerVisibleSummary = repairProgress.customerVisibleSummary.trim();
     const readyForQc = qcReadyStatuses.has(statusCode);
+    if (readyForQc && !hasRepairJob) {
+      setNotice("Release an approved repair job before recording its final result.");
+      return;
+    }
     if (!customerVisibleSummary) {
       setNotice("Tell us what happened before saving this update.");
       return;
@@ -930,7 +934,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     const completedBy = model.users.find((user) => user.id === completedByUserId)?.name ?? "Staff member";
     const contactOutcome = failedRepair ? "Repair failed — QC decision required" : readyForQc ? "Repair complete and ready for QC" : repairProgress.contactOutcome.trim() || "Repair progress updated";
     const nextAction = readyForQc ? "Complete final quality control, then hand off or return the vehicle for rework." : repairProgress.nextAction.trim() || "Continue repair and record the next meaningful update.";
-    if (latestRepairUpdate?.statusCode === statusCode && latestRepairUpdate.customerVisibleSummary.trim() === customerVisibleSummary) {
+    if ((!readyForQc || qcReady) && latestRepairUpdate?.statusCode === statusCode && latestRepairUpdate.customerVisibleSummary.trim() === customerVisibleSummary) {
       if (readyForQc && openQc) {
         window.location.assign(qcHref);
         return;
@@ -1563,6 +1567,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
             )}
           </WorkflowStep>}
 
+          {!hasRepairJob && !vendorPath && (!focusStep || repairOnly) ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
+            <h2>{accepted ? "Release approved work before Final QC" : "Record approval before releasing repair work"}</h2>
+            <p>{accepted ? "The estimate is approved. Create a repair job on this order so the final result and QC checklist have a job to attach to." : "Record the customer's decision on the current estimate, then release the approved work."}</p>
+            <Link className={styles.primaryAction} href={repairReviewHref(selected.id, accepted ? "parts" : latestEstimate ? "authorization" : "estimate")}>{accepted ? "Release approved jobs" : latestEstimate ? "Record approval" : "Open estimate"}</Link>
+          </section> : null}
           {hasRepairJob && (!focusStep || repairOnly) ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
             <header>
               <span>Manage repair</span>
@@ -1601,8 +1610,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               <div className={styles.progressActions}>
                 <small>{repairProgress.customerVisibleSummary.trim() ? "Choose one clear action." : "Enter what happened to unlock save and QC actions."}</small>
                 <div className={styles.progressPrimaryActions}>
-                  {qcReady || qcReadyStatuses.has(repairProgress.statusCode) ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
-                  {!qcReady ? <button className={styles.completeQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim()} onClick={() => void submitRepairProgress("READY_FOR_QC")} type="button">{busy ? "Saving..." : "Repair complete — send to QC"}</button> : null}
+                  {qcReady ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
+                  {!qcReady ? <button className={styles.completeQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim()} onClick={() => void submitRepairProgress("READY_FOR_QC", true)} type="button">{busy ? "Saving..." : "Repair complete — send to QC"}</button> : null}
                   <button disabled={busy || !repairProgress.customerVisibleSummary.trim()} type="submit">{busy ? "Saving..." : "Save update"}</button>
                 </div>
               </div>

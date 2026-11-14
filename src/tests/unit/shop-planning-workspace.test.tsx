@@ -113,8 +113,17 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("What happened? (required)");
     expect(markup).toContain("Save update");
     expect(markup).toContain("Recent repair updates");
-    expect(markup).toContain("Repair is ready for QC");
-    expect(markup).toContain("Open QC workspace");
+    expect(markup).not.toContain("Repair is ready for QC</strong>");
+    expect(markup).toContain("Repair complete — send to QC");
+    const ready = renderToStaticMarkup(<ShopPlanningWorkspace initial={{
+      repairOrders: [{ ...order, advisorUpdates: [], repairJobs: [{ ...order.repairJobs[0], status: "READY_FOR_QC" }] }], users: [],
+    }} />);
+    expect(ready).toContain("Open QC workspace");
+    const cancelled = renderToStaticMarkup(<ShopPlanningWorkspace initial={{
+      repairOrders: [{ ...order, repairJobs: [{ ...order.repairJobs[0], status: "CANCELLED" }] }], users: [],
+    }} />);
+    expect(cancelled).toContain("Release approved jobs");
+    expect(cancelled).not.toContain("Save final result and open Final QC");
   });
 
   it("turns an active vendor record into the outside vendor workflow path", () => {

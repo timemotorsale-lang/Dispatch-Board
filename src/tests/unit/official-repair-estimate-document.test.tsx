@@ -31,7 +31,9 @@ describe("official repair estimate document", () => {
     expect(markup).toContain("Time Motor Sales");
     expect(markup).toContain("1101 E. Lake Street, Minneapolis MN 55407");
     expect(markup).toContain("Print official estimate");
-    expect(markup).toContain("Send to repair workbench");
+    expect(markup).toContain("Continue in Repair Workbench");
+    expect(markup).toContain("Customer / authorized representative signature");
+    expect(markup).not.toContain("Return to labor guide");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411&amp;returnTo=%2Fdiagnostics%2Flabor-guide%3FrepairOrderId%3Dro-id-3411");
     expect(markup).toContain("Recorded estimate lines");
     expect(markup).toContain("not proof of customer authorization");
