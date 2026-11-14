@@ -1,0 +1,87 @@
+/* Keep entry-page layout local; shared theme and status colors remain global. */
+.home:global(.customer-home) {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.home :global(.customer-home-toolbar) {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.home :global(.customer-console-search) {
+  flex: 1 1 260px;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.home :global(.customer-module-switcher) {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.home :global(.customer-module-switcher) a {
+  min-height: 36px;
+  white-space: normal;
+}
+
+.home :global(.customer-home-welcome),
+.home :global(.customer-home-welcome-actions),
+.home :global(.customer-home-quick-actions) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home :global(.customer-home-card) > header {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home :global(.customer-home-quick-actions) :is(a, button) {
+  white-space: normal;
+  text-align: center;
+}
+
+.home :is(a, button, input):focus-visible {
+  outline: 2px solid var(--customer-text);
+  outline-offset: 2px;
+}
+
+/* Respond to the space left by the application sidebar, including zoom. */
+@container (max-width: 1050px) {
+  .home :global(.customer-home-layout) {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .home :global(.customer-home-metrics),
+  .home :global(.customer-home-analytics),
+  .home :global(.customer-home-rail) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 640px) {
+  .home :global(.customer-home-metrics),
+  .home :global(.customer-home-analytics),
+  .home :global(.customer-home-tables),
+  .home :global(.customer-home-rail) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home :global(.customer-data-table) {
+    overflow-x: auto;
+  }
+
+  .home :global(.customer-data-table) > :is(:global(.customer-table-head), :global(.customer-table-row)) {
+    min-width: 540px;
+  }
+
+  .home :global(.customer-home-quick-actions) :is(a, button) {
+    flex: 1 1 140px;
+    min-height: 44px;
+  }
+}

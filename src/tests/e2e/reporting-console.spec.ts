@@ -14,33 +14,58 @@ test.beforeAll(async () => {
 });
 test.afterAll(disconnectDailyWorkflowDatabase);
 async function login(page: Page, email: string) {
+  // Cold development routes can compile during each user's first login.
+  // Keep this allowance in setup rather than relaxing reporting assertions.
+  test.setTimeout(test.info().timeout + 60_000);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("dispatch123!");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/(manager-workspace|tasks)/);
+  const [signedIn] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/auth/login" && response.request().method() === "POST", { timeout: 30_000 }),
+    page.getByRole("button", { name: "Sign in" }).click()
+  ]);
+  expect(signedIn.ok()).toBe(true);
+  // Staff now start at the time-card checkpoint; managers retain their workspace.
+  await expect(page).toHaveURL(/\/(manager-workspace|tasks|time-attendance)(?:\?[^#]*)?$/, { timeout: 30_000 });
   await page.evaluate(async () => {
     const rhythm = await (await fetch("/api/coo-workbook/rhythm")).json();
     const response = await fetch("/api/coo-workbook/rhythm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workbookId: rhythm.workbookId, action: "START_DELAY_EXPLAINED", reason: "Isolated reporting validation session; today's operational plan is not being started.", sourcePath: "/reports" }) });
     if (!response.ok) throw new Error("Reporting fixture could not record the operating rhythm explanation.");
   });
   await page.goto("/reports");
-  await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
-  const dismiss = page.getByRole("button", { name: "Dismiss reminder", exact: true });
-  if (await dismiss.isVisible()) await dismiss.click();
+  await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible({ timeout: 30_000 });
+  await resolveNavigationFixtureReminder(page);
 }
 async function command(page: Page, body: Record<string, unknown>) {
-  return page.evaluate(async input => {
+  const outcome = await page.evaluate(async input => {
     const result = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
     return { status: result.status, data: await result.json() };
   }, body);
+  if (outcome.status >= 400) {
+    await test.info().attach("report-command-response", {
+      body: JSON.stringify({ action: body.action, ...outcome }),
+      contentType: "application/json"
+    });
+  }
+  return outcome;
 }
 async function resolveNavigationFixtureReminder(page: Page) {
   const dialog = page.getByRole("dialog", { name: "Operating rhythm reminder", exact: true });
-  try { await dialog.waitFor({ state: "visible", timeout: 1500 }); } catch { return; }
-  await dialog.getByRole("textbox").fill("Isolated navigation test: reviewing the reporting console, not starting an operational workday.");
-  await dialog.getByRole("button", { name: "Save reason", exact: true }).click();
-  await expect(dialog).toBeHidden();
+  const toast = page.getByRole("status", { name: "Operating rhythm reminder", exact: true });
+  try { await dialog.or(toast).first().waitFor({ state: "visible", timeout: 5000 }); } catch { return; }
+  if (await dialog.isVisible()) {
+    // Keep the existing blocking reminder's required explanation workflow.
+    await dialog.getByRole("textbox").fill("Isolated navigation test: reviewing the reporting console, not starting an operational workday.");
+    await dialog.getByRole("button", { name: "Save reason", exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+  if (await toast.isVisible()) {
+    // Snooze through the real UI so the overlay cannot intercept source links.
+    const snooze = toast.getByRole("button", { name: "Remind me in 15", exact: true });
+    if (await snooze.isVisible()) await snooze.click();
+    else await toast.getByRole("button", { name: "Dismiss reminder", exact: true }).click();
+    await expect(toast).toBeHidden();
+  }
 }
 
 test("Command Center home navigation launches Reports on desktop and phone", async ({ page }) => {
@@ -48,23 +73,25 @@ test("Command Center home navigation launches Reports on desktop and phone", asy
   await page.goto("/sales-documents");
   await expect(page.getByRole("heading", { name: "Sales Documents", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Command Center Home", exact: true }).click();
-  await expect(page).toHaveURL(/\/command-center$/);
+  await expect(page).toHaveURL(/\/command-center$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Command Control Center", exact: true })).toBeVisible();
   await resolveNavigationFixtureReminder(page);
   const consoles = page.locator(".ccc-home-console-grid");
   await expect(consoles.locator('a[href="/command-center"]')).toHaveCount(0);
   await page.screenshot({ path: "test-results/reporting-command-center-desktop.png", fullPage: true });
   await consoles.getByRole("link", { name: /^Reports/ }).click();
-  await expect(page).toHaveURL(/\/reports(?:\?[^#]*)?$/);
+  await expect(page).toHaveURL(/\/reports(?:\?[^#]*)?$/, { timeout: 30_000 });
   await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toBeVisible();
   await resolveNavigationFixtureReminder(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Command Center Home", exact: true }).click();
+  await page.waitForURL(/\/command-center$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Command Control Center", exact: true })).toBeVisible();
   await resolveNavigationFixtureReminder(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/reporting-command-center-mobile.png", fullPage: true });
   await consoles.getByRole("link", { name: /^Reports/ }).click();
+  await page.waitForURL(/\/reports(?:\?[^#]*)?$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
 });
 
@@ -78,7 +105,7 @@ test("Inventory sidebar Reports stays in the Inventory Console", async ({ page }
     const reports = page.locator(".console-sidebar-navigation").getByRole("link", { name: "Reports", exact: true });
     await expect(reports).toHaveAttribute("href", "/vehicles/reports");
     await reports.click();
-    await expect(page).toHaveURL(/\/vehicles\/reports$/);
+    await expect(page).toHaveURL(/\/vehicles\/reports$/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
     await expect(page.getByText("Inventory Console · R10 governed reporting", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Inventory scorecard", exact: true })).toHaveCount(0);
@@ -95,7 +122,7 @@ test("Dispatch Board sidebar Reports opens today's reporting console, not the le
     const reports = page.locator(".console-sidebar-navigation").getByRole("link", { name: "Reports", exact: true });
     await expect(reports).toHaveAttribute("href", /^\/reports(?:\?date=[^&]+)?$/);
     await reports.click();
-    await expect(page).toHaveURL(/\/reports(?:\?[^#]*)?$/);
+    await expect(page).toHaveURL(/\/reports(?:\?[^#]*)?$/, { timeout: 30_000 });
     expect(new URL(page.url()).pathname).toBe("/reports");
     expect(new URL(page.url()).searchParams.get("scope")).not.toBe("inventory");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
@@ -106,13 +133,14 @@ test("Dispatch Board sidebar Reports opens today's reporting console, not the le
     await expect(page.getByText("INVENTORY CONSOLE · R10 GOVERNED REPORTING", { exact: true })).toHaveCount(0);
   }
   await page.goto("/reports?scope=inventory");
-  await expect(page).toHaveURL(/\/vehicles\/reports$/);
+  await expect(page).toHaveURL(/\/vehicles\/reports$/, { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Inventory scorecard", exact: true })).toHaveCount(0);
   await expect(page.getByText("Inventory Console · R10 governed reporting", { exact: true })).toBeVisible();
 });
 
 test("report filters survive opening a source record, returning and reloading", async ({ page }) => {
   await login(page, "morgan.manager@local.test");
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
   const date = await page.getByLabel("Covered date", { exact: true }).inputValue();
   const staff = await prisma.user.findUniqueOrThrow({ where: { email: "jordan.sales@local.test" } });
   const board = await prisma.boardDay.upsert({ where: { date: new Date(`${date}T00:00:00Z`) }, create: { date: new Date(`${date}T00:00:00Z`) }, update: {} });
@@ -123,7 +151,7 @@ test("report filters survive opening a source record, returning and reloading", 
   await expect.poll(() => new URL(page.url()).searchParams.get("query")).toBe(task.title);
   await resolveNavigationFixtureReminder(page);
   await page.getByRole("link", { name: `Open ${task.title}`, exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`));
+  await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`), { timeout: 30_000 });
   await page.goBack();
   await expect(page.getByRole("textbox", { name: "Search report records" })).toHaveValue(task.title);
   await expect(page.getByRole("button", { name: "Weekly", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -214,6 +242,7 @@ test("legacy daily archive retrieves every page without changing frozen submissi
   expect(changed.status()).toBe(422);
   await page.getByRole("button", { name: "My Reports", exact: true }).click();
   await resolveNavigationFixtureReminder(page);
+  await page.getByRole("combobox", { name: "Find reports", exact: true }).selectOption("range");
   await page.getByLabel("Archive from", { exact: true }).fill("2026-06-01");
   await page.getByLabel("Archive through", { exact: true }).fill("2026-06-01");
   await expect(page.getByRole("button", { name: `Open ${staff.name} 2026-06-01`, exact: true })).toHaveCount(50);

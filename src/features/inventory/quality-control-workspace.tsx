@@ -17,6 +17,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
+import compact from "@/features/inventory/operations-compact.module.css";
 import { notifyRepairReviewSaved, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -648,7 +649,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   return (
-    <section className="qc-workspace-home">
+    <section className={`qc-workspace-home ${compact.qc}`}>
       <header className="qc-hero">
         <div>
           {returnTo ? <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link> : null}

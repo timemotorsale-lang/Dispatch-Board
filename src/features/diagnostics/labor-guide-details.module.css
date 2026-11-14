@@ -7,3 +7,11 @@
 .form button { padding: 9px 14px; border: 1px solid #315dcc; border-radius: 6px; background: #fff; color: #315dcc; cursor: pointer; }
 .form button[type="submit"] { background: #315dcc; color: #fff; }
 @media(max-width:650px) { .form { grid-template-columns: 1fr; } }
+
+@media screen {
+  .form { min-width: 0; gap: 10px; padding: 14px; }
+  .form label { min-width: 0; }
+  .form header { overflow-wrap: anywhere; }
+  .form footer { flex-wrap: wrap; }
+  .form button { max-width: 100%; white-space: normal; }
+}

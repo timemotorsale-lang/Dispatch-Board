@@ -4,3 +4,18 @@
 .partFields label { display: grid; gap: 4px; font-size: 12px; }
 .guide .partFields input { width: 100%; box-sizing: border-box; }
 @media(max-width:600px){.tableWrap{overflow:visible}.guide table,.guide tbody{display:block}.guide thead{display:none}.guide tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-bottom:1px solid #c5d2e4;padding:8px 0}.guide td{display:block;border:0;min-width:0}.guide td:first-child{grid-column:1/-1;width:auto;min-width:0}.guide td[data-label]::before{content:attr(data-label);display:block;font-size:12px;color:#53647a;margin-bottom:5px}.guide td input{width:100%}.guide td strong{overflow-wrap:anywhere}}
+
+@media screen {
+  .guide { min-width: 0; padding: 14px; }
+  .guide header { gap: 10px; padding-bottom: 10px; }
+  .guide section { padding-block: 10px; }
+  .guide header>div, .step>div, .fields label { min-width: 0; overflow-wrap: anywhere; }
+  .guide input { box-sizing: border-box; }
+  .guide footer button { white-space: normal; }
+  .totals>div { flex-wrap: wrap; gap: 6px 12px; }
+  .totals dd { overflow-wrap: anywhere; }
+}
+@media screen and (max-width: 600px) {
+  .partFields { grid-template-columns: minmax(0, 1fr); }
+  .guide footer button { flex: 1 1 180px; }
+}

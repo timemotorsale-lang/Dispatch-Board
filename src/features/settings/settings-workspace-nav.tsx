@@ -1,4 +1,5 @@
 import Link from "next/link";
+import styles from "./settings-workspace-nav.module.css";
 
 type SettingsWorkspaceNavProps = {
   active: "settings" | "appointments" | "appointment-catalog" | "appointment-automation" | "vehicle-operations" | "admin" | "labor-rate" | "labor-catalog";
@@ -10,24 +11,16 @@ type SettingsWorkspaceNavProps = {
 };
 
 export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavProps) {
-  return (
-    <aside className="settings-rail">
-      <div className="settings-rail-copy">
-        <span className="eyebrow">Settings workspace</span>
-        <h2>Admin and settings</h2>
-        <p>
-          Use the left rail to move between operational settings and manager administration without
-          crowding the main workspace.
-        </p>
-      </div>
-
+  const directory = (
+    <nav aria-label="Settings directory" className={styles.directory}>
       <div className="settings-rail-group">
         <Link className="settings-rail-link" href="/settings/team/company-access"><span>Staff company access</span><small>Review company assignments for staff spending and scoped work.</small></Link>
         <p className="settings-rail-label">Settings</p>
-        <Link className={active === "labor-catalog" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} href="/settings/labor-catalog"><span>Catalog approvals</span><small>Scope review, capability requirements and controlled activation.</small></Link>
-        <Link className={active === "labor-rate" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} href="/settings/labor-rate"><span>Labor rate</span><small>Shop estimating default, reviewed changes and activation.</small></Link>
+        <Link className={active === "labor-catalog" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} aria-current={active === "labor-catalog" ? "page" : undefined} href="/settings/labor-catalog"><span>Catalog approvals</span><small>Scope review, capability requirements and controlled activation.</small></Link>
+        <Link className={active === "labor-rate" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"} aria-current={active === "labor-rate" ? "page" : undefined} href="/settings/labor-rate"><span>Labor rate</span><small>Shop estimating default, reviewed changes and activation.</small></Link>
         <Link
           className={active === "vehicle-operations" ? "settings-rail-link settings-rail-link-active" : "settings-rail-link"}
+          aria-current={active === "vehicle-operations" ? "page" : undefined}
           href="/settings/vehicle-operations"
         >
           <span>Vehicle Operations</span>
@@ -39,6 +32,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
               ? "settings-rail-link settings-rail-link-active"
               : "settings-rail-link"
           }
+          aria-current={active === "settings" ? "page" : undefined}
           href="/settings"
         >
           <span>Board generation</span>
@@ -50,6 +44,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
               ? "settings-rail-link settings-rail-link-active"
               : "settings-rail-link"
           }
+          aria-current={active === "appointments" ? "page" : undefined}
           href="/settings/appointments"
         >
           <span>Appointment settings</span>
@@ -61,6 +56,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
               ? "settings-rail-link settings-rail-link-active"
               : "settings-rail-link"
           }
+          aria-current={active === "appointment-catalog" ? "page" : undefined}
           href="/settings/appointments/catalog"
         >
           <span>Catalog + automation</span>
@@ -72,6 +68,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
               ? "settings-rail-link settings-rail-link-active"
               : "settings-rail-link"
           }
+          aria-current={active === "appointment-automation" ? "page" : undefined}
           href="/settings/appointments/automation"
         >
           <span>Automation console</span>
@@ -87,6 +84,7 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
               ? "settings-rail-link settings-rail-link-active"
               : "settings-rail-link"
           }
+          aria-current={active === "admin" ? "page" : undefined}
           href="/settings/team"
         >
           <span>Team management</span>
@@ -110,6 +108,27 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
           </div>
         </div>
       ) : null}
-    </aside>
+    </nav>
+  );
+
+  return (
+    <>
+      <aside className={`settings-rail ${styles.desktopRail}`}>
+        <div className="settings-rail-copy">
+          <span className="eyebrow">Settings workspace</span>
+          <h2>Admin and settings</h2>
+          <p>
+            Use the left rail to move between operational settings and manager administration without
+            crowding the main workspace.
+          </p>
+        </div>
+        {directory}
+      </aside>
+
+      <details className={`settings-rail ${styles.mobileRail}`}>
+        <summary>Settings directory</summary>
+        {directory}
+      </details>
+    </>
   );
 }

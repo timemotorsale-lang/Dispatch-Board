@@ -23,3 +23,21 @@
 .stageCards .stageDone span{color:white;background:#228158}
 @media(max-width:800px){.stageCards{grid-template-columns:1fr}}
 .identity>div{min-width:0;max-width:100%;overflow-wrap:anywhere}
+
+/* Compact screen layout retains the full diagnostic workflow. */
+@media screen {
+  .sidebar { padding-block: 16px; }
+  .main { padding: 16px; }
+  .identity { gap: 12px; margin-bottom: 14px; }
+  .panel { padding: 16px; }
+  .panel footer { margin-top: 14px; gap: 10px; }
+  .rows { margin: 12px 0; }
+  .rows>div { padding: 10px 0; gap: 12px; }
+  .stageCards { margin: 12px 0; }
+  .progress { flex-wrap: wrap; }
+  .tabs button:focus-visible { outline: 2px solid #315dcc; outline-offset: 3px; }
+}
+@media screen and (max-width: 650px) {
+  .main, .panel { padding: 12px; }
+  .actions>button { flex: 1 1 150px; }
+}

@@ -9036,6 +9036,37 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .dispatch-console-header { position: sticky; top: 58px; z-index: 24; display: grid; grid-template-columns: minmax(230px, auto) minmax(0, 1fr); align-items: end; gap: 12px 24px; min-width: 0; padding: 15px 16px 0; background: #fff; border-bottom: 1px solid #dfe5ed; }
 .dispatch-console-header-with-launcher { grid-template-columns: minmax(230px, auto) minmax(0, 1fr) auto; }
 .dispatch-console-header-actions { position: relative; display: flex; align-items: center; align-self: center; gap: 8px; min-width: 0; margin-bottom: 8px; }
+.dispatch-console-header.dispatch-console-header-with-launcher {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  padding-block-start: 8px;
+}
+.dispatch-console-header-with-launcher > .dispatch-console-header-actions {
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.dispatch-console-header-with-launcher > .dispatch-console-tabs {
+  grid-column: 1 / -1;
+  min-height: 32px;
+}
+.dispatch-console-header-actions .dispatch-workflow-review-launcher {
+  flex: 1 1 11rem;
+  min-width: 0;
+  max-width: 20rem;
+}
+.dispatch-console-header-actions .dispatch-workspace-launcher { margin: 0; }
+@media (max-width: 640px) {
+  .dispatch-console-header.dispatch-console-header-with-launcher { grid-template-columns: minmax(0, 1fr); }
+  .dispatch-console-header-with-launcher > .dispatch-console-header-actions {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+}
 .dispatch-workflow-review-launcher { position: relative; width: min(310px, 30vw); min-width: 230px; }
 .dispatch-workflow-review-launcher label { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 40px; padding: 6px 8px 6px 11px; border: 1px solid #c9d7ed; border-radius: 8px; color: #48617f; background: #f7faff; box-shadow: 0 2px 7px rgb(15 23 42 / 6%); }
 .dispatch-workflow-review-launcher input { min-width: 0; border: 0; outline: 0; color: #12335f; background: transparent; font: inherit; font-size:11.5px; font-weight: 750; }
@@ -16827,6 +16858,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 }
 
 .appointment-board-toolbar {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -32212,6 +32244,21 @@ body.customer-console-shell .customer-home-toolbar .customer-home-user {
   display: none !important;
 }
 
+/* Operational navigation wraps instead of concealing later sections. */
+@media screen and (max-width: 900px) {
+  .ccc-topbar > .ccc-dispatch-status { display: none; }
+  .ccc-topbar > .topbar-menu,
+  .ccc-topbar .topbar-notifications { flex-shrink: 0; }
+  .gov-tabs,
+  .int-tabs { flex-wrap: wrap; }
+  .gov-tabs > *,
+  .int-tabs > * { min-height: 44px; }
+  .activity-page .dashboard-page-header { flex-wrap: wrap; gap: 12px; }
+  .activity-page .board-toolbar { min-width: 0; width: auto; }
+  .activity-page .board-toolbar-actions { flex-wrap: wrap; }
+  .activity-page .task-comment-body { overflow-wrap: anywhere; }
+}
+
 /* Shell containment: prevent topbar controls from widening customer/dispatch pages. */
 html,
 body,
@@ -32319,6 +32366,24 @@ body,
 }
 
 @media (max-width: 1180px) {
+  /* Keep search, appearance and notifications reachable before labels collide. */
+  .ccc-topbar > .ccc-breadcrumb {
+    flex: 0 1 9rem;
+    max-width: 9rem;
+  }
+
+  .ccc-topbar > .ccc-dispatch-status {
+    margin-left: 0;
+    white-space: nowrap;
+  }
+
+  .ccc-topbar > .ccc-topbar-brand {
+    margin-right: 6px;
+    padding-right: 6px;
+  }
+
+  .ccc-topbar > .ccc-home-link { margin-right: 6px; }
+
   .ccc-search-trigger span,
   .topbar-profile {
     display: none;

@@ -173,6 +173,15 @@ export function DispatchConsoleHeaderView({
         <h1>{roleWorkspace ? roleCopy.title : copy.title}</h1>
         <p>{roleWorkspace ? roleCopy.description : copy.description}</p>
       </div>
+      <div className="dispatch-console-header-actions">
+        <WorkflowReviewLauncher />
+        {canOpenManagerWorkspace ? (
+          <Link className="dispatch-workspace-launcher" href="/manager-workspace">
+            <Layers3 aria-hidden="true" size={16} />
+            <span><strong>Workspace Launcher</strong><small>CEO · COO · My Work</small></span>
+          </Link>
+        ) : null}
+      </div>
       {roleWorkspace ? (
         <nav aria-label={`${workspaceDefinition.label} navigation`} className="dispatch-console-tabs">
           <Link href={workspaceDefinition.landingRoute}>{workspaceDefinition.label}</Link>
@@ -216,15 +225,6 @@ export function DispatchConsoleHeaderView({
           </nav>
         )
       )}
-      <div className="dispatch-console-header-actions">
-        <WorkflowReviewLauncher />
-        {canOpenManagerWorkspace ? (
-          <Link className="dispatch-workspace-launcher" href="/manager-workspace">
-            <Layers3 aria-hidden="true" size={16} />
-            <span><strong>Workspace Launcher</strong><small>CEO · COO · My Work</small></span>
-          </Link>
-        ) : null}
-      </div>
     </header>
   );
 }

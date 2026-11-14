@@ -8,6 +8,7 @@ node_modules
 .next-runtime-3000/
 .next-runtime.workspace-backup-*
 .next-e2e
+.next-layout-check/
 .npm-cache
 coverage
 dist
