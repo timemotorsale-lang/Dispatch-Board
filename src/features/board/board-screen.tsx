@@ -413,7 +413,7 @@ export function BoardScreen({
 
 
   return (
-    <section className="dispatch-board-page">
+    <section className={initialView === "overview" ? "dispatch-board-page dispatch-board-overview" : "dispatch-board-page"}>
       <BoardHero
         boardDate={loadState.date}
         generationStatus={board?.generationStatus}

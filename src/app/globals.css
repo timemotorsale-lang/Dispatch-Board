@@ -8848,6 +8848,29 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .sidebar-brand strong { font-size: 12px; font-style: normal; letter-spacing: .11em; white-space: nowrap; }
 .sidebar-brand small { margin: 0; color: #aebdd0; font-size:11.5px; letter-spacing: .12em; white-space: nowrap; }
 .sidebar-navigation { gap: 13px; padding: 8px 0 14px; }
+.app-sidebar-navigation-pane { max-height: 100dvh; overflow: hidden; }
+.app-sidebar-navigation-pane > :not(.sidebar-navigation) { flex-shrink: 0; }
+.app-sidebar-navigation-pane > .sidebar-navigation {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #62768e transparent;
+}
+.app-sidebar-navigation-pane :is(a, button, summary):focus-visible {
+  outline: 2px solid #a9caff;
+  outline-offset: -2px;
+}
+.app-sidebar-navigation-pane .sidebar-link { min-height: 36px; }
+@media (pointer: coarse) {
+  .app-sidebar-navigation-pane .sidebar-link { min-height: 44px; }
+}
+@media (max-height: 420px) {
+  .app-sidebar-navigation-pane { overflow-y: auto; }
+  .app-sidebar-navigation-pane > .sidebar-navigation { flex: 0 0 auto; overflow: visible; }
+}
 .sidebar-group-label { margin: 5px 10px 2px; color: #8393a7; font-size:11.5px; }
 .sidebar-group nav { gap: 2px; }
 .sidebar-link { grid-template-columns: 19px minmax(0, 1fr) auto auto; min-height: 36px; padding: 7px 9px; color: #cbd6e4; border: 1px solid transparent; border-radius: 5px; font-size:11.5px; }
@@ -8870,6 +8893,32 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .console-sidebar-status small { padding: 3px 5px; color: #d9ffe7; background: #11713c; border-radius: 4px; font-size:11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .console-sidebar-navigation { align-content: start; gap: 2px; padding-top: 8px; }
 .console-sidebar-navigation .sidebar-link { min-height: 34px; }
+.console-sidebar.app-sidebar-navigation-pane > .sidebar-brand-row {
+  min-height: 52px;
+  padding-block: 0 8px;
+}
+.console-sidebar.app-sidebar-navigation-pane > .console-sidebar-status {
+  margin-block: 6px 2px;
+  padding-block: 6px;
+}
+.console-sidebar.app-sidebar-navigation-pane > .sidebar-account {
+  margin-top: 4px;
+  padding-block: 6px;
+  row-gap: 4px;
+}
+.console-sidebar.app-sidebar-navigation-pane .console-sidebar-navigation {
+  gap: 1px;
+  padding-block: 4px;
+}
+.console-sidebar.app-sidebar-navigation-pane .console-sidebar-navigation .sidebar-link {
+  min-height: 32px;
+  padding-block: 4px;
+}
+@media (pointer: coarse) {
+  .console-sidebar.app-sidebar-navigation-pane .console-sidebar-navigation .sidebar-link {
+    min-height: 44px;
+  }
+}
 .console-inventory-menu summary { cursor: pointer; list-style: none; }
 .console-inventory-menu summary::-webkit-details-marker { display: none; }
 .console-inventory-menu .console-inventory-chevron { margin-left: auto; transition: transform .15s; }
@@ -9698,6 +9747,69 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .board-hero .pill { min-height: 42px; padding: 0 15px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .board-hero .pill-action { color: #fff; background: #075ad9; border-color: #075ad9; box-shadow: 0 6px 15px rgba(7,90,217,.18); }
 .board-hero .board-feedback { position: fixed; right: 20px; bottom: 20px; z-index: 50; max-width: 360px; padding: 10px 14px; border-radius: 7px; pointer-events: none; }
+.dispatch-board-page.dispatch-board-overview {
+  gap: 12px;
+}
+.dispatch-board-overview .board-hero {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.dispatch-board-overview .board-hero > div:first-child { min-width: 0; }
+.dispatch-board-overview .board-hero h1 { font-size: 1.35rem; line-height: 1.2; }
+.dispatch-board-overview .board-hero .section-kicker { margin: 0 0 3px; font-size: .7rem; }
+.dispatch-board-overview .board-hero-actions,
+.dispatch-board-overview .board-toolbar-row,
+.dispatch-board-overview .board-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+}
+.dispatch-board-overview .board-hero-actions > :is(.operating-status, span),
+.dispatch-board-overview .board-manager-panel-status { white-space: nowrap; }
+.dispatch-board-overview .board-manager-panel-toggle {
+  width: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.dispatch-board-overview .board-hero .board-toolbar { min-width: 0; max-width: 100%; }
+.dispatch-board-overview .board-hero .board-date-field { width: 9rem; min-width: 0; margin: 0; }
+.dispatch-board-overview .board-hero .board-date-field input,
+.dispatch-board-overview .board-hero-actions .pill {
+  min-height: 34px;
+  height: auto;
+  padding: 5px 9px;
+  font-size: .8rem;
+  border-radius: 6px;
+}
+.dispatch-board-overview .board-generate-button { min-width: 0; }
+.dispatch-board-overview .board-hero .board-feedback {
+  position: static;
+  margin-top: 6px;
+  max-width: none;
+}
+.dispatch-board-overview .metric-strip {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 8px;
+}
+.dispatch-board-overview .metric-card {
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.dispatch-board-overview .metric-icon { width: 30px; height: 30px; border-radius: 7px; }
+.dispatch-board-overview .metric-icon svg { width: 16px; height: 16px; }
+.dispatch-board-overview .metric-card strong { font-size: 1.35rem; }
+.dispatch-board-overview .metric-card small { margin-top: 3px; }
+@media (pointer: coarse) {
+  .dispatch-board-overview .board-hero .board-date-field input,
+  .dispatch-board-overview .board-hero-actions .pill { min-height: 44px; }
+}
 
 .scheduler-health-panel { display: grid; gap: 16px; padding: 18px; background: linear-gradient(180deg,#ffffff 0%,#f8fbff 100%); border: 1px solid #dde7f3; border-radius: 18px; box-shadow: 0 10px 28px rgba(27,45,72,.055); }
 .scheduler-health-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }

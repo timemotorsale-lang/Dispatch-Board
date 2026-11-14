@@ -56,7 +56,7 @@ export function ConsoleSidebar({ console, isOpen, managerContext, onClose, prese
     : href;
 
   return (
-    <aside className={["app-sidebar", "console-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+    <aside aria-label={`${console.subtitle} sidebar`} className={["app-sidebar", "app-sidebar-navigation-pane", "console-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
         <Link aria-label={`${console.subtitle} home`} className="sidebar-brand" href={containedHref(console.homeHref)} onClick={onClose}>
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
@@ -99,7 +99,6 @@ export function ConsoleSidebar({ console, isOpen, managerContext, onClose, prese
       <div className="sidebar-account">
         <div className="user-avatar user-avatar-light">{initials(user.name)}</div>
         <div className="sidebar-account-copy"><strong>{user.name}</strong><span>{user.roles[0] ?? "Staff"}</span></div>
-        <ChevronDown size={16} aria-hidden="true" />
         <div className="sidebar-logout"><LogOut size={15} aria-hidden="true" /><LogoutButton /></div>
         <small className="sidebar-store">Store ID: TMS-001</small>
       </div>
