@@ -35,7 +35,7 @@ export default async function RepairWorkflowWorkbenchPage({ searchParams }: { se
       const model = canOpen ? await getQualityControlWorkspace(user, {}, order.id).catch(() => null) : null;
       tool = <>
         <RepairQcDiagnostics order={order} customerBilling={order.origin === "CUSTOMER_REPAIR"} unavailable={canOpen && !model?.repairOrders.length} />
-        {model?.repairOrders.length ? <QualityControlWorkspace initial={serialized(model)} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to review Repair Workbench" /> : <InventoryQcChecklistPreview />}
+        {model?.repairOrders.length ? <QualityControlWorkspace initial={serialized(model)} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to review Repair Workbench" /> : <InventoryQcChecklistPreview key={order.id} repairOrderId={order.id} />}
       </>;
     } else if (selected === "assignment" && !order.repairJobs.some(job => job.status !== "CANCELLED")) {
       tool = <section aria-label="Assignment prerequisite">

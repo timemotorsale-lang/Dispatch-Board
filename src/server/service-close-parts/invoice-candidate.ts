@@ -27,13 +27,13 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
   if (jobs.some(job => job.qualityInspections[0] && ((job.qualityInspections[0].peerVerificationRequired && !job.qualityInspections[0].peerVerificationPassed) || (job.qualityInspections[0].roadTestRequired && job.qualityInspections[0].roadTestOutcome !== "PASSED") || job.laborClocks.some(clock => clock.finishedAt && clock.finishedAt > job.qualityInspections[0].inspectedAt)))) mismatchCodes.push("INVOICE_QC_EVIDENCE_INCOMPLETE");
   const partLines = ledger.lines.filter(line => line.type === "PART");
   const missingNumber = (value?: string | null) => !value?.trim() || /^(?:N\/?A|UNKNOWN)$/i.test(value.trim());
-  const partLabel = (value: string) => value.toLowerCase().replace(/\s*\((?:n\/?a|unknown)\)\s*$/i, "").trim().replace(/\bpad(?:s| set)?$/, "pads").replace(/\brotors$/, "rotor");
+  const partLabel = (value: string) => value.toLowerCase().replace(/\s*\((?:n\/?a|unknown|tms-p-\d{6}-\d{6})\)\s*$/i, "").trim().replace(/\bpad(?:s| set)?$/, "pads").replace(/\brotors$/, "rotor");
   const appliedInstallations = new Map<string, number>();
   for (const line of partLines) {
     const linked = line.laborLineKey ? jobs.filter(job => job.authorizedLineKey === line.laborLineKey) : jobs.length === 1 ? jobs : [];
     const partNumber = line.partNumber;
     if (!partNumber?.trim()) continue;
-    const events = linked.flatMap(job => job.partCustodyEvents).filter(event => missingNumber(partNumber)
+    const events = linked.flatMap(job => job.partCustodyEvents).filter(event => (missingNumber(partNumber) || /^TMS-P-\d{6}-\d{6}$/.test(partNumber))
       ? partLabel(event.part.description ?? "") === partLabel(line.description)
       : event.part.partNumber.trim().toUpperCase() === partNumber.trim().toUpperCase());
     let quantity = 0;

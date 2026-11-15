@@ -127,15 +127,42 @@ const frontlineQcSections: FrontlineQcSection[] = [
     { code: "KEYS_DOCUMENTS", label: "Keys, manuals and documents", hint: "All keys, books and records accounted for" }
   ] }
 ];
-export function InventoryQcChecklistPreview() {
+export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: string }) {
+  const storageKey = "repair-qc-draft:" + repairOrderId;
+  const [saveStatus, setSaveStatus] = useState("");
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const [answers, setAnswers] = useState<Record<string, FrontlineResult>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  useEffect(() => {
+    queueMicrotask(() => {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const draft = JSON.parse(saved);
+          setAnswers(draft.answers ?? {});
+          setNotes(draft.notes ?? {});
+        }
+      } catch {
+        setSaveStatus("The saved QC draft could not be loaded.");
+      } finally {
+        setDraftLoaded(true);
+      }
+    });
+  }, [storageKey]);
+  function saveDraft() {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ answers, notes }));
+      setSaveStatus("QC draft saved in this browser.");
+    } catch {
+      setSaveStatus("QC draft could not be saved. Check browser storage and try again.");
+    }
+  }
   const results = Object.values(answers);
   const remaining = frontlineQcItems.length - results.length;
   const disposition = results.includes("FAIL") ? "Fail" : results.includes("REVIEW") ? "Needs review" : "Pass";
   return <details className="frontline-final-qc repair-frontline-preview" open>
     <summary><strong>Inventory Lifecycle QC checklist</strong></summary>
-    <p>Use Pass, Fail, or Review to work through the checklist. These selections are temporary. Save the official inspection when the repair job is ready for QC.</p>
+    <p>Use Pass, Fail, or Review to work through the checklist. Save your answers as a draft. Record the official inspection when the repair job is ready for QC.</p>
     <div className="frontline-checklist-columns">
       {frontlineQcSections.map((section, sectionIndex) => <section className="frontline-checklist-section" key={section.title}>
         <h3>{section.title}</h3>
@@ -155,6 +182,9 @@ export function InventoryQcChecklistPreview() {
       <h3>Overall checklist result</h3>
       <p role="status">{remaining ? `${remaining} checks remaining` : `Draft checklist: ${disposition}`}</p>
       {!remaining && <p>These answers have not been saved as the repair inspection. Once the job is ready for QC, save its inspection to continue toward invoice payment.</p>}
+      <button className="pill pill-primary" type="button" disabled={!draftLoaded || !results.length} onClick={saveDraft}>Save QC draft</button>
+      {saveStatus && <p role="status">{saveStatus}</p>
+      }
     </section>
   </details>;
 }
