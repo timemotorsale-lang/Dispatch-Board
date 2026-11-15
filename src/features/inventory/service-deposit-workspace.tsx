@@ -10,7 +10,7 @@ export type RepairDeposits = {
   balance: { collectedCents: number; refundedCents: number; appliedCents: number; availableCents: number };
   collectionAvailability: { allowed: boolean; reason: string | null; maxAmountCents: number };
 };
-type Invoice = { id: string; invoiceNumber: string; status: string; version: number; balance: { balanceCents: number } };
+type Invoice = { id: string; invoiceNumber: string; status: string; version: number; totalCents?: number; balance: { balanceCents: number } };
 type Action = "DEPOSIT" | "REFUND_DEPOSIT" | "APPLY_DEPOSIT" | "UNAPPLY_DEPOSIT";
 const labels: Record<Action, string> = { DEPOSIT: "Record repair deposit", REFUND_DEPOSIT: "Record deposit refund", APPLY_DEPOSIT: "Apply deposit to invoice", UNAPPLY_DEPOSIT: "Reverse deposit application" };
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -46,6 +46,8 @@ export function ServiceDepositWorkspace({ repairOrderId, deposits, invoices, can
   const source = deposits.entries.find(entry => entry.id === sourceId);
   const selectedInvoiceId = action === "UNAPPLY_DEPOSIT" ? source?.invoiceId : invoiceId;
   const invoice = invoices.find(item => item.id === selectedInvoiceId);
+  const postedInvoices = invoices.filter(item => item.status === "POSTED" && (!preferredInvoiceId || item.id === preferredInvoiceId));
+  const amountContext = movement ? (invoice ? [invoice] : []) : postedInvoices;
   const collectionBlocked = action === "DEPOSIT" && !deposits.collectionAvailability.allowed;
   const blocked = disabled || deposits.storageReady === false || !canManage || collectionBlocked || needsRefresh;
   const receiptHref = (id: string) => `/service-documents?${new URLSearchParams({ repairOrderId, documentId: id, workspace: "1" })}`;
@@ -100,8 +102,9 @@ export function ServiceDepositWorkspace({ repairOrderId, deposits, invoices, can
         {action === "REFUND_DEPOSIT" && <p>Record a refund already returned to the customer, against the original deposit and its original payment method.</p>}
         {action !== "DEPOSIT" && <label>{action === "UNAPPLY_DEPOSIT" ? "Original application" : "Original repair deposit"}<select required value={sourceId} onChange={event => { setSourceId(event.target.value); setVerified(false); }}><option value="">Select a recorded entry</option>{deposits.entries.filter(entry => entry.kind === (action === "UNAPPLY_DEPOSIT" ? "APPLY" : "COLLECTION") && (action !== "UNAPPLY_DEPOSIT" || !preferredInvoiceId || entry.invoiceId === preferredInvoiceId)).map(entry => <option key={entry.id} value={entry.id}>{entry.reference} · {money(entry.amountCents)} · {entry.invoiceId ? invoices.find(invoice => invoice.id === entry.invoiceId)?.invoiceNumber ?? "Issued invoice" : "Repair deposit"} · {entry.occurredAt}</option>)}</select></label>}
         {action === "APPLY_DEPOSIT" && <label>Invoice<select required value={invoiceId} onChange={event => { setInvoiceId(event.target.value); setVerified(false); }}><option value="">Select issued invoice</option>{invoices.filter(item => item.status === "POSTED" && (!preferredInvoiceId || item.id === preferredInvoiceId)).map(item => <option key={item.id} value={item.id}>{item.invoiceNumber} · remaining {money(item.balance.balanceCents)}</option>)}</select></label>}
-        {movement && invoice && <p>Invoice {invoice.invoiceNumber} · remaining balance {money(invoice.balance.balanceCents)}</p>}
-        <label>Amount (USD)<input required type="number" min="0.01" step="0.01" max={action === "DEPOSIT" ? deposits.collectionAvailability.maxAmountCents / 100 : undefined} value={amount} onChange={event => { setAmount(event.target.value); setVerified(false); }} /></label>
+        <label>Amount (USD)
+          <span>{amountContext.length ? amountContext.map(item => <span key={item.id} style={{ display: "block" }}>{item.invoiceNumber} · {item.totalCents !== undefined && <>Total {money(item.totalCents)} · </>}Balance due {money(item.balance.balanceCents)}</span>) : action === "DEPOSIT" ? "No issued invoice yet. Enter the amount received." : null}</span>
+          <input required type="number" min="0.01" step="0.01" max={action === "DEPOSIT" ? deposits.collectionAvailability.maxAmountCents / 100 : undefined} value={amount} onChange={event => { setAmount(event.target.value); setVerified(false); }} /></label>
         {action === "DEPOSIT" && <label>Payment method<select value={method} onChange={event => { setMethod(event.target.value); setVerified(false); }}><option value="CASH">Cash</option><option value="EXTERNAL_CARD">Card — processed externally</option><option value="CHECK">Check</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option></select></label>}
         {action === "REFUND_DEPOSIT" && source && <p>Original payment method: {source.method?.replaceAll("_", " ") ?? "Not recorded"}</p>}
         <label>{movement ? "Application reference" : "Verified payment / refund reference"}<input required minLength={3} maxLength={200} placeholder={movement ? "Staff allocation record" : "Cashier record, check number, or external card receipt"} value={reference} onChange={event => { setReference(event.target.value); setVerified(false); }} /></label>

@@ -82,7 +82,9 @@ export async function runCompactPartsEntry(input: CompactPartsEntryInput, model:
     const saved = progress.steps[name];
     if (!saved.result) {
       await options.onProgress(copy(progress)); // Durable pending request before sending.
-      const response = await (options.request ?? request)(saved.path, copy(saved.body));
+      const body = copy(saved.body);
+      if (["part", "vendor", "offer"].includes(name)) body.repairOrderId = input.repairOrderId;
+      const response = await (options.request ?? request)(saved.path, body);
       saved.result = copy(response.result);
       await options.onProgress(copy(progress));
     }
@@ -191,7 +193,7 @@ export async function runCompactPartsEntry(input: CompactPartsEntryInput, model:
       progress.steps.demand = { path: "", body: {}, result: { id: selected.id, reused: true } };
       await options.onProgress(copy(progress));
     }
-    const demand = progress.steps.demand?.result ?? await step("demand", `/api/repair-orders/${encodeURIComponent(input.repairOrderId)}/parts`, { partId: ids.partId, quantityRequired: input.quantity, requiredAt: input.purchasedAt ?? progress.startedAt, notes: input.note, reason: input.note });
+    const demand = progress.steps.demand?.result ?? await step("demand", `/api/repair-orders/${encodeURIComponent(input.repairOrderId)}/parts`, { partId: ids.partId, quantityRequired: input.quantity, ...(input.repairJobId ? { repairJobReference: input.repairJobId } : {}), requiredAt: input.purchasedAt ?? progress.startedAt, notes: input.note, reason: input.note });
     ids.demandId = id(demand);
     if (demand.reused === true && !progress.steps.requisition) {
       const existing = model.demands?.find(item => item.id === ids.demandId);

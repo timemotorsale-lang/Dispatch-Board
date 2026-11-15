@@ -119,7 +119,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               }
             },
             invoicePackages: { orderBy: { version: "desc" }, take: 3 },
-            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true } },
+            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true, status: true, partsRequired: true, executionBlockerReason: true, partDemands: { select: { status: true, quantityRequired: true, quantityReserved: true } } } },
             vendorWorks: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { updatedAt: "desc" }, take: 3 },
             closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
             deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },
@@ -483,7 +483,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         if (legacyCustody) throw new Error("This receipt line has legacy custody records. Reconcile its issue and installation history before recording another outcome.");
         const remaining = line.quantity - (used._sum.quantity ?? 0) - (returns._sum.quantity ?? 0);
         if (data.quantity > remaining) throw new Error("Quantity exceeds the remaining undisposed units on this receipt line.");
-        if (!stock || data.quantity > stock.onHandQuantity - stock.allocatedQuantity) {
+        if (!stock || (data.outcome === "RETURN" && data.quantity > stock.onHandQuantity - stock.allocatedQuantity)) {
           throw new Error("The receipt bin does not have enough unallocated stock.");
         }
 
@@ -506,9 +506,36 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         ]);
         assertCurrentRepairAuthorization(job, authorization);
         if (!estimate || estimate.id !== job.estimateVersionId) throw new Error("Authorize the current estimate version before recording installed parts.");
+        const reservations = await tx.partReservation.findMany({
+          where: { organizationId, partId: line.partId, stockLocationId: receipt.stockLocationId, status: "ACTIVE",
+            demand: { repairOrderId: data.repairOrderId, repairJobId: job.id, status: { in: ["RESERVED", "PARTIALLY_RESERVED"] } } },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        });
+        const reservedQuantity = Math.min(data.quantity, reservations.reduce((total, reservation) => total + reservation.quantity, 0));
+        if (data.quantity - reservedQuantity > stock.onHandQuantity - stock.allocatedQuantity) {
+          throw new Error("This job does not have enough reserved or available stock in the receipt bin.");
+        }
+        let remainingReserved = reservedQuantity;
+        for (const reservation of reservations) {
+          if (remainingReserved === 0) break;
+          const usedQuantity = Math.min(reservation.quantity, remainingReserved);
+          if (usedQuantity === reservation.quantity) {
+            await tx.partReservation.update({ where: { id: reservation.id }, data: { status: "CONSUMED", releasedAt: data.occurredAt } });
+          } else {
+            await tx.partReservation.update({ where: { id: reservation.id }, data: { quantity: { decrement: usedQuantity } } });
+            await tx.partReservation.create({ data: {
+              organizationId, demandId: reservation.demandId, partId: reservation.partId, stockLocationId: reservation.stockLocationId,
+              quantity: usedQuantity, status: "CONSUMED", releasedAt: data.occurredAt,
+              actorUserId: command.actorUserId, reason: data.reason, correlationId: command.correlationId,
+            } });
+          }
+          const demand = await tx.repairPartDemand.update({ where: { id: reservation.demandId }, data: { quantityReserved: { decrement: usedQuantity }, version: { increment: 1 } } });
+          await tx.repairPartDemand.update({ where: { id: demand.id }, data: { status: demand.quantityReserved === 0 ? "RELEASED" : "PARTIALLY_RESERVED" } });
+          remainingReserved -= usedQuantity;
+        }
         const unitCostCents = stock.averageCostCents;
         await moveStock(tx, command, {
-          actorUserId: command.actorUserId, movementType: "INSTALL", occurredAt: data.occurredAt,
+          actorUserId: command.actorUserId, allocatedDelta: -reservedQuantity, movementType: "INSTALL", occurredAt: data.occurredAt,
           partId: line.partId, quantityDelta: -data.quantity, reason: data.reason, sourceId: custodySourceId,
           sourceType: "PART_RECEIPT_LINE", stockLocationId: receipt.stockLocationId, unitCostCents,
         });

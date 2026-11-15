@@ -10,7 +10,7 @@ import { currentRepairWorkflowStep, repairReviewHref, repairWorkflowSteps, scope
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { ShopExecutionWorkspace } from "@/features/inventory/shop-execution-workspace";
 import { ServiceClosePartsWorkspace } from "@/features/inventory/service-close-parts-workspace";
-import { QualityControlWorkspace } from "@/features/inventory/quality-control-workspace";
+import { InventoryQcChecklistPreview, QualityControlWorkspace } from "@/features/inventory/quality-control-workspace";
 import { repairWorkflowEvidence } from "@/lib/repair-workflow-evidence";
 import { RepairRecordedWork } from "@/features/prototype/repair-workflow/repair-recorded-work";
 import { RepairWorkflowFrame } from "@/features/prototype/repair-workflow/repair-workflow-frame";
@@ -35,7 +35,7 @@ export default async function RepairWorkflowWorkbenchPage({ searchParams }: { se
       const model = canOpen ? await getQualityControlWorkspace(user, {}, order.id).catch(() => null) : null;
       tool = <>
         <RepairQcDiagnostics order={order} customerBilling={order.origin === "CUSTOMER_REPAIR"} unavailable={canOpen && !model?.repairOrders.length} />
-        {model?.repairOrders.length ? <QualityControlWorkspace initial={serialized(model)} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to review Repair Workbench" /> : null}
+        {model?.repairOrders.length ? <QualityControlWorkspace initial={serialized(model)} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to review Repair Workbench" /> : <InventoryQcChecklistPreview paymentOrderId={order.origin === "CUSTOMER_REPAIR" ? order.id : undefined} />}
       </>;
     } else if (selected === "assignment" && !order.repairJobs.some(job => job.status !== "CANCELLED")) {
       tool = <section aria-label="Assignment prerequisite">

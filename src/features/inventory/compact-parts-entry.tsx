@@ -90,13 +90,13 @@ export function readCompactPartsEntry(
   const outcomeTime = Date.parse(usageOccurredAt);
   const receiptTime = receiptLine?.receivedAt ? Date.parse(receiptLine.receivedAt) : receivedOn ? Date.parse(receivedOn + "T00:00:00") : null;
   const invalidOutcomeDate = !Number.isFinite(outcomeTime) || outcomeTime > Date.now() || (receiptTime !== null && outcomeTime < receiptTime);
-  if (usage === "USED" && (!repairJobId || !installationEvidence || invalidOutcomeDate)) {
-    throw new Error("Select a repair job, enter installation evidence, and enter a used date between receipt and today.");
+  if (usage === "USED" && (!repairJobId || invalidOutcomeDate)) {
+    throw new Error("Select a repair job and enter a used date between receipt and today.");
   }
   if (usage === "RETURN" && (returnReason.length < 10 || invalidOutcomeDate || !Number.isFinite(Date.parse(deadlineAt)) || Date.parse(deadlineAt) < outcomeTime || deadlineAt.slice(0, 10) < today)) {
     throw new Error("Enter the return decision date, a reason of at least 10 characters, and a follow-up date of today or later.");
   }
-  const usageDetails = usage === "USED" ? { usage, usageQuantity, usageOccurredAt, repairJobId, evidence: [installationEvidence] }
+  const usageDetails = usage === "USED" ? { usage, usageQuantity, usageOccurredAt, repairJobId, evidence: [installationEvidence || "Staff marked the received quantity as used on the selected repair job."] }
     : usage === "RETURN" ? { usage, usageQuantity, usageOccurredAt, returnReason, deadlineAt } : usage ? { usage } : {};
   if (receiptLine) return {
     repairOrderId, receiptId: receiptLine.receiptId, lineIndex: receiptLine.lineIndex, partId: receiptLine.partId,
@@ -139,6 +139,8 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
   const [usage, setUsage] = useState<CompactPartsUsage>("NOT_YET");
   const [neededId, setNeededId] = useState("");
   const [orderId, setOrderId] = useState("");
+  const [extraParts, setExtraParts] = useState<string[]>([]);
+  const batch = useRef<CompactPartsEntryInput[]>([]);
   const [purchased, setPurchased] = useState(false);
   const [received, setReceived] = useState(false);
   const [packingSource, setPackingSource] = useState("");
@@ -159,6 +161,8 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
 
   function resetFields(form: HTMLFormElement) {
     retry.current = null;
+    batch.current = [];
+    setExtraParts([]);
     form.reset();
     setMode("new");
     setReceiptKey("");
@@ -224,15 +228,41 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
         if (!frozen && mode === "existing" && !existingOrder) throw new Error("Choose an existing purchase order to receive.");
         if (!frozen && mode === "needed" && !neededPart) throw new Error("Choose the needed part being purchased.");
         if (!frozen && mode === "receipt" && !receiptLine) throw new Error("Choose the exact received part.");
-        const input = frozen ?? readCompactPartsEntry(new FormData(form), repairOrderId, existingOrder, neededPart, receiptLine);
+        const fields = new FormData(form);
+        const input = frozen ?? readCompactPartsEntry(fields, repairOrderId, existingOrder, neededPart, receiptLine);
         const fingerprint = JSON.stringify(input);
         if (!frozen && retry.current?.fingerprint !== fingerprint) retry.current = { fingerprint, entry: { ...input, requestId: crypto.randomUUID() } };
         setBusy(true);
         setResult(null);
         attempted = true;
-        const response = await onSave(frozen ?? retry.current!.entry);
-        setResult(response);
-        if (response.status === "saved") resetFields(form);
+        if (!batch.current.length && !frozen && mode === "new" && !purchased && extraParts.length) {
+          batch.current = [retry.current!.entry, ...extraParts.filter(key => String(fields.get("part-" + key) ?? "").trim()).map(key => {
+            const row = new FormData();
+            row.set("part", String(fields.get("part-" + key) ?? ""));
+            row.set("quantity", String(fields.get("quantity-" + key) ?? ""));
+            row.set("note", String(fields.get("note") ?? ""));
+            return { ...readCompactPartsEntry(row, repairOrderId), requestId: crypto.randomUUID() };
+          })];
+        }
+        if (batch.current.length) {
+          let saved = 0;
+          while (batch.current.length) {
+            const entry = batch.current[0];
+            const response = await onSave(entry);
+            if (response.status !== "saved") {
+              setResult({ ...response, message: `${saved} saved this attempt. Stopped at ${entry.part}. ${response.message}` });
+              return;
+            }
+            batch.current.shift();
+            saved++;
+          }
+          resetFields(form);
+          setResult({ status: "saved", message: `Saved ${saved} needed parts.` });
+        } else {
+          const response = await onSave(frozen ?? retry.current!.entry);
+          setResult(response);
+          if (response.status === "saved") resetFields(form);
+        }
       } catch (error) {
         setResult({ status: "error", message: error instanceof Error ? error.message : "Parts entry could not be saved. Retry the same entry.", retryable: attempted, ...(attempted && { nextAction: "Retry the same entry to check what was saved." }) });
       } finally {
@@ -301,7 +331,18 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
             </> : <>
             <label className={styles.part}>Part<input required name="part" maxLength={200} placeholder="Name or part number" /></label>
             <label>Qty<input required name="quantity" type="number" min="1" step="1" inputMode="numeric" defaultValue="1" /></label>
-            <label className={styles.check}><input name="purchased" type="checkbox" checked={purchased} onChange={event => setPurchased(event.target.checked)} /> Purchased</label>
+            <label className={styles.check}><input name="purchased" type="checkbox" disabled={extraParts.length > 0} checked={purchased} onChange={event => setPurchased(event.target.checked)} /> Purchased</label>
+            {!purchased && <>
+              {extraParts.map((key, index) => <div key={key} className={styles.extraPartRow}>
+                <label>Part {index + 2}<input name={"part-" + key} maxLength={200} placeholder="Name or part number" /></label>
+                <label>Qty<input required name={"quantity-" + key} type="number" min="1" step="1" defaultValue="1" /></label>
+                <button type="button" onClick={() => setExtraParts(rows => rows.filter(row => row !== key))} aria-label={`Remove part ${index + 2}`}>Remove</button>
+              </div>)}
+              </>}
+            <div className={styles.addPartRow}>
+              <button type="button" disabled={purchased} onClick={() => setExtraParts(rows => [...rows, crypto.randomUUID()])}>+ Add needed part</button>
+              {purchased && <small> Save this purchase first. Add multiple needed parts from a new entry with Purchased unchecked.</small>}
+            </div>
             <details className={styles.wide}><summary>Stock number options</summary>
               <label>Stock number<select name="numberMode" value={manualNumber ? "manual" : "automatic"} onChange={event => setManualNumber(event.target.value === "manual")}>
                 <option value="automatic">Generate if this is a new catalog part</option>
@@ -341,7 +382,11 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
               {locationChoice === "__new__" && <label>Actual physical bin or shelf name<input name="stockLocationName" disabled={!receive} required={receive} maxLength={100} placeholder="Enter the real bin or shelf name" /></label>}
               <div className={styles.reference}>
                 <label>Packing reference<input name="packingSource" disabled={!receive} required={receive} maxLength={200} value={packingSource} onChange={event => setPackingSource(event.target.value)} /></label>
-                <button type="button" disabled={!receive || Boolean(packingSource.trim())} onClick={() => setPackingSource("INTERNAL-RECEIPT-" + crypto.randomUUID())}>Generate internal reference</button>
+                <button type="button" disabled={!receive || Boolean(packingSource.trim())} onClick={() => {
+                  const numbers = crypto.getRandomValues(new Uint32Array(2));
+                  const groups = Array.from(numbers, number => String(number % 1_000_000).padStart(6, "0"));
+                  setPackingSource("RC-" + groups.join("-"));
+                }}>Generate internal reference</button>
                 <small>Use the vendor packing reference when available. Generate one only for your internal receipt record.</small>
               </div>
             </div>
@@ -350,15 +395,15 @@ function PartsEntryForm({ repairOrderId, disabled, suppliers = [], purchaseOrder
           {usageEnabled && (receive || receiptLine) && <div className={styles.wide} key={mode + ":" + orderId + ":" + neededId + ":" + receiptKey}>
             <div role="group" aria-label="Used?" className={styles.receiptChoices}>
               {([["USED", "Used"], ["NOT_YET", "Not yet used"], ["RETURN", "Not used — return"]] as const).map(([value, label]) =>
-                <label key={value} className={styles.check}><input name="usage" type="radio" value={value} checked={usage === value} onChange={() => setUsage(value)} />{label}</label>
+                <label key={value} className={styles.check}><input name="usage" type="radio" disabled={value === "USED" && !jobs.length} value={value} checked={usage === value} onChange={() => setUsage(value)} />{label}</label>
               )}
             </div>
             {!receiptLine && usage !== "NOT_YET" && <label>Qty for this outcome<input name="usageQuantity" type="number" min="1" step="1" placeholder="Whole received quantity" /></label>}
             {usage === "USED" && <div className={styles.purchase}>
               <label>Repair job<select required name="repairJobId"><option value="">Choose the job</option>{jobs.map(job => <option key={job.id} value={job.id}>{job.label}</option>)}</select></label>
               <label>Used at<input required name="usageOccurredAt" type="datetime-local" step="0.001" max={today + "T23:59:59.999"} /></label>
-              <label>Installation note or evidence<input required name="installationEvidence" maxLength={500} /></label>
-              {!jobs.length && <p>No eligible repair job is available. Choose Not yet used until a job is ready.</p>}
+
+
             </div>}
             {usage === "RETURN" && <div className={styles.purchase}>
               <label>Return reason<input required name="returnReason" minLength={10} maxLength={500} /></label>

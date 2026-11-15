@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   AlertTriangle,
@@ -127,6 +127,38 @@ const frontlineQcSections: FrontlineQcSection[] = [
     { code: "KEYS_DOCUMENTS", label: "Keys, manuals and documents", hint: "All keys, books and records accounted for" }
   ] }
 ];
+export function InventoryQcChecklistPreview({ paymentOrderId }: { paymentOrderId?: string } = {}) {
+  const [answers, setAnswers] = useState<Record<string, FrontlineResult>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const results = Object.values(answers);
+  const remaining = frontlineQcItems.length - results.length;
+  const disposition = results.includes("FAIL") ? "Fail" : results.includes("REVIEW") ? "Needs review" : "Pass";
+  return <details className="frontline-final-qc repair-frontline-preview" open>
+    <summary><strong>Inventory Lifecycle QC checklist</strong></summary>
+    <p>Use Pass, Fail, or Review to work through the checklist. These selections are temporary. Save the official inspection when the repair job is ready for QC.</p>
+    <div className="frontline-checklist-columns">
+      {frontlineQcSections.map((section, sectionIndex) => <section className="frontline-checklist-section" key={section.title}>
+        <h3>{section.title}</h3>
+        <div>{section.items.map((item, itemIndex) => <article key={item.code} className={answers[item.code] === "FAIL" ? "has-fail" : answers[item.code] === "REVIEW" ? "has-review" : undefined}>
+          <div className="frontline-item-copy"><b>{sectionIndex + 1}.{itemIndex + 1}</b><span><strong>{item.label}</strong><small>{item.hint}</small></span></div>
+          <div className="frontline-result-options" role="group" aria-label={`${item.label} result`}>
+            {(["FAIL", "REVIEW", "PASS"] as const).map(choice => <button type="button" key={choice} className={choice.toLowerCase()}
+              aria-pressed={answers[item.code] === choice} onClick={() => setAnswers(previous => ({ ...previous, [item.code]: choice }))}>
+              {choice === "FAIL" ? "Fail" : choice === "REVIEW" ? "Review" : "Pass"}
+            </button>)}
+          </div>
+          {(answers[item.code] === "FAIL" || answers[item.code] === "REVIEW") && <label className="frontline-exception-note"><span>{answers[item.code] === "FAIL" ? "Failure" : "Review"} note</span><input value={notes[item.code] ?? ""} onChange={event => setNotes(previous => ({ ...previous, [item.code]: event.target.value }))} placeholder="Describe what needs attention" /></label>}
+        </article>)}</div>
+      </section>)}
+    </div>
+    <section className="qc-panel" aria-label="Overall checklist result">
+      <h3>Overall checklist result</h3>
+      <p role="status">{remaining ? `${remaining} checks remaining` : `Preview result: ${disposition}`}</p>
+      {!remaining && <p>Save the official inspection when the job is ready for QC. Handoff opens after the required repair inspections pass.</p>}
+      {paymentOrderId && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: paymentOrderId })}#invoice-payment`}>Receive invoice payment</Link>}
+    </section>
+  </details>;
+}
 const frontlineQcItems = frontlineQcSections.flatMap((section) => section.items);
 
 const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -364,7 +396,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   function resultFor(label: string) {
-    return checkResults[label] ?? "PASS";
+    return checkResults[(job?.id ?? "") + ":" + label] ?? "PASS";
   }
 
   async function recordQuickQc(result: "PASS" | "FAIL") {
@@ -792,7 +824,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           {order.origin === "CUSTOMER_REPAIR" ? <div>
             <strong>{order.releaseAuthorization ? "Final QC complete" : "Repair quality checks passed"}</strong>
             <span>Continue to billing to review the approved estimate and any remaining invoice requirements.</span>
-            {order.customer && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link>}
+            {order.customer && <><Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link> {reviewOrderId && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}#invoice-payment`}>Receive invoice payment</Link>}</>}
+            {reviewOrderId && <Link className="pill" href={repairReviewHref(order.id, "handoff")}>Check readiness &amp; open handoff</Link>}
           </div> : <div>
             <strong>Final Frontline QC complete</strong>
             <span>This repair order is cleared for photos, merchandising, and its next frontline-readiness handoff.</span>
@@ -942,7 +975,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           <section className="qc-panel qc-checklist">
             <header>
               <div>
-                <strong>Generated QC checklist</strong>
+                <strong>{reviewOrderId ? "Repair QC checklist" : "Generated QC checklist"}</strong>
                 <span>Context-aware checklist from concern, correction, procedure, parts, and repair lane.</span>
               </div>
             </header>
@@ -951,11 +984,20 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                 <p key={`${item.label}-${index}`}>
                   <CheckCircle2 />
                   <span><strong>{item.label}</strong><small>{item.detail}</small></span>
-                  <select aria-label={`${item.label} result`} value={resultFor(item.label)} onChange={(event) => setCheckResults((value) => ({ ...value, [item.label]: event.target.value as "PASS" | "FAIL" | "NOT_APPLICABLE" }))}>
+                  {reviewOrderId ? <div className="frontline-result-options" role="group" aria-label={`${item.label} result`}>
+                    {(["PASS", "FAIL", "NOT_APPLICABLE"] as const).map(choice => {
+                      const key = job.id + ":" + item.label;
+                      return <button key={choice} type="button" className={choice === "NOT_APPLICABLE" ? "review" : choice.toLowerCase()}
+                        aria-pressed={checkResults[key] === choice} disabled={busy}
+                        onClick={() => setCheckResults(results => ({ ...results, [key]: choice }))}>
+                        {choice === "PASS" ? "Pass" : choice === "FAIL" ? "Fail" : "N/A"}
+                      </button>;
+                    })}
+                  </div> : <select aria-label={`${item.label} result`} value={resultFor(item.label)} onChange={(event) => setCheckResults((value) => ({ ...value, [job.id + ":" + item.label]: event.target.value as "PASS" | "FAIL" | "NOT_APPLICABLE" }))}>
                     <option>PASS</option>
                     <option>FAIL</option>
                     <option>NOT_APPLICABLE</option>
-                  </select>
+                  </select>}
                 </p>
               ))}
             </div>
@@ -985,6 +1027,10 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
             className="qc-panel qc-form"
             onSubmit={(event: FormEvent) => {
               event.preventDefault();
+              if (reviewOrderId && checklist.some(item => !checkResults[job.id + ":" + item.label])) {
+                setErrorNotice("Choose Pass, Fail, or N/A for each repair checklist item before saving.");
+                return;
+              }
               const heavy = job.lane === "DIAGNOSTIC_HEAVY";
               submit(`/api/repair-jobs/${job.id}/quality-inspection`, {
                 templateCode: qc.templateCode,

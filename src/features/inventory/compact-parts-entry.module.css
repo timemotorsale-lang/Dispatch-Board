@@ -77,3 +77,20 @@
 .reference { display: grid; gap: 4px; min-width: 0; }
 .reference button { justify-self: start; min-height: 38px; }
 @media (max-width: 600px) { .reference button { min-height: 44px; } }
+
+.extraPartRow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(4rem, 10vw, 8rem) auto;
+  align-items: end;
+  gap: 0.5rem;
+}
+.extraPartRow label { min-width: 0; }
+.extraPartRow button, .addPartRow button {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+}
+.addPartRow { grid-column: 1 / -1; }

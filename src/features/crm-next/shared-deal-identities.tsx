@@ -91,7 +91,7 @@ function AddSharedRecord({ vehicle, onCustomer, onVehicle, onCancel, initialName
     try {
       if (vehicle) { const result = await request<{ vehicle: DealVehicleChoice }>("/api/crm/v1/deal-identities", { ...values, type: "vehicle", idempotencyKey: requestKey.current }); onVehicle?.(result.vehicle); }
       else onCustomer?.(await request<DealCustomerChoice>("/api/crm/v1/deal-identities", { ...values, type: "customer" }));
-    } catch (error) { if (error instanceof SharedRecordRequestError) setMatches(error.matches); setError(error instanceof Error ? error.message : "Save failed. Your entries are retained."); } finally { setBusy(false); }
+    } catch (error) { if (error instanceof SharedRecordRequestError) setMatches(error.matches); const message = error instanceof Error ? error.message : "Save failed. Your entries are retained."; setError(vehicle && message.startsWith("Vehicle registry mutations are not enabled") ? "This location cannot add vehicles right now. Use Find vehicle below to search existing records by VIN or stock number. If the vehicle is missing, ask a rollout administrator to check Vehicle Registry in Settings > Vehicle Operations for the selected location. Your entries are retained." : message); } finally { setBusy(false); }
   }
   async function selectMatch(id: string) {
     if (busy) return;

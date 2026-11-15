@@ -1,5 +1,6 @@
 "use client";
 
+import { repairReviewHref } from "@/lib/repair-workflow-review";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -44,7 +45,7 @@ const outcomeNextSteps: Record<RepairOutcome, { title: string; detail: string; a
     title: "Send verified work to QC",
     detail: "Finish the repair update, attach verification notes, and route the job to Quality Control.",
     action: "Complete Work & Send to QC",
-    href: () => "/vehicles/quality-control"
+    href: (model) => repairReviewHref(model.repairOrder.id, "qc")
   },
   PARTIALLY_COMPLETED: {
     title: "Request manager direction",
@@ -96,7 +97,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
   const completed = model.job.status === "READY_FOR_QC" || model.job.status === "QC_PASSED" || clockState === "FINISHED";
   const incomplete = outcome !== "COMPLETED";
   const nextStep = completed
-    ? { ...outcomeNextSteps.COMPLETED, title: model.job.status === "QC_PASSED" ? "QC passed" : "Submitted to QC", detail: model.job.status === "QC_PASSED" ? "This repair has passed QC. The next staff action is release readiness or shop exit from Recon / Repair Advisor." : "This repair is waiting for Quality Control. No more technician update is needed unless QC sends it back.", action: model.job.status === "QC_PASSED" ? "Open Recon / Repair Advisor" : "Open Quality Control", href: () => model.job.status === "QC_PASSED" ? "/vehicles/recon-repair-advisor" : "/vehicles/quality-control" }
+    ? { ...outcomeNextSteps.COMPLETED, title: model.job.status === "QC_PASSED" ? "QC passed" : "Submitted to QC", detail: model.job.status === "QC_PASSED" ? "This repair has passed QC. The next staff action is release readiness or shop exit from Recon / Repair Advisor." : "This repair is waiting for Quality Control. No more technician update is needed unless QC sends it back.", action: model.job.status === "QC_PASSED" ? "Open closeout / handoff" : "Open Quality Control", href: (model) => repairReviewHref(model.repairOrder.id, model.job.status === "QC_PASSED" ? "handoff" : "qc") }
     : outcomeNextSteps[outcome];
   const incompleteIssue = incomplete ? incompleteRepairUpdateIssue({ blockerReason, recommendedNextStep }) : null;
   const completeReady = workPerformed.trim().length > 0 && verification.trim().length > 0 && qcNotes.trim().length > 0;
@@ -174,7 +175,8 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
           FINISH: "Repair accepted and routed to Quality Control."
         };
         setMessage(confirmations[eventType]);
-        router.refresh();
+        if (eventType === "FINISH") router.push(repairReviewHref(model.repairOrder.id, "qc"));
+        else router.refresh();
       } catch {
         setError("The server did not confirm this update. Refresh and check the clock before retrying.");
       }
@@ -271,18 +273,11 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
               ))}
             </div>
 
-            <section className={`technician-inline-next-step ${incomplete ? "attention" : ""}`} aria-label="Outcome next step">
-              <div>
-                <span>Next step after this update</span>
-                <strong>{nextStep.title}</strong>
-                <p>{nextStep.detail}</p>
-              </div>
-              <Link href={nextStep.href(model)}>{nextStep.action}</Link>
-            </section>
+
 
             <label>
               <span>Work performed</span>
-              <textarea onChange={(event) => setWorkPerformed(event.target.value)} placeholder="Document the work, tests, measurements, and correction performed…" rows={5} value={workPerformed} />
+              <textarea onChange={(event) => setWorkPerformed(event.target.value)} placeholder="Describe the repair performed…" rows={2} value={workPerformed} />
             </label>
             <div className="technician-update-two-column">
               <label>

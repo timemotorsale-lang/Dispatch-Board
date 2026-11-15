@@ -163,8 +163,11 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   if (newPurchase && requisitionLocation && newPurchase.locationId !== requisitionLocation) {
     throw new Error("Purchase order location must match the requisition repair order location.");
   }
+  const sourcingOrder = ["CREATE_VENDOR", "CREATE_VENDOR_OFFER"].includes(action) && typeof raw.repairOrderId === "string"
+    ? view.repairOrders.find(item => item.id === raw.repairOrderId && !item.closedAt) : undefined;
+  if (["CREATE_VENDOR", "CREATE_VENDOR_OFFER"].includes(action) && raw.repairOrderId && !sourcingOrder) throw new Error("Select an open repair order before recording a supplier.");
   const locationId = receivePurchaseOrder?.locationId ?? purchaseOrder?.locationId ?? order?.locationId
-    ?? requisitionLocation ?? demand?.repairOrder.locationId ?? newPurchase?.locationId ?? null;
+    ?? requisitionLocation ?? demand?.repairOrder.locationId ?? newPurchase?.locationId ?? sourcingOrder?.locationId ?? null;
   const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, locationId, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
 
   const receipt = shop ? await context.repository.commandReceipt?.(context.organizationId, action, String(raw.idempotencyKey ?? "")) : null;

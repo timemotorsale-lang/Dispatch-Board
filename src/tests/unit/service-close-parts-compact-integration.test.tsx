@@ -55,7 +55,7 @@ describe("compact parts parent integration", () => {
     storage.setItem(compactEntryStorageKey(entry), JSON.stringify(saved));
     expect(canResolvePartsEntry(saved)).toBe(false);
     expect(() => resolvePartsEntry(storage, saved, "Resolve")).toThrow("uncertain");
-    expect(partsEntryRecoveryGuidance(saved, { status: "PARTIALLY_RECEIVED" })).toContain("uncertain");
+    expect(partsEntryRecoveryGuidance(saved, { status: "PARTIALLY_RECEIVED" })).toContain("not confirmed");
     expect(readUnfinishedPartsEntries(storage, "ro-1")).toHaveLength(1);
   });
   it("rechecks the stored journal before resolving so a newer pending step cannot be lost", () => {
@@ -114,7 +114,7 @@ describe("compact parts parent integration", () => {
     expect(compact.props.jobs).toEqual([{ id: "job-live", label: "J-1" }]);
     expect(compact.props.usageEnabled).toBe(true);
     const section = nodes(tree).find(node => node.props["aria-label"] === "Received parts")!;
-    expect(nodes(section).filter(node => node.type === "button").map(node => node.props.children)).toEqual(["Used", "Not used — return", "Not yet used"]);
+    expect(nodes(section).filter(node => node.type === "button").map(node => node.props.children)).toEqual(["Record use", "Start return"]);
   });
   it("maps exact IDs, receipts and store without falling back to matching RO numbers", () => {
     const mapped = compactPartsModel(model);
@@ -196,7 +196,7 @@ describe("compact parts parent integration", () => {
       return { status: "COMPLETE", progress: options.progress, message: "Purchase recorded.", nextAction: "Review receipt" };
     });
     const tree = ServiceClosePartsWorkspace({ initial: model });
-    const resume = nodes(tree).find(node => node.type === "button" && node.props.children === "Resume unfinished entry")!;
+    const resume = nodes(tree).find(node => node.type === "button" && node.props.children === "Retry save")!;
     (resume.props.onClick as () => void)();
     for (let index = 0; index < 30; index++) await Promise.resolve();
     expect(mocks.run).toHaveBeenCalledOnce();

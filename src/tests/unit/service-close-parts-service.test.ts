@@ -248,6 +248,7 @@ describe("durable procurement replay", () => {
       partReceipt: { create: partReceipt, findFirst: receiptFind },
       partCustodyEvent: { findFirst: legacyCustody, aggregate: vi.fn().mockResolvedValue({ _sum: { quantity: 0 } }), create: custody },
       partRecoveryCase: { aggregate: priorReturns, create: recovery },
+      partReservation: { findMany: vi.fn().mockResolvedValue([]) },
       partStockBalance: { findUnique: vi.fn().mockResolvedValue({ onHandQuantity: 3, allocatedQuantity: 0, averageCostCents: 100 }), upsert: stockUpdate },
       partStockLedgerEntry: { create: stockMovement },
       partCycleCount: { findFirst: vi.fn().mockResolvedValue(null) },

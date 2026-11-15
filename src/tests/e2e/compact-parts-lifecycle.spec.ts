@@ -114,7 +114,7 @@ for (const lostStep of ["part", "bin"] as const) {
     await entry.getByLabel("Actual physical bin or shelf name", { exact: true }).fill(physicalName);
     await entry.getByRole("button", { name: "Generate internal reference", exact: true }).click();
     const reference = await entry.getByLabel("Packing reference", { exact: true }).inputValue();
-    expect(reference).toMatch(/^INTERNAL-RECEIPT-[a-f0-9-]{36}$/);
+    expect(reference).toMatch(/^RC-[0-9]{6}-[0-9]{6}$/);
     await entry.getByRole("radio", { name: "Not yet used", exact: true }).check();
     let lost = false, committedId = "", outcomes = 0;
     const commands: unknown[] = [];
