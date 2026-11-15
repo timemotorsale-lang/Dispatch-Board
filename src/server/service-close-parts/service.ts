@@ -236,7 +236,12 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
     };
   }
   if (action === "RECEIVE_PURCHASE_ORDER") {
-    const record = receivePurchaseOrder; if (!record) throw new Error("Purchase order was not found."); const data = normalizeReceipt(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
+    const record = receivePurchaseOrder; if (!record) throw new Error("Purchase order was not found.");
+    const data = normalizeReceipt(raw);
+    // Authorization above still applies on retries. Reuse the original version so
+    // an identical command hashes identically after the order has advanced.
+    const priorReceipt = await context.repository.commandReceipt?.(context.organizationId, action, data.idempotencyKey, "PARTS_OPERATIONS");
+    const version = priorReceipt?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
     return context.repository.receivePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...data, receiptId: id, receivedByUserId: user.id });
   }
   if (action === "RESOLVE_RECEIVING_DISCREPANCY") {

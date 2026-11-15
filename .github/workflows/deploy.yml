@@ -132,6 +132,47 @@ jobs:
       - name: Scanned purchase PDF OCR proof
         run: RUN_OCR_INTEGRATION=1 DOCUMENT_TEXT_PDF_RENDERER_PATH=/usr/bin/pdftoppm npx vitest run src/tests/integration/purchase-ocr.test.ts
 
+  enterprise-browser:
+    name: Enterprise layout and reporting workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: dispatch_board_test
+          POSTGRES_USER: build
+          POSTGRES_PASSWORD: build
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U build -d dispatch_board_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npx playwright install --with-deps chromium
+      - name: Verify isolated layout and reporting workflows
+        run: npm run test:e2e -- enterprise-layout.spec.ts reporting-console.spec.ts
+        env:
+          CRM_NEXT: REVIEW
+          REPORTING_WRITES_ENABLED: "true"
+          STAFF_EXECUTION_ENABLED: "true"
+          STAFF_EXECUTION_END_OF_DAY_ENABLED: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: enterprise-browser-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: warn
+
   labor-browser:
     name: Labor catalog browser fixtures
     runs-on: ubuntu-latest

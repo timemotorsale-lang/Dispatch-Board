@@ -10,6 +10,9 @@ import { generateReportingExpectations } from "@/server/reporting/calendar-servi
 test.beforeAll(async () => {
   const schema = new URL(process.env.DATABASE_URL!).searchParams.get("schema");
   if (!schema?.startsWith("dispatch_board_e2e_")) throw new Error("Reporting tests require an isolated e2e schema.");
+  for (const flag of ["REPORTING_WRITES_ENABLED", "STAFF_EXECUTION_ENABLED", "STAFF_EXECUTION_END_OF_DAY_ENABLED"]) {
+    if (process.env[flag] !== "true") throw new Error(`Reporting workflow tests require ${flag}=true in the isolated test process.`);
+  }
   await resetDailyWorkflowState();
 });
 test.afterAll(disconnectDailyWorkflowDatabase);
@@ -68,7 +71,7 @@ async function resolveNavigationFixtureReminder(page: Page) {
   }
 }
 
-test("Command Center home navigation launches Reports on desktop and phone", async ({ page }) => {
+test("desktop Command Center and mobile home navigation launch Reports", async ({ page }) => {
   await login(page, "morgan.manager@local.test");
   await page.goto("/sales-documents");
   await expect(page.getByRole("heading", { name: "Sales Documents", exact: true })).toBeVisible();
@@ -84,13 +87,16 @@ test("Command Center home navigation launches Reports on desktop and phone", asy
   await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toBeVisible();
   await resolveNavigationFixtureReminder(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("link", { name: "Command Center Home", exact: true }).click();
-  await page.waitForURL(/\/command-center$/, { timeout: 30_000 });
-  await expect(page.getByRole("heading", { name: "Command Control Center", exact: true })).toBeVisible();
+  // Phones expose the operational launcher instead of the desktop CCC link.
+  await page.getByRole("link", { name: "Mobile home", exact: true }).click();
+  await expect(page).toHaveURL(/\/\?view=mobile$/, { timeout: 30_000 });
+  await page.getByRole("region", { name: "Mobile operational launcher" }).getByRole("link", { name: /Today's Board/ }).click();
+  await expect(page).toHaveURL(/\/board(?:\?[^#]*)?$/, { timeout: 30_000 });
   await resolveNavigationFixtureReminder(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/reporting-command-center-mobile.png", fullPage: true });
-  await consoles.getByRole("link", { name: /^Reports/ }).click();
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await page.locator(".console-sidebar-navigation").getByRole("link", { name: "Reports", exact: true }).click();
   await page.waitForURL(/\/reports(?:\?[^#]*)?$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
 });
@@ -126,7 +132,8 @@ test("Dispatch Board sidebar Reports opens today's reporting console, not the le
     expect(new URL(page.url()).pathname).toBe("/reports");
     expect(new URL(page.url()).searchParams.get("scope")).not.toBe("inventory");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");
+    // Managers land on Team Reports; staff land on My Reports.
+    await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("button", { name: "My Reports", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Team Reports", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
@@ -187,6 +194,10 @@ test("team coverage reconciles required submissions and denies staff access", as
     await page.screenshot({ path: `test-results/reporting-coverage-${width}.png` });
   }
   await panel.getByRole("button", { name: `Open ${staff.name} reporting history`, exact: true }).click();
+  await expect(page.getByLabel("Person", { exact: true })).toHaveValue(staff.id);
+  await expect(page.getByLabel("Archive from", { exact: true })).toHaveValue("2026-05-11");
+  await expect(page.getByLabel("Archive through", { exact: true })).toHaveValue("2026-05-17");
+  await page.reload();
   await expect(page.getByLabel("Person", { exact: true })).toHaveValue(staff.id);
   await expect(page.getByLabel("Archive from", { exact: true })).toHaveValue("2026-05-11");
   await expect(page.getByLabel("Archive through", { exact: true })).toHaveValue("2026-05-17");
@@ -318,6 +329,7 @@ test("weekly submissions are idempotent, independently reviewed, and immutable",
   await managerPage.setViewportSize({ width: 1440, height: 960 });
   await managerPage.getByRole("button", { name: "Team Reports", exact: true }).click();
   await managerPage.getByRole("button", { name: "Weekly", exact: true }).click();
+  await managerPage.getByLabel("Covered date", { exact: true }).fill("2026-09-20");
   await expect(managerPage.getByText("APPROVED", { exact: true })).toBeVisible();
   await managerPage.screenshot({ path: "test-results/reporting-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -420,7 +432,8 @@ test("daily submission shares the legacy handoff and retains accepted history th
   const detail = await (await managerPage.request.get(`/api/reports?view=revision&id=${original.id}`)).json();
   expect((await command(managerPage, { action: "review", revisionId: original.id, reviewAction: "APPROVE", comment: "Daily evidence checked.", expectedVersion: detail.seriesVersion })).status).toBe(200);
   const prepared = await (await page.request.get("/api/reports?view=prepare&date=2026-09-22&cadence=DAILY")).json();
-  const correction = { action: "submit", date: "2026-09-22", cadence: "DAILY", context: "Correction: callback was with the customer's representative.", priorities: "", accuracyConfirmed: true, expectedVersion: prepared.draftVersion, idempotencyKey: "reporting_daily_correction_1" };
+  const correction = { action: "submit", date: "2026-09-22", cadence: "DAILY", context: "Correction: callback was with the customer's representative.", priorities: "", accuracyConfirmed: true, expectedVersion: prepared.draftVersion, idempotencyKey: "reporting_daily_correction_1", correctionReason: "Clarify who participated in the customer callback." };
+  expect((await command(page, { ...correction, correctionReason: undefined })).status).toBe(422);
   const corrected = await command(page, correction);
   expect(corrected.status).toBe(200);
   expect((await command(page, correction)).data.id).toBe(corrected.data.id);
@@ -435,6 +448,7 @@ test("daily submission shares the legacy handoff and retains accepted history th
   expect(JSON.stringify(frozen.content)).not.toContain("Edited after submission");
   const history = await (await page.request.get("/api/reports?view=history&cadence=DAILY&from=2026-09-22&to=2026-09-22")).json();
   expect(history.rows[0].revisionId).toBe(original.id);
+  expect(history.rows[0].latestRevisionId).toBe(corrected.data.id);
   expect(history.rows[0].status).toBe("NEEDS_REVISION");
   await managerContext.close();
 });

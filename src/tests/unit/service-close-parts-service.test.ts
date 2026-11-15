@@ -115,6 +115,67 @@ describe("service close parts service", () => {
     expect(receivePurchaseOrder.mock.calls[1][2].receiptId).not.toBe(receivePurchaseOrder.mock.calls[0][2].receiptId);
   });
 
+  const receiptRequest = {
+    action: "RECEIVE_PURCHASE_ORDER", subjectId: "po-1", idempotencyKey: "same-receipt",
+    invoiceReference: null, packingSource: "NOTE-1", receivedAt: "2026-08-27T10:00:00.000Z",
+    stockLocationId: "stock-1", reason: "Received parts note.",
+    lines: [{ damagedQuantity: 0, partId: "part-1", quantity: 1, unitCostCents: 100 }],
+  };
+
+  it("preserves the original zero version and request hash when retrying a completed receipt", async () => {
+    const commandReceipt = vi.fn().mockResolvedValueOnce(null).mockResolvedValue({ expectedVersion: 0 });
+    const aggregateVersion = vi.fn().mockResolvedValueOnce(0).mockResolvedValue(1);
+    const receivePurchaseOrder = vi.fn().mockResolvedValue({ result: { id: "receipt-1" } });
+    const repository = {
+      commandReceipt, aggregateVersion, receivePurchaseOrder,
+      overview: vi.fn().mockResolvedValueOnce(overview).mockResolvedValue({ ...overview, purchaseOrders: [{ id: "po-1", locationId: "loc-1", status: "RECEIVED" }] }),
+    } as unknown as ServiceClosePartsRepository;
+    const dependencies = { organizationId: "org-test", enforceRollout: false, foundationRepository: foundation(), repository };
+    await executeServiceClosePartsCommand(manager, receiptRequest, dependencies);
+    await executeServiceClosePartsCommand(manager, receiptRequest, dependencies);
+    expect(commandReceipt).toHaveBeenNthCalledWith(2, "org-test", "RECEIVE_PURCHASE_ORDER", "same-receipt", "PARTS_OPERATIONS");
+    expect(aggregateVersion).toHaveBeenCalledTimes(1);
+    expect(receivePurchaseOrder).toHaveBeenCalledTimes(2);
+    const first = receivePurchaseOrder.mock.calls[0][0];
+    const retry = receivePurchaseOrder.mock.calls[1][0];
+    expect(first.expectedVersion).toBe(0);
+    expect(retry.expectedVersion).toBe(0);
+    expect(retry.requestHash).toBe(first.requestHash);
+    expect(retry).toMatchObject({ actorUserId: manager.id, locationId: "loc-1", subjectId: "po-1" });
+  });
+
+  it("does not substitute saved receipt data for a changed-payload retry", async () => {
+    const receivePurchaseOrder = vi.fn().mockResolvedValue({ result: { id: "receipt-1" } });
+    const repository = {
+      overview: vi.fn().mockResolvedValue(overview),
+      commandReceipt: vi.fn().mockResolvedValue({ expectedVersion: 0 }),
+      receivePurchaseOrder,
+    } as unknown as ServiceClosePartsRepository;
+    const dependencies = { enforceRollout: false, foundationRepository: foundation(), repository };
+    await executeServiceClosePartsCommand(manager, receiptRequest, dependencies);
+    await executeServiceClosePartsCommand(manager, { ...receiptRequest, packingSource: "CHANGED" }, dependencies);
+    expect(receivePurchaseOrder.mock.calls[1][0].requestHash).not.toBe(receivePurchaseOrder.mock.calls[0][0].requestHash);
+    expect(receivePurchaseOrder.mock.calls[1][2].packingSource).toBe("CHANGED");
+  });
+
+  it.each(["restricted-role", "store-deny", "rollout-disabled"])("does not look up or replay an existing receipt after %s authorization fails", async scenario => {
+    const commandReceipt = vi.fn().mockResolvedValue({ expectedVersion: 0 });
+    const receivePurchaseOrder = vi.fn();
+    const aggregateVersion = vi.fn();
+    const repository = { overview: vi.fn().mockResolvedValue(overview), commandReceipt, receivePurchaseOrder, aggregateVersion } as unknown as ServiceClosePartsRepository;
+    const access = foundation();
+    if (scenario === "store-deny") {
+      access.listCapabilityGrants = vi.fn().mockResolvedValue([{ capability: "PARTS_MANAGE", effect: "DENY", locationId: "loc-1", validFrom: new Date(0), validTo: null }]);
+    }
+    const actor = scenario === "restricted-role" ? { ...manager, roles: ["Mechanic"] } : manager;
+    await expect(executeServiceClosePartsCommand(actor, receiptRequest, {
+      repository, foundationRepository: access, enforceRollout: scenario === "rollout-disabled",
+    })).rejects.toThrow(scenario === "rollout-disabled" ? "mutations are not enabled" : "PARTS_MANAGE");
+    expect(commandReceipt).not.toHaveBeenCalled();
+    expect(aggregateVersion).not.toHaveBeenCalled();
+    expect(receivePurchaseOrder).not.toHaveBeenCalled();
+  });
+
   it("allows a partially received purchase order correction to reach the repository", async () => {
     const revisePurchaseOrder = vi.fn().mockResolvedValue({ result: { id: "po-1", status: "PARTIALLY_RECEIVED" } });
     const repository = {

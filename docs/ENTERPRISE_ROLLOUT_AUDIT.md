@@ -1,6 +1,18 @@
 # Enterprise rollout readiness audit
 
-Scope: local preview worktree based on `codex/enterprise-general-refinement`, baseline commit `00ef9fce`, with refinements on the local `codex/enterprise-global-refinement-review` branch. No console has app-wide rollout signoff from this audit. Do not push or deploy this review work.
+Scope: preview worktree based on `codex/enterprise-general-refinement`, baseline commit `00ef9fce`, with refinements on `codex/enterprise-global-refinement-review`. The user subsequently authorized resolving release blockers and deploying the combined changes. The release follow-up below supersedes the initial hold; the per-console roadmap remains broader than this release.
+
+## Release follow-up
+
+- Repaired coverage navigation with a distinct View reporting history action that preserves the person and inclusive period range, including after reload. Open day remains available.
+- Restored accepted-revision defaults in saved report history. Manager review retains access to the latest correction. Submitted records remain immutable.
+- Corrected browser fixtures to use mobile home navigation, the documented manager Team Reports default, the historical period under review, and the required correction reason. Tests explicitly verify that missing reasons are rejected.
+- Daily submission requires both reporting writes and end-of-day handoff rollout controls. These are enabled only in isolated test processes; production rollout settings are unchanged.
+- All 18 reporting scenarios passed across the focused local runs after repairs (16 in the initial run, coverage navigation in the follow-up, and accepted daily correction history after its repair). CI now runs the complete reporting suite and 25-route layout matrix together on the release revision.
+- Fixture setup now runs on Windows and Linux and refuses to reset a database without an isolated `dispatch_board_e2e_` schema.
+- Added estimate-correction API/service regression coverage for historical details, immutable amounts/history, denied roles, retries, and stale writes. Release verification does not imply certification of every historical skipped workflow.
+- Repaired receipt retries to reuse the original command version after authorization, preserving changed-payload rejection. Real-service verification in a fresh disposable schema passed all 191 migrations, same-store access, cross-store and restricted-role denial, and receiving/retry persistence: exactly one receipt, movement, command, unit and 100 cents received. Five new retry regressions and five stock-location authorization tests cover these boundaries.
+- No database schema or migration changes are included relative to production `9c6577a4`. The normal deployment workflow still requires a verified recoverable backup, retained prior image, successful exact-main-revision CI, and health verification.
 
 ## Implemented layout changes
 
@@ -79,6 +91,8 @@ Use a disposable local database when reproducing (PowerShell):
 $env:DATABASE_URL = 'postgresql://postgres@127.0.0.1:55439/postgres'
 $env:CRM_NEXT = 'REVIEW'
 $env:REPORTING_WRITES_ENABLED = 'true' # Disposable workflow test process only.
+$env:STAFF_EXECUTION_ENABLED = 'true'
+$env:STAFF_EXECUTION_END_OF_DAY_ENABLED = 'true'
 $env:PLAYWRIGHT_BASE_URL = 'http://127.0.0.1:3103'
 $env:E2E_NEXT_DIST_DIR = '.next-layout-check'
 npm run test:e2e -- enterprise-layout.spec.ts reporting-console.spec.ts --output=test-results/enterprise-final

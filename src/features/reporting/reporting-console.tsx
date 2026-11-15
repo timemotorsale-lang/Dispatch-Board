@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, Check, ChevronRight, Download, FileText, RefreshCw, Save, Search, Send, Star, X } from "lucide-react";
 import { reportDefinitions, type ReportDefinitionId, type ReportResult, type ReportRow } from "@/lib/reporting/contracts";
-import type { ReportCadence, ReportCalendar } from "@/lib/reporting/calendar";
+import { addReportDays, type ReportCadence, type ReportCalendar } from "@/lib/reporting/calendar";
 import { ReportingCalendarPanel } from "./reporting-calendar-panel";
 import { ReportingRecoveryPanel } from "./reporting-recovery-panel";
 import { ReportingCoveragePanel } from "./reporting-coverage-panel";
@@ -22,6 +22,28 @@ type Revision = Awaited<ReturnType<typeof reportingRevision>>;
 type Library = Awaited<ReturnType<typeof reportingLibrary>> & { snapshots: Awaited<ReturnType<typeof savedReportingSnapshots>> };
 type Settings = { people: { id: string; name: string }[]; locations: { id: string; name: string }[]; calendarConfig?: ReportCalendar };
 type Tab = "Overview" | "My Reports" | "Team Reports" | "Library";
+type CoverageHistoryScope = {
+  periodStart: string;
+  periodEnd: string;
+  cadence: ReportCadence;
+  rows: { subjectUserId: string }[];
+};
+
+export function reportingCoverageHistoryTarget(coverage: CoverageHistoryScope, person: string, canReview: boolean) {
+  if (!canReview || !coverage.rows.some(row => row.subjectUserId === person)) return null;
+  return {
+    tab: "Team Reports" as const,
+    subject: person,
+    date: coverage.periodStart,
+    cadence: coverage.cadence,
+    rangeMode: "range" as const,
+    from: coverage.periodStart,
+    // Coverage periods end exclusively; the archive's through-date is inclusive.
+    to: addReportDays(coverage.periodEnd, -1),
+    reportStatus: "ALL",
+    query: ""
+  };
+}
 
 async function request<T>(query: URLSearchParams | Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const timeout = AbortSignal.timeout(20000);
@@ -185,6 +207,16 @@ export function ReportingConsole({ userId, userName, canReview, today, initialCo
       setRecordedDay(await request<Prepared>(new URLSearchParams({ view: "prepare", date, cadence, subject: person })));
     } catch (failure) { setError(errorMessage(failure)); } finally { setBusy(false); }
   }
+  async function openPersonHistory(person: string) {
+    if (!coverage || busy || loading) return;
+    const target = reportingCoverageHistoryTarget(coverage, person, canReview);
+    if (!target) return;
+    await navigate(() => {
+      setTab(target.tab); setSubject(target.subject); setDate(target.date); setCadence(target.cadence);
+      setRangeMode(target.rangeMode); setHistoryFrom(target.from); setHistoryTo(target.to);
+      setReportStatus(target.reportStatus); setQuery(target.query);
+    });
+  }
   async function openRevision(id: string) {
     setBusy(true); setError(""); setComment(""); setRecordedDay(null);
     try { setRevision(await request<Revision>(new URLSearchParams({ view: "revision", id }))); }
@@ -279,7 +311,7 @@ export function ReportingConsole({ userId, userName, canReview, today, initialCo
       </section>
     </> : null}
     {!loading && !revision && tab === "My Reports" ? <HistoryTable failed={Boolean(error)} onShowAll={() => void navigate(() => { setRangeMode("range"); setHistoryFrom(""); setHistoryTo(""); setReportStatus("ALL"); setQuery(""); setSubject(""); })} history={history} onOpen={openRevision} /> : null}
-    {!loading && !revision && tab === "Team Reports" ? <>{rangeMode === "day" && coverage ? <ReportingCoveragePanel coverage={coverage} reportStatus={reportStatus} busy={busy} onOpen={(person, revisionId) => void openPersonDay(person, revisionId)} /> : null}{reportStatus !== "NOT_SUBMITTED" ? <HistoryTable failed={Boolean(error)} onShowAll={() => void navigate(() => { setRangeMode("range"); setHistoryFrom(""); setHistoryTo(""); setReportStatus("ALL"); setQuery(""); })} history={history} onOpen={openRevision} team /> : null}{settings.calendarConfig ? <details><summary>Reporting calendar</summary><ReportingCalendarPanel calendar={settings.calendarConfig} today={today} /></details> : null}</> : null}
+    {!loading && !revision && tab === "Team Reports" ? <>{rangeMode === "day" && coverage ? <ReportingCoveragePanel coverage={coverage} reportStatus={reportStatus} busy={busy} onOpen={(person, revisionId) => void openPersonDay(person, revisionId)} onHistory={canReview ? person => void openPersonHistory(person) : undefined} /> : null}{reportStatus !== "NOT_SUBMITTED" ? <HistoryTable failed={Boolean(error)} onShowAll={() => void navigate(() => { setRangeMode("range"); setHistoryFrom(""); setHistoryTo(""); setReportStatus("ALL"); setQuery(""); })} history={history} onOpen={openRevision} team /> : null}{settings.calendarConfig ? <details><summary>Reporting calendar</summary><ReportingCalendarPanel calendar={settings.calendarConfig} today={today} /></details> : null}</> : null}
     {!loading && !revision && tab === "Library" && library ? <section><header className={styles.sectionHeader}><h2>Report library</h2><label className={styles.search}><Search size={16} /><input aria-label="Search report library" placeholder="Search reports" value={query} onChange={e => setQuery(e.target.value)} /></label></header><div className={styles.tableWrap}><table><thead><tr><th>Report</th><th>Area</th><th></th></tr></thead><tbody>{library.definitions.filter(item => `${item.title} ${item.area}`.toLowerCase().includes(query.toLowerCase())).map(item => <tr key={item.id}><td>{item.title}</td><td>{item.area}</td><td><button onClick={() => { setDefinition(item.id); setTab("Overview"); }} aria-label={`Open ${item.title}`}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></div>
       <h3>Saved views</h3>{library.views.length ? library.views.map(view => <div className={styles.toolbar} key={view.id}><button className={styles.savedView} onClick={() => { const filters = object(view.filters); setDefinition(view.definitionId as ReportDefinitionId); setDate(String(filters.date ?? today)); setCadence(String(filters.cadence ?? "DAILY") as ReportCadence); setLocation(String(filters.locationId ?? "")); setQuery(String(filters.query ?? "")); setMetric(typeof filters.metric === "string" ? filters.metric : null); setLoading(true); setTab("Overview"); }}><FileText size={16} /> {view.name}<ChevronRight size={16} /></button><button title={view.favorite ? "Remove favorite" : "Add favorite"} aria-label={`${view.favorite ? "Remove favorite" : "Favorite"} ${view.name}`} aria-pressed={view.favorite} disabled={busy} onClick={() => void favoriteView(view.id, !view.favorite, view.favoriteVersion)}><Star size={17} fill={view.favorite ? "currentColor" : "none"} /></button></div>) : <p className={styles.muted}>No saved views.</p>}
       <h3>Scheduled deliveries</h3>{library.schedules.length ? library.schedules.map(schedule => <div className={styles.schedule} key={schedule.id}><strong>{reportDefinitions.find(item => item.id === schedule.definitionId)?.title}</strong><span>{schedule.cadence.toLowerCase()} · {schedule.enabled ? "Active" : "Inactive"} · {schedule.timezone}</span><label><input type="checkbox" checked={schedule.enabled} disabled={busy} onChange={e => void toggleSchedule(schedule.id, e.target.checked, schedule.version)} /> Delivery enabled</label>{schedule.jobs.map(job => <span key={job.id}>{displayState(job.status)}{job.lastError ? ` · ${job.lastError}` : ""}{job.status === "SUCCEEDED" ? <button disabled={busy} onClick={() => void openFrozen("delivery", job.id)}>Open delivery</button> : null}</span>)}</div>) : <p className={styles.muted}>No scheduled deliveries.</p>}
