@@ -31,6 +31,8 @@ describe("Command Control Center shell", () => {
     expect(markup).toContain("Find workflow or tool");
     expect(markup).toContain("Workflow finder");
     expect(markup).toContain("Search by task or workflow, like workbook");
+    // Keyboard focus follows the visible action row before the navigation row.
+    expect(markup.indexOf("dispatch-console-header-actions")).toBeLessThan(markup.indexOf('aria-label="Dispatch console"'));
     expect(markup).not.toContain('href="/my-tasks"');
     expect(markup).not.toContain('href="/tasks"');
   });

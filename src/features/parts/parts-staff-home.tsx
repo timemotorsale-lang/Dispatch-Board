@@ -12,6 +12,7 @@ import {
   Truck
 } from "lucide-react";
 import Link from "next/link";
+import compact from "@/features/inventory/operations-compact.module.css";
 
 import type { getPartsOperationsWorkspace } from "@/server/parts-operations/service";
 import { buildPartsControlSnapshot } from "./parts-control-snapshot";
@@ -49,7 +50,7 @@ export function PartsStaffHome({ model }: { model: Model }) {
   ];
 
   return (
-    <section className="parts-staff-home">
+    <section className={`parts-staff-home ${compact.parts}`}>
       <header className="parts-staff-hero">
         <div>
           <p>Parts Workspace</p>

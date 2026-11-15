@@ -73,8 +73,8 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         return { previous, result: { purchaseApprovalRequired: required } };
       });
     },
-    commandReceipt(organizationId: string, commandType: string, idempotencyKey: string) {
-      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType, idempotencyKey } }, select: { expectedVersion: true } });
+    commandReceipt(organizationId: string, commandType: string, idempotencyKey: string, domain: EnterpriseCommandCommitInput["domain"] = "SHOP_OPERATIONS") {
+      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain, commandType, idempotencyKey } }, select: { expectedVersion: true } });
     },
     async aggregateVersion(organizationId: string, domain: "SHOP_OPERATIONS" | "PARTS_OPERATIONS", subjectType: string, subjectId: string) {
       const row = await database.enterpriseAggregateVersion.findUnique({ where: { organizationId_domain_subjectType_subjectId: { domain, organizationId, subjectId, subjectType } }, select: { version: true } });

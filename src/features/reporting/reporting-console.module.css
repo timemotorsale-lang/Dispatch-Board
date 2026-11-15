@@ -96,3 +96,43 @@
   .search { flex: 1; }
   .metrics { grid-template-columns: 1fr 1fr; }
 }
+
+/* Screen density is local to Reports; printed output is unaffected. */
+@media screen {
+  .console { min-width: 0; padding: 16px; font-size: 14px; line-height: 1.45; }
+  .console h1 { font-size: 24px; line-height: 1.2; }
+  .console h2 { font-size: 17px; }
+  .console h3 { margin-top: 18px; }
+  .header > *, .sectionHeader > *, .toolbar > * { min-width: 0; max-width: 100%; }
+  .header, .sectionHeader { gap: 10px; }
+  .tabs { margin-top: 12px; padding: 3px; scroll-padding-inline: 3px; }
+  .tabs button { min-height: 40px; }
+  .filters { gap: 10px; padding: 12px 0; margin-bottom: 14px; }
+  .filters fieldset { min-width: 0; flex-wrap: wrap; gap: 4px; }
+  .metrics { margin: 12px 0; }
+  .metrics button { min-height: 80px; padding: 10px 12px; }
+  .metrics strong, .coverage dd { font-variant-numeric: tabular-nums; font-size: 22px; }
+  .coverage { gap: 12px; margin: 10px 0; padding: 10px 0; }
+  .tableWrap { min-width: 0; max-width: 100%; margin: 10px 0 18px; overscroll-behavior-x: contain; }
+  .console th, .console td { padding: 9px 10px; }
+  .editor { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+  .console input:not([type="checkbox"]), .console select, .console textarea { min-width: 0; }
+  .header h1, .sectionHeader h2, .badge { overflow-wrap: anywhere; }
+  .dialog { min-width: 0; overflow-wrap: anywhere; }
+}
+
+@media screen and (max-width: 640px) {
+  .console { padding: 12px; }
+  .headerActions { width: 100%; }
+  .headerActions a { flex: 1 1 140px; }
+  .console button, .headerActions a,
+  .console input:not([type="checkbox"]), .console select { min-height: 44px; }
+  .filters label { max-width: none; }
+  .filters fieldset button { min-width: 0; flex: 1 1 72px; }
+  .editor { grid-template-columns: minmax(0, 1fr); }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolbar { align-items: stretch; }
+  .toolbar > * { flex: 1 1 140px; }
+  .backdrop { padding: 12px; }
+  .dialog { padding: 16px; gap: 12px; }
+}

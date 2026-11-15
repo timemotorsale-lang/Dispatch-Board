@@ -160,6 +160,14 @@
   .workspace .number { width: 94px; }
   .footer > div { flex-wrap: wrap; gap: 10px; }
 }
+@media screen and (max-width: 760px) {
+  .workspace :is(.priority, .owner, .due) { display: none; }
+  .mobileMeta { display: block; color: var(--muted); overflow-wrap: anywhere; }
+  .rowMeta { display: block; white-space: normal; overflow-wrap: anywhere; }
+  .descriptionCell { grid-template-columns: minmax(0, 1fr); }
+  .quickActions { justify-content: flex-start; }
+}
+
 @media (max-width: 540px) {
   .workspace .number { display: none; }
   .workspace .status { width: 92px; }

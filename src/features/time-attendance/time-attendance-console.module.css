@@ -27,10 +27,10 @@
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
   color: white;
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(410px, 0.56fr);
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.56fr);
   overflow: hidden;
-  padding: 18px 20px;
+  padding: 14px 16px;
   position: relative;
 }
 
@@ -49,7 +49,7 @@
 }
 
 .hero h1 {
-  font-size: clamp(1.8rem, 2.6vw, 2.4rem);
+  font-size: clamp(1.65rem, 2.6vw, 2.15rem);
   letter-spacing: -0.045em;
   line-height: 1.05;
   margin: 7px 0 10px;
@@ -2151,8 +2151,13 @@
 
 @media (max-width: 720px) {
   .hero {
-    border-radius: 10px;
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .heroActions > :is(a, button),
+  .mobileJumpRail a {
+    min-height: 44px;
+    align-content: center;
   }
 
   .heroMetrics {
@@ -2228,4 +2233,9 @@
   .teamNumbers {
     text-align: left;
   }
+}
+
+.hero :is(a, button):focus-visible {
+  outline: 2px solid #bfdbfe;
+  outline-offset: 2px;
 }

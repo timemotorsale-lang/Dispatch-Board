@@ -21,6 +21,8 @@ import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import styles from "./customer-console-home.module.css";
+
 import { useAppearance } from "@/components/layout/appearance";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { CrmModeSwitch } from "@/features/crm/crm-mode-switch";
@@ -128,7 +130,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
   }, []);
 
   return (
-    <section className="customer-console customer-home" data-theme={theme} aria-label="Customer Command Center">
+    <section className={`customer-console customer-home ${styles.home}`} data-theme={theme} aria-label="Customer Command Center">
       <header className="customer-console-toolbar customer-home-toolbar">
         {showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link customer-advisor-return" /> : null}
         <form className="customer-console-search" onSubmit={openSearch} role="search">

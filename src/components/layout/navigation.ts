@@ -246,8 +246,8 @@ export const dispatchNavigationItems: NavigationItem[] = [
   },
   {
     href: CRM_CUSTOMER_LANDING_HREF,
-    title: "Customers",
-    description: "Customer landing dashboard wired into Customer Console.",
+    title: "Customers & Vendors",
+    description: "Customer records and vendor workflows.",
     icon: ContactRound,
     parentHref: "/board",
     activePaths: ["/customers"]

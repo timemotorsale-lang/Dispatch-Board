@@ -5,8 +5,8 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/tasks/intake",
-  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/board",
+  useSearchParams: () => new URLSearchParams("view=live&date=2026-11-14"),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() })
 }));
 
@@ -38,5 +38,8 @@ describe("AppSidebar", () => {
     expect(markup).toContain("time-motor-sales-mark");
     expect(markup).toContain('aria-label="Expand navigation"');
     expect(markup).toContain('title="Time Motor Sales"');
+    expect(markup).toContain('aria-label="Dispatch Board"');
+    expect(markup).toMatch(/aria-current="page" aria-label="Dispatch Board"[^>]+href="\/board"/);
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
   });
 });

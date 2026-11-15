@@ -1,0 +1,98 @@
+.registry:global(.vendor-registry-shell) {
+  min-width: 0;
+  padding: 12px;
+  container-type: inline-size;
+}
+
+.registry :global(.vendor-registry-header) {
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.registry :global(.vendor-registry-header) h1 {
+  font-size: clamp(24px, 2.4vw, 30px);
+  line-height: 1.15;
+}
+
+.registry :global(.vendor-registry-header) p {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.registry :global(.vendor-secondary-link) {
+  white-space: normal;
+}
+
+.registry :global(.vendor-stat-grid) {
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.registry :global(.vendor-stat-grid) article {
+  padding: 10px;
+}
+
+.registry :global(.vendor-stat-grid) strong {
+  grid-column: 2;
+  font-size: 20px;
+}
+
+.registry :global(.vendor-registry-layout) {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 12px;
+}
+
+.registry :global(.vendor-filter-bar) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.registry :global(.vendor-filter-bar) label {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.registry :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.registry :global(.vendor-list-row) {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, .7fr) minmax(0, .8fr);
+  gap: 8px;
+  min-height: 58px;
+  padding: 8px 10px;
+}
+
+.registry :global(.vendor-list-row) > *,
+.registry :global(.vendor-stat-grid) article {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.registry :is(a, button, input, select, textarea):focus-visible,
+.registry :global(.vendor-filter-bar) label:focus-within {
+  outline: 2px solid #315bd7;
+  outline-offset: 2px;
+}
+
+@container (max-width: 1000px) {
+  .registry :global(.vendor-registry-layout) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 640px) {
+  .registry :global(.vendor-stat-grid),
+  .registry :global(.vendor-two-column),
+  .registry :global(.vendor-filter-bar),
+  .registry :global(.vendor-list-row) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .registry :global(.vendor-list-row) em {
+    justify-self: start;
+  }
+}

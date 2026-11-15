@@ -51,3 +51,29 @@
   border:1px solid #6c493d!important;
   color:#fed7aa!important;
 }
+
+/* Compact workspace resilience without changing queue content or destinations. */
+.home { min-width: 0; padding: 14px; }
+.hero { gap: 12px; flex-wrap: wrap; }
+.hero h1 { font-size: clamp(24px, 2.3vw, 28px); }
+.heroActions { flex-wrap: wrap; }
+.heroActions a { min-width: 0; padding: 8px 12px; }
+.search { grid-template-columns: auto minmax(0, 1fr) auto; }
+.search input { min-width: 0; }
+.search:focus-within { outline: 2px solid var(--accent, #1467d5); outline-offset: 2px; }
+.vehicle, .issue, .metrics span { min-width: 0; overflow-wrap: anywhere; }
+.issue>span, .dataState, .safeguard { flex-wrap: wrap; }
+@media (max-width: 520px) {
+  .home { padding: 10px; }
+  .search { grid-template-columns: auto minmax(0, 1fr); }
+  .queue>header, .lifecycle>header, .volumeSignals>header { flex-wrap: wrap; }
+}
+
+/* Prevent intrinsic queue/navigation widths from widening the page grid. */
+.home { grid-template-columns: minmax(0, 1fr); }
+.home>*, .mainGrid>*, .hero>div { min-width: 0; }
+.tools>summary>span { min-width: 0; }
+.tools>summary small { overflow-wrap: anywhere; }
+@media (max-width: 1200px) {
+  .mainGrid, .highVolume .mainGrid { grid-template-columns: minmax(0, 1fr); }
+}

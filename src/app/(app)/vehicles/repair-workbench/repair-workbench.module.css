@@ -13,8 +13,8 @@
 .hero h1 {
   margin: 0;
   color: #172033;
-  font-size: clamp(2.2rem, 4.2vw, 4rem);
-  line-height: 0.98;
+  font-size: clamp(1.5rem, 2.3vw, 2rem);
+  line-height: 1.15;
   letter-spacing: -0.04em;
 }
 
@@ -124,7 +124,7 @@
 
 .orderListHeader {
   display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(140px, 0.55fr) minmax(260px, 1.5fr) 92px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.55fr) minmax(0, 1.5fr) 92px;
   gap: 14px;
   padding: 9px 12px;
   color: #63758d;
@@ -137,7 +137,7 @@
 
 .order {
   display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(140px, 0.55fr) minmax(260px, 1.5fr) 92px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.55fr) minmax(0, 1.5fr) 92px;
   align-items: center;
   gap: 14px;
   min-width: 0;
@@ -258,7 +258,7 @@
   }
 
   .orderListHeader,
-  .order { grid-template-columns: minmax(190px, 1fr) minmax(120px, .55fr) minmax(190px, 1.2fr) 82px; }
+  .order { grid-template-columns: minmax(0, 1fr) minmax(0, .55fr) minmax(0, 1.2fr) 82px; }
 }
 
 @media (max-width: 720px) {
@@ -325,4 +325,14 @@
   background: #4f6df5;
   border-color: #72a7ff;
   color: #fff;
+}
+
+/* Keep identity and repair concerns readable at narrow widths and zoom. */
+.directory { min-width: 0; }
+.searchField, .searchField input { min-width: 0; }
+.orderIdentity strong, .orderIdentity small, .orderMeta b, .orderMeta small,
+.orderConcern b, .orderConcern small { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  .order { grid-template-columns: minmax(0, 1fr); }
+  .orderMeta { grid-column: 1; grid-row: auto; justify-items: start; }
 }

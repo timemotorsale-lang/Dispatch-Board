@@ -3327,3 +3327,51 @@
   border-color: #d6e0ec;
   color: #7a8aa0;
 }
+
+/* Compact operating surfaces; document and print layouts keep their own rules. */
+@media screen {
+  .console { min-width: 0; line-height: 1.4; }
+  .console .intentHero { padding: 14px 16px; box-shadow: none; }
+  .console .intentHero h1 { margin: 6px 0; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.15; }
+  .console .intentHero p { font-size: 14px; line-height: 1.5; }
+  .console .intentHero > strong { margin-top: 10px; padding: 6px 10px; }
+  .console .intentGrid button,
+  .console .intentGrid a { min-height: 112px; padding: 12px; gap: 6px; box-shadow: none; }
+  .console .intentGrid strong { font-size: 16px; }
+  .intentSummary, .intentFacts, .intentSteps, .intentGuardrail { padding: 12px; min-width: 0; }
+  .console .queueStats button { padding: 9px 11px; box-shadow: none; }
+  .sectionHeader { flex-wrap: wrap; }
+  .sectionHeader > *, .topbar > *, .filters > * { min-width: 0; max-width: 100%; }
+  .intentGrid > *, .executionFacts > *, .revenueDeskHero > * { min-width: 0; overflow-wrap: anywhere; }
+  .console .revenueDeskHero > strong { overflow: visible; overflow-wrap: anywhere; }
+  .console .tableHead, .console .tableRow { min-width: 1100px; }
+  .console .tableHead > span, .console .tableRow > span { min-width: 0; overflow-wrap: anywhere; }
+  .console :is(button, a, input, select, textarea, summary):focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+  }
+  .consoleLight :is(button, a, input, select, textarea, summary):focus-visible { outline-color: #1d4ed8; }
+}
+
+@media screen and (max-width: 1180px) {
+  /* Keep every queue column and action reachable in the existing scroll region. */
+  .console .tableHead span:nth-child(n+5), .console .tableRow span:nth-child(n+5) { display: block; }
+  .console .tableHead, .console .tableRow {
+    grid-template-columns: 38px minmax(220px, 1.45fr) minmax(88px, .58fr) minmax(84px, .52fr) minmax(72px, .42fr) minmax(118px, .72fr) minmax(190px, 1.08fr) minmax(118px, .62fr);
+  }
+  .nav { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+}
+
+@media screen and (max-width: 760px) {
+  .topbar { padding: 10px; gap: 8px; }
+  .sectionHeader { padding: 0; }
+  .search { flex: auto; width: 100%; max-width: none; }
+  .filters { flex-wrap: wrap; }
+  .filters select { width: 100%; }
+  .integrationStrip a { white-space: normal; flex-wrap: wrap; }
+  .sourceCheckCue { white-space: normal; }
+  .console .nav button, .topbarReturnLink, .roleSelect,
+  .console .filters button, .console .filters select { min-height: 44px; }
+  .console .intentGrid button, .console .intentGrid a { min-height: 0; }
+  .console .intentHero { padding: 12px; }
+}

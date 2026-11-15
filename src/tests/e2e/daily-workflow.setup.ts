@@ -14,7 +14,9 @@ type ScheduledAppointmentFixtureInput = {
 };
 
 export async function resetDailyWorkflowState() {
-  execFileSync("cmd.exe", ["/c", "npx", "prisma", "migrate", "deploy"], {
+  const schema = new URL(process.env.DATABASE_URL!).searchParams.get("schema");
+  if (!schema?.startsWith("dispatch_board_e2e_")) throw new Error("Workflow fixtures require an isolated e2e schema.");
+  execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "migrate", "deploy"], {
     cwd: process.cwd(),
     stdio: "inherit"
   });
@@ -40,7 +42,7 @@ export async function resetDailyWorkflowState() {
   await prisma.boardDay.deleteMany();
   await prisma.session.deleteMany();
 
-  execFileSync("cmd.exe", ["/c", "npm", "run", "db:seed"], {
+  execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "prisma/seed.ts"], {
     cwd: process.cwd(),
     stdio: "inherit"
   });

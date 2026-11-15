@@ -1,7 +1,7 @@
 .header:global(.ccc-topbar) {
   flex-wrap: wrap;
   gap: 8px;
-  padding-block: 10px;
+  padding-block: 6px;
 }
 
 .header > :global(.ccc-topbar-brand),
@@ -20,7 +20,8 @@
 
 .header > :global(.topbar-actions) {
   flex: 0 0 auto;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 6px;
   max-width: 100%;
 }
 
@@ -61,5 +62,65 @@
     min-height: 44px;
     box-sizing: border-box;
     padding: 8px 12px;
+  }
+}
+
+/* Keep appearance, search, notifications and identity together as one unit. */
+.header :global(.topbar-actions) > * {
+  flex-shrink: 0;
+}
+
+.header :global(.ccc-search-shell) {
+  flex: 0 0 auto;
+  width: 36px;
+  max-width: none;
+}
+
+.header :global(.ccc-search-trigger) {
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 6px;
+}
+
+.header :global(.ccc-search-trigger) :is(span, kbd) {
+  display: none;
+}
+
+.header :global(.topbar-profile) {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.header :global(.topbar-profile) > :global(.user-avatar) {
+  display: grid;
+  flex: 0 0 32px;
+  min-width: 32px;
+}
+
+@media (max-width: 640px) {
+  .header :global(.topbar-actions) {
+    gap: 4px;
+  }
+
+  .header :global(.ccc-search-shell),
+  .header :global(.ccc-search-trigger) {
+    width: 44px;
+  }
+
+  .header :global(.ccc-search-trigger),
+  .header :global(.topbar-notifications) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .header :global(.topbar-popover-shell) {
+    position: static;
+  }
+
+  .header :global(.topbar-popover) {
+    right: 8px;
+    max-width: calc(100vw - 16px);
   }
 }

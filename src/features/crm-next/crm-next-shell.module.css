@@ -276,21 +276,24 @@
   max-width: 1540px;
   min-width: 0;
   overflow-x: hidden;
-  padding: 18px 26px 34px;
+  padding: 12px 16px 24px;
+  container-type: inline-size;
   width: 100%;
 }
 
 .topbar {
   align-items: center;
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(260px, 1fr) auto;
-  margin-bottom: 16px;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 10px;
 }
 
 .topbar .topActions {
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 8px;
 }
 
 .topbar .secondaryButton {
@@ -499,7 +502,7 @@
   grid-template-columns: 1fr;
   margin-bottom: 10px;
   overflow: hidden;
-  padding: 16px 20px 16px 24px;
+  padding: 12px 16px 12px 20px;
   position: relative;
 }
 
@@ -555,7 +558,7 @@
   gap: 14px;
   grid-template-columns: minmax(0, 1fr) auto;
   margin-bottom: 12px;
-  padding: 16px 20px;
+  padding: 12px 16px;
 }
 
 .compactHero h1 {
@@ -1345,6 +1348,8 @@
 
 .enterprisePanel {
   align-self: stretch;
+  min-width: 0;
+  container: recommendation-panel / inline-size;
 }
 
 .enterpriseActionList,
@@ -1493,6 +1498,22 @@
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.card > header {
+  flex-wrap: wrap;
+}
+
+.card > header > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.card > header > .pill {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .card h2,
@@ -8221,4 +8242,111 @@
 .completionGateList button:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 3px;
+}
+
+/* Header controls respond to the content width remaining beside both sidebars. */
+.topbar .search {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.topbar .governance {
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  padding: 6px 10px;
+}
+
+.hero h1 {
+  font-size: clamp(24px, 2vw, 32px);
+  line-height: 1.15;
+}
+
+.compactHero h1 {
+  font-size: clamp(24px, 2vw, 30px);
+  line-height: 1.15;
+}
+
+.hero .quickActions {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.hero .quickActions :is(a, button) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.topbar :is(a, button, input):focus-visible,
+.hero .quickActions :is(a, button):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@container (max-width: 900px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topbar .search {
+    max-width: none;
+  }
+
+  .topbar .topActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@container (max-width: 480px) {
+  .topbar .secondaryButton,
+  .topbar .governance {
+    white-space: normal;
+  }
+
+  .topbar .secondaryButton,
+  .hero .quickActions :is(a, button) {
+    min-height: 44px;
+  }
+}
+
+/* Operating intelligence must not squeeze counts or recommendation text. */
+.enterpriseSurfaceGrid > .card > header > div {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.enterpriseSurfaceGrid > .card > header > .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+@container (max-width: 900px) {
+  .enterpriseSurfaceGrid,
+  .dashboardGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboardGrid > .wide {
+    grid-column: auto;
+  }
+}
+
+@container recommendation-panel (max-width: 520px) {
+  .enterpriseActionRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .enterpriseActionRow b {
+    justify-self: start;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 }

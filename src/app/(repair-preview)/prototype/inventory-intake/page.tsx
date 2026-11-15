@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CompactInventoryIntake } from "@/features/prototype/inventory-intake/compact-inventory-intake";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getCompactIntake } from "@/server/inventory-unit/compact-intake-service";
@@ -10,7 +11,7 @@ export default async function CompactInventoryIntakePage({ searchParams }: { sea
   const user = await requireCurrentUser(`/prototype/inventory-intake${vehicleId ? `?${new URLSearchParams({ vehicleId })}` : ""}`);
   const data = await getCompactIntake(user, { vehicleId }).catch(() => null);
   if (!data) {
-    return <main><h1>Vehicle intake unavailable</h1><p role="alert">Check acquisition-intake access and the selected vehicle, then retry. Nothing was changed.</p><a href="/vehicles/repair-orders?intakeSource=INVENTORY_RECON">Return to check-in</a></main>;
+    return <main><h1>Vehicle intake unavailable</h1><p role="alert">Check acquisition-intake access and the selected vehicle, then retry. Nothing was changed.</p><Link href="/vehicles/repair-orders?intakeSource=INVENTORY_RECON">Return to check-in</Link></main>;
   }
   const users = [...data.options.users].sort((first, second) => Number(second.id === user.id) - Number(first.id === user.id));
   return <CompactInventoryIntake reviewWorkbench={params.reviewWorkbench === "1"} advisor={params.advisor === "1"} initialVin={typeof params.vin === "string" ? params.vin.trim().toUpperCase().slice(0, 17) : ""} context={data.intake ?? undefined} options={{ locations: data.options.locations, users }} key={vehicleId ?? "new"} />;

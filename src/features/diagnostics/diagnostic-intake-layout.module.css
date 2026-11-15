@@ -521,3 +521,19 @@
     margin-left: 14px;
   }
 }
+
+@media screen {
+  .liveDiagnosticReport>header, .liveDiagnosticReport>footer,
+  .reportHeader { flex-wrap: wrap; gap: 12px; padding: 12px 14px; }
+  .reportHeader h2 { font-size: 1.35rem; }
+  .liveDiagnosticReport header>div, .reportHeader>div { min-width: 0; }
+  .liveDiagnosticReport header>b, .reportHeader>strong { max-width: 100%; overflow-wrap: anywhere; }
+  .liveReportGrid { padding-inline: 14px; }
+  .liveReportGrid article { padding-block: 10px; }
+  .liveReportGrid strong, .liveReportGrid small,
+  .reportHeader p, .handoffPreview article small {
+    overflow-wrap: anywhere; white-space: normal;
+  }
+  .liveReportGrid article strong { white-space: pre-wrap; }
+  .liveDiagnosticReport>footer button { max-width: 100%; white-space: normal; }
+}
