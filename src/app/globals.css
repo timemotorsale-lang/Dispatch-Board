@@ -33200,3 +33200,15 @@ html[data-app-theme="dark"] .app-content :where(
     right: auto;
   }
 }
+
+.repair-frontline-preview .frontline-item-copy strong,
+.repair-frontline-preview .frontline-item-copy small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.repair-frontline-preview .frontline-checklist-section article {
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 35%);
+}
+@media (max-width: 700px) {
+  .repair-frontline-preview .frontline-checklist-section article { grid-template-columns: 1fr; }
+}

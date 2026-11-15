@@ -46,6 +46,18 @@ const model = {
 };
 
 describe("QualityControlWorkspace", () => {
+  it("routes diagnostic-heavy jobs to detailed QC for peer verification", () => {
+    const order = model.repairOrders[0];
+    const job = { ...order.repairJobs[0], lane: "DIAGNOSTIC_HEAVY" };
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={{ ...model, repairOrders: [{ ...order, repairJobs: [job] }] }} />);
+
+    expect(html).toContain('href="#qc-review"');
+    expect(html).toContain("Open detailed QC to record peer verification");
+    expect(html).toContain("Peer verification passed");
+    expect(html).not.toContain("Save &amp; open Final QC");
+    expect(html).not.toContain("QC failed — return for correction");
+  });
+
   it("renders a compact direct-to-work QC inspector workspace", () => {
     const html = renderToStaticMarkup(<QualityControlWorkspace initial={model} />);
 

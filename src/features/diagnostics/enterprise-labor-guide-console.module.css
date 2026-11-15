@@ -2109,3 +2109,27 @@
   .compactContext button { margin: 8px 12px; }
   .evidenceUploader, .areaRuleGrid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* A worksheet can be narrow inside the three-column Explorer even on desktop. */
+.explorerReview {
+  container: estimate-review / inline-size;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+}
+
+.explorerReview input[type="checkbox"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+}
+
+.lookupFeedback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lookupFeedback p { margin: 0; }
+
+.repairActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 12px; }
+.repairActions a { display: inline-flex; align-items: center; min-height: 36px; }
+.repairActions span { flex-basis: 100%; }
+@media screen and (max-width: 600px) { .repairActions a { min-height: 44px; } }

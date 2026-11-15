@@ -23,6 +23,21 @@ describe("billing outcome and retry boundary", () => {
     mocks.execute.mockRejectedValue(new Error("Payment exceeds the open balance"));
     expect((await POST(request(), context)).status).toBe(400);
   });
+  it.each([["23505", 409], ["23514", 400], ["23503", 409]])("returns an actionable rejection for rolled-back raw SQL %s", async (sqlCode, status) => {
+    const error = Object.assign(new Error("private database constraint details"), { name: "PrismaClientKnownRequestError", code: "P2010", meta: { code: sqlCode } });
+    mocks.execute.mockRejectedValue(error);
+    const response = await POST(request(), context);
+    expect(response.status).toBe(status);
+    const body = await response.json();
+    expect(body.error).not.toMatch(/private|uncertain|unchanged request/);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+  it("keeps unclassified raw SQL failures uncertain", async () => {
+    mocks.execute.mockRejectedValue(Object.assign(new Error("private details"), { name: "PrismaClientKnownRequestError", code: "P2010", meta: { code: "08006" } }));
+    const response = await POST(request(), context);
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain("unchanged request");
+  });
   it("never caches successful financial receipts", async () => {
     mocks.execute.mockResolvedValue({ duplicate: true, result: { entryId: "original" } });
     const response = await POST(request(), context);

@@ -156,6 +156,33 @@ export function normalizeDiscrepancyResolution(value: unknown) {
   return { ...base(raw), occurredAt: date(raw.occurredAt, "Resolution time"), resolution: required(raw.resolution, "Resolution", 1000) };
 }
 
+export function normalizeReceivedPartOutcome(value: unknown) {
+  const raw = object(value);
+  const outcome = required(raw.outcome, "Received part outcome", 20);
+  if (outcome !== "USED" && outcome !== "RETURN") throw new Error("Received part outcome must be USED or RETURN.");
+  if (typeof raw.lineIndex !== "number") throw new Error("Receipt line index must be a whole number.");
+  const input = {
+    idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200),
+    repairOrderId: required(raw.repairOrderId, "Repair order ID", 100),
+    receiptId: required(raw.receiptId, "Receipt ID", 100),
+    lineIndex: integer(raw.lineIndex, "Receipt line index"),
+    quantity: integer(raw.quantity, "Quantity", 1),
+    occurredAt: date(raw.occurredAt, "Outcome time"),
+  };
+  if (outcome === "USED") {
+    const evidence = strings(raw.evidence, "Installation evidence");
+    if (!evidence.length) throw new Error("Installation evidence is required.");
+    return { ...input, outcome, repairJobId: required(raw.repairJobId, "Repair job ID", 100), evidence, reason: "Record verified installation of received repair parts." } as const;
+  }
+  const reason = required(raw.returnReason, "Return reason", 500);
+  if (reason.length < 10) throw new Error("Return reason must be at least 10 characters.");
+  const deadlineAt = date(raw.deadlineAt, "Return deadline");
+  if (deadlineAt < input.occurredAt) throw new Error("Return deadline cannot precede the outcome time.");
+  return { ...input, outcome, deadlineAt, reason } as const;
+}
+
+export type ReceivedPartOutcome = ReturnType<typeof normalizeReceivedPartOutcome>;
+
 export function normalizeCustody(value: unknown) {
   const raw = object(value), type = required(raw.type, "Custody type", 40).toUpperCase();
   if (!["ISSUE", "INSTALL", "UNUSED_RETURN", "VENDOR_SHIP"].includes(type)) throw new Error("Direct custody type is invalid.");
@@ -209,4 +236,18 @@ export function assertIndependentPartsApproval(
   if (preparedByUserId !== actorUserId || options.allowFinalAuthoritySelfApproval) return;
   const labels = { PURCHASE_APPROVAL: "Purchase order approval", TRANSFER_RELEASE: "Transfer release", RECOVERY_WRITE_OFF: "Recovery write-off" } as const;
   throw new Error(`${labels[action]} requires a different authorized user than the preparer.`);
+}
+
+export function receiptLineConsumedQuantities(events: { sourceId: string; quantity: number }[]) {
+  const consumedBySource = new Map<string, number>();
+  for (const event of events) {
+    // Older issue and install events can both describe the same source.
+    consumedBySource.set(event.sourceId, Math.max(consumedBySource.get(event.sourceId) ?? 0, event.quantity));
+  }
+  const consumedByLine = new Map<string, number>();
+  for (const [sourceId, quantity] of consumedBySource) {
+    const match = /^([^:]+:\d+)(?::[^:]+)?$/.exec(sourceId);
+    if (match) consumedByLine.set(match[1], (consumedByLine.get(match[1]) ?? 0) + quantity);
+  }
+  return consumedByLine;
 }

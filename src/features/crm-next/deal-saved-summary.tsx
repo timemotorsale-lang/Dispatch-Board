@@ -21,6 +21,7 @@ export function DealSavedSummary({ record, dirty, busy, viewer, viewerId, onNavi
   const [remote, setRemote] = useState<{ operations: DealOperationsView | null; jacket: SalesDocumentJacketView | null; error: string; loading: boolean }>({operations:null,jacket:null,error:"",loading:true});
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
+    if (record.pathway === "repairs") return;
     const controller = new AbortController();
     const load = async () => {
       try {
@@ -42,7 +43,7 @@ export function DealSavedSummary({ record, dirty, busy, viewer, viewerId, onNavi
     };
     void load();
     return () => controller.abort();
-  }, [record.id,record.revision,refresh]);
+  }, [record.id,record.pathway,record.revision,refresh]);
   useEffect(()=>{ const focus=()=>setRefresh(value=>value+1);window.addEventListener("focus",focus);return()=>window.removeEventListener("focus",focus); },[]);
   const { operations, jacket } = remote;
   const jacketId = operations?.jacketId || summary.jacketId;
@@ -54,6 +55,24 @@ export function DealSavedSummary({ record, dirty, busy, viewer, viewerId, onNavi
   const pendingTasks = operations?.tasks?.filter(task=>!["COMPLETED","CANCELLED"].includes(task.status)) ?? [];
   const guarded = dirty || busy || inactive;
   const missingIdentity = !summary.customerLinked || !summary.vehicleLinked;
+  if (record.pathway === "repairs") return <section className={styles.savedSummary} aria-label="Saved repair deal summary">
+    <div className={styles.summaryMeta}>
+      <div><strong>{formatDealNumber(record.dealNumber) ? `Deal #${formatDealNumber(record.dealNumber)}` : "Saved repair deal"}</strong>
+        <span>Revision {record.revision} · {timestamp(record.updatedAt)}</span></div>
+      <button type="button" disabled={busy} onClick={onSaveAndClose}>Save &amp; close</button>
+    </div>
+    {dirty && <p role="status">Unsaved changes. These details reflect the last saved version.</p>}
+    <p>{summary.customer} · {summary.vehicle || "Vehicle not assigned"}</p>
+    {summary.note && <p className={styles.savedNote}>{summary.note}</p>}
+    <div className={styles.actions}>
+      {!inactive && record.status !== "COMPLETED" && <button type="button" disabled={busy} onClick={() => onNavigate(missingIdentity ? "identity" : "terms")}>
+        {missingIdentity ? "Choose customer & vehicle" : "Open repair concern"}
+      </button>}
+      <button type="button" onClick={() => onNavigate("documents")}>Find repair documents</button>
+      <button type="button" onClick={() => onNavigate("activity")}>Activity &amp; follow-up</button>
+      {jacketId && <Link href={`/sales-documents?jacketId=${encodeURIComponent(jacketId)}`}>Open existing deal packet</Link>}
+    </div>
+  </section>;
   return <section className={styles.savedSummary} aria-label="Saved deal summary">
     <div className={styles.summaryMeta}><div><strong>{formatDealNumber(record.dealNumber) ? `Deal #${formatDealNumber(record.dealNumber)}` : "Saved deal"}</strong><span>Revision {record.revision} · {timestamp(record.updatedAt)}</span></div><button type="button" disabled={busy} onClick={onSaveAndClose}>Save &amp; close</button></div>
     {dirty && <p className={styles.summaryNotice} role="status">There are unsaved changes. These figures show the last saved version. Use Save &amp; review before preparing paperwork.</p>}

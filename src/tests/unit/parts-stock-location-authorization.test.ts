@@ -12,7 +12,8 @@ const request = { locationId: "store-a", code: "RECEIVING", name: "Receiving", t
 function fixture(grants: VehicleCapabilityGrantRecord[] = [grant], enabledStore = "store-a") {
   const flags = ["VEHICLE_OPERATIONS_MASTER", "PARTS_OPERATIONS"].map(code => ({ id: code, organizationId: "org", code, mode: "GENERAL", locationId: enabledStore, rolloutPercent: 100, allowedUserIds: [], targetAt: null, version: 1, updatedAt: new Date(0) })) as VehicleFeatureFlagRecord[];
   const createLocation = vi.fn().mockResolvedValue({ result: { id: "stock" } });
-  return { createLocation, dependencies: { organizationId: "org", repository: { createLocation } as unknown as PartsLedgerRepository, foundationRepository: { listCapabilityGrants: vi.fn().mockResolvedValue(grants), listFeatureFlags: vi.fn().mockResolvedValue(flags) } as unknown as EnterpriseCommandRepository } };
+  const commandReceipt = vi.fn().mockResolvedValue(null);
+  return { createLocation, dependencies: { organizationId: "org", repository: { commandReceipt, createLocation } as unknown as PartsLedgerRepository, foundationRepository: { listCapabilityGrants: vi.fn().mockResolvedValue(grants), listFeatureFlags: vi.fn().mockResolvedValue(flags) } as unknown as EnterpriseCommandRepository } };
 }
 describe("stock location service authorization", () => {
   it("permits an explicit same-store grant with store-scoped rollout enabled", async () => {

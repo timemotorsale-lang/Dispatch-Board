@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { workspaceDraftNeedsNavigationSave } from "@/features/diagnostics/use-workspace-draft";
 import { diagnosticDraftPayload } from "@/lib/diagnostic-draft";
 import { emptyClinicalForm } from "@/lib/diagnostic-clinical-draft";
 
@@ -23,4 +24,12 @@ describe("diagnostic draft validation", () => {
     const attempt = { fingerprint: "stable", body: { expectedVersion: 4, idempotencyKey: "same-request" } };
     expect(diagnosticDraftPayload({ ...draft(), attempt }).attempt).toEqual(attempt);
   });
+});
+
+it("skips navigation saves for an unchanged archive copy and saves after an edit", () => {
+  const restored = draft();
+  const baseline = JSON.stringify(restored);
+  expect(workspaceDraftNeedsNavigationSave(structuredClone(restored), baseline)).toBe(false);
+  expect(workspaceDraftNeedsNavigationSave({ ...restored, manual: { ...restored.manual, concern: "Updated concern" } }, baseline)).toBe(true);
+  expect(workspaceDraftNeedsNavigationSave(restored, null)).toBe(true);
 });

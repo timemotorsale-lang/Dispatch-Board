@@ -1,11 +1,54 @@
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
-import { EnterpriseLaborGuideConsole } from "@/features/diagnostics/enterprise-labor-guide-console";
+import { initialEstimatePricing } from "@/lib/labor-guide-controls";
+import { ConnectedRepairCatalog } from "@/features/diagnostics/connected-repair-catalog";
+import { GuidedEstimate } from "@/features/diagnostics/guided-estimate";
+import { emptyManualLaborReview } from "@/lib/estimate-review";
+import { EnterpriseLaborGuideConsole, estimatePresentationError, laborLineForEstimatePart, repairExplorerDraftHref } from "@/features/diagnostics/enterprise-labor-guide-console";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
 import { flattenLaborOperationTaxonomy, LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 
 describe("enterprise labor guide console", () => {
+  it("keeps catalog controls in Find and gives Review only the worksheet and estimate summary", () => {
+    const props = { vehicle: "Known vehicle", concern: "", selected: [], laborRate: 150, onSelect: () => undefined, onReview: () => undefined };
+    const slots = { onFind: () => undefined, review: <div>Worksheet contents</div>, context: null, sidebar: <div>Estimate summary</div>, toolbar: null };
+    const find = renderToStaticMarkup(<ConnectedRepairCatalog {...props} explorer={{ ...slots, reviewOpen: false }} />);
+    expect(find).toContain('aria-label="Search connected repairs"');
+    expect(find).toContain('aria-label="Connected vehicle systems"');
+    expect(find).toContain("Estimate summary");
+    expect(find).not.toContain("Worksheet contents");
+    const review = renderToStaticMarkup(<ConnectedRepairCatalog {...props} explorer={{ ...slots, reviewOpen: true }} />);
+    expect(review).toContain("reviewColumns");
+    expect(review).toContain("Worksheet contents");
+    expect(review).toContain("Estimate summary");
+    expect(review).toContain("Find repair");
+    expect(review).not.toContain('aria-label="Search connected repairs"');
+    expect(review).not.toContain('aria-label="Connected vehicle systems"');
+  });
+
+  it("shows My work once and keeps a distinct source link", () => {
+    const props = { presentation: "explorer" as const, activeRepairOrder: null, catalog: [], laborAddOns: [], repairTaxonomy: LABOR_OPERATION_TAXONOMY };
+    const fallback = renderToStaticMarkup(<EnterpriseLaborGuideConsole {...props} returnTo="/my-tasks" returnLabel="My work" />);
+    expect(fallback.match(/href="\/my-tasks"/g)).toHaveLength(1);
+    const distinct = renderToStaticMarkup(<EnterpriseLaborGuideConsole {...props} returnTo="/crm-next/deals" returnLabel="Back to deal" />);
+    expect(distinct).toContain('href="/crm-next/deals">Back to deal');
+  });
+
+  it("uses the full visual catalog, actual identity and reconciled estimate sidebar in Explorer presentation", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole presentation="explorer" activeRepairOrder={{
+      id: "ro-saved", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-SAVED", concern: "Brake noise", customer: "Real Customer",
+      vehicle: { id: "saved-vehicle", label: "Actual Civic", vin: "VALID-VIN" },
+    }} catalog={[]} initialSelectedWork="starter" laborAddOns={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    for (const text of ["<h1>Find the work. Build the estimate.</h1>", "Vehicle systems", "Find it visually", "Review estimate", 'aria-label="Estimate"', "Real Customer", "Actual Civic", "VALID-VIN", "RO-SAVED", "Other charges &amp; supplies", "Discount", "Tax", "Estimate total", "Save quote"]) {
+      expect(markup).toContain(text);
+    }
+    expect(markup).not.toContain("Diagnostic vehicle workspace");
+    expect(markup).not.toContain("Sample estimate");
+    expect(markup).not.toContain("Review ten-system expansion");
+    expect(markup).toContain('href="/vehicles/service-billing?repairOrderId=ro-saved">Billing &amp; receipts');
+  });
+
   it("opens the strongest exact-name group before loose front/left matches in another system", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={[]} initialQuery="front left complete loaded strut" laborAddOns={LABOR_OPERATION_ADD_ONS} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
     expect(markup).toContain("<strong>Replace front left complete loaded strut</strong>");
@@ -15,6 +58,8 @@ describe("enterprise labor guide console", () => {
   it("renders the unified estimate worksheet with catalog tools and a live repair-order workbench link", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
+    expect(markup).toContain("Find saved repair work");
+    expect(markup).toContain("Results open in a new tab so you can keep working here.");
     expect(markup).toContain("Diagnostic vehicle workspace");
     expect(markup).toContain("Search customer, phone, VIN, plate, vehicle, or RO number");
     expect(markup).toContain("RO-3411");
@@ -87,12 +132,47 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Add vehicle (new tab)");
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain("without leaving this estimate");
-    expect(markup).toContain("Generate / Print Estimate");
-    expect(markup).toContain("Select a vehicle.");
+    expect(markup).toContain(">Link repair order</button>");
+    expect(markup).not.toContain("Generate / Print Estimate");
+    expect(markup).toContain("Link an open repair order to issue the estimate.");
+    expect(markup).toContain('aria-label="Find an open repair order"');
+    expect(markup).toContain("Check in vehicle in a new tab");
+    expect(markup).not.toContain("Preview / Print Preliminary Quote");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");
     expect(markup).not.toContain("Mark manually reviewed");
     expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide");
+  });
+
+  it("offers a separate preliminary print preview for unlinked proposed work", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    expect(markup).toContain(">Preview / Print Preliminary Quote</button>");
+    expect(markup).not.toContain('href="/repair-estimate?');
+    expect(markup).not.toContain("/vehicles/service-billing?repairOrderId=");
+  });
+
+  it("keeps an invalid tax rate visible without crashing the unlinked worksheet", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={[]} initialPricing={{ ...initialEstimatePricing, taxRatePercent: 31 }} laborAddOns={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    expect(markup).toContain("Enter a tax rate between 0% and 30%.");
+    expect(markup).toContain("Pending tax rate");
+    expect(markup).not.toContain("/vehicles/service-billing?repairOrderId=");
+  });
+
+  it("keeps standalone parts billable without a fabricated labor reference", () => {
+    const labor = [{ id: "catalog-inspection", rowId: "selected-inspection" }];
+    expect(laborLineForEstimatePart("manual", labor)).toBeUndefined();
+    expect(laborLineForEstimatePart("removed-labor", labor)).toBeUndefined();
+    expect(laborLineForEstimatePart("catalog-inspection", labor)).toBe("labor-selected-inspection");
+  });
+
+  it("builds the return route with the newly saved draft ID and retained source context", () => {
+    const href = repairExplorerDraftHref({ savedId: "just-saved-id", repairOrderId: "ro-9", reviewWorkflow: true, returnTo: "/crm-next/deals?view=saved", returnLabel: "Back to deal" });
+    const url = new URL(href, "https://example.test");
+    expect(url.pathname).toBe("/prototype/repair-explorer");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      draftId: "just-saved-id", repairOrderId: "ro-9", workflow: "review",
+      returnTo: "/crm-next/deals?view=saved", returnLabel: "Back to deal",
+    });
   });
 
   it("renders a working labor intelligence description input", () => {
@@ -175,4 +255,29 @@ describe("enterprise labor guide console", () => {
     expect(operations.find(operation => operation.id === "transmission-remove-install")!.requiredAddOns).toEqual([]);
     expect(LABOR_OPERATION_TAXONOMY.find(system => system.id === "steering-suspension")!.groups.flatMap(group => group.operations).every(operation => !operation.requiredAddOns.includes("alignment"))).toBe(true);
   });
+});
+
+describe("worksheet action feedback", () => {
+  const props = {
+    hasRO: true, lines: [], review: emptyManualLaborReview, scope: "", total: "$0.00",
+    onReview: () => undefined, onEdit: () => undefined, onSave: () => undefined, onPresent: () => undefined,
+  };
+  it("labels a pending draft save separately from issuing and renders a local save result", () => {
+    const saving = renderToStaticMarkup(<GuidedEstimate {...props} busy savingDraft />);
+    expect(saving).toContain("Saving draft…");
+    expect(saving).not.toContain("Generating estimate…");
+    const saved = renderToStaticMarkup(<GuidedEstimate {...props} busy={false} saveNotice="Quote draft saved." />);
+    expect(saved).toContain('role="status" tabindex="-1">Quote draft saved.');
+    const failed = renderToStaticMarkup(<GuidedEstimate {...props} busy={false} feedback="The quote could not be saved." />);
+    expect(failed).toContain('role="alert" tabindex="-1">The quote could not be saved.');
+  });
+});
+
+it("explains the rollout block and preserves unrelated errors", () => {
+  const message = estimatePresentationError("Shop Operations rollout: MASTER_DISABLED");
+  expect(message).toContain("The estimate was not issued.");
+  expect(message).toContain("Settings > Vehicle Operations");
+  expect(message).toContain("You can still save the quote.");
+  expect(message).not.toContain("MASTER_DISABLED");
+  expect(estimatePresentationError("Invoice print failed.")).toBe("Invoice print failed.");
 });

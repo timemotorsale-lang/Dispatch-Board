@@ -5,7 +5,7 @@ import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import type { ServiceDocumentContent } from "@/server/repair-order/service-documents";
 
 export async function serviceInvoiceCandidate(database: Prisma.TransactionClient, organizationId: string, repairOrderId: string) {
-  const order = await database.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, include: { repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { id: "asc" }, include: { qualityInspections: { orderBy: { version: "desc" }, take: 1 }, laborClocks: { orderBy: { id: "asc" } }, partCustodyEvents: { orderBy: { id: "asc" }, include: { part: { select: { partNumber: true } } } } } }, estimateVersions: { orderBy: { version: "desc" }, take: 1 }, authorizations: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 } } });
+  const order = await database.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, include: { repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { id: "asc" }, include: { qualityInspections: { orderBy: { version: "desc" }, take: 1 }, laborClocks: { orderBy: { id: "asc" } }, partCustodyEvents: { orderBy: { id: "asc" }, include: { part: { select: { partNumber: true, description: true } } } } } }, estimateVersions: { orderBy: { version: "desc" }, take: 1 }, authorizations: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 } } });
   if (!order) throw new Error("Repair order was not found.");
   const estimate = order.estimateVersions[0], authorization = order.authorizations[0];
   if (!estimate || !authorization || !["ACCEPTED", "PARTIAL"].includes(authorization.disposition) || authorization.estimateVersionId !== estimate.id || authorization.decidedAt > estimate.expiresAt) throw new Error("Invoice requires current exact-version authorization recorded before estimate expiry.");
@@ -25,14 +25,25 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
   const jobs = order.repairJobs.filter(job => job.authorizationId === authorization.id && ledger.lines.some(line => line.key === job.authorizedLineKey));
   const customerInvoice = order.origin === "CUSTOMER_REPAIR";
   if (jobs.some(job => job.qualityInspections[0] && ((job.qualityInspections[0].peerVerificationRequired && !job.qualityInspections[0].peerVerificationPassed) || (job.qualityInspections[0].roadTestRequired && job.qualityInspections[0].roadTestOutcome !== "PASSED") || job.laborClocks.some(clock => clock.finishedAt && clock.finishedAt > job.qualityInspections[0].inspectedAt)))) mismatchCodes.push("INVOICE_QC_EVIDENCE_INCOMPLETE");
-  if (jobs.some(job => (customerInvoice && job.laborClocks.length === 0) || job.laborClocks.some(clock => clock.state !== "FINISHED" || !clock.finishedAt))) mismatchCodes.push("INVOICE_MEASURED_CLOCK_INCOMPLETE");
   const partLines = ledger.lines.filter(line => line.type === "PART");
+  const missingNumber = (value?: string | null) => !value?.trim() || /^(?:N\/?A|UNKNOWN)$/i.test(value.trim());
+  const partLabel = (value: string) => value.toLowerCase().replace(/\s*\((?:n\/?a|unknown|tms-p-\d{6}-\d{6})\)\s*$/i, "").trim().replace(/\bpad(?:s| set)?$/, "pads").replace(/\brotors$/, "rotor");
+  const appliedInstallations = new Map<string, number>();
   for (const line of partLines) {
     const linked = line.laborLineKey ? jobs.filter(job => job.authorizedLineKey === line.laborLineKey) : jobs.length === 1 ? jobs : [];
     const partNumber = line.partNumber;
     if (!partNumber?.trim()) continue;
-    const quantity = linked.flatMap(job => job.partCustodyEvents).filter(event => event.type === "INSTALL" && event.part.partNumber.trim().toUpperCase() === partNumber.trim().toUpperCase()).reduce((total, event) => total + event.quantity, 0);
-    const events = linked.flatMap(job => job.partCustodyEvents).filter(event => event.part.partNumber.trim().toUpperCase() === partNumber.trim().toUpperCase());
+    const events = linked.flatMap(job => job.partCustodyEvents).filter(event => (missingNumber(partNumber) || /^TMS-P-\d{6}-\d{6}$/.test(partNumber))
+      ? partLabel(event.part.description ?? "") === partLabel(line.description)
+      : event.part.partNumber.trim().toUpperCase() === partNumber.trim().toUpperCase());
+    let quantity = 0;
+    for (const event of events) {
+      if (event.type !== "INSTALL") continue;
+      const used = appliedInstallations.get(event.id) ?? 0;
+      const applied = Math.min(event.quantity - used, Math.max(0, line.quantity - quantity));
+      appliedInstallations.set(event.id, used + applied);
+      quantity += applied;
+    }
     if (events.some(event => ["UNUSED_RETURN","WARRANTY_SHIP","VENDOR_SHIP"].includes(event.type) && events.some(installation => installation.type === "INSTALL" && installation.occurredAt <= event.occurredAt))) mismatchCodes.push("INVOICE_PART_RETURN_NEEDS_REVIEW");
     if ((customerInvoice || events.length > 0) && quantity !== line.quantity) mismatchCodes.push("INVOICE_INSTALL_QUANTITY_MISMATCH");
   }

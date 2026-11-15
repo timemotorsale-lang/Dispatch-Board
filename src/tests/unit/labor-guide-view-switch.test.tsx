@@ -5,8 +5,13 @@ import { EnterpriseLaborGuideConsole } from "@/features/diagnostics/enterprise-l
 import { LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 vi.mock("next/navigation", async importOriginal => ({ ...await importOriginal<typeof import("next/navigation")>(), redirect: (url: string) => { throw new Error(`Redirect:${url}`); } }));
 import Page from "@/app/(app)/diagnostics/labor-guide/page";
+import PrototypePage from "@/app/(app)/prototype/labor-guide/page";
 
 describe("single labor guide", () => {
+  it.each([Page, PrototypePage])("restores saved and archived bookmarks in the visual guide without dropping context", async entry => {
+    await expect(entry({ searchParams: Promise.resolve({ draftId: "archived/a", repairOrderId: "ro/1", returnTo: "/crm-next/deals", workflow: "review" }) })).rejects.toThrow("Redirect:/prototype/repair-explorer?draftId=archived%2Fa&repairOrderId=ro%2F1&returnTo=%2Fcrm-next%2Fdeals&workflow=review");
+    await expect(entry({ searchParams: Promise.resolve({}) })).rejects.toThrow("Redirect:/prototype/repair-explorer");
+  });
   it.each([{}, { guide: "legacy" }, { guide: "new" }, { experience: "explorer" }])("redirects old entry points to the same guide: %j", async params => {
     await expect(Page({ searchParams: Promise.resolve(params) })).rejects.toThrow("Redirect:/prototype/repair-explorer");
   });
@@ -14,7 +19,7 @@ describe("single labor guide", () => {
     await expect(Page({ searchParams: Promise.resolve({ guide: "legacy", repairOrderId: "ro/1", workflow: "review", returnTo: "/my-tasks" }) })).rejects.toThrow("Redirect:/prototype/repair-explorer?repairOrderId=ro%2F1&workflow=review&returnTo=%2Fmy-tasks");
   });
   it("preserves deliberate draft imports", async () => {
-    await expect(Page({ searchParams: Promise.resolve({ guide: "legacy", importExplorer: "1", repairOrderId: "ro/1" }) })).rejects.toThrow("Redirect:/prototype/labor-guide?importExplorer=1&repairOrderId=ro%2F1");
+    await expect(Page({ searchParams: Promise.resolve({ guide: "legacy", importExplorer: "1", repairOrderId: "ro/1" }) })).rejects.toThrow("Redirect:/prototype/repair-explorer?importExplorer=1&repairOrderId=ro%2F1");
   });
   it("uses one worksheet regardless of an old view flag", () => {
     const props = { activeRepairOrder: null, catalog: [], laborAddOns: [], repairTaxonomy: LABOR_OPERATION_TAXONOMY };

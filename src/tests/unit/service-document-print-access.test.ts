@@ -11,6 +11,13 @@ const content = { title: "Saved estimate", number: "RO-1", lines: [], notes: [] 
 const document = { id: "doc-1", kind: "ESTIMATE", organizationId: "org-time-motor-sales", repairOrderId: "ro-1", templateVersion: "v4", content, sha256: hashEnterpriseCommand({ templateVersion: "v4", content }) };
 beforeEach(() => { vi.resetAllMocks(); mocks.grants.mockResolvedValue([]); mocks.order.mockResolvedValue({ locationId: "loc-1" }); mocks.document.mockResolvedValue(document); mocks.billing.mockResolvedValue(undefined); });
 describe("lightweight PDF access", () => {
+  it("prints a closed order's exact invoice using view access without requesting manage or rollout access", async () => {
+    mocks.order.mockResolvedValue({ locationId: "loc-1", closedAt: new Date() });
+    mocks.document.mockResolvedValue({ ...document, kind: "INVOICE" });
+    expect((await getServiceDocumentForPrint(actor, "ro-1", "doc-1")).id).toBe("doc-1");
+    expect(mocks.billing).toHaveBeenCalledWith(actor, "loc-1");
+    expect(mocks.order).toHaveBeenCalledWith({ where: { id: "ro-1", organizationId: "org-time-motor-sales" }, select: { locationId: true } });
+  });
   it("loads only the selected scoped document without the full RO or history", async () => {
     expect(await getServiceDocumentForPrint(actor, "ro-1", "doc-1")).toMatchObject({ content });
     expect(mocks.document).toHaveBeenCalledWith({ where: { id: "doc-1", repairOrderId: "ro-1", organizationId: "org-time-motor-sales" } });

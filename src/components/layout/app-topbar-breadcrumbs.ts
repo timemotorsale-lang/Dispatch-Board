@@ -60,6 +60,7 @@ export function getAppBreadcrumb(
   if (pathname.startsWith("/vehicles/disposition-wholesale")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Inventory Lifecycle" }, { label: "Disposition & Wholesale" }];
   if (pathname.startsWith("/vehicles/workflow-operations")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Workflow Operations" }];
   if (pathname.startsWith("/vehicles/workflows")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Start Workflow" }];
+  if (pathname === "/vehicles/service-close-parts") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Parts" }];
   if (pathname.startsWith("/vehicles")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: pathname.startsWith("/vehicles/parts-operations") ? "Parts Operations" : "Vehicles" }];
   if (pathname.startsWith("/customers")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Customers" }];
   if (pathname.startsWith("/manager-review")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Manager Review" }];

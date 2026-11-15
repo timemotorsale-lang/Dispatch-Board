@@ -361,7 +361,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const qcHref = reviewOrderId ? repairReviewHref(reviewOrderId, "qc") : selected ? `/vehicles/quality-control?repairOrderId=${encodeURIComponent(selected.id)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/quality-control";
   const dispatchHref = reviewOrderId ? repairReviewHref(reviewOrderId, "assignment") : selected ? `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/shop-dispatch";
   const partsHref = selected ? `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}` : "/vehicles/service-close-parts";
-  const repairJobWorkbenchHref = selected?.repairJobs[0] ? `/vehicles/repair-jobs/${encodeURIComponent(selected.repairJobs[0].id)}/workbench` : dispatchHref;
+  const repairJobWorkbenchHref = selected?.repairJobs[0] ? repairReviewHref(selected.id, "repair") : dispatchHref;
   const repairReleaseHref = !hasRepairJob ? "#repair-planning-step-5-create-job" : qcReady ? qcHref : "#repair-result";
   const reconBudget = selected?.inventoryUnit ? buildReconBudgetSummary({
     acquisitionAppraisals: selected.inventoryUnit.acquisitionAppraisals,
@@ -742,7 +742,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setReleaseJobs([]);
     if (firstRepairJobId) {
       setNotice(`${firstRepairJobNumber || "Repair job"} created. Opening the repair workbench now.`);
-      window.setTimeout(() => router.push(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
+      window.setTimeout(() => router.push(repairReviewHref(selected.id)), 120);
       return;
     }
     setNotice("Repair job created. Open repair work order below to assign work, update parts, complete repair, then move to Final QC.");
@@ -834,7 +834,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice(`Completion job ${response.result?.job?.jobNumber ?? ""} created. Opening the repair work order.`.trim());
       await refresh();
       if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
-      else if (jobId) router.push(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
+      else if (jobId) router.push(repairReviewHref(selected.id));
       else window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Completion job creation failed.");
@@ -1314,7 +1314,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               </details>
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <Submit busy={busy}>Confirm scope and unlock estimate</Submit>
-            </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_DIAGNOSIS", { ...diagnosis, symptoms: diagnosis.symptoms.split(",").map((value) => value.trim()).filter(Boolean), tests: [{ name: diagnosis.testName, result: diagnosis.testResult }], evidence: diagnosis.evidence.split(",").map((value) => value.trim()).filter(Boolean) }, "Record evidence-backed concern, cause, and proposed correction."); }}>
+            </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_DIAGNOSIS", { ...diagnosis, recommendation: diagnosis.recommendation.trim() || diagnosis.proposedCorrection, symptoms: diagnosis.symptoms.split(",").map((value) => value.trim()).filter(Boolean), tests: [{ name: diagnosis.testName, result: diagnosis.testResult }], evidence: diagnosis.evidence.split(",").map((value) => value.trim()).filter(Boolean) }, "Record evidence-backed concern, cause, and proposed correction."); }}>
               <section className={styles.simpleCard}>
                 <span className={styles.simpleEyebrow}>Fast diagnosis confirmation</span>
                 <h3>Confirm the likely cause and repair direction</h3>
@@ -1325,10 +1325,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                   <div><dt>Technician</dt><dd>{model.users.find((user) => user.id === diagnosis.technicianUserId)?.name ?? "Select technician"}</dd></div>
                 </dl>
               </section>
-              <details className={styles.advancedDetails}>
-                <summary>Diagnosis details when troubleshooting needs documentation</summary>
-                <FormGrid><Field label="Symptoms"><input placeholder="Comma separated" value={diagnosis.symptoms} onChange={(event) => setDiagnosis((value) => ({ ...value, symptoms: event.target.value }))} /></Field><Field label="Diagnostic test"><input value={diagnosis.testName} onChange={(event) => setDiagnosis((value) => ({ ...value, testName: event.target.value }))} /></Field><Field label="Test result"><input value={diagnosis.testResult} onChange={(event) => setDiagnosis((value) => ({ ...value, testResult: event.target.value }))} /></Field><Field label="Evidence references"><input value={diagnosis.evidence} onChange={(event) => setDiagnosis((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Root cause" wide><textarea value={diagnosis.cause} onChange={(event) => setDiagnosis((value) => ({ ...value, cause: event.target.value }))} /></Field><Field label="Diagnostic uncertainty"><select value={diagnosis.uncertainty} onChange={(event) => setDiagnosis((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Technician"><select value={diagnosis.technicianUserId} onChange={(event) => setDiagnosis((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Recommendation"><textarea value={diagnosis.recommendation} onChange={(event) => setDiagnosis((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction"><textarea value={diagnosis.proposedCorrection} onChange={(event) => setDiagnosis((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
-              </details>
+                <FormGrid><Field label="Symptoms"><input placeholder="Comma separated" value={diagnosis.symptoms} onChange={(event) => setDiagnosis((value) => ({ ...value, symptoms: event.target.value }))} /></Field><Field label="Diagnostic test"><input required value={diagnosis.testName} onChange={(event) => setDiagnosis((value) => ({ ...value, testName: event.target.value }))} /></Field><Field label="Test result"><input required value={diagnosis.testResult} onChange={(event) => setDiagnosis((value) => ({ ...value, testResult: event.target.value }))} /></Field><Field label="Evidence references"><input value={diagnosis.evidence} onChange={(event) => setDiagnosis((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Root cause" wide><textarea required value={diagnosis.cause} onChange={(event) => setDiagnosis((value) => ({ ...value, cause: event.target.value }))} /></Field><Field label="Diagnostic uncertainty"><select value={diagnosis.uncertainty} onChange={(event) => setDiagnosis((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Technician"><select required value={diagnosis.technicianUserId} onChange={(event) => setDiagnosis((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Additional recommendation (optional)"><textarea value={diagnosis.recommendation} onChange={(event) => setDiagnosis((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction"><textarea required value={diagnosis.proposedCorrection} onChange={(event) => setDiagnosis((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
               <Submit busy={busy}>Confirm diagnosis and unlock estimate</Submit>
             </form>}
           </WorkflowStep>}

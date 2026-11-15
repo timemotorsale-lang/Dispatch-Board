@@ -66,7 +66,14 @@ export function requiredAddOnsForLabor(operation: LaborRepairOperation) {
 }
 
 function isSamePart(requirement: EstimateRequiredPart, part: ExistingPart) {
-  if (repairBaselineForId(requirement.laborOperationId)) return part.laborRowId === requirement.laborOperationId && (part.policyRequirementKey === requirement.key || canonical(part.name) === canonical(requirement.description));
+  if (repairBaselineForId(requirement.laborOperationId)) {
+    if (part.laborRowId !== requirement.laborOperationId) return false;
+    if (part.policyRequirementKey === requirement.key || canonical(part.name) === canonical(requirement.description)) return true;
+    // Match common shop shorthand for shocks within the same labor operation.
+    const shockLabel = (name: string) => name.split(";")[0].trim().toLowerCase().replace(/\bshocks? (?:absorbers?|ups)\b|\bshocks\b/g, "shock");
+    const expected = shockLabel(requirement.description);
+    return /^(?:front|rear) shock$/.test(expected) && shockLabel(part.name) === expected;
+  }
   const requiredNumber = canonical(requirement.partNumber);
   const requiredDescription = canonical(requirement.description);
   const actualNumber = canonical(part.number);

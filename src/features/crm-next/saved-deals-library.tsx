@@ -18,6 +18,7 @@ import overviewStyles from "./deal-workspace-overview.module.css";
 import { DealRowActions, DealRowStatus, type DealLibraryRow } from "./deal-row-controls";
 import { DEAL_WORK_AREAS, DEAL_AREA_HELP, dealAreaAfterPathwayChange, isDealWorkArea, type DealWorkArea } from "@/lib/deal-work-areas";
 import { moneyLabel } from "@/lib/money-resources";
+import { DealRepairHistory } from "./deal-repair-history";
 
 type SavedDeal = DealLibraryRow;
 type SavedWorkView = { id: string; name: string; area?: DealWorkArea; group: string; owner: string; workspace: string; pathway: string; bucket: string; search: string };
@@ -118,8 +119,9 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
   const count = (key: string) => key === "ALL" || key === "CURRENT" ? Object.entries(data?.counts ?? {}).reduce((sum, [statusKey, value]) => sum + (key === "CURRENT" && statusKey === "ARCHIVED" ? 0 : value), 0) : data?.counts[key] ?? 0;
   const detailedDeal = data?.items.find(deal => deal.id === details?.id) || details;
   return <section className={styles.library} aria-label="Saved deals library">
-    <header>{title === "Deals" ? <h1>Deals</h1> : <h2>{title}</h2>}<div className={styles.commands}>{renderHeaderAction?.(pathway !== "ALL" ? pathway : group === "LEASING" ? "lease-to-own" : group === "SERVICE" ? "repairs" : group === "USE" ? "daily-rental" : "ALL") ?? headerAction}<button title="Refresh saved deals" aria-label="Refresh saved deals" disabled={loading} onClick={() => setReload((value) => value + 1)}><RefreshCw size={17} /></button></div></header>
+    <header>{title === "Deals" ? <h1>Deals</h1> : <h2>{title}</h2>}<div className={styles.commands}>{renderHeaderAction?.(section === "work" && area === "repairs" ? "repairs" : pathway !== "ALL" ? pathway : group === "LEASING" ? "lease-to-own" : group === "SERVICE" ? "repairs" : group === "USE" ? "daily-rental" : "ALL") ?? headerAction}<button title="Refresh saved deals" aria-label="Refresh saved deals" disabled={loading} onClick={() => setReload((value) => value + 1)}><RefreshCw size={17} /></button></div></header>
     {dashboard && <p className={overviewStyles.compactIntro}>Choose a work area, then open the original deal jacket. Documents, money and history stay together.</p>}
+    {dashboard && <DealRepairHistory />}
     {dashboard && section === "overview" && <DealHomeQuickLinks onContinue={() => selectArea("working")} onPaperwork={() => { selectBucket("paperwork"); setMessage("Choose the deal's Packet or Actions control to review requirements and attach signed documents."); }} onReturns={() => selectBucket("returns")} onSummary={() => { setSection("report"); setStatus("ALL"); setBucket("ALL"); setPage(1); }} />}
     <div className={styles.tabs} role="tablist" aria-label="Deal sections">
       {dashboard && <button role="tab" aria-selected={section === "overview"} onClick={() => { setSection("overview"); setStatus("CURRENT"); setBucket("ALL"); setPage(1); }}>Overview</button>}
@@ -153,7 +155,7 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     {dashboard && data?.dashboard && !loading && ["overview", "report"].includes(section) && <DealDashboardPanels data={data.dashboard} report={section === "report"} onFilter={selectBucket} />}
     {error && !archiving ? <p role="alert">{error}</p> : null}
     {message ? <p role="status">{message}</p> : null}
-    {detailedDeal && <DealOperationsDrawer deal={detailedDeal} initialTab={detailsTab} alerts={detailedDeal.indicators?.alerts} onClose={() => setDetails(null)} onChanged={() => setReload(value => value + 1)} onPathwayChanged={result => {
+    {detailedDeal && <DealOperationsDrawer key={detailedDeal.id} deal={detailedDeal} initialTab={detailsTab} alerts={detailedDeal.indicators?.alerts} onClose={() => setDetails(null)} onChanged={() => setReload(value => value + 1)} onPathwayChanged={result => {
       if (dashboard) {
         selectArea(dealAreaAfterPathwayChange(result.pathway));
         setOwner("ALL");

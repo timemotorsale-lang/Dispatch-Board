@@ -30,6 +30,24 @@ function order(disposition = "ACCEPTED") {
 }
 
 describe("intelligent approved repair-job creation", () => {
+  it("creates current-authorized work when the same line only has a superseded job", async () => {
+    const snapshot = { ...order(), repairJobs: [{ authorizationId: "old-auth", authorizedLineKey: "labor-brakes" }] };
+    const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "current-job" }, version: 5 });
+    const repository = { get: vi.fn().mockResolvedValue(snapshot), job } as unknown as ShopPlanningRepository;
+    const result = await createApprovedRepairJobs(manager, "ro-1", { idempotencyKey: "reauthorized", reason: "Execute the current approved revision." }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository });
+    expect(result.duplicate).toBe(false);
+    expect(job).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ authorizationId: "auth-1", authorizedLineKey: "labor-brakes", partDemandIds: ["demand-1"] }));
+  });
+
+  it("does not duplicate a job for the current authorization", async () => {
+    const snapshot = { ...order(), repairJobs: [{ authorizationId: "auth-1", authorizedLineKey: "labor-brakes" }] };
+    const job = vi.fn();
+    const repository = { get: vi.fn().mockResolvedValue(snapshot), job } as unknown as ShopPlanningRepository;
+    const result = await createApprovedRepairJobs(manager, "ro-1", { idempotencyKey: "current-retry", reason: "Retry current approved work." }, { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository });
+    expect(result.duplicate).toBe(true);
+    expect(job).not.toHaveBeenCalled();
+  });
+
   it("keeps battery parts and specialist requirements on the battery job rather than the first job", async () => {
     const engine = LIGHT_DUTY_OPERATIONS.find(item => item.label === "Replace engine assembly")!;
     const battery = LIGHT_DUTY_OPERATIONS.find(item => item.label === "Replace high-voltage battery assembly")!;

@@ -33,3 +33,9 @@ describe("App topbar breadcrumbs for Unified CRM opportunities", () => {
     ]);
   });
 });
+
+it("labels the service-close parts workspace as Parts without changing Parts Operations", () => {
+  expect(getAppBreadcrumb("/vehicles/service-close-parts", "overview", false, "home").at(-1)).toEqual({ label: "Parts" });
+  expect(getAppBreadcrumb("/vehicles/parts-operations", "overview", false, "home").at(-1)).toEqual({ label: "Parts Operations" });
+  expect(getAppBreadcrumb("/vehicles/repair-orders", "overview", false, "home").at(-1)).toEqual({ label: "Vehicles" });
+});

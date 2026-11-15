@@ -103,14 +103,14 @@ describe("complete repair workflow review", () => {
     expect(closed).not.toContain("Close repair &amp; record handoff");
   });
   it("does not offer technician execution before a job exists", () => {
-    expect(renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={[]} />)).toContain("Create an authorized repair job");
+    expect(renderToStaticMarkup(<RepairExecutionTool actorId="manager" manager repairOrderId="ro" jobs={[]} />)).toContain("Create an authorized repair job");
   });
   it.each([
     ["DISPATCHED", [], "Start repair"],
     ["IN_PROGRESS", [{ technicianUserId: "tech", state: "RUNNING", accumulatedMinutes: 10 }], "Complete repair &amp; send to QC"],
     ["PAUSED", [{ technicianUserId: "tech", state: "PAUSED", accumulatedMinutes: 10 }], "Resume repair"],
   ] as const)("offers the correct next repair action for %s", (status, laborClocks, action) => {
-    const html = renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={[{
+    const html = renderToStaticMarkup(<RepairExecutionTool actorId="manager" manager repairOrderId="ro" jobs={[{
       id: "job", jobNumber: "J001", description: "Mount tires", status,
       dispatches: [{ technicianUserId: "tech", status: "ACTIVE" }], laborClocks: [...laborClocks],
     }]} />);
@@ -119,7 +119,7 @@ describe("complete repair workflow review", () => {
     if (status === "IN_PROGRESS") expect(html).toContain("Record progress update");
   });
   it("offers a new repair start after failed QC and a fresh dispatch", () => {
-    const html = renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={[{
+    const html = renderToStaticMarkup(<RepairExecutionTool actorId="manager" manager repairOrderId="ro" jobs={[{
       id: "job", jobNumber: "J001", description: "Recheck tire balance", status: "DISPATCHED",
       qcFailedAt: "2026-11-12T20:00:00Z", dispatches: [{ technicianUserId: "tech", status: "ACTIVE" }],
       laborClocks: [{ technicianUserId: "tech", state: "FINISHED", accumulatedMinutes: 25, finishedAt: "2026-11-12T19:30:00Z" }],

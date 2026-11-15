@@ -1615,7 +1615,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
     <CrmNextFrame active="deals" userName={model.userName}>
       <SavedDealsLibrary
         title="Deals"
-        renderHeaderAction={() => <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1`}><UserPlus size={16} />Start Deal</Link>}
+        renderHeaderAction={pathway => <Link href={`${CRM_NEXT_DEAL_START_HREF}?${new URLSearchParams({ new: "1", ...(pathway === "repairs" ? { pathway } : {}) })}`}><UserPlus size={16} />{pathway === "repairs" ? "Start Repair" : "Start Deal"}</Link>}
         disabled={false}
         refreshKey="deals-page"
         onOpen={(id) => router.push(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}

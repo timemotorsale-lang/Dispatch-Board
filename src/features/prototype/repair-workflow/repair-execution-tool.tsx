@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { waitingJobPartsReady } from "@/lib/repair-job-parts-readiness";
 import { useRef, useState, type FormEvent } from "react";
 import { notifyRepairReviewSaved, repairReviewHref } from "@/lib/repair-workflow-review";
 import styles from "./repair-workflow.module.css";
-type Job = { id: string; jobNumber: string; description: string; status: string; qcFailedAt?: string | null; executionBlockerReason?: string | null; dispatches: { technicianUserId: string; status: string }[]; laborClocks: { technicianUserId: string; state: string; accumulatedMinutes: number; finishedAt?: string | null }[] };
+type Job = Parameters<typeof waitingJobPartsReady>[0] & { id: string; jobNumber: string; description: string; status: string; qcFailedAt?: string | null; executionBlockerReason?: string | null; dispatches: { technicianUserId: string; status: string }[]; laborClocks: { technicianUserId: string; state: string; accumulatedMinutes: number; finishedAt?: string | null }[] };
 const actions = {
   START: "Start repair",
   PAUSE: "Pause / record blocker",
@@ -12,7 +14,8 @@ const actions = {
 };
 type RepairAction = keyof typeof actions | "PROGRESS";
 const actionLabel = (action: RepairAction) => action === "PROGRESS" ? "Record progress update" : actions[action];
-export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: string; jobs: Job[] }) {
+export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: { repairOrderId: string; jobs: Job[]; actorId: string; manager: boolean }) {
+  const router = useRouter();
   const [selected, setSelected] = useState(jobs.find(job => ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status))?.id ?? jobs[0]?.id ?? "");
   const [chosenAction, setChosenAction] = useState<RepairAction | null>(null);
   const [evidence, setEvidence] = useState(""), [notes, setNotes] = useState(""), [blocker, setBlocker] = useState("");
@@ -22,11 +25,15 @@ export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: st
   const job = jobs.find(job => job.id === selected);
   const technician = job?.dispatches.find(dispatch => dispatch.status === "ACTIVE")?.technicianUserId;
   const clock = job?.laborClocks.find(item => item.technicianUserId === technician);
+  const waitingForParts = job?.status === "WAITING_PARTS" && !waitingJobPartsReady(job);
   const complete = job?.status === "READY_FOR_QC" || job?.status === "QC_PASSED";
-  const available: RepairAction[] = !technician || complete ? []
-    : clock?.state === "RUNNING" ? ["FINISH", "PROGRESS", "PAUSE"]
+  const canRecordLabor = manager || technician === actorId;
+  const laborActions: RepairAction[] = !technician || !canRecordLabor || complete || waitingForParts ? []
+    : clock?.state === "RUNNING" ? ["FINISH", "PAUSE"]
     : clock?.state === "PAUSED" ? ["RESUME", "FINISH"]
     : !clock || clock.state === "NOT_STARTED" || (clock.state === "FINISHED" && job?.status === "DISPATCHED" && job.qcFailedAt && clock.finishedAt && Date.parse(clock.finishedAt) <= Date.parse(job.qcFailedAt)) ? ["START"] : [];
+  const canRecordProgress = Boolean(technician && !waitingForParts && job && ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status));
+  const available: RepairAction[] = canRecordProgress ? [...laborActions, "PROGRESS"] : laborActions;
   const eventType = chosenAction && available.includes(chosenAction) ? chosenAction : available[0];
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy || !job || !technician || !eventType) return;
@@ -36,13 +43,14 @@ export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: st
         action: "RECORD_REPAIR_PROGRESS", contactChannel: "INTERNAL", contactDirection: "INTERNAL",
         contactOutcome: "Repair progress updated", customerVisibleSummary: progress.trim(),
         exceptionCodes: [], reason: "Record a repair progress update.", statusCode: "REPAIR_IN_PROGRESS",
-      } : { eventType, technicianUserId: technician, evidence: evidence.split("\n").map(value => value.trim()).filter(Boolean), qcHandoffNotes: notes, blockerReason: blocker || null, reason: eventType === "FINISH" ? "Record completed repair and evidence for quality control." : "Record technician repair execution from the review workbench." };
+      } : { eventType, technicianUserId: technician, evidence: (evidence.trim() || (eventType === "FINISH" ? notes : "")).split("\n").map(value => value.trim()).filter(Boolean), qcHandoffNotes: notes, blockerReason: blocker || null, reason: eventType === "FINISH" ? "Record completed repair and evidence for quality control." : "Record technician repair execution from the review workbench." };
       const signature = JSON.stringify({ jobId: job.id, ...values });
       if (pending.current?.signature !== signature) pending.current = { signature, body: { ...values, occurredAt: new Date().toISOString(), idempotencyKey: crypto.randomUUID() } };
       const url = eventType === "PROGRESS" ? `/api/repair-orders/${encodeURIComponent(repairOrderId)}/planning` : `/api/repair-jobs/${encodeURIComponent(job.id)}/labor`;
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current.body) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "Repair action could not be recorded.");
       pending.current = null; setProgress(""); setNotice("Repair update saved."); notifyRepairReviewSaved(repairOrderId);
+      if (eventType === "FINISH") router.push(repairReviewHref(repairOrderId, "qc"));
     } catch (error) { setNotice(error instanceof Error ? error.message : "Request interrupted. Retry unchanged to recover the saved action."); }
     finally { setBusy(false); }
   }
@@ -53,15 +61,18 @@ export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: st
     }}>{jobs.map(job => <option key={job.id} value={job.id}>{job.jobNumber} · {job.description}</option>)}</select></label>
     {job && <p role="status">{job.status.replaceAll("_", " ").toLowerCase()} · {job.laborClocks.reduce((total, item) => total + item.accumulatedMinutes, 0)} minutes recorded</p>}
     {job?.executionBlockerReason && <p>{job.executionBlockerReason}</p>}
-    {complete ? <Link href={repairReviewHref(repairOrderId, "qc")}>Open Quality Check</Link>
+    {job?.status === "QC_PASSED" ? <Link href={repairReviewHref(repairOrderId, "handoff")}>Continue to closeout</Link>
+      : complete ? <Link href={repairReviewHref(repairOrderId, "qc")}>Open Quality Check</Link>
+      : waitingForParts ? <p>Reserve the required parts for this job before assigning it. <Link href={repairReviewHref(repairOrderId, "parts")}>Open parts for this repair</Link></p>
       : !technician ? <p>Book this job as the technician’s current assignment. <Link href={repairReviewHref(repairOrderId, "assignment")}>Open assignment</Link></p>
       : !eventType ? <p>Review the assignment and saved labor before continuing. <Link href={repairReviewHref(repairOrderId, "assignment")}>Review assignment</Link></p> : null}
+    {canRecordProgress && !canRecordLabor && <p>The assigned technician or a manager can complete this job and send it to QC.</p>}
     {available.length > 1 && <label>Next action<select disabled={busy} value={eventType} onChange={event => setChosenAction(event.target.value as RepairAction)}>{available.map(action => <option key={action} value={action}>{actionLabel(action)}</option>)}</select></label>}
-    {eventType === "PROGRESS" && <label>Progress summary (customer-visible)<textarea required value={progress} onChange={event => setProgress(event.target.value)} /></label>}
+    {eventType === "PROGRESS" && <label>Progress summary (customer-visible)<textarea rows={2} required value={progress} onChange={event => setProgress(event.target.value)} /></label>}
     {eventType === "PAUSE" && <label>Blocker / next action<textarea minLength={10} value={blocker} onChange={event => setBlocker(event.target.value)} /></label>}
     {eventType === "FINISH" && <>
-      <label>Completion evidence (one reference per line)<textarea required value={evidence} onChange={event => setEvidence(event.target.value)} /></label>
-      <label>QC handoff — work performed and what to verify<textarea required value={notes} onChange={event => setNotes(event.target.value)} /></label>
+      <details><summary>Add supporting references (optional)</summary><label>References, one per line<textarea rows={2} value={evidence} onChange={event => setEvidence(event.target.value)} /></label></details>
+      <label>Work completed and what QC should verify<textarea rows={2} required value={notes} onChange={event => setNotes(event.target.value)} /></label>
     </>}
     {eventType && <button disabled={busy} type="submit">{busy ? "Saving…" : actionLabel(eventType)}</button>}
     {notice && <p role="alert">{notice}</p>}

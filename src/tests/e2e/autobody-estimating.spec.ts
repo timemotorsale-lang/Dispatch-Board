@@ -1,11 +1,23 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
+function requireIsolatedAutobodyBrowser() {
+  const db = new URL(process.env.DATABASE_URL ?? "invalid:");
+  const app = new URL(process.env.PLAYWRIGHT_BASE_URL ?? "invalid:");
+  const dedicatedDatabase = ["localhost", "127.0.0.1"].includes(db.hostname)
+    && /^\/dispatch_autobody_verify_\d+$/.test(db.pathname);
+  const disposableSchema = db.host === "127.0.0.1:55439" && db.pathname === "/postgres"
+    && /^dispatch_board_e2e_autobody_\d+$/.test(db.searchParams.get("schema") ?? "");
+  if (process.env.AUTOBODY_BROWSER !== "isolated" || app.protocol !== "http:"
+    || app.hostname !== "127.0.0.1" || !app.port || !(dedicatedDatabase || disposableSchema)) {
+    throw new Error("Use an isolated local AutoBody verification database or a dedicated disposable AutoBody schema.");
+  }
+}
+
 test.setTimeout(240000);
 test.use({ actionTimeout: 20000 });
 test("authenticated collision supplement, frozen document, export and contextual handoffs", async ({ page, request }) => {
-  const database = new URL(process.env.DATABASE_URL ?? "invalid:");
-  if (process.env.AUTOBODY_BROWSER !== "isolated" || process.env.PLAYWRIGHT_BASE_URL !== "http://127.0.0.1:3203" || !["localhost", "127.0.0.1"].includes(database.hostname) || !/^\/dispatch_autobody_verify_\d+$/.test(database.pathname)) throw new Error("Use the isolated autobody browser runner.");
+  requireIsolatedAutobodyBrowser();
   const fixture = JSON.parse(readFileSync("tmp/autobody/browser-fixture.json", "utf8"));
   expect((await request.get(`/api/autobody-estimating?id=${fixture.draftId}`)).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: fixture.email, password: fixture.password } })).ok()).toBe(true);
@@ -22,7 +34,7 @@ test("authenticated collision supplement, frozen document, export and contextual
   const route = `/prototype/autobody-estimate?repairOrderId=${fixture.repairOrderId}&draftId=${latestDraft.id}`;
   await page.goto(route);
   await expect(page.getByRole("heading", { name: "Point to the damage. Build the estimate.", exact: true })).toBeVisible();
-  await page.getByText("Photos, saved work and technical coverage", { exact: true }).click();
+  await page.getByText("Photos, draft revisions and technical coverage", { exact: true }).click();
   await expect(page.getByRole("link", { name: "Open estimate / Print / Save PDF", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start supplement", exact: true }).click();
   const work = page.getByRole("region", { name: "Selected work", exact: true });
@@ -30,10 +42,23 @@ test("authenticated collision supplement, frozen document, export and contextual
   await page.getByText("+ Add damage photo (optional)", { exact: true }).click();
   await page.getByLabel("Original photo", { exact: true }).setInputFiles({ name: "synthetic-damage.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=", "base64") });
   await page.getByLabel("Keep until · according to records policy", { exact: true }).fill(new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10));
+  const uploadResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/vehicle-evidence"
+    && response.request().method() === "POST");
   await page.getByRole("button", { name: "Save photo & link", exact: true }).click();
+  const uploaded = await uploadResponse;
+  expect(uploaded.status(), await uploaded.text()).toBe(201);
   await expect(page.getByRole("status").filter({ hasText: "Original photo preserved" })).toBeVisible();
   await page.getByRole("button", { name: "2 Review · 1 lines", exact: true }).click();
   await page.getByLabel("Supplement explanation", { exact: true }).fill("Synthetic authenticated browser supplement scope verification");
+  // Lose the response after the server accepts generation. The workspace should recover
+  // the saved estimate and expose its print link without a second generation command.
+  await page.route("**/api/autobody-estimating", async route => {
+    const request = route.request();
+    if (request.method() !== "POST" || request.postDataJSON().action !== "PRESENT") return route.continue();
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    await route.abort();
+  });
   await page.getByRole("button", { name: "Generate estimate", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Estimate generated and frozen" })).toBeVisible();
   await expect(work.getByLabel("Labor hours", { exact: true })).toBeDisabled();
@@ -60,8 +85,7 @@ test("authenticated collision supplement, frozen document, export and contextual
   await page.screenshot({ path: "test-results/autobody/browser/authenticated-phone.png", fullPage: true });
 });
 test("pre-intake scope returns to the actual RO without overwriting the original draft", async ({ page }) => {
-  const database = new URL(process.env.DATABASE_URL ?? "invalid:");
-  if (process.env.AUTOBODY_BROWSER !== "isolated" || process.env.PLAYWRIGHT_BASE_URL !== "http://127.0.0.1:3203" || !["localhost", "127.0.0.1"].includes(database.hostname) || !/^\/dispatch_autobody_verify_\d+$/.test(database.pathname)) throw new Error("Use the isolated autobody runner.");
+  requireIsolatedAutobodyBrowser();
   const fixture = JSON.parse(readFileSync("tmp/autobody/browser-fixture.json", "utf8"));
   expect((await page.request.post("/api/auth/login", { data: { email: fixture.email, password: fixture.password } })).ok()).toBe(true);
   const opened = await (await page.request.get(`/api/autobody-estimating?id=${fixture.draftId}`)).json();

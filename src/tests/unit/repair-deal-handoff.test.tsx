@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { RepairDealHandoff, repairDealIntakeHref } from "@/features/crm-next/repair-deal-handoff";
+import { matchesRepairDealOrder, RepairDealHandoff, RepairDealOrderLinks, VerifiedRepairDealOrderLinks, repairDealIntakeHref } from "@/features/crm-next/repair-deal-handoff";
 
 describe("repair deal intake handoff", () => {
   it("carries canonical identities, concern and a saved-draft return path into governed intake", () => {
@@ -13,6 +13,28 @@ describe("repair deal intake handoff", () => {
     expect(url.searchParams.get("concernSummary")).toBe("Brake noise & vibration");
     expect(url.searchParams.get("returnTo")).toBe("/crm-next/deals/start?draftId=draft%3F1");
     expect(url.searchParams.has("repairOrderId")).toBe(false);
+  });
+
+  it("opens the exact order in the guide, workbench and document workspace", () => {
+    const html = renderToStaticMarkup(<RepairDealOrderLinks repairOrderId="order/1" draftId="draft?1" />);
+    const links = [...html.matchAll(/href="([^"]+)"/g)].map(([, href]) => new URL(href.replaceAll("&amp;", "&"), "http://localhost"));
+    expect(links.map(link => link.pathname)).toEqual(["/diagnostics/labor-guide", "/vehicles/repair-workbench", "/vehicles/service-billing", "/service-documents"]);
+    for (const link of links) {
+      expect(link.searchParams.get("repairOrderId")).toBe("order/1");
+      expect(link.searchParams.get("returnTo")).toBe("/crm-next/deals/start?draftId=draft%3F1&repairOrderId=order%2F1");
+    }
+    expect(html).toContain("Billing &amp; receipts");
+    expect(links[3].searchParams.get("workspace")).toBe("1");
+  });
+
+  it("requires the exact order, customer and vehicle before showing direct repair links", () => {
+    const order = { id: "ro-1", customerId: "customer-1", vehicleId: "vehicle-1" };
+    expect(matchesRepairDealOrder(order, "ro-1", "customer-1", "vehicle-1")).toBe(true);
+    expect(matchesRepairDealOrder(order, "ro-2", "customer-1", "vehicle-1")).toBe(false);
+    expect(matchesRepairDealOrder(order, "ro-1", "customer-2", "vehicle-1")).toBe(false);
+    expect(matchesRepairDealOrder(order, "ro-1", "customer-1", "vehicle-2")).toBe(false);
+    expect(renderToStaticMarkup(<VerifiedRepairDealOrderLinks repairOrderId="ro-1" draftId="draft-1"
+      customerId="customer-1" vehicleId="vehicle-1" />)).not.toContain("/vehicles/service-billing");
   });
 
   it.each([["", "vehicle", "concern", "draft"], ["customer", "", "concern", "draft"], ["customer", "vehicle", " ", "draft"], ["customer", "vehicle", "concern", ""]])("does not hand off incomplete context", (customer, vehicle, concern, draft) => {

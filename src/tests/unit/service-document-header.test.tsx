@@ -65,7 +65,7 @@ describe("branded service document header", () => {
 
   it("prints customer contact/address details, itemized charges and a separate discount", () => {
     const html = renderToStaticMarkup(<ServiceDocument content={{ ...content, identity: { ...content.identity, customerContact: { phone: "612-555-0100", email: "customer@example.test", address: "123 Example St" } }, lines: [{ key: "fee-shop-supplies", type: "FEE", description: "Shop supplies", quantity: 1, unitPriceCents: 1250, totalCents: 1250 }, { key: "fee-towing", type: "FEE", description: "Towing", quantity: 1, unitPriceCents: 10000, totalCents: 10000 }], totals: { subtotalCents: 11250, discountCents: 1000, taxCents: 0, totalCents: 10250 } }} sha256="proof" templateVersion="service-document-v3" />);
-    for (const text of ["612-555-0100", "customer@example.test", "123 Example St", "Other charges", "Shop supplies", "Towing", "$10.00", "$102.50"]) expect(html).toContain(text);
+    for (const text of ["Phone: 612 555 0100", "customer@example.test", "123 Example St", "Other charges", "Shop supplies", "Towing", "$10.00", "$102.50"]) expect(html).toContain(text);
     expect(html.match(/>Shop supplies</g)).toHaveLength(1);
   });
   it.each(["Official repair estimate", "Final service invoice", "Service payment receipt"])("brands %s with readable contact and document details", title => {

@@ -1552,6 +1552,11 @@ export function RepairOrderEnterpriseWorkbench({
             </button>
           </div>
         </div>
+        {!closedLocally && <nav className="rowb-summary-actions" aria-label="Continue this repair order">
+          <Link href={repairReviewHref(order.id, "repair")}>Record repair progress <ChevronRight /></Link>
+          <Link href={repairReviewHref(order.id, "qc")}>Quality check <ChevronRight /></Link>
+          <Link href={repairReviewHref(order.id, "handoff")}>Closeout &amp; handoff <ChevronRight /></Link>
+        </nav>}
         {closePanelOpen && <RepairOrderCloseForm repairOrderId={order.id} expectedVersion={currentVersion} onLockChange={setBusy} onCancel={() => setClosePanelOpen(false)} onClosed={result => {
           if (result.version && result.version > currentVersion) setCurrentVersion(result.version);
           setClosedLocally(true); setClosePanelOpen(false);
@@ -2016,7 +2021,7 @@ export function RepairOrderEnterpriseWorkbench({
       </div>
       </details>
       ) : null}
-      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
+      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(order.id)}`}>Billing &amp; receipts</Link>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
     </section>
   );
 }

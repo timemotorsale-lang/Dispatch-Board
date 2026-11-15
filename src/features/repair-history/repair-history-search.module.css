@@ -1,0 +1,169 @@
+.directory {
+  min-width: 0;
+  border: 1px solid var(--line, #cad5e4);
+  border-radius: 10px;
+  color: var(--ink, #17243a);
+  background: var(--surface, #fff);
+  overflow-wrap: anywhere;
+}
+
+.directory > summary {
+  align-content: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--brand-strong, #1d4ed8);
+  font-weight: 750;
+}
+
+.content,
+.results {
+  display: grid;
+  gap: 8px;
+}
+
+.content {
+  border-top: 1px solid var(--line, #cad5e4);
+  padding: 10px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.filters label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: .875rem;
+  font-weight: 650;
+}
+
+.filters :is(input, select),
+.directory button {
+  min-height: 38px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong, #a6b6ca);
+  border-radius: 6px;
+  color: inherit;
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.filters :is(input, select) {
+  width: 100%;
+}
+
+.directory button {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.directory button:disabled {
+  cursor: default;
+  opacity: .55;
+}
+
+.directory .search {
+  border-color: var(--brand, #2563eb);
+  color: var(--app-primary-text, #fff);
+  background: var(--brand, #2563eb);
+}
+
+.directory :is(a, button, input, select, summary):focus-visible {
+  outline: 2px solid var(--brand-strong, #1d4ed8);
+  outline-offset: 2px;
+}
+
+.directory a {
+  color: var(--brand-strong, #1d4ed8);
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+
+.results,
+.related {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  border: 1px solid var(--line, #cad5e4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface-soft, #f7faff);
+}
+
+.cardHeader,
+.metadata,
+.related li,
+.error,
+.pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.cardHeader {
+  justify-content: space-between;
+}
+
+.cardHeader > div {
+  min-width: 0;
+}
+
+.metadata,
+.related span,
+.status {
+  color: var(--muted, #52648a);
+  font-size: .875rem;
+}
+
+.related {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+  border-top: 1px solid var(--line, #cad5e4);
+  padding-top: 6px;
+}
+
+.status:empty {
+  margin-top: -8px;
+}
+
+.error {
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--danger-soft, #fee2e2);
+}
+
+.error p {
+  margin: 0;
+}
+
+.pages {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters label:first-child,
+  .filters button {
+    grid-column: 1 / -1;
+  }
+
+  .filters :is(input, select),
+  .directory button {
+    min-height: 44px;
+  }
+}

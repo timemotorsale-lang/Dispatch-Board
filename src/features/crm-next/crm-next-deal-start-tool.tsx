@@ -18,7 +18,8 @@ import { SharedDealCustomerPicker, SharedDealVehiclePicker, SharedDealVehicleCon
 import { DealPathwayChange } from "./deal-pathway-change";
 import { NewDealPathway } from "./new-deal-pathway";
 import { VehicleUseTool } from "./vehicle-use-tool";
-import { RepairDealHandoff, repairDealIntakeHref } from "./repair-deal-handoff";
+import { DealRepairHistory } from "./deal-repair-history";
+import { RepairDealHandoff, VerifiedRepairDealOrderLinks, repairDealIntakeHref } from "./repair-deal-handoff";
 import { dealCustomerDisplayNumber, emptyDealIdentity, type DealIdentity, type DealCustomerChoice, type DealVehicleChoice } from "@/lib/deal-continuity";
 import { LIMITED_POA_ID, SECURE_POA_ID, SECURE_POA_GUIDANCE } from "@/lib/sales-document-pathways";
 import identityStyles from "./shared-deal-identities.module.css";
@@ -4597,7 +4598,9 @@ function DealStartDesk({
   const saveState = useDealSaveState();
   const [pathwayTarget, setPathwayTarget] = useState<string | null>(null);
   const pathwayChangePanel = useRef<HTMLDetailsElement>(null);
-  const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>("overview");
+  const workspaceParams = useSearchParams();
+  const requestedSection = workspaceParams?.get("section");
+  const [workspaceSection, setWorkspaceSection] = useState<DealWorkspaceSection>(requestedSection === "terms" ? "terms" : "overview");
   const [documentEditor, setDocumentEditor] = useState(false);
   const workspaceRoot = useRef<HTMLElement>(null);
   const identityPanel = useRef<HTMLDivElement>(null);
@@ -4677,6 +4680,7 @@ function DealStartDesk({
   const testDriveWorkflow = workflow.id === "test-drive";
   const wholesaleWorkflow = workflow.id === "wholesale";
   const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
+  const repairOrderId = workspaceParams?.get("repairOrderId")?.trim();
   const repairWorkflow = workflow.id === "repairs";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow || repairWorkflow;
   const selectedCustomer = form.customerId && form.customerId !== MANUAL_CUSTOMER_ID ? customerChoices.find((customer) => customer.id === form.customerId) ?? null : null;
@@ -4847,6 +4851,7 @@ function DealStartDesk({
   }
 
   async function continueRepair() {
+    if (status.kind === "saving" || saveState.busy) return;
     if (!identity.customerId || !identity.vehicleId || !form.note.trim()) {
       setStatus({ kind: "error", message: "Select the shared customer and vehicle, then enter the repair concern." });
       return;
@@ -4994,11 +4999,25 @@ function DealStartDesk({
       {testDriveWorkflow ? <DealDraftScope name="test-drive"><GuidedTestDrive customerId={identity.customerId} customerName={effectiveCustomerName} employeeName={model.userName} vehicle={identity.vehicle ?? null} customerPrefill={customerPrefill} onChooseIdentity={() => navigateWorkspace("identity")} identityPicker={customerVehiclePicker} showIdentityPicker={workspaceSection === "identity"} /></DealDraftScope> : customerVehiclePicker}
       {sourceError && <p role="alert">{sourceError}</p>}
       {relatedSource && <section className={identityStyles.useTool}><strong>Related original deal · {relatedSource.customerName}</strong><p>Original vehicle: {relatedSource.sourceVehicleReference}. Its agreement and delivery remain unchanged.</p>{!identity.sourceVehicleId && <SharedDealVehiclePicker label="Original vehicle" onSelect={vehicle => setIdentity(current => ({ ...current, sourceVehicleId: vehicle.id }))} />}</section>}
-      {workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div>{["SALES", "LEASING"].includes(dealGroup(workflowId)) && <fieldset><legend>Minnesota title authority</legend><p>{SECURE_POA_GUIDANCE}</p><p>Limited POA is for permitted title and registration transactions. The generated revision is for acceptance review.</p><div className={styles.retailFieldGrid}>{[[LIMITED_POA_ID, "Attach signed Limited POA"], [SECURE_POA_ID, "Attach completed official Minnesota Secure POA"]].map(([id, label]) => <label key={id}><span>{label}</span><input type="file" data-document-type={id} accept="application/pdf,image/png,image/jpeg" disabled={documentUploadBusy || !identity.customerId || !identity.vehicle?.vin} /></label>)}</div></fieldset>}</section>}
-      {workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
+      {repairWorkflow && workspaceSection === "documents" && <>
+        {repairOrderId && savedDeal?.draftId() && <VerifiedRepairDealOrderLinks repairOrderId={repairOrderId} draftId={savedDeal.draftId()} customerId={identity.customerId} vehicleId={identity.vehicleId} />}
+        <DealRepairHistory customerId={identity.customerId || undefined} requireCustomer />
+        {!repairOrderId && <p>Open an exact repair order from saved repair work to access billing and receipts.</p>}
+      </>}
+      {repairWorkflow && (workspaceSection === "terms" || workspaceSection === "completion") && <>
+        {repairOrderId && savedDeal?.draftId() ? <VerifiedRepairDealOrderLinks repairOrderId={repairOrderId} draftId={savedDeal.draftId()} customerId={identity.customerId} vehicleId={identity.vehicleId} /> : null}
+        {["ARCHIVED", "LOST", "CANCELLED", "COMPLETED"].includes(saveState.record?.status ?? "")
+          ? <p>This deal is read-only. Open saved repair work from Repair documents.</p>
+          : <RepairDealHandoff customerId={identity.customerId} vehicleId={identity.vehicleId} concern={form.note}
+              busy={status.kind === "saving" || saveState.busy} onConcernChange={value => update("note", value)}
+              onMissingIdentity={focusRepairIdentity} onContinue={() => void continueRepair()} />}
+        {status.kind !== "idle" && <p role={status.kind === "error" ? "alert" : "status"}>{status.message}</p>}
+      </>}
+      {!repairWorkflow && workspaceSection === "documents" && <section className={workspaceStyles.panel} aria-label="Deal documents"><h2>Documents and signing packet</h2><p>Choose forms, generate and preview documents, then attach completed evidence to this exact deal.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" onClick={openDocumentPreparation}>Choose forms & generate packet</button>{(savedDeal?.read("jackets") as Record<string,string> | undefined)?.[workflowId] ? <Link href={`/sales-documents?jacketId=${encodeURIComponent((savedDeal?.read("jackets") as Record<string,string>)[workflowId])}`}>Open saved packet / upload signed documents</Link> : <span>No document jacket is linked yet. Generate the packet to establish its record.</span>}</div>{["SALES", "LEASING"].includes(dealGroup(workflowId)) && <fieldset><legend>Minnesota title authority</legend><p>{SECURE_POA_GUIDANCE}</p><p>Limited POA is for permitted title and registration transactions. The generated revision is for acceptance review.</p><div className={styles.retailFieldGrid}>{[[LIMITED_POA_ID, "Attach signed Limited POA"], [SECURE_POA_ID, "Attach completed official Minnesota Secure POA"]].map(([id, label]) => <label key={id}><span>{label}</span><input type="file" data-document-type={id} accept="application/pdf,image/png,image/jpeg" disabled={documentUploadBusy || !identity.customerId || !identity.vehicle?.vin} /></label>)}</div></fieldset>}</section>}
+      {!repairWorkflow && workspaceSection === "completion" && <section className={workspaceStyles.panel} aria-label="Deal completion"><h2>{rentalLikeWorkflow || testDriveWorkflow ? "Assignment and actual return" : repairWorkflow ? "Service handoff" : "Sale and paperwork completion"}</h2>{["SALES","LEASING"].includes(dealGroup(workflowId)) ? <><p>Record the agreed sale first. Signed documents, insurance and DMV/title paperwork can follow. Yellow means paperwork pending; green means finalized.</p><div className={workspaceStyles.actions}><button className={workspaceStyles.primary} type="button" disabled={!(identity.customerId && identity.vehicleId) || ["ARCHIVED","LOST","CANCELLED"].includes(savedDeal?.saleStatus ?? "")} onClick={() => void savedDeal?.completeSale()}>{savedDeal?.saleStatus === "SOLD" ? "Review / complete paperwork" : "Mark deal sold"}</button><button type="button" onClick={() => navigateWorkspace("documents")}>Open documents</button></div></> : <><p>Use the pathway reservation, evidence, handoff and return controls. Completion does not record a vehicle sale.</p><button type="button" onClick={() => navigateWorkspace("terms")}>Review agreement and requirements</button></>}</section>}
       <div hidden={workspaceSection !== "completion"}>{workflowId !== "daily-rental" && rentalLikeWorkflow && <VehicleUseTool pathway={workflowId} />}</div>
       {workspaceSection === "activity" && <DealActivityPanel key={savedDeal?.draftId()} draftId={savedDeal?.draftId() ?? ""} saved={saveState.saved} />}
-      <div data-deal-workspace-section="terms" hidden={workspaceSection !== "terms" && !(workspaceSection === "documents" && documentEditor)}>
+      {!repairWorkflow && <div data-deal-workspace-section="terms" hidden={workspaceSection !== "terms" && !(workspaceSection === "documents" && documentEditor)}>
       <details className={workspaceStyles.advanced}><summary>Additional packet controls</summary><header hidden={executionOpen && (repairWorkflow || (reviewTestDrive && testDriveWorkflow))} className={styles.dealStartHeader}>
         <div>
           <span className={styles.eyebrow}>Revenue execution desk</span>
@@ -5176,9 +5195,7 @@ function DealStartDesk({
         </section>
       ) : (
       <DealDraftScope key={identity.vehicleId || "unlinked"} name={workflowId}><main className={styles.dealExecutionBody}>
-          {repairWorkflow ? (
-            <RepairDealHandoff customerId={identity.customerId} vehicleId={identity.vehicleId} concern={form.note} busy={status.kind === "saving"} onConcernChange={value => update("note", value)} onMissingIdentity={focusRepairIdentity} onContinue={() => void continueRepair()} />
-          ) : financeWorkflow ? (
+          {financeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
                 {renderCustomerSelector()}
@@ -5347,7 +5364,7 @@ function DealStartDesk({
       )}
       {documentArchiveError ? <p role="alert" className={styles.dealStartError}>{documentArchiveError}</p> : documentArchiveMessage ? <p role="status" className={styles.dealStartStatus}>{documentArchiveMessage} <Link href={documentJacketHref}>Open deal jacket</Link></p> : null}
       {status.kind !== "idle" ? <p className={status.kind === "error" ? styles.dealStartError : styles.dealStartStatus}>{status.message}{status.href ? <> <Link href={status.href}>Open opportunity</Link></> : null}</p> : null}
-      </div></div>
+      </div>}</div>
       {summaryOpen ? (
         <div className={styles.executionDrawerBackdrop} role="presentation">
           <aside className={styles.executionDrawer} aria-label="Execution summary drawer">

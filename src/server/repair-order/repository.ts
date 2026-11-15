@@ -40,6 +40,7 @@ const vendorWorkSelect = {
 const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }, inventoryUnit: { select: { id: true, inventoryNumber: true } }, shopReconLifecycle: { select: { id: true, nextAction: true, operatingState: true, stage: true, targetAt: true, version: true, zoneCode: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, serviceVisit: { include: { appointment: { select: { id: true, appointmentNumber: true, title: true, startsAt: true } }, createdByUser: { select: { id: true, name: true } } } }, vendorWorks: { orderBy: { updatedAt: "desc" as const }, select: vendorWorkSelect }, advisorUpdates: { orderBy: { version: "desc" as const }, take: 30, select: { id: true, contactOutcome: true, customerVisibleSummary: true, internalNotes: true, occurredAt: true, statusCode: true, version: true, authorUser: { select: { id: true, name: true } } } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
 
 export function createRepairOrderRepository(database: PrismaClient = prisma) { return {
+  readLocations(organizationId: string) { return database.location.findMany({ where: { organizationId }, select: { id: true } }); },
   findByAppointment(organizationId: string, appointmentId: string) { return database.repairOrder.findFirst({ where: { organizationId, serviceVisit: { appointmentId } }, select: { id: true, repairOrderNumber: true, stage: true, operatingState: true, version: true } }); },
   async findOpenConcernCandidates(organizationId:string,input:{appointmentId:string|null;inventoryUnitId:string|null;vehicleId:string|null}):Promise<RepairOrderConcernCandidate[]>{
     let vehicleId=input.vehicleId;
@@ -49,8 +50,8 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
     const rows=await database.repairOrder.findMany({where:{organizationId,vehicleId,closedAt:null},orderBy:{openedAt:"asc"},select:{id:true,repairOrderNumber:true,stage:true,operatingState:true,version:true,serviceVisit:{select:{concernSummary:true}}}});
     return rows.map(({serviceVisit,...row})=>({...row,concernSummary:serviceVisit.concernSummary}));
   },
-  async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string; excludedLocationIds?: string[] }) {
-    const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null, ...(input.excludedLocationIds?.length ? { locationId: { notIn: input.excludedLocationIds } } : {}), ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}) };
+  async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string; excludedLocationIds?: string[]; allowedLocationIds?: string[] }) {
+    const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null, ...(input.excludedLocationIds?.length ? { locationId: { notIn: input.excludedLocationIds } } : {}), ...(input.allowedLocationIds ? { locationId: { in: input.allowedLocationIds, ...(input.excludedLocationIds?.length ? { notIn: input.excludedLocationIds } : {}) } } : {}), ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}) };
     if (input.state) where.operatingState = input.state as Prisma.EnumRepairOrderOperatingStateFilter;
     const tokens = input.query.trim().split(/\s+/).filter(Boolean);
     if (tokens.length) {

@@ -27,7 +27,7 @@ describe("compact enterprise execution", () => {
   });
   it("shows a generation error next to the worksheet action", () => {
     const html = renderToStaticMarkup(<GuidedEstimate {...props} simplified checksReady feedback="Unable to generate the estimate. Try again." />);
-    expect(html).toContain('<p role="alert">Unable to generate the estimate. Try again.</p>');
+    expect(html).toMatch(/<p[^>]*role="alert"[^>]*>Unable to generate the estimate\. Try again\.<\/p>/);
     expect(html).toContain("Generate / Print Estimate");
   });
   it("does not call an estimate ready merely because its labor basis was checked", () => {
@@ -45,8 +45,7 @@ describe("compact enterprise execution", () => {
   });
   it("keeps actual-RO selection visible even when a preliminary vehicle description exists", () => {
     const html = renderToStaticMarkup(<DiagnosticWorkspace initialSection="Estimate" vehicle="Unlinked description" customer="Draft customer" vin="Draft VIN" concern="Draft concern" tools={<input aria-label="Actual RO lookup" />} onSave={async () => true} onFindDrafts={async () => []} saveStatus="Not saved"><p>Worksheet</p></DiagnosticWorkspace>);
-    expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain('aria-label="Actual RO lookup"');
+    expect(html).toMatch(/<div(?=[\s>])(?![^>]*\shidden(?:[\s=>]))[^>]*><input[^>]*aria-label="Actual RO lookup"/);
   });
 });
 

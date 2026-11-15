@@ -10,10 +10,16 @@ export function DealWorkspaceOverview({ savedSummary, customer, vehicle, pathway
  pathwayOptions?: Array<{id:string;label:string}>; selectedPreset?: string; onPathway?: (id:string)=>void;
  customer: string; vehicle: string; pathway: string; pathwayLabel: string; owner: string; status: keyof typeof SAVED_DEAL_STATUSES; finalized: boolean; saved: boolean; saveStatus: string; section: DealWorkspaceSection; onNavigate: (section: DealWorkspaceSection) => void;
 }) {
+ const repair = pathway === "repairs";
+ const sectionLabel = (key: DealWorkspaceSection, label: string) =>
+  repair && key === "terms" ? "Repair concern" :
+  repair && key === "documents" ? "Repair documents" :
+  repair && key === "completion" ? "Repair handoff" :
+  pathway === "daily-rental" && key === "completion" ? "Checkout & Return" : label;
  const next = dealNextAction({ customer: Boolean(customer), vehicle: Boolean(vehicle), pathway, status, finalized });
  const statusLabel = status === "SOLD" ? finalized ? "Sold · finalized" : "Sold · paperwork pending" : pathway === "daily-rental" ? "Daily Rental · checkout & return" : SAVED_DEAL_STATUSES[status];
  return <div className={styles.workspace}>
-  <header className={styles.heading}><div><h1>{pathway === "daily-rental" ? "Daily Rental" : savedSummary ? "Deal summary" : "Deal overview"}</h1><p>{pathway === "daily-rental" ? "Prepare checkout, activate the rental, monitor due-back and record return." : saved ? "Continue this saved deal" : "Prepare the deal; it is saved when you select a customer or save your work."}</p></div><div className={styles.links}><Link href="/crm-next/deals">Deals Home</Link><span className={styles.status} data-state={status === "SOLD" ? finalized ? "complete" : "pending" : undefined}>{statusLabel}</span></div></header>
+  <header className={styles.heading}><div><h1>{repair ? "Repair deal" : pathway === "daily-rental" ? "Daily Rental" : savedSummary ? "Deal summary" : "Deal overview"}</h1><p>{pathway === "daily-rental" ? "Prepare checkout, activate the rental, monitor due-back and record return." : saved ? "Continue this saved deal" : "Prepare the deal; it is saved when you select a customer or save your work."}</p></div><div className={styles.links}><Link href="/crm-next/deals">Deals Home</Link><span className={styles.status} data-state={status === "SOLD" ? finalized ? "complete" : "pending" : undefined}>{statusLabel}</span></div></header>
   {(!savedSummary || section !== "overview") && <div className={styles.identity} aria-label="Deal identity summary"><div><small>Customer</small>{customer ? <strong>{customer}</strong> : <button type="button" onClick={() => onNavigate("identity")}>Choose customer</button>}</div><div><small>Vehicle</small><strong>{vehicle || "Choose vehicle"}</strong></div><div><small>Pathway</small><strong>{pathwayLabel}</strong></div><div><small>Assigned staff</small><strong>{owner}</strong><small>{saveStatus}</small></div></div>}
   {pathwayOptions.length > 0 && <details open={!saved} className={styles.advanced} aria-label="Revenue pathway chooser"><summary>Choose or change revenue pathway</summary><div className={styles.actions}>{pathwayOptions.map(option=><button key={option.id} type="button" aria-pressed={selectedPreset === option.id} onClick={event=>{onPathway?.(option.id);const chooser=event.currentTarget.closest("details");if(chooser)chooser.open=false;}}>{option.label}</button>)}</div></details>}
   <nav className={styles.nav} role="tablist" aria-label="Deal workspace sections" onKeyDown={event => {
@@ -21,12 +27,12 @@ export function DealWorkspaceOverview({ savedSummary, customer, vehicle, pathway
    event.preventDefault(); const index = DEAL_WORKSPACE_SECTIONS.findIndex(([key]) => key === section);
    const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? DEAL_WORKSPACE_SECTIONS.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + DEAL_WORKSPACE_SECTIONS.length) % DEAL_WORKSPACE_SECTIONS.length;
    onNavigate(DEAL_WORKSPACE_SECTIONS[nextIndex][0]);event.currentTarget.querySelectorAll<HTMLButtonElement>('button')[nextIndex]?.focus();
-  }}>{DEAL_WORKSPACE_SECTIONS.map(([key,label]) => <button key={key} id={`deal-workspace-tab-${key}`} aria-controls="deal-workspace-panel" role="tab" aria-selected={section === key} tabIndex={section === key ? 0 : -1} onClick={() => onNavigate(key)} type="button">{pathway === "daily-rental" && key === "completion" ? "Checkout & Return" : label}</button>)}</nav>
+  }}>{DEAL_WORKSPACE_SECTIONS.map(([key,label]) => <button key={key} id={`deal-workspace-tab-${key}`} aria-controls="deal-workspace-panel" role="tab" aria-selected={section === key} tabIndex={section === key ? 0 : -1} onClick={() => onNavigate(key)} type="button">{sectionLabel(key,label)}</button>)}</nav>
   {section === "overview" && <div id="deal-workspace-panel" role="tabpanel" aria-labelledby="deal-workspace-tab-overview">{savedSummary || <><section className={styles.next} aria-label="Next deal action"><div><small>Next action</small><h2>{next.title}</h2><p>{next.detail}</p></div><button className={styles.primary} onClick={() => onNavigate(next.section)} type="button">{next.action}</button></section><div className={styles.cards} style={{marginTop:12}}>{[
    ["identity","Customer & Vehicle", customer && vehicle ? "Shared identities linked. Review or change the selection." : "Choose the customer and canonical vehicle."],
-   ["terms","Terms & Payments","Review pricing, signing amounts and the pathway's calculator."],
-   ["documents","Documents","Select forms, generate and preview the packet, or review signed uploads."],
-   ["completion","Completion",status === "SOLD" ? "Finish remaining paperwork, funding and delivery checks." : "Record the sale or manage the vehicle-use assignment."],
+   ["terms",sectionLabel("terms", "Terms & Payments"),repair ? "Enter the concern before continuing to check-in." : "Review pricing, signing amounts and the pathway's calculator."],
+   ["documents",sectionLabel("documents","Documents"),repair ? "Find saved repair drafts and issued documents for the customer." : "Select forms, generate and preview the packet, or review signed uploads."],
+   ["completion",sectionLabel("completion","Completion"),repair ? "Continue to check-in or open the repair order." : status === "SOLD" ? "Finish remaining paperwork, funding and delivery checks." : "Record the sale or manage the vehicle-use assignment."],
    ["activity","Activity & Follow-up","Review this deal's history, owner, milestones and follow-up."],
   ].map(([key,label,detail]) => <section key={key} className={styles.card}><h2>{label}</h2><p>{detail}</p><div className={styles.actions}><button onClick={() => onNavigate(key as DealWorkspaceSection)} type="button">Open {label}</button></div></section>)}</div></>}</div>}
  </div>;

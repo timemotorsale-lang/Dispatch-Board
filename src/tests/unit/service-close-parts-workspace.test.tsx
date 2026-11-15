@@ -39,6 +39,17 @@ const initial = {
 };
 
 describe("ServiceClosePartsWorkspace", () => {
+  it("shows actionable close blockers instead of a misleading ready package or raw codes", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{ ...initial, repairOrders: [{ ...initial.repairOrders[0], invoicePackages: [{ id: "package-1", repairOrderId: "ro-1", status: "READY", version: 2, mismatchCodes: ["INVOICE_JOB_QC_INCOMPLETE", "INVOICE_MEASURED_CLOCK_INCOMPLETE", "INVOICE_INSTALL_QUANTITY_MISMATCH"] }] }] }} />);
+    expect(html).toContain("Package v2 · Review required");
+    expect(html).not.toContain("Package v2 - Ready");
+    expect(html).not.toContain("INVOICE_JOB_QC_INCOMPLETE");
+    expect(html).toContain("repairOrderId=ro-1&amp;step=qc");
+    expect(html).toContain("repairOrderId=ro-1&amp;step=parts");
+    expect(html).toContain("Recent parts records");
+    expect(html).toContain('aria-label="Next parts action"');
+  });
+
   it("uses customer procurement even when a customer vehicle has a historic inventory link", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
       ...initial,

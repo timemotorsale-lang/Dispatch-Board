@@ -1,0 +1,96 @@
+.entry {
+  container: parts-entry / inline-size;
+  min-width: 0;
+  padding: 12px 14px;
+  color: #182b45;
+  background: #fff;
+  border: 1px solid #d7e2ee;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.entry h2 { margin: 0 0 8px; font-size: 15px; }
+.entry p { margin: 0; overflow-wrap: anywhere; }
+.entry form, .fields, .purchase { display: grid; gap: 8px 10px; }
+.fields {
+  grid-template-columns: minmax(0, 1fr) 88px max-content;
+  align-items: end;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.purchase { grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); align-items: end; }
+.entry label { display: grid; gap: 3px; min-width: 0; font-size: 12px; font-weight: 650; }
+.entry [hidden] { display: none; }
+.entry input:not([type="checkbox"]), .entry select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 9px;
+  color: #182b45;
+  background: #fff;
+  border: 1px solid #bbcadd;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+}
+.entry input::placeholder { color: #65758a; }
+.entry :is(input, select):disabled { color: #52647b; background: #f3f6fa; opacity: 1; }
+.fields > label:first-child:has(> select):not(.part):not(.wide) { grid-column: 1 / -1; width: min(100%, 195px); }
+.wide { grid-column: 1 / -1; }
+.fields > label:has(> input[name="note"]) {
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.entry .check { display: flex; align-items: center; gap: 6px; min-height: 38px; }
+.check input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: #155bc5; }
+.entry form > button {
+  justify-self: start;
+  min-height: 38px;
+  padding: 6px 14px;
+  color: #fff;
+  background: #155bc5;
+  border: 1px solid #155bc5;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+}
+.entry form > button:not(:disabled):hover { background: #104b9f; }
+.entry form > button:disabled { color: #fff; background: #597da9; border-color: #597da9; }
+.entry :is(input, select, button, .feedback):focus-visible { outline: 2px solid #155bc5; outline-offset: 2px; }
+.feedback:not(:empty) { display: grid; gap: 4px; margin-top: 10px; }
+.feedback[role="alert"] { color: #982324; }
+@container parts-entry (max-width: 560px) {
+  .fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .part { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .entry input:not([type="checkbox"]), .entry select, .entry .check, .entry form > button { min-height: 44px; }
+  .entry form > button { width: 100%; }
+}
+
+.receiptChoices { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.reference { display: grid; gap: 4px; min-width: 0; }
+.reference button { justify-self: start; min-height: 38px; }
+@media (max-width: 600px) { .reference button { min-height: 44px; } }
+
+.extraPartRow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(4rem, 10vw, 8rem) auto;
+  align-items: end;
+  gap: 0.5rem;
+}
+.extraPartRow label { min-width: 0; }
+.extraPartRow button, .addPartRow button {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+}
+.addPartRow { grid-column: 1 / -1; }
