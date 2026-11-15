@@ -1,5 +1,6 @@
 "use client";
 
+import { documentPhoneLine } from "@/lib/service-document-phone";
 import Link from "next/link";
 import { useRef, useState, type RefObject } from "react";
 import { openServiceDocumentPrint, serviceDocumentPdfHref } from "@/lib/service-document-print";
@@ -59,7 +60,7 @@ export function ServiceDocument({ content, repairOrderId, reviewWorkflow = false
       <div data-document-customer className={styles.customer}>
         <h2>CUSTOMER</h2>
         <p className={styles.customerName}>{content.identity.customer}</p>
-        {customerContact && <div className={styles.customerContact}>{[customerContact.phone, customerContact.email, customerContact.address].filter(Boolean).map((value, index) => <p key={index}>{value}</p>)}</div>}
+        {customerContact && <div className={styles.customerContact}>{[documentPhoneLine(customerContact.phone), customerContact.email, customerContact.address].filter(Boolean).map((value, index) => <p key={index}>{value}</p>)}</div>}
       </div>
     </section>
     <section data-print-vehicle className={styles.vehicleDetails} aria-label="Vehicle details">

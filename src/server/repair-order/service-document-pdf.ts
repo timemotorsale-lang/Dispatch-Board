@@ -1,3 +1,4 @@
+import { documentPhoneLine } from "@/lib/service-document-phone";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { drawDealDeskPdfLogo } from "@/server/services/deal-desk-document-brand";
 import { customerDocumentNotes, estimateCorrectionNotes, isEstimateExpirationNote, legacyReceiptDetails, serviceDocumentMileage } from "@/lib/service-document-notes";
@@ -84,7 +85,7 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   paragraph(content.identity.customer, 13, bold, columnWidth, customerX);
   y -= 4;
   const contact = content.identity.customerContact;
-  if (contact) for (const value of [contact.phone, contact.email, contact.address]) if (value) paragraph(value, 9, font, columnWidth, customerX);
+  if (contact) for (const value of [documentPhoneLine(contact.phone), contact.email, contact.address]) if (value) paragraph(value, 9, font, columnWidth, customerX);
   y = Math.min(brandBottom, y);
   page!.drawLine({ start: { x: 306, y: partiesTop }, end: { x: 306, y: y + 8 }, thickness: .7, color: rule });
   y -= 12;
