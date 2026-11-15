@@ -21,6 +21,7 @@ import {
   normalizePurchaseRevision,
   normalizePurchaseTransition,
   normalizeReceipt,
+  normalizeReceivedPartOutcome,
   normalizeRecovery,
   normalizeRecoveryTransition,
   normalizeReopen,
@@ -130,6 +131,20 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
     const version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", subjectType, subjectId);
     return context.repository.setPurchaseApprovalPolicy(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), organizationId: context.organizationId, payload: { required: raw.required }, reason: raw.required ? "Require manager approval for parts purchases." : "Allow parts purchases without manager approval.", subjectId, subjectType }), raw.required);
   }
+  if (action === "RECORD_RECEIVED_PART_OUTCOME") {
+    assertAuthenticatedUser(actor);
+    const data = normalizeReceivedPartOutcome(raw);
+    const site = await context.repository.receivedPartSite(context.organizationId, data.receiptId, data.repairOrderId);
+    if (!site) throw new Error("Receipt does not belong to this repair order.");
+    const user = await authorize(actor, "PARTS_OPERATIONS", true, site.locationId, { ...context, enforceRollout: true });
+    return context.repository.recordReceivedPartOutcome(command({
+      organizationId: context.organizationId, locationId: site.locationId, actorUserId: user.id,
+      domain: "PARTS_OPERATIONS", commandType: action, subjectType: "PART_RECEIPT_OUTCOME",
+      subjectId: procurementCommandId(context.organizationId, action, data.idempotencyKey),
+      idempotencyKey: data.idempotencyKey, reason: data.reason, payload: payload(data),
+    }), data);
+  }
+
   const view = await context.repository.overview(context.organizationId);
   const shop = ["GENERATE_INVOICE_PACKAGE", "TRANSITION_INVOICE_HANDOFF", "CLOSE_REPAIR_ORDER", "REOPEN_REPAIR_ORDER"].includes(action);
   const subjectId = typeof raw.subjectId === "string" ? raw.subjectId.trim() : "";

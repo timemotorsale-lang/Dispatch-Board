@@ -29,7 +29,7 @@
 .context :global(.scp-field) { padding: 0; border: 0; background: transparent; box-shadow: none; }
 .context select { padding: 8px 10px; font-size: 13px; border: 1px solid #c4d3e5; border-radius: 6px; background: #fff; }
 .context p { font-size: 13px; line-height: 1.4; }
-.nextAction button, .nextAction a, .recovery button, .recovery a {
+.nextAction button, .nextAction a, .recovery button, .recovery a, .receiptActions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -54,3 +54,18 @@
 .nextAction button:focus-visible, .nextAction a:focus-visible,
 .recovery button:focus-visible, .recovery a:focus-visible { outline: 2px solid #2563a6; outline-offset: 2px; }
 .nextAction button:disabled, .recovery button:disabled { opacity: .55; cursor: not-allowed; }
+
+.history { padding: 8px 12px; font-size: 13px; border: 1px solid #d8dee8; border-radius: 6px; }
+.history summary { cursor: pointer; font-weight: 600; }
+.recovery article + article { border-top: 1px solid #d8c69b; margin-top: 10px; padding-top: 10px; }
+
+.received { padding: 10px 14px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; }
+.received h2 { margin: 0; font-size: 1rem; }
+.received > p { margin: 6px 0; font-size: 12px; color: #52677e; }
+.received article { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 14px; padding: 8px 0; border-top: 1px solid #e4eaf2; }
+.received article > div { min-width: 0; }
+.received article small, .received article span { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.receiptActions { display: flex; flex-wrap: wrap; align-items: center; }
+.receiptActions button:hover:not(:disabled) { background: #edf5ff; }
+.receiptActions button:focus-visible { outline: 2px solid #2563a6; outline-offset: 2px; }
+.receiptActions button:disabled { opacity: .55; cursor: not-allowed; }

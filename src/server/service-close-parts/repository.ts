@@ -1,3 +1,4 @@
+import { assertCurrentRepairAuthorization } from "@/lib/repair-authorization-current";
 import { checkReconPurchaseApproval } from "./procurement-budget";
 import { serviceInvoiceBalance } from "@/lib/service-billing";
 import { serviceInvoiceCandidate, assertCurrentInvoicePackage } from "./invoice-candidate";
@@ -6,7 +7,7 @@ import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { assertPartStockLocationWritable } from "@/server/parts-ledger/count-freeze";
-import { assertIndependentPartsApproval, normalizePurchaseTransition, type PurchaseLine, type ReceiptLine, type TransferLine } from "./domain";
+import { assertIndependentPartsApproval, normalizePurchaseTransition, receiptLineConsumedQuantities, type PurchaseLine, type ReceiptLine, type ReceivedPartOutcome, type TransferLine } from "./domain";
 import { assertPurchaseOrderDuplicateGate, type PurchaseOrderDuplicateGateFact } from "./purchase-order-control";
 
 type StockMovement = {
@@ -72,6 +73,13 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         }
         return { previous, result: { purchaseApprovalRequired: required } };
       });
+    },
+    async receivedPartSite(organizationId: string, receiptId: string, repairOrderId: string) {
+      const receipt = await database.partReceipt.findFirst({
+        where: { id: receiptId, organizationId, purchaseOrder: { requisition: { demand: { repairOrderId } } } },
+        select: { purchaseOrder: { select: { locationId: true } } },
+      });
+      return receipt?.purchaseOrder ?? null;
     },
     demandSite(organizationId: string, id: string) {
       return database.repairPartDemand.findFirst({ where: { organizationId, id }, select: { repairOrder: { select: { id: true, locationId: true } } } });
@@ -146,6 +154,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               select: {
                 demand: {
                   select: {
+                    id: true,
                     repairOrder: { select: { id: true, repairOrderNumber: true } },
                   },
                 },
@@ -331,10 +340,10 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           tx.repairPartDemand.findMany({ where: { organizationId: command.organizationId, partId: { in: linePartIds }, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, select: { id: true, partId: true, repairOrder: { select: { repairOrderNumber: true } } } }),
           tx.partPurchaseOrder.findMany({ where: { organizationId: command.organizationId, status: { in: ["DRAFT", "APPROVED", "ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED"] } }, select: { id: true, lines: true, purchaseOrderNumber: true, status: true } }),
           tx.partReceipt.findMany({ where: { organizationId: command.organizationId }, orderBy: { receivedAt: "desc" }, take: 250, select: { id: true, lines: true, purchaseOrder: { select: { purchaseOrderNumber: true } } } }),
-          tx.partCustodyEvent.findMany({ where: { organizationId: command.organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["ISSUE", "INSTALL"] } }, select: { sourceId: true, sourceType: true } }),
+          tx.partCustodyEvent.findMany({ where: { organizationId: command.organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["ISSUE", "INSTALL"] } }, select: { sourceId: true, quantity: true } }),
           tx.partRecoveryCase.findMany({ where: { organizationId: command.organizationId, partId: { in: linePartIds }, status: { notIn: ["CREDITED", "WRITTEN_OFF"] } }, select: { id: true, partId: true, sourceReference: true, status: true, type: true } }),
         ]);
-        const issuedReceiptLines = new Set(custodyEvents.map((event) => `${event.sourceType}:${event.sourceId}`));
+        const consumedByReceiptLine = receiptLineConsumedQuantities(custodyEvents);
         const facts: PurchaseOrderDuplicateGateFact[] = [
           ...activeDemands.map((demand) => ({ id: demand.id, label: `${demand.repairOrder.repairOrderNumber}`, partId: demand.partId, type: "ACTIVE_DEMAND" as const })),
           ...openPurchaseOrders.flatMap((order) => (Array.isArray(order.lines) ? order.lines : []).flatMap((line) => {
@@ -344,7 +353,10 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           ...receipts.flatMap((receipt) => (Array.isArray(receipt.lines) ? receipt.lines : []).flatMap((line, index) => {
             const partId = line && typeof line === "object" && "partId" in line && typeof line.partId === "string" ? line.partId : "";
             const sourceId = `${receipt.id}:${index}`;
-            return linePartIds.includes(partId) && !issuedReceiptLines.has(`PART_RECEIPT_LINE:${sourceId}`) ? [{ id: sourceId, label: `${receipt.purchaseOrder.purchaseOrderNumber} receipt line ${index + 1}`, partId, type: "RECEIVED_UNISSUED" as const }] : [];
+            const goodQuantity = line && typeof line === "object" && "quantity" in line && typeof line.quantity === "number"
+              ? line.quantity - ("damagedQuantity" in line && typeof line.damagedQuantity === "number" ? line.damagedQuantity : 0)
+              : null;
+            return linePartIds.includes(partId) && (goodQuantity === null || goodQuantity > (consumedByReceiptLine.get(sourceId) ?? 0)) ? [{ id: sourceId, label: `${receipt.purchaseOrder.purchaseOrderNumber} receipt line ${index + 1}`, partId, type: "RECEIVED_UNISSUED" as const }] : [];
           })),
           ...recoveries.map((recovery) => ({ id: recovery.id, label: `${recovery.type} ${recovery.sourceReference} (${recovery.status})`, partId: recovery.partId, type: "RECOVERY_OPEN" as const })),
         ];
@@ -428,6 +440,85 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         if (!record) throw new Error("Open receiving discrepancy was not found.");
         const next = await tx.partReceivingDiscrepancy.update({ where: { id: record.id }, data: { resolution: data.resolution, resolvedAt: data.occurredAt, resolvedByUserId: data.resolvedByUserId, status: "RESOLVED", version } });
         return { previous: record, result: { id: next.id, status: next.status, version } };
+      });
+    },
+
+    recordReceivedPartOutcome(command: EnterpriseCommandCommitInput, data: ReceivedPartOutcome) {
+      return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
+        const organizationId = command.organizationId;
+        const receipt = await tx.partReceipt.findFirst({
+          where: {
+            id: data.receiptId, organizationId,
+            purchaseOrder: { organizationId, locationId: command.locationId!, requisition: { demand: { repairOrder: { id: data.repairOrderId, organizationId, locationId: command.locationId!, closedAt: null, stage: { notIn: ["CLOSED", "CANCELLED"] } } } } },
+            stockLocation: { organizationId, locationId: command.locationId!, isActive: true, type: { not: "DAMAGED" } },
+          },
+          include: { purchaseOrder: { select: { vendorId: true } } },
+        });
+        if (!receipt) throw new Error("An open repair order and its receipt at an active receiving location are required.");
+        if (data.occurredAt < receipt.receivedAt) throw new Error("Outcome time cannot precede receiving.");
+        const line = Array.isArray(receipt.lines) ? (receipt.lines as ReceiptLine[])[data.lineIndex] : undefined;
+        if (!line?.partId || !Number.isInteger(line.quantity) || line.quantity < 1 || line.damagedQuantity > 0) {
+          throw new Error("Select an undamaged receipt line with a positive quantity.");
+        }
+
+        const source = `${receipt.id}:${data.lineIndex}`;
+        // The suffix allows separate partial outcomes while preserving the exact receipt-line reference.
+        const custodySourceId = `${source}:${command.subjectId}`;
+        const returnPrefix = `RO:${data.repairOrderId}|RECEIPT:${source}|`;
+        const [legacyCustody, used, returns, stock] = await Promise.all([
+          tx.partCustodyEvent.findFirst({
+            where: { organizationId, sourceType: "PART_CUSTODY", sourceId: source, type: { in: ["INSTALL", "ISSUE"] } },
+            select: { id: true },
+          }),
+          tx.partCustodyEvent.aggregate({
+            where: { organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["INSTALL", "ISSUE"] }, OR: [{ sourceId: source }, { sourceId: { startsWith: `${source}:` } }] },
+            _sum: { quantity: true },
+          }),
+          tx.partRecoveryCase.aggregate({
+            where: { organizationId, type: "VENDOR_RETURN", OR: [{ sourceReference: source }, { sourceReference: { startsWith: `${source}:` } }, { sourceReference: { startsWith: returnPrefix } }] },
+            _sum: { quantity: true },
+          }),
+          tx.partStockBalance.findUnique({ where: { partId_stockLocationId: { partId: line.partId, stockLocationId: receipt.stockLocationId } } }),
+        ]);
+        if (legacyCustody) throw new Error("This receipt line has legacy custody records. Reconcile its issue and installation history before recording another outcome.");
+        const remaining = line.quantity - (used._sum.quantity ?? 0) - (returns._sum.quantity ?? 0);
+        if (data.quantity > remaining) throw new Error("Quantity exceeds the remaining undisposed units on this receipt line.");
+        if (!stock || data.quantity > stock.onHandQuantity - stock.allocatedQuantity) {
+          throw new Error("The receipt bin does not have enough unallocated stock.");
+        }
+
+        if (data.outcome === "RETURN") {
+          const record = await tx.partRecoveryCase.create({ data: {
+            id: command.subjectId, organizationId, createdByUserId: command.actorUserId,
+            partId: line.partId, vendorId: receipt.purchaseOrder.vendorId, quantity: data.quantity,
+            type: "VENDOR_RETURN", sourceReference: `${returnPrefix}${command.subjectId}`, deadlineAt: data.deadlineAt, expectedCreditCents: 0, reason: data.reason,
+          } });
+          return { result: { id: record.id, outcome: data.outcome, status: record.status, remainingQuantity: remaining - data.quantity } };
+        }
+
+        const job = await tx.repairJob.findFirst({
+          where: { id: data.repairJobId, organizationId, repairOrderId: data.repairOrderId, status: { notIn: ["CANCELLED", "QC_PASSED"] } },
+        });
+        if (!job) throw new Error("Select an active repair job on this repair order.");
+        const [authorization, estimate] = await Promise.all([
+          tx.repairAuthorization.findFirst({ where: { organizationId, repairOrderId: data.repairOrderId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }),
+          tx.repairEstimateVersion.findFirst({ where: { organizationId, repairOrderId: data.repairOrderId }, orderBy: { version: "desc" }, select: { id: true } }),
+        ]);
+        assertCurrentRepairAuthorization(job, authorization);
+        if (!estimate || estimate.id !== job.estimateVersionId) throw new Error("Authorize the current estimate version before recording installed parts.");
+        const unitCostCents = stock.averageCostCents;
+        await moveStock(tx, command, {
+          actorUserId: command.actorUserId, movementType: "INSTALL", occurredAt: data.occurredAt,
+          partId: line.partId, quantityDelta: -data.quantity, reason: data.reason, sourceId: custodySourceId,
+          sourceType: "PART_RECEIPT_LINE", stockLocationId: receipt.stockLocationId, unitCostCents,
+        });
+        const record = await tx.partCustodyEvent.create({ data: {
+          id: command.subjectId, organizationId, actorUserId: command.actorUserId, correlationId: command.correlationId,
+          type: "INSTALL", partId: line.partId, repairJobId: job.id, fromStockLocationId: receipt.stockLocationId,
+          quantity: data.quantity, unitCostCents, sourceId: custodySourceId, sourceType: "PART_RECEIPT_LINE",
+          reason: data.reason, evidence: toJson(data.evidence), occurredAt: data.occurredAt,
+        } });
+        return { result: { id: record.id, outcome: data.outcome, status: "INSTALLED", remainingQuantity: remaining - data.quantity } };
       });
     },
 

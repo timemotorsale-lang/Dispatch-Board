@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runCompactPartsEntry, type CompactPartsEntryInput, type CompactPartsEntryModel, type CompactPartsEntryProgress } from "@/lib/compact-parts-entry";
+import { compactReceiptRemaining, runCompactPartsEntry, type CompactPartsEntryInput, type CompactPartsEntryModel, type CompactPartsEntryProgress } from "@/lib/compact-parts-entry";
 const input: CompactPartsEntryInput = { mode: "PURCHASED", repairOrderId: "ro", locationId: "store", description: "Brake pads", quantity: 2, vendorId: "vendor", unitPriceCents: 2500, purchasedAt: "2026-01-01T12:00:00Z", received: true, receivedAt: "2026-01-02T12:00:00Z", stockLocationId: "bin", packingSource: "Slip 1", note: "Verified synthetic purchase" };
 const model: CompactPartsEntryModel = { repairOrders: [{ id: "ro", locationId: "store" }], demands: [], requisitions: [], catalog: [{ id: "part", partNumber: "PAD" }], vendors: [{ id: "vendor", name: "Vendor" }], stockLocations: [{ id: "bin", locationId: "store", isActive: true }], purchaseOrders: [], receipts: [] };
 function harness(status = "ISSUED") {
@@ -52,6 +52,67 @@ describe("compact parts orchestration", () => {
   });
   it("rejects a mismatched RO location before creating catalog or demand records", async () => {
     const h = harness(); expect((await runCompactPartsEntry({ ...input, locationId: "wrong" }, model, h)).status).toBe("BLOCKED"); expect(h.request).not.toHaveBeenCalled();
+  });
+  it("returns exact existing PO choices before any journal checkpoint or write", async () => {
+    const h = harness(); const onProgress = vi.fn(h.onProgress);
+    const result = await runCompactPartsEntry({ ...input, partId: "part" }, { ...model, purchaseOrders: [{ id: "first", repairOrderId: "ro", locationId: "store", status: "ISSUED", lines: [{ partId: "part", quantity: 2, unitCostCents: 1 }] }, { id: "second", repairOrderId: "ro", locationId: "store", status: "DRAFT", lines: [{ partId: "part", quantity: 2, unitCostCents: 1 }] }] }, { ...h, onProgress });
+    expect(result).toMatchObject({ status: "BLOCKED", existingPurchaseOrderIds: ["first", "second"] });
+    expect(result.purchaseOrderId).toBeUndefined(); expect(result.progress.steps).toEqual({});
+    expect(onProgress).not.toHaveBeenCalled(); expect(h.request).not.toHaveBeenCalled();
+  });
+  it("matches an explicit part number before description and preserves a provided new number", async () => {
+    const h = harness();
+    const existing = await runCompactPartsEntry({ ...input, mode: "NEEDED", received: false, partNumber: " pad " }, model, h);
+    expect(existing.partId).toBe("part"); expect(h.request.mock.calls[0][0]).not.toBe("/api/parts");
+    const fresh = harness(); await runCompactPartsEntry({ ...input, mode: "NEEDED", received: false, partNumber: " custom-123 " }, model, fresh);
+    expect(fresh.request.mock.calls[0][1]).toMatchObject({ partNumber: "CUSTOM-123" });
+  });
+  it("creates a named physical bin at the actual store, then receives using its exact ID", async () => {
+    const h = harness(); const result = await runCompactPartsEntry({ ...input, stockLocationId: undefined, stockLocationName: "Rear shelf B" }, model, h);
+    expect(result.status).toBe("COMPLETE");
+    const location = h.request.mock.calls.find(([path]) => path === "/api/parts/locations")!;
+    expect(location[1]).toMatchObject({ locationId: "store", name: "Rear shelf B", type: "BIN", code: expect.stringMatching(/^BIN-/) });
+    expect(h.request.mock.calls.at(-1)?.[1]).toMatchObject({ stockLocationId: "/api/parts/locations-id" });
+  });
+  it("reuses an existing physical bin by name at the same store", async () => {
+    const h = harness(); await runCompactPartsEntry({ ...input, stockLocationId: undefined, stockLocationName: "Rear shelf B" }, { ...model, stockLocations: [{ id: "wrong-store", locationId: "other", name: "Rear shelf B" }, { id: "right-bin", locationId: "store", name: "Rear shelf B" }] }, h);
+    expect(h.request.mock.calls.some(([path]) => path === "/api/parts/locations")).toBe(false);
+    expect(h.request.mock.calls.at(-1)?.[1]).toMatchObject({ stockLocationId: "right-bin" });
+  });
+  it("records atomic use after new receipt and resumes only the lost outcome request", async () => {
+    const h = harness(); const base = h.request.getMockImplementation()!; let fail = true;
+    h.request.mockImplementation(async (path, body) => { if (body.action === "RECORD_RECEIVED_PART_OUTCOME" && fail) { fail = false; throw new Error("Lost outcome response"); } return base(path, body); });
+    const value = { ...input, usage: "USED" as const, usageOccurredAt: "2026-01-03T12:00:00Z", repairJobId: "job", evidence: ["Verified installed pads"] };
+    const context = { ...model, repairJobs: [{ id: "job", repairOrderId: "ro", status: "IN_PROGRESS" }] };
+    const first = await runCompactPartsEntry(value, context, h); expect(first.status).toBe("RETRY");
+    const second = await runCompactPartsEntry(value, context, { ...h, progress: first.progress }); expect(second).toMatchObject({ status: "COMPLETE", outcome: "USED" });
+    const outcomes = h.request.mock.calls.filter(([, body]) => body.action === "RECORD_RECEIVED_PART_OUTCOME");
+    expect(outcomes).toHaveLength(2); expect(outcomes[0][1]).toEqual(outcomes[1][1]);
+    expect(outcomes[0][1]).toMatchObject({ receiptId: "exact-receipt", lineIndex: 0, repairJobId: "job", evidence: ["Verified installed pads"] });
+    expect(h.request.mock.calls.filter(([, body]) => body.action === "CREATE_PURCHASE_ORDER")).toHaveLength(1);
+    expect(h.request.mock.calls.filter(([, body]) => body.action === "RECEIVE_PURCHASE_ORDER")).toHaveLength(1);
+  });
+  const receivedModel: CompactPartsEntryModel = { ...model, purchaseOrders: [{ id: "saved-po", repairOrderId: "ro", locationId: "store", status: "RECEIVED", lines: [{ partId: "part", quantity: 2, unitCostCents: 1 }] }], receipts: [{ id: "saved-receipt", purchaseOrderId: "saved-po", receivedAt: "2026-01-02T12:00:00Z", stockLocationId: "bin", lines: [{ partId: "part", quantity: 2 }] }] };
+  it("opens return follow-up against exact saved receipt without procurement or stock return commands", async () => {
+    const h = harness(); const result = await runCompactPartsEntry({ ...input, receiptId: "saved-receipt", lineIndex: 0, usage: "RETURN", usageOccurredAt: "2026-01-03T12:00:00Z", returnReason: "Unused pads no longer needed", deadlineAt: "2026-01-04T12:00:00Z" }, receivedModel, h);
+    expect(result).toMatchObject({ status: "COMPLETE", outcome: "RETURN" }); expect(result.nextAction).toContain("not yet recorded");
+    expect(h.request).toHaveBeenCalledTimes(1); expect(h.request.mock.calls[0][1]).toMatchObject({ action: "RECORD_RECEIVED_PART_OUTCOME", receiptId: "saved-receipt", lineIndex: 0, outcome: "RETURN" });
+  });
+  it("counts both legacy and RO-scoped recovery references without matching another RO", () => {
+    const context = { ...receivedModel, recoveries: [{ id: "return1", sourceReference: "saved-receipt:0:old", partId: "part", quantity: 1, status: "OPEN" }, { id: "return2", sourceReference: "RO:ro|RECEIPT:saved-receipt:0|new", partId: "part", quantity: 1, status: "OPEN" }, { id: "other", sourceReference: "RO:other|RECEIPT:saved-receipt:0|wrong", partId: "part", quantity: 10, status: "OPEN" }] };
+    expect(compactReceiptRemaining(context, "saved-receipt", 0)).toBe(0);
+    expect(compactReceiptRemaining(context, "saved-receipt", 1)).toBeNull();
+  });
+  it("not-yet-used saved receipt makes no request", async () => {
+    const h = harness(); expect((await runCompactPartsEntry({ ...input, receiptId: "saved-receipt", lineIndex: 0, usage: "NOT_YET" }, receivedModel, h)).status).toBe("COMPLETE"); expect(h.request).not.toHaveBeenCalled();
+  });
+  it("blocks unknown job status before procurement", async () => {
+    const h = harness(); const result = await runCompactPartsEntry({ ...input, usage: "USED", repairJobId: "job", evidence: ["Evidence"], usageOccurredAt: "2026-01-03T12:00:00Z" }, { ...model, repairJobs: [{ id: "job", repairOrderId: "ro", status: "UNKNOWN" }] }, h);
+    expect(result.status).toBe("BLOCKED"); expect(h.request).not.toHaveBeenCalled();
+  });
+  it("blocks already-disposed saved receipt quantity", async () => {
+    const h = harness(); const result = await runCompactPartsEntry({ ...input, receiptId: "saved-receipt", lineIndex: 0, usage: "RETURN", usageOccurredAt: "2026-01-03T12:00:00Z", returnReason: "Unused pads not needed", deadlineAt: "2026-01-04T12:00:00Z" }, { ...receivedModel, custodyEvents: [{ sourceId: "saved-receipt:0:event", partId: "part", quantity: 1, type: "INSTALL" }] }, h);
+    expect(result.status).toBe("BLOCKED"); expect(h.request).not.toHaveBeenCalled();
   });
   it("receives only the newly created PO, never an unrelated first PO", async () => {
     const h = harness(); const result = await runCompactPartsEntry(input, { ...model, purchaseOrders: [{ id: "unrelated", repairOrderId: "other", locationId: "store", status: "ISSUED", lines: [] }] }, h);

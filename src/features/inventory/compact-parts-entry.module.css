@@ -72,3 +72,8 @@
   .entry input:not([type="checkbox"]), .entry select, .entry .check, .entry form > button { min-height: 44px; }
   .entry form > button { width: 100%; }
 }
+
+.receiptChoices { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.reference { display: grid; gap: 4px; min-width: 0; }
+.reference button { justify-self: start; min-height: 38px; }
+@media (max-width: 600px) { .reference button { min-height: 44px; } }
