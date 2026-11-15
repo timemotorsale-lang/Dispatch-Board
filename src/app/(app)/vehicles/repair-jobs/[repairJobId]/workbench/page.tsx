@@ -1,4 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { prisma } from "@/server/db/client";
+import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
+import { assertRepairLocationRead } from "@/server/repair-order/read-access";
 
 import { TechnicianRepairWorkbench } from "@/features/technician/technician-repair-workbench";
 import { requireCurrentUser } from "@/server/auth/current-user";
@@ -20,6 +26,20 @@ export default async function TechnicianRepairWorkbenchPage({
 
   if (!model) {
     const technicianOnly = isTechnicianOnlyUser(user);
+    if (!technicianOnly) {
+      const organizationId = INITIAL_ORGANIZATION.id;
+      const job = await prisma.repairJob.findFirst({
+        where: { id: repairJobId, organizationId, repairOrder: { organizationId } },
+        select: { repairOrderId: true, repairOrder: { select: { locationId: true } } }
+      });
+      if (job) {
+        const canRead = await assertRepairLocationRead(
+          user, organizationId, job.repairOrder.locationId, createEnterpriseCommandRepository()
+        ).then(() => true, () => false);
+        if (canRead) redirect(repairReviewHref(job.repairOrderId));
+      }
+    }
+
     return (
       <section className="technician-workbench-unavailable">
         <span>Repair Workbench unavailable</span>

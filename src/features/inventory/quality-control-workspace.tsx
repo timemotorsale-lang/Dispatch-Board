@@ -162,7 +162,7 @@ export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: 
   const disposition = results.includes("FAIL") ? "Fail" : results.includes("REVIEW") ? "Needs review" : "Pass";
   return <details className="frontline-final-qc repair-frontline-preview" open>
     <summary><strong>Inventory Lifecycle QC checklist</strong></summary>
-    <p>Use Pass, Fail, or Review to work through the checklist. Save your answers as a draft. Record the official inspection when the repair job is ready for QC.</p>
+    <p>Use Pass, Fail, or Review to work through the checklist. This is a planning draft. Complete the repair and use Record QC decision to save the inspection for billing and handoff.</p>
     <div className="frontline-checklist-columns">
       {frontlineQcSections.map((section, sectionIndex) => <section className="frontline-checklist-section" key={section.title}>
         <h3>{section.title}</h3>
@@ -182,7 +182,8 @@ export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: 
       <h3>Overall checklist result</h3>
       <p role="status">{remaining ? `${remaining} checks remaining` : `Draft checklist: ${disposition}`}</p>
       {!remaining && <p>These answers have not been saved as the repair inspection. Once the job is ready for QC, save its inspection to continue toward invoice payment.</p>}
-      <button className="pill pill-primary" type="button" disabled={!draftLoaded || !results.length} onClick={saveDraft}>Save QC draft</button>
+      <Link className="pill" href={repairReviewHref(repairOrderId, "repair")}>Open repair progress</Link>
+      <button className="pill" type="button" disabled={!draftLoaded || !results.length} onClick={saveDraft}>Save QC draft</button>
       {saveStatus && <p role="status">{saveStatus}</p>
       }
     </section>
@@ -312,6 +313,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     reworkInstructions: ""
   });
   const [release, setRelease] = useState({ keysVerified: false, releaseEvidence: "", openExceptions: "" });
+  const [importedDraft, setImportedDraft] = useState<{ jobId: string; checks: { category: string; code: string; label: string; result: "PASS" | "FAIL"; evidence: string[] }[] } | null>(null);
   const [checkResults, setCheckResults] = useState<Record<string, "PASS" | "FAIL" | "NOT_APPLICABLE">>({});
   const submitInFlightRef = useRef(false);
 
@@ -328,7 +330,12 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const order = model.repairOrders.find((item) => item.id === orderId) ?? model.repairOrders[0];
   const job = order?.repairJobs.find((item) => item.id === jobId) ?? order?.repairJobs[0];
   const vendorQcWork = activeVendorQcWork(order);
-  const allPassed = Boolean(order?.repairJobs.length) && order.repairJobs.every((item) => item.status === "QC_PASSED" && item.qualityInspections[0]?.disposition === "PASSED");
+  const activeJobs = order?.repairJobs.filter(item => item.status !== "CANCELLED") ?? [];
+  const allPassed = activeJobs.length > 0 && activeJobs.every(item =>
+    item.status === "QC_PASSED" &&
+    item.qualityInspections[0]?.disposition === "PASSED" &&
+    item.qualityInspections[0]?.safetyChecksPassed
+  );
   const latestInspection = job?.qualityInspections[0];
   const checklist = order && job ? generatedChecklist(order, job) : [];
   const gates = order && job ? gateRows(order, job) : [];
@@ -853,7 +860,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           {order.origin === "CUSTOMER_REPAIR" ? <div>
             <strong>{order.releaseAuthorization ? "Final QC complete" : "Repair quality checks passed"}</strong>
             <span>Continue to billing to review the approved estimate and any remaining invoice requirements.</span>
-            {order.customer && <><Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link> {reviewOrderId && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id, mode: "payment" })}#invoice-payment`}>Receive invoice payment</Link>}</>}
+            {order.customer && <><Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link></>}
             {reviewOrderId && <Link className="pill" href={repairReviewHref(order.id, "handoff")}>Check readiness &amp; open handoff</Link>}
           </div> : <div>
             <strong>Final Frontline QC complete</strong>
@@ -1067,6 +1074,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                 checks: [
                   { category: "COMPLETION", code: "CORRECTION_COMPLETE", label: "Approved correction completed", result: qc.completionResult, evidence: list(qc.completionEvidence) },
                   { category: "SAFETY", code: "SAFETY_CONTROLS", label: "Applicable safety checks passed", result: qc.safetyResult, evidence: list(qc.completionEvidence) },
+                  ...(importedDraft?.jobId === job.id ? importedDraft.checks : []),
                   ...checklist.map((item) => ({ category: isSafetyCritical(job, order) && /safety|brake|steer|suspension|road test|wheel/i.test(item.label) ? "SAFETY" : "OTHER", code: code(item.label), label: item.label, result: resultFor(item.label), evidence: list(qc.completionEvidence) }))
                 ],
                 completionEvidence: list(qc.completionEvidence),
@@ -1087,6 +1095,28 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                 <span>Pass, fail back to technician, or require peer/road-test evidence.</span>
               </div>
             </header>
+            {reviewOrderId && <div>
+              <button type="button" className="pill" onClick={() => {
+                try {
+                  const draft = JSON.parse(localStorage.getItem("repair-qc-draft:" + order.id) ?? "null");
+                  const checks = frontlineQcItems.flatMap(item => {
+                    const result = draft?.answers?.[item.code];
+                    if (result !== "PASS" && result !== "FAIL") return [];
+                    const note = draft?.notes?.[item.code];
+                    return [{ category: "OTHER", code: code("draft " + item.code), label: item.label, result: result as "PASS" | "FAIL", evidence: typeof note === "string" && note.trim() ? [note.trim()] : [] }];
+                  });
+                  if (checks.length !== frontlineQcItems.length) {
+                    setErrorNotice("Complete the saved checklist and resolve Review items before attaching it.");
+                    return;
+                  }
+                  setImportedDraft({ jobId: job.id, checks });
+                  setNotice("Saved checklist attached. Record the QC decision to save it with this job.");
+                } catch {
+                  setErrorNotice("The saved checklist could not be read.");
+                }
+              }}>Attach saved QC checklist</button>
+              {importedDraft?.jobId === job.id && <p>{importedDraft.checks.length} checklist answers attached to this inspection.</p>}
+            </div>}
             <div className="qc-form-grid">
               <label><span>Completion</span><select value={qc.completionResult} onChange={(event) => setQc((value) => ({ ...value, completionResult: event.target.value }))}><option>PASS</option><option>FAIL</option><option>NOT_APPLICABLE</option></select></label>
               <label><span>Safety</span><select value={qc.safetyResult} onChange={(event) => setQc((value) => ({ ...value, safetyResult: event.target.value }))}><option>PASS</option><option>FAIL</option></select></label>

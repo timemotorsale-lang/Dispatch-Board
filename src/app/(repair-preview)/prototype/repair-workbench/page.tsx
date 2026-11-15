@@ -5,7 +5,7 @@ import { getQualityControlWorkspace } from "@/server/quality-control/service";
 import { getShopExecutionWorkspace } from "@/server/shop-execution/service";
 import { getServiceClosePartsWorkspace } from "@/server/service-close-parts/service";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
-import { canManageSettings } from "@/server/policies/access";
+import { canManageSettings, isManager } from "@/server/policies/access";
 import { currentRepairWorkflowStep, repairReviewHref, repairWorkflowSteps, scopedRepairOrders, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { ShopExecutionWorkspace } from "@/features/inventory/shop-execution-workspace";
@@ -34,7 +34,7 @@ export default async function RepairWorkflowWorkbenchPage({ searchParams }: { se
       const canOpen = canOpenRepairQc(order);
       const model = canOpen ? await getQualityControlWorkspace(user, {}, order.id).catch(() => null) : null;
       tool = <>
-        <RepairQcDiagnostics order={order} customerBilling={order.origin === "CUSTOMER_REPAIR"} unavailable={canOpen && !model?.repairOrders.length} />
+        <RepairQcDiagnostics order={order} unavailable={canOpen && !model?.repairOrders.length} />
         {model?.repairOrders.length ? <QualityControlWorkspace initial={serialized(model)} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to review Repair Workbench" /> : <InventoryQcChecklistPreview key={order.id} repairOrderId={order.id} />}
       </>;
     } else if (selected === "assignment" && !order.repairJobs.some(job => job.status !== "CANCELLED")) {
@@ -49,7 +49,7 @@ export default async function RepairWorkflowWorkbenchPage({ searchParams }: { se
       if (selected === "repair" && !jobs.length && vendor) {
         const [planning, rate] = await Promise.all([getShopPlanningWorkspace(user), getActiveLaborRate(user)]);
         tool = <ShopPlanningWorkspace initial={serialized({ ...planning, repairOrders: [order] })} reviewOrderId={order.id} focusStep={5} returnTo={home} defaultLaborRate={rate.laborRate} canOverrideLaborRate={canManageSettings(user)} />;
-      } else tool = selected === "repair" ? <RepairExecutionTool repairOrderId={order.id} jobs={serialized(jobs)} /> : <ShopExecutionWorkspace initial={serialized({ ...model, jobs, repairOrders: model.repairOrders.filter(row => row.id === order.id) })} initialRepairOrderId={order.id} reviewOrderId={order.id} />;
+      } else tool = selected === "repair" ? <RepairExecutionTool repairOrderId={order.id} jobs={serialized(jobs)} actorId={user.id} manager={isManager(user)} /> : <ShopExecutionWorkspace initial={serialized({ ...model, jobs, repairOrders: model.repairOrders.filter(row => row.id === order.id) })} initialRepairOrderId={order.id} reviewOrderId={order.id} />;
     } else if (selected === "parts") {
       const [parts, planning, rate] = await Promise.all([getServiceClosePartsWorkspace(user), getShopPlanningWorkspace(user), getActiveLaborRate(user)]);
       tool = <><p><Link href={repairReviewHref(order.id)}>Continue this repair order</Link></p><details open={current === "parts" && !order.repairJobs.some(job => job.status !== "CANCELLED")}><summary>Release approved repair jobs</summary><ShopPlanningWorkspace initial={serialized({ ...planning, repairOrders: [order] })} reviewOrderId={order.id} focusStep={5} returnTo={home} defaultLaborRate={rate.laborRate} canOverrideLaborRate={canManageSettings(user)} /></details>{order.repairJobs.some(job => job.status === "WAITING_PARTS") && <p>To reserve stock, open the <Link href="/vehicles/parts">Parts ledger</Link> and select {order.repairOrderNumber}.</p>}<ServiceClosePartsWorkspace initial={serialized(scopedRepairOrders(parts, order.id))} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to review Repair Workbench" /></>;

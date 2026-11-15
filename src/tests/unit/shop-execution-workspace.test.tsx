@@ -38,10 +38,10 @@ describe("shop execution workspace", () => {
     expect(html).toContain("Save technician");
     expect(html.includes("Book work")).toBe(bookable);
     if (missingProcedure) {
-      expect(html).toContain("Procedure required");
+      expect(html).toContain("Optional work procedure");
       expect(html).toContain("Publish work procedure");
-      expect(html).not.toContain("Ready to book");
-      expect(html).toMatch(/disabled="">Book work/);
+      expect(html).toContain("Ready to book");
+      expect(html).not.toContain('aria-describedby="booking-procedure-required">Book work');
     }
   });
 

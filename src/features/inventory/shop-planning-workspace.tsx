@@ -361,7 +361,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const qcHref = reviewOrderId ? repairReviewHref(reviewOrderId, "qc") : selected ? `/vehicles/quality-control?repairOrderId=${encodeURIComponent(selected.id)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/quality-control";
   const dispatchHref = reviewOrderId ? repairReviewHref(reviewOrderId, "assignment") : selected ? `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/shop-dispatch";
   const partsHref = selected ? `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}` : "/vehicles/service-close-parts";
-  const repairJobWorkbenchHref = selected?.repairJobs[0] ? `/vehicles/repair-jobs/${encodeURIComponent(selected.repairJobs[0].id)}/workbench` : dispatchHref;
+  const repairJobWorkbenchHref = selected?.repairJobs[0] ? repairReviewHref(selected.id, "repair") : dispatchHref;
   const repairReleaseHref = !hasRepairJob ? "#repair-planning-step-5-create-job" : qcReady ? qcHref : "#repair-result";
   const reconBudget = selected?.inventoryUnit ? buildReconBudgetSummary({
     acquisitionAppraisals: selected.inventoryUnit.acquisitionAppraisals,
@@ -742,7 +742,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setReleaseJobs([]);
     if (firstRepairJobId) {
       setNotice(`${firstRepairJobNumber || "Repair job"} created. Opening the repair workbench now.`);
-      window.setTimeout(() => router.push(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
+      window.setTimeout(() => router.push(repairReviewHref(selected.id)), 120);
       return;
     }
     setNotice("Repair job created. Open repair work order below to assign work, update parts, complete repair, then move to Final QC.");
@@ -834,7 +834,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice(`Completion job ${response.result?.job?.jobNumber ?? ""} created. Opening the repair work order.`.trim());
       await refresh();
       if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
-      else if (jobId) router.push(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
+      else if (jobId) router.push(repairReviewHref(selected.id));
       else window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Completion job creation failed.");

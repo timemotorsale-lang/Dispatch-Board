@@ -14,7 +14,7 @@ const actions = {
 };
 type RepairAction = keyof typeof actions | "PROGRESS";
 const actionLabel = (action: RepairAction) => action === "PROGRESS" ? "Record progress update" : actions[action];
-export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: string; jobs: Job[] }) {
+export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: { repairOrderId: string; jobs: Job[]; actorId: string; manager: boolean }) {
   const router = useRouter();
   const [selected, setSelected] = useState(jobs.find(job => ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status))?.id ?? jobs[0]?.id ?? "");
   const [chosenAction, setChosenAction] = useState<RepairAction | null>(null);
@@ -27,10 +27,13 @@ export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: st
   const clock = job?.laborClocks.find(item => item.technicianUserId === technician);
   const waitingForParts = job?.status === "WAITING_PARTS" && !waitingJobPartsReady(job);
   const complete = job?.status === "READY_FOR_QC" || job?.status === "QC_PASSED";
-  const available: RepairAction[] = !technician || complete || waitingForParts ? []
-    : clock?.state === "RUNNING" ? ["FINISH", "PROGRESS", "PAUSE"]
+  const canRecordLabor = manager || technician === actorId;
+  const laborActions: RepairAction[] = !technician || !canRecordLabor || complete || waitingForParts ? []
+    : clock?.state === "RUNNING" ? ["FINISH", "PAUSE"]
     : clock?.state === "PAUSED" ? ["RESUME", "FINISH"]
     : !clock || clock.state === "NOT_STARTED" || (clock.state === "FINISHED" && job?.status === "DISPATCHED" && job.qcFailedAt && clock.finishedAt && Date.parse(clock.finishedAt) <= Date.parse(job.qcFailedAt)) ? ["START"] : [];
+  const canRecordProgress = Boolean(technician && !waitingForParts && job && ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status));
+  const available: RepairAction[] = canRecordProgress ? [...laborActions, "PROGRESS"] : laborActions;
   const eventType = chosenAction && available.includes(chosenAction) ? chosenAction : available[0];
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy || !job || !technician || !eventType) return;
@@ -63,8 +66,9 @@ export function RepairExecutionTool({ repairOrderId, jobs }: { repairOrderId: st
       : waitingForParts ? <p>Reserve the required parts for this job before assigning it. <Link href={repairReviewHref(repairOrderId, "parts")}>Open parts for this repair</Link></p>
       : !technician ? <p>Book this job as the technician’s current assignment. <Link href={repairReviewHref(repairOrderId, "assignment")}>Open assignment</Link></p>
       : !eventType ? <p>Review the assignment and saved labor before continuing. <Link href={repairReviewHref(repairOrderId, "assignment")}>Review assignment</Link></p> : null}
+    {canRecordProgress && !canRecordLabor && <p>The assigned technician or a manager can complete this job and send it to QC.</p>}
     {available.length > 1 && <label>Next action<select disabled={busy} value={eventType} onChange={event => setChosenAction(event.target.value as RepairAction)}>{available.map(action => <option key={action} value={action}>{actionLabel(action)}</option>)}</select></label>}
-    {eventType === "PROGRESS" && <label>Progress summary (customer-visible)<textarea required value={progress} onChange={event => setProgress(event.target.value)} /></label>}
+    {eventType === "PROGRESS" && <label>Progress summary (customer-visible)<textarea rows={2} required value={progress} onChange={event => setProgress(event.target.value)} /></label>}
     {eventType === "PAUSE" && <label>Blocker / next action<textarea minLength={10} value={blocker} onChange={event => setBlocker(event.target.value)} /></label>}
     {eventType === "FINISH" && <>
       <details><summary>Add supporting references (optional)</summary><label>References, one per line<textarea rows={2} value={evidence} onChange={event => setEvidence(event.target.value)} /></label></details>
