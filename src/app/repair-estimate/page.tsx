@@ -5,6 +5,7 @@ import { getRepairOrderDetail } from "@/server/repair-order/service";
 import { getRepairDocuments } from "@/server/repair-order/document-service";
 import { ServiceDocumentWorkflow } from "@/features/inventory/service-document-workflow";
 import { notFound } from "next/navigation";
+import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 
 type SearchParams = Promise<{
   workspace?: string | string[];
@@ -40,7 +41,7 @@ function first(value: string | string[] | undefined) {
 }
 
 function safeRoute(value: string | undefined, fallback: string) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : fallback;
+  return safeLaborGuideReturnTo(value) ?? fallback;
 }
 
 function parseLines(raw: string | undefined) {
@@ -84,13 +85,13 @@ export default async function OfficialRepairEstimatePage({ searchParams }: { sea
   if (estimateId) {
     const roId = first(params.repairOrderId);
     if (!roId) notFound();
-    await getRepairOrderDetail(user, roId);
+    const accessedOrder = await getRepairOrderDetail(user, roId);
     const ro = await getShopPlanningDetail(user, roId);
     const estimate = ro.estimateVersions.find(item => item.id === estimateId);
     if (!estimate) notFound();
     const documents = (await getRepairDocuments(user, ro.id)).documents;
     const frozen = documents.find(document => document.kind === "ESTIMATE" && document.sourceId === estimate.id);
-    if (frozen) return <ServiceDocumentWorkflow key={frozen.id} repairOrderId={ro.id} selectedId={frozen.id} documents={documents.map(({ id, sourceId, kind, content, sha256, templateVersion, createdAt, createdByName }) => ({ id, sourceId, kind, content, sha256, templateVersion, createdAt: createdAt.toISOString(), createdByName }))} />;
+    if (frozen) return <ServiceDocumentWorkflow readOnlyReason={accessedOrder.closedAt ? "This repair order is closed. This exact saved document remains available to view, print, or save as PDF." : undefined} key={frozen.id} repairOrderId={ro.id} selectedId={frozen.id} documents={documents.map(({ id, sourceId, kind, content, sha256, templateVersion, createdAt, createdByName }) => ({ id, sourceId, kind, content, sha256, templateVersion, createdAt: createdAt.toISOString(), createdByName }))} />;
     const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
     const persistedLines = estimate.lineItems as Array<{ description: string; quantity: number; unitPriceCents: number; type: string }>;
     return <OfficialRepairEstimateDocument

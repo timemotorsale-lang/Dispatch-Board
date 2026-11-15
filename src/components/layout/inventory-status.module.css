@@ -1,0 +1,12 @@
+.inventoryStatus.inventoryStatus {
+  color: inherit;
+  background: var(--surface-soft, #eef3f9);
+  border-color: var(--line, #cad5e4);
+}
+
+.scope {
+  color: var(--muted, #52647b);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}

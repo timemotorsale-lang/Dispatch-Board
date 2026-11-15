@@ -4,6 +4,28 @@ import { describe, expect, it } from "vitest";
 import { OfficialRepairEstimateDocument } from "@/features/diagnostics/official-repair-estimate-document";
 
 describe("official repair estimate document", () => {
+  it("keeps an unlinked quote's saved identity when selecting its repair order", () => {
+    const markup = renderToStaticMarkup(<OfficialRepairEstimateDocument
+      concern="Brakes" createdAt="Pending estimate date" customer="Saved customer"
+      estimateNumber="EST-DRAFT" lines={[]} repairOrderNumber="RO-DRAFT"
+      returnTo="/prototype/repair-explorer?draftId=saved-quote&workflow=review"
+      summary={[]} vehicle="2014 Honda Civic"
+    />);
+    expect(markup).toContain("Select repair order");
+    expect(markup).not.toContain("Continue in Repair Workbench");
+    expect(markup).toContain('/prototype/repair-explorer?draftId=saved-quote&amp;workflow=review&amp;attachRepairOrder=1');
+    expect(markup).toContain('href="/prototype/repair-explorer?draftId=saved-quote&amp;workflow=review"');
+  });
+
+  it("does not send staff to an external return destination", () => {
+    const markup = renderToStaticMarkup(<OfficialRepairEstimateDocument
+      concern="Brakes" createdAt="Pending" customer="Customer" estimateNumber="EST-DRAFT"
+      lines={[]} repairOrderNumber="RO-DRAFT" returnTo="/\\outside.example"
+      summary={[]} vehicle="Honda Civic"
+    />);
+    expect(markup).not.toContain("outside.example");
+    expect(markup).toContain('/prototype/repair-explorer?attachRepairOrder=1');
+  });
   it("renders a branded print-safe estimate document with workbench routing", () => {
     const markup = renderToStaticMarkup(<OfficialRepairEstimateDocument
       isDraft={false}

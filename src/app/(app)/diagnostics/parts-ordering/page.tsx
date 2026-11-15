@@ -1,3 +1,4 @@
+import { diagnosticsPartsDraftKey } from "@/lib/diagnostics-parts-draft";
 import { DiagnosticsPartsOrderingWorkspace } from "@/features/diagnostics/diagnostics-parts-ordering-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
 
@@ -24,7 +25,7 @@ function first(value: string | string[] | undefined) {
 }
 
 export default async function DiagnosticsPartsOrderingPage({ searchParams }: { searchParams: SearchParams }) {
-  await requireCurrentUser();
+  const user = await requireCurrentUser();
   const params = await searchParams;
   const rawReturnTo = first(params.returnTo);
   const returnTo = rawReturnTo?.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "/diagnostics/labor-guide";
@@ -47,9 +48,13 @@ export default async function DiagnosticsPartsOrderingPage({ searchParams }: { s
     parts = [];
   }
 
+  const repairOrderId = first(params.repairOrderId);
+  const draftKey = diagnosticsPartsDraftKey(user.id, repairOrderId);
   return <DiagnosticsPartsOrderingWorkspace
+    key={draftKey}
+    draftKey={draftKey}
     parts={parts}
-    repairOrderId={first(params.repairOrderId)}
+    repairOrderId={repairOrderId}
     repairOrderNumber={first(params.repairOrderNumber)}
     returnLabel={first(params.returnLabel)?.slice(0, 120)}
     returnTo={returnTo}

@@ -16,11 +16,11 @@ describe("diagnostics parts ordering workspace", () => {
       vehicleLabel="2010 Mazda 3"
     />);
 
-    expect(markup).toContain("Govern parts ordering, receiving, and returns in one worksheet.");
+    expect(markup).toContain("Plan parts ordering, receiving, and returns.");
     expect(markup).toContain("Parts workflow next action");
     expect(markup).toContain("Enter ordered date for each part");
     expect(markup).toContain("Take me there");
-    expect(markup).toContain("Record what was actually ordered");
+    expect(markup).toContain("Draft the ordered-parts log");
     expect(markup).toContain("Add ordered part");
     expect(markup).toContain("Use the full-width ordered-parts ledger");
     expect(markup).toContain("Add missing vendor");
@@ -35,6 +35,7 @@ describe("diagnostics parts ordering workspace", () => {
     expect(markup).toContain("Select source");
     expect(markup).toContain("Custom vendor");
     expect(markup).toContain("Ordered cost");
-    expect(markup).toContain("Send estimate to repair workbench");
+    expect(markup).toContain("Open repair workbench");
+    expect(markup).toContain("/vehicles/service-close-parts?repairOrderId=");
   });
 });

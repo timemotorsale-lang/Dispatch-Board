@@ -143,31 +143,41 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
               recommendedNextStep.trim() ? `Next step: ${recommendedNextStep.trim()}` : ""
             ].filter(Boolean).join(" ");
 
-      const response = await fetch(`/api/repair-jobs/${encodeURIComponent(model.job.id)}/labor`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          approvedNonProductiveCode: null,
-          blockerReason: eventType === "PAUSE" ? blockerReason.trim() : null,
-          correctionMinutes: null,
-          eventType,
-          evidence: eventType === "FINISH"
-            ? [workPerformed.trim(), verification.trim(), additionalFinding.trim()].filter(Boolean)
-            : [],
-          idempotencyKey: crypto.randomUUID(),
-          occurredAt: new Date().toISOString(),
-          qcHandoffNotes: eventType === "FINISH" ? qcNotes.trim() : null,
-          reason,
-          technicianUserId: model.actor.id
-        })
-      });
-      const result = await response.json().catch(() => null) as { error?: string } | null;
-      if (!response.ok) {
-        setError(result?.error ?? "The repair update could not be recorded.");
-        return;
+      try {
+        const response = await fetch(`/api/repair-jobs/${encodeURIComponent(model.job.id)}/labor`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approvedNonProductiveCode: null,
+            blockerReason: eventType === "PAUSE" ? blockerReason.trim() : null,
+            correctionMinutes: null,
+            eventType,
+            evidence: eventType === "FINISH"
+              ? [workPerformed.trim(), verification.trim(), additionalFinding.trim()].filter(Boolean)
+              : [],
+            idempotencyKey: crypto.randomUUID(),
+            occurredAt: new Date().toISOString(),
+            qcHandoffNotes: eventType === "FINISH" ? qcNotes.trim() : null,
+            reason,
+            technicianUserId: model.actor.id
+          })
+        });
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) {
+          setError(result?.error ?? "The repair update could not be recorded.");
+          return;
+        }
+        const confirmations = {
+          START: "Work started.",
+          PAUSE: "Work paused. Your update was recorded.",
+          RESUME: "Work resumed.",
+          FINISH: "Repair accepted and routed to Quality Control."
+        };
+        setMessage(confirmations[eventType]);
+        router.refresh();
+      } catch {
+        setError("The server did not confirm this update. Refresh and check the clock before retrying.");
       }
-      setMessage(eventType === "FINISH" ? "Repair accepted and routed to Quality Control." : "Next action request submitted. The job is paused with the blocker and recommendation recorded.");
-      router.refresh();
     });
   }
 

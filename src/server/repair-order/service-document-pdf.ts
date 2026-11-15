@@ -107,8 +107,8 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   boxedText("VEHICLE", [identity.vehicle, `VIN: ${identity.vin}`, `Mileage: ${mileage ? `${mileage.reading.toLocaleString("en-US")} ${mileage.unit === "KILOMETERS" ? "km" : "mi"}` : "Not recorded"}`, identity.licensePlate ? `Plate: ${[identity.licensePlate, identity.licensePlateState].filter(Boolean).join(" ")}` : "", identity.color ? `Color: ${identity.color}` : "", identity.stockNumber ? `Stock #: ${identity.stockNumber}` : `Vehicle ID: ${identity.vehicleNumber}`].filter(Boolean).join("  |  "), true);
   boxedText("CONCERNS / SERVICE REQUESTED", identity.concern);
   if (receipt) {
-    space(135); paragraph(receipt.kind === "PAYMENT" ? "Payment received" : receipt.kind === "REFUND" ? "Refund recorded" : "Invoice adjustment", 13, bold);
-    for (const [label, value] of [["Invoice", receipt.invoiceNumber], [receipt.kind === "PAYMENT" ? "Amount paid" : "Amount", money(receipt.amountCents)], ["Payment method", receipt.method?.replaceAll("_", " ") ?? "Adjustment"], ["Reference", receipt.reference], ["Remaining balance", money(receipt.balanceCents)]]) paragraph(`${label}: ${value}`, 10);
+    space(135); paragraph(receipt.kind.startsWith("DEPOSIT") ? content.title : receipt.kind === "PAYMENT" ? "Payment received" : receipt.kind === "REFUND" ? "Refund recorded" : "Invoice adjustment", 13, bold);
+    for (const [label, value] of [[receipt.referenceLabel ?? "Invoice", receipt.invoiceNumber], [receipt.kind === "PAYMENT" ? "Amount paid" : "Amount", money(receipt.amountCents)], ["Payment method", receipt.method?.replaceAll("_", " ") ?? "Adjustment"], ["Reference", receipt.reference], [receipt.balanceLabel ?? "Remaining balance", money(receipt.balanceCents)]]) paragraph(`${label}: ${value}`, 10);
   } else {
     space(65);
     paragraph("ITEMIZED WORK & PARTS", 8, bold);

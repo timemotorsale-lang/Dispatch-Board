@@ -223,7 +223,10 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const [model, setModel] = useState(initial);
   const [orderId, setOrderId] = useState(initialOrder?.id ?? "");
   const [jobId, setJobId] = useState(initialOrder?.repairJobs.find((job) => job.status === "READY_FOR_QC")?.id ?? initialOrder?.repairJobs[0]?.id ?? "");
-  const [notice, setNotice] = useState("");
+  const [feedback, setFeedback] = useState<{ text: string; error: boolean }>({ text: "", error: false });
+  const notice = feedback.text;
+  const setNotice = (text: string) => setFeedback({ text, error: false });
+  const setErrorNotice = (text: string) => setFeedback({ text, error: true });
   const [busy, setBusy] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [frontlineResults, setFrontlineResults] = useState<Record<string, FrontlineResult>>({});
@@ -270,6 +273,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const gates = order && job ? gateRows(order, job) : [];
   const locks = order ? releaseLocks(order) : [];
   const technicianScorecard = scorecardRows(jobs);
+  const quickQcRequiresPeer = job?.lane === "DIAGNOSTIC_HEAVY";
   const safetyEscalation = Boolean(order && job && isSafetyCritical(job, order));
   const comebackCount = job?.comebackCases?.filter((item) => item.status !== "CLOSED").length ?? 0;
   const frontlineCounts = frontlineQcItems.reduce<Record<FrontlineResult, number>>((counts, item) => {
@@ -341,7 +345,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
       return true;
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Quality-control request failed.");
+      setErrorNotice(error instanceof Error ? error.message : "Quality-control request failed.");
       return false;
     } finally {
       submitInFlightRef.current = false;
@@ -364,10 +368,10 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   async function recordQuickQc(result: "PASS" | "FAIL") {
-    if (!order || !job) return;
+    if (!order || !job || quickQcRequiresPeer) return;
     const evidence = quickNote.trim() || `Final QC ${result === "PASS" ? "completed" : "failed"} for ${job.description}.`;
     if (result === "FAIL" && quickNote.trim().length < 10) {
-      setNotice("Briefly explain what failed so the repair can be corrected.");
+      setErrorNotice("Briefly explain what failed so the repair can be corrected.");
       return;
     }
     const passed = result === "PASS";
@@ -390,34 +394,6 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       reason: passed ? "Record quick repair QC pass and open Final Frontline QC." : "Record quick repair QC failure and return for correction."
     }, passed ? "Repair QC saved. Final Frontline QC is open for this vehicle." : "Repair QC failed. The repair was returned for correction.");
     if (saved) {
-      if (passed) {
-        setModel((current) => ({
-          ...current,
-          repairOrders: current.repairOrders.map((currentOrder) => currentOrder.id !== order.id ? currentOrder : {
-            ...currentOrder,
-            repairJobs: currentOrder.repairJobs.map((currentJob) => currentJob.id !== job.id ? currentJob : {
-              ...currentJob,
-              qualityInspections: [{
-                failureReasonCodes: [],
-                id: `quick-qc-${job.id}`,
-                inspectedAt: new Date().toISOString(),
-                disposition: "PASSED",
-                peerVerificationPassed: false,
-                peerVerificationRequired: false,
-                peerVerifierUser: null,
-                reworkInstructions: null,
-                roadTestOutcome: "NOT_REQUIRED",
-                roadTestRequired: false,
-                safetyChecksPassed: true,
-                inspectorUser: { name: initial.users[0]?.name ?? "QC Inspector" },
-                version: (currentJob.qualityInspections[0]?.version ?? 0) + 1
-              }, ...currentJob.qualityInspections],
-              readinessReasonCodes: ["SHOP_QC_RELEASE_GATES_PASSED"],
-              status: "QC_PASSED"
-            })
-          })
-        }));
-      }
       setQuickChecks({ repair: false, finish: false, safety: false });
       setQuickNote("");
     }
@@ -427,7 +403,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     if (!order || !vendorQcWork) return;
     const note = vendorQcNote.trim();
     if (result === "FAIL" && note.length < 10) {
-      setNotice("Briefly describe what the vendor did not complete so the follow-up repair can be created.");
+      setErrorNotice("Briefly describe what the vendor did not complete so the follow-up repair can be created.");
       return;
     }
     const passed = result === "PASS";
@@ -471,7 +447,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       setVendorQcNote("");
       await refresh();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Vendor QC decision could not be saved.");
+      setErrorNotice(error instanceof Error ? error.message : "Vendor QC decision could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -486,7 +462,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       setFrontlineDraftSavedAt(savedLabel);
       if (showConfirmation) setNotice(`Final Frontline QC draft saved at ${savedLabel}. You can finish it later on this vehicle.`);
     } catch {
-      setNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
+      setErrorNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
     }
   }
 
@@ -514,7 +490,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     `).join("");
     const printWindow = window.open("", "_blank", "noopener,noreferrer");
     if (!printWindow) {
-      setNotice("The print window was blocked. Allow pop-ups for this app, then choose Print QC checklist again.");
+      setErrorNotice("The print window was blocked. Allow pop-ups for this app, then choose Print QC checklist again.");
       return;
     }
     printWindow.document.write(`<!doctype html>
@@ -569,7 +545,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: next, notes: frontlineNotes, savedAt }));
         setFrontlineDraftSavedAt(dateTime(savedAt));
       } catch {
-        setNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
+        setErrorNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
       }
     }
   }
@@ -583,14 +559,14 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: next, savedAt }));
         setFrontlineDraftSavedAt(dateTime(savedAt));
       } catch {
-        setNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
+        setErrorNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
       }
     }
   }
 
   async function completeFrontlineQc() {
     if (!order || !frontlineReady) {
-      setNotice("Resolve every failed or review item and complete all checks before marking the vehicle Frontline Ready.");
+      setErrorNotice("Resolve every failed or review item and complete all checks before marking the vehicle Frontline Ready.");
       return;
     }
     const evidence = frontlineQcSections.flatMap((section) => section.items.map((item) => {
@@ -613,11 +589,11 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     if (!order) return;
     const vendorName = frontlineVendorName.trim();
     if (!vendorName) {
-      setNotice("Enter the outside vendor name before sending this QC follow-up out.");
+      setErrorNotice("Enter the outside vendor name before sending this QC follow-up out.");
       return;
     }
     if (!frontlineExceptions.length) {
-      setNotice("Select at least one failed or review item before creating an outside-vendor follow-up.");
+      setErrorNotice("Select at least one failed or review item before creating an outside-vendor follow-up.");
       return;
     }
     const now = new Date().toISOString();
@@ -666,7 +642,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       </header>
 
       {notice ? (
-        <div className={/blocked|required|must|cannot|failed|only|different/i.test(notice) ? "notice notice-danger" : "notice notice-success"}>
+        <div className={feedback.error ? "notice notice-danger" : "notice notice-success"} role={feedback.error ? "alert" : "status"}>
           <p>{notice}</p>
         </div>
       ) : null}
@@ -706,6 +682,9 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
             </div>
             <strong>{job.status.replaceAll("_", " ")}</strong>
           </header>
+          {quickQcRequiresPeer ? (
+            <p>Diagnostic/heavy repairs require a named peer verifier. <a href="#qc-review" onClick={() => setShowAdvanced(true)}>Open detailed QC to record peer verification</a>.</p>
+          ) : <>
           <div className="qc-quick-checks">
             <label><input checked={quickChecks.repair} onChange={(event) => { setNotice(""); setQuickChecks((value) => ({ ...value, repair: event.target.checked })); }} type="checkbox" /><span><b>Repair completed</b><small>Matches the approved work.</small></span></label>
             <label><input checked={quickChecks.finish} onChange={(event) => { setNotice(""); setQuickChecks((value) => ({ ...value, finish: event.target.checked })); }} type="checkbox" /><span><b>Fit and finish acceptable</b><small>No visible defect or loose item.</small></span></label>
@@ -716,6 +695,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
             <button className="qc-quick-fail" disabled={busy || job.status !== "READY_FOR_QC"} onClick={() => void recordQuickQc("FAIL")} type="button">QC failed — return for correction</button>
             <button className="qc-quick-pass" disabled={busy || job.status !== "READY_FOR_QC" || !quickChecks.repair || !quickChecks.finish || !quickChecks.safety} onClick={() => void recordQuickQc("PASS")} type="button">Save &amp; open Final QC</button>
           </footer>
+          </>}
           <button className="qc-advanced-toggle" onClick={() => setShowAdvanced((value) => !value)} type="button">{showAdvanced ? "Hide detailed QC tools" : "Show queue and detailed QC tools"}</button>
         </section>
       ) : null}

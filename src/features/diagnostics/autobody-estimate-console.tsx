@@ -1,5 +1,7 @@
 "use client";
 
+import { RepairHistorySearch } from "@/features/repair-history/repair-history-search";
+
 import { AlertTriangle, Camera, CarFront, ClipboardList, Gauge, ImageUp, Layers3, Paintbrush, Ruler, ShieldAlert, Sparkles } from "lucide-react";
 import Link from "next/link";
 
@@ -23,6 +25,7 @@ export function DiagnosticAutobodyEstimateConsole() {
         </div>
         <Link href="/prototype/autobody-estimate">Open interactive estimating →</Link>
       </aside>
+      <RepairHistorySearch />
       <header className={styles.bodyHero}>
         <div>
           <span className={styles.eyebrow}>Autobody estimate intelligence · DGN-048 planning carried into workflow</span>

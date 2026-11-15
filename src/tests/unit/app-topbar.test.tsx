@@ -40,6 +40,8 @@ describe("application top bar console switching", () => {
       </AppearanceProvider>
     );
 
+    expect(markup).toContain("Inventory workspace");
+    expect(markup).not.toContain("Inventory live");
     expect(markup).toContain('aria-label="Command Center Home"');
     expect(markup).toContain('href="/command-center"');
     expect(markup).toContain('aria-label="Open Dispatch Board console"');

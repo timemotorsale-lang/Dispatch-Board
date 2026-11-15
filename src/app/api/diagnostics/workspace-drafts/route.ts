@@ -12,9 +12,35 @@ function isArchivedDraft(draft: { content: Prisma.JsonValue }) {
   return Boolean(content && typeof content === "object" && !Array.isArray(content) && "archivedAt" in content);
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const query = request ? new URL(request.url).searchParams : null;
+  const id = query?.get("id") ?? null;
+  const headers = { "Cache-Control": "private, no-store" };
+  if (id !== null) {
+    if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) return NextResponse.json({ error: "Choose a saved quote to open." }, { status: 400, headers });
+    const unavailable = () => NextResponse.json({ error: "Saved quote was not found or is outside your access." }, { status: 404, headers });
+    const draft = await prisma.diagnosticWorkspaceDraft.findFirst({
+      where: { id, userId: user.id },
+      select: { id: true, version: true, title: true, content: true },
+    });
+    if (!draft) return unavailable();
+    const content = draft.content;
+    const ro = content && typeof content === "object" && !Array.isArray(content) ? content.ro : null;
+    let linkedOrderId: string | null = null;
+    if (ro !== null && ro !== undefined) {
+      if (typeof ro !== "object" || Array.isArray(ro) || typeof ro.id !== "string") return unavailable();
+      linkedOrderId = ro.id;
+      try { await getRepairOrderDetail(user, linkedOrderId); }
+      catch { return unavailable(); }
+    }
+    const requestedOrderId = query?.get("repairOrderId") ?? null;
+    if (requestedOrderId !== null && requestedOrderId !== linkedOrderId) {
+      return NextResponse.json({ error: "This saved quote does not belong to the requested repair order. Open it from saved work or verify the link." }, { status: 409, headers });
+    }
+    return NextResponse.json({ draft, archived: isArchivedDraft(draft) }, { headers });
+  }
   const records = await prisma.diagnosticWorkspaceDraft.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 60 });
   const drafts = records.filter(draft => !isArchivedDraft(draft)).slice(0, 30);
   return NextResponse.json({ drafts }, { headers: { "Cache-Control": "private, no-store" } });

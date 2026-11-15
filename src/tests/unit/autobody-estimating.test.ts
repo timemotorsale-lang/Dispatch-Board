@@ -4,7 +4,7 @@ import { bodyEstimateLines, calculateBodyDraft, compareBodyDrafts, emptyBodyDraf
 import { normalizeEstimate } from "@/server/shop-planning/domain";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { collisionCandidates, collisionExport } from "@/lib/autobody-estimating/interchange";
-import { autobodyIntakeHref, resumeBodyScope } from "@/lib/autobody-estimating/navigation";
+import { autobodyIntakeHref, matchingBodyRecovery, resumeBodyScope } from "@/lib/autobody-estimating/navigation";
 
 function fixture(): BodyDraft { const draft = emptyBodyDraft(15000), line = newBodyLine("body:front-cover:replace"); return { ...draft, vehicleId: "vehicle", repairOrderId: "ro", taxBasisPoints: 800, taxReference: "Synthetic policy", lines: [{ ...line, id: "line-a", minutes: 90, basis: "Synthetic estimator assessment", applicability: "Synthetic configuration reviewed", taxable: true }] }; }
 describe("collision catalog identity and coverage", () => {
@@ -50,4 +50,14 @@ describe("optional integration boundaries", () => {
   it("requires fresh applicability when a generic pre-intake draft gains a real vehicle", () => { const draft = fixture(); draft.vehicleId = null; draft.repairOrderId = null; expect(resumeBodyScope(draft, { repairOrderId: "ro", vehicleId: "v", payer: "INTERNAL", estimates: [] }).content.lines[0].applicability).toBe(""); });
   it("keeps manual estimating available with no supplier or failed supplier", async () => { expect((await collisionCandidates(null, { vehicleId: "v", componentId: "front-cover" })).status).toBe("UNCONFIGURED"); const failed = await collisionCandidates({ id: "synthetic", lookup: async () => { throw new Error("offline"); } }, { vehicleId: "v", componentId: "front-cover" }); expect(failed.status).toBe("UNAVAILABLE"); expect(failed.message).toContain("Manual quotes"); });
   it("exports an explicit internal review format with reproducible calculations", () => { const result = collisionExport(fixture(), { id: "draft", version: 1, estimateId: null }); expect(result.calculation.totalCents).toBe(calculateBodyDraft(fixture()).totalCents); expect(result.notice).toContain("Not an insurer submission"); });
+});
+
+it("surfaces unsaved browser recovery only for the matching saved record", () => {
+  const saved = fixture();
+  const raw = JSON.stringify({ recordId: "draft-1", version: 2, content: { ...saved, concern: "Browser-only changes" } });
+  expect(matchingBodyRecovery(raw, "draft-1", JSON.stringify(saved))).toBe(raw);
+  expect(matchingBodyRecovery(raw, "draft-2", JSON.stringify(saved))).toBeNull();
+  expect(matchingBodyRecovery("invalid JSON", "draft-1")).toBeNull();
+  const unchanged = JSON.stringify({ recordId: "draft-1", version: 2, content: saved });
+  expect(matchingBodyRecovery(unchanged, "draft-1", JSON.stringify(saved))).toBeNull();
 });

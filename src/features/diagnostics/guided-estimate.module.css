@@ -19,3 +19,18 @@
   .partFields { grid-template-columns: minmax(0, 1fr); }
   .guide footer button { flex: 1 1 180px; }
 }
+
+@container estimate-review (max-width: 560px) {
+  .step, .fields { grid-template-columns: minmax(0, 1fr); }
+  .guide { padding: 12px; overflow-wrap: anywhere; }
+  .tableWrap { overflow: visible; }
+  .guide table, .guide tbody { display: block; }
+  .guide thead { display: none; }
+  .guide tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #c5d2e4; }
+  .guide td { display: block; border: 0; min-width: 0; }
+  .guide td:first-child { grid-column: 1 / -1; }
+  .guide td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; }
+  .guide td input { width: 100%; }
+}
+
+.guide footer .previewAction { background: #fff; color: #243b60; }

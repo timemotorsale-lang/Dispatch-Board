@@ -24,6 +24,7 @@ import { getAppBreadcrumb } from "./app-topbar-breadcrumbs";
 import { getNavigationGroups, getNavigationItemsForPath, isDispatchConsolePath } from "./navigation";
 import { isAppointmentConsolePath, isInventoryConsolePath } from "./console-navigation";
 import { useAppearance } from "./appearance";
+import inventoryStatusStyles from "./inventory-status.module.css";
 import crmHeaderStyles from "./crm-topbar.module.css";
 
 type AppTopbarProps = {
@@ -34,6 +35,38 @@ type AppTopbarProps = {
   showNavigationMenu: boolean;
   user: AuthenticatedUser;
 };
+
+const inventoryRolloutLabel = {
+  enabled: "Inventory default rollout: enabled",
+  paused: "Inventory default rollout: paused",
+  limited: "Inventory default rollout: limited",
+  "location-scoped": "Inventory workspace",
+  unknown: "Inventory workspace",
+} as const;
+
+function InventoryRolloutStatus({ pathname }: { pathname: string }) {
+  const [status, setStatus] = useState<keyof typeof inventoryRolloutLabel>("unknown");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/vehicle-operations/inventory-status", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) return;
+        const { status } = await response.json();
+        if (!controller.signal.aborted && (status === "enabled" || status === "paused" || status === "limited" || status === "location-scoped")) setStatus(status);
+      } catch {
+        // Keep the workspace label when the rollout decision is unavailable.
+      }
+    })();
+    return () => controller.abort();
+  }, [pathname]);
+
+  return <span className={`ccc-dispatch-status ${inventoryStatusStyles.inventoryStatus}`}>
+    {inventoryRolloutLabel[status]}
+    {status === "location-scoped" && <span className={inventoryStatusStyles.scope}>Rollout varies by store</span>}
+  </span>;
+}
 
 type TopbarOperationalResult = {
   detail: string;
@@ -296,7 +329,9 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         )})}
       </nav>
 
-      {!showCrmModeSwitch ? <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span> : null}
+      {!showCrmModeSwitch && (inventoryConsole && !commandCenterHome && activeWorkspace !== "ADVISOR"
+        ? <InventoryRolloutStatus key={`${user.id}:${pathname}`} pathname={pathname} />
+        : <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : dispatchConsole ? "Dispatch online" : "Console active"}</span>)}
 
       {showCrmModeSwitch ? <CrmModeSwitch /> : null}
 

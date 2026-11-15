@@ -20,5 +20,13 @@ export function repairExplorerHandoffHref(repairOrderId?: string, reviewWorkflow
   const query = new URLSearchParams({ importExplorer: "1" });
   if (reviewWorkflow) query.set("workflow", "review");
   if (repairOrderId) query.set("repairOrderId", repairOrderId);
-  return `/prototype/labor-guide?${query}`;
+  return `/prototype/repair-explorer?${query}`;
+}
+
+export function safeLaborGuideReturnTo(value: string | undefined) {
+  if (!value?.startsWith("/") || value.startsWith("//") || [...value].some(character => character === "\\" || character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) return undefined;
+  try {
+    const destination = new URL(value, "https://workspace.invalid");
+    return destination.origin === "https://workspace.invalid" ? `${destination.pathname}${destination.search}${destination.hash}` : undefined;
+  } catch { return undefined; }
 }

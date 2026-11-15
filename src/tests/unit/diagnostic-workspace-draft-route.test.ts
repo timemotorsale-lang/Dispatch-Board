@@ -23,6 +23,34 @@ describe("private diagnostic workspace draft API", () => {
     expect(await (await GET()).json()).toMatchObject({ drafts: [expect.objectContaining({ id: "active" })] });
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-1" } }));
   });
+  it("opens an exact archived quote within owner and linked repair-order scope", async () => {
+    const record = { id: "old-quote", title: "Archived quote", version: 4, content: { ...content, ro: { id: "ro-12" }, archivedAt: "2026-09-07T10:00:00.000Z" } };
+    mocks.findFirst.mockResolvedValue(record);
+    const response = await GET(new Request("http://localhost/api/diagnostics/workspace-drafts?id=old-quote"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await response.json()).toEqual({ draft: record, archived: true });
+    expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "old-quote", userId: "user-1" } }));
+    expect(mocks.detail).toHaveBeenCalledWith({ id: "user-1" }, "ro-12");
+    expect(mocks.findMany).not.toHaveBeenCalled();
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+  });
+  it("rejects a conflicting requested RO without disclosing or updating the draft", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "old-quote", content: { ...content, ro: { id: "ro-a" } } });
+    const response = await GET(new Request("http://localhost/api/diagnostics/workspace-drafts?id=old-quote&repairOrderId=ro-b"));
+    expect(response.status).toBe(409);
+    expect(await response.json()).not.toHaveProperty("draft");
+    expect(mocks.detail).toHaveBeenCalledWith({ id: "user-1" }, "ro-a");
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("withholds the quote when access to its linked repair order is denied", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "old-quote", content: { ...content, ro: { id: "denied-ro" } } });
+    mocks.detail.mockRejectedValue(new Error("Vehicle capability required"));
+    const response = await GET(new Request("http://localhost/api/diagnostics/workspace-drafts?id=old-quote"));
+    expect(response.status).toBe(404);
+    expect(await response.json()).not.toHaveProperty("draft");
+  });
   it("archives the current user's chosen draft instead of deleting stored quote history", async () => {
     mocks.findFirst.mockResolvedValue({ id: "draft-test", userId: "user-1", title: "Test", version: 2, content });
     expect(await (await DELETE(new Request("http://localhost/api/diagnostics/workspace-drafts?id=draft-test"))).json()).toEqual({ archived: 1, preserved: true });

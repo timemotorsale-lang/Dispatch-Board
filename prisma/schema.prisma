@@ -72,6 +72,7 @@ model ServiceDocument {
 }
 
 model ServiceInvoice {
+  depositTransfers ServiceRepairDepositEntry[]
   id               String   @id
   organizationId   String
   repairOrderId    String
@@ -96,6 +97,7 @@ model ServiceInvoice {
 }
 
 model ServiceInvoiceEntry {
+  depositTransfer ServiceRepairDepositEntry?
   id              String   @id @default(cuid())
   organizationId  String
   invoiceId       String
@@ -117,6 +119,33 @@ model ServiceInvoiceEntry {
 model ServiceInvoiceSequence {
   organizationId String @id
   nextNumber     Int
+}
+
+model ServiceRepairDepositEntry {
+  id              String   @id
+  organizationId  String
+  repairOrderId   String
+  kind            String
+  amountCents     Int
+  method          String
+  reference       String
+  relatedEntryId  String?
+  invoiceId       String?
+  invoiceEntryId  String?  @unique
+  evidence        Json
+  occurredAt      DateTime
+  createdByUserId String
+  reason          String
+  createdAt       DateTime @default(now())
+  repairOrder     RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  invoice         ServiceInvoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  invoiceEntry    ServiceInvoiceEntry? @relation(fields: [invoiceEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relatedEntry    ServiceRepairDepositEntry? @relation("DepositHistory", fields: [relatedEntryId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  relatedEntries ServiceRepairDepositEntry[] @relation("DepositHistory")
+
+  @@unique([organizationId, repairOrderId, kind, reference], map: "ServiceRepairDepositEntry_org_ro_kind_reference_key")
+  @@index([organizationId, repairOrderId, createdAt], map: "ServiceRepairDepositEntry_org_ro_createdAt_idx")
+  @@index([relatedEntryId])
 }
 
 enum BusinessDay {
@@ -5082,6 +5111,7 @@ model ServiceIntakeReadinessSnapshot {
 }
 
 model RepairOrder {
+  depositEntries ServiceRepairDepositEntry[]
   autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]
   id                           String                              @id @default(cuid())

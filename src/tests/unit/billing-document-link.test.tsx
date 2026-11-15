@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { BillingDocumentLink } from "@/features/inventory/billing-document-link";
 
 describe("issued billing document links", () => {
+  it("explains a pending request instead of presenting an apparently working print link", () => {
+    const html = renderToStaticMarkup(<BillingDocumentLink repairOrderId="ro-1" sourceId="invoice-1" disabled />);
+    expect(html).toContain('aria-disabled="true"'); expect(html).toContain('tabindex="-1"'); expect(html).toContain("Wait for the current request");
+  });
   it("opens the exact invoice without issuing another financial command", () => {
     const html = renderToStaticMarkup(<BillingDocumentLink repairOrderId="ro/1" sourceId="invoice/2" />);
     expect(html).toContain('href="/service-documents?repairOrderId=ro%2F1&amp;sourceId=invoice%2F2"');

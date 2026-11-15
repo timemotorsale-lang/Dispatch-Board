@@ -38,18 +38,27 @@ export type DiagnosticsFeatureCode = (typeof DIAGNOSTICS_FEATURES)[number];
 const ENTERPRISE_FEATURES = [...VEHICLE_OPERATIONS_FEATURES, ...DIAGNOSTICS_FEATURES] as const;
 
 function evaluateRolloutFeature(flags: VehicleFeatureFlagRecord[], masterCode: string, code: string, userId: string, locationId: string | null) {
-  const applicable = (candidate: VehicleFeatureFlagRecord) => candidate.code === code && (candidate.locationId === locationId || candidate.locationId === null);
-  const flag = flags.filter(applicable).sort((a, b) => Number(Boolean(b.locationId)) - Number(Boolean(a.locationId)))[0];
-  const master = flags.filter((candidate) => candidate.code === masterCode && (candidate.locationId === locationId || candidate.locationId === null)).sort((a, b) => Number(Boolean(b.locationId)) - Number(Boolean(a.locationId)))[0];
+  const effectiveFlag = (featureCode: string) => flags.find((flag) => flag.code === featureCode && flag.locationId === locationId)
+    ?? flags.find((flag) => flag.code === featureCode && flag.locationId === null);
+  const flag = effectiveFlag(code);
+  const master = effectiveFlag(masterCode);
   const targetAt = flag?.targetAt?.toISOString() ?? null;
+
   if (code !== masterCode && (!master || master.mode === "OFF")) return { enabled: false, executable: false, reason: "MASTER_DISABLED", targetAt } as const;
   if (!flag || flag.mode === "OFF") return { enabled: false, executable: false, reason: "FEATURE_DISABLED", targetAt } as const;
-  if (flag.mode === "SHADOW") return { enabled: true, executable: false, reason: "SHADOW_ONLY", targetAt } as const;
-  if (flag.mode === "GENERAL") return { enabled: true, executable: true, reason: "GENERAL_RELEASE", targetAt } as const;
-  const cohort = users(flag.allowedUserIds);
-  const bucket = createHash("sha256").update(`${flag.code}:${userId}`).digest()[0] % 100;
-  const executable = cohort.includes(userId) || bucket < flag.rolloutPercent;
-  return { enabled: true, executable, reason: executable ? "PILOT_ELIGIBLE" : "OUTSIDE_PILOT", targetAt } as const;
+  if (flag.mode === "SHADOW" || master?.mode === "SHADOW") return { enabled: true, executable: false, reason: "SHADOW_ONLY", targetAt } as const;
+
+  function pilotAllows(candidate: VehicleFeatureFlagRecord | undefined) {
+    if (candidate?.mode !== "PILOT") return true;
+    const bucket = createHash("sha256").update(`${candidate.code}:${userId}`).digest()[0] % 100;
+    return users(candidate.allowedUserIds).includes(userId) || bucket < candidate.rolloutPercent;
+  }
+
+  if (!pilotAllows(master) || (code !== masterCode && !pilotAllows(flag))) {
+    return { enabled: true, executable: false, reason: "OUTSIDE_PILOT", targetAt } as const;
+  }
+  const reason = flag.mode === "PILOT" || master?.mode === "PILOT" ? "PILOT_ELIGIBLE" : "GENERAL_RELEASE";
+  return { enabled: true, executable: true, reason, targetAt } as const;
 }
 
 export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord[], code: VehicleOperationsFeatureCode, userId: string, locationId: string | null) {

@@ -18,11 +18,11 @@ type Planning = {
   repairJobs: Array<{ id: string; jobNumber: string; description: string; status: string }>;
 };
 
-export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, customer, vin, concern, repairOrderId, repairOrderNumber, tools, children, feedback, onSave, onFindDrafts, saveStatus, returnTo, returnLabel, clinical, onClinicalChange, onClinicalPersist }: {
+export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, customer, vin, concern, repairOrderId, repairOrderNumber, tools, children, feedback, onSave, onSaveBeforeNavigation = onSave, onFindDrafts, saveStatus, returnTo, returnLabel, clinical, onClinicalChange, onClinicalPersist }: {
   initialSection?: Section;
   vehicle: string | null | undefined; customer: string | null | undefined; vin: string | null | undefined; concern: string | null | undefined;
   repairOrderId?: string; repairOrderNumber?: string; tools: ReactNode; children: ReactNode;
-  onSave: () => Promise<boolean>; onFindDrafts: () => Promise<unknown>; saveStatus: string; returnTo?: string; returnLabel?: string; feedback?: ReactNode;
+  onSave: () => Promise<boolean>; onSaveBeforeNavigation?: () => Promise<boolean>; onFindDrafts: () => Promise<unknown>; saveStatus: string; returnTo?: string; returnLabel?: string; feedback?: ReactNode;
   clinical?: ClinicalDrafts; onClinicalChange?: (value: ClinicalDrafts) => void; onClinicalPersist?: (value: ClinicalDrafts) => Promise<boolean>;
 }) {
   const [section, setSection] = useState<Section>(initialSection);
@@ -56,7 +56,8 @@ export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, cust
   const findingsStatus = unavailable ? "Not loaded" : diagnosis ? "Recorded" : "Not yet recorded";
   const authorizationStatus = unavailable ? "Not loaded" : decision ? decision.disposition.replaceAll("_", " ") : "No decision recorded";
   const showTools = () => setToolsOpen(true);
-  const toolPanelOpen = toolsOpen || (section === "Estimate" && !repairOrderId);
+  const lookupRequired = section === "Estimate" && !repairOrderId;
+  const toolPanelOpen = toolsOpen || lookupRequired;
 
   return <section className={styles.workspace} aria-label="Diagnostic vehicle workspace" onClickCapture={async event => {
     const link = (event.target as HTMLElement).closest("a");
@@ -64,7 +65,7 @@ export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, cust
     event.preventDefault();
     if (leaving) return;
     setLeaving(true);
-    try { if (await onSave()) window.location.assign(link.href); } finally { setLeaving(false); }
+    try { if (await onSaveBeforeNavigation()) window.location.assign(link.href); } finally { setLeaving(false); }
   }}>
     <aside className={styles.sidebar} aria-label="Diagnostics navigation">
       <strong>DIAGNOSTICS</strong>
@@ -79,7 +80,7 @@ export function DiagnosticWorkspace({ initialSection = "Overview", vehicle, cust
     <div className={styles.main}>
       <header className={styles.identity} aria-label="Selected RO context">
         <div><span className={styles.eyebrow}>Diagnostic workspace</span><h1>{vehicle || "Choose a vehicle to begin"}</h1><p>{customer || "Customer not selected"} · {repairOrderNumber ? `Active RO ${repairOrderNumber}` : "Preliminary quote · no repair order"}</p>{vin ? <small>VIN / vehicle reference: {vin}</small> : null}</div>
-        <div className={styles.actions}><span role="status">Draft: {saveStatus}</span><button type="button" disabled={saveStatus === "Saving…" || leaving} onClick={() => void onSave()}>Save quote</button><button type="button" aria-expanded={toolPanelOpen} onClick={() => setToolsOpen(!toolPanelOpen)}>Vehicle & draft tools</button></div>
+        <div className={styles.actions}><span role="status">Draft: {saveStatus}</span><button type="button" disabled={saveStatus === "Saving…" || leaving} onClick={() => void onSave()}>Save quote</button>{!lookupRequired && <button type="button" aria-expanded={toolPanelOpen} onClick={() => setToolsOpen(!toolPanelOpen)}>Vehicle & draft tools</button>}</div>
       </header>
       <div hidden={!toolPanelOpen} className={styles.tools}>{tools}</div>
       {feedback}
