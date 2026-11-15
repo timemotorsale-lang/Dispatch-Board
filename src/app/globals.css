@@ -32414,7 +32414,8 @@ body,
 /* Reserve control width and wrap long governance metadata at tablet sizes. */
 @media screen and (max-width: 900px) {
   .ccc-topbar > .topbar-actions { flex: 0 0 auto; }
-  .ccc-topbar > .ccc-breadcrumb { flex: 1 1 0; }
+  /* Workspace links and the page heading remain; avoid clipped focusable links. */
+  .ccc-topbar > .ccc-breadcrumb { display: none; }
   .gov-hero > div { min-width: 0; overflow-wrap: anywhere; }
   .gov-hero > div:last-child { min-width: 0; width: 230px; max-width: 100%; }
 }
