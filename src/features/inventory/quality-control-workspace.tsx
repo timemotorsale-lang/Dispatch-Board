@@ -127,7 +127,7 @@ const frontlineQcSections: FrontlineQcSection[] = [
     { code: "KEYS_DOCUMENTS", label: "Keys, manuals and documents", hint: "All keys, books and records accounted for" }
   ] }
 ];
-export function InventoryQcChecklistPreview({ paymentOrderId }: { paymentOrderId?: string } = {}) {
+export function InventoryQcChecklistPreview() {
   const [answers, setAnswers] = useState<Record<string, FrontlineResult>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const results = Object.values(answers);
@@ -153,9 +153,8 @@ export function InventoryQcChecklistPreview({ paymentOrderId }: { paymentOrderId
     </div>
     <section className="qc-panel" aria-label="Overall checklist result">
       <h3>Overall checklist result</h3>
-      <p role="status">{remaining ? `${remaining} checks remaining` : `Preview result: ${disposition}`}</p>
-      {!remaining && <p>Save the official inspection when the job is ready for QC. Handoff opens after the required repair inspections pass.</p>}
-      {paymentOrderId && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: paymentOrderId })}#invoice-payment`}>Receive invoice payment</Link>}
+      <p role="status">{remaining ? `${remaining} checks remaining` : `Draft checklist: ${disposition}`}</p>
+      {!remaining && <p>These answers have not been saved as the repair inspection. Once the job is ready for QC, save its inspection to continue toward invoice payment.</p>}
     </section>
   </details>;
 }
@@ -824,7 +823,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           {order.origin === "CUSTOMER_REPAIR" ? <div>
             <strong>{order.releaseAuthorization ? "Final QC complete" : "Repair quality checks passed"}</strong>
             <span>Continue to billing to review the approved estimate and any remaining invoice requirements.</span>
-            {order.customer && <><Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link> {reviewOrderId && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}#invoice-payment`}>Receive invoice payment</Link>}</>}
+            {order.customer && <><Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link> {reviewOrderId && <Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id, mode: "payment" })}#invoice-payment`}>Receive invoice payment</Link>}</>}
             {reviewOrderId && <Link className="pill" href={repairReviewHref(order.id, "handoff")}>Check readiness &amp; open handoff</Link>}
           </div> : <div>
             <strong>Final Frontline QC complete</strong>

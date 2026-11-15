@@ -105,7 +105,9 @@ export function readCompactPartsEntry(
   const selectedLocation = text("stockLocationId");
   const stockLocationId = selectedLocation === "__new__" ? undefined : selectedLocation;
   const stockLocationName = selectedLocation === "__new__" ? text("stockLocationName") : undefined;
-  const partNumber = !existingOrder && !neededPart && text("numberMode") === "manual" ? text("partNumber") : undefined;
+  const enteredPartNumber = text("partNumber");
+  const partNumber = !existingOrder && !neededPart && text("numberMode") === "manual" && !/^(?:N\/?A|UNKNOWN)$/i.test(enteredPartNumber)
+    ? enteredPartNumber : undefined;
   if (partNumber === "") throw new Error("Enter the stock number or choose automatic numbering.");
   const packingSource = text("packingSource");
   if (!existingOrder && purchased && ((!supplierId && !vendor) || !purchasedOn || unitPriceCents === undefined || !Number.isSafeInteger(unitPriceCents) || unitPriceCents < 0)) {
