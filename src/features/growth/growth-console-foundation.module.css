@@ -347,6 +347,7 @@
 
 .panelHeader {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -364,6 +365,7 @@
   display: inline-flex;
   align-items: center;
   width: fit-content;
+  max-width: 100%;
   min-height: 34px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -372,7 +374,8 @@
   background: var(--surface-soft);
   font-size: 12px;
   font-weight: 850;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .priorityCard {
