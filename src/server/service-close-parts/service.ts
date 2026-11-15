@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { partsProcurementType, recordedReconBudget } from "@/lib/parts-procurement";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
@@ -66,6 +66,12 @@ function command(input: { actorUserId: string; commandType: string; domain: Doma
   return normalizeEnterpriseCommand({ ...input, expectedVersion: input.expectedVersion ?? 0, locationId: input.locationId ?? null });
 }
 
+function procurementCommandId(organizationId: string, action: string, key: string) {
+  const hex = createHash("sha256").update(JSON.stringify(["parts-procurement", organizationId, action, key])).digest("hex");
+  const variant = ((parseInt(hex[16], 16) & 3) | 8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 function payload(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }
@@ -130,8 +136,21 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   const order = shop ? view.repairOrders.find((item) => item.id === (action === "TRANSITION_INVOICE_HANDOFF" ? itemInvoiceOrder(view.repairOrders, subjectId) : subjectId)) : null;
   const receivePurchaseOrder = action === "RECEIVE_PURCHASE_ORDER" ? view.purchaseOrders.find((item) => item.id === subjectId) ?? null : null;
   const purchaseOrder = ["TRANSITION_PURCHASE_ORDER", "REVISE_PURCHASE_ORDER"].includes(action) ? view.purchaseOrders.find(item => item.id === subjectId) : null;
-  const purchaseLocation = action === "CREATE_PURCHASE_ORDER" ? normalizePurchaseOrder(raw).locationId : purchaseOrder?.locationId;
-  const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, receivePurchaseOrder?.locationId ?? purchaseLocation ?? order?.locationId ?? null, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
+  const newPurchase = action === "CREATE_PURCHASE_ORDER" ? normalizePurchaseOrder(raw) : null;
+  const requisitionId = action === "SELECT_REQUISITION_OFFER" ? subjectId : newPurchase?.requisitionId;
+  const requisition = requisitionId ? await context.repository.requisitionSite(context.organizationId, requisitionId) : null;
+  if (requisitionId && !requisition) throw new Error("Requisition was not found.");
+  const demand = action === "CREATE_REQUISITION"
+    ? await context.repository.demandSite(context.organizationId, normalizeRequisition(raw).demandId)
+    : null;
+  if (action === "CREATE_REQUISITION" && !demand) throw new Error("Parts demand was not found.");
+  const requisitionLocation = requisition?.demand.repairOrder.locationId;
+  if (newPurchase && requisitionLocation && newPurchase.locationId !== requisitionLocation) {
+    throw new Error("Purchase order location must match the requisition repair order location.");
+  }
+  const locationId = receivePurchaseOrder?.locationId ?? purchaseOrder?.locationId ?? order?.locationId
+    ?? requisitionLocation ?? demand?.repairOrder.locationId ?? newPurchase?.locationId ?? null;
+  const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, locationId, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
 
   const receipt = shop ? await context.repository.commandReceipt?.(context.organizationId, action, String(raw.idempotencyKey ?? "")) : null;
   if (action === "GENERATE_INVOICE_PACKAGE") {
@@ -153,7 +172,14 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
     return action === "CLOSE_REPAIR_ORDER" ? context.repository.closeOrder(enterprise, data as ReturnType<typeof normalizeClose>) : context.repository.reopenOrder(enterprise, data);
   }
 
-  const id = randomUUID();
+  const retryKey = String(raw.idempotencyKey ?? "").trim();
+  const createsProcurementRecord = ["CREATE_VENDOR", "CREATE_VENDOR_OFFER", "CREATE_REQUISITION", "CREATE_PURCHASE_ORDER"].includes(action);
+  const priorProcurement = createsProcurementRecord || action === "SELECT_REQUISITION_OFFER"
+    ? await context.repository.commandReceipt?.(context.organizationId, action, retryKey, "PARTS_OPERATIONS")
+    : null;
+  const id = createsProcurementRecord
+    ? priorProcurement?.subjectId ?? procurementCommandId(context.organizationId, action, retryKey)
+    : randomUUID();
   if (action === "CREATE_VENDOR") {
     const data = normalizeVendor(raw); return context.repository.createVendor(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: id, subjectType: "PART_VENDOR" }), { ...data, createdByUserId: user.id });
   }
@@ -164,12 +190,14 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
     const data = normalizeInterchange(raw); return context.repository.createInterchange(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: id, subjectType: "PART_INTERCHANGE" }), { ...data, approvedByUserId: user.id });
   }
   if (action === "CREATE_REQUISITION") {
-    const data = normalizeRequisition(raw); return context.repository.createRequisition(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: id, subjectType: "PART_REQUISITION" }), { ...data, createdByUserId: user.id });
+    const data = normalizeRequisition(raw);
+    return context.repository.createRequisition(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", locationId: priorProcurement ? priorProcurement.locationId : locationId, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: id, subjectType: "PART_REQUISITION" }), { ...data, createdByUserId: user.id });
   }
   if (action === "SELECT_REQUISITION_OFFER") {
-    const data = normalizeOfferSelection(raw), record = view.requisitions.find((item) => item.id === subjectId); if (!record) throw new Error("Requisition was not found.");
-    const version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_REQUISITION", record.id);
-    return context.repository.selectOffer(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_REQUISITION" }), record.id, data);
+    const data = normalizeOfferSelection(raw);
+    if (!requisition) throw new Error("Requisition was not found.");
+    const version = priorProcurement?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_REQUISITION", requisition.id);
+    return context.repository.selectOffer(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", locationId: priorProcurement ? priorProcurement.locationId : locationId, expectedVersion: version, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: requisition.id, subjectType: "PART_REQUISITION" }), requisition.id, data);
   }
   if (action === "CREATE_PURCHASE_ORDER") {
     const data = normalizePurchaseOrder(raw); return context.repository.createPurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", idempotencyKey: data.idempotencyKey, locationId: data.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: id, subjectType: "PART_PURCHASE_ORDER" }), { ...data, createdByUserId: user.id });
@@ -238,11 +266,12 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   if (action === "RECEIVE_PURCHASE_ORDER") {
     const record = receivePurchaseOrder; if (!record) throw new Error("Purchase order was not found.");
     const data = normalizeReceipt(raw);
+    const receiptData = raw.strictRemaining === true ? { ...data, strictRemaining: true } : data;
     // Authorization above still applies on retries. Reuse the original version so
     // an identical command hashes identically after the order has advanced.
     const priorReceipt = await context.repository.commandReceipt?.(context.organizationId, action, data.idempotencyKey, "PARTS_OPERATIONS");
     const version = priorReceipt?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
-    return context.repository.receivePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...data, receiptId: id, receivedByUserId: user.id });
+    return context.repository.receivePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(receiptData), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...receiptData, receiptId: id, receivedByUserId: user.id });
   }
   if (action === "RESOLVE_RECEIVING_DISCREPANCY") {
     const record = view.discrepancies.find((item) => item.id === subjectId); if (!record) throw new Error("Receiving discrepancy was not found."); const data = normalizeDiscrepancyResolution(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_RECEIVING_DISCREPANCY", record.id);

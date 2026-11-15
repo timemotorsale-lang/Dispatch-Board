@@ -73,8 +73,14 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         return { previous, result: { purchaseApprovalRequired: required } };
       });
     },
+    demandSite(organizationId: string, id: string) {
+      return database.repairPartDemand.findFirst({ where: { organizationId, id }, select: { repairOrder: { select: { id: true, locationId: true } } } });
+    },
+    requisitionSite(organizationId: string, id: string) {
+      return database.partRequisition.findFirst({ where: { organizationId, id }, select: { id: true, demand: { select: { repairOrder: { select: { id: true, locationId: true } } } } } });
+    },
     commandReceipt(organizationId: string, commandType: string, idempotencyKey: string, domain: EnterpriseCommandCommitInput["domain"] = "SHOP_OPERATIONS") {
-      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain, commandType, idempotencyKey } }, select: { expectedVersion: true } });
+      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain, commandType, idempotencyKey } }, select: { expectedVersion: true, subjectId: true, locationId: true } });
     },
     async aggregateVersion(organizationId: string, domain: "SHOP_OPERATIONS" | "PARTS_OPERATIONS", subjectType: string, subjectId: string) {
       const row = await database.enterpriseAggregateVersion.findUnique({ where: { organizationId_domain_subjectType_subjectId: { domain, organizationId, subjectId, subjectType } }, select: { version: true } });
@@ -284,7 +290,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     createRequisition(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; demandId: string; quantity: number; reason: string; requiredAt: Date }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
-        const demand = await tx.repairPartDemand.findFirst({ where: { id: data.demandId, organizationId: command.organizationId, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, include: { part: { include: { vendorOffers: { where: { vendor: { status: "ACTIVE" }, effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, include: { vendor: true }, orderBy: [{ unitCostCents: "asc" }, { estimatedArrivalAt: "asc" }] } } } } });
+        const demand = await tx.repairPartDemand.findFirst({ where: { id: data.demandId, organizationId: command.organizationId, status: { in: ["OPEN", "PARTIALLY_RESERVED"] }, repairOrder: { locationId: command.locationId ?? undefined } }, include: { part: { include: { vendorOffers: { where: { vendor: { status: "ACTIVE" }, effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, include: { vendor: true }, orderBy: [{ unitCostCents: "asc" }, { estimatedArrivalAt: "asc" }] } } } } });
         if (!demand) throw new Error("Open part demand was not found.");
         const comparison = demand.part.vendorOffers.map((offer) => ({ availableQuantity: offer.availableQuantity, estimatedArrivalAt: offer.estimatedArrivalAt, offerId: offer.id, reliabilityBasisPoints: offer.vendor.reliabilityBasisPoints, returnTerms: offer.returnTerms, unitCostCents: offer.unitCostCents, vendorCode: offer.vendor.code, warrantyTerms: offer.warrantyTerms }));
         const record = await tx.partRequisition.create({ data: { comparisonSnapshot: toJson(comparison), createdByUserId: data.createdByUserId, demandId: demand.id, id: command.subjectId, organizationId: command.organizationId, quantity: data.quantity, reason: data.reason, requiredAt: data.requiredAt } });
@@ -294,14 +300,14 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     selectOffer(command: EnterpriseCommandCommitInput, requisitionId: string, data: { offerId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
-        const requisition = await tx.partRequisition.findFirst({ where: { id: requisitionId, organizationId: command.organizationId }, include: { demand: true, selectedOffer: true } });
+        const requisition = await tx.partRequisition.findFirst({ where: { id: requisitionId, organizationId: command.organizationId, demand: { repairOrder: { locationId: command.locationId ?? undefined } } }, include: { demand: true, selectedOffer: true } });
         if (!requisition) throw new Error("Parts requisition was not found.");
         const offer = await tx.partVendorOffer.findFirst({ where: { id: data.offerId, organizationId: command.organizationId, partId: requisition.demand.partId, vendor: { status: "ACTIVE" } } });
         if (!offer) throw new Error("Eligible vendor offer was not found.");
         // Retrying a multi-step purchase is safe when the requisition was already
-        // selected for this same vendor. This prevents a partial prior save from
+        // selected for this exact offer. This prevents a partial prior save from
         // surfacing as a false missing-requisition error.
-        if (requisition.status === "SELECTED" && requisition.selectedOffer?.vendorId === offer.vendorId) {
+        if (requisition.status === "SELECTED" && requisition.selectedOfferId === offer.id) {
           return { previous: requisition, result: { id: requisition.id, selectedOfferId: requisition.selectedOfferId, status: requisition.status, version: requisition.version } };
         }
         if (requisition.status !== "SOURCING") throw new Error("This parts requisition has already advanced. Refresh the parts board before continuing.");
@@ -317,7 +323,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         const linePartIds = [...new Set(data.lines.map((line) => line.partId))];
         let allowedDemandIds: string[] = [];
         if (data.requisitionId) {
-          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId } } });
+          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId }, demand: { repairOrder: { locationId: data.locationId } } } });
           if (!requisition) throw new Error("Selected requisition does not match this vendor.");
           allowedDemandIds = [requisition.demandId];
         }
@@ -344,7 +350,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         ];
         assertPurchaseOrderDuplicateGate({ allowedDemandIds, duplicateOverrideReason: data.duplicateOverrideReason, facts, lines: data.lines });
         if (data.requisitionId) {
-          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId } } });
+          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId }, demand: { repairOrder: { locationId: data.locationId } } } });
           if (!requisition) throw new Error("Selected requisition does not match this vendor.");
           await tx.partRequisition.update({ where: { id: requisition.id }, data: { status: "ORDERED", version: { increment: 1 } } });
         }
@@ -381,7 +387,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       });
     },
 
-    receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receiptId: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
+    receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { strictRemaining?: boolean; invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receiptId: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const approvalRequired = await purchaseApprovalRequired(tx, command.organizationId);
         const order = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId }, include: { receipts: true } });
@@ -390,6 +396,17 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         const stockLocation = await tx.partStockLocation.findFirst({ where: { id: data.stockLocationId, organizationId: command.organizationId, locationId: order.locationId, isActive: true } });
         if (!stockLocation) throw new Error("Receipt stock location must be active at the purchase-order location.");
         const ordered = order.lines as PurchaseLine[], priorLines = order.receipts.flatMap((item) => item.lines as ReceiptLine[]);
+        if (data.strictRemaining) {
+          const parts = new Set<string>();
+          for (const line of data.lines) {
+            const matching = ordered.filter((item) => item.partId === line.partId);
+            const received = priorLines.filter((item) => item.partId === line.partId).reduce((sum, item) => sum + item.quantity, 0);
+            if (parts.has(line.partId) || matching.length !== 1 || line.quantity > matching[0].quantity - received) {
+              throw new Error("Receipt must contain one line per ordered part and stay within the remaining quantity.");
+            }
+            parts.add(line.partId);
+          }
+        }
         const receipt = await tx.partReceipt.create({ data: { id: data.receiptId, invoiceReference: data.invoiceReference, lines: toJson(data.lines), organizationId: command.organizationId, packingSource: data.packingSource, purchaseOrderId: order.id, reason: data.reason, receivedAt: data.receivedAt, receivedByUserId: data.receivedByUserId, stockLocationId: data.stockLocationId } });
         for (const [index, line] of data.lines.entries()) {
           await moveStock(tx, command, { actorUserId: data.receivedByUserId, movementType: "RECEIPT", occurredAt: data.receivedAt, partId: line.partId, quantityDelta: line.quantity - line.damagedQuantity, reason: data.reason, sourceId: `${receipt.id}:${index}`, sourceType: "PART_RECEIPT_LINE", stockLocationId: data.stockLocationId, unitCostCents: line.unitCostCents });

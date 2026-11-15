@@ -40,6 +40,10 @@ describe("application top bar console switching", () => {
       </AppearanceProvider>
     );
 
+    expect(markup).toMatch(/<div class="[^"]*context[^"]*"><nav aria-label="Workspace breadcrumb"[\s\S]*?<\/nav><span[^>]*>Inventory workspace<\/span><\/div>/i);
+    expect(markup).toContain('aria-label="Quick search"');
+    expect(markup).toContain('aria-label="Notifications"');
+    expect(markup).toContain('aria-label="Open navigation"');
     expect(markup).toContain("Inventory workspace");
     expect(markup).not.toContain("Inventory live");
     expect(markup).toContain('aria-label="Command Center Home"');

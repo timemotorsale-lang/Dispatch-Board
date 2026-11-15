@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { executeServiceClosePartsCommand } from "@/server/service-close-parts/service";
-import type { ServiceClosePartsRepository } from "@/server/service-close-parts/repository";
+import type { PrismaClient } from "@prisma/client";
+import { createServiceClosePartsRepository, type ServiceClosePartsRepository } from "@/server/service-close-parts/repository";
 
 vi.mock("@/server/inventory-lifecycle/acquisition", () => ({
   recordAcquisitionAppraisal: vi.fn().mockResolvedValue({ id: "appraisal-2", version: 2 }),
@@ -200,5 +201,81 @@ describe("service close parts service", () => {
       "po-1",
       expect.objectContaining({ lines: [{ partId: "part-1", quantity: 1, unitCostCents: 12500 }] }),
     );
+  });
+});
+
+describe("durable procurement replay", () => {
+  function setup() {
+    const ledger = new Map<string, Record<string, unknown>>();
+    const vendor = vi.fn(async ({ data }) => ({ ...data, status: "ACTIVE" }));
+    const partReceipt = vi.fn();
+    const orderUpdate = vi.fn(async ({ data }) => ({ ...data, id: "req-1" }));
+    let version = 0;
+    const tx = {
+      enterpriseCommandLedger: {
+        findUnique: vi.fn(async ({ where }) => ledger.get(where.organizationId_domain_commandType_idempotencyKey.idempotencyKey)),
+        create: vi.fn(async ({ data }) => {
+          ledger.set(data.idempotencyKey, data);
+          return { ...data, id: "command-1" };
+        }),
+      },
+      enterpriseAggregateVersion: {
+        findUnique: vi.fn(async () => version ? { id: "version-1", version } : null),
+        create: vi.fn(async ({ data }) => { version = data.version; }),
+        update: vi.fn(async ({ data }) => { version = data.version; }),
+      },
+      enterpriseDomainEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+      enterpriseAuditEvent: { create: vi.fn() },
+      enterpriseOutboxMessage: { create: vi.fn() },
+      partVendor: { findFirst: vi.fn().mockResolvedValue(null), create: vendor },
+      partRequisition: { findFirst: vi.fn().mockResolvedValue({ id: "req-1", status: "SOURCING", demand: { partId: "part-1", repairOrder: { id: "ro-1", locationId: "site-1" } } }), update: orderUpdate },
+      partVendorOffer: { findFirst: vi.fn().mockResolvedValue({ id: "offer-1" }) },
+      partPurchaseOrder: { findFirst: vi.fn().mockResolvedValue({ id: "po-1", locationId: "site-1", status: "PARTIALLY_RECEIVED", lines: [{ partId: "part-1", quantity: 3 }], receipts: [{ lines: [{ partId: "part-1", quantity: 2 }] }] }) },
+      partStockLocation: { findFirst: vi.fn().mockResolvedValue({ id: "bin-1" }) },
+      partReceipt: { create: partReceipt },
+      vehicleOperationsFeatureFlag: { findFirst: vi.fn().mockResolvedValue(null) },
+      organization: { findUnique: vi.fn().mockResolvedValue(null) },
+    };
+    const database = { ...tx, $transaction: vi.fn(async callback => callback(tx)) } as unknown as PrismaClient;
+    const repository = createServiceClosePartsRepository(database);
+    vi.spyOn(repository, "overview").mockResolvedValue({ purchaseOrders: [{ id: "po-1", locationId: "site-1" }], repairOrders: [] } as unknown as Awaited<ReturnType<typeof repository.overview>>);
+    const options = { repository, foundationRepository: foundation(), enforceRollout: false };
+    return { vendor, orderUpdate, partReceipt, run: (body: Record<string, unknown>) => executeServiceClosePartsCommand(manager, body, options) };
+  }
+
+  it("recovers a committed vendor response and rejects a changed payload", async () => {
+    const { vendor, run } = setup();
+    const body = { action: "CREATE_VENDOR", idempotencyKey: "vendor-lost-response", name: "Test Vendor", code: "TEST", reason: "Record a legitimate vendor.", defaultReturnTerms: "Confirm terms with vendor", defaultWarranty: "Confirm warranty with vendor", paymentTerms: "Due on receipt" };
+    const first = await run(body);
+    await expect(run(body)).resolves.toMatchObject({ duplicate: true, result: "result" in first ? first.result : undefined });
+    await expect(run({ ...body, name: "Different Vendor" })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    expect(vendor).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a purchase location that differs from the requisition repair order", async () => {
+    const { run } = setup();
+    await expect(run({
+      action: "CREATE_PURCHASE_ORDER", idempotencyKey: "wrong-site", vendorId: "vendor-1",
+      requisitionId: "req-1", locationId: "site-2", purchaseOrderNumber: "PO-1",
+      lines: [{ partId: "part-1", quantity: 1, unitCostCents: 100 }], reason: "Record an existing purchase."
+    })).rejects.toThrow("must match the requisition repair order location");
+  });
+
+  it("rejects a strict receipt above the remaining quantity before writing stock or a receipt", async () => {
+    const { partReceipt, run } = setup();
+    await expect(run({
+      action: "RECEIVE_PURCHASE_ORDER", idempotencyKey: "strict-receipt", subjectId: "po-1", strictRemaining: true,
+      stockLocationId: "bin-1", packingSource: "Packing slip 1", receivedAt: "2026-11-15T01:00:00Z",
+      lines: [{ partId: "part-1", quantity: 2, unitCostCents: 100 }], reason: "Receive the vendor delivery."
+    })).rejects.toThrow("remaining quantity");
+    expect(partReceipt).not.toHaveBeenCalled();
+  });
+
+  it("recovers offer selection after its aggregate advances", async () => {
+    const { orderUpdate, run } = setup();
+    const body = { action: "SELECT_REQUISITION_OFFER", subjectId: "req-1", offerId: "offer-1", idempotencyKey: "selection-lost-response", reason: "Select verified supplier offer." };
+    const first = await run(body);
+    await expect(run(body)).resolves.toMatchObject({ duplicate: true, result: "result" in first ? first.result : undefined });
+    expect(orderUpdate).toHaveBeenCalledTimes(1);
   });
 });

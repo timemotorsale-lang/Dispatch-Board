@@ -29,6 +29,7 @@ pnpm-debug.log*
 node_modules/
 .next/
 .next-preview-repair-team/
+.next-compact-parts-build/
 .env
 .env.local
 playwright-report/

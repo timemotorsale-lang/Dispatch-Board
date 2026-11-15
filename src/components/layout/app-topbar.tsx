@@ -271,8 +271,23 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     };
   }, [isSearchOpen, pathname, searchParams, searchText]);
 
+  const showInventoryStatus = !showCrmModeSwitch && inventoryConsole && !commandCenterHome && activeWorkspace !== "ADVISOR";
+  const breadcrumbNav = (
+    <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
+      {visibleBreadcrumb.map((part, index) => {
+        const item = typeof part === "string" ? { label: part } : part;
+        return (
+          <span className={index === visibleBreadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={`${item.label}-${index}`}>
+            {item.href ? <Link href={item.href}>{item.label}</Link> : item.label}
+            {index < visibleBreadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
+          </span>
+        );
+      })}
+    </nav>
+  );
+
   return (
-    <header className={`app-topbar ccc-topbar${showCrmModeSwitch ? ` ${crmHeaderStyles.header}` : ""}`}>
+    <header className={`app-topbar ccc-topbar${showInventoryStatus ? ` ${inventoryStatusStyles.inventoryHeader}` : ""}${showCrmModeSwitch ? ` ${crmHeaderStyles.header}` : ""}`}>
       {showNavigationMenu ? (
         <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button">
           <Menu size={20} />
@@ -318,20 +333,13 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         </Link>
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
-      <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
-        {visibleBreadcrumb.map((part, index) => {
-          const item = typeof part === "string" ? { label: part } : part;
-          return (
-          <span className={index === visibleBreadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={`${item.label}-${index}`}>
-            {item.href && index < visibleBreadcrumb.length ? <Link href={item.href}>{item.label}</Link> : item.label}
-            {index < visibleBreadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
-          </span>
-        )})}
-      </nav>
-
-      {!showCrmModeSwitch && (inventoryConsole && !commandCenterHome && activeWorkspace !== "ADVISOR"
-        ? <InventoryRolloutStatus key={`${user.id}:${pathname}`} pathname={pathname} />
-        : <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : dispatchConsole ? "Dispatch online" : "Console active"}</span>)}
+      {showInventoryStatus ? <div className={inventoryStatusStyles.context}>
+        {breadcrumbNav}
+        <InventoryRolloutStatus key={`${user.id}:${pathname}`} pathname={pathname} />
+      </div> : <>
+        {breadcrumbNav}
+        {!showCrmModeSwitch && <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : dispatchConsole ? "Dispatch online" : "Console active"}</span>}
+      </>}
 
       {showCrmModeSwitch ? <CrmModeSwitch /> : null}
 
