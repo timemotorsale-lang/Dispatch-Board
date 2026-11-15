@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // A minimal hook driver exposes event handlers without a browser or live billing endpoint.
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], cursor: 0, effects: [] as (() => unknown)[] }));
 vi.mock("react", async original => {

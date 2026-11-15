@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BillingDocumentLink } from "./billing-document-link";
 import { nextBillingTask } from "@/lib/service-billing-workflow";
 import styles from "./service-billing-workspace.module.css";
@@ -35,6 +36,7 @@ export function ServiceBillingWorkspace(props: WorkspaceProps) {
   return <>{changed && <p role="status">Finish or retry the current billing request before opening another billing record.</p>}<BillingWorkspace key={`${active.repairOrderId}${active.invoiceId ? `:${active.invoiceId}` : ""}`} {...props} {...active} onLockChange={reportLock} /></>;
 }
 function BillingWorkspace({ paymentOnly = false, repairOrderId: initialId, invoiceId, onDocumentReady, onLockChange }: WorkspaceProps) {
+  const router = useRouter();
   const documentMode = Boolean(onDocumentReady);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const feedbackRef = useRef<HTMLDivElement>(null);
@@ -95,7 +97,7 @@ function BillingWorkspace({ paymentOnly = false, repairOrderId: initialId, invoi
       if (command.action === "POST_INVOICE" && sourceId) {
         setPending(null);
         const params = new URLSearchParams({ repairOrderId, workspace: "1", ...(typeof body.result?.documentId === "string" ? { documentId: body.result.documentId } : { sourceId }) });
-        window.location.assign(`/service-documents?${params}`);
+        router.push(`/service-documents?${params}`);
         return;
       }
       setPending(null); setNotice(body.duplicate ? "Original receipt recovered; no duplicate financial entry was made." : command.action === "POST_INVOICE" ? "Invoice generated. Open the issued invoice below to print or save as PDF." : command.action === "PAYMENT" ? "Payment recorded and receipt generated. Open the receipt below to print or save as PDF." : "Financial activity recorded. Review the frozen document below.");

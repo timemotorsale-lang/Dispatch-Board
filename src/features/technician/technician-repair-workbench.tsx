@@ -96,7 +96,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
   const canResume = model.actor.canExecute && clockState === "PAUSED";
   const completed = model.job.status === "READY_FOR_QC" || model.job.status === "QC_PASSED" || clockState === "FINISHED";
   const incomplete = outcome !== "COMPLETED";
-  const nextStep = completed
+  const nextStep: (typeof outcomeNextSteps)[RepairOutcome] = completed
     ? { ...outcomeNextSteps.COMPLETED, title: model.job.status === "QC_PASSED" ? "QC passed" : "Submitted to QC", detail: model.job.status === "QC_PASSED" ? "This repair has passed QC. The next staff action is release readiness or shop exit from Recon / Repair Advisor." : "This repair is waiting for Quality Control. No more technician update is needed unless QC sends it back.", action: model.job.status === "QC_PASSED" ? "Open closeout / handoff" : "Open Quality Control", href: (model) => repairReviewHref(model.repairOrder.id, model.job.status === "QC_PASSED" ? "handoff" : "qc") }
     : outcomeNextSteps[outcome];
   const incompleteIssue = incomplete ? incompleteRepairUpdateIssue({ blockerReason, recommendedNextStep }) : null;
