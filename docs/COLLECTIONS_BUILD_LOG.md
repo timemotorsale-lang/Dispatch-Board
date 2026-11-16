@@ -1157,7 +1157,7 @@ These are already in the open questions.
 
 ---
 
-## Stage 16: Release 1 hardening (partly done; stopped at the usage limit)
+## Stage 16: Release 1 hardening (done)
 
 **Done:**
 - **Browser pass (4 of 4 tests pass):** all 11 Collections screens load without errors, pass
@@ -1166,8 +1166,84 @@ These are already in the open questions.
 - **The user guide** covers the Stage 12–15 screens.
 - **Open questions** now list what Release 2 needs.
 
-**Still to do (continue from here):**
-- the final permission review of the Stage 12–15 routes. They all use the same checks as
-  before, but haven't been re-listed;
-- the final full-suite run;
-- the closing summary.
+*(The usage limit interrupted this stage; it was finished afterwards.)*
+
+### Stage 16: finished
+
+- **Permission review:** all 23 Collections web addresses check the on/off switch and who is
+  signed in. Every one that changes data also checks the request came from the app. The text
+  webhooks check Twilio's signature, and the scheduled job checks its secret. All 10 pages
+  and all 38 server entry points check permission on the server.
+- **Switch-off review:** with `COLLECTIONS_MODULE=OFF` (the default):
+  - the menu link is hidden;
+  - every Collections web address answers "not found";
+  - the scheduled job and the text webhooks do nothing;
+  - every integration is OFF.
+
+  The tests check all of this.
+- **Full suite:** 6,079 passed. 1 existing test (CRM pages) timed out under full-suite load;
+  it's the known flaky one, and it passes on its own.
+- **Final checks:**
+  - **Collections tests:** all 232 pass, including the database tests.
+  - **Browser tests:** 4 of 4 pass, across 11 screens at desktop and phone width.
+  - **Typecheck:** clean.
+  - **Lint:** only the 1 error that was there before Collections.
+
+---
+
+## Release 1 summary (stages 1–16)
+
+**What was built:** a complete Collections and Servicing module, inside the dispatch board:
+- the **daily DealerCenter import**, with a preview first;
+- a **work queue** in the right order, with a **phone layout**;
+- **account pages:**
+  - contact log, flags and the bankruptcy freeze;
+  - promises, plans and "customer says they paid";
+  - texts and email (dry run), insurance;
+  - starter disable and repo with TLC, and repo letters (DRAFT until the attorney's wording
+    is added);
+  - extensions, fees and credits, possible skip, charge-off and recovery;
+- **automatic board tasks** that close themselves;
+- **automatic reminders** (dry run), and an **inbox** with STOP/START/HELP/YES/PAID in four
+  languages;
+- a **dashboard** with deeper measures, **Settings**, and an editable **Playbook**;
+- a **risk score and "Do this next"**;
+- **integration plug-ins** (fake only);
+- a **shadow servicing ledger**, **DealerCenter history import**, and **Reconciliation**.
+
+**Safety, as you asked:**
+- every new switch defaults to **OFF**, so the board looks exactly as before;
+- DealerCenter stays the official record, locked in Release 1;
+- nothing sends a real text, email or letter, or calls a real vendor;
+- no automation disables a starter, assigns a repo, sends a letter, clears a flag or
+  approves money;
+- no real customer data in the code or tests;
+- the database changes went only to the test copy, each after a backup;
+- nothing has been pushed or merged.
+
+**To turn it on and test it:** see `docs/COLLECTIONS_USER_GUIDE.md` section 1. In short:
+1. Set `COLLECTIONS_MODULE=REVIEW` and restart.
+2. Fill in Settings.
+3. Import the DealerCenter file and work the queue.
+4. For the ledger, use Reconciliation: load the history, then check the differences.
+
+**What still needs you:** spec sections 21 and 27, and `docs/COLLECTIONS_OPEN_QUESTIONS.md`.
+- **Attorney:** late fees, notices, letter wording, and texting consent.
+- **Bankruptcy attorney:** the freeze procedure.
+- **Accountant:** payment order, interest, sales tax, and QuickBooks.
+- **Fluent speakers:** the Spanish, Somali and Swahili texts.
+- **Twilio:** A2P 10DLC registration.
+- **DealerCenter:** the full data export.
+- **Vendor sign-ups.**
+- **Your pay-online link and Zelle recipient.**
+- **Deployment:** the scheduler entry and exposing the webhooks.
+- **Your approval to merge and deploy:** the Collections tables reach your real database
+  only then, after a backup.
+
+**What Release 2 needs:**
+- taking payments, assessing late fees, payoffs, statements, the daily close and the
+  accounting export (spec 25.4–25.10);
+- the payment processor in TEST;
+- AACER, the reassigned-number check, Axle and the Advantage API turned on;
+- AI agents in shadow mode;
+- two monthly cycles with every account matching DealerCenter, before any switch-over.
