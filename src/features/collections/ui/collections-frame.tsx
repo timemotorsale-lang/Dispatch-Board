@@ -5,13 +5,14 @@ import { resolveCollectionsMode } from "../config/flags";
 import styles from "./collections.module.css";
 
 export const COLLECTIONS_SECTIONS = [
-  { key: "queue", href: "/collections", label: "Queue" },
-  { key: "inbox", href: "/collections/inbox", label: "Inbox" },
-  { key: "accounts", href: "/collections/accounts", label: "Accounts" },
-  { key: "dashboard", href: "/collections/dashboard", label: "Dashboard" },
-  { key: "reconciliation", href: "/collections/reconciliation", label: "Reconciliation" },
-  { key: "import", href: "/collections/import", label: "Import" },
-  { key: "settings", href: "/collections/settings", label: "Settings" }
+  { key: "queue", href: "/collections", label: "Queue", ready: true },
+  { key: "inbox", href: "/collections/inbox", label: "Inbox", ready: true },
+  { key: "accounts", href: "/collections/accounts", label: "Accounts", ready: true },
+  // Not built yet: shown as "coming soon" until their stage lands (Dashboard and Settings: Stage 10; Reconciliation: Stage 15).
+  { key: "dashboard", href: "/collections/dashboard", label: "Dashboard", ready: false },
+  { key: "reconciliation", href: "/collections/reconciliation", label: "Reconciliation", ready: false },
+  { key: "import", href: "/collections/import", label: "Import", ready: true },
+  { key: "settings", href: "/collections/settings", label: "Settings", ready: false }
 ] as const;
 
 export type CollectionsSectionKey = (typeof COLLECTIONS_SECTIONS)[number]["key"];
@@ -36,7 +37,9 @@ export function CollectionsFrame({ section, title, description, actions, childre
         <ul className={styles.subnav}>
           {COLLECTIONS_SECTIONS.map(item => (
             <li key={item.key}>
-              <Link href={item.href} aria-current={item.key === section ? "page" : undefined}>{item.label}</Link>
+              {item.ready
+                ? <Link href={item.href} aria-current={item.key === section ? "page" : undefined}>{item.label}</Link>
+                : <span aria-disabled="true" title="Coming in a later build stage" style={{ opacity: 0.55, cursor: "default" }}>{item.label} (coming soon)</span>}
             </li>
           ))}
         </ul>
