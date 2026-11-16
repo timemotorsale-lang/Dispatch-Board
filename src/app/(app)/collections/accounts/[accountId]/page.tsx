@@ -5,6 +5,7 @@ import { getAccountDetail } from "@/features/collections/server/account-service"
 import { requireCollectionsPage } from "@/features/collections/server/page-gate";
 import { AccountWorkspace } from "@/features/collections/ui/account-workspace";
 import { CollectionsFrame } from "@/features/collections/ui/collections-frame";
+import { InsurancePanel } from "@/features/collections/ui/insurance-panel";
 import { MessagesPanel } from "@/features/collections/ui/messages-panel";
 import { PromisesPanel } from "@/features/collections/ui/promises-panel";
 
@@ -24,7 +25,7 @@ export default async function CollectionsAccountPage({ params, searchParams }: P
   const log = typeof query.log === "string" ? (query.log === "1" ? "CALL_OUT" : query.log) : "";
   return (
     <CollectionsFrame section="accounts" title={detail.customer?.displayName ?? detail.account.buyerNameRaw} description={`Deal ${detail.account.dealNumber ?? "—"} · ${detail.account.vehicleDescriptionRaw ?? ""}`}>
-      <AccountWorkspace detail={detail} initialLog={log} extraPanels={<><PromisesPanel d={detail} /><MessagesPanel d={detail} /></>} />
+      <AccountWorkspace detail={detail} initialLog={log} extraPanels={<><PromisesPanel d={detail} /><MessagesPanel d={detail} /><InsurancePanel d={detail} /></>} />
     </CollectionsFrame>
   );
 }

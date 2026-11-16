@@ -14,14 +14,15 @@ export function accountAction<T = { ok: true; message: string }>(accountId: stri
   return callCollections<T>(`/api/collections/accounts/${encodeURIComponent(accountId)}/actions`, { action, ...values });
 }
 
-export async function uploadAccountDocument(accountId: string, file: File, purpose: string) {
+export async function uploadAccountDocument(accountId: string, file: File, purpose: string, options: { ocr?: boolean } = {}) {
   const form = new FormData();
   form.set("file", file);
   form.set("purpose", purpose);
+  if (options.ocr) form.set("ocr", "1");
   const response = await fetch(`/api/collections/accounts/${encodeURIComponent(accountId)}/documents`, { method: "POST", body: form });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "The upload failed. Nothing was changed.");
-  return payload as { documentId: string };
+  return payload as { documentId: string; prefill?: Record<string, unknown> | null };
 }
 
 export function formatWhen(value: string | null | undefined) {

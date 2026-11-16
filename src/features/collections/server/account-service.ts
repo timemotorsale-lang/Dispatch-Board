@@ -11,6 +11,7 @@ import { CollectionsError, hasCollectionsPermission } from "../config/permission
 import { chicagoToday, dateOnly, toE164, toYmd } from "../domain/money-dates";
 import { buildQueue, type QueueFacts, type QueueFilters } from "../domain/queue";
 import type { Bucket } from "../domain/status";
+import { effectiveInsuranceStatus } from "../domain/tasks";
 import { collectionsAccess, recordAccountEvent, type CollectionsAccess } from "./access";
 import { recalculateAccounts } from "./account-state";
 import { assertAccountDocument } from "./documents";
@@ -58,6 +59,7 @@ export async function findAccount(db: Db, access: CollectionsAccess, id: string)
 export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFacts[]> {
   const today = dateOnly(chicagoToday());
   const brokenSince = new Date(Date.now() - 14 * 86_400_000);
+  const insuranceSoonDays = (await loadCollectionsSettings(access.organizationId)).insuranceExpiringSoonDays;
   const accounts = await prisma.collectionAccount.findMany({
     where: { organizationId: access.organizationId, archivedAt: null, closedStatus: null, ...(await visibilityWhere(access)) },
     take: 10_000,
@@ -68,7 +70,7 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
       flags: { where: { clearedAt: null }, select: { type: true } },
       promises: { where: { OR: [{ status: "OPEN" }, { status: "BROKEN", resolvedAt: { gte: brokenSince } }] }, select: { status: true, promisedDate: true, resolvedAt: true } },
       reportedPayments: { where: { status: "NOT_FOUND" }, select: { id: true } },
-      insuranceRecords: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true } },
+      insuranceRecords: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, expirationDate: true } },
       snapshots: { orderBy: [{ asOfDate: "desc" }, { createdAt: "desc" }], take: 1, select: { dmsInsuranceStatus: true } },
       inboundMessages: { where: { readAt: null }, select: { id: true } }
     }
@@ -77,7 +79,9 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
     const open = account.promises.filter(p => p.status === "OPEN");
     const broken = account.promises.filter(p => p.status === "BROKEN");
     const latestBroken = broken.reduce<Date | null>((max, p) => (p.resolvedAt && (!max || p.resolvedAt > max) ? p.resolvedAt : max), null);
-    const insurance = account.insuranceRecords[0]?.status ?? null;
+    const record = account.insuranceRecords[0];
+    // Records are append-only, so expired/expiring is worked out from the dates.
+    const insurance = record ? effectiveInsuranceStatus({ status: record.status, expirationDate: toYmd(record.expirationDate) }, chicagoToday(), insuranceSoonDays) : null;
     const dmsInsurance = (account.snapshots[0]?.dmsInsuranceStatus ?? "").toUpperCase();
     return {
       id: account.id,
@@ -249,7 +253,12 @@ export async function getAccountDetail(actor: AuthenticatedUser | null, accountI
     openPromises: openPromises.map(p => ({ id: p.id, amountCents: p.promisedAmountCents, date: toYmd(p.promisedDate), source: p.source, planId: p.planId })),
     plans: plans.map(p => ({ id: p.id, status: p.status, reason: p.reason, totalCatchUpCents: p.totalCatchUpCents, installments: p.installments.map(i => ({ id: i.id, number: i.installmentNumber, amountCents: i.promisedAmountCents, date: toYmd(i.promisedDate), status: i.status })) })),
     reportedPayments: reported.map(r => ({ id: r.id, amountCents: r.amountCents, method: r.method, paidDate: toYmd(r.paidDate), status: r.status, referenceNumber: r.referenceNumber })),
-    insurance: latestInsurance ? { ...latestInsurance, effectiveDate: toYmd(latestInsurance.effectiveDate), expirationDate: toYmd(latestInsurance.expirationDate), verifiedAt: latestInsurance.verifiedAt?.toISOString() ?? null, createdAt: latestInsurance.createdAt.toISOString() } : null,
+    insurance: latestInsurance ? {
+      ...latestInsurance, effectiveDate: toYmd(latestInsurance.effectiveDate), expirationDate: toYmd(latestInsurance.expirationDate), verifiedAt: latestInsurance.verifiedAt?.toISOString() ?? null, createdAt: latestInsurance.createdAt.toISOString(),
+      effectiveStatus: effectiveInsuranceStatus({ status: latestInsurance.status, expirationDate: toYmd(latestInsurance.expirationDate) }, chicagoToday(), (await loadCollectionsSettings(access.organizationId)).insuranceExpiringSoonDays),
+      proofFileName: latestInsurance.proofDocumentId ? (await prisma.documentLibraryDocument.findUnique({ where: { id: latestInsurance.proofDocumentId }, select: { fileName: true } }))?.fileName ?? "proof" : null
+    } : null,
+    textedPhotos: inbound.flatMap(m => (Array.isArray(m.mediaDocumentIds) ? (m.mediaDocumentIds as Array<{ savedDocumentId?: string | null }>) : []).map((media, index) => ({ inboundMessageId: m.id, mediaIndex: index, receivedAt: m.receivedAt.toISOString(), savedDocumentId: media?.savedDocumentId ?? null }))),
     starterActions: starter.map(s => ({ id: s.id, action: s.action, status: s.status, reason: s.reason, warningMethod: s.warningMethod, requestedAt: s.requestedAt.toISOString(), approvedAt: s.approvedAt?.toISOString() ?? null, performedInPortalAt: s.performedInPortalAt?.toISOString() ?? null })),
     repoCases: repoCases.map(r => ({ id: r.id, status: r.status, vendorName: r.vendor?.name ?? null, storageLocation: r.storageLocation, assignedAt: r.assignedAt?.toISOString() ?? null, recoveredAt: r.recoveredAt?.toISOString() ?? null, outcomeNotes: r.outcomeNotes, letters: r.letters.map(l => ({ id: l.id, templateKey: l.templateKey, sentAt: l.sentAt?.toISOString() ?? null, sentMethod: l.sentMethod, certifiedTrackingNumber: l.certifiedTrackingNumber, isDraftWording: l.isDraftWording })) })),
     consents: consents.map(c => ({ channel: c.channel, address: c.address, status: c.status, source: c.source, recordedAt: c.recordedAt.toISOString() })),

@@ -4,6 +4,7 @@ import { CollectionsError } from "@/features/collections/config/permissions";
 import { collectionsAccess, recordAccountEvent } from "@/features/collections/server/access";
 import { findAccount } from "@/features/collections/server/account-service";
 import { readUploadedProof, storeRestrictedDocument } from "@/features/collections/server/documents";
+import { suggestInsuranceFields } from "@/features/collections/server/insurance-ocr";
 import { assertModuleOn, collectionsErrorResponse, collectionsJson, requireSameOrigin } from "@/features/collections/server/http";
 
 const PURPOSES = {
@@ -30,6 +31,8 @@ export async function POST(request: Request, context: { params: Promise<{ accoun
       ownerLabel: `Collections · ${account.buyerNameRaw}`, documentType, fileName: proof.fileName, contentType: proof.contentType, bytes: proof.bytes
     });
     await recordAccountEvent(prisma, { organizationId: access.organizationId, accountId: account.id, type: "DOCUMENT_UPLOADED", userId: access.actor.id, after: { documentId: stored.documentId, documentType } });
-    return collectionsJson({ documentId: stored.documentId });
+    // Optional OCR prefill for insurance proof: suggestions only, nothing is saved from it.
+    const prefill = purpose === "INSURANCE_PROOF" && form.get("ocr") === "1" ? await suggestInsuranceFields(access.organizationId, proof) : null;
+    return collectionsJson({ documentId: stored.documentId, prefill });
   } catch (error) { return collectionsErrorResponse(error); }
 }

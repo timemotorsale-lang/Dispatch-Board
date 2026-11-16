@@ -454,3 +454,74 @@ All 124 Collections tests pass. Full suite: 6,013 passed, 0 failed. Typecheck cl
 - have a fluent speaker review the Spanish, Somali and Swahili templates;
 - confirm with the Minnesota attorney that the contract consent covers automated texts
   (open question 5).
+
+---
+
+## Stage 8: Insurance (done)
+
+**What I built**
+- **Insurance panel on the account page.** It shows the current status:
+  - **Verified**;
+  - **Not verified yet**;
+  - **Expiring soon** (within 14 days, a setting);
+  - **Expired** or **Missing**;
+  - **Nothing on file**.
+
+  Below the status it shows the carrier, policy number, dates, whether the dealership is
+  listed as lienholder, the proof file, and who verified it and when. DealerCenter's
+  insurance column is shown for reference only.
+- **Add proof:** upload a card photo or insurer document (PDF, JPEG or PNG), or use a photo
+  the customer texted in. With "Read the card for me" ticked:
+  - the app reads the card on your own server, with the text reader the app already has,
+    so nothing goes to an outside service;
+  - it fills in the carrier, policy number, dates and lienholder;
+  - it only fills in the form, so you check each field and press Save. If it's unsure, it
+    leaves the field empty or adds a note such as "dates were guessed, check them".
+- **Verify (admins only):** tick "the dealership is listed as lienholder and the dates are
+  right", then mark it verified. Proof must be uploaded first, and an expired policy can't
+  be verified.
+- **Customer has no insurance:** marks it missing, with a note.
+- **History is kept:** every change saves a new version. Nothing is overwritten.
+- **Automatic follow-up:**
+  - expired or missing insurance creates a "Get proof of insurance" task on the board, and
+    the automatic "insurance needed" text from Stage 7;
+  - saving current insurance closes the task right away;
+  - the queue's **Insurance problems** tab now works out "expired" and "expiring soon" from
+    the dates, so a policy that expires tonight shows up tomorrow without anyone touching
+    it.
+- **Texted photos:** a photo the customer texts can be saved to the account as proof with
+  one click, once real texting is on. It only downloads from Twilio's own address. In
+  REVIEW mode it explains that this needs live texting.
+
+**How to try it (REVIEW mode):**
+1. Open any account and go to Insurance.
+2. Upload a picture of a sample card.
+3. Check the filled-in fields, then press Save.
+4. As the owner, tick the lienholder box and press "Mark verified".
+
+Uploads need the app's private Document Library storage set up, as with every other upload
+in the app.
+
+**Tests:**
+- 6 new unit tests:
+  - reading a card: carrier, policy, dates, and your dealership as lienholder;
+  - another lienholder name isn't mistaken for yours;
+  - unlabeled dates are guessed and flagged;
+  - unreadable text leaves fields empty;
+  - date formats;
+  - the photo-link safety check.
+- 6 new database tests:
+  - expired insurance creates a task and shows in the queue tab;
+  - new insurance closes the task and stays "not verified";
+  - verifying needs the lienholder check, is admin-only, and keeps history;
+  - "missing" creates the task again;
+  - bad dates and someone else's file are refused;
+  - texted photos aren't downloaded while texting is off.
+- All 136 Collections tests pass. Full suite: 6,019 passed, 0 failed. Typecheck and
+  Collections lint are clean.
+
+**Not finished:** viewing the proof file from the account page. It's stored privately in
+the Document Library and listed by file name. A "view" button comes in Stage 11, along with
+the other screen polish.
+
+**What you need to do:** nothing now.
