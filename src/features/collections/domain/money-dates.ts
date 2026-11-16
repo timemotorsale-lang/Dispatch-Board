@@ -121,3 +121,29 @@ export function toE164(phone: string | null | undefined) {
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
   return null;
 }
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** The Chicago calendar date, weekday (0 = Sunday) and minutes after midnight for an instant. */
+export function chicagoClock(now = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: COLLECTIONS_TIME_ZONE, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now).map(p => [p.type, p.value]));
+  return { ymd: chicagoToday(now), weekday: WEEKDAYS.indexOf(parts.weekday), minutes: Number(parts.hour) * 60 + Number(parts.minute) };
+}
+
+/** "HH:MM" -> minutes after midnight. */
+export function timeToMinutes(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** The instant that is `hhmm` Chicago time on the Chicago date `ymd` (handles daylight saving). */
+export function chicagoDateTime(ymd: string, hhmm: string) {
+  const guess = new Date(`${ymd}T${hhmm}:00.000Z`);
+  for (let i = 0; i < 2; i += 1) {
+    const clock = chicagoClock(guess);
+    const diff = (timeToMinutes(hhmm) - clock.minutes) + daysBetween(clock.ymd, ymd) * 1440;
+    if (diff === 0) break;
+    guess.setTime(guess.getTime() + diff * 60_000);
+  }
+  return guess;
+}

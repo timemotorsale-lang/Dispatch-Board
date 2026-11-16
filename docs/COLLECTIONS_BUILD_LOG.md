@@ -262,3 +262,98 @@ Collections database tests pass. Full suite: 5,979 passed. 3 existing tests time
 under load and pass on their own (same flaky-timeout issue as Stage 4).
 
 **What you need to do:** nothing yet.
+
+---
+
+## Stage 6: Automations and dispatch board tasks (done)
+
+**What I built**
+- **The automations** (`server/automations.ts`) run right after every committed import, and
+  from a new scheduled job, `/api/cron/collections`, protected by `CRON_SECRET` like the
+  app's other jobs. The scheduled job is safe to call every 15 minutes. Each day, Monday to
+  Saturday, it does two things:
+  - after 9:15 am Chicago time (a setting), it runs the full automations once;
+  - after 10:00 am (a setting), it checks for the import reminder.
+
+  The automations follow these steps:
+  1. Recalculate every account's status and bucket.
+  2. Resolve promises, plans and reported payments (from Stage 5).
+  3. Work out insurance status from the latest record: expired, expiring within 14 days,
+     missing, or unknown. Insurance screens come in Stage 8.
+  4. Create and close dispatch board tasks (details below).
+  5. Automatic messages. This step is reserved; it gets filled in Stage 7.
+  6. Save the day's numbers (counts and dollars per bucket, promises made, kept, partly
+     kept and broken, disabled starters, repo and insurance counts) for the dashboard. Post
+     one summary to the board's activity feed, such as "Collections: 2 broken promises,
+     3 disable reviews."
+  7. If nothing was imported by 10:00 am, create an **"Import DealerCenter accounts"** task
+     for the Collections admin. It closes by itself once a file is imported.
+- **Board tasks** (`domain/tasks.ts`, `server/task-sync.ts`):
+
+  | Reason | Task | Priority |
+  |---|---|---|
+  | Broken or partly kept promise or plan payment | Call customer: broken promise | High |
+  | 7 days past due, starter not already disabled | Starter-disable review | High |
+  | 14 days | 2-week follow-up | Medium |
+  | 30 days | 30-day account review | High |
+  | 60 days | Repo review | Critical |
+  | Insurance expired or missing | Get proof of insurance | Medium |
+  | Reported payment not found | Check reported payment in DealerCenter | High |
+  | Payment or arrangement after a disable | Re-enable starter | Critical |
+  | Repo assigned or located | Repo: TLC Recovery | High |
+  | Bankruptcy flag | Bankruptcy: review with attorney | High |
+
+  - Every task is in the **Collections** area of the board. It goes to the account's
+    collector, or to the Collections admin when no collector is set. It links back to the
+    account page.
+  - **One open task per account per reason.** The database enforces this.
+  - **Tasks close themselves with a note when the reason goes away.** Examples: a later
+    import shows the account caught up, a new promise is made after a broken one, or the
+    starter is re-enabled. You'll see "Collections closed this task automatically: …" in
+    the activity feed.
+  - **If you complete a task yourself, it stays done.** It isn't created again until the
+    reason happens again, for example the account falls behind again after catching up.
+  - Changes on the account page (flags, promises, plans) update that account's tasks right
+    away.
+- **Choices I made (tell me if you want them different):**
+  - **Only one days-past-due task at a time:** the highest level reached. A 75-day account
+    gets "Repo review", not all four tasks. Otherwise your first import would put about
+    100 tasks on the board.
+  - **Bankruptcy:** a bankruptcy flag closes all other tasks on that account and leaves
+    only "Bankruptcy: review with attorney" (spec section 12).
+  - **Deceased:** a deceased flag pauses all of that account's tasks.
+  - **Repo hold:** the "do not repo, review hold" flag skips the repo review.
+  - **Unknown insurance:** an account with no insurance on file at all counts as "unknown"
+    and doesn't get a task. Only expired, or explicitly marked missing, does. Otherwise all
+    277 accounts would get an insurance task on day one.
+  - **Privacy:** task titles show the customer name and deal number, but never dollar
+    amounts, because everyone can see the board.
+- **Safety:** no automation disables a starter, assigns a repo, sends a letter or clears a
+  flag. Tasks only remind a person to decide. While the switch is OFF, the scheduled job
+  does nothing. If the automations fail after an import, the import stays saved, and the
+  next scheduled run catches the tasks up.
+
+**How to try it (test database):** import the sample file at `/collections/import`. Then
+open the dispatch board and look at the Collections area. Run the import again with an
+account caught up, and its task closes itself.
+
+**Tests:**
+- 13 new unit tests: which tasks each situation creates, insurance status, Mon–Sat timing in
+  Chicago time (including daylight saving), and the summary wording.
+- 9 new database tests:
+  - one task per account per reason;
+  - running twice creates nothing;
+  - the daily numbers and the summary;
+  - a task completed by a person stays done;
+  - a caught-up import closes the task with a note;
+  - bankruptcy leaves only the attorney review;
+  - a new promise closes the broken-promise task;
+  - the import reminder is created once and closes after an import;
+  - the job does nothing while OFF.
+- All 99 Collections tests pass. Typecheck is clean. Full suite: 5,995 passed, 0 failed.
+  Lint: only the 1 existing error that was there before.
+
+**What you need to do (before going LIVE, not now):** tell the scheduler to call
+`/api/cron/collections`. On Vercel that means adding it to `vercel.json`, every 15 minutes
+like `generate-board`. I haven't changed `vercel.json`, because that changes your
+deployment; I'll ask you first.
