@@ -899,3 +899,74 @@ follow-up at all. It now falls back to the 30-day review, as before.
   and on any deficiency, with your attorney (open questions 1 and 4).
 - **Default fee amounts:** set them in Settings once you know them.
 - **Playbook:** look it over and adjust if you'd like.
+
+---
+
+## Stage 13: Integration adapters (done; no database change)
+
+**What I built** (`src/features/collections/server/integrations/`)
+- **One standard "plug" for each outside service** in spec section 24, so a real vendor can be
+  connected later without changing any screens:
+  - payment processing (+ PayNearMe cash);
+  - bankruptcy alerts (Epiq AACER);
+  - the FCC reassigned-numbers check;
+  - insurance verification (Axle);
+  - the Advantage GPS API;
+  - certified mail and address checks (Lob);
+  - the repossession network (RDN);
+  - business phone (click-to-call);
+  - e-signature;
+  - skip tracing;
+  - the DealerCenter API.
+- **Each has its own switch**, `COLLECTIONS_INTEGRATION_…` = OFF, TEST or LIVE, already in
+  `.env.example`:
+  - **every switch defaults to OFF;**
+  - **in Release 1, LIVE is held at TEST.** Only built-in fake versions run, and nothing
+    contacts a real vendor;
+  - OFF refuses with the **manual way** to do the job instead, for example "Use the Advantage
+    portal, then press Done in portal".
+- **Fake (TEST) versions** of all 11, with predictable results, including the unhappy cases:
+  - payments: an amount ending in 13 cents is declined;
+  - reassigned numbers: a number ending in 0000 is reassigned;
+  - insurance: a policy with "LAPSED" in it is lapsed;
+  - bankruptcy: a name with "BKTEST" in it is a match;
+  - mail: an address with "UNDELIVERABLE" in it fails.
+- **Safety checks on every call**, built into the plug itself:
+  - **money** (charge, ACH, refund) needs a named person and a recorded approval;
+  - **starter disable/enable** needs an owner-approved starter request, and a bankruptcy
+    freeze blocks disabling;
+  - **skip-trace searches** must record a permissible purpose;
+  - **mail, repo assignments and e-signature** need a named person;
+  - automations and AI can't do any of these;
+  - bankruptcy matches are only **proposals**: a person sets the flag.
+- **Call log:** every call is saved in the audit history with the operation, mode, success,
+  time taken and any error. **Customer details sent to the vendor are never logged.**
+- **Integrations page** (`/collections/integrations`, admins only), with one card per service:
+  - its switch and when it's planned to go live;
+  - what it does and the manual way;
+  - calls and failures in the last 30 days, and the last error;
+  - a **"test call"** button that only works in TEST mode and uses harmless sample data.
+
+**How to try it:**
+1. Open Collections, then Integrations. Everything shows **OFF**.
+2. To try one, set its switch to TEST in the `.env` file, for example
+   `COLLECTIONS_INTEGRATION_PAYMENTS=TEST`.
+3. Restart the app, then press its test button.
+
+**Tests:** 9 new tests:
+- switches default to OFF, LIVE is held at TEST, and everything is OFF with the module off;
+- all 11 integrations have a manual fallback;
+- the fakes' happy and unhappy paths;
+- OFF refuses and shows the manual way;
+- TEST calls are logged without customer details, and no network call is ever made;
+- money needs a person and an approval;
+- the GPS plug needs an owner-approved request and respects the bankruptcy freeze;
+- skip trace needs a permissible purpose;
+- the health page counts calls and failures, test calls run only in TEST mode, and the page
+  is admin-only.
+
+All 190 Collections tests pass. Full suite: 6,049 passed, 0 failed. Typecheck and Collections
+lint are clean.
+
+**What you need to do:** nothing now. When you open accounts with these vendors (spec sections 21
+and 27), each one gets its real connection in a later release.
