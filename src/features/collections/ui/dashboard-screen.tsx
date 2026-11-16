@@ -4,11 +4,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { formatCents } from "../domain/money-dates";
-import type { getDashboard } from "../server/dashboard-service";
+import type { getDashboard, getKpis } from "../server/dashboard-service";
 import { formatWhen } from "./client-api";
 import styles from "./collections.module.css";
 
 type Data = Awaited<ReturnType<typeof getDashboard>>;
+type Kpis = Awaited<ReturnType<typeof getKpis>>;
 
 function Tile({ label, value, href }: { label: string; value: ReactNode; href?: string }) {
   const body = <><span>{label}</span><strong>{value}</strong></>;
@@ -39,7 +40,7 @@ function Line({ points, label, format }: { points: Array<{ x: string; y: number 
   );
 }
 
-export function DashboardScreen({ data }: { data: Data }) {
+export function DashboardScreen({ data, kpis }: { data: Data; kpis: Kpis }) {
   const t = data.tiles;
   const maxCount = Math.max(...data.buckets.map(b => b.count), 1);
   const maxDue = Math.max(...data.buckets.map(b => b.amountDueCents), 1);
@@ -88,6 +89,26 @@ export function DashboardScreen({ data }: { data: Data }) {
           <thead><tr><th scope="col">Period</th><th scope="col">Made</th><th scope="col">Kept</th><th scope="col">Partly kept</th><th scope="col">Broken</th><th scope="col">Keep rate</th></tr></thead>
           <tbody>{data.promises.map(p => <tr key={p.days}><th scope="row">Last {p.days} days</th><td>{p.made}</td><td>{p.kept}</td><td>{p.partial}</td><td>{p.broken}</td><td>{p.keepRate === null ? "—" : `${p.keepRate}%`}</td></tr>)}</tbody>
         </table></div>
+      </section>
+
+      <section className={styles.panel} aria-labelledby="kpi-h">
+        <div className={styles.header}><h2 id="kpi-h">How collections is working</h2><CsvLink table="rollrates" /></div>
+        <div className={styles.tiles}>
+          <Tile label="Contact rate (past due, 30 days)" value={kpis.contactRatePercent === null ? "—" : `${kpis.contactRatePercent}%`} />
+          <Tile label="Reached the customer" value={kpis.rightPartyContactPercent === null ? "—" : `${kpis.rightPartyContactPercent}% of tries`} />
+          <Tile label="Days to first contact" value={kpis.avgDaysToFirstContact ?? "—"} />
+          <Tile label="Promises kept / broken (30 days)" value={`${kpis.promisesKeptPercent ?? "—"}% / ${kpis.brokenPromisePercent ?? "—"}%`} />
+          <Tile label="Cure rate (past due → current, 30 days)" value={kpis.cureRatePercent === null ? "—" : `${kpis.cureRatePercent}%`} />
+          <Tile label="Cured after an extension" value={kpis.extensionCureRatePercent === null ? "—" : `${kpis.extensionCureRatePercent}% of ${kpis.extensionsMeasured}`} />
+          <Tile label="Charge-off rate (12 months)" value={kpis.chargeOffRatePercent === null ? "—" : `${kpis.chargeOffRatePercent}%`} />
+          <Tile label="Net loss / recovered" value={`${formatCents(kpis.netLossCents)} · ${kpis.recoveryPercent ?? "—"}%`} />
+        </div>
+        <h3>Roll rates (bucket 30 days ago → today)</h3>
+        <div className={styles.tableWrap}><table className={styles.table}>
+          <thead><tr><th scope="col">Was in</th><th scope="col">Accounts</th><th scope="col">Got worse</th><th scope="col">Improved</th></tr></thead>
+          <tbody>{kpis.rollRates.map(r => <tr key={r.bucket}><th scope="row">{r.label}</th><td>{r.accounts}</td><td>{r.rolledWorsePercent === null ? "—" : `${r.rolledWorsePercent}%`}</td><td>{r.improvedPercent === null ? "—" : `${r.improvedPercent}%`}</td></tr>)}</tbody>
+        </table></div>
+        <p className={styles.muted}>Roll rates and cure rate need imports from at least 30 days ago. Ledger-based measures come once the servicing ledger is running.</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="trends-h">

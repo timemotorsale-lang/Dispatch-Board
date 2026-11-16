@@ -23,7 +23,9 @@ import { effectiveInsuranceStatus, isDailyRunDue, summaryMessage } from "../doma
 import { recalculateAccounts } from "./account-state";
 import { resolveOutcomes, type ResolutionSummary } from "./promise-service";
 import { dispatchQueuedMessages, queueAutomaticMessages, type AutomaticMessageSummary } from "./messaging-service";
+import { saveRiskScores } from "./insights-service";
 import { loadCollectionsSettings } from "./settings-store";
+import { matchAdjustments, raiseSkipAlerts } from "./upgrades-service";
 import { syncCollectionTasks, syncImportReminder, type TaskSyncResult } from "./task-sync";
 
 type Db = Prisma.TransactionClient;
@@ -37,6 +39,9 @@ export type AutomationResult = {
   reminder: { created: boolean; closed: number; importedToday: boolean };
   messages: AutomaticMessageSummary;
   summaryPosted: boolean;
+  skipAlertsRaised: number;
+  adjustments: { confirmed: number; notFound: number };
+  riskScored: number;
 };
 
 
@@ -97,11 +102,15 @@ export async function runCollectionsAutomations(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`collections-automation:${organizationId}`}))`;
     const recalculated = (await recalculateAccounts(tx, organizationId, settings)).changed;
     const resolution = await resolveOutcomes(tx, organizationId, settings, today);
+    // Stage 12: possible-skip alerts and fee/credit matching (both only flag things for a person).
+    const skip = await raiseSkipAlerts(tx, organizationId, settings, today);
+    const adjustments = await matchAdjustments(tx, organizationId, settings, today);
     const tasks = await syncCollectionTasks(tx, organizationId, settings, { now, fallbackUserId: options.actorId });
     const messages = await queueAutomaticMessages(tx, organizationId, settings, now);
     const reminderDue = isDailyRunDue(clock, timeToMinutes(settings.importReminderTime));
     const reminder = await syncImportReminder(tx, organizationId, { now, due: reminderDue, fallbackUserId: options.actorId });
     await writeDailyMetric(tx, organizationId, settings, now, options.importRunId);
+    const risk = await saveRiskScores(tx, organizationId, settings, today);
 
     const somethingNew = tasks.createdTotal > 0 || resolution.promisesBroken > 0 || resolution.promisesKept > 0 || resolution.reportedNotFound > 0;
     let summaryPosted = false;
@@ -112,7 +121,7 @@ export async function runCollectionsAutomations(
     if (options.trigger === "DAILY") {
       await tx.collectionAccountEvent.create({ data: { organizationId, type: "DAILY_AUTOMATION_RUN", reason: today, after: { tasksCreated: tasks.createdTotal, tasksClosed: tasks.closed, reminderCreated: reminder.created } } });
     }
-    return { trigger: options.trigger, recalculated, resolution, tasks, reminder, messages, summaryPosted };
+    return { trigger: options.trigger, recalculated, resolution, tasks, reminder, messages, summaryPosted, skipAlertsRaised: skip.raised, adjustments, riskScored: risk.scored };
   }, { timeout: 120_000, maxWait: 20_000 });
 }
 

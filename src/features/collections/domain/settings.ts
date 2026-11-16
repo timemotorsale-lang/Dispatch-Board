@@ -40,6 +40,27 @@ export type CollectionsSettings = {
   automationRunTime: string;
   /** Attorney-approved letter wording. Empty = letters print with a DRAFT banner and placeholder text. */
   letterWording: { PRE_REPO_NOTICE: string; POST_REPO_NOTICE: string };
+  /** Board tasks switched off by the active playbook (missing = on). Filled from the playbook, not edited here. */
+  taskEnabled: Record<string, boolean>;
+  /** Points each risk factor can add (spec 22.2). The score is capped at 100. */
+  riskWeights: RiskWeights;
+  /** Extension eligibility (spec 22.3). Ineligible requests can still be approved with a reason. */
+  extensionRules: { minAccountAgeMonths: number; maxPer12Months: number; blockWhileOpenPromise: boolean };
+  /** Raise a "possible skip" alert after this many days without reaching the customer while past due (22.5). */
+  skipNoContactDays: number;
+  /** Charge-off can be requested without an override from this many days past due (22.6). */
+  chargeOffMinDaysPastDue: number;
+  /** Fees and credits at or below this amount don't need approval. 0 = all need approval (22.8). */
+  adjustmentApprovalThresholdCents: number;
+  /** Days after "posted in DealerCenter" before an unmatched fee/credit is flagged. */
+  adjustmentConfirmationDays: number;
+  /** Default amounts offered when entering a fee (cents). Attorney to confirm Minnesota limits. */
+  feeDefaults: Record<"REPO_FEE" | "STORAGE_FEE" | "RETURNED_PAYMENT_FEE", number>;
+};
+
+export type RiskWeights = {
+  daysPastDue: number; dpdTrend: number; missedPayments: number; brokenPromises: number;
+  lowContactSuccess: number; insurance: number; possibleSkip: number; newAccount: number;
 };
 
 export const DEFAULT_COLLECTIONS_SETTINGS: CollectionsSettings = {
@@ -83,7 +104,15 @@ export const DEFAULT_COLLECTIONS_SETTINGS: CollectionsSettings = {
   collectorVisibility: "ALL_ACCOUNTS",
   importReminderTime: "10:00",
   automationRunTime: "09:15",
-  letterWording: { PRE_REPO_NOTICE: "", POST_REPO_NOTICE: "" }
+  letterWording: { PRE_REPO_NOTICE: "", POST_REPO_NOTICE: "" },
+  taskEnabled: {},
+  riskWeights: { daysPastDue: 35, dpdTrend: 10, missedPayments: 15, brokenPromises: 15, lowContactSuccess: 10, insurance: 5, possibleSkip: 15, newAccount: 5 },
+  extensionRules: { minAccountAgeMonths: 6, maxPer12Months: 2, blockWhileOpenPromise: true },
+  skipNoContactDays: 14,
+  chargeOffMinDaysPastDue: 120,
+  adjustmentApprovalThresholdCents: 0,
+  adjustmentConfirmationDays: 2,
+  feeDefaults: { REPO_FEE: 0, STORAGE_FEE: 0, RETURNED_PAYMENT_FEE: 0 }
 };
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -162,6 +191,22 @@ export function parseCollectionsSettings(raw: unknown): CollectionsSettings {
     letterWording: {
       PRE_REPO_NOTICE: str(isRecord(v.letterWording) ? v.letterWording.PRE_REPO_NOTICE : undefined, "", 8000),
       POST_REPO_NOTICE: str(isRecord(v.letterWording) ? v.letterWording.POST_REPO_NOTICE : undefined, "", 8000)
+    },
+    taskEnabled: isRecord(v.taskEnabled) ? Object.fromEntries(Object.entries(v.taskEnabled).filter(([, on]) => typeof on === "boolean")) as Record<string, boolean> : {},
+    riskWeights: Object.fromEntries((Object.keys(d.riskWeights) as Array<keyof RiskWeights>).map(key => [key, int(isRecord(v.riskWeights) ? v.riskWeights[key] : undefined, d.riskWeights[key], 0, 100)])) as RiskWeights,
+    extensionRules: {
+      minAccountAgeMonths: int(isRecord(v.extensionRules) ? v.extensionRules.minAccountAgeMonths : undefined, d.extensionRules.minAccountAgeMonths, 0, 60),
+      maxPer12Months: int(isRecord(v.extensionRules) ? v.extensionRules.maxPer12Months : undefined, d.extensionRules.maxPer12Months, 0, 12),
+      blockWhileOpenPromise: isRecord(v.extensionRules) && typeof v.extensionRules.blockWhileOpenPromise === "boolean" ? v.extensionRules.blockWhileOpenPromise : d.extensionRules.blockWhileOpenPromise
+    },
+    skipNoContactDays: int(v.skipNoContactDays, d.skipNoContactDays, 3, 120),
+    chargeOffMinDaysPastDue: int(v.chargeOffMinDaysPastDue, d.chargeOffMinDaysPastDue, 30, 720),
+    adjustmentApprovalThresholdCents: int(v.adjustmentApprovalThresholdCents, d.adjustmentApprovalThresholdCents, 0, 1_000_000),
+    adjustmentConfirmationDays: int(v.adjustmentConfirmationDays, d.adjustmentConfirmationDays, 1, 14),
+    feeDefaults: {
+      REPO_FEE: int(isRecord(v.feeDefaults) ? v.feeDefaults.REPO_FEE : undefined, 0, 0, 1_000_000),
+      STORAGE_FEE: int(isRecord(v.feeDefaults) ? v.feeDefaults.STORAGE_FEE : undefined, 0, 0, 1_000_000),
+      RETURNED_PAYMENT_FEE: int(isRecord(v.feeDefaults) ? v.feeDefaults.RETURNED_PAYMENT_FEE : undefined, 0, 0, 1_000_000)
     }
   };
 }

@@ -11,8 +11,8 @@ export default async function CollectionsQueuePage({ searchParams }: { searchPar
   const query = (await searchParams) ?? {};
   const value = (key: string) => (typeof query[key] === "string" ? (query[key] as string) : "");
   const tab = QUEUE_TABS.some(item => item.key === value("tab")) ? (value("tab") as QueueTab) : "PAST_DUE";
-  const filters = { bucket: value("bucket"), type: value("type"), q: value("q"), status: value("status") };
-  const queue = await getQueue(user, { tab, bucket: filters.bucket as never, type: filters.type as never, q: filters.q, status: filters.status });
+  const filters = { bucket: value("bucket"), type: value("type"), q: value("q"), status: value("status"), sort: value("sort") === "RISK" ? "RISK" : "" };
+  const queue = await getQueue(user, { tab, bucket: filters.bucket as never, type: filters.type as never, q: filters.q, status: filters.status, sort: filters.sort as "" | "RISK" });
   return (
     <CollectionsFrame section="queue" title="Today's collections queue" description="Broken promises first, then reported payments not found, then the most days past due.">
       <QueueScreen tab={queue.tab} counts={queue.counts} rows={queue.rows} totalRows={queue.totalRows} filters={filters} lastImport={queue.lastImport} importedToday={queue.importedToday} />

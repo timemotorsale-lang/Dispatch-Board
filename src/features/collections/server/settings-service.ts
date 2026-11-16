@@ -19,6 +19,7 @@ import { collectionsAccess, recordAccountEvent } from "./access";
 import { text } from "./account-service";
 import { recalculateAccounts } from "./account-state";
 import { seedCollectionsForOrganization } from "./seed";
+import { loadCollectionsSettings } from "./settings-store";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -102,7 +103,7 @@ export async function saveSettings(actor: AuthenticatedUser | null, input: { val
     await tx.collectionsSettingHistory.create({ data: { organizationId: access.organizationId, version, values, changedByUserId: access.actor.id, reason: text(input.reason, 500) || `Changed: ${changed.join(", ")}` } });
     await recordAccountEvent(tx, { organizationId: access.organizationId, type: "SETTINGS_CHANGED", userId: access.actor.id, before: Object.fromEntries(changed.map(k => [k, before[k]])), after: Object.fromEntries(changed.map(k => [k, next[k]])), reason: text(input.reason, 500) });
     // Grace days and thresholds change buckets and statuses; recalculate now (tasks follow on the next run).
-    if (changed.some(k => k === "graceDays" || k === "thresholds")) await recalculateAccounts(tx, access.organizationId, next);
+    if (changed.some(k => k === "graceDays" || k === "thresholds")) await recalculateAccounts(tx, access.organizationId, await loadCollectionsSettings(access.organizationId, tx));
     return { ok: true as const, message: "Settings saved.", version };
   }, { timeout: 60_000 });
 }

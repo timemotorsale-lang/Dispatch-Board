@@ -66,6 +66,7 @@ test.describe("Collections screens", () => {
     await checkPage(page, "/collections/import", /Import/, "import");
     await checkPage(page, "/collections/dashboard", "Collections dashboard", "dashboard");
     await checkPage(page, "/collections/settings", "Collections settings", "settings");
+    await checkPage(page, "/collections/playbook", "Collections playbook", "playbook");
     expect(errors).toEqual([]);
     await context.close();
   });

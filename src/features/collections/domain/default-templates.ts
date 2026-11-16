@@ -31,7 +31,7 @@ const EN: Record<MessageRuleKey, string> = {
   DUE_SOON: "Hi {firstName}, this is {dealershipName}. Friendly reminder: your payment of {paymentAmount} is due {dueDate}. Pay online at {payOnlineUrl}, by Zelle to {zelleRecipient}, or stop by. Questions? Call {dealershipPhone}. Reply STOP to opt out.",
   PAST_DUE_DAY1: "Hi {firstName}, this is {dealershipName}. We haven't seen your payment of {paymentAmount} that was due {dueDate}. If you've already paid, thank you! If not, please pay at {payOnlineUrl} or call {dealershipPhone}. Reply STOP to opt out.",
   PAST_DUE_LATE_FEE: "Hi {firstName}, this is {dealershipName}. Your payment of {paymentAmount} due {dueDate} is now past due and a late fee may apply. We're happy to help: call {dealershipPhone} or pay at {payOnlineUrl}. Reply STOP to opt out.",
-  PROMISE_REMINDER: "Hi {firstName}, this is {dealershipName}. Just a reminder of your planned payment of {promiseAmount} on {promiseDate}. Pay at {payOnlineUrl}, by Zelle to {zelleRecipient}, or stop by. Thank you! Reply STOP to opt out.",
+  PROMISE_REMINDER: "Hi {firstName}, this is {dealershipName}. Reminder of your planned payment of {promiseAmount} on {promiseDate}. Pay at {payOnlineUrl}, by Zelle to {zelleRecipient}, or stop by. Reply YES to confirm. Reply STOP to opt out.",
   INSURANCE_NEEDED: "Hi {firstName}, this is {dealershipName}. We need current proof of insurance for your vehicle. You can reply to this text with a photo of your insurance card. Questions? Call {dealershipPhone}. Reply STOP to opt out.",
   DISABLE_WARNING: "Hi {firstName}, this is {dealershipName}. Your account is past due. Please call us at {dealershipPhone} today so we can work this out together and avoid any interruption to your vehicle. Reply STOP to opt out."
 };

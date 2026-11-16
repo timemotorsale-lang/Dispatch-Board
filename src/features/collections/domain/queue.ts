@@ -27,6 +27,8 @@ export type QueueFacts = {
   daysPastDue: number;
   amountDueCents: number;
   assignedCollectorUserId: string | null;
+  /** Latest risk score (0-100), when scored. */
+  riskScore?: number | null;
   lastContactAt: string | null;
   nextActionAt: string | null;
   customerLinked: boolean;
@@ -47,6 +49,8 @@ export type QueueFilters = {
   collector?: string;
   status?: string;
   q?: string;
+  /** "RISK" sorts by the risk score (highest first) instead of the standard order. */
+  sort?: "" | "RISK";
 };
 
 const FLAG_TAB = new Set(["BANKRUPTCY", "ATTORNEY_REPRESENTED", "CONTACT_RESTRICTED", "DISPUTE", "DECEASED", "SKIP"]);
@@ -99,6 +103,6 @@ export function buildQueue(all: QueueFacts[], filters: QueueFilters) {
     .filter(facts => !filters.collector || facts.assignedCollectorUserId === filters.collector)
     .filter(facts => !filters.status || facts.status === filters.status)
     .filter(facts => matchesSearch(facts, filters.q ?? ""))
-    .sort(compareQueue);
+    .sort(filters.sort === "RISK" ? (a, b) => (b.riskScore ?? -1) - (a.riskScore ?? -1) || compareQueue(a, b) : compareQueue);
   return { tab, counts, rows };
 }

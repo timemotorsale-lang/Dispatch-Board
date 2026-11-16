@@ -11,6 +11,7 @@ import { INSURANCE_ACTIONS, insuranceAction } from "./insurance-service";
 import { MESSAGE_ACTIONS, messageAction } from "./messaging-service";
 import { PROMISE_ACTIONS, promiseAction } from "./promise-service";
 import { RECOVERY_ACTIONS, recoveryAction } from "./recovery-service";
+import { UPGRADE_ACTIONS, upgradeAction } from "./upgrades-service";
 import { loadCollectionsSettings } from "./settings-store";
 import { syncCollectionTasks } from "./task-sync";
 
@@ -20,7 +21,8 @@ const HANDLERS: Record<string, AccountActionHandler> = {
   ...Object.fromEntries(PROMISE_ACTIONS.map(action => [action, promiseAction])),
   ...Object.fromEntries(MESSAGE_ACTIONS.map(action => [action, messageAction])),
   ...Object.fromEntries(INSURANCE_ACTIONS.map(action => [action, insuranceAction])),
-  ...Object.fromEntries(RECOVERY_ACTIONS.map(action => [action, recoveryAction]))
+  ...Object.fromEntries(RECOVERY_ACTIONS.map(action => [action, recoveryAction])),
+  ...Object.fromEntries(UPGRADE_ACTIONS.map(action => [action, upgradeAction]))
 };
 
 /**
@@ -28,7 +30,7 @@ const HANDLERS: Record<string, AccountActionHandler> = {
  * (for example a bankruptcy flag closes collection tasks and adds the attorney review,
  * and a new promise closes the broken-promise task).
  */
-const SYNC_TASKS_AFTER = new Set<string>([...PROMISE_ACTIONS, ...INSURANCE_ACTIONS, ...RECOVERY_ACTIONS, "SET_FLAG", "CLEAR_FLAG", "CONFIRM_MISSING"]);
+const SYNC_TASKS_AFTER = new Set<string>([...PROMISE_ACTIONS, ...INSURANCE_ACTIONS, ...RECOVERY_ACTIONS, ...UPGRADE_ACTIONS, "SET_FLAG", "CLEAR_FLAG", "CONFIRM_MISSING"]);
 
 export async function syncAccountTasks(actor: AuthenticatedUser | null, accountId: string) {
   const access = await collectionsAccess(actor, "VIEW");

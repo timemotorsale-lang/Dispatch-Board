@@ -17,7 +17,7 @@ import { resolveSendingMode } from "../config/flags";
 import { CollectionsError } from "../config/permissions";
 import { SMS_MAX_LENGTH } from "../domain/default-templates";
 import { checkSendRules, classifyInbound, firstNameFrom, isWithinSendWindow, nextSendWindow, renderTemplate, type Channel } from "../domain/messaging";
-import { addDays, chicagoToday, dateOnly, formatCents, maskPhone, toE164, toYmd } from "../domain/money-dates";
+import { addDays, chicagoDateTime, chicagoToday, dateOnly, formatCents, maskPhone, toE164, toYmd } from "../domain/money-dates";
 import type { CollectionsSettings, MessageRuleKey } from "../domain/settings";
 import { effectiveInsuranceStatus } from "../domain/tasks";
 import { collectionsAccess, recordAccountEvent, type CollectionsAccess } from "./access";
@@ -334,21 +334,29 @@ export async function handleInboundSms(params: Record<string, string>): Promise<
       const primary = orgMatches[0] ?? null;
       const settings = await loadCollectionsSettings(organizationId, tx);
       await tx.inboundMessage.create({ data: { organizationId, accountId: primary?.id ?? null, from, body, providerMessageId: organizations.length === 1 ? sid : null, keyword, mediaDocumentIds: media.length ? (media as Prisma.InputJsonValue) : undefined } });
+      // YES re-subscribes someone who had opted out; otherwise it confirms an upcoming promise.
+      let effective = keyword;
+      if (keyword === "YES" && primary) {
+        const latest = await tx.contactConsent.findFirst({ where: { accountId: primary.id, channel: "SMS", address: from }, orderBy: { recordedAt: "desc" }, select: { status: true } });
+        if (latest?.status === "REVOKED") effective = "START";
+      }
       for (const account of orgMatches) {
-        if (keyword === "STOP" || keyword === "START") {
-          const status = keyword === "STOP" ? "REVOKED" : "GRANTED";
-          await tx.contactConsent.create({ data: { organizationId, accountId: account.id, channel: "SMS", address: from, status, source: keyword === "STOP" ? "KEYWORD_STOP" : "KEYWORD_START", evidence: `Customer texted "${body.slice(0, 80)}"` } });
-          await recordAccountEvent(tx, { organizationId, accountId: account.id, type: keyword === "STOP" ? "CONSENT_REVOKED" : "CONSENT_GRANTED", reason: `Keyword ${keyword} received by text` });
+        if (effective === "STOP" || effective === "START") {
+          const status = effective === "STOP" ? "REVOKED" : "GRANTED";
+          await tx.contactConsent.create({ data: { organizationId, accountId: account.id, channel: "SMS", address: from, status, source: effective === "STOP" ? "KEYWORD_STOP" : "KEYWORD_START", evidence: `Customer texted "${body.slice(0, 80)}"` } });
+          await recordAccountEvent(tx, { organizationId, accountId: account.id, type: effective === "STOP" ? "CONSENT_REVOKED" : "CONSENT_GRANTED", reason: `Keyword ${effective} received by text` });
         }
         await tx.collectionAccount.update({ where: { id: account.id }, data: { lastContactAt: new Date() } });
       }
-      if (primary && keyword) {
+      if (primary && effective) {
         const name = settings.dealership.name, phone = settings.dealership.phone;
-        const reply = keyword === "STOP" ? `You're unsubscribed from ${name} texts and won't get more. Reply START to resubscribe.`
-          : keyword === "START" ? `You're subscribed again to texts from ${name}. Reply STOP to opt out.`
-            : `${name}${phone ? `: call us at ${phone}` : ""}. Reply STOP to opt out.`;
-        await systemReply(tx, primary, from, reply, keyword);
-        replies += 1;
+        let reply: string | null = null;
+        if (effective === "STOP") reply = `You're unsubscribed from ${name} texts and won't get more. Reply START to resubscribe.`;
+        else if (effective === "START") reply = `You're subscribed again to texts from ${name}. Reply STOP to opt out.`;
+        else if (effective === "HELP") reply = `${name}${phone ? `: call us at ${phone}` : ""}. Reply STOP to opt out.`;
+        else if (effective === "YES") reply = await confirmPromiseByText(tx, primary, name);
+        else if (effective === "PAID") reply = await reportPaidByText(tx, primary, body, name, phone);
+        if (reply) { await systemReply(tx, primary, from, reply, effective); replies += 1; }
       }
       // Activity feed: no message text (privacy), just who it's for.
       const date = dateOnly(chicagoToday());
@@ -421,4 +429,32 @@ export async function sendManualTemplateMessage(db: Db, accountId: string, actor
   const account = await db.collectionAccount.findUniqueOrThrow({ where: { id: accountId }, select: ACCOUNT_SELECT });
   const { message, draft } = await recordMessage(db, account, settings, { channel: input.channel, templateKey: input.templateKey, body: input.body ?? null, automatic: false, actorId }, new Date());
   return { message, warnings: draft.check.warnings };
+}
+
+
+/** Customer replied YES: confirm the nearest open promise in the next 7 days (spec 22.7). */
+async function confirmPromiseByText(db: Db, account: MessageAccount, dealershipName: string) {
+  const today = chicagoToday();
+  const promise = await db.paymentPromise.findFirst({ where: { accountId: account.id, status: "OPEN", promisedDate: { gte: dateOnly(today), lte: dateOnly(addDays(today, 7)) } }, orderBy: { promisedDate: "asc" } });
+  if (!promise) return null; // Nothing to confirm; the text stays in the inbox for a person.
+  if (!promise.customerConfirmedAt) {
+    await db.paymentPromise.update({ where: { id: promise.id }, data: { customerConfirmedAt: new Date() } });
+    await recordAccountEvent(db, { organizationId: account.organizationId, accountId: account.id, type: "PROMISE_CONFIRMED_BY_TEXT", after: { promiseId: promise.id } });
+  }
+  return `Thanks, ${firstNameFrom(account.customer?.displayName ?? account.buyerNameRaw)}! You're confirmed for ${formatCents(promise.promisedAmountCents)} on ${shortDate(toYmd(promise.promisedDate))}. - ${dealershipName}`;
+}
+
+/** Customer replied PAID: record a "customer says they paid" for the next imports to confirm (spec 22.7). */
+async function reportPaidByText(db: Db, account: MessageAccount, body: string, dealershipName: string, phone: string) {
+  const today = chicagoToday();
+  const already = await db.customerReportedPayment.findFirst({ where: { accountId: account.id, enteredByUserId: null, notes: { startsWith: "Customer texted PAID" }, reportedAt: { gte: chicagoDateTime(today, "00:00") } }, select: { id: true } });
+  if (!already) {
+    const amount = account.paymentAmountCents ?? account.amountDueCents;
+    const created = await db.customerReportedPayment.create({ data: {
+      organizationId: account.organizationId, accountId: account.id, method: "OTHER", amountCents: amount, paidDate: dateOnly(today),
+      notes: `Customer texted PAID: "${body.slice(0, 120)}". Amount assumed to be one payment; confirm with the customer.`, baselineAmountDueCents: account.amountDueCents, baselineDaysPastDue: account.daysPastDue
+    } });
+    await recordAccountEvent(db, { organizationId: account.organizationId, accountId: account.id, type: "PAYMENT_REPORTED_BY_TEXT", after: { reportedPaymentId: created.id, amountCents: amount } });
+  }
+  return `Thanks! We'll confirm your payment when it shows in our system. Questions? Call ${phone || dealershipName}. - ${dealershipName}`;
 }

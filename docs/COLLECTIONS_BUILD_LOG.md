@@ -784,3 +784,118 @@ and 14 need database changes, so I'll stop and ask you to back up first.
 
 **What you need to do:** nothing new for this stage. The owner to-do lists (spec sections 21
 and 27) and the open questions still stand.
+
+---
+
+## Stage 12: Upgrades (done; database change applied to the test copy only)
+
+**Backups first.** At your request I backed up both databases before this stage, and checked
+that both backups read back correctly. They're in `C:\Users\timem\dispatch-board-backups\`:
+- `dispatch_board-before-stage12-20261116-0722.dump`
+- `dispatch_board_collections-before-stage12-20261116-0722.dump`
+
+**Database change** (`prisma/migrations/20261116120000_collections_upgrades`):
+- **Purely additive:** 9 new tables, 3 new optional columns, and 6 new lists of choices.
+  Nothing existing is renamed, changed or removed.
+- **Where it went:** applied to the test database `dispatch_board_collections` only. **Your real
+  database isn't touched.** It gets these tables later, through the normal merge and deploy,
+  with your approval.
+
+**What I built**
+1. **Playbook** (`/collections/playbook`, admins only):
+   - **Stage by stage:** one place that shows, for each stage (Current, Grace, 6–14, 15–30,
+     31–60, 61+), which text goes out on which day and which task or review is created.
+   - **Editing:** you can switch each step on or off and change its day. Every save is a new
+     version with who and why, and older versions can be restored.
+   - **Seeded:** the **"Standard" playbook** is created from today's rules, so nothing
+     behaves differently until you change it.
+   - **Who reads it:** the automations now take their review days, text timing and task
+     switches from the active playbook. Settings links there.
+   - **Safety rules can't be edited here:** send rules, quiet hours, STOP, the bankruptcy
+     freeze, human-only actions, and the never-automatic disable warning. Switching off a
+     review falls back to the next lower one, so an account isn't left with no follow-up.
+2. **Risk score and "Do this next"** (on every account page, and **Order: highest risk first**
+   in the queue):
+   - **The score:** 0–100, from days past due, getting further behind, missed payments,
+     broken promises, being hard to reach, insurance, possible skip, and a new account. Every
+     point is listed with its reason, and the points per factor are settings.
+   - **One recommended action with its reason,** for example "Call today: promise broken
+     yesterday, answered 3 of last 4 calls".
+   - **When it's saved:** once per account per day; running it again the same day updates
+     that day's row.
+3. **Extensions, deferrals and due-date changes:**
+   - **Anyone can request** one. It's checked against the rules: at least 6 months old, at
+     most 2 a year, no open promise. All three are settings.
+   - **The owner approves or declines.** Approving a request that breaks the rules needs a
+     written reason.
+   - **Approval** puts a **"Post in DealerCenter"** task on the board; marking it applied
+     closes the task.
+4. **Possible skip and the skip-trace checklist:**
+   - **Raised automatically when:** there's been no conversation for 14 days (a setting)
+     while past due; the phone is disconnected or a wrong number; mail came back; or the GPS
+     shows no signal.
+   - **A person always decides:** **confirm** sets the Skip flag, and **dismiss** keeps it
+     quiet for the same 14 days.
+   - **The checklist** covers references, new phone or address, GPS, a vendor search, and the
+     employer.
+5. **Charge-off and recovery:**
+   - **After a repo is sold or returned to inventory:** record the sale price and costs. The
+     app works out the **deficiency or surplus** and reminds you to check Minnesota notice
+     rules with your attorney.
+   - **Charge-off:** anyone can request it; **the owner approves**. Before 120 days past due
+     (a setting) it needs a written reason. Approval creates a DealerCenter task.
+   - **Recovery payments** are tracked afterwards.
+6. **YES and PAID text replies:**
+   - **YES** confirms the customer's next promise (within 7 days) and thanks them.
+   - **PAID** records a "customer says they paid", once a day, and the next imports confirm
+     it.
+   - **A customer who had texted STOP** and replies YES is re-subscribed instead (the
+     carriers' rule).
+   - **The default promise-reminder text** now ends "Reply YES to confirm". Your organization's
+     existing template stays as it is until you edit it in Settings.
+7. **Fees and credits:**
+   - **The kinds:** repo, storage, returned-payment and other fees; late-fee waivers; goodwill
+     and other credits.
+   - **Approval:** **all need the owner's approval by default** (the amount limit is a
+     setting).
+   - **The process:** approve, then post it in DealerCenter (a board task), then mark it
+     posted. The next imports **confirm** it automatically, or **flag** it after 2 days if
+     DealerCenter never shows it.
+8. **Dashboard: deeper measures:**
+   - contact rate and right-party contact rate;
+   - average days to first contact;
+   - promises kept and broken %;
+   - **roll rates** between buckets (30 days ago vs today) and cure rate;
+   - cure rate after an extension;
+   - charge-off rate, net loss and recovery %.
+
+   Roll rates need imports from 30+ days ago.
+
+**Problem the tests found, fixed:** with a "do-not-repo" hold, a 70-day account got no
+follow-up at all. It now falls back to the 30-day review, as before.
+
+**Tests:**
+- 14 new unit tests:
+  - playbook (Standard = today's rules, guardrails, validation, fallback, stage layout);
+  - risk score and "Do this next";
+  - extension rules, skip signals, deficiency, fee/credit matching, roll rates;
+  - YES/PAID in 4 languages.
+- 7 new database tests:
+  - a playbook change closes tasks that no longer apply, refuses a stale edit, and restores;
+  - one risk score per account per day;
+  - the extension override, and a DealerCenter task the sync leaves alone;
+  - skip alert raise, dismiss and confirm;
+  - charge-off approval and recovery;
+  - a fee confirmed by the next import, and a credit flagged when never seen;
+  - YES and PAID.
+- **All 181 Collections tests pass.**
+- **Full suite:** 6,044 passed. 2 existing tests (appointment scheduling, shop recon) timed out
+  under full-suite load and pass on their own. That's the same flaky-timeout issue noted
+  earlier, and those tests don't touch Collections.
+- Typecheck and Collections lint are clean.
+
+**What you need to do:**
+- **Fee amounts:** confirm the Minnesota limits on repo, storage and returned-payment fees,
+  and on any deficiency, with your attorney (open questions 1 and 4).
+- **Default fee amounts:** set them in Settings once you know them.
+- **Playbook:** look it over and adjust if you'd like.

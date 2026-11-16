@@ -11,7 +11,11 @@ export type Channel = "SMS" | "EMAIL";
 // ---------- Keywords (section 8.2 rule 3) ----------
 
 const STOP_WORDS = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "REVOKE", "OPTOUT", "OPT OUT", "PARAR", "ALTO", "JOOJI", "ACHA", "SITISHA"];
-const START_WORDS = ["START", "UNSTOP", "YES", "SUBSCRIBE", "COMENZAR", "BILOW", "ANZA"];
+const START_WORDS = ["START", "UNSTOP", "SUBSCRIBE", "COMENZAR", "BILOW", "ANZA"];
+/** YES confirms a promise from a reminder text (or re-subscribes someone who had texted STOP). */
+const YES_WORDS = ["YES", "Y", "CONFIRM", "CONFIRMED", "SI", "SÍ", "CONFIRMO", "HAA", "HAYE", "NDIYO", "NDIO"];
+/** PAID creates a "customer says they paid" for review. */
+const PAID_WORDS = ["PAID", "I PAID", "ALREADY PAID", "PAGADO", "PAGUE", "PAGUÉ", "YA PAGUE", "YA PAGUÉ", "WAAN BIXIYAY", "NIMELIPA", "NIMESHALIPA"];
 const HELP_WORDS = ["HELP", "INFO", "AYUDA", "CAAWIN", "MSAADA"];
 /** "Please stop texting me"-style phrases in English, Spanish, Somali and Swahili. */
 const STOP_PHRASES = [
@@ -21,7 +25,7 @@ const STOP_PHRASES = [
   /\bacha (kunitumia|kutuma)/i, /\businitumie\b/i, /\bsitaki (ujumbe|meseji)/i
 ];
 
-export type InboundKeyword = "STOP" | "START" | "HELP" | null;
+export type InboundKeyword = "STOP" | "START" | "HELP" | "YES" | "PAID" | null;
 
 /** Classify an inbound text. A one-word keyword or a clear "stop texting me" phrase counts. */
 export function classifyInbound(body: string): InboundKeyword {
@@ -29,6 +33,8 @@ export function classifyInbound(body: string): InboundKeyword {
   if (STOP_WORDS.includes(cleaned)) return "STOP";
   if (START_WORDS.includes(cleaned)) return "START";
   if (HELP_WORDS.includes(cleaned)) return "HELP";
+  if (YES_WORDS.includes(cleaned)) return "YES";
+  if (PAID_WORDS.includes(cleaned)) return "PAID";
   if (STOP_PHRASES.some(re => re.test(body))) return "STOP";
   return null;
 }

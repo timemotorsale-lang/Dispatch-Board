@@ -7,7 +7,8 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { buildSeedTemplates } from "../domain/default-templates";
-import { DEFAULT_COLLECTIONS_SETTINGS } from "../domain/settings";
+import { standardPlaybook } from "../domain/playbook";
+import { DEFAULT_COLLECTIONS_SETTINGS, parseCollectionsSettings } from "../domain/settings";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -43,5 +44,12 @@ export async function seedCollectionsForOrganization(db: Db, organizationId: str
     });
     templatesCreated += 1;
   }
-  return { organizationId, settingsCreated, templatesCreated };
+  // The "Standard" playbook is today's rules (spec 22.1); created once, never overwritten.
+  let playbookCreated = 0;
+  if (!(await db.collectionsPlaybook.findFirst({ where: { organizationId }, select: { id: true } }))) {
+    const current = await db.collectionsSetting.findUnique({ where: { organizationId }, select: { values: true } });
+    await db.collectionsPlaybook.create({ data: { organizationId, version: 1, name: "Standard", rules: standardPlaybook(parseCollectionsSettings(current?.values)) as unknown as Prisma.InputJsonValue, isActive: true, activatedAt: new Date(), reason: "Standard playbook created from the default rules" } });
+    playbookCreated = 1;
+  }
+  return { organizationId, settingsCreated, templatesCreated, playbookCreated };
 }

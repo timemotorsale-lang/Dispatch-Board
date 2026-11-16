@@ -7,7 +7,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 
 import { addDays, chicagoDateTime, chicagoToday, toYmd } from "../domain/money-dates";
-import { BUCKET_LABELS, BUCKETS, type Bucket } from "../domain/status";
+import { BUCKET_LABELS, BUCKETS, bucketFor, type Bucket } from "../domain/status";
 import { effectiveInsuranceStatus } from "../domain/tasks";
 import { collectionsAccess } from "./access";
 import { csvCell, visibilityWhere } from "./account-service";
@@ -113,13 +113,90 @@ export async function getDashboard(actor: AuthenticatedUser | null) {
   return { tiles, buckets, promises, trends: weeklyTrend(metrics), activity, generatedAt: new Date().toISOString() };
 }
 
-export const DASHBOARD_TABLES = ["buckets", "promises", "trends", "activity"] as const;
+export const DASHBOARD_TABLES = ["buckets", "promises", "trends", "activity", "rollrates"] as const;
 export type DashboardTable = (typeof DASHBOARD_TABLES)[number];
 
-export function dashboardCsv(data: Awaited<ReturnType<typeof getDashboard>>, table: DashboardTable) {
-  const rows: unknown[][] = table === "buckets" ? [["Bucket", "Accounts", "Amount due ($)", "Balance ($)"], ...data.buckets.map(b => [b.label, b.count, (b.amountDueCents / 100).toFixed(2), (b.balanceCents / 100).toFixed(2)])]
+export function dashboardCsv(data: Awaited<ReturnType<typeof getDashboard>> & { kpis?: Awaited<ReturnType<typeof getKpis>> }, table: DashboardTable) {
+  const rows: unknown[][] = table === "rollrates" ? [["Bucket 30 days ago", "Accounts", "Rolled worse (%)", "Improved (%)"], ...(data.kpis?.rollRates ?? []).map(r => [r.label, r.accounts, r.rolledWorsePercent ?? "", r.improvedPercent ?? ""])]
+    : table === "buckets" ? [["Bucket", "Accounts", "Amount due ($)", "Balance ($)"], ...data.buckets.map(b => [b.label, b.count, (b.amountDueCents / 100).toFixed(2), (b.balanceCents / 100).toFixed(2)])]
     : table === "promises" ? [["Last N days", "Made", "Kept", "Partly kept", "Broken", "Keep rate (%)"], ...data.promises.map(p => [p.days, p.made, p.kept, p.partial, p.broken, p.keepRate ?? ""])]
       : table === "trends" ? [["Week of", "Past due (%)", "Past due amount ($)", "31-60 accounts", "61+ accounts"], ...data.trends.map(t => [t.week, t.pastDuePercent, (t.pastDueAmountCents / 100).toFixed(2), t.count31to60, t.count61plus])]
         : [["Date", "Staff", "Contacts logged", "Messages"], ...data.activity.map(a => [a.date, a.collector, a.contacts, a.messages])];
   return rows.map(r => r.map(csvCell).join(",")).join("\n") + "\n";
 }
+
+// ---------------- Deeper KPIs (spec 22.4) ----------------
+
+const RIGHT_PARTY = ["SPOKE_WITH_CUSTOMER", "PROMISE_MADE", "PLAN_MADE", "PAYMENT_REPORTED", "REFUSED", "DISPUTE", "HARDSHIP"];
+const BUCKET_ORDER = ["CURRENT", "GRACE_1_5", "LATE_6_14", "D15_30", "D31_60", "D61_PLUS"];
+const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : null);
+
+/** Month-over-month movement between buckets, from each account's import 30+ days ago vs today. */
+export function rollRates(pairs: Array<{ then: string; now: string }>) {
+  return BUCKET_ORDER.map(bucket => {
+    const from = pairs.filter(p => p.then === bucket);
+    const worse = from.filter(p => BUCKET_ORDER.indexOf(p.now) > BUCKET_ORDER.indexOf(bucket)).length;
+    const better = from.filter(p => BUCKET_ORDER.indexOf(p.now) < BUCKET_ORDER.indexOf(bucket)).length;
+    return { bucket, label: BUCKET_LABELS[bucket as Bucket], accounts: from.length, rolledWorsePercent: pct(worse, from.length), improvedPercent: pct(better, from.length) };
+  });
+}
+
+export async function getKpis(actor: AuthenticatedUser | null) {
+  const access = await collectionsAccess(actor, "VIEW_DASHBOARD");
+  const org = access.organizationId;
+  const settings = await loadCollectionsSettings(org);
+  const today = chicagoToday();
+  const visible = await visibilityWhere(access);
+  const since = (days: number) => chicagoDateTime(addDays(today, -days), "00:00");
+  const [accounts, attempts30, promises30, extensions, chargeOffs] = await Promise.all([
+    prisma.collectionAccount.findMany({
+      where: { organizationId: org, archivedAt: null, ...visible },
+      select: { id: true, daysPastDue: true, bucket: true, closedStatus: true,
+        snapshots: { where: { asOfDate: { gte: new Date(`${addDays(today, -200)}T00:00:00Z`) } }, orderBy: { asOfDate: "asc" }, select: { asOfDate: true, daysPastDue: true } },
+        contactAttempts: { where: { occurredAt: { gte: since(120) } }, orderBy: { occurredAt: "asc" }, select: { occurredAt: true } } }
+    }),
+    prisma.collectionContactAttempt.findMany({ where: { organizationId: org, occurredAt: { gte: since(30) }, account: visible }, select: { accountId: true, outcome: true } }),
+    prisma.paymentPromise.findMany({ where: { organizationId: org, resolvedAt: { gte: since(30) }, status: { in: ["KEPT", "PARTIALLY_KEPT", "BROKEN"] }, account: visible }, select: { status: true } }),
+    prisma.extensionRequest.findMany({ where: { organizationId: org, status: "APPLIED", appliedAt: { gte: since(365), lte: since(30) }, account: visible }, select: { accountId: true, appliedAt: true } }),
+    prisma.collectionChargeOff.findMany({ where: { organizationId: org, status: "APPROVED", decidedAt: { gte: since(365) }, account: visible }, select: { amountCents: true, recoveredCents: true } })
+  ]);
+  const open = accounts.filter(a => !a.closedStatus);
+  const pastDue = open.filter(a => a.daysPastDue > 0);
+  const contacted = new Set(attempts30.map(a => a.accountId));
+  // Time to first contact: from the day the current past-due spell started to the first logged contact after it.
+  const delays: number[] = [];
+  for (const a of pastDue) {
+    const start = addDays(today, -a.daysPastDue);
+    const first = a.contactAttempts.find(c => chicagoToday(c.occurredAt) >= start);
+    if (first) delays.push(Math.max(0, Math.round((first.occurredAt.getTime() - new Date(`${start}T12:00:00Z`).getTime()) / 86_400_000)));
+  }
+  const cutoff = addDays(today, -30);
+  const pairs: Array<{ then: string; now: string; id: string }> = [];
+  for (const a of open) {
+    const then = [...a.snapshots].reverse().find(s => toYmd(s.asOfDate)! <= cutoff);
+    if (then) pairs.push({ id: a.id, then: bucketFor(then.daysPastDue, settings.graceDays), now: a.bucket });
+  }
+  const wasPastDue = pairs.filter(p => p.then !== "CURRENT");
+  const extCured = extensions.filter(e => {
+    const acct = accounts.find(a => a.id === e.accountId);
+    const until = addDays(chicagoToday(e.appliedAt!), 30);
+    return acct?.snapshots.some(s => toYmd(s.asOfDate)! >= chicagoToday(e.appliedAt!) && toYmd(s.asOfDate)! <= until && s.daysPastDue === 0);
+  }).length;
+  const resolved = promises30.length;
+  const chargedOff = chargeOffs.reduce((s, c) => s + c.amountCents, 0), recovered = chargeOffs.reduce((s, c) => s + c.recoveredCents, 0);
+  return {
+    contactRatePercent: pct(pastDue.filter(a => contacted.has(a.id)).length, pastDue.length),
+    rightPartyContactPercent: pct(attempts30.filter(a => RIGHT_PARTY.includes(a.outcome)).length, attempts30.length),
+    avgDaysToFirstContact: delays.length ? Math.round((delays.reduce((s, d) => s + d, 0) / delays.length) * 10) / 10 : null,
+    promisesKeptPercent: pct(promises30.filter(p => p.status === "KEPT").length, resolved),
+    brokenPromisePercent: pct(promises30.filter(p => p.status === "BROKEN").length, resolved),
+    rollRates: rollRates(pairs),
+    cureRatePercent: pct(wasPastDue.filter(p => p.now === "CURRENT").length, wasPastDue.length),
+    extensionCureRatePercent: pct(extCured, extensions.length),
+    extensionsMeasured: extensions.length,
+    chargeOffRatePercent: pct(chargeOffs.length, open.length + chargeOffs.length),
+    netLossCents: chargedOff - recovered,
+    recoveryPercent: pct(recovered, chargedOff)
+  };
+}
+

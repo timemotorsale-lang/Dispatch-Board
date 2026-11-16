@@ -14,7 +14,8 @@ export async function GET(request: Request) {
       type: (params.get("type") ?? "") as never,
       collector: params.get("collector") ?? "",
       status: params.get("status") ?? "",
-      q: params.get("q") ?? ""
+      q: params.get("q") ?? "",
+      sort: params.get("sort") === "RISK" ? "RISK" : ""
     }));
   } catch (error) { return collectionsErrorResponse(error); }
 }

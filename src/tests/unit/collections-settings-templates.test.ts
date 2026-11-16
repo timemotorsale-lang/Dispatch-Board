@@ -63,13 +63,17 @@ describe("seed templates", () => {
 
 describe("collections seed is idempotent", () => {
   it("creates settings and templates once, then nothing", async () => {
-    const store = { setting: null as null | { id: string }, templates: [] as Array<{ key: string; channel: string; language: string }> };
+    const store = { setting: null as null | { id: string }, templates: [] as Array<{ key: string; channel: string; language: string }>, playbooks: [] as unknown[] };
     const db = {
       collectionsSetting: {
         findUnique: vi.fn(async () => store.setting),
         create: vi.fn(async () => { store.setting = { id: "s1" }; return store.setting; })
       },
       collectionsSettingHistory: { create: vi.fn(async () => ({})) },
+      collectionsPlaybook: {
+        findFirst: vi.fn(async () => store.playbooks[0] ?? null),
+        create: vi.fn(async ({ data }: { data: unknown }) => { store.playbooks.push(data); return data; })
+      },
       messageTemplate: {
         findFirst: vi.fn(async ({ where }: { where: { key: string; channel: string; language: string } }) =>
           store.templates.find(t => t.key === where.key && t.channel === where.channel && t.language === where.language) ?? null),
@@ -80,6 +84,7 @@ describe("collections seed is idempotent", () => {
     const second = await seedCollectionsForOrganization(db as never, "org-1");
     expect(first.settingsCreated).toBe(1);
     expect(first.templatesCreated).toBe(buildSeedTemplates().length);
-    expect(second).toEqual({ organizationId: "org-1", settingsCreated: 0, templatesCreated: 0 });
+    expect(first.playbookCreated).toBe(1);
+    expect(second).toEqual({ organizationId: "org-1", settingsCreated: 0, templatesCreated: 0, playbookCreated: 0 });
   });
 });

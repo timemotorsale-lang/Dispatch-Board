@@ -66,7 +66,7 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
     select: {
       id: true, buyerNameRaw: true, dealNumber: true, stockNumberRaw: true, vehicleDescriptionRaw: true, primaryPhone: true, accountType: true,
       status: true, bucket: true, daysPastDue: true, amountDueCents: true, assignedCollectorUserId: true, lastContactAt: true, nextActionAt: true,
-      customerId: true, vehicleId: true, missingFromImportAt: true,
+      customerId: true, vehicleId: true, missingFromImportAt: true, riskScore: true,
       flags: { where: { clearedAt: null }, select: { type: true } },
       promises: { where: { OR: [{ status: "OPEN" }, { status: "BROKEN", resolvedAt: { gte: brokenSince } }] }, select: { status: true, promisedDate: true, resolvedAt: true } },
       reportedPayments: { where: { status: "NOT_FOUND" }, select: { id: true } },
@@ -96,6 +96,7 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
       daysPastDue: account.daysPastDue,
       amountDueCents: account.amountDueCents,
       assignedCollectorUserId: account.assignedCollectorUserId,
+      riskScore: account.riskScore,
       lastContactAt: account.lastContactAt?.toISOString() ?? null,
       nextActionAt: account.nextActionAt?.toISOString() ?? null,
       customerLinked: Boolean(account.customerId),

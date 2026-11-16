@@ -11438,6 +11438,16 @@ model CollectionAccount {
   repoCases               RepossessionCase[]
   letters                 CollectionLetter[]
   events                  CollectionAccountEvent[]
+  /// Latest risk score (0-100, higher = riskier), copied from CollectionRiskScore for sorting.
+  riskScore               Int?
+  riskScoredAt            DateTime?
+  riskScores              CollectionRiskScore[]
+  extensionRequests       ExtensionRequest[]
+  skipAlerts              CollectionSkipAlert[]
+  skipTraceEntries        CollectionSkipTraceEntry[]
+  recoveryOutcomes        CollectionRecoveryOutcome[]
+  chargeOffs              CollectionChargeOff[]
+  adjustments             AccountAdjustment[]
   taskLinks               CollectionTaskLink[]
 
   @@unique([organizationId, externalAccountId])
@@ -11563,6 +11573,8 @@ model PaymentPromise {
   /// Account values when the promise was made, used to judge kept/broken.
   baselineAmountDueCents Int?
   baselineDaysPastDue    Int?
+  /// Set when the customer replied YES to the reminder text.
+  customerConfirmedAt    DateTime?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
   account                CollectionAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -11934,4 +11946,235 @@ model CollectionTaskLink {
 
   @@index([organizationId, status, reason])
   @@index([accountId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Collections Stage 12 (Release 1 upgrades, spec section 22). Purely additive.
+// ---------------------------------------------------------------------------
+
+enum CollectionExtensionType {
+  EXTENSION
+  DEFERRAL
+  DUE_DATE_CHANGE
+}
+
+enum CollectionExtensionStatus {
+  REQUESTED
+  APPROVED
+  DECLINED
+  APPLIED
+  CANCELLED
+}
+
+enum CollectionSkipAlertStatus {
+  OPEN
+  CONFIRMED
+  DISMISSED
+}
+
+enum CollectionChargeOffStatus {
+  REQUESTED
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+enum AccountAdjustmentType {
+  REPO_FEE
+  STORAGE_FEE
+  RETURNED_PAYMENT_FEE
+  OTHER_FEE
+  LATE_FEE_WAIVER
+  GOODWILL_CREDIT
+  OTHER_CREDIT
+}
+
+enum AccountAdjustmentStatus {
+  PENDING_APPROVAL
+  APPROVED
+  DECLINED
+  POSTED_IN_DMS
+  CONFIRMED_BY_IMPORT
+  NOT_FOUND_IN_IMPORT
+  CANCELLED
+}
+
+/// Versioned, append-only collection playbooks. Exactly one version per organization is active.
+model CollectionsPlaybook {
+  id              String    @id @default(cuid())
+  organizationId  String
+  version         Int
+  name            String
+  rules           Json
+  isActive        Boolean   @default(false)
+  reason          String    @default("")
+  createdByUserId String?
+  activatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@unique([organizationId, version])
+  @@index([organizationId, isActive])
+}
+
+/// Explainable risk score: one row per account per day, with the factors that produced it.
+model CollectionRiskScore {
+  id             String            @id @default(cuid())
+  organizationId String
+  accountId      String
+  scoreDate      DateTime          @db.Date
+  score          Int
+  factors        Json
+  nextAction     Json?
+  createdAt      DateTime          @default(now())
+  account        CollectionAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, scoreDate])
+  @@index([organizationId, scoreDate])
+}
+
+model ExtensionRequest {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  accountId         String
+  type              CollectionExtensionType
+  requestedTerms    String
+  newDueDate        DateTime?                 @db.Date
+  reason            String
+  eligible          Boolean
+  eligibilityNotes  Json
+  status            CollectionExtensionStatus @default(REQUESTED)
+  requestedByUserId String
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  decisionReason    String?
+  overrideReason    String?
+  appliedAt         DateTime?
+  appliedByUserId   String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  account           CollectionAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
+}
+
+/// "Possible skip" alerts are raised automatically; a person confirms or dismisses them.
+model CollectionSkipAlert {
+  id              String                    @id @default(cuid())
+  organizationId  String
+  accountId       String
+  reasons         Json
+  status          CollectionSkipAlertStatus @default(OPEN)
+  raisedAt        DateTime                  @default(now())
+  decidedByUserId String?
+  decidedAt       DateTime?
+  decisionNote    String?
+  account         CollectionAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
+}
+
+/// Skip-trace checklist entries (append-only).
+model CollectionSkipTraceEntry {
+  id             String            @id @default(cuid())
+  organizationId String
+  accountId      String
+  step           String
+  result         String
+  notes          String            @default("")
+  userId         String
+  createdAt      DateTime          @default(now())
+  account        CollectionAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+}
+
+/// Sale and costs after a repossession, and the deficiency (positive) or surplus (negative).
+model CollectionRecoveryOutcome {
+  id                 String            @id @default(cuid())
+  organizationId     String
+  accountId          String
+  repoCaseId         String?
+  balanceAtRepoCents Int
+  salePriceCents     Int
+  repoCostCents      Int               @default(0)
+  storageCostCents   Int               @default(0)
+  auctionCostCents   Int               @default(0)
+  otherCostCents     Int               @default(0)
+  deficiencyCents    Int
+  notes              String            @default("")
+  recordedByUserId   String
+  createdAt          DateTime          @default(now())
+  account            CollectionAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+}
+
+model CollectionChargeOff {
+  id                String                      @id @default(cuid())
+  organizationId    String
+  accountId         String
+  status            CollectionChargeOffStatus   @default(REQUESTED)
+  amountCents       Int
+  reason            String
+  overrideReason    String?
+  requestedByUserId String
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  decisionReason    String?
+  recoveredCents    Int                         @default(0)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  account           CollectionAccount           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  recoveryPayments  CollectionRecoveryPayment[]
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
+}
+
+/// Money collected after a charge-off (append-only).
+model CollectionRecoveryPayment {
+  id               String              @id @default(cuid())
+  organizationId   String
+  chargeOffId      String
+  accountId        String
+  amountCents      Int
+  receivedDate     DateTime            @db.Date
+  method           String
+  notes            String              @default("")
+  recordedByUserId String
+  createdAt        DateTime            @default(now())
+  chargeOff        CollectionChargeOff @relation(fields: [chargeOffId], references: [id], onDelete: Restrict)
+
+  @@index([chargeOffId])
+  @@index([accountId])
+}
+
+/// Fees and credits. Before cutover a person posts them in DealerCenter and later imports confirm them.
+model AccountAdjustment {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  accountId       String
+  type            AccountAdjustmentType
+  amountCents     Int
+  reason          String
+  documentId      String?
+  status          AccountAdjustmentStatus @default(PENDING_APPROVAL)
+  enteredByUserId String
+  decidedByUserId String?
+  decidedAt       DateTime?
+  decisionReason  String?
+  postedAt        DateTime?
+  postedByUserId  String?
+  /// DealerCenter balances (other, late, credit cents) when it was posted, to match against later imports.
+  baseline        Json?
+  resolvedAt      DateTime?
+  resolutionNote  String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  account         CollectionAccount       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
 }

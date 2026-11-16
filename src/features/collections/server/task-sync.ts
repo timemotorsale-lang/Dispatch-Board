@@ -12,12 +12,14 @@ import type { Prisma, RepossessionCaseStatus, TaskTemplatePriority } from "@pris
 import { COLLECTIONS_ADMIN_DUTY, COLLECTIONS_ADMIN_ROLE_NAMES } from "../config/permissions";
 import { chicagoDateTime, chicagoToday, dateOnly, toYmd } from "../domain/money-dates";
 import type { CollectionsSettings } from "../domain/settings";
-import { effectiveInsuranceStatus, TASK_REASON_INFO, wantedAccountTasks, type AccountTaskFacts, type TaskReason, type WantedTask } from "../domain/tasks";
+import { effectiveInsuranceStatus, TASK_REASON_INFO, TASK_REASONS, wantedAccountTasks, type AccountTaskFacts, type TaskReason, type WantedTask } from "../domain/tasks";
 
 type Db = Prisma.TransactionClient;
 
 const OPEN_REPO: RepossessionCaseStatus[] = ["REVIEW", "APPROVED", "ASSIGNED", "LOCATED"];
 const REPOSSESSED_REPO: RepossessionCaseStatus[] = ["RECOVERED", "IN_STORAGE", "SENT_TO_AUCTION", "RETURNED_TO_INVENTORY"];
+
+const MANAGED_REASONS = new Set<string>(TASK_REASONS);
 
 export type TaskSyncResult = { created: Partial<Record<TaskReason, number>>; createdTotal: number; closed: number; completedByStaff: number; skippedNoAssignee: number };
 
@@ -153,7 +155,8 @@ export async function syncCollectionTasks(
     const wantedBy = new Map<TaskReason, WantedTask>(wanted.map(w => [w.reason, w]));
 
     // Close open links whose reason is gone, or that a person already completed.
-    for (const link of accountLinks.filter(l => l.status === "OPEN")) {
+    // Only reasons this sync manages; one-off tasks (for example "post in DealerCenter") are closed by their own workflow.
+    for (const link of accountLinks.filter(l => l.status === "OPEN" && MANAGED_REASONS.has(l.reason))) {
       const reason = link.reason as TaskReason;
       if (link.task.status === "COMPLETED") {
         await db.collectionTaskLink.update({ where: { id: link.id }, data: { status: "CLOSED", openKey: null, closedAt: now, closeNote: "Completed on the dispatch board." } });
@@ -243,4 +246,33 @@ export async function syncImportReminder(db: Db, organizationId: string, options
   });
   await db.collectionTaskLink.create({ data: { organizationId, accountId: null, reason: "IMPORT_REMINDER", taskId: task.id, openKey: key } });
   return { created: true, closed, importedToday };
+}
+
+/**
+ * One-off follow-up tasks created by a person's decision (for example "Post this extension in
+ * DealerCenter"). One open task per key; closed by the workflow that created it.
+ */
+export async function openFollowUpTask(db: Db, input: { organizationId: string; accountId: string; key: string; reason: string; title: string; description: string; assignedUserId: string; priority?: TaskTemplatePriority }) {
+  const openKey = `${input.organizationId}:${input.accountId}:${input.reason}:${input.key}`;
+  const existing = await db.collectionTaskLink.findUnique({ where: { openKey }, select: { taskId: true } });
+  if (existing) return existing.taskId;
+  const today = chicagoToday();
+  const boardDay = await boardDayFor(db, today);
+  const priority = input.priority ?? "HIGH";
+  const account = await db.collectionAccount.findUnique({ where: { id: input.accountId }, select: { customerId: true, vehicleId: true, stockNumberRaw: true, buyerNameRaw: true } });
+  const task = await db.task.create({ data: {
+    boardDayId: boardDay.id, title: input.title, description: `${input.description}
+Open the account: /collections/accounts/${input.accountId}`, assignedUserId: input.assignedUserId, createdByUserId: input.assignedUserId,
+    priority, dueAt: dueAtFor(priority, today), sourceType: "COLLECTIONS", workflowArea: "COLLECTIONS", customerId: account?.customerId ?? null, vehicleId: account?.vehicleId ?? null,
+    customerReference: account?.buyerNameRaw ?? null, vehicleReference: account?.stockNumberRaw ?? null, templateSnapshot: { source: "COLLECTIONS", reason: input.reason, key: input.key, accountId: input.accountId }
+  }, select: { id: true } });
+  await db.collectionTaskLink.create({ data: { organizationId: input.organizationId, accountId: input.accountId, reason: input.reason, taskId: task.id, openKey } });
+  return task.id;
+}
+
+export async function closeFollowUpTask(db: Db, input: { organizationId: string; accountId: string; key: string; reason: string; note: string }) {
+  const openKey = `${input.organizationId}:${input.accountId}:${input.reason}:${input.key}`;
+  const link = await db.collectionTaskLink.findUnique({ where: { openKey }, select: { id: true, taskId: true, task: { select: { status: true, boardDayId: true } } } });
+  if (link) await closeLink(db, link, input.note, new Date());
+  return Boolean(link);
 }

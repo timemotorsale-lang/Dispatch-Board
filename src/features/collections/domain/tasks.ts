@@ -79,23 +79,30 @@ export function wantedAccountTasks(f: AccountTaskFacts, settings: CollectionsSet
 
   const wanted: WantedTask[] = [];
   const pastDue = f.daysPastDue > 0;
+  // The active playbook can switch individual reminder tasks off. Guardrail tasks (re-enable, repo, bankruptcy) can't be.
+  const on = (reason: TaskReason) => settings.taskEnabled?.[reason] !== false;
   const starterDisabled = f.starter?.action === "DISABLE";
   const repoActive = f.repo && ["APPROVED", "ASSIGNED", "LOCATED"].includes(f.repo.status);
 
-  if (f.lastBrokenAt && !f.arrangementAfterBroken && pastDue) wanted.push({ reason: "BROKEN_PROMISE", since: f.lastBrokenAt });
-  if (f.lastNotFoundAt && pastDue) wanted.push({ reason: "REPORTED_PAYMENT_NOT_FOUND", since: f.lastNotFoundAt });
+  if (f.lastBrokenAt && !f.arrangementAfterBroken && pastDue && on("BROKEN_PROMISE")) wanted.push({ reason: "BROKEN_PROMISE", since: f.lastBrokenAt });
+  if (f.lastNotFoundAt && pastDue && on("REPORTED_PAYMENT_NOT_FOUND")) wanted.push({ reason: "REPORTED_PAYMENT_NOT_FOUND", since: f.lastNotFoundAt });
 
-  // One days-past-due task at a time: the highest threshold reached.
+  // One days-past-due task at a time: the highest threshold reached whose task the playbook has on.
   if (!repoActive) {
     const t = settings.thresholds;
     const hold = f.activeFlags.includes("DO_NOT_REPO_REVIEW_HOLD");
-    if (f.daysPastDue >= t.repoReview && !hold) wanted.push({ reason: "REPO_REVIEW", since: f.belowThresholdSince.repo ?? EPOCH });
-    else if (f.daysPastDue >= t.review30) wanted.push({ reason: "THIRTY_DAY_REVIEW", since: f.belowThresholdSince.thirtyDay ?? EPOCH });
-    else if (f.daysPastDue >= t.followUp) wanted.push({ reason: "TWO_WEEK_FOLLOW_UP", since: f.belowThresholdSince.twoWeek ?? EPOCH });
-    else if (f.daysPastDue >= t.disableReview && !starterDisabled) wanted.push({ reason: "DISABLE_REVIEW", since: f.belowThresholdSince.disable ?? EPOCH });
+    const steps: Array<{ reason: TaskReason; at: number; since: Date | null; allowed: boolean }> = [
+      { reason: "REPO_REVIEW", at: t.repoReview, since: f.belowThresholdSince.repo, allowed: !hold },
+      { reason: "THIRTY_DAY_REVIEW", at: t.review30, since: f.belowThresholdSince.thirtyDay, allowed: true },
+      { reason: "TWO_WEEK_FOLLOW_UP", at: t.followUp, since: f.belowThresholdSince.twoWeek, allowed: true },
+      { reason: "DISABLE_REVIEW", at: t.disableReview, since: f.belowThresholdSince.disable, allowed: !starterDisabled }
+    ];
+    // A repo hold falls back to the 30-day review; a disabled starter needs no disable review.
+    const step = steps.find(s => f.daysPastDue >= s.at && on(s.reason) && s.allowed);
+    if (step) wanted.push({ reason: step.reason, since: step.since ?? EPOCH });
   }
 
-  if (f.insurance && (f.insurance.status === "EXPIRED" || f.insurance.status === "MISSING")) wanted.push({ reason: "INSURANCE_NEEDED", since: f.insurance.since });
+  if (f.insurance && (f.insurance.status === "EXPIRED" || f.insurance.status === "MISSING") && on("INSURANCE_NEEDED")) wanted.push({ reason: "INSURANCE_NEEDED", since: f.insurance.since });
 
   if (starterDisabled && f.starter && ((f.lastArrangementAt && f.lastArrangementAt > f.starter.at) || !pastDue || (f.redeemedAt && f.redeemedAt > f.starter.at))) {
     wanted.push({ reason: "RE_ENABLE_STARTER", since: f.starter.at });

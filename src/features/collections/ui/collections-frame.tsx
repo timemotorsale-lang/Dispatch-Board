@@ -15,6 +15,7 @@ export const COLLECTIONS_SECTIONS = [
   { key: "dashboard", href: "/collections/dashboard", label: "Dashboard", ready: true, permission: "VIEW_DASHBOARD" },
   { key: "reconciliation", href: "/collections/reconciliation", label: "Reconciliation", ready: false, permission: "VIEW_DASHBOARD" },
   { key: "import", href: "/collections/import", label: "Import", ready: true, permission: "IMPORT" },
+  { key: "playbook", href: "/collections/playbook", label: "Playbook", ready: true, permission: "EDIT_SETTINGS" },
   { key: "settings", href: "/collections/settings", label: "Settings", ready: true, permission: "EDIT_SETTINGS" }
 ] as const satisfies ReadonlyArray<{ key: string; href: string; label: string; ready: boolean; permission: CollectionsPermission }>;
 

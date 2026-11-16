@@ -31,7 +31,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
   counts: Record<QueueTab, number>;
   rows: QueueFacts[];
   totalRows: number;
-  filters: { bucket: string; type: string; q: string; status: string };
+  filters: { bucket: string; type: string; q: string; status: string; sort?: string };
   lastImport: { committedAt: string | null; asOfDate: string | null } | null;
   importedToday: boolean;
 }) {
@@ -77,6 +77,12 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
             {(Object.keys(STATUS_LABELS) as AccountStatus[]).map(status => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
           </select>
         </label>
+        <label>Order
+          <select name="sort" defaultValue={filters.sort ?? ""}>
+            <option value="">Standard (broken promises first)</option>
+            <option value="RISK">Highest risk score first</option>
+          </select>
+        </label>
         <div className={`${styles.actions} ${styles.wide}`}>
           <button type="submit" className={styles.primary}>Apply filters</button>
           <Link className={styles.button} href={`/collections?tab=${tab}`}>Clear</Link>
@@ -90,7 +96,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
           <div className={`${styles.tableWrap} ${styles.hideOnPhone}`}>
             <table className={styles.table}>
               <caption className={styles.srOnly}>Collections queue</caption>
-              <thead><tr><th>Customer</th><th>Vehicle</th><th>Deal #</th><th className={styles.num}>Days late</th><th className={styles.num}>Amount due</th><th>Last contact</th><th>Next action</th><th>Flags</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Customer</th><th>Vehicle</th><th>Deal #</th><th className={styles.num}>Days late</th><th className={styles.num}>Amount due</th><th className={styles.num}>Risk</th><th>Last contact</th><th>Next action</th><th>Flags</th><th>Actions</th></tr></thead>
               <tbody>
                 {rows.map(row => (
                   <tr key={row.id}>
@@ -99,6 +105,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
                     <td>{row.dealNumber ?? "—"}</td>
                     <td className={styles.num}>{row.daysPastDue}</td>
                     <td className={styles.num}>{formatCents(row.amountDueCents)}</td>
+                    <td className={styles.num}>{row.riskScore ?? "—"}</td>
                     <td>{when(row.lastContactAt)}</td>
                     <td>{when(row.nextActionAt)}</td>
                     <td><Flags row={row} /></td>
@@ -113,7 +120,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
               <article key={row.id} className={styles.card}>
                 <h3><Link href={`/collections/accounts/${row.id}`}>{row.buyerName}</Link></h3>
                 <p className={styles.muted}>{row.vehicleDescription ?? "—"} · Deal {row.dealNumber ?? "—"}</p>
-                <p><strong>{row.daysPastDue} days late</strong> · {formatCents(row.amountDueCents)} due · last contact {when(row.lastContactAt)}</p>
+                <p><strong>{row.daysPastDue} days late</strong> · {formatCents(row.amountDueCents)} due · last contact {when(row.lastContactAt)}{row.riskScore != null ? ` · risk ${row.riskScore}` : ""}</p>
                 <p><Flags row={row} /></p>
                 <QueueRowActions accountId={row.id} phone={row.phone} frozen={row.activeFlags.includes("BANKRUPTCY")} />
               </article>

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { renderTemplate } from "../domain/messaging";
 import { formatCents } from "../domain/money-dates";
-import { MESSAGE_RULE_KEYS, type CollectionsSettings } from "../domain/settings";
+import type { CollectionsSettings } from "../domain/settings";
 import type { getSettingsPage } from "../server/settings-service";
 import { callCollections, formatWhen, label } from "./client-api";
 import styles from "./collections.module.css";
@@ -13,10 +13,7 @@ import styles from "./collections.module.css";
 type Page = Awaited<ReturnType<typeof getSettingsPage>>;
 type Template = Page["templates"][number];
 const DAYS = [["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"], ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"]] as const;
-const RULE_HELP: Record<string, string> = {
-  DUE_SOON: "days before the due date (use a negative number, e.g. -2)", PAST_DUE_DAY1: "days past due", PAST_DUE_LATE_FEE: "days past due (late fee day)",
-  PROMISE_REMINDER: "days before the promise date (negative, e.g. -1)", INSURANCE_NEEDED: "days between reminders (max 3)", DISABLE_WARNING: "never automatic"
-};
+const RISK_LABELS: Record<string, string> = { daysPastDue: "Days past due", dpdTrend: "Getting further behind", missedPayments: "Missed payments", brokenPromises: "Broken promises", lowContactSuccess: "Hard to reach", insurance: "Insurance problem", possibleSkip: "Possible skip", newAccount: "New account" };
 const LANG_NAMES: Record<string, string> = { EN: "English", ES: "Spanish", SO: "Somali", SW: "Swahili" };
 
 function useFeedback() {
@@ -41,9 +38,10 @@ export function SettingsScreen({ page }: { page: Page }) {
     } catch (e) { fb.setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
 
-  const field = (labelText: string, value: string | number, onChange: (v: string) => void, props: Record<string, unknown> = {}) => (
-    <label>{labelText}<input value={value} onChange={e => onChange(e.target.value)} {...props} /></label>
-  );
+  const field = (labelText: string, value: string | number, onChange: (v: string) => void, props: Record<string, unknown> = {}) => {
+    const { key, ...rest } = props as { key?: string } & Record<string, unknown>;
+    return <label key={key}>{labelText}<input value={value} onChange={e => onChange(e.target.value)} {...rest} /></label>;
+  };
 
   return (
     <>
@@ -87,10 +85,6 @@ export function SettingsScreen({ page }: { page: Page }) {
         <div className={styles.form}>
           {field("Grace days", s.graceDays, v => patch(d => { d.graceDays = Number(v); }), { type: "number", min: 0, max: 30 })}
           {field(`Late fee shown (${formatCents(s.lateFeeDisplayCents)})`, s.lateFeeDisplayCents / 100, v => patch(d => { d.lateFeeDisplayCents = Math.round(Number(v) * 100); }), { type: "number", min: 0, step: "0.01" })}
-          {field("Starter-disable review at (days)", s.thresholds.disableReview, v => patch(d => { d.thresholds.disableReview = Number(v); }), { type: "number", min: 1 })}
-          {field("Follow-up at (days)", s.thresholds.followUp, v => patch(d => { d.thresholds.followUp = Number(v); }), { type: "number", min: 1 })}
-          {field("Account review at (days)", s.thresholds.review30, v => patch(d => { d.thresholds.review30 = Number(v); }), { type: "number", min: 1 })}
-          {field("Repo review at (days)", s.thresholds.repoReview, v => patch(d => { d.thresholds.repoReview = Number(v); }), { type: "number", min: 1 })}
           {field("Promise grace (days)", s.promiseGraceDays, v => patch(d => { d.promiseGraceDays = Number(v); }), { type: "number", min: 0 })}
           {field("Reported-payment window (days)", s.reportedPaymentConfirmationDays, v => patch(d => { d.reportedPaymentConfirmationDays = Number(v); }), { type: "number", min: 1 })}
           {field("Insurance 'expiring soon' (days)", s.insuranceExpiringSoonDays, v => patch(d => { d.insuranceExpiringSoonDays = Number(v); }), { type: "number", min: 1 })}
@@ -98,7 +92,7 @@ export function SettingsScreen({ page }: { page: Page }) {
           {field("Import reminder time", s.importReminderTime, v => patch(d => { d.importReminderTime = v; }), { type: "time" })}
           <label>Collectors see<select value={s.collectorVisibility} onChange={e => patch(d => { d.collectorVisibility = e.target.value as CollectionsSettings["collectorVisibility"]; })}><option value="ALL_ACCOUNTS">All accounts</option><option value="ASSIGNED_ONLY">Only accounts assigned to them</option></select></label>
         </div>
-        <p className={styles.muted}>The Minnesota late-fee question is in the open questions list. The app only displays the fee; DealerCenter charges it.</p>
+        <p className={styles.muted}>Review days (starter-disable, follow-up, 30-day, repo) are set in the <a href="/collections/playbook">Playbook</a>. The Minnesota late-fee question is in the open questions list. The app only displays the fee; DealerCenter charges it.</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="msg-h">
@@ -111,18 +105,30 @@ export function SettingsScreen({ page }: { page: Page }) {
             ))}
           </fieldset>
         </div>
-        <div className={styles.tableWrap}><table className={styles.table}>
-          <thead><tr><th scope="col">Message</th><th scope="col">On</th><th scope="col">Timing</th></tr></thead>
-          <tbody>
-            {MESSAGE_RULE_KEYS.map(key => (
-              <tr key={key}>
-                <th scope="row">{label(key)}</th>
-                <td><input type="checkbox" aria-label={`${label(key)} on`} disabled={key === "DISABLE_WARNING"} checked={s.messageRules[key].enabled} onChange={e => patch(d => { d.messageRules[key].enabled = e.target.checked; })} /></td>
-                <td>{key === "DISABLE_WARNING" ? <span className={styles.muted}>Never automatic: sent by a person from the starter panel.</span> : <label>{RULE_HELP[key]}<input type="number" value={s.messageRules[key].dayOffset} onChange={e => patch(d => { d.messageRules[key].dayOffset = Number(e.target.value); })} style={{ width: 80 }} /></label>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
+        <p className={styles.notice}>Which texts go out and when, and the review days (7 / 14 / 30 / 60), are now set in the <a href="/collections/playbook">Playbook</a>.</p>
+      </section>
+
+      <section className={styles.panel} aria-labelledby="upgrades-h">
+        <h2 id="upgrades-h">Risk score, extensions, skip, charge-off, fees</h2>
+        <h3>Risk score: most points each factor can add (total capped at 100)</h3>
+        <div className={styles.form}>
+          {(Object.keys(s.riskWeights) as Array<keyof CollectionsSettings["riskWeights"]>).map(key => field(RISK_LABELS[key], s.riskWeights[key], v => patch(d => { d.riskWeights[key] = Number(v); }), { type: "number", min: 0, max: 100, key }))}
+        </div>
+        <h3>Extension rules</h3>
+        <div className={styles.form}>
+          {field("Account at least (months old)", s.extensionRules.minAccountAgeMonths, v => patch(d => { d.extensionRules.minAccountAgeMonths = Number(v); }), { type: "number", min: 0 })}
+          {field("At most per 12 months", s.extensionRules.maxPer12Months, v => patch(d => { d.extensionRules.maxPer12Months = Number(v); }), { type: "number", min: 0 })}
+          <label><input type="checkbox" checked={s.extensionRules.blockWhileOpenPromise} onChange={e => patch(d => { d.extensionRules.blockWhileOpenPromise = e.target.checked; })} /> Not while a promise is open</label>
+        </div>
+        <h3>Skip, charge-off, fees and credits</h3>
+        <div className={styles.form}>
+          {field("Possible skip after (days without reaching the customer)", s.skipNoContactDays, v => patch(d => { d.skipNoContactDays = Number(v); }), { type: "number", min: 3 })}
+          {field("Charge-off without an override from (days past due)", s.chargeOffMinDaysPastDue, v => patch(d => { d.chargeOffMinDaysPastDue = Number(v); }), { type: "number", min: 30 })}
+          {field("Fees/credits up to this amount skip approval ($, 0 = all need approval)", s.adjustmentApprovalThresholdCents / 100, v => patch(d => { d.adjustmentApprovalThresholdCents = Math.round(Number(v) * 100); }), { type: "number", min: 0, step: "0.01" })}
+          {field("Flag a posted fee/credit not seen in imports after (days)", s.adjustmentConfirmationDays, v => patch(d => { d.adjustmentConfirmationDays = Number(v); }), { type: "number", min: 1 })}
+          {(["REPO_FEE", "STORAGE_FEE", "RETURNED_PAYMENT_FEE"] as const).map(key => field(`Default ${label(key).toLowerCase()} ($)`, s.feeDefaults[key] / 100, v => patch(d => { d.feeDefaults[key] = Math.round(Number(v) * 100); }), { type: "number", min: 0, step: "0.01", key }))}
+        </div>
+        <p className={styles.muted}>Fee amounts must stay within Minnesota limits: confirm with your attorney.</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="letters-h">
