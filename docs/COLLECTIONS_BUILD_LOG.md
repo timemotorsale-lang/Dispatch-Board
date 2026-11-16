@@ -970,3 +970,102 @@ lint are clean.
 
 **What you need to do:** nothing now. When you open accounts with these vendors (spec sections 21
 and 27), each one gets its real connection in a later release.
+
+---
+
+## Stage 14: Servicing ledger (done; database change applied to the test copy only)
+
+**Backups first:** I made fresh backups of both databases and checked they read back
+correctly (`...-before-stage14-20261116-0829.dump` in `C:\Users\timem\dispatch-board-backups\`).
+Then you confirmed "backup done".
+
+**Database change** (`prisma/migrations/20261116140000_collections_ledger`):
+- **Purely additive:** 5 new tables and 6 new lists of choices. Nothing existing is renamed,
+  changed or removed.
+- **Where it went:** applied only to the test database `dispatch_board_collections`. **Your real
+  database isn't touched.**
+
+**What I built**
+- **The tables** (spec 25.1–25.3):
+  - **servicing contract:** one per account. Fixed-payment or simple-interest; weekly,
+    every 2 weeks, twice a month or monthly; payment, count, dates, APR, side note;
+  - **payment schedule versions:** never edited; a change makes a new version with a reason
+    and an approver;
+  - **ledger transactions:** never edited. Corrections are reversals, and re-posting the same
+    import row is ignored;
+  - **allocations:** how each payment was split, kept for receipts.
+- **The engine** (`domain/ledger.ts`):
+  - **Due dates:**
+    - weekly and every 2 weeks;
+    - monthly, with short months clamped, so Jan 31 becomes Feb 28;
+    - twice a month, 15 days apart.
+    - Optional: move weekend and holiday due dates to the next business day. This is a
+      setting, off by default.
+  - **Schedules:**
+    - fixed-payment: equal payments, with the last one making the exact total;
+    - simple-interest: interest by actual days, and the last payment clears the balance.
+  - **Replay:** every number is **recalculated from the entries every time**, never typed in.
+    That covers the total balance, past-due amount, days past due, payment due now, fees, late
+    fees, principal and interest to the day, unapplied money, charge-off and recovery.
+  - **Payment order** (a setting): fees, then late fees, then past-due payments (oldest
+    first), then the current payment, then principal.
+  - **Fixed-payment:** extra money pays ahead.
+  - **Simple-interest:** extra money goes to principal and shortens the loan.
+  - **Reversals and returned payments** cancel the original completely. Everything is
+    replayed, so later payments are re-split correctly. A returned-payment fee is a separate
+    entry.
+  - **Opening balance** (for accounts moved over from DealerCenter in Stage 15) treats the
+    earlier payments as made.
+- **Rules when posting:** reversals, returned payments, adjustments, waivers, credits and
+  charge-offs need an approver and a written reason. A payment can't be reversed twice.
+  **Only admins** can create contracts or post entries.
+- **Account page → "Servicing ledger (shadow)":**
+  - the contract, its schedule, balances, and every entry with how it was split;
+  - an admin form to enter a contract by hand, to try it out;
+  - **a clear note that DealerCenter is still the official record.** Nothing here charges
+    the customer or changes DealerCenter.
+
+**A bug the tests found, fixed:** on a simple-interest loan, paying the full payoff amount left
+the future payments showing as owed, so it never said "paid off". Once principal and interest
+are both zero, the loan is now done.
+
+**How to try it:**
+1. Open an account and expand "Servicing ledger (shadow)".
+2. Create a contract (for example 10 weekly payments of $100).
+3. Post a payment and see how it's split.
+4. Post a "Returned payment" against it and watch the balance come back.
+
+**Tests:**
+- **29 new engine tests:**
+  - due dates for all four frequencies, plus the weekend/holiday rule;
+  - fixed-payment and simple-interest schedules, and impossible terms;
+  - fixed-payment replay: current, past due, fee/late-fee/oldest-first order, partial
+    payments, paying ahead, overpayment, a custom payment order;
+  - reversals and returned payments, including later payments re-split, a returned-payment
+    fee, a bad reversal, and same answer in any order;
+  - simple-interest: interest before principal, paying late costs more, extra principal,
+    payoff to the day, reversal;
+  - biweekly and semimonthly contracts paid to zero;
+  - waivers, credits, adjustments, side notes, charge-off and recovery, opening balance, and
+    future-dated entries.
+- **6 new database tests:**
+  - the contract and schedule;
+  - a payment's split stored and recalculated;
+  - a returned payment that needs a reason, can't happen twice and restores the balance, with
+    nothing deleted;
+  - the same import row posted only once;
+  - an adjustment without an approver refused;
+  - a reschedule makes schedule version 2;
+  - admins only.
+- **All 225 Collections tests pass.**
+- **Full suite:** 6,078 passed, 0 failed.
+- Typecheck and Collections lint are clean.
+
+**What you need to do (before the ledger can ever become the official record, not now):**
+- **Your accountant** confirms:
+  - the payment order;
+  - how simple interest is calculated (actual/365, rounded at each payment);
+  - Minnesota sales tax on lease-to-own payments.
+- **Your attorney** confirms the late-fee rules.
+
+These are already in the open questions.

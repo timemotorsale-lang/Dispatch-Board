@@ -8,6 +8,7 @@ import { prisma } from "@/server/db/client";
 import { collectionsAccess } from "./access";
 import { accountAction } from "./account-service";
 import { INSURANCE_ACTIONS, insuranceAction } from "./insurance-service";
+import { LEDGER_ACTIONS, ledgerAction } from "./ledger-service";
 import { MESSAGE_ACTIONS, messageAction } from "./messaging-service";
 import { PROMISE_ACTIONS, promiseAction } from "./promise-service";
 import { RECOVERY_ACTIONS, recoveryAction } from "./recovery-service";
@@ -22,7 +23,8 @@ const HANDLERS: Record<string, AccountActionHandler> = {
   ...Object.fromEntries(MESSAGE_ACTIONS.map(action => [action, messageAction])),
   ...Object.fromEntries(INSURANCE_ACTIONS.map(action => [action, insuranceAction])),
   ...Object.fromEntries(RECOVERY_ACTIONS.map(action => [action, recoveryAction])),
-  ...Object.fromEntries(UPGRADE_ACTIONS.map(action => [action, upgradeAction]))
+  ...Object.fromEntries(UPGRADE_ACTIONS.map(action => [action, upgradeAction])),
+  ...Object.fromEntries(LEDGER_ACTIONS.map(action => [action, ledgerAction]))
 };
 
 /**

@@ -11448,6 +11448,7 @@ model CollectionAccount {
   recoveryOutcomes        CollectionRecoveryOutcome[]
   chargeOffs              CollectionChargeOff[]
   adjustments             AccountAdjustment[]
+  servicingContract       ServicingContract?
   taskLinks               CollectionTaskLink[]
 
   @@unique([organizationId, externalAccountId])
@@ -12177,4 +12178,170 @@ model AccountAdjustment {
 
   @@index([accountId, status])
   @@index([organizationId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Collections Stage 14: servicing ledger (spec 25.1-25.3). Purely additive.
+// In Release 1 it is a SHADOW ledger: DealerCenter stays the system of record.
+// ---------------------------------------------------------------------------
+
+enum ServicingCalcMethod {
+  FIXED_PAYMENT
+  SIMPLE_INTEREST
+}
+
+enum ServicingContractSource {
+  DEAL
+  DMS_MIGRATION
+  MANUAL
+}
+
+enum ServicingContractStatus {
+  ACTIVE
+  PAID_OFF
+  CHARGED_OFF
+  CLOSED
+}
+
+enum LedgerTransactionType {
+  PAYMENT
+  PAYMENT_REVERSAL
+  RETURNED_PAYMENT
+  LATE_FEE
+  LATE_FEE_WAIVER
+  FEE
+  CREDIT
+  ADJUSTMENT
+  PAYOFF
+  CHARGE_OFF
+  RECOVERY
+  REPO_EXPENSE
+  SALE_PROCEEDS
+  SIDE_NOTE_PAYMENT
+  OPENING_BALANCE
+}
+
+enum LedgerTransactionSource {
+  CASH_DRAWER
+  PROCESSOR
+  ZELLE
+  MONEY_ORDER
+  IMPORT
+  SYSTEM
+  MANUAL
+}
+
+enum LedgerAllocationBucket {
+  FEE
+  LATE_FEE
+  INTEREST
+  INSTALLMENT
+  PRINCIPAL
+  SIDE_NOTE
+  UNAPPLIED
+}
+
+/// One servicing contract per Collections account.
+model ServicingContract {
+  id                    String                  @id @default(cuid())
+  organizationId        String
+  accountId             String                  @unique
+  accountType           CollectionAccountType
+  calcMethod            ServicingCalcMethod
+  cashPriceCents        Int                     @default(0)
+  downPaymentCents      Int                     @default(0)
+  sideNoteCents         Int                     @default(0)
+  feesCents             Int                     @default(0)
+  amountFinancedCents   Int
+  totalOfPaymentsCents  Int
+  /// Annual rate in basis points (2400 = 24.00%); null for fixed-payment contracts without interest.
+  aprBasisPoints        Int?
+  paymentAmountCents    Int
+  frequency             CollectionPaymentFrequency
+  numberOfPayments      Int
+  firstDueDate          DateTime                @db.Date
+  contractDate          DateTime                @db.Date
+  ownershipRule         String                  @default("OWNS_AFTER_LAST_PAYMENT")
+  source                ServicingContractSource
+  status                ServicingContractStatus @default(ACTIVE)
+  createdByUserId       String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  account               CollectionAccount       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  schedules             PaymentSchedule[]
+  transactions          LedgerTransaction[]
+
+  @@index([organizationId, status])
+}
+
+/// Append-only schedule versions. Exactly one is current per contract.
+model PaymentSchedule {
+  id               String                 @id @default(cuid())
+  organizationId   String
+  contractId       String
+  version          Int
+  isCurrent        Boolean                @default(true)
+  reason           String
+  approvedByUserId String?
+  createdByUserId  String?
+  createdAt        DateTime               @default(now())
+  contract         ServicingContract      @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  installments     ScheduledInstallment[]
+
+  @@unique([contractId, version])
+  @@index([contractId, isCurrent])
+}
+
+model ScheduledInstallment {
+  id             String          @id @default(cuid())
+  scheduleId     String
+  number         Int
+  dueDate        DateTime        @db.Date
+  amountCents    Int
+  principalCents Int?
+  interestCents  Int?
+  schedule       PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+
+  @@unique([scheduleId, number])
+}
+
+/// Append-only. Corrections are new transactions (reversals), never edits.
+model LedgerTransaction {
+  id                    String                  @id @default(cuid())
+  organizationId        String
+  contractId            String
+  accountId             String
+  type                  LedgerTransactionType
+  /// Always positive except ADJUSTMENT, where + adds to what is owed and - reduces it.
+  amountCents           Int
+  effectiveDate         DateTime                @db.Date
+  postedAt              DateTime                @default(now())
+  source                LedgerTransactionSource
+  referenceNumber       String?
+  memo                  String                  @default("")
+  enteredByUserId       String?
+  approvedByUserId      String?
+  reversesTransactionId String?
+  /// Makes re-posting the same thing (for example the same import row) a no-op.
+  idempotencyKey        String?                 @unique
+  createdAt             DateTime                @default(now())
+  contract              ServicingContract       @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  allocations           LedgerAllocation[]
+
+  @@index([contractId, effectiveDate])
+  @@index([accountId, effectiveDate])
+  @@index([reversesTransactionId])
+}
+
+/// How a payment was split when it was posted (shown on receipts).
+model LedgerAllocation {
+  id                String                 @id @default(cuid())
+  transactionId     String
+  bucket            LedgerAllocationBucket
+  installmentNumber Int?
+  amountCents       Int
+  createdAt         DateTime               @default(now())
+  transaction       LedgerTransaction      @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId])
 }

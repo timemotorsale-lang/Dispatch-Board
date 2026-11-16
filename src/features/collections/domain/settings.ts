@@ -56,6 +56,8 @@ export type CollectionsSettings = {
   adjustmentConfirmationDays: number;
   /** Default amounts offered when entering a fee (cents). Attorney to confirm Minnesota limits. */
   feeDefaults: Record<"REPO_FEE" | "STORAGE_FEE" | "RETURNED_PAYMENT_FEE", number>;
+  /** Servicing ledger (spec 25.3): payment split order and the weekend/holiday due-date rule. */
+  ledger: { allocationOrder: Array<"FEE" | "LATE_FEE" | "PAST_DUE" | "CURRENT" | "PRINCIPAL">; weekendRule: "NONE" | "NEXT_BUSINESS_DAY"; holidays: string[] };
 };
 
 export type RiskWeights = {
@@ -112,7 +114,8 @@ export const DEFAULT_COLLECTIONS_SETTINGS: CollectionsSettings = {
   chargeOffMinDaysPastDue: 120,
   adjustmentApprovalThresholdCents: 0,
   adjustmentConfirmationDays: 2,
-  feeDefaults: { REPO_FEE: 0, STORAGE_FEE: 0, RETURNED_PAYMENT_FEE: 0 }
+  feeDefaults: { REPO_FEE: 0, STORAGE_FEE: 0, RETURNED_PAYMENT_FEE: 0 },
+  ledger: { allocationOrder: ["FEE", "LATE_FEE", "PAST_DUE", "CURRENT", "PRINCIPAL"], weekendRule: "NONE", holidays: [] }
 };
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -207,7 +210,8 @@ export function parseCollectionsSettings(raw: unknown): CollectionsSettings {
       REPO_FEE: int(isRecord(v.feeDefaults) ? v.feeDefaults.REPO_FEE : undefined, 0, 0, 1_000_000),
       STORAGE_FEE: int(isRecord(v.feeDefaults) ? v.feeDefaults.STORAGE_FEE : undefined, 0, 0, 1_000_000),
       RETURNED_PAYMENT_FEE: int(isRecord(v.feeDefaults) ? v.feeDefaults.RETURNED_PAYMENT_FEE : undefined, 0, 0, 1_000_000)
-    }
+    },
+    ledger: parseLedgerSettings(v.ledger, d.ledger)
   };
 }
 
@@ -219,4 +223,14 @@ function safeUrl(value: unknown) {
   } catch {
     return "";
   }
+}
+
+/** The payment order must contain each step exactly once; otherwise the default is used. */
+function parseLedgerSettings(raw: unknown, fallback: CollectionsSettings["ledger"]): CollectionsSettings["ledger"] {
+  const v = isRecord(raw) ? raw : {};
+  const steps = ["FEE", "LATE_FEE", "PAST_DUE", "CURRENT", "PRINCIPAL"] as const;
+  const order = Array.isArray(v.allocationOrder) && v.allocationOrder.length === steps.length && steps.every(step => (v.allocationOrder as unknown[]).includes(step))
+    ? (v.allocationOrder as CollectionsSettings["ledger"]["allocationOrder"]) : fallback.allocationOrder;
+  const holidays = Array.isArray(v.holidays) ? v.holidays.filter((h): h is string => typeof h === "string" && /^\d{4}-\d{2}-\d{2}$/.test(h)).slice(0, 60) : fallback.holidays;
+  return { allocationOrder: order, weekendRule: v.weekendRule === "NEXT_BUSINESS_DAY" ? "NEXT_BUSINESS_DAY" : "NONE", holidays };
 }
