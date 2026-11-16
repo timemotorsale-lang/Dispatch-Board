@@ -223,3 +223,42 @@ timing-flaky under load and weren't affected by this work.
 Typecheck passes. Lint: only the 1 old error.
 
 **What you need to do:** nothing yet.
+
+---
+
+## Stage 5: Promises, payment plans and reported payments (done)
+
+**What I built**
+- **Account page → "Promises, payment plans and reported payments"** (the Promise button
+  in the queue jumps here):
+  - **Record a promise** (amount + date). This also logs a "promise made" contact.
+  - **Payment plan**: 2 to 52 payments with dates and amounts, plus a reason. A new plan
+    replaces the old one, and any open one-off promise is replaced too.
+  - **Customer says they already paid**: amount, method (online, in person, phone, cash at
+    store, Zelle, other), date, and reference number. For Zelle/cash/other it reminds you
+    to post the payment in DealerCenter.
+  - Cancel a promise, plan or reported payment (with a reason). Nothing is ever deleted.
+  - None of these are allowed on a bankruptcy-frozen account.
+- **Automatic resolution** (`domain/resolution.ts`, `server/promise-service.ts`), run after
+  each committed import (and by the daily job in Stage 6):
+  - **Kept**: by the promised date + 1 day (a setting), a newer import shows days past due
+    went down, or the amount due dropped by at least the promised amount, or a confirmed
+    reported payment covers it.
+  - **Partially kept**: it dropped, but by less.
+  - **Broken**: nothing changed by the deadline. It is never marked broken while a
+    reported payment is still waiting for confirmation.
+  - **Plans**: any broken or partly kept payment breaks the plan; all kept completes it.
+  - **Reported payments**: confirmed when a later import shows it. If nothing shows within
+    2 days (a setting), it becomes "Not found" so you can check DealerCenter.
+  - Running it twice changes nothing the second time.
+- **Bug found and fixed by the tests:** dates were being read in UTC instead of Chicago time.
+  After about 6 pm, that made the next morning's import look "too early" to count.
+
+**Tests:** 17 new unit tests (kept / partial / broken, grace days, same-day imports ignored,
+pending reported payments pause "broken", plan rules and validation) and 6 new database
+tests (record → kept on next import, broken after deadline, plan replaces promises and
+breaks, reported payment confirmed vs not found, frozen account refused). All 20
+Collections database tests pass. Full suite: 5,979 passed. 3 existing tests timed out
+under load and pass on their own (same flaky-timeout issue as Stage 4).
+
+**What you need to do:** nothing yet.
