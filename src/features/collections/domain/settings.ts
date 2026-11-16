@@ -44,9 +44,9 @@ export type CollectionsSettings = {
 
 export const DEFAULT_COLLECTIONS_SETTINGS: CollectionsSettings = {
   dealership: {
-    name: "Time Motor Sales",
-    phone: "",
-    address: "",
+    name: "Time Motor Sales, Inc.",
+    phone: "612-724-3631",
+    address: "1101 E. Lake Street, Minneapolis, MN 55407",
     advantageGpsPortalUrl: "",
     payOnlineUrl: "",
     zelleRecipient: "",

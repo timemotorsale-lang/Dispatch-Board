@@ -16,6 +16,9 @@ describe("reading an insurance card (suggestions only)", () => {
       carrier: "Progressive", policyNumber: "98765432-1", effectiveDate: "2026-10-01", expirationDate: "2027-04-01", lienholderListed: true, confidence: "MEDIUM"
     });
   });
+  it("matches the legal name with punctuation and Inc.", () => {
+    expect(parseInsuranceText(card.replace("Time Motor Sales", "TIME MOTOR SALES INC"), "Time Motor Sales, Inc.").lienholderListed).toBe(true);
+  });
   it("doesn't claim the lienholder is listed when another name is there", () => {
     const result = parseInsuranceText(card.replace("Time Motor Sales", "Some Bank"), "Time Motor Sales");
     expect(result.lienholderListed).toBeNull();

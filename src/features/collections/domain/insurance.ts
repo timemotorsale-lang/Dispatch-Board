@@ -64,7 +64,8 @@ export function parseInsuranceText(text: string, dealershipName: string): Insura
     notes.push("Dates were guessed from their order on the card. Check them.");
   }
   if (effectiveDate && expirationDate && expirationDate <= effectiveDate) { notes.push("The dates look reversed. Check them."); }
-  const nameWords = dealershipName.trim().split(/\s+/).filter(w => w.length > 2);
+  // Ignore punctuation and company suffixes, so "Time Motor Sales, Inc." matches "TIME MOTOR SALES" on a card.
+  const nameWords = dealershipName.replace(/[^\w\s]/g, " ").split(/\s+/).filter(w => w.length > 2 && !/^(inc|llc|corp|ltd)$/i.test(w));
   const mentionsDealer = nameWords.length > 0 && nameWords.every(w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(clean));
   const mentionsLien = /\b(lien\s*holder|lienholder|loss\s*payee|additional\s*interest)\b/i.test(clean);
   const lienholderListed = mentionsDealer ? true : null;

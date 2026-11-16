@@ -51,7 +51,7 @@ describe.skipIf(!RUN_COLLECTIONS_DB)("collections messaging (database, no real s
     const result = await send({ templateKey: "PAST_DUE_DAY1" });
     expect(result.status).toBe("DRY_RUN");
     const message = await latestOut();
-    expect(message.renderedBody).toMatch(/^Hi [A-Z][a-z]+, this is Time Motor Sales\./);
+    expect(message.renderedBody).toMatch(/^Hi [A-Z][a-z]+, this is Time Motor Sales(, Inc)?\./);
     expect(message.renderedBody).toMatch(/Reply STOP to opt out\.$/);
     expect(message.to).toBe(e164);
     expect(fetchSpy).not.toHaveBeenCalled();
