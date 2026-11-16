@@ -24,6 +24,7 @@ import { recalculateAccounts } from "./account-state";
 import { resolveOutcomes, type ResolutionSummary } from "./promise-service";
 import { dispatchQueuedMessages, queueAutomaticMessages, type AutomaticMessageSummary } from "./messaging-service";
 import { saveRiskScores } from "./insights-service";
+import { reconcileOrganization, shadowPostFromImports } from "./reconciliation-service";
 import { loadCollectionsSettings } from "./settings-store";
 import { matchAdjustments, raiseSkipAlerts } from "./upgrades-service";
 import { syncCollectionTasks, syncImportReminder, type TaskSyncResult } from "./task-sync";
@@ -42,6 +43,7 @@ export type AutomationResult = {
   skipAlertsRaised: number;
   adjustments: { confirmed: number; notFound: number };
   riskScored: number;
+  reconciliation: { shadow: { posted: number }; summary: { matched: number; differences: number; accounts: number } } | null;
 };
 
 
@@ -111,6 +113,9 @@ export async function runCollectionsAutomations(
     const reminder = await syncImportReminder(tx, organizationId, { now, due: reminderDue, fallbackUserId: options.actorId });
     await writeDailyMetric(tx, organizationId, settings, now, options.importRunId);
     const risk = await saveRiskScores(tx, organizationId, settings, today);
+    // Stage 15: shadow ledger posting and reconciliation against DealerCenter (only checks; DealerCenter stays the record).
+    const hasContracts = await tx.servicingContract.count({ where: { organizationId } });
+    const reconciliation = hasContracts ? { shadow: await shadowPostFromImports(tx, organizationId, settings), summary: await reconcileOrganization(tx, organizationId, settings, today) } : null;
 
     const somethingNew = tasks.createdTotal > 0 || resolution.promisesBroken > 0 || resolution.promisesKept > 0 || resolution.reportedNotFound > 0;
     let summaryPosted = false;
@@ -121,7 +126,7 @@ export async function runCollectionsAutomations(
     if (options.trigger === "DAILY") {
       await tx.collectionAccountEvent.create({ data: { organizationId, type: "DAILY_AUTOMATION_RUN", reason: today, after: { tasksCreated: tasks.createdTotal, tasksClosed: tasks.closed, reminderCreated: reminder.created } } });
     }
-    return { trigger: options.trigger, recalculated, resolution, tasks, reminder, messages, summaryPosted, skipAlertsRaised: skip.raised, adjustments, riskScored: risk.scored };
+    return { trigger: options.trigger, recalculated, resolution, tasks, reminder, messages, summaryPosted, skipAlertsRaised: skip.raised, adjustments, riskScored: risk.scored, reconciliation };
   }, { timeout: 120_000, maxWait: 20_000 });
 }
 

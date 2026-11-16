@@ -68,6 +68,7 @@ test.describe("Collections screens", () => {
     await checkPage(page, "/collections/settings", "Collections settings", "settings");
     await checkPage(page, "/collections/playbook", "Collections playbook", "playbook");
     await checkPage(page, "/collections/integrations", "Integrations", "integrations");
+    await checkPage(page, "/collections/reconciliation?filter=ALL", "Reconciliation", "reconciliation");
     expect(errors).toEqual([]);
     await context.close();
   });

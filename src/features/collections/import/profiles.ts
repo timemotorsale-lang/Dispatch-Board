@@ -23,6 +23,8 @@ export type ImportProfile = {
   /** Field used to match rows to accounts. */
   matchFields: string[];
   fields: ProfileField[];
+  /** Payment history has many rows per account; Active Accounts must have one. */
+  allowRepeatedMatch?: boolean;
 };
 
 export const DEALERCENTER_ACTIVE_ACCOUNTS: ImportProfile = {

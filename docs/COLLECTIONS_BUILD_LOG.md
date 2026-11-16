@@ -1069,3 +1069,88 @@ are both zero, the loan is now done.
 - **Your attorney** confirms the late-fee rules.
 
 These are already in the open questions.
+
+---
+
+## Stage 15: DealerCenter history import, shadow posting and Reconciliation (done; no database change)
+
+**What I built**
+1. **History import** (on the Reconciliation page, admins only). It loads DealerCenter's
+   history into the shadow ledger:
+   - **Contracts file:**
+     - **What's needed:** payment amount, frequency, number of payments and first due date.
+       Simple-interest loans also need the APR and amount financed.
+     - **The result:** each matching account gets a servicing contract and payment schedule.
+       Accounts that already have one are left alone.
+   - **Payment history file** (optional):
+     - payments, late fees, fees, waivers, payoffs and returned payments;
+     - a returned payment is linked to the earlier payment it cancels;
+     - "Returned Check Fee" counts as a fee, not a returned payment.
+   - **Or opening balances:** start every contract from the latest DealerCenter import, using
+     its balance, late fees and other fees.
+   - **Built to be configurable:**
+     - **Flexible columns:** each field recognizes several likely column names, and if
+       DealerCenter calls a column something else, you pick the right column from a list.
+       DealerCenter's exact export format still needs confirming, so nothing about it is
+       hard-coded.
+     - **Check first:** "Check file" shows what would happen and changes nothing.
+     - **Safe to re-run:** importing the same file again adds nothing twice.
+2. **Daily shadow posting:** after each DealerCenter import, the app compares it with the
+   import before it:
+   - a higher late-fee balance means a late fee;
+   - a higher "other" balance means a fee;
+   - a lower total balance (after those fees) means a payment.
+
+   These entries are marked "Inferred from the DealerCenter import", and each import is posted
+   only once. Importing the real payment history is more exact, so inference only covers
+   imports after it.
+3. **Reconciliation** (`/collections/reconciliation`, the last "coming soon" link, now live):
+   - **The check:** for every account with a contract, the app's ledger as of the import date
+     is compared with DealerCenter's **balance, amount due, days past due and late fees**.
+     Up to 1 cent of rounding is allowed.
+   - **Likely cause, in plain English:**
+     - "days past due off by one: DealerCenter may count the due date";
+     - "due dates differ: check the frequency and first due date";
+     - "amount due differs by one payment";
+     - "DealerCenter charged a late fee the ledger doesn't have";
+     - "payments were inferred; importing the history would be more exact".
+   - **Filters:** differences, matched, no contract yet, all.
+   - **Match rate by day:** saved after every import.
+   - **Owner notes** on any difference.
+   - **The switch-over check** from the spec: 60 days of daily matching, every difference
+     either fixed or explained, every account with a contract. **The official record stays
+     locked to DealerCenter in Release 1**, even when the check passes.
+4. **Automations:** each import and the daily run do shadow posting, then reconciliation,
+   whenever any contracts exist.
+
+**Problem the tests found, fixed:** "Returned Check Fee" was being read as a returned payment.
+
+**How to try it (test database):**
+1. Open Collections, then Reconciliation, then "Load DealerCenter history".
+2. Upload a contracts CSV and press "Check file". Fix any columns, then Import.
+3. Press "Load opening balances", then "Check again now".
+4. Accounts whose contract matches DealerCenter show as Matched; the rest show their
+   differences with a likely cause.
+
+**Tests:**
+- 2 new unit tests: reading frequencies, methods, rates and transaction types, and the
+  plain-English causes.
+- 5 new database tests:
+  - contracts file checked first, a column mapped by hand, unknown accounts and frequencies
+    reported, and a re-import adding nothing;
+  - payment history imported once, with the returned payment linked and its fee charged;
+  - opening balances: one account matches DealerCenter exactly, and another shows "due dates
+    differ" with the same balance; the daily match rate is saved and the switch-over stays
+    locked;
+  - the next day's import posts the inferred $150 payment exactly once and stays matched;
+  - owner notes, and collectors can't import.
+- All 232 Collections tests pass.
+- Full suite: 6,079 passed. 1 existing test (CRM pages) timed out under full-suite load and
+  passes on its own (18 of 18); it's the known flaky-timeout test.
+- Typecheck and Collections lint are clean.
+
+**What you need to do:**
+- **Get DealerCenter's full data export** (contracts, payment history, notes; spec section 27
+  item 2), then load it here.
+- **Once loaded, check the differences:** the likely causes show which settings to adjust,
+  for example the payment order or how days past due are counted.

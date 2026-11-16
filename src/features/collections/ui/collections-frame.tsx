@@ -11,9 +11,8 @@ export const COLLECTIONS_SECTIONS = [
   { key: "queue", href: "/collections", label: "Queue", ready: true, permission: "VIEW" },
   { key: "inbox", href: "/collections/inbox", label: "Inbox", ready: true, permission: "VIEW" },
   { key: "accounts", href: "/collections/accounts", label: "Accounts", ready: true, permission: "VIEW" },
-  // Not built yet: shown as "coming soon" until its stage lands (Reconciliation: Stage 15).
   { key: "dashboard", href: "/collections/dashboard", label: "Dashboard", ready: true, permission: "VIEW_DASHBOARD" },
-  { key: "reconciliation", href: "/collections/reconciliation", label: "Reconciliation", ready: false, permission: "VIEW_DASHBOARD" },
+  { key: "reconciliation", href: "/collections/reconciliation", label: "Reconciliation", ready: true, permission: "VIEW_DASHBOARD" },
   { key: "import", href: "/collections/import", label: "Import", ready: true, permission: "IMPORT" },
   { key: "playbook", href: "/collections/playbook", label: "Playbook", ready: true, permission: "EDIT_SETTINGS" },
   { key: "integrations", href: "/collections/integrations", label: "Integrations", ready: true, permission: "EDIT_SETTINGS" },

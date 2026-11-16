@@ -81,7 +81,7 @@ export function parseTable(table: RawTable, profile: ImportProfile): ParseResult
     positions.set(field.field, position);
   }
   if (missingColumns.length) {
-    errors.push({ rowNumber: null, message: `The file is missing required column(s): ${missingColumns.join(", ")}. Check that this is the DealerCenter "Active Accounts" export.` });
+    errors.push({ rowNumber: null, message: `The file is missing required column(s): ${missingColumns.join(", ")}. Check that this is the ${profile.label.startsWith("DealerCenter") ? profile.label : `DealerCenter "${profile.label}"`} export.` });
     return { rows: [], errors, unknownColumns, missingColumns };
   }
   if (table.rows.length > MAX_IMPORT_ROWS) {
@@ -118,7 +118,7 @@ export function parseTable(table: RawTable, profile: ImportProfile): ParseResult
       values[field.field] = parsed;
     }
     const key = profile.matchFields.map(field => values[field]).find(value => value !== null && value !== "");
-    if (key !== undefined) {
+    if (key !== undefined && !profile.allowRepeatedMatch) {
       const firstRow = seen.get(String(key));
       if (firstRow !== undefined) {
         errors.push({ rowNumber, column: profile.fields[0].columns[0], message: `Row ${rowNumber}: AccountId ${key} also appears on row ${firstRow}. Each account may appear only once.` });
