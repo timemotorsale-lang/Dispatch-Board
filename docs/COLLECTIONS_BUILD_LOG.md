@@ -689,3 +689,98 @@ watch for the "Re-enable starter" task. Try a repo on a 60+ day account.
 
 **What you need to do:** fill in the dealership details in Settings (in the test preview
 now, and on the real system once Collections goes live there).
+
+---
+
+## Stage 11: Hardening, browser tests, accessibility and the user guide (done)
+
+**Browser tests** (`src/tests/e2e/collections.spec.ts`), run in a real browser (Edge) against
+the test database:
+- **Every screen** (Queue, Repo tab, Accounts, an account page, Inbox, Import, Dashboard,
+  Settings):
+  - loads with no page errors;
+  - passes the automatic **accessibility check** (axe, WCAG 2.1 AA);
+  - has **no sideways scrolling at phone width** (390 px). A screenshot is saved at desktop
+    and phone width.
+- **An admin works an account:**
+  - records a promise;
+  - previews the past-due text (it ends with "Reply STOP to opt out");
+  - saves Settings;
+  - downloads the dashboard CSV.
+- **A collector:**
+  - can work the queue and accounts;
+  - doesn't see Settings or Import in the menu, and gets "not found" or "not allowed" if
+    they try;
+  - sees no "Approve" or "Mark verified" buttons.
+- **Signed-out visitors** get nothing, and **unsigned text webhooks** are refused (403).
+
+**Problems the browser tests found, all fixed:**
+1. **Table headings and small gray text** were slightly too faint for the accessibility
+   standard (4.36:1, where 4.5:1 is needed). Collections now uses a darker gray. The rest of
+   the app is unchanged.
+2. **The Dashboard pushed the page sideways on a phone.** Wide tables now scroll inside
+   their own box.
+3. **The Collections page frame added a second "main" landmark** inside the app's own,
+   which confuses screen readers. It's now an ordinary section.
+4. **The Dashboard's "Insurance problems" tile disagreed with the queue tab** (0 vs 3). The
+   tile ignored DealerCenter's insurance column when nothing was on file in Collections.
+   Both now use the same rule, and a test checks they match.
+5. **Collectors saw Import and Settings links** they can't open. The Collections menu now
+   shows only the links each person can use.
+
+**Permission review:**
+- All 19 Collections web routes check the on/off switch and who is signed in.
+- Every route that changes something also checks the request came from the app itself.
+- The text webhooks check Twilio's signature, and the scheduled job checks the cron
+  secret.
+- All 7 pages check permission on the server, and every action checks it again.
+- Collectors can't import, change settings, clear flags, change account types, verify
+  insurance, or approve disables and repos.
+
+**Docs:**
+- **`docs/COLLECTIONS_USER_GUIDE.md`:** how to turn Collections on in REVIEW mode, the
+  morning import, working the queue, every screen, and the built-in safety rules.
+  Reconciliation is marked "coming in Stage 15".
+- **`docs/COLLECTIONS_OPEN_QUESTIONS.md`:** questions 8–11 added: the pay-online link and
+  Zelle recipient, one days-past-due task at a time, insurance with nothing on file, and
+  the timing of the disable warning.
+
+**How to run the browser tests yourself (test database only):**
+```
+npx tsx scripts/collections-e2e-fixture.ts
+```
+Start a test server with `COLLECTIONS_MODULE=LIVE`, `COLLECTIONS_SMS_SENDING=DRY_RUN`, `PORT=3100`, then:
+```
+RUN_COLLECTIONS_BROWSER=1 PLAYWRIGHT_SKIP_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3100 npx playwright test src/tests/e2e/collections.spec.ts
+```
+- The fixture script refuses to run unless the database is the local test copy.
+- The login tokens it creates are saved in `tmp/collections/`, which git ignores.
+- Only one Next.js dev server can run per folder. Stop the preview before starting the
+  test server.
+
+**Test results:**
+- **4 of 4** browser tests pass.
+- All 160 Collections tests pass, including the 59 database tests.
+- Full suite: 6,032 passed, 0 failed.
+- Typecheck is clean, and lint shows only the 1 error that was there before Collections.
+
+### Where things stand after Stages 1–11 (the Collections core)
+
+The core of Collections is complete and tested:
+- import;
+- queue and accounts;
+- promises, plans and reported payments;
+- automatic board tasks and messages (dry run);
+- inbox and STOP handling;
+- insurance;
+- starter disable and repo, with letters;
+- dashboard and settings.
+
+Every new switch defaults to OFF, so the dispatch board looks exactly as before.
+
+**Next:** Release 1 continues with stages 12–16 (spec section 28.1): upgrades, integration
+adapters, the ledger, migration import and Reconciliation, and final hardening. Stages 12
+and 14 need database changes, so I'll stop and ask you to back up first.
+
+**What you need to do:** nothing new for this stage. The owner to-do lists (spec sections 21
+and 27) and the open questions still stand.

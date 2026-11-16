@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getDashboard } from "@/features/collections/server/dashboard-service";
+import { getQueue } from "@/features/collections/server/account-service";
 import { afterImportCommitted } from "@/features/collections/server/after-import";
 import { commitCollectionsImport, previewCollectionsImport } from "@/features/collections/server/import-service";
 import { loadTemplate } from "@/features/collections/server/messaging-service";
@@ -28,6 +29,8 @@ describe.skipIf(!RUN_COLLECTIONS_DB)("collections dashboard and settings (databa
     expect(data.buckets.reduce((s, b) => s + b.count, 0)).toBe(data.tiles.totalAccounts);
     expect(data.trends.length).toBe(1);
     expect(data.promises.map(p => p.days)).toEqual([30, 90]);
+    // The dashboard tile and the queue tab count insurance problems the same way.
+    expect(data.tiles.insuranceProblems).toBe((await getQueue(ctx.owner, { tab: "INSURANCE" })).totalRows);
   });
 
   it("saves settings with history, refuses stale edits, and recalculates buckets", async () => {

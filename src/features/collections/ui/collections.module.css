@@ -1,4 +1,4 @@
-.page { max-width: 1240px; margin: 0 auto; padding: 20px; color: var(--ink, #172c46); overflow-wrap: anywhere; }
+.page { --muted: #4a5b71; max-width: 1240px; margin: 0 auto; padding: 20px; color: var(--ink, #172c46); overflow-wrap: anywhere; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .header h1 { margin: 6px 0; font-size: 26px; }
 .header p, .muted, .page small { color: var(--muted, #5c6f86); }
@@ -33,6 +33,8 @@
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line, #d7e0ec); vertical-align: top; }
 .table th { font-size: 13px; color: var(--muted, #4b5d73); white-space: nowrap; }
+/* The app's default table-heading gray is just under the 4.5:1 contrast minimum; use a darker one here. */
+.page th { color: #3f5168; }
 .num { text-align: right !important; font-variant-numeric: tabular-nums; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #e8eef9; color: #1d3a7a; white-space: nowrap; }
 .badgeWarn { background: #fff1d6; color: #7a4a00; }

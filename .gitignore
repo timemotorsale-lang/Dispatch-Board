@@ -35,6 +35,7 @@ blob-report/
 tmp/database-backups/
 tmp/deal-continuity/
 tmp/money-resources/
+tmp/collections/
 deploy/docker/import-release-approval.json
 deploy/docker/website-review.env
 deploy/docker/.deployment-storage.lock

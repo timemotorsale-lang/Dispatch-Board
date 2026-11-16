@@ -111,7 +111,7 @@ export function SettingsScreen({ page }: { page: Page }) {
             ))}
           </fieldset>
         </div>
-        <table className={styles.table}>
+        <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Message</th><th scope="col">On</th><th scope="col">Timing</th></tr></thead>
           <tbody>
             {MESSAGE_RULE_KEYS.map(key => (
@@ -122,7 +122,7 @@ export function SettingsScreen({ page }: { page: Page }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </section>
 
       <section className={styles.panel} aria-labelledby="letters-h">
@@ -182,7 +182,7 @@ function Templates({ templates, settings }: { templates: Template[]; settings: C
       <h2 id="tpl-h">Message templates</h2>
       <p className={styles.muted}>Editing saves a new draft version; approving makes it live. Spanish, Somali and Swahili need a fluent speaker&apos;s review before approval.</p>
       <div className={styles.split}>
-        <table className={styles.table}>
+        <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Message</th><th scope="col">Type</th><th scope="col">Language</th><th scope="col">Status</th></tr></thead>
           <tbody>
             {templates.map(t => (
@@ -193,7 +193,7 @@ function Templates({ templates, settings }: { templates: Template[]; settings: C
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         {selected ? (
           <div>
             <h3>{label(selected.key)} · {selected.channel === "SMS" ? "Text" : "Email"} · {LANG_NAMES[selected.language]}</h3>

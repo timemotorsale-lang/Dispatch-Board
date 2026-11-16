@@ -67,7 +67,7 @@ export function DashboardScreen({ data }: { data: Data }) {
 
       <section className={styles.panel} aria-labelledby="buckets-h">
         <div className={styles.header}><h2 id="buckets-h">Past due by bucket</h2><CsvLink table="buckets" /></div>
-        <table className={styles.table}>
+        <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Bucket</th><th scope="col">Accounts</th><th scope="col" className={styles.hideOnPhone}>Chart</th><th scope="col">Amount due</th><th scope="col" className={styles.hideOnPhone}>Chart</th><th scope="col">Balance</th></tr></thead>
           <tbody>
             {data.buckets.map(b => (
@@ -79,15 +79,15 @@ export function DashboardScreen({ data }: { data: Data }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </section>
 
       <section className={styles.panel} aria-labelledby="promises-h">
         <div className={styles.header}><h2 id="promises-h">Promises</h2><CsvLink table="promises" /></div>
-        <table className={styles.table}>
+        <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Period</th><th scope="col">Made</th><th scope="col">Kept</th><th scope="col">Partly kept</th><th scope="col">Broken</th><th scope="col">Keep rate</th></tr></thead>
           <tbody>{data.promises.map(p => <tr key={p.days}><th scope="row">Last {p.days} days</th><td>{p.made}</td><td>{p.kept}</td><td>{p.partial}</td><td>{p.broken}</td><td>{p.keepRate === null ? "—" : `${p.keepRate}%`}</td></tr>)}</tbody>
-        </table>
+        </table></div>
       </section>
 
       <section className={styles.panel} aria-labelledby="trends-h">
@@ -100,8 +100,8 @@ export function DashboardScreen({ data }: { data: Data }) {
         </div>
         {data.trends.length ? (
           <details><summary>Show the numbers</summary>
-            <table className={styles.table}><thead><tr><th scope="col">Week of</th><th scope="col">Past due %</th><th scope="col">$ past due</th><th scope="col">31–60</th><th scope="col">61+</th></tr></thead>
-              <tbody>{data.trends.map(p => <tr key={p.week}><th scope="row">{p.week}</th><td>{p.pastDuePercent}%</td><td>{formatCents(p.pastDueAmountCents)}</td><td>{p.count31to60}</td><td>{p.count61plus}</td></tr>)}</tbody></table>
+            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th scope="col">Week of</th><th scope="col">Past due %</th><th scope="col">$ past due</th><th scope="col">31–60</th><th scope="col">61+</th></tr></thead>
+              <tbody>{data.trends.map(p => <tr key={p.week}><th scope="row">{p.week}</th><td>{p.pastDuePercent}%</td><td>{formatCents(p.pastDueAmountCents)}</td><td>{p.count31to60}</td><td>{p.count61plus}</td></tr>)}</tbody></table></div>
           </details>
         ) : null}
       </section>
@@ -109,10 +109,10 @@ export function DashboardScreen({ data }: { data: Data }) {
       <section className={styles.panel} aria-labelledby="activity-h">
         <div className={styles.header}><h2 id="activity-h">Activity (last 14 days)</h2><CsvLink table="activity" /></div>
         {data.activity.length ? (
-          <table className={styles.table}>
+          <div className={styles.tableWrap}><table className={styles.table}>
             <thead><tr><th scope="col">Date</th><th scope="col">Staff</th><th scope="col">Contacts logged</th><th scope="col">Texts / emails</th></tr></thead>
             <tbody>{data.activity.map(a => <tr key={`${a.date}-${a.collector}`}><th scope="row">{a.date}</th><td>{a.collector}</td><td>{a.contacts}</td><td>{a.messages}</td></tr>)}</tbody>
-          </table>
+          </table></div>
         ) : <p className={styles.empty}>No contacts or messages logged in the last 14 days.</p>}
       </section>
     </>

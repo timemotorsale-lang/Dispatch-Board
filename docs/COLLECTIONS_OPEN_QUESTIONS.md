@@ -34,3 +34,19 @@ uses the safest choice (noted next to each question).
 
 7. Should collectors see **all accounts** or **only assigned accounts**?
    *Safe choice now:* a setting, default "all accounts" (you are the only user).
+
+## Added while building stages 6–11 (owner decisions; change them anytime)
+
+8. **Pay-online link and Zelle recipient.** The reminder texts say "Pay online at {link}"
+   and "by Zelle to {recipient}". Which page and Zelle address should customers use?
+   *Safe choice now:* while either is blank, texts that use it are blocked with "missing
+   details". Add them in Collections → Settings.
+9. **One days-past-due task at a time.** A 75-day account gets only "Repo review", not the
+   7/14/30-day tasks as well, so the first import doesn't flood the board. Is that what
+   you want?
+10. **Insurance with nothing on file** counts as "unknown" and doesn't create a task. Only
+    expired, or explicitly missing, insurance does. Should every account without proof
+    get a "Get proof of insurance" task?
+11. **Disable warning sent as a test (dry run).** In test mode the warning text isn't
+    really sent, and the app says not to count it as the warning. Confirm with the
+    attorney (question 4) how far ahead of a disable the warning must go out.

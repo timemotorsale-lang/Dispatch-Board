@@ -48,6 +48,7 @@ export async function getDashboard(actor: AuthenticatedUser | null) {
       where: { organizationId: org, closedStatus: null, archivedAt: null, ...visible },
       select: { id: true, status: true, bucket: true, daysPastDue: true, amountDueCents: true, totalBalanceCents: true,
         insuranceRecords: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, expirationDate: true } },
+        snapshots: { orderBy: [{ asOfDate: "desc" }, { createdAt: "desc" }], take: 1, select: { dmsInsuranceStatus: true } },
         repoCases: { where: { status: { in: ["REVIEW", "APPROVED", "ASSIGNED", "LOCATED", "RECOVERED", "IN_STORAGE"] } }, select: { status: true } },
         inboundMessages: { where: { readAt: null }, select: { id: true } } }
     }),
@@ -61,9 +62,11 @@ export async function getDashboard(actor: AuthenticatedUser | null) {
   ]);
 
   const pastDue = accounts.filter(a => a.daysPastDue > 0);
+  // Same rule as the queue's "Insurance problems" tab: the module's own record wins; with none on file, use DealerCenter's column.
   const insuranceProblems = accounts.filter(a => {
     const r = a.insuranceRecords[0];
-    return r && ["EXPIRED", "MISSING", "EXPIRING_SOON"].includes(effectiveInsuranceStatus({ status: r.status, expirationDate: toYmd(r.expirationDate) }, today, settings.insuranceExpiringSoonDays));
+    if (r) return ["EXPIRED", "MISSING", "EXPIRING_SOON"].includes(effectiveInsuranceStatus({ status: r.status, expirationDate: toYmd(r.expirationDate) }, today, settings.insuranceExpiringSoonDays));
+    return ["EXPIRED", "MISSING", "CANCELLED", "LAPSED"].includes((a.snapshots[0]?.dmsInsuranceStatus ?? "").toUpperCase());
   }).length;
   const repo = (statuses: string[]) => accounts.filter(a => a.repoCases.some(c => statuses.includes(c.status))).length;
   const tiles = {
