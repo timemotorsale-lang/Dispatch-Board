@@ -1154,3 +1154,20 @@ These are already in the open questions.
   item 2), then load it here.
 - **Once loaded, check the differences:** the likely causes show which settings to adjust,
   for example the payment order or how days past due are counted.
+
+---
+
+## Stage 16: Release 1 hardening (partly done; stopped at the usage limit)
+
+**Done:**
+- **Browser pass (4 of 4 tests pass):** all 11 Collections screens load without errors, pass
+  the WCAG 2.1 AA accessibility check, and don't scroll sideways at phone width (390 px). That
+  includes the new Playbook, Integrations and Reconciliation screens.
+- **The user guide** covers the Stage 12–15 screens.
+- **Open questions** now list what Release 2 needs.
+
+**Still to do (continue from here):**
+- the final permission review of the Stage 12–15 routes. They all use the same checks as
+  before, but haven't been re-listed;
+- the final full-suite run;
+- the closing summary.

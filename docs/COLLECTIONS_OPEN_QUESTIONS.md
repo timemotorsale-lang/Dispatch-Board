@@ -50,3 +50,26 @@ uses the safest choice (noted next to each question).
 11. **Disable warning sent as a test (dry run).** In test mode the warning text isn't
     really sent, and the app says not to count it as the warning. Confirm with the
     attorney (question 4) how far ahead of a disable the warning must go out.
+
+## Needed for Release 2 (parallel run)
+
+12. **DealerCenter full data export:** contracts, payment history and notes. Load it on the
+    Reconciliation page, then work the differences down to zero.
+13. **Accountant:**
+    - confirm the payment order (fees, late fees, oldest past-due, current, principal);
+    - confirm simple-interest math (actual/365, rounded at each payment);
+    - Minnesota sales tax on lease-to-own payments;
+    - QuickBooks chart-of-accounts mapping.
+14. **Attorney:**
+    - late-fee rules (question 1), which payment taking and late-fee assessment need;
+    - payoff and paid-in-full letters;
+    - deficiency notices;
+    - extension agreement wording.
+15. **Vendors:** choose the payment processor, and sign up with AACER, the FCC reassigned-
+    numbers database, Axle, the Advantage GPS API and Twilio A2P 10DLC. Each plug-in then
+    gets its real connection.
+16. **Deployment:**
+    - add `/api/cron/collections` to the scheduler (I'll ask before changing it);
+    - expose only the two text webhooks (`docs/COLLECTIONS_DEPLOY.md`);
+    - the Collections tables reach your real database through a normal merge and deploy,
+      after a backup.

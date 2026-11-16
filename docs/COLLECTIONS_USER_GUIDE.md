@@ -174,9 +174,24 @@ From top to bottom:
 - **Dispatch board:** Collections tasks show in the **Collections** area of the board.
   They close themselves when the reason goes away. If you complete one yourself, it stays
   done.
-- **Reconciliation:** *coming in Stage 15.* It will compare the app's own ledger with
-  DealerCenter, account by account, so you can see any differences before relying on it.
-  This section of the guide will be filled in then.
+- **Playbook** (admins): which text goes out when, and which task or review is created at
+  each stage. Every save is a version you can restore. Safety rules can't be edited here.
+- **Integrations** (admins): each outside service's switch (OFF / TEST), the manual way to
+  do the job, and recent calls. In Release 1 nothing contacts a real vendor.
+- **Reconciliation:** compares the app's shadow ledger with DealerCenter for every account
+  (balance, amount due, days past due, late fees), with a likely cause for each difference
+  and a daily match rate. To start:
+  1. load DealerCenter's contracts file ("Check file" first);
+  2. load the payment history or press "Load opening balances";
+  3. each daily import then posts what changed and re-checks.
+
+  DealerCenter stays the official record in Release 1.
+- **On each account (Stage 12–14 additions):**
+  - "Do this next" and a 0–100 risk score with its reasons;
+  - extensions, fees and credits (owner approves, then post them in DealerCenter);
+  - the possible-skip checklist;
+  - charge-off and recovery;
+  - the shadow servicing ledger.
 
 ---
 
