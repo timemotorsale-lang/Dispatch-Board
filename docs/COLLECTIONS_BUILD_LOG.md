@@ -57,3 +57,39 @@ passed before now fails.**
 role rules). All pass. Typecheck passes. Lint: no new problems (only the 1 existing error).
 
 **What you need to do:** nothing yet.
+
+---
+
+## Stage 2: Database (code done, migration waiting for your backup)
+
+**What I built**
+- Added the Collections tables to `prisma/schema.prisma` (spec section 3): accounts,
+  daily snapshots, import runs, contact log, promises, payment plans,
+  customer-reported payments, flags, texting/email consent, message templates,
+  outgoing and incoming messages, insurance, starter-disable actions, repo cases,
+  letters, an audit log, settings plus settings history, daily metrics, and a link
+  table that makes "one open board task per account per reason" a database rule.
+- The change is **additive only**: 821 lines added, **0 existing lines changed or
+  removed**. I checked the SQL offline (no database touched): 21 new tables, 29 new
+  choice lists, 62 indexes, 29 links, and one new choice `COLLECTIONS` added to the
+  existing task-source list. No drops, no renames.
+- Existing tables only gained "back-link" lines in the schema file (Organization,
+  Customer, Vehicle, Vendor, Task). Those create **no new columns** in your existing tables.
+- Default settings (`src/features/collections/domain/settings.ts`): 5 grace days, $10.00
+  late-fee display, thresholds 7/14/30/60, Mon-Fri 9-6, Sat 10-3, Sun closed, weekly cap 3,
+  America/Chicago. The "disable warning" text can never be made automatic.
+- Starter message templates (`src/features/collections/domain/default-templates.ts`):
+  friendly English texts marked APPROVED (so dry-run works), plus Spanish, Somali and
+  Swahili drafts marked DRAFT and "needs review by a fluent speaker". All texts are 320
+  characters or fewer and include STOP; English texts end with "Reply STOP to opt out."
+- `npm run collections:seed`: creates the default settings and templates once. Running
+  it again creates nothing and never overwrites your edits.
+
+**Tests:** 8 new tests (settings defaults and bad-value protection, template rules,
+seed runs twice without duplicates). All Collections tests pass. Full suite: no new
+failures (the same 52 pre-existing failures). Typecheck passes. Lint: only the 1
+pre-existing error.
+
+**What you need to do: back up your database before the migration.**
+I have not created or applied the migration. When you say "backup done", I'll create the
+migration file and then ask how you want it applied.

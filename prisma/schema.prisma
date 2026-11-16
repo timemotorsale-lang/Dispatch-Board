@@ -1552,6 +1552,7 @@ enum TaskSourceType {
   CONCERN
   LEAD
   REPAIR_ORDER
+  COLLECTIONS
 }
 
 enum CustomerLeadStage {
@@ -2550,6 +2551,12 @@ model MoneyDailyClose {
 }
 
 model Organization {
+  collectionAccounts CollectionAccount[]
+  collectionsImportRuns CollectionsImportRun[]
+  collectionMessageTemplates MessageTemplate[]
+  collectionInboundMessages InboundMessage[]
+  collectionsSetting CollectionsSetting?
+  collectionsDailyMetrics CollectionsDailyMetric[]
   autobodyDrafts AutobodyEstimateDraft[]
   complianceTaxRecords ComplianceTaxRecord[]
   complianceTaxPeriods ComplianceTaxPeriod[]
@@ -3093,6 +3100,7 @@ model UserLocationAccess {
 }
 
 model Customer {
+  collectionAccounts CollectionAccount[]
   dealWorkflowContexts DealWorkflowContext[]
   id                              String                           @id @default(cuid())
   organizationId                  String
@@ -3232,6 +3240,7 @@ model CustomerDocumentRequirement {
 }
 
 model Vendor {
+  collectionRepoCases RepossessionCase[]
   billingDocuments VendorBillingDocument[]
   billingAgreements VendorBillingAgreement[]
   billingSettlements VendorBillingSettlement[]
@@ -4214,6 +4223,7 @@ model UnifiedCrmForecastSnapshot {
 }
 
 model Vehicle {
+  collectionAccounts CollectionAccount[]
   autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]
   dealWorkflowContexts DealWorkflowContext[] @relation("DealVehicle")
@@ -8714,6 +8724,8 @@ model UnifiedCrmSavedView {
 }
 
 model Task {
+  collectionRepoCases RepossessionCase[] @relation("CollectionRepoTask")
+  collectionTaskLink CollectionTaskLink? @relation("CollectionTaskLinkTask")
   dispatchPresences DispatchPresence[]
   dispatchHandoffs DispatchHandoff[]
   id                         String                          @id @default(cuid())
@@ -11113,4 +11125,813 @@ model VendorBillingEvent {
   vendor Vendor @relation(fields: [organizationId, vendorId], references: [organizationId, id], onDelete: Restrict)
   @@unique([organizationId, vendorId, commandKey])
   @@index([organizationId, vendorId, createdAt])
+}
+
+// ===========================================================================
+// Collections module, Release 1 (docs/COLLECTIONS_SPEC.md section 3).
+// Additive only. Money is integer cents. History tables are append-only:
+// mistakes are fixed with correction records, never by editing history.
+// User ids are stored as plain ids (like RepairOrderTaskLink.createdByUserId)
+// so no existing User model fields change.
+// ===========================================================================
+
+enum CollectionAccountType {
+  LEASE_TO_OWN
+  BHPH
+}
+
+enum CollectionAccountStatus {
+  CURRENT
+  GRACE
+  PAST_DUE
+  PROMISE_ACTIVE
+  PLAN_ACTIVE
+  DISABLE_ELIGIBLE
+  STARTER_DISABLED
+  REPO_REVIEW
+  REPO_ASSIGNED
+  REPOSSESSED
+  REDEEMED
+  BANKRUPTCY_FROZEN
+  PAID_OFF
+  CLOSED
+}
+
+enum CollectionPaymentFrequency {
+  WEEKLY
+  BIWEEKLY
+  SEMIMONTHLY
+  MONTHLY
+  UNKNOWN
+}
+
+enum CollectionLanguage {
+  EN
+  ES
+  SO
+  SW
+}
+
+enum CollectionBucket {
+  CURRENT
+  GRACE_1_5
+  LATE_6_14
+  D15_30
+  D31_60
+  D61_PLUS
+}
+
+enum CollectionsImportStatus {
+  PREVIEW
+  COMMITTED
+  FAILED
+  CANCELLED
+}
+
+enum CollectionContactChannel {
+  CALL_OUT
+  CALL_IN
+  TEXT_OUT
+  TEXT_IN
+  EMAIL_OUT
+  EMAIL_IN
+  IN_PERSON
+  LETTER
+  VOICEMAIL
+}
+
+enum CollectionContactOutcome {
+  NO_ANSWER
+  LEFT_MESSAGE
+  SPOKE_WITH_CUSTOMER
+  WRONG_NUMBER
+  DISCONNECTED
+  PROMISE_MADE
+  PLAN_MADE
+  PAYMENT_REPORTED
+  REFUSED
+  DISPUTE
+  HARDSHIP
+  REQUESTED_NO_CONTACT
+  ATTORNEY_REFERRED
+  BANKRUPTCY_REPORTED
+  OTHER
+}
+
+enum PaymentPromiseSource {
+  MANUAL
+  IMPORTED_FROM_DMS
+  PLAN_INSTALLMENT
+}
+
+enum PaymentPromiseStatus {
+  OPEN
+  KEPT
+  PARTIALLY_KEPT
+  BROKEN
+  CANCELLED
+  SUPERSEDED
+}
+
+enum PaymentPlanStatus {
+  ACTIVE
+  COMPLETED
+  BROKEN
+  CANCELLED
+}
+
+enum CustomerReportedPaymentMethod {
+  ONLINE
+  IN_PERSON
+  PHONE
+  CASH_AT_STORE
+  ZELLE
+  OTHER
+}
+
+enum CustomerReportedPaymentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED_BY_IMPORT
+  NOT_FOUND
+  CANCELLED
+}
+
+enum CollectionFlagType {
+  BANKRUPTCY
+  ATTORNEY_REPRESENTED
+  CONTACT_RESTRICTED
+  DISPUTE
+  DECEASED
+  SKIP
+  DO_NOT_REPO_REVIEW_HOLD
+}
+
+enum CollectionContactScope {
+  NO_TEXT
+  NO_CALL
+  NO_EMAIL
+  NO_CONTACT
+  ATTORNEY_ONLY
+}
+
+enum CollectionMessageChannel {
+  SMS
+  EMAIL
+  VOICE
+}
+
+enum CollectionConsentStatus {
+  GRANTED
+  REVOKED
+}
+
+enum CollectionConsentSource {
+  CONTRACT
+  VERBAL
+  WRITTEN
+  KEYWORD_START
+  KEYWORD_STOP
+  OWNER_ENTRY
+}
+
+enum CollectionTemplateStatus {
+  DRAFT
+  APPROVED
+}
+
+enum CollectionOutboundStatus {
+  QUEUED
+  DRY_RUN
+  SENT
+  DELIVERED
+  FAILED
+  BLOCKED
+}
+
+enum CollectionInsuranceSource {
+  CARD_PHOTO
+  INSURER_DOCUMENT
+  PHONE
+  DMS_IMPORT
+}
+
+enum CollectionInsuranceStatus {
+  VERIFIED
+  EXPIRING_SOON
+  EXPIRED
+  MISSING
+  UNKNOWN
+}
+
+enum StarterDisableActionType {
+  DISABLE
+  ENABLE
+}
+
+enum StarterDisableActionStatus {
+  REQUESTED
+  APPROVED
+  DONE_IN_PORTAL
+  CANCELLED
+}
+
+enum StarterWarningMethod {
+  TEXT
+  CALL
+  DEVICE_BEEP
+  NONE
+}
+
+enum RepossessionCaseStatus {
+  REVIEW
+  APPROVED
+  ASSIGNED
+  LOCATED
+  RECOVERED
+  IN_STORAGE
+  REDEEMED
+  RETURNED_TO_INVENTORY
+  SENT_TO_AUCTION
+  CANCELLED
+}
+
+enum CollectionLetterTemplateKey {
+  PRE_REPO_NOTICE
+  POST_REPO_NOTICE
+  OTHER
+}
+
+enum CollectionLetterSentMethod {
+  FIRST_CLASS
+  CERTIFIED
+  HAND_DELIVERED
+  EMAIL
+}
+
+enum CollectionTaskLinkStatus {
+  OPEN
+  CLOSED
+}
+
+/// One per DealerCenter contract.
+model CollectionAccount {
+  id                      String                      @id @default(cuid())
+  organizationId          String
+  externalAccountId       String
+  dealNumber              String?
+  contractDate            DateTime?                   @db.Date
+  /// Defaults to LEASE_TO_OWN. Never overwritten by imports.
+  accountType             CollectionAccountType       @default(LEASE_TO_OWN)
+  customerId              String?
+  suggestedCustomerId     String?
+  vehicleId               String?
+  buyerNameRaw            String
+  vehicleDescriptionRaw   String?
+  stockNumberRaw          String?
+  status                  CollectionAccountStatus     @default(CURRENT)
+  bucket                  CollectionBucket            @default(CURRENT)
+  daysPastDue             Int                         @default(0)
+  amountDueCents          Int                         @default(0)
+  totalBalanceCents       Int                         @default(0)
+  paymentAmountCents      Int?
+  paymentFrequency        CollectionPaymentFrequency  @default(UNKNOWN)
+  assignedCollectorUserId String?
+  primaryPhone            String?
+  primaryEmail            String?
+  mailingAddress          String?
+  preferredLanguage       CollectionLanguage          @default(EN)
+  vin                     String?
+  gpsProvider             String                      @default("Advantage GPS")
+  gpsDeviceSerial         String?
+  gpsDisclosedInContract  Boolean?
+  consentSource           String                      @default("CONTRACT")
+  consentDate             DateTime?                   @db.Date
+  nextActionAt            DateTime?
+  lastContactAt           DateTime?
+  lastImportedAt          DateTime?
+  lastImportRunId         String?
+  /// Set when the account is missing from the latest committed import.
+  missingFromImportAt     DateTime?
+  missingFromImportRunId  String?
+  /// PAID_OFF or CLOSED, set only by the owner confirming a missing account.
+  closedStatus            CollectionAccountStatus?
+  closedAt                DateTime?
+  closedByUserId          String?
+  archivedAt              DateTime?
+  version                 Int                         @default(0)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  organization            Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer                Customer?                   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle                 Vehicle?                    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  snapshots               CollectionAccountSnapshot[]
+  contactAttempts         CollectionContactAttempt[]
+  promises                PaymentPromise[]
+  plans                   PaymentPlan[]
+  reportedPayments        CustomerReportedPayment[]
+  flags                   CollectionFlag[]
+  consents                ContactConsent[]
+  outboundMessages        OutboundMessage[]
+  inboundMessages         InboundMessage[]
+  insuranceRecords        InsuranceRecord[]
+  starterActions          StarterDisableAction[]
+  repoCases               RepossessionCase[]
+  letters                 CollectionLetter[]
+  events                  CollectionAccountEvent[]
+  taskLinks               CollectionTaskLink[]
+
+  @@unique([organizationId, externalAccountId])
+  @@index([organizationId, status])
+  @@index([organizationId, daysPastDue])
+  @@index([organizationId, nextActionAt])
+  @@index([organizationId, bucket])
+  @@index([organizationId, dealNumber])
+  @@index([organizationId, assignedCollectorUserId])
+  @@index([organizationId, primaryPhone])
+  @@index([customerId])
+  @@index([vehicleId])
+}
+
+/// One per account per committed import. Append-only.
+model CollectionAccountSnapshot {
+  id                 String               @id @default(cuid())
+  organizationId     String
+  accountId          String
+  importRunId        String
+  asOfDate           DateTime             @db.Date
+  downCents          Int                  @default(0)
+  principalCents     Int                  @default(0)
+  interestCents      Int                  @default(0)
+  otherCents         Int                  @default(0)
+  lateCents          Int                  @default(0)
+  sideNoteCents      Int                  @default(0)
+  creditCents        Int                  @default(0)
+  totalBalanceCents  Int                  @default(0)
+  amountDueCents     Int                  @default(0)
+  paymentAmountCents Int?
+  paymentDueDate     DateTime?            @db.Date
+  daysPastDue        Int                  @default(0)
+  paymentsRemaining  Int?
+  promiseDateFromDms DateTime?            @db.Date
+  dmsAccountStatus   String?
+  dmsRepoStatus      String?
+  dmsInsuranceStatus String?
+  dmsAutopayStatus   String?
+  dmsCollectorName   String?
+  dmsLenderType      String?
+  bucket             CollectionBucket
+  createdAt          DateTime             @default(now())
+  account            CollectionAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  importRun          CollectionsImportRun @relation(fields: [importRunId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, importRunId])
+  @@index([accountId, asOfDate])
+  @@index([organizationId, asOfDate])
+  @@index([importRunId])
+}
+
+model CollectionsImportRun {
+  id                String                      @id @default(cuid())
+  organizationId    String
+  profileKey        String                      @default("DEALERCENTER_ACTIVE_ACCOUNTS")
+  fileName          String
+  fileHash          String
+  fileDocumentId    String?
+  uploadedByUserId  String
+  startedAt         DateTime                    @default(now())
+  finishedAt        DateTime?
+  asOfDate          DateTime                    @db.Date
+  totalRows         Int                         @default(0)
+  createdCount      Int                         @default(0)
+  updatedCount      Int                         @default(0)
+  unchangedCount    Int                         @default(0)
+  needsReviewCount  Int                         @default(0)
+  errorCount        Int                         @default(0)
+  missingCount      Int                         @default(0)
+  totalBalanceCents Int                         @default(0)
+  /// Parsed rows kept for the preview -> commit step (database only, never logged).
+  previewRows       Json?
+  summary           Json?
+  errorDetails      Json?
+  unknownColumns    Json?
+  status            CollectionsImportStatus     @default(PREVIEW)
+  committedByUserId String?
+  committedAt       DateTime?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  snapshots         CollectionAccountSnapshot[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, fileHash])
+  @@index([organizationId, asOfDate])
+}
+
+/// Append-only.
+model CollectionContactAttempt {
+  id             String                   @id @default(cuid())
+  organizationId String
+  accountId      String
+  userId         String?
+  occurredAt     DateTime                 @default(now())
+  channel        CollectionContactChannel
+  outcome        CollectionContactOutcome
+  notes          String                   @default("")
+  contactPoint   String?
+  messageId      String?
+  createdAt      DateTime                 @default(now())
+  account        CollectionAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, occurredAt])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, userId, occurredAt])
+}
+
+model PaymentPromise {
+  id                     String               @id @default(cuid())
+  organizationId         String
+  accountId              String
+  promisedAmountCents    Int
+  promisedDate           DateTime             @db.Date
+  takenByUserId          String?
+  source                 PaymentPromiseSource @default(MANUAL)
+  planId                 String?
+  installmentNumber      Int?
+  status                 PaymentPromiseStatus @default(OPEN)
+  resolvedAt             DateTime?
+  resolutionNote         String?
+  /// Account values when the promise was made, used to judge kept/broken.
+  baselineAmountDueCents Int?
+  baselineDaysPastDue    Int?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  account                CollectionAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  plan                   PaymentPlan?         @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, status])
+  @@index([organizationId, status, promisedDate])
+  @@index([planId])
+}
+
+model PaymentPlan {
+  id                 String            @id @default(cuid())
+  organizationId     String
+  accountId          String
+  createdByUserId    String?
+  reason             String
+  status             PaymentPlanStatus @default(ACTIVE)
+  totalCatchUpCents  Int
+  supersededByPlanId String?
+  resolvedAt         DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  account            CollectionAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  installments       PaymentPromise[]
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
+}
+
+model CustomerReportedPayment {
+  id                     String                        @id @default(cuid())
+  organizationId         String
+  accountId              String
+  reportedAt             DateTime                      @default(now())
+  method                 CustomerReportedPaymentMethod
+  amountCents            Int
+  paidDate               DateTime                      @db.Date
+  referenceNumber        String?
+  notes                  String                        @default("")
+  enteredByUserId        String?
+  status                 CustomerReportedPaymentStatus @default(PENDING_CONFIRMATION)
+  baselineAmountDueCents Int?
+  baselineDaysPastDue    Int?
+  resolvedAt             DateTime?
+  resolutionNote         String?
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  account                CollectionAccount             @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
+}
+
+/// Set/clear history. The current state is derived (set and not cleared).
+model CollectionFlag {
+  id                   String                  @id @default(cuid())
+  organizationId       String
+  accountId            String
+  type                 CollectionFlagType
+  scope                CollectionContactScope?
+  attorneyName         String?
+  attorneyFirm         String?
+  attorneyPhone        String?
+  attorneyEmail        String?
+  bankruptcyChapter    String?
+  bankruptcyCaseNumber String?
+  bankruptcyFilingDate DateTime?               @db.Date
+  bankruptcyCourt      String?
+  setByUserId          String?
+  setAt                DateTime                @default(now())
+  setReason            String
+  clearedByUserId      String?
+  clearedAt            DateTime?
+  clearReason          String?
+  clearDocumentId      String?
+  createdAt            DateTime                @default(now())
+  account              CollectionAccount       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, type, clearedAt])
+  @@index([organizationId, type, clearedAt])
+}
+
+/// Append-only consent history.
+model ContactConsent {
+  id               String                   @id @default(cuid())
+  organizationId   String
+  accountId        String
+  channel          CollectionMessageChannel
+  address          String
+  status           CollectionConsentStatus
+  source           CollectionConsentSource
+  evidence         String                   @default("")
+  recordedAt       DateTime                 @default(now())
+  recordedByUserId String?
+  account          CollectionAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, channel, address, recordedAt])
+  @@index([organizationId, address])
+}
+
+/// Versioned and append-only. The newest version per key/channel/language is current.
+model MessageTemplate {
+  id               String                   @id @default(cuid())
+  organizationId   String
+  key              String
+  channel          CollectionMessageChannel
+  language         CollectionLanguage
+  version          Int
+  subject          String?
+  body             String
+  status           CollectionTemplateStatus @default(DRAFT)
+  reviewNote       String?
+  createdByUserId  String?
+  approvedByUserId String?
+  approvedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, key, channel, language, version])
+  @@index([organizationId, key, channel, language])
+}
+
+model OutboundMessage {
+  id                String                   @id @default(cuid())
+  organizationId    String
+  accountId         String
+  channel           CollectionMessageChannel
+  to                String
+  templateKey       String?
+  templateId        String?
+  language          CollectionLanguage       @default(EN)
+  languageFallback  Boolean                  @default(false)
+  subject           String?
+  renderedBody      String
+  status            CollectionOutboundStatus @default(QUEUED)
+  blockedReason     String?
+  overrideReason    String?
+  providerMessageId String?                  @unique
+  automationRuleKey String?
+  /// Unique key that makes automatic messages idempotent.
+  dedupeKey         String?                  @unique
+  sentByUserId      String?
+  scheduledFor      DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  errorMessage      String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  account           CollectionAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@index([organizationId, status, scheduledFor])
+  @@index([organizationId, automationRuleKey, createdAt])
+}
+
+model InboundMessage {
+  id                String                   @id @default(cuid())
+  organizationId    String
+  accountId         String?
+  channel           CollectionMessageChannel @default(SMS)
+  from              String
+  body              String
+  mediaDocumentIds  Json?
+  receivedAt        DateTime                 @default(now())
+  providerMessageId String?                  @unique
+  keyword           String?
+  readAt            DateTime?
+  readByUserId      String?
+  createdAt         DateTime                 @default(now())
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account           CollectionAccount?       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, receivedAt])
+  @@index([organizationId, from])
+  @@index([accountId, receivedAt])
+  @@index([organizationId, readAt])
+}
+
+/// Append-only versions. The newest record is the current insurance.
+model InsuranceRecord {
+  id               String                    @id @default(cuid())
+  organizationId   String
+  accountId        String
+  carrier          String?
+  policyNumber     String?
+  effectiveDate    DateTime?                 @db.Date
+  expirationDate   DateTime?                 @db.Date
+  lienholderListed Boolean?
+  proofDocumentId  String?
+  source           CollectionInsuranceSource
+  verifiedByUserId String?
+  verifiedAt       DateTime?
+  status           CollectionInsuranceStatus @default(UNKNOWN)
+  notes            String                    @default("")
+  enteredByUserId  String?
+  createdAt        DateTime                  @default(now())
+  account          CollectionAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@index([organizationId, status])
+}
+
+/// Every disable/enable is a human decision recorded here.
+model StarterDisableAction {
+  id                  String                     @id @default(cuid())
+  organizationId      String
+  accountId           String
+  action              StarterDisableActionType
+  status              StarterDisableActionStatus @default(REQUESTED)
+  requestedByUserId   String
+  requestedAt         DateTime                   @default(now())
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  reason              String
+  warningMethod       StarterWarningMethod?
+  warningSentAt       DateTime?
+  warningMessageId    String?
+  performedInPortalAt DateTime?
+  performedByUserId   String?
+  deviceSerial        String?
+  notes               String                     @default("")
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  account             CollectionAccount          @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@index([organizationId, status])
+}
+
+model RepossessionCase {
+  id                    String                 @id @default(cuid())
+  organizationId        String
+  accountId             String
+  vendorId              String?
+  taskId                String?
+  status                RepossessionCaseStatus @default(REVIEW)
+  openedByUserId        String
+  approvedByUserId      String?
+  approvedAt            DateTime?
+  assignedAt            DateTime?
+  locatedAt             DateTime?
+  recoveredAt           DateTime?
+  storageLocation       String?
+  storageFeeCents       Int?
+  repoFeeCents          Int?
+  personalPropertyNotes String?
+  outcomeAt             DateTime?
+  outcomeNotes          String?
+  inventoryTaskId       String?
+  version               Int                    @default(0)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  account               CollectionAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  vendor                Vendor?                @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  task                  Task?                  @relation("CollectionRepoTask", fields: [taskId], references: [id], onDelete: SetNull)
+  letters               CollectionLetter[]
+
+  @@index([accountId, status])
+  @@index([organizationId, status])
+  @@index([vendorId])
+  @@index([taskId])
+}
+
+model CollectionLetter {
+  id                      String                      @id @default(cuid())
+  organizationId          String
+  accountId               String
+  repoCaseId              String?
+  templateKey             CollectionLetterTemplateKey
+  generatedDocumentId     String?
+  isDraftWording          Boolean                     @default(true)
+  sentMethod              CollectionLetterSentMethod?
+  certifiedTrackingNumber String?
+  sentAt                  DateTime?
+  generatedByUserId       String
+  createdAt               DateTime                    @default(now())
+  account                 CollectionAccount           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  repoCase                RepossessionCase?           @relation(fields: [repoCaseId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@index([repoCaseId])
+}
+
+/// Append-only audit log for every state change (who, what, before/after, why).
+model CollectionAccountEvent {
+  id             String             @id @default(cuid())
+  organizationId String
+  accountId      String?
+  type           String
+  before         Json?
+  after          Json?
+  userId         String?
+  reason         String             @default("")
+  occurredAt     DateTime           @default(now())
+  account        CollectionAccount? @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, occurredAt])
+  @@index([organizationId, type, occurredAt])
+}
+
+/// One row per organization. Every change also writes CollectionsSettingHistory.
+model CollectionsSetting {
+  id              String       @id @default(cuid())
+  organizationId  String       @unique
+  version         Int          @default(1)
+  values          Json
+  updatedByUserId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+}
+
+/// Append-only history of settings changes.
+model CollectionsSettingHistory {
+  id              String   @id @default(cuid())
+  organizationId  String
+  version         Int
+  values          Json
+  changedByUserId String?
+  reason          String   @default("")
+  createdAt       DateTime @default(now())
+
+  @@unique([organizationId, version])
+}
+
+/// One row per organization per import date (for trends).
+model CollectionsDailyMetric {
+  id                    String       @id @default(cuid())
+  organizationId        String
+  metricDate            DateTime     @db.Date
+  importRunId           String?
+  totalAccounts         Int          @default(0)
+  totalBalanceCents     Int          @default(0)
+  pastDueAccounts       Int          @default(0)
+  pastDueAmountCents    Int          @default(0)
+  bucketCounts          Json
+  bucketCents           Json
+  promisesMade          Int          @default(0)
+  promisesKept          Int          @default(0)
+  promisesPartiallyKept Int          @default(0)
+  promisesBroken        Int          @default(0)
+  disableCount          Int          @default(0)
+  repoCounts            Json
+  insuranceCounts       Json
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, metricDate])
+}
+
+/// Links an account to a dispatch board Task for one reason. openKey makes
+/// "one open task per account per reason" a database rule.
+model CollectionTaskLink {
+  id             String                   @id @default(cuid())
+  organizationId String
+  accountId      String?
+  reason         String
+  taskId         String                   @unique
+  openKey        String?                  @unique
+  status         CollectionTaskLinkStatus @default(OPEN)
+  closedAt       DateTime?
+  closeNote      String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  account        CollectionAccount?       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  task           Task                     @relation("CollectionTaskLinkTask", fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, reason])
+  @@index([accountId, status])
 }

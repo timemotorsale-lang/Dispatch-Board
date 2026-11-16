@@ -36,6 +36,7 @@
     "db:backfill-repair-order-tasks": "tsx scripts/backfill-repair-order-tasks.ts",
     "diagnostics:trial": "tsx scripts/configure-diagnostics-trial.ts",
     "db:validate": "prisma validate",
+    "collections:seed": "tsx scripts/collections-seed.ts",
     "test:vendor-billing": "node scripts/check-vendor-billing.mjs",
     "test:vendor-billing-ui": "node scripts/check-vendor-billing-ui.mjs",
     "vendors:billing-worker": "tsx scripts/run-vendor-billing-worker.ts",
