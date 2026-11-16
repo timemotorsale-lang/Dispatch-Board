@@ -173,3 +173,53 @@ Full suite: 5,958 passed, 0 failed. Typecheck passes. Lint: only the 1 old error
 **What you need to do:** nothing yet. When we test with your real DealerCenter file, the
 acceptance check is: 277 accounts, about $1,827,508 total balance, and buckets 221 / 1 /
 0 / 15 / 12 / 28. That check happens on your PC; the real file is never committed.
+
+---
+
+## Stage 4: Accounts and queue (done)
+
+**What I built**
+- **Collections in the main menu**, shown only when `COLLECTIONS_MODULE` is not OFF and you
+  have a Collections permission. The browser can't read server switches, so the server now
+  passes one optional yes/no value to the menu. This added 23 lines to existing layout files
+  (`src/app/(app)/layout.tsx`, `src/components/layout/app-shell.tsx`, `app-sidebar.tsx`,
+  `app-topbar.tsx`, `navigation.ts`). The value defaults to "no", so **with the switch OFF,
+  every menu is exactly as before**.
+- **Queue** (`/collections`): today's worklist. Order: unread customer texts → broken
+  promises → reported payments not found → most days past due → largest amount due.
+  Tabs: All past due, Broken promises, Promises due today, Disable eligible, Repo review,
+  Insurance problems, Needs review, Frozen/flagged, Not in latest import (with counts).
+  Bankruptcy-frozen accounts appear only under Frozen/flagged. Filters: bucket, type, status,
+  plus search by name, deal #, stock # or phone. On a phone it shows cards; **Call** opens
+  the dialer and then the contact log. A banner reminds you if today's file isn't imported.
+- **Accounts** (`/collections/accounts`): searchable, sortable table, 50 per page. Select
+  several to **change type** (with a reason) or **assign a collector**. **Export CSV** has
+  formula-injection protection.
+- **Account page** (`/collections/accounts/[id]`): header (customer, vehicle link, type,
+  status, bucket, flags, collector), money panel ("Data as of …"), **Log a contact**,
+  **Flags** (set/clear), **Contact details** (phone, email, address, language, VIN, GPS
+  serial, "GPS disclosed in contract"), **Link the customer** (confirm the suggestion or
+  search), **Account type**, **Not in latest import** (paid off / closed / still active),
+  and a full **timeline**.
+- Rules enforced on the server:
+  - collectors can set flags but only admins clear them;
+  - **clearing bankruptcy requires a reason and an uploaded document** (PDF/JPEG/PNG,
+    stored privately);
+  - attorney flags need the attorney's name, and contact restrictions need a scope;
+  - every change writes an audit event;
+  - other companies' accounts are invisible;
+  - the "collectors see assigned accounts only" setting works.
+
+**How to try it (after turning on REVIEW mode, see the user guide in Stage 11):**
+Collections → Import the fake file → Queue → open an account → log a call → set a Dispute flag.
+
+**Tests:** 7 new unit tests (queue order, unread-text priority, frozen accounts hidden,
+tabs, search, CSV safety) and 8 new database tests (queue order and counts, logging a
+contact, bankruptcy freeze and its clearing rules, type change needs admin, bulk type
+change, contact edit with phone check, other company blocked, assigned-only visibility).
+Full suite: 5,963 passed. 2 existing tests (`crm-next-pages`, `shop-recon-workflow`)
+timed out at 5 seconds during the full run but **pass when run on their own**. They're
+timing-flaky under load and weren't affected by this work.
+Typecheck passes. Lint: only the 1 old error.
+
+**What you need to do:** nothing yet.

@@ -30,6 +30,8 @@ import taskPageStyles from "./tasks-page-shell.module.css";
 
 type AppShellProps = {
   children: ReactNode;
+  /** Server-decided: show the Collections menu entry (COLLECTIONS_MODULE on + permission). */
+  collectionsNavigation?: boolean;
   preferredWorkspace?: WorkspaceKey | null;
   user: AuthenticatedUser;
 };
@@ -52,7 +54,7 @@ function getSidebarPreference() {
   return saved === "collapsed" ? true : saved === "expanded" ? false : null;
 }
 
-function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) {
+function AppShellContent({ children, collectionsNavigation = false, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [sessionSidebarCompact, setSessionSidebarCompact] = useState<boolean | null>(null);
   const router = useRouter();
@@ -185,7 +187,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
       ].filter(Boolean).join(" ")}
     >
       <SessionHealthGuard />
-      {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} onToggleCompact={toggleSidebarCompact} user={user} /> : null}
+      {commandCenterHome ? <AppSidebar collectionsNavigation={collectionsNavigation} compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} onToggleCompact={toggleSidebarCompact} user={user} /> : null}
       {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {tasksConsoleHome ? <TasksWorkspaceSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} managerContext={managerContext} onClose={() => setNavigationOpen(false)} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} /> : null}
@@ -196,7 +198,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         {salesConsole ? <MobileToolsNavigation standalone /> : null}
         <OperatingRhythmReminder />
         {salesConsole ? null : (
-          <AppTopbar commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
+          <AppTopbar collectionsNavigation={collectionsNavigation} commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}
         {dispatchConsole && !tasksConsoleHome && !diagnosticVehicleWorkspace ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
         {showSalesConsoleReturn ? (

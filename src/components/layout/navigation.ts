@@ -566,8 +566,16 @@ export const navigationGroups: NavigationGroup[] = [
   }
 ];
 
-export function getNavigationGroups(user: AuthenticatedUser) {
-  return navigationGroups
+/** Optional modules decided on the server (switches the browser can't read). Off by default. */
+export type NavigationModuleOptions = { collections?: boolean };
+
+const collectionsNavigationGroup: NavigationGroup = {
+  label: "Collections",
+  items: [{ href: "/collections", title: "Collections", description: "Daily collections queue, accounts, inbox and DealerCenter import.", icon: BadgeDollarSign, activePaths: ["/collections"] }]
+};
+
+export function getNavigationGroups(user: AuthenticatedUser, modules: NavigationModuleOptions = {}) {
+  return [...navigationGroups, ...(modules.collections ? [collectionsNavigationGroup] : [])]
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => (item.isVisible ? item.isVisible(user) : true))

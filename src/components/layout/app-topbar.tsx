@@ -27,6 +27,7 @@ import { useAppearance } from "./appearance";
 import crmHeaderStyles from "./crm-topbar.module.css";
 
 type AppTopbarProps = {
+  collectionsNavigation?: boolean;
   commandCenterHome: boolean;
   containedWorkspace?: boolean;
   onMenuOpen(): void;
@@ -60,7 +61,7 @@ function formatBusinessDate() {
   }).format(new Date());
 }
 
-export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
+export function AppTopbar({ collectionsNavigation = false, commandCenterHome, containedWorkspace = false, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
   const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -121,7 +122,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const roleNavigationItems = getNavigationItemsForPath(user, pathname, preferredWorkspace);
   const navigationItems = [
-    ...getNavigationGroups(user).flatMap((group) => group.items),
+    ...getNavigationGroups(user, { collections: collectionsNavigation }).flatMap((group) => group.items),
     ...roleNavigationItems
   ].filter((item) => !item.disabled);
   const activeNavigationItem = roleNavigationItems.find((item) => {

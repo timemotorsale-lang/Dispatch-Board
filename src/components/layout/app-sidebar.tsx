@@ -11,6 +11,7 @@ import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { getNavigationGroups } from "./navigation";
 
 type AppSidebarProps = {
+  collectionsNavigation?: boolean;
   compact: boolean;
   isOpen: boolean;
   onClose(): void;
@@ -22,12 +23,12 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function AppSidebar({ compact, isOpen, onClose, onToggleCompact, user }: AppSidebarProps) {
+export function AppSidebar({ collectionsNavigation = false, compact, isOpen, onClose, onToggleCompact, user }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const selectedBoardDate = searchParams.get("date");
-  const navigationGroups = getNavigationGroups(user);
+  const navigationGroups = getNavigationGroups(user, { collections: collectionsNavigation });
 
   return (
     <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>

@@ -8,7 +8,6 @@ import { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
-import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { normalizeStockNumber } from "@/server/vehicle-registry/domain";
 
 import { CollectionsError } from "../config/permissions";
@@ -17,6 +16,7 @@ import { MAX_IMPORT_BYTES, parseTable, readTable, type ParseIssue } from "../imp
 import { buildPreview, nameKey, toImportRecord, type ExistingAccount, type ImportRecord, type PreviewRow, type PreviewSummary, type RowMatch } from "../import/preview";
 import { DEALERCENTER_ACTIVE_ACCOUNTS } from "../import/profiles";
 import { collectionsAccess, recordAccountEvent } from "./access";
+import { isStorageReady, storeRestrictedDocument } from "./documents";
 import { loadWorkflowState, statusFor } from "./account-state";
 import { loadCollectionsSettings } from "./settings-store";
 
@@ -87,23 +87,11 @@ async function loadExisting(db: Db, organizationId: string): Promise<ExistingAcc
   });
 }
 
-async function storeImportFile(organizationId: string, actorId: string, runId: string, fileName: string, bytes: Uint8Array, checksum: string) {
-  const storage = resolveDocumentStorageRuntimeFromEnv();
-  if (!storage.adapter || !storage.readiness.readyForByteStorage) return null;
-  const documentId = randomUUID();
+async function storeImportFile(organizationId: string, actorId: string, runId: string, fileName: string, bytes: Uint8Array) {
+  if (!isStorageReady()) return null;
   const contentType = fileName.toLowerCase().endsWith(".csv") ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  const stored = await storage.adapter.writeObject({ bytes, contentType, documentId, expectedChecksumSha256: checksum, fileName: fileName.slice(0, 160), organizationId, // The storage owner type is only used as a folder name; Collections keeps its own type.
-    owner: { id: runId, label: `Collections import ${runId}`, type: "COLLECTIONS_IMPORT" } as never, version: 1 });
-  await prisma.documentLibraryDocument.create({
-    data: {
-      id: documentId, organizationId, ownerType: "COLLECTIONS_IMPORT", ownerId: runId, ownerLabel: "Collections · DealerCenter import",
-      documentType: "COLLECTIONS_IMPORT_FILE", fileName: stored.fileName, sensitivity: "RESTRICTED", source: "MANUAL_UPLOAD",
-      retentionCategory: "FINANCIAL_RECORD", storageProvider: "INTERNAL", storageReference: stored.reference, checksumSha256: checksum,
-      sizeBytes: stored.sizeBytes, contentType, createdByUserId: actorId, updatedByUserId: actorId,
-      versions: { create: { organizationId, version: 1, storageProvider: "INTERNAL", storageReference: stored.reference, fileName: stored.fileName, contentType, sizeBytes: stored.sizeBytes, checksumSha256: checksum, createdByUserId: actorId } }
-    }
-  });
-  return documentId;
+  const stored = await storeRestrictedDocument({ organizationId, actorId, ownerType: "COLLECTIONS_IMPORT", ownerId: runId, ownerLabel: "Collections · DealerCenter import", documentType: "COLLECTIONS_IMPORT_FILE", fileName, contentType, bytes });
+  return stored.documentId;
 }
 
 export type PreviewResult = {
@@ -166,7 +154,7 @@ export async function previewCollectionsImport(
   });
   let fileStored = false;
   try {
-    const documentId = await storeImportFile(access.organizationId, access.actor.id, runId, fileName, input.bytes, fileHash);
+    const documentId = await storeImportFile(access.organizationId, access.actor.id, runId, fileName, input.bytes);
     if (documentId) {
       await prisma.collectionsImportRun.update({ where: { id: runId }, data: { fileDocumentId: documentId } });
       fileStored = true;
