@@ -357,3 +357,100 @@ account caught up, and its task closes itself.
 `/api/cron/collections`. On Vercel that means adding it to `vercel.json`, every 15 minutes
 like `generate-board`. I haven't changed `vercel.json`, because that changes your
 deployment; I'll ask you first.
+
+---
+
+## Stage 7: Texts, email and the Inbox (done, all in test mode)
+
+**What I built**
+- **Text or email from the account page** (the "Text" button in the queue jumps here):
+  - pick a template or write your own, then press **Preview**;
+  - the preview shows the exact message in the customer's language, the character count
+    (320 max), and any reason it can't be sent;
+  - English is used, with a warning, when the customer's language has no approved template.
+- **Send rules, checked on the server for every message** (`domain/messaging.ts`). A blocked
+  message is still saved, with its reason, so you can see it on the timeline. A message is
+  blocked when:
+  - the account has a bankruptcy freeze, or a contact restriction (no text / no email / no
+    contact / attorney only);
+  - the customer has an attorney: automatic messages stop, and a manual message needs a
+    written reason;
+  - the customer texted STOP: texts stay blocked until an admin records **new consent from
+    the customer** (who, when, how). Contract consent counts until then;
+  - a deceased flag is set: it pauses automatic messages;
+  - details are missing, for example the dealership phone or pay-online link isn't in
+    Settings yet: the message is blocked and names what's missing;
+  - an account has had 3 automatic messages in 7 days: more are blocked. Manual messages
+    still go, with a warning.
+
+  Automatic messages wait in a queue outside business hours (Mon–Fri 9–6, Sat 10–3,
+  Chicago) and outside 8 am–9 pm.
+- **Automatic messages**, run with the daily automations and only when sending isn't OFF:
+
+  | Message | When it goes |
+  |---|---|
+  | Due soon | 2 days before the due date (email if there's no mobile number) |
+  | Past due | day 1 past due |
+  | Late fee | day 6 past due |
+  | Promise reminder | the day before a promise or plan payment |
+  | Insurance needed | first request, then every 7 days, 3 times at most |
+
+  Each one is created only once, so re-running creates nothing twice. Messages waiting for
+  opening time go out on the next scheduled run, for example Saturday at 10:00. The
+  starter-disable warning is never automatic.
+- **Incoming texts** (`/api/collections/sms/inbound`, plus `/sms/status` for delivery
+  updates):
+  - Twilio's signature is checked on every request; anything unsigned is rejected, and
+    requests are rate-limited;
+  - **STOP** (and "stop texting me"-style phrases in English, Spanish, Somali and Swahili)
+    is recorded at once and gets one confirmation;
+  - **START** turns texts back on; **HELP** replies with your name and phone;
+  - a new text shows in the board's activity feed (without the message itself) and moves
+    the account to the top of the queue;
+  - photos are noted on the message; saving one as an insurance card comes in Stage 8.
+- **Inbox** (`/collections/inbox`): conversations by account, plus unknown numbers. Unread
+  ones come first. You can reply with a template, and opening a thread marks it read.
+- **First import:** it now creates the default settings and templates automatically, if
+  they're missing.
+- **Connectors:** the Twilio and Resend connectors use plain `fetch`, so no new packages.
+- **`docs/COLLECTIONS_DEPLOY.md`:** how to set up Twilio and Resend, and how to expose
+  **only** the two text webhooks through Caddy or Tailscale, never the whole app.
+
+**Safety:** nothing real was sent while building or testing.
+- **REVIEW mode always turns sending into a dry run**, even if someone sets sending to
+  LIVE. The tests check that no network call is made.
+- Phone numbers are masked in logs.
+
+**How to try it (REVIEW mode):**
+1. Put your dealership phone and pay-online link in the settings. The Settings screen comes
+   in Stage 10; until then, the defaults leave these blank, so messages show "Missing
+   details".
+2. Add a phone number on an account, then Preview, then "Save (dry run)". It appears on
+   the timeline as "Text dry run".
+
+**Tests:** 18 new unit tests:
+- STOP/START/HELP in 4 languages, without false alarms such as "can you stop by";
+- templates and first names;
+- every send rule;
+- quiet hours, including Saturday and the weekend;
+- the Twilio signature check, the Twilio request format, missing setup, and the rate limit.
+
+7 new database tests:
+- REVIEW turns LIVE into a dry run, with no network call;
+- OFF blocks with a reason;
+- STOP blocks, sends a confirmation and ignores duplicates, and START allows texts again;
+- unsigned webhooks get 403 and signed ones are accepted;
+- inbox unread and mark-read;
+- automatic messages are created once, wait for Saturday 10:00, and then dry-run;
+- a bankruptcy freeze blocks texts.
+
+All 124 Collections tests pass. Full suite: 6,013 passed, 0 failed. Typecheck clean; lint shows only the existing error.
+- **Bug found and fixed:** the Inbox list came up empty for admins because of a database
+  filter mistake.
+
+**What you need to do (before PILOT/LIVE, not now):**
+- finish Twilio A2P 10DLC registration;
+- choose how to expose the two webhooks (`docs/COLLECTIONS_DEPLOY.md`);
+- have a fluent speaker review the Spanish, Somali and Swahili templates;
+- confirm with the Minnesota attorney that the contract consent covers automated texts
+  (open question 5).

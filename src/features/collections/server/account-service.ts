@@ -39,7 +39,7 @@ function requireReason(value: unknown, min = 5) {
 }
 
 /** Collector visibility setting: all accounts, or only the ones assigned to them. */
-async function visibilityWhere(access: CollectionsAccess): Promise<Prisma.CollectionAccountWhereInput> {
+export async function visibilityWhere(access: CollectionsAccess): Promise<Prisma.CollectionAccountWhereInput> {
   if (access.role === "ADMIN") return {};
   const settings = await loadCollectionsSettings(access.organizationId);
   return settings.collectorVisibility === "ASSIGNED_ONLY" ? { assignedCollectorUserId: access.actor.id } : {};

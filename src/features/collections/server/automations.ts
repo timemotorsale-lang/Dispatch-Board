@@ -7,7 +7,7 @@
  *
  * Steps: 1 recalculate status/bucket · 2 resolve promises, plans and reported payments ·
  * 3 insurance status (computed from the latest record) · 4 dispatch board tasks ·
- * 5 automatic messages (added in Stage 7) · 6 daily metric + activity summary ·
+ * 5 automatic messages · 6 daily metric + activity summary ·
  * 7 missing-import reminder.
  *
  * Nothing here disables a starter, assigns a repo, sends a letter or clears a flag.
@@ -22,6 +22,7 @@ import type { CollectionsSettings } from "../domain/settings";
 import { effectiveInsuranceStatus, isDailyRunDue, summaryMessage } from "../domain/tasks";
 import { recalculateAccounts } from "./account-state";
 import { resolveOutcomes, type ResolutionSummary } from "./promise-service";
+import { dispatchQueuedMessages, queueAutomaticMessages, type AutomaticMessageSummary } from "./messaging-service";
 import { loadCollectionsSettings } from "./settings-store";
 import { syncCollectionTasks, syncImportReminder, type TaskSyncResult } from "./task-sync";
 
@@ -34,13 +35,10 @@ export type AutomationResult = {
   resolution: ResolutionSummary;
   tasks: TaskSyncResult;
   reminder: { created: boolean; closed: number; importedToday: boolean };
+  messages: AutomaticMessageSummary;
   summaryPosted: boolean;
 };
 
-/** Message queueing is added in Stage 7; this is the step-5 slot. */
-export type MessageStep = (db: Db, organizationId: string, settings: CollectionsSettings, now: Date) => Promise<unknown>;
-let messageStep: MessageStep | null = null;
-export function setAutomaticMessageStep(step: MessageStep | null) { messageStep = step; }
 
 export async function writeDailyMetric(db: Db, organizationId: string, settings: CollectionsSettings, now: Date, importRunId?: string | null) {
   const today = chicagoToday(now);
@@ -100,7 +98,7 @@ export async function runCollectionsAutomations(
     const recalculated = (await recalculateAccounts(tx, organizationId, settings)).changed;
     const resolution = await resolveOutcomes(tx, organizationId, settings, today);
     const tasks = await syncCollectionTasks(tx, organizationId, settings, { now, fallbackUserId: options.actorId });
-    if (messageStep) await messageStep(tx, organizationId, settings, now);
+    const messages = await queueAutomaticMessages(tx, organizationId, settings, now);
     const reminderDue = isDailyRunDue(clock, timeToMinutes(settings.importReminderTime));
     const reminder = await syncImportReminder(tx, organizationId, { now, due: reminderDue, fallbackUserId: options.actorId });
     await writeDailyMetric(tx, organizationId, settings, now, options.importRunId);
@@ -114,7 +112,7 @@ export async function runCollectionsAutomations(
     if (options.trigger === "DAILY") {
       await tx.collectionAccountEvent.create({ data: { organizationId, type: "DAILY_AUTOMATION_RUN", reason: today, after: { tasksCreated: tasks.createdTotal, tasksClosed: tasks.closed, reminderCreated: reminder.created } } });
     }
-    return { trigger: options.trigger, recalculated, resolution, tasks, reminder, summaryPosted };
+    return { trigger: options.trigger, recalculated, resolution, tasks, reminder, messages, summaryPosted };
   }, { timeout: 120_000, maxWait: 20_000 });
 }
 
@@ -145,6 +143,15 @@ export async function runScheduledCollections(now = new Date()) {
           return syncImportReminder(tx, organizationId, { now, due: true });
         });
         ran.push({ organizationId, action: reminder.created ? "REMINDER_CREATED" : "REMINDER_CHECKED" });
+      }
+      // Automatic messages that waited for business hours (for example Saturday 10 am).
+      const waiting = await prisma.outboundMessage.count({ where: { organizationId, status: "QUEUED", scheduledFor: { lte: now } } });
+      if (waiting) {
+        const sent = await prisma.$transaction(async tx => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`collections-automation:${organizationId}`}))`;
+          return dispatchQueuedMessages(tx, organizationId, settings, now);
+        }, { timeout: 120_000 });
+        ran.push({ organizationId, action: `MESSAGES_SENT:${sent}` });
       }
     } catch (error) {
       // One organization failing must not stop the others; the next run retries.

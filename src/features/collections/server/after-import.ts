@@ -8,10 +8,14 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { collectionsAccess } from "./access";
 import { runCollectionsAutomations } from "./automations";
 import type { CommitResult } from "./import-service";
+import { seedCollectionsForOrganization } from "./seed";
+import { prisma } from "@/server/db/client";
 
 export async function afterImportCommitted(actor: AuthenticatedUser | null, result: CommitResult) {
   const access = await collectionsAccess(actor, "IMPORT");
   try {
+    // First import for a company: make sure default settings and templates exist (idempotent).
+    await seedCollectionsForOrganization(prisma, access.organizationId);
     const automation = await runCollectionsAutomations(access.organizationId, { trigger: "IMPORT", actorId: access.actor.id, importRunId: result.runId });
     return { ran: true as const, ...automation };
   } catch (error) {

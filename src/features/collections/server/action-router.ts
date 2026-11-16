@@ -7,6 +7,7 @@ import { prisma } from "@/server/db/client";
 
 import { collectionsAccess } from "./access";
 import { accountAction } from "./account-service";
+import { MESSAGE_ACTIONS, messageAction } from "./messaging-service";
 import { PROMISE_ACTIONS, promiseAction } from "./promise-service";
 import { loadCollectionsSettings } from "./settings-store";
 import { syncCollectionTasks } from "./task-sync";
@@ -14,7 +15,8 @@ import { syncCollectionTasks } from "./task-sync";
 export type AccountActionHandler = (actor: AuthenticatedUser | null, accountId: string, input: Record<string, unknown>) => Promise<unknown>;
 
 const HANDLERS: Record<string, AccountActionHandler> = {
-  ...Object.fromEntries(PROMISE_ACTIONS.map(action => [action, promiseAction]))
+  ...Object.fromEntries(PROMISE_ACTIONS.map(action => [action, promiseAction])),
+  ...Object.fromEntries(MESSAGE_ACTIONS.map(action => [action, messageAction]))
 };
 
 /**
