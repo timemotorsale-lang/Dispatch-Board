@@ -93,3 +93,23 @@ pre-existing error.
 **What you need to do: back up your database before the migration.**
 I have not created or applied the migration. When you say "backup done", I'll create the
 migration file and then ask how you want it applied.
+
+### Stage 2 update: migration applied to a TEST copy only
+
+- Your PC's `dispatch_board` database doesn't match this branch: other work had already
+  added 7+ migrations this branch doesn't have, and this branch has one older migration
+  (`rental_custody_guards`) the database never got. Applying migrations the normal way
+  would have run that unrelated one too.
+- As you chose, I created a **separate test database `dispatch_board_collections`** on your
+  PC. It's an exact copy of `dispatch_board`, made with a read-only backup.
+- **Backup:** I couldn't find the backup file from the instructions, so I made one myself
+  with a read-only `pg_dump`. It's at `C:\Users\timem\dispatch-board-backups\`, 148 MB,
+  and was checked as readable (354 tables). Keep a second copy somewhere else.
+- Applied **only** `20261115200000_collections_core` to the test copy. The test copy now
+  has 375 tables (354 + 21 new). Your real `dispatch_board` is unchanged at 354 tables.
+- Ran `npm run collections:seed` on the test copy: settings plus 26 templates per
+  organization. A second run created nothing.
+- This working copy's `.env` points at the test database only.
+- **Later:** the Collections tables reach your real database when this branch is merged
+  and deployed the normal way, after the other branches' migrations are lined up. I'll
+  never do that without asking you.
