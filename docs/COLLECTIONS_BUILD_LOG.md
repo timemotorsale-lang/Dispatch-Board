@@ -113,3 +113,63 @@ migration file and then ask how you want it applied.
 - **Later:** the Collections tables reach your real database when this branch is merged
   and deployed the normal way, after the other branches' migrations are lined up. I'll
   never do that without asking you.
+
+### New test baseline
+
+With the test database connected, the **full existing test suite passes: 0 failures**.
+The 52 "failures" seen earlier only happened because that first run had no database.
+From now on the bar is: everything passes.
+
+---
+
+## Stage 3: DealerCenter import (done)
+
+**What I built**
+- **File reader** (`src/features/collections/import/parse.ts`): reads `.xlsx` or `.csv`,
+  trims DealerCenter's leading spaces from column names, matches them case-insensitively,
+  turns dollars into whole cents, and reads dates like `11/5/2026`. Extra unknown columns
+  are listed but never break the import. Missing required columns, bad numbers or dates,
+  and duplicate AccountIds are reported by row number, and those rows are skipped.
+- **Column map** (`import/profiles.ts`): the Active Accounts layout from spec section 4,
+  plus a slot for the future "Contact & details" import. Adding columns later is a
+  config change, not a database change.
+- **Preview** (`import/preview.ts`): sorts every row into New / Updated / Unchanged /
+  Needs review, totals the balance, counts accounts per bucket, and lists accounts that
+  are **not in the file**.
+- **Commit** (`server/import-service.ts`), all in **one database transaction**:
+  - creates or updates each account and saves a daily snapshot;
+  - **never changes the account type** (every new account starts as Lease-to-own; your
+    BHPH changes survive re-imports);
+  - matches vehicles by stock number, using the app's existing stock-number cleanup;
+  - **suggests** a customer (from the vehicle's current owner, or a unique exact name
+    match) but **never links a customer automatically**;
+  - turns a DealerCenter PromiseDate into a tracked promise, only once;
+  - flags missing accounts "Not in latest import" (never deletes them);
+  - recalculates each account's status. DealerCenter "REPOSSESSED" wins even if the
+    account says ACTIVE;
+  - refuses to import the exact same file twice;
+  - stores the uploaded file as a **private, restricted** document when Document
+    Library storage is set up. If it isn't, the import still works without saving the file.
+- **Import screen** at `/collections/import`: upload → check the preview (account count,
+  total balance, buckets, problems, missing accounts, filter by New/Updated/Needs review)
+  → **Confirm import** or **Cancel**. Shows recent imports. Admins only.
+- **Fake test files**: `src/features/collections/tests/fixtures/active-accounts.sample.csv`
+  and `.xlsx`. 30 made-up accounts covering every bucket, a repossessed row, a past
+  promise date, duplicate buyer names, expired/unknown insurance, and an unknown extra
+  column. To regenerate: `npx tsx scripts/collections-make-fixtures.ts`.
+
+**How to try it (later, once the menu link exists in Stage 4):** turn on REVIEW mode, open
+`/collections/import`, and upload the fake CSV. The preview should show 30 accounts.
+
+**Tests:** 13 new unit tests (money/date reading, buckets, status order, CSV and XLSX
+giving identical results, leading-space headers, missing columns, duplicates, bad values,
+preview labels) and 6 new database tests (preview then commit, duplicate file refused,
+account type kept on re-import, improved account goes back to Current, missing account
+flagged, cancel changes nothing, failed file recorded, collector blocked). Database tests
+run only when `RUN_COLLECTIONS_DB_TESTS=1` **and** the database name contains
+"collections", so they can never touch your real database.
+Full suite: 5,958 passed, 0 failed. Typecheck passes. Lint: only the 1 old error.
+
+**What you need to do:** nothing yet. When we test with your real DealerCenter file, the
+acceptance check is: 277 accounts, about $1,827,508 total balance, and buckets 221 / 1 /
+0 / 15 / 12 / 28. That check happens on your PC; the real file is never committed.
