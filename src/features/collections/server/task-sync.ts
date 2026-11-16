@@ -66,14 +66,15 @@ async function loadTaskFacts(db: Db, organizationId: string, settings: Collectio
     db.paymentPlan.findMany({ where: { ...scope, status: { not: "CANCELLED" } }, select: { accountId: true, status: true, createdAt: true } }),
     db.customerReportedPayment.findMany({ where: { ...scope, status: { not: "CANCELLED" } }, select: { accountId: true, status: true, createdAt: true, resolvedAt: true } }),
     db.starterDisableAction.findMany({ where: { ...scope, status: "DONE_IN_PORTAL" }, orderBy: [{ performedInPortalAt: "desc" }, { updatedAt: "desc" }], select: { accountId: true, action: true, performedInPortalAt: true, updatedAt: true } }),
-    db.repossessionCase.findMany({ where: { ...scope, status: { in: [...OPEN_REPO, ...REPOSSESSED_REPO] } }, orderBy: { createdAt: "desc" }, select: { accountId: true, status: true, assignedAt: true, createdAt: true } }),
+    db.repossessionCase.findMany({ where: { ...scope, status: { in: [...OPEN_REPO, ...REPOSSESSED_REPO, "REDEEMED"] } }, orderBy: { createdAt: "desc" }, select: { accountId: true, status: true, assignedAt: true, createdAt: true, outcomeAt: true } }),
     db.insuranceRecord.findMany({ where: scope, orderBy: { createdAt: "desc" }, select: { accountId: true, status: true, expirationDate: true, createdAt: true } }),
     db.collectionAccountSnapshot.findMany({ where: { accountId: { in: ids.length ? ids : ["-"] }, account: { daysPastDue: { gte: Math.min(t.disableReview, t.followUp, t.review30, t.repoReview) } } }, select: { accountId: true, asOfDate: true, daysPastDue: true } })
   ]);
 
   const first = <T extends { accountId: string }>(rows: T[]) => { const m = new Map<string, T>(); for (const r of rows) if (!m.has(r.accountId)) m.set(r.accountId, r); return m; };
   const group = <T extends { accountId: string }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) m.set(r.accountId, [...(m.get(r.accountId) ?? []), r]); return m; };
-  const latestBroken = first(broken), starterBy = first(starter), repoBy = first(repos), insuranceBy = first(insurance);
+  const latestBroken = first(broken), starterBy = first(starter), repoBy = first(repos.filter(r => r.status !== "REDEEMED")), insuranceBy = first(insurance);
+  const redeemedBy = first(repos.filter(r => r.status === "REDEEMED"));
   const flagsBy = group(flags), promisesBy = group(promisesOpen), plansBy = group(plans), reportedBy = group(reported), snapsBy = group(snaps);
   const latest = (dates: Array<Date | null | undefined>) => dates.reduce<Date | null>((max, d) => (d && (!max || d > max) ? d : max), null);
 
@@ -99,6 +100,7 @@ async function loadTaskFacts(db: Db, organizationId: string, settings: Collectio
       starter: s ? { action: s.action, at: s.performedInPortalAt ?? s.updatedAt } : null,
       lastArrangementAt: latest([...accountPromises.map(p => p.createdAt), ...accountPlans.map(p => p.createdAt), ...accountReported.map(r => r.createdAt)]),
       repo: repo && OPEN_REPO.includes(repo.status) ? { status: repo.status, since: repo.assignedAt ?? repo.createdAt } : null,
+      redeemedAt: redeemedBy.get(account.id)?.outcomeAt ?? null,
       insurance: ins ? { status: effectiveInsuranceStatus({ status: ins.status, expirationDate: toYmd(ins.expirationDate) }, today, settings.insuranceExpiringSoonDays), since: ins.createdAt } : null,
       belowThresholdSince: { disable: lastBelow(t.disableReview), twoWeek: lastBelow(t.followUp), thirtyDay: lastBelow(t.review30), repo: lastBelow(t.repoReview) }
     };
@@ -195,6 +197,8 @@ export async function syncCollectionTasks(
         select: { id: true }
       });
       await db.collectionTaskLink.create({ data: { organizationId, accountId: account.id, reason: want.reason, taskId: task.id, openKey: openKeyFor(organizationId, account.id, want.reason) } });
+      // The repo case keeps a link to its board task, so status updates are posted there.
+      if (want.reason === "REPO_TLC") await db.repossessionCase.updateMany({ where: { accountId: account.id, status: { in: ["ASSIGNED", "LOCATED"] } }, data: { taskId: task.id } });
       accountLinks.push({ id: "new", accountId: account.id, reason: want.reason, status: "OPEN", createdAt: now, taskId: task.id, task: { status: "NOT_STARTED", boardDayId } });
       result.created[want.reason] = (result.created[want.reason] ?? 0) + 1;
       result.createdTotal += 1;

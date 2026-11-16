@@ -520,8 +520,96 @@ in the app.
 - All 136 Collections tests pass. Full suite: 6,019 passed, 0 failed. Typecheck and
   Collections lint are clean.
 
-**Not finished:** viewing the proof file from the account page. It's stored privately in
+**Not finished:** viewing the proof file from the account page (added in Stage 9).
 the Document Library and listed by file name. A "view" button comes in Stage 11, along with
 the other screen polish.
 
 **What you need to do:** nothing now.
+
+---
+
+## Stage 9: Starter disable, repossession and repo letters (done)
+
+**What I built:** a new panel on the account page, "Starter disable, repossession and
+letters." **Every step is a person's decision.** The automations only remind you with board
+tasks. Nothing ever disables a starter, assigns a repo or mails a letter by itself.
+
+**Starter (Advantage GPS), done by hand in the Advantage portal**
+1. **Request a disable.** Anyone working Collections can request one.
+   - Before you request, it shows a summary: days past due, amount due, last contact, open
+     promises and insurance.
+   - You must say how the customer was warned (text, call, device beep, or none) and when.
+   - "None" shows a caution to check Minnesota notice rules, and needs a reason.
+   - It warns if the contract isn't marked as disclosing the GPS starter interrupt, or if
+     the account is below the 7-day review point.
+2. **Approve (admins only).** The app then shows the portal link and the device serial.
+   - Optional: **Send warning text**. It uses the "disable warning" template, with the
+     normal send rules. In test mode it's only a dry run, and the app says not to count it
+     as the warning.
+3. Disable it in the Advantage portal, tick "I disabled it", then press **Done in portal**.
+   - The account shows **Starter disabled**, and the disable-review task closes.
+4. **Re-enable:** a promise, plan or payment recorded after a disable, a customer who
+   redeems the car, or the account catching up, creates a **"Re-enable starter"** task.
+   Re-enabling follows the same steps without a warning, and closes that task.
+5. **The Advantage connector is built "manual only"** (`AdvantageGpsClient`). A real API
+   can be plugged in later without changing the screens, and a person still approves every
+   step.
+
+**Repossession with TLC Recovery**
+- **Start a repo review.** Anyone working Collections can start one, with a reason.
+- **Approve (admins only).**
+- **Assign to TLC Recovery.**
+  - The first time, this adds TLC Recovery to your Vendors list, under "Collections /
+    repossession"; it's reused after that.
+  - A "Repo: TLC Recovery" task goes on the board, and each status update is posted as a
+    comment on that task.
+- **Status:** Located, then Recovered, then In storage. You can record the storage
+  location, repo and storage fees, and personal property left in the car.
+- **Outcome:**
+  - **Redeemed:** the account goes back to its DealerCenter status, and a re-enable task
+    appears if the starter is off.
+  - **Returned to inventory:** an inventory check-in/recon task goes on the board, linked to
+    the vehicle. Existing inventory features are not changed.
+  - **Sent to auction.**
+- **Cancel** with a reason, for example "paid in full".
+
+**Repo letters**
+- **Generate** a pre-repo or post-repo notice as a PDF, saved privately to the account.
+- **Until your attorney's wording is in Settings, every letter has a big red "DRAFT –
+  attorney-approved wording required" banner.** Draft letters can't be recorded as sent.
+  The box for pasting the approved wording comes in Stage 10.
+- **Record how it was sent:** certified mail (tracking number required), first class, hand
+  delivered or email. The letter list works as a checklist.
+
+**Bankruptcy freeze** blocks disables, every repo step except cancel, and letters.
+Re-enabling a starter is still allowed.
+
+**Also new:** proof files and letters now open from the account page, through a private
+link that only staff who can see the account can use.
+
+**How to try it (test database):** open a 7+ day account, such as FAKE-1013 from the sample
+file. Request a disable, approve it, then press "Done in portal". Then record a promise and
+watch for the "Re-enable starter" task. Try a repo on a 60+ day account.
+
+**Tests:**
+- 4 new unit tests:
+  - a draft vs approved letter PDF;
+  - filling letter fields;
+  - the manual GPS client never claims it did anything;
+  - re-enable after redemption.
+- 6 new database tests:
+  - the full disable flow, with its required steps and warnings;
+  - a promise after a disable creates the re-enable task, and re-enabling closes it;
+  - collectors can request but not approve;
+  - the full repo flow to "returned to inventory", with one TLC vendor reused;
+  - bankruptcy blocks disable, repo and letters;
+  - a draft letter can't be marked sent, and certified mail needs a tracking number.
+- All 146 Collections tests pass. Full suite: 6,023 passed, 0 failed. Typecheck and
+  Collections lint are clean.
+
+**What you need to do (before LIVE, not now):**
+- ask your Minnesota attorney about notice requirements before a starter disable and
+  before and after a repossession (open question 4);
+- get the wording for the two letters;
+- add the Advantage portal link and TLC Recovery's contact details (in Vendors) when
+  convenient.

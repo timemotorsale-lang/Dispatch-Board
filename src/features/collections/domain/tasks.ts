@@ -60,6 +60,8 @@ export type AccountTaskFacts = {
   lastArrangementAt: Date | null;
   /** Open repo case, if any. */
   repo: { status: string; since: Date } | null;
+  /** When a repo case was last closed as REDEEMED (the customer got the car back). */
+  redeemedAt?: Date | null;
   /** Effective insurance status and when that record was entered. */
   insurance: { status: string; since: Date } | null;
   /** For each DPD threshold: the date the account last was below it (null = never seen below). */
@@ -95,7 +97,7 @@ export function wantedAccountTasks(f: AccountTaskFacts, settings: CollectionsSet
 
   if (f.insurance && (f.insurance.status === "EXPIRED" || f.insurance.status === "MISSING")) wanted.push({ reason: "INSURANCE_NEEDED", since: f.insurance.since });
 
-  if (starterDisabled && f.starter && ((f.lastArrangementAt && f.lastArrangementAt > f.starter.at) || !pastDue)) {
+  if (starterDisabled && f.starter && ((f.lastArrangementAt && f.lastArrangementAt > f.starter.at) || !pastDue || (f.redeemedAt && f.redeemedAt > f.starter.at))) {
     wanted.push({ reason: "RE_ENABLE_STARTER", since: f.starter.at });
   }
   if (f.repo && ["ASSIGNED", "LOCATED"].includes(f.repo.status)) wanted.push({ reason: "REPO_TLC", since: f.repo.since });

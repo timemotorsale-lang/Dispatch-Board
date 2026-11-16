@@ -38,6 +38,8 @@ export type CollectionsSettings = {
   collectorVisibility: "ALL_ACCOUNTS" | "ASSIGNED_ONLY";
   importReminderTime: string;
   automationRunTime: string;
+  /** Attorney-approved letter wording. Empty = letters print with a DRAFT banner and placeholder text. */
+  letterWording: { PRE_REPO_NOTICE: string; POST_REPO_NOTICE: string };
 };
 
 export const DEFAULT_COLLECTIONS_SETTINGS: CollectionsSettings = {
@@ -80,7 +82,8 @@ export const DEFAULT_COLLECTIONS_SETTINGS: CollectionsSettings = {
   languagesEnabled: ["EN", "ES", "SO", "SW"],
   collectorVisibility: "ALL_ACCOUNTS",
   importReminderTime: "10:00",
-  automationRunTime: "09:15"
+  automationRunTime: "09:15",
+  letterWording: { PRE_REPO_NOTICE: "", POST_REPO_NOTICE: "" }
 };
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -155,7 +158,11 @@ export function parseCollectionsSettings(raw: unknown): CollectionsSettings {
     languagesEnabled: languages.includes("EN") ? languages : ["EN", ...languages],
     collectorVisibility: v.collectorVisibility === "ASSIGNED_ONLY" ? "ASSIGNED_ONLY" : "ALL_ACCOUNTS",
     importReminderTime: time(v.importReminderTime, d.importReminderTime),
-    automationRunTime: time(v.automationRunTime, d.automationRunTime)
+    automationRunTime: time(v.automationRunTime, d.automationRunTime),
+    letterWording: {
+      PRE_REPO_NOTICE: str(isRecord(v.letterWording) ? v.letterWording.PRE_REPO_NOTICE : undefined, "", 8000),
+      POST_REPO_NOTICE: str(isRecord(v.letterWording) ? v.letterWording.POST_REPO_NOTICE : undefined, "", 8000)
+    }
   };
 }
 

@@ -54,7 +54,7 @@ export function InsurancePanel({ d }: { d: AccountDetail }) {
             <dt>Policy</dt><dd>{ins.policyNumber ?? "—"}</dd>
             <dt>Dates</dt><dd>{ins.effectiveDate ?? "?"} to {ins.expirationDate ?? "?"}</dd>
             <dt>Lienholder listed</dt><dd>{ins.lienholderListed === true ? "Yes" : ins.lienholderListed === false ? "No" : "Not checked"}</dd>
-            <dt>Proof</dt><dd>{ins.proofFileName ? `${ins.proofFileName} (saved privately in the Document Library)` : "No proof uploaded"}</dd>
+            <dt>Proof</dt><dd>{ins.proofFileName ? <a href={`/api/collections/accounts/${encodeURIComponent(d.account.id)}/documents/${encodeURIComponent(ins.proofDocumentId)}`} target="_blank" rel="noreferrer">{ins.proofFileName}</a> : "No proof uploaded"}</dd>
             <dt>Verified</dt><dd>{ins.verifiedAt ? formatWhen(ins.verifiedAt) : "No"}</dd>
           </dl>
         ) : ins ? <p>Marked missing: {ins.notes}</p> : null}

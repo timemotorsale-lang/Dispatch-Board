@@ -408,3 +408,13 @@ export async function getInbox(actor: AuthenticatedUser | null, query: { thread?
   const templates = await prisma.messageTemplate.findMany({ where: { organizationId: access.organizationId, channel: "SMS", language: "EN", status: "APPROVED" }, orderBy: [{ key: "asc" }, { version: "desc" }], distinct: ["key"], select: { key: true } });
   return { threads: list, selected, messages, templateKeys: templates.map(t => t.key), sendingMode: resolveSendingMode("SMS") };
 }
+
+/**
+ * Send one manual template message from inside another workflow (for example the starter-disable
+ * warning text, which a person reviews and sends). Same rules and modes as any manual message.
+ */
+export async function sendManualTemplateMessage(db: Db, accountId: string, actorId: string, settings: CollectionsSettings, input: { channel: Channel; templateKey: string; body?: string | null }) {
+  const account = await db.collectionAccount.findUniqueOrThrow({ where: { id: accountId }, select: ACCOUNT_SELECT });
+  const { message, draft } = await recordMessage(db, account, settings, { channel: input.channel, templateKey: input.templateKey, body: input.body ?? null, automatic: false, actorId }, new Date());
+  return { message, warnings: draft.check.warnings };
+}
