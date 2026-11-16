@@ -8,11 +8,11 @@ export const COLLECTIONS_SECTIONS = [
   { key: "queue", href: "/collections", label: "Queue", ready: true },
   { key: "inbox", href: "/collections/inbox", label: "Inbox", ready: true },
   { key: "accounts", href: "/collections/accounts", label: "Accounts", ready: true },
-  // Not built yet: shown as "coming soon" until their stage lands (Dashboard and Settings: Stage 10; Reconciliation: Stage 15).
-  { key: "dashboard", href: "/collections/dashboard", label: "Dashboard", ready: false },
+  // Not built yet: shown as "coming soon" until its stage lands (Reconciliation: Stage 15).
+  { key: "dashboard", href: "/collections/dashboard", label: "Dashboard", ready: true },
   { key: "reconciliation", href: "/collections/reconciliation", label: "Reconciliation", ready: false },
   { key: "import", href: "/collections/import", label: "Import", ready: true },
-  { key: "settings", href: "/collections/settings", label: "Settings", ready: false }
+  { key: "settings", href: "/collections/settings", label: "Settings", ready: true }
 ] as const;
 
 export type CollectionsSectionKey = (typeof COLLECTIONS_SECTIONS)[number]["key"];

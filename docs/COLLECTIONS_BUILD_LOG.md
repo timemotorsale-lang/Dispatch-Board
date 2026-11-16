@@ -613,3 +613,79 @@ watch for the "Re-enable starter" task. Try a repo on a 60+ day account.
 - get the wording for the two letters;
 - add the Advantage portal link and TLC Recovery's contact details (in Vendors) when
   convenient.
+
+---
+
+## Stage 10: Dashboard and Settings (done)
+
+**Dashboard** (`/collections/dashboard`)
+- **Tiles**, most of which link to the matching queue tab:
+  - accounts and total balance;
+  - past due (count and $);
+  - broken promises today;
+  - disable eligible and starters disabled;
+  - repo review, repo assigned, and repo recovered or in storage;
+  - insurance problems;
+  - unread texts;
+  - last import.
+- **Past due by bucket:** accounts, amount due and balance per bucket, with simple bars.
+- **Promises:** made, kept, partly kept and broken over the last 30 and 90 days, with the
+  keep rate.
+- **Weekly trends** from the saved daily numbers: past-due %, $ past due, and 31–60 and 61+
+  accounts. Small line charts, with "Show the numbers" underneath.
+- **Activity:** contacts logged and texts/emails per staff member per day, for the last 14
+  days.
+- **CSV download** for every table, and a **Print this page** button. The print layout hides
+  buttons and menus.
+- No new chart package: plain, accessible charts with the numbers always shown as text.
+
+**Settings** (`/collections/settings`, admins only)
+- **Dealership details:** name, phone, address, pay-online link, Zelle recipient, Advantage
+  portal link, cash-at-store instructions. **Fill these in first.** Texts and letters use
+  them, and messages are blocked while they're blank.
+- **Business hours** for each day, plus the customer texting window (8 am–9 pm).
+- **Days and thresholds:**
+  - grace days, the late-fee amount shown, the four review thresholds, promise grace days,
+    the reported-payment window, and insurance "expiring soon" days;
+  - the daily automation time and the import reminder time;
+  - whether collectors see all accounts or only their own.
+- **Automatic messages:** on/off and timing for each one, the weekly limit, and languages
+  offered. The disable warning can never be turned into an automatic message.
+- **Repo letter wording:** paste in your attorney's approved text. Letters stop showing the
+  DRAFT banner only after that.
+- **Message templates:**
+  - edit and preview with sample details;
+  - every edit saves a new **draft version**, and approving it makes it live;
+  - **while a draft waits, the last approved version keeps being sent**, so editing never
+    pauses messages;
+  - texts must include the STOP line, fit 320 characters with long real details, and use
+    only known merge fields;
+  - Spanish, Somali and Swahili need a "fluent speaker reviewed this" tick before approval.
+- **Change history:**
+  - every save records who changed what and why, as a new numbered version;
+  - if someone else saved in the meantime, you're asked to reload, so nobody overwrites
+    another person's changes;
+  - changing grace days or thresholds re-sorts the accounts right away.
+- The **Dashboard** and **Settings** menu links are now live. Only Reconciliation still says
+  "coming soon".
+
+**How to try it:**
+1. Open Settings, fill in the dealership phone and pay-online link, and Save.
+2. Open an account and preview a text: the "missing details" warning is gone.
+3. Open the Dashboard.
+
+**Tests:**
+- 8 new unit tests: keep rate, weekly trend grouping, safe CSV, settings checks (thresholds
+  going up, hours, links, numbers), and template checks (STOP line, length with real
+  details, unknown fields, email subject).
+- 5 new database tests:
+  - dashboard numbers add up;
+  - saving settings records history, refuses stale edits, and re-sorts buckets;
+  - Settings is admin-only;
+  - a draft template doesn't replace the approved one until it's approved;
+  - translations need the fluent-speaker tick.
+- All 159 Collections tests pass. Full suite: 6,031 passed, 0 failed. Typecheck and
+  Collections lint are clean.
+
+**What you need to do:** fill in the dealership details in Settings (in the test preview
+now, and on the real system once Collections goes live there).

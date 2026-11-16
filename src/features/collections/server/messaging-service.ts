@@ -37,11 +37,15 @@ type MessageAccount = Prisma.CollectionAccountGetPayload<{ select: typeof ACCOUN
 // ---------- Templates and merge fields ----------
 
 export async function loadTemplate(db: Db, organizationId: string, key: string, channel: CollectionMessageChannel, language: CollectionLanguage) {
-  const latest = (lang: CollectionLanguage) => db.messageTemplate.findFirst({ where: { organizationId, key, channel, language: lang }, orderBy: { version: "desc" } });
-  const own = await latest(language);
+  // The newest APPROVED version is what gets sent; a newer draft waits for approval without stopping messages.
+  const pick = async (lang: CollectionLanguage) => {
+    const approved = await db.messageTemplate.findFirst({ where: { organizationId, key, channel, language: lang, status: "APPROVED" }, orderBy: { version: "desc" } });
+    return approved ?? db.messageTemplate.findFirst({ where: { organizationId, key, channel, language: lang }, orderBy: { version: "desc" } });
+  };
+  const own = await pick(language);
   if (own?.status === "APPROVED") return { template: own, fallback: false };
   if (language !== "EN") {
-    const english = await latest("EN");
+    const english = await pick("EN");
     if (english) return { template: english, fallback: true };
   }
   return { template: own, fallback: false };
