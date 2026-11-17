@@ -9,7 +9,7 @@ import { prisma } from "@/server/db/client";
 
 import { CollectionsError, hasCollectionsPermission } from "../config/permissions";
 import { chicagoToday, dateOnly, toE164, toYmd } from "../domain/money-dates";
-import { buildQueue, type QueueFacts, type QueueFilters } from "../domain/queue";
+import { buildQueue, queueReason, queueSummary, type QueueFacts, type QueueFilters } from "../domain/queue";
 import type { Bucket } from "../domain/status";
 import { effectiveInsuranceStatus } from "../domain/tasks";
 import { collectionsAccess, recordAccountEvent, type CollectionsAccess } from "./access";
@@ -117,11 +117,15 @@ export async function getQueue(actor: AuthenticatedUser | null, filters: QueueFi
   const access = await collectionsAccess(actor, "VIEW");
   const facts = await loadQueueFacts(access);
   const queue = buildQueue(facts, filters);
+  const today = chicagoToday();
   const lastImport = await prisma.collectionsImportRun.findFirst({ where: { organizationId: access.organizationId, status: "COMMITTED" }, orderBy: { committedAt: "desc" }, select: { committedAt: true, asOfDate: true } });
   return {
     ...queue,
-    rows: queue.rows.slice(0, 500),
+    rows: queue.rows.slice(0, 500).map(row => ({ ...row, reason: queueReason(row, today) })),
     totalRows: queue.rows.length,
+    /** Every account id in this view, in queue order (for "3 of 126" and next/previous on the account page). */
+    orderIds: queue.rows.map(row => row.id),
+    summary: queueSummary(facts, today),
     lastImport: lastImport ? { committedAt: lastImport.committedAt?.toISOString() ?? null, asOfDate: toYmd(lastImport.asOfDate) } : null,
     importedToday: lastImport?.asOfDate ? toYmd(lastImport.asOfDate) === chicagoToday() : false
   };

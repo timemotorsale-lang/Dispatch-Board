@@ -1,3 +1,4 @@
+import { chicagoToday } from "./money-dates";
 /** Daily queue rules (spec section 6.1). Pure functions over already-loaded account facts. */
 import type { Bucket } from "./status";
 
@@ -105,4 +106,37 @@ export function buildQueue(all: QueueFacts[], filters: QueueFilters) {
     .filter(facts => matchesSearch(facts, filters.q ?? ""))
     .sort(filters.sort === "RISK" ? (a, b) => (b.riskScore ?? -1) - (a.riskScore ?? -1) || compareQueue(a, b) : compareQueue);
   return { tab, counts, rows };
+}
+
+/** The one-line "why call" shown on each queue row, in priority order. */
+export function queueReason(f: QueueFacts, today: string): { text: string; tone: "danger" | "warning" | "neutral" } {
+  if (f.activeFlags.includes("BANKRUPTCY")) return { text: "Bankruptcy freeze: don't collect", tone: "neutral" };
+  if (f.unreadInbound) return { text: `New text: reply waiting${f.unreadInbound > 1 ? ` (${f.unreadInbound})` : ""}`, tone: "danger" };
+  if (f.brokenPromise) return { text: "Promise broken", tone: "danger" };
+  if (f.reportedNotFound) return { text: "Reported payment not found", tone: "danger" };
+  if (f.promiseDueToday) return { text: "Promise due today", tone: "warning" };
+  if (f.status === "REPO_REVIEW" || f.status === "REPO_ASSIGNED") return { text: f.status === "REPO_ASSIGNED" ? "Repo assigned" : "Repo review", tone: "danger" };
+  if (f.status === "DISABLE_ELIGIBLE") return { text: "Starter-disable review", tone: "warning" };
+  if (f.status === "STARTER_DISABLED") return { text: "Starter disabled", tone: "warning" };
+  if (f.missingFromImport) return { text: "Not in latest import: confirm status", tone: "warning" };
+  if (f.insuranceProblem) return { text: "Insurance problem", tone: "warning" };
+  if (f.daysPastDue > 0) {
+    if (!f.lastContactAt) return { text: "Never contacted", tone: "warning" };
+    const days = Math.max(0, Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(f.lastContactAt)) / 86_400_000));
+    return { text: days === 0 ? "Contacted today" : `No contact in ${days} day${days === 1 ? "" : "s"}`, tone: days >= 3 ? "warning" : "neutral" };
+  }
+  return { text: "Current", tone: "neutral" };
+}
+
+/** Summary tiles above the queue (across all accounts, not just the open tab). */
+export function queueSummary(all: QueueFacts[], today: string) {
+  const pastDue = all.filter(f => f.daysPastDue > 0 && !isFrozen(f));
+  const contactedToday = pastDue.filter(f => f.lastContactAt && chicagoToday(new Date(f.lastContactAt)) === today).length;
+  return {
+    brokenPromises: all.filter(f => f.brokenPromise && !isFrozen(f)).length,
+    promisesDueToday: all.filter(f => f.promiseDueToday && !isFrozen(f)).length,
+    pastDueAccounts: pastDue.length,
+    pastDueCents: pastDue.reduce((s, f) => s + f.amountDueCents, 0),
+    contactedToday
+  };
 }

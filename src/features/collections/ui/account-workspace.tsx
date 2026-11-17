@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 
 import { formatCents } from "../domain/money-dates";
-import { BUCKET_LABELS, STATUS_LABELS, type AccountStatus, type Bucket } from "../domain/status";
 import { accountAction, callCollections, formatWhen, label, uploadAccountDocument } from "./client-api";
 import styles from "./collections.module.css";
 
@@ -46,41 +44,20 @@ export function formValues(event: FormEvent<HTMLFormElement>) {
   return Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
 }
 
+/** Inside an account tab every section is shown open (the tab already chose what to show). */
+export const InTabContext = createContext(false);
+
 export function Panel({ id, title, children, open = true }: { id?: string; title: string; children: ReactNode; open?: boolean }) {
+  const inTab = useContext(InTabContext);
   return (
-    <details className={styles.panel} id={id} open={open}>
+    <details className={styles.panel} id={id} open={inTab || open}>
       <summary><h2 style={{ display: "inline" }}>{title}</h2></summary>
       <div style={{ marginTop: 10 }}>{children}</div>
     </details>
   );
 }
 
-function Header({ d }: { d: AccountDetail }) {
-  const a = d.account;
-  const frozen = d.activeFlags.some((f: { type: string }) => f.type === "BANKRUPTCY");
-  return (
-    <section className={styles.panel} aria-label="Account summary">
-      {frozen ? <p className={styles.freeze} role="alert">BANKRUPTCY FREEZE: no texts, emails, starter disables, repossession steps or letters. Review with your bankruptcy attorney before doing anything.</p> : null}
-      {a.missingFromImportAt ? <p className={styles.warning}>This account was not in the latest DealerCenter import. Confirm below whether it was paid off, closed, or is still active.</p> : null}
-      <div className={styles.split}>
-        <dl className={styles.dl}>
-          <dt>Customer</dt><dd>{d.customer ? d.customer.displayName : a.buyerNameRaw}{!d.customer ? <span className={`${styles.badge} ${styles.badgeWarn}`} style={{ marginLeft: 6 }}>not linked</span> : null}</dd>
-          <dt>Vehicle</dt><dd>{d.vehicle ? <Link href={`/vehicles/360/${d.vehicle.id}`}>{[d.vehicle.year, d.vehicle.make, d.vehicle.model].filter(Boolean).join(" ") || d.vehicle.vehicleNumber}</Link> : a.vehicleDescriptionRaw ?? "—"} {a.stockNumberRaw ? `· Stock ${a.stockNumberRaw}` : ""}</dd>
-          <dt>Deal # / Account</dt><dd>{a.dealNumber ?? "—"} · {a.externalAccountId}</dd>
-          <dt>Type</dt><dd>{a.accountType === "BHPH" ? "BHPH" : "Lease-to-own"}</dd>
-          <dt>Status</dt><dd>{STATUS_LABELS[a.status as AccountStatus] ?? a.status} · {BUCKET_LABELS[a.bucket as Bucket]}</dd>
-          <dt>Collector</dt><dd>{d.collectors.find((c: { id: string }) => c.id === a.assignedCollectorUserId)?.name ?? "Unassigned"}</dd>
-        </dl>
-        <div>
-          {d.activeFlags.length ? d.activeFlags.map((f: { id: string; type: string; scope: string | null }) => <span key={f.id} className={`${styles.badge} ${f.type === "BANKRUPTCY" ? styles.badgePurple : styles.badgeWarn}`} style={{ margin: 2 }}>{label(f.type)}{f.scope ? `: ${label(f.scope)}` : ""}</span>) : <span className={styles.muted}>No flags</span>}
-          <p className={styles.muted}>Last contact: {formatWhen(a.lastContactAt)}</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MoneyPanel({ d }: { d: AccountDetail }) {
+export function MoneyPanel({ d }: { d: AccountDetail }) {
   const s = d.snapshot;
   if (!s) return <section className={styles.panel}><h2>Money</h2><p className={styles.empty}>No DealerCenter data yet.</p></section>;
   return (
@@ -107,7 +84,7 @@ function MoneyPanel({ d }: { d: AccountDetail }) {
   );
 }
 
-function LogContactPanel({ d, initialChannel }: { d: AccountDetail; initialChannel: string }) {
+export function LogContactPanel({ d, initialChannel }: { d: AccountDetail; initialChannel: string }) {
   const { busy, run, feedback } = useAccountAction(d.account.id);
   return (
     <Panel id="log" title="Log a contact" open={Boolean(initialChannel)}>
@@ -124,7 +101,7 @@ function LogContactPanel({ d, initialChannel }: { d: AccountDetail; initialChann
   );
 }
 
-function FlagsPanel({ d }: { d: AccountDetail }) {
+export function FlagsPanel({ d }: { d: AccountDetail }) {
   const { busy, run, feedback, setError } = useAccountAction(d.account.id);
   const [type, setType] = useState("DISPUTE");
   const [clearing, setClearing] = useState<string | null>(null);
@@ -180,7 +157,7 @@ function FlagsPanel({ d }: { d: AccountDetail }) {
   );
 }
 
-function DetailsPanel({ d }: { d: AccountDetail }) {
+export function DetailsPanel({ d }: { d: AccountDetail }) {
   const { busy, run, feedback } = useAccountAction(d.account.id);
   const a = d.account;
   const [results, setResults] = useState<Array<{ id: string; displayName: string; customerNumber: string }>>([]);
@@ -239,7 +216,7 @@ function DetailsPanel({ d }: { d: AccountDetail }) {
   );
 }
 
-function Timeline({ d }: { d: AccountDetail }) {
+export function Timeline({ d }: { d: AccountDetail }) {
   return (
     <section className={styles.panel} aria-labelledby="timeline-heading">
       <h2 id="timeline-heading">Timeline</h2>
@@ -251,20 +228,5 @@ function Timeline({ d }: { d: AccountDetail }) {
         </ol>
       )}
     </section>
-  );
-}
-
-/** Extra panels from later stages plug in here. */
-export function AccountWorkspace({ detail, initialLog, extraPanels }: { detail: AccountDetail; initialLog: string; extraPanels?: ReactNode }) {
-  return (
-    <>
-      <Header d={detail} />
-      <MoneyPanel d={detail} />
-      {extraPanels}
-      <LogContactPanel d={detail} initialChannel={initialLog} />
-      <FlagsPanel d={detail} />
-      <DetailsPanel d={detail} />
-      <Timeline d={detail} />
-    </>
   );
 }

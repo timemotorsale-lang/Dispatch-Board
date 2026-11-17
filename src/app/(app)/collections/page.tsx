@@ -15,7 +15,7 @@ export default async function CollectionsQueuePage({ searchParams }: { searchPar
   const queue = await getQueue(user, { tab, bucket: filters.bucket as never, type: filters.type as never, q: filters.q, status: filters.status, sort: filters.sort as "" | "RISK" });
   return (
     <CollectionsFrame section="queue" title="Today's collections queue" description="Broken promises first, then reported payments not found, then the most days past due.">
-      <QueueScreen tab={queue.tab} counts={queue.counts} rows={queue.rows} totalRows={queue.totalRows} filters={filters} lastImport={queue.lastImport} importedToday={queue.importedToday} />
+      <QueueScreen tab={queue.tab} counts={queue.counts} rows={queue.rows} totalRows={queue.totalRows} filters={filters} lastImport={queue.lastImport} importedToday={queue.importedToday} summary={queue.summary} />
     </CollectionsFrame>
   );
 }

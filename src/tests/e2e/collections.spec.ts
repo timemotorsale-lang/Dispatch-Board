@@ -62,6 +62,7 @@ test.describe("Collections screens", () => {
     await checkPage(page, "/collections?tab=REPO", "Today's collections queue", "queue-repo");
     await checkPage(page, "/collections/accounts", /Accounts/, "accounts");
     await checkPage(page, `/collections/accounts/${f.accountId}`, /SAMPLE|Sample|FAKE|\w+/, "account");
+    for (const view of ["contact", "promises", "insurance", "recovery", "ledger", "details", "history"]) await checkPage(page, `/collections/accounts/${f.accountId}?view=${view}`, /\w+/, `account-${view}`);
     await checkPage(page, "/collections/inbox", "Inbox", "inbox");
     await checkPage(page, "/collections/import", /Import/, "import");
     await checkPage(page, "/collections/dashboard", "Collections dashboard", "dashboard");
@@ -83,6 +84,8 @@ test.describe("Collections screens", () => {
     page.setDefaultTimeout(20_000);
 
     await page.goto(`/collections/accounts/${f.accountId}`);
+    await expect(page.getByLabel("Do this next")).toBeVisible();
+    await page.getByRole("button", { name: "Promise", exact: true }).click();
     const promise = page.locator("#promise");
     await promise.getByLabel("Amount ($)").first().fill("125");
     await promise.getByLabel("Promised date").fill(new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
@@ -90,6 +93,7 @@ test.describe("Collections screens", () => {
     await expect(promise.getByRole("status")).toBeVisible();
     await expect(promise.getByText("$125.00").first()).toBeVisible();
 
+    await page.getByRole("tab", { name: "Contact and texts" }).click();
     const message = page.locator("#message");
     await message.getByLabel("Template").selectOption("PAST_DUE_DAY1");
     await message.getByRole("button", { name: "Preview" }).click();

@@ -55,7 +55,7 @@ export function ReconciliationScreen({ data }: { data: Data }) {
             <tbody>
               {data.rows.slice(0, 300).map(r => (
                 <tr key={r.accountId}>
-                  <th scope="row"><Link href={`/collections/accounts/${r.accountId}#ledger`}>{r.name}</Link><br /><small>{r.externalAccountId} · {label(r.status)}</small></th>
+                  <th scope="row"><Link href={`/collections/accounts/${r.accountId}?view=ledger`}>{r.name}</Link><br /><small>{r.externalAccountId} · {label(r.status)}</small></th>
                   <td>{r.asOfDate ?? "—"}</td>
                   <td>{r.compared.map(c => <div key={c.field}>{FIELD_LABEL[c.field]}: {fmt(c.field, c.dms)}</div>)}</td>
                   <td>{r.compared.map(c => <div key={c.field} style={{ fontWeight: c.difference ? 700 : 400 }}>{fmt(c.field, c.module)}{c.difference ? ` (off by ${fmt(c.field, Math.abs(c.difference))})` : ""}</div>)}</td>

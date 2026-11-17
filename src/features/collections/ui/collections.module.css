@@ -69,3 +69,60 @@ dialog.dialog::backdrop { background: rgba(10, 20, 40, .45); }
   .chartRow { grid-template-columns: 70px 1fr 80px; }
 }
 @media print { .hideOnPrint, .subnav, .actions, .modeBanner, .page form { display: none !important; } .page { padding: 0; color: black; } .panel { border: 0; } }
+/* ---- Redesign (queue call list + account workspace) ---- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.kpi { display: block; padding: 10px 14px; border: 1px solid var(--line, #d4deeb); border-left-width: 4px; border-radius: 0; background: var(--surface-strong, white); color: inherit; text-decoration: none; }
+.kpi strong { display: block; font-size: 20px; }
+.kpi span { font-size: 13px; color: var(--muted); }
+.kpiDanger { border-left-color: #c03a3a; } .kpiWarn { border-left-color: #c98a1a; } .kpiAccent { border-left-color: #315bcb; } .kpiGood { border-left-color: #2d7c45; }
+.tabbar { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line, #d4deeb); margin: 0 0 12px; padding: 0; list-style: none; }
+.tabbar a, .tabbar button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px; border: 0 !important; border-bottom: 3px solid transparent !important; border-radius: 0 !important; background: none !important; color: var(--muted); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.tabbar a[aria-current="page"], .tabbar button[aria-selected="true"] { color: #1d3a7a; border-bottom-color: #315bcb !important; }
+.count { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 999px; background: #e8eef9; color: #1d3a7a; font-size: 12px; text-align: center; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
+.toolbar input[type="search"] { flex: 1 1 260px; width: auto; }
+.callList { border: 1px solid var(--line, #d4deeb); border-radius: 8px; background: var(--surface-strong, white); overflow: hidden; }
+.callRow { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.8fr) minmax(0, 0.9fr) minmax(0, 1.6fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line, #e1e8f1); }
+.callRow:last-child { border-bottom: 0; }
+.callRowUrgent { background: #fdf3f3; }
+.callName { font-weight: 700; }
+.callSub { font-size: 13px; color: var(--muted); }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; background: #e8eef9; color: #1d3a7a; }
+.chipDanger { background: #fde3e3; color: #8a1f1f; } .chipWarn { background: #fff1d6; color: #7a4a00; } .chipGood { background: #e2f4e6; color: #1b5a2c; } .chipNeutral { background: #eef1f5; color: #3f5168; }
+.reasonDanger { color: #8a1f1f; font-weight: 600; } .reasonWarn { color: #7a4a00; } .reasonNeutral { color: var(--muted); }
+.iconButtons { display: flex; gap: 6px; }
+.page .iconButton { min-height: 38px; min-width: 38px; padding: 6px 10px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; margin-bottom: 8px; font-size: 14px; }
+.strip { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr)); gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line, #d4deeb); border-radius: 8px; background: var(--surface-strong, white); }
+.nameBlock { padding: 10px 12px; border-radius: 6px; background: #fff3dc; color: #5a3a00; }
+.nameBlock strong { display: block; font-size: 19px; color: #3d2700; }
+.stripLabel { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.stripValue { font-size: 17px; font-weight: 700; }
+.actionBar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.menu { position: relative; }
+.menu summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line, #ccd6e4); border-radius: 6px; background: var(--surface-strong, white); cursor: pointer; }
+.menu summary::-webkit-details-marker { display: none; }
+.menuList { position: absolute; z-index: 20; right: 0; margin-top: 4px; min-width: 230px; padding: 6px; border: 1px solid var(--line, #ccd6e4); border-radius: 8px; background: var(--surface-strong, white); box-shadow: 0 8px 24px rgba(15, 30, 60, .14); }
+.page .menuList button { width: 100%; justify-content: flex-start; border: 0; min-height: 36px; }
+.workspace { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.aside { border: 1px solid var(--line, #d4deeb); border-radius: 8px; padding: 14px; background: var(--surface-strong, white); }
+.aside h2 { font-size: 16px; margin: 0 0 8px; }
+.aside dl { margin: 0 0 12px; display: grid; gap: 2px; }
+.aside dt { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.aside dd { margin: 0; font-weight: 600; }
+.nextCard { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 14px; border: 2px solid #315bcb; border-radius: 8px; background: #f3f6fd; margin-bottom: 12px; }
+.nextCard small { color: #1d3a7a !important; font-weight: 700; }
+.riskBig { font-size: 26px; font-weight: 800; text-align: right; }
+.riskHigh { color: #a12d2d; } .riskMid { color: #8a5a00; } .riskLow { color: #2d6a3d; }
+.tabPanel > .panel:first-child, .tabPanel > details:first-child { margin-top: 0; }
+@media (max-width: 960px) {
+  .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nameBlock { grid-column: 1 / -1; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .callRow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name amount" "reason chip" "actions actions"; }
+  .callRow > :nth-child(1) { grid-area: name; } .callRow > :nth-child(2) { grid-area: chip; justify-self: end; } .callRow > :nth-child(3) { grid-area: amount; justify-self: end; } .callRow > :nth-child(4) { grid-area: reason; } .callRow > :nth-child(5) { grid-area: actions; }
+  .page .iconButton { flex: 1; min-height: 44px; }
+  .iconButtons { width: 100%; }
+}
