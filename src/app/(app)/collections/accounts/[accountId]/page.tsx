@@ -6,7 +6,8 @@ import { getAccountDetail, getQueue } from "@/features/collections/server/accoun
 import { getAccountLedger } from "@/features/collections/server/ledger-service";
 import { requireCollectionsPage } from "@/features/collections/server/page-gate";
 import { getAccountUpgrades } from "@/features/collections/server/upgrades-service";
-import { ACCOUNT_VIEWS, AccountShell, type AccountView } from "@/features/collections/ui/account-shell";
+import { AccountShell } from "@/features/collections/ui/account-shell";
+import { ACCOUNT_VIEWS, type AccountView } from "@/features/collections/ui/account-views";
 import { CollectionsFrame } from "@/features/collections/ui/collections-frame";
 
 type Props = { params: Promise<{ accountId: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> };

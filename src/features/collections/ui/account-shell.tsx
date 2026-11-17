@@ -7,6 +7,7 @@ import { formatCents } from "../domain/money-dates";
 import { STATUS_LABELS, type AccountStatus } from "../domain/status";
 import type { getAccountLedger } from "../server/ledger-service";
 import type { getAccountUpgrades } from "../server/upgrades-service";
+import { ACCOUNT_VIEWS, type AccountView } from "./account-views";
 import { DetailsPanel, FlagsPanel, InTabContext, LogContactPanel, MoneyPanel, Timeline, type AccountDetail } from "./account-workspace";
 import { formatWhen, label } from "./client-api";
 import styles from "./collections.module.css";
@@ -17,11 +18,6 @@ import { PromisesPanel } from "./promises-panel";
 import { RecoveryPanel } from "./recovery-panel";
 import { ChargeOffPanel, ExtensionsAndFeesPanel, SkipPanel } from "./upgrades-panels";
 
-export const ACCOUNT_VIEWS = [
-  ["overview", "Overview"], ["contact", "Contact and texts"], ["promises", "Promises and payments"], ["insurance", "Insurance"],
-  ["recovery", "Starter and repo"], ["ledger", "Ledger"], ["details", "Flags and details"], ["history", "History"]
-] as const;
-export type AccountView = (typeof ACCOUNT_VIEWS)[number][0];
 
 type Nav = { from: string; position: number | null; total: number; prevId: string | null; nextId: string | null };
 
