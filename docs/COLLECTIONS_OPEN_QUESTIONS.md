@@ -32,6 +32,18 @@ uses the safest choice (noted next to each question).
 
 ## For the owner
 
+- **Customer contact details (asking DealerCenter support, Nov 17, 2026).** The Active
+  Accounts export has no phone, email, address or VIN, so the account page shows "Not on
+  file". The "All Customers" CRM report has them, but it's a printed-style report with no
+  deal or account number, and it includes leads plus sensitive income and employer data. So
+  it isn't used. The request to support: *"An Excel export of my BHPH/lease accounts, one
+  row per account, with Account ID or Deal Number, buyer name, cell phone, home phone,
+  email, mailing address and VIN."* The other option is adding those columns to the Active
+  Accounts report. Once the column headings are known, they get connected to the
+  "Contact & details" import slot that already exists.
+  *Safe choice now:* contact details are typed in by hand ("Edit details"). Nothing is
+  matched by name alone.
+
 7. Should collectors see **all accounts** or **only assigned accounts**?
    *Safe choice now:* a setting, default "all accounts" (you are the only user).
 
