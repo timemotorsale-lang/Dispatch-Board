@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BarChart3, House, Inbox, ListChecks, PhoneCall, Plug, Scale, Settings, Upload, Users, type LucideIcon } from "lucide-react";
+
 import { getCurrentUser } from "@/server/auth/current-user";
 
 import { resolveCollectionsMode } from "../config/flags";
@@ -8,7 +10,8 @@ import { hasCollectionsPermission, type CollectionsPermission } from "../config/
 import styles from "./collections.module.css";
 
 export const COLLECTIONS_SECTIONS = [
-  { key: "queue", href: "/collections", label: "Queue", ready: true, permission: "VIEW" },
+  { key: "home", href: "/collections", label: "Home", ready: true, permission: "VIEW" },
+  { key: "queue", href: "/collections/queue", label: "Queue", ready: true, permission: "VIEW" },
   { key: "inbox", href: "/collections/inbox", label: "Inbox", ready: true, permission: "VIEW" },
   { key: "accounts", href: "/collections/accounts", label: "Accounts", ready: true, permission: "VIEW" },
   { key: "dashboard", href: "/collections/dashboard", label: "Dashboard", ready: true, permission: "VIEW_DASHBOARD" },
@@ -20,6 +23,10 @@ export const COLLECTIONS_SECTIONS = [
 ] as const satisfies ReadonlyArray<{ key: string; href: string; label: string; ready: boolean; permission: CollectionsPermission }>;
 
 export type CollectionsSectionKey = (typeof COLLECTIONS_SECTIONS)[number]["key"];
+
+const SECTION_ICONS: Record<CollectionsSectionKey, LucideIcon> = {
+  home: House, queue: PhoneCall, inbox: Inbox, accounts: Users, dashboard: BarChart3, reconciliation: Scale, import: Upload, playbook: ListChecks, integrations: Plug, settings: Settings
+};
 
 /** Shared page frame: title, Collections menu, and a REVIEW-mode reminder. */
 export async function CollectionsFrame({ section, title, description, actions, children }: {
@@ -35,26 +42,26 @@ export async function CollectionsFrame({ section, title, description, actions, c
   const sections = COLLECTIONS_SECTIONS.filter(item => hasCollectionsPermission(user, item.permission));
   return (
     <div className={styles.page} data-collections-page="">
-      {mode === "REVIEW" ? (
-        <p className={styles.modeBanner} role="note">
-          Collections is in REVIEW mode: only admins can see it, and texts/emails are never really sent (dry run only).
-        </p>
-      ) : null}
-      <nav aria-label="Collections">
-        <ul className={styles.subnav}>
-          {sections.map(item => (
-            <li key={item.key}>
-              {item.ready
-                ? <Link href={item.href} aria-current={item.key === section ? "page" : undefined}>{item.label}</Link>
-                : <span aria-disabled="true" title="Coming in a later build stage" style={{ opacity: 0.55, cursor: "default" }}>{item.label} (coming soon)</span>}
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <header className={styles.header}>
+      <div className={styles.moduleBar}>
+        <nav aria-label="Collections" className={styles.moduleNav}>
+          <ul>
+            {sections.map(item => {
+              const Icon = SECTION_ICONS[item.key];
+              return (
+                <li key={item.key}>
+                  <Link href={item.href} aria-current={item.key === section ? "page" : undefined}><Icon size={16} aria-hidden="true" />{item.label}</Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        {mode === "REVIEW" ? <span className={styles.modePill} role="note" title="Only admins can see Collections, and texts and emails are saved as dry runs, never sent.">Review mode · dry run</span> : null}
+      </div>
+      <header className={styles.pageHeader}>
         <div>
+          <p className={styles.eyebrow}>Collections</p>
           <h1>{title}</h1>
-          {description ? <p>{description}</p> : null}
+          {description ? <p className={styles.pageDescription}>{description}</p> : null}
         </div>
         {actions ? <div className={styles.actions}>{actions}</div> : null}
       </header>

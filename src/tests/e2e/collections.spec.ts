@@ -58,8 +58,10 @@ test.describe("Collections screens", () => {
     await signedIn(context, f.adminToken, baseURL!);
     const page = await context.newPage();
     const errors = watchErrors(page);
-    await checkPage(page, "/collections", "Today's collections queue", "queue");
-    await checkPage(page, "/collections?tab=REPO", "Today's collections queue", "queue-repo");
+    await checkPage(page, "/collections", /^Good (morning|afternoon|evening)/, "home");
+    await checkPage(page, "/collections/approvals", /decision|requests/i, "approvals");
+    await checkPage(page, "/collections/queue", "Today's collections queue", "queue");
+    await checkPage(page, "/collections/queue?tab=REPO", "Today's collections queue", "queue-repo");
     await checkPage(page, "/collections/accounts", /Accounts/, "accounts");
     await checkPage(page, `/collections/accounts/${f.accountId}`, /SAMPLE|Sample|FAKE|\w+/, "account");
     for (const view of ["contact", "promises", "insurance", "recovery", "ledger", "details", "history"]) await checkPage(page, `/collections/accounts/${f.accountId}?view=${view}`, /\w+/, `account-${view}`);
@@ -119,7 +121,7 @@ test.describe("Collections screens", () => {
     const context = await browser.newContext();
     await signedIn(context, f.collectorToken, baseURL!);
     const page = await context.newPage();
-    await page.goto("/collections");
+    await page.goto("/collections/queue");
     await expect(page.getByRole("heading", { level: 1, name: "Today's collections queue" })).toBeVisible({ timeout: 30_000 });
     expect((await page.request.get("/api/collections/settings")).status()).toBe(403);
     const menu = page.getByRole("navigation", { name: "Collections" });

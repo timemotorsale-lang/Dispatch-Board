@@ -53,14 +53,14 @@ export function DashboardScreen({ data, kpis }: { data: Data; kpis: Kpis }) {
         <div className={styles.tiles}>
           <Tile label="Accounts" value={t.totalAccounts} href="/collections/accounts" />
           <Tile label="Total balance" value={formatCents(t.totalBalanceCents)} />
-          <Tile label="Past due" value={`${t.pastDueAccounts} · ${formatCents(t.pastDueAmountCents)}`} href="/collections?tab=PAST_DUE" />
-          <Tile label="Broken promises today" value={t.brokenPromisesToday} href="/collections?tab=BROKEN" />
-          <Tile label="Disable eligible" value={t.disableEligible} href="/collections?tab=DISABLE" />
+          <Tile label="Past due" value={`${t.pastDueAccounts} · ${formatCents(t.pastDueAmountCents)}`} href="/collections/queue?tab=PAST_DUE" />
+          <Tile label="Broken promises today" value={t.brokenPromisesToday} href="/collections/queue?tab=BROKEN" />
+          <Tile label="Disable eligible" value={t.disableEligible} href="/collections/queue?tab=DISABLE" />
           <Tile label="Starter disabled" value={t.starterDisabled} />
-          <Tile label="Repo review" value={t.repoReview} href="/collections?tab=REPO" />
+          <Tile label="Repo review" value={t.repoReview} href="/collections/queue?tab=REPO" />
           <Tile label="Repo assigned" value={t.repoAssigned} />
           <Tile label="Repo recovered / storage" value={t.repoInStorage} />
-          <Tile label="Insurance problems" value={t.insuranceProblems} href="/collections?tab=INSURANCE" />
+          <Tile label="Insurance problems" value={t.insuranceProblems} href="/collections/queue?tab=INSURANCE" />
           <Tile label="Unread texts" value={t.unreadMessages} href="/collections/inbox" />
           <Tile label="Last import" value={t.lastImportAt ? formatWhen(t.lastImportAt) : "Never"} href="/collections/import" />
         </div>

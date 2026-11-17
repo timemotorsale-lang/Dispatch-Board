@@ -32,7 +32,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
   const query = (next: Record<string, string>) => {
     const params = new URLSearchParams({ tab, ...filters, ...next });
     for (const [key, value] of [...params.entries()]) if (!value) params.delete(key);
-    return `/collections?${params.toString()}`;
+    return `/collections/queue?${params.toString()}`;
   };
   const filtered = Boolean(filters.bucket || filters.type || filters.status);
   return (
@@ -59,7 +59,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
         </ul>
       </nav>
 
-      <form className={styles.toolbar} action="/collections" method="get" role="search" aria-label="Search and filter the queue">
+      <form className={styles.toolbar} action="/collections/queue" method="get" role="search" aria-label="Search and filter the queue">
         <input type="hidden" name="tab" value={tab} />
         <label className={styles.srOnly} htmlFor="queue-search">Search name, deal, stock or phone</label>
         <input id="queue-search" type="search" name="q" defaultValue={filters.q} placeholder="Search name, deal, stock or phone" />
@@ -77,7 +77,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
           </div>
         </details>
         <button type="submit" className={styles.primary}>Search</button>
-        {filters.q || filtered || filters.sort ? <Link className={styles.button} href={`/collections?tab=${tab}`}>Clear</Link> : null}
+        {filters.q || filtered || filters.sort ? <Link className={styles.button} href={`/collections/queue?tab=${tab}`}>Clear</Link> : null}
       </form>
 
       <p className={styles.muted} aria-live="polite">{totalRows} account{totalRows === 1 ? "" : "s"} to work{totalRows > rows.length ? `, showing the first ${rows.length}` : ""}.</p>

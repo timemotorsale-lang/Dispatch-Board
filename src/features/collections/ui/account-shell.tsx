@@ -74,7 +74,7 @@ export function AccountShell({ d, u, l, initialView, initialLog, nav }: {
   return (
     <>
       <div className={styles.topbar}>
-        <Link href={`/collections?tab=${encodeURIComponent(nav.from)}`}>← Back to queue</Link>
+        <Link href={`/collections/queue?tab=${encodeURIComponent(nav.from)}`}>← Back to queue</Link>
         {nav.position ? (
           <span className={styles.actions}>
             <span className={styles.muted}>{nav.position} of {nav.total} in this queue</span>

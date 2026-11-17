@@ -1247,3 +1247,29 @@ These are already in the open questions.
 - AACER, the reassigned-number check, Axle and the Advantage API turned on;
 - AI agents in shadow mode;
 - two monthly cycles with every account matching DealerCenter, before any switch-over.
+
+---
+
+## Design update: Collections home page and the enterprise look
+
+**What changed, in plain English:**
+- **New home page at `/collections`.** It shows a greeting and the date, plus how fresh
+  the DealerCenter data is. Under that you'll find:
+  - today's checklist (import done? automations ran? tasks? reconciliation?);
+  - four headline numbers;
+  - a "Call first" list;
+  - a "Waiting for your decision" card (starter disables, repos, extensions, adjustments,
+    charge-offs, possible skips);
+  - unread texts, a portfolio-by-bucket chart and quick links.
+  - The **Start calling** button opens the first account on the call list.
+- **The call list moved** to `/collections/queue`. Old links into accounts still work.
+- **New approvals page** at `/collections/approvals`. Everything waiting for a human
+  decision is listed oldest first, with a link to the right part of each account.
+  Collectors see only their own requests. Approving stays a human action, as before.
+- **Enterprise frame on every Collections page:** an icon tab bar for the module, a clear
+  page header, and a "Review mode · dry run" badge so it's always obvious nothing real is
+  being sent.
+
+**Checks:** typecheck and lint are clean (apart from the one old lint error that was
+already there). 3 new database tests pass. The browser tests (4 of 4) pass, including the
+accessibility checks.
