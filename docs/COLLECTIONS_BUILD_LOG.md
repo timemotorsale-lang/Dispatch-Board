@@ -1296,3 +1296,23 @@ accessibility checks.
 
 **Checks:** typecheck and lint are clean. All 4 browser tests pass, including the
 accessibility checks and the "fits a phone" checks on every screen.
+
+## Caught up with GitHub main (2026-11-16)
+
+- I brought GitHub main's 71 newer commits into the Collections branch.
+- One clash in the database schema: both sides had added a line to the "Task" table.
+  The fix kept both lines.
+- Main added no new packages.
+- I applied main's 4 newer database changes to the **test copy only**:
+  - dispatch task repeats;
+  - staff workflow restrictions;
+  - the service repair deposit ledger;
+  - the Minneapolis service bays.
+- After that I took a fresh backup of the test copy:
+  `dispatch_board_collections-after-main-catchup-20261116-1954.dump`.
+- **Checks:**
+  - typecheck and lint are clean;
+  - the full test suite passes (6,692 tests);
+  - the Collections database tests pass (235 tests);
+  - the browser tests pass (4 of 4).
+- Nothing has been pushed.
