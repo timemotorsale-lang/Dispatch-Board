@@ -10,6 +10,7 @@ import type { getAccountUpgrades } from "../server/upgrades-service";
 import { ACCOUNT_VIEWS, type AccountView } from "./account-views";
 import { DetailsPanel, FlagsPanel, InTabContext, LogContactPanel, MoneyPanel, Timeline, type AccountDetail } from "./account-workspace";
 import { formatWhen, label } from "./client-api";
+import { accountRefs, formatDay, formatPhone } from "../domain/account-ref";
 import styles from "./collections.module.css";
 import { InsurancePanel } from "./insurance-panel";
 import { LedgerPanel } from "./ledger-panel";
@@ -90,11 +91,11 @@ export function AccountShell({ d, u, l, initialView, initialLog, nav }: {
       <section className={styles.strip} aria-label="Account summary">
         <div className={styles.nameBlock}>
           <strong>{name}</strong>
-          Account {a.externalAccountId} · Deal {a.dealNumber ?? "—"} · {a.accountType === "BHPH" ? "BHPH" : "Lease-to-own"}
+          {[accountRefs(a), a.accountType === "BHPH" ? "BHPH" : "Lease-to-own"].filter(Boolean).join(" · ")}
         </div>
         <div><span className={styles.stripLabel}>Status</span><span className={`${styles.chip} ${dpd >= 30 ? styles.chipDanger : dpd > 0 ? styles.chipWarn : styles.chipGood}`}>{dpd > 0 ? `${dpd} days late` : "Current"}</span><div className={styles.callSub}>{STATUS_LABELS[a.status as AccountStatus] ?? a.status}</div></div>
         <div><span className={styles.stripLabel}>Amount due</span><span className={styles.stripValue}>{formatCents(due)}</span></div>
-        <div><span className={styles.stripLabel}>Next due</span><span className={styles.stripValue} style={{ fontSize: 15 }}>{d.snapshot?.paymentDueDate ?? "—"}</span></div>
+        <div><span className={styles.stripLabel}>Next due</span><span className={styles.stripValue} style={{ fontSize: 15 }}>{formatDay(d.snapshot?.paymentDueDate)}</span></div>
         <div><span className={styles.stripLabel}>Insurance</span><span className={`${styles.chip} ${INSURANCE_TONE[insurance] ? styles[INSURANCE_TONE[insurance]] : styles.chipNeutral}`}>{insurance === "NONE" || insurance === "UNKNOWN" ? "Not on file" : label(insurance)}</span></div>
       </section>
 
@@ -122,7 +123,7 @@ export function AccountShell({ d, u, l, initialView, initialLog, nav }: {
         <aside className={styles.aside} aria-label="Customer and vehicle">
           <h2>Customer</h2>
           <dl>
-            <dt>Mobile</dt><dd>{phone ? <a href={`tel:${phone}`}>{phone}</a> : "Not on file"}</dd>
+            <dt>Mobile</dt><dd>{phone ? <a href={`tel:${phone}`}>{formatPhone(phone)}</a> : "Not on file"}</dd>
             <dt>Email</dt><dd>{a.primaryEmail ?? "Not on file"}</dd>
             <dt>Language</dt><dd>{({ EN: "English", ES: "Spanish", SO: "Somali", SW: "Swahili" } as Record<string, string>)[a.preferredLanguage] ?? a.preferredLanguage}</dd>
             <dt>Texts</dt><dd>{textsAllowed ? "Allowed" : <span className={styles.reasonDanger}>Opted out (STOP)</span>}</dd>

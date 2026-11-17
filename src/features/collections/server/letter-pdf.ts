@@ -74,7 +74,7 @@ export async function buildLetterPdf(key: LetterKey, fields: LetterFields, appro
   line(fields.mailingAddress || "[mailing address not on file]");
   y -= 14;
   line(LETTER_TITLES[key], { f: bold, size: 14 });
-  line(`Account ${fields.accountNumber}${fields.dealNumber ? ` - Deal ${fields.dealNumber}` : ""}`);
+  line(fields.dealNumber ? `Deal #${fields.dealNumber}` : `Account ${fields.accountNumber}`);
   if (fields.vehicle || fields.vin) line(`Vehicle: ${[fields.vehicle, fields.vin ? `VIN ${fields.vin}` : null].filter(Boolean).join(" - ")}`);
   y -= 10;
   line(draft ? PLACEHOLDER[key] : fillLetterText(approvedWording!, fields), { color: draft ? [0.45, 0.1, 0.1] : [0, 0, 0] });

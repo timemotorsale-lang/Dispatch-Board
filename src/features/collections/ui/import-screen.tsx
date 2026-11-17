@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { formatCents } from "../domain/money-dates";
 import { BUCKET_LABELS, BUCKETS, type Bucket } from "../domain/status";
 import styles from "./collections.module.css";
+import { formatDay } from "../domain/account-ref";
 
 type Summary = { totalRows: number; created: number; updated: number; unchanged: number; needsReview: number; errors: number; missing: number; totalBalanceCents: number; bucketCounts: Record<Bucket, number> };
 type Issue = { rowNumber: number | null; message: string };
@@ -110,7 +111,7 @@ export function ImportScreen({ initialRuns }: { initialRuns: ImportRunSummary[] 
       {preview ? (
         <section className={styles.panel} aria-labelledby="preview-heading">
           <h2 id="preview-heading">2. Check the preview: {preview.fileName}</h2>
-          <p className={styles.muted}>Data as of {preview.asOfDate}. {preview.status === "FAILED" ? "This file can't be imported." : "Compare the account count and total balance with DealerCenter before confirming."}</p>
+          <p className={styles.muted}>Data as of {formatDay(preview.asOfDate)}. {preview.status === "FAILED" ? "This file can't be imported." : "Compare the account count and total balance with DealerCenter before confirming."}</p>
           {preview.errors.length ? (
             <div className={styles.warning} role="alert">
               <strong>{preview.errors.length} problem(s) found.</strong> Rows with problems are skipped.
@@ -137,7 +138,7 @@ export function ImportScreen({ initialRuns }: { initialRuns: ImportRunSummary[] 
               {preview.missing.length ? (
                 <div className={styles.warning}>
                   <strong>{preview.missing.length} account(s) are not in this file.</strong> They may be paid off, closed or repossessed in DealerCenter. They won&apos;t be deleted; after you confirm, they&apos;ll be listed under &quot;Not in latest import&quot; so you can confirm what happened.
-                  <ul>{preview.missing.slice(0, 15).map(item => <li key={item.id}>{item.buyerNameRaw} · Deal {item.dealNumber ?? "—"} · {item.externalAccountId}</li>)}</ul>
+                  <ul>{preview.missing.slice(0, 15).map(item => <li key={item.id}>{item.buyerNameRaw}{item.dealNumber ? ` · Deal #${item.dealNumber}` : ""}</li>)}</ul>
                 </div>
               ) : null}
               <div className={styles.actions} role="group" aria-label="Filter preview rows">
@@ -184,7 +185,7 @@ export function ImportScreen({ initialRuns }: { initialRuns: ImportRunSummary[] 
               <tbody>
                 {runs.map(run => (
                   <tr key={run.id}>
-                    <td>{run.asOfDate}</td>
+                    <td>{formatDay(run.asOfDate)}</td>
                     <td>{run.fileName}</td>
                     <td><span className={`${styles.badge} ${run.status === "COMMITTED" ? styles.badgeGood : run.status === "FAILED" ? styles.badgeBad : ""}`}>{run.status.toLowerCase()}</span></td>
                     <td className={styles.num}>{run.totalRows}</td>

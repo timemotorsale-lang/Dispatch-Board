@@ -266,12 +266,12 @@ async function generateLetter(access: CollectionsAccess, accountId: string, inpu
   const d = settings.dealership;
   const { bytes, isDraftWording } = await buildLetterPdf(key as LetterKey, {
     dealershipName: d.name, dealershipPhone: d.phone, dealershipAddress: d.address, customerName: customer?.displayName ?? account.buyerNameRaw, mailingAddress: account.mailingAddress,
-    dealNumber: account.dealNumber, accountNumber: account.externalAccountId, vehicle: account.vehicleDescriptionRaw, vin: account.vin,
+    dealNumber: account.dealNumber, accountNumber: account.dealNumber ?? account.externalAccountId, vehicle: account.vehicleDescriptionRaw, vin: account.vin,
     date: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(new Date()), amountDue: formatCents(account.amountDueCents)
   }, settings.letterWording[key as LetterKey] || null);
   const stored = await storeRestrictedDocument({
     organizationId: access.organizationId, actorId: access.actor.id, ownerType: "COLLECTION_ACCOUNT", ownerId: account.id, ownerLabel: `Collections · ${account.buyerNameRaw}`,
-    documentType: `COLLECTIONS_${key}`, fileName: `${key.toLowerCase().replaceAll("_", "-")}-${account.externalAccountId}-${chicagoToday()}.pdf`, contentType: "application/pdf", bytes
+    documentType: `COLLECTIONS_${key}`, fileName: `${key.toLowerCase().replaceAll("_", "-")}-${account.dealNumber ?? account.externalAccountId}-${chicagoToday()}.pdf`, contentType: "application/pdf", bytes
   });
   const letter = await prisma.collectionLetter.create({ data: { organizationId: access.organizationId, accountId, repoCaseId: caseId, templateKey: key, generatedDocumentId: stored.documentId, isDraftWording, generatedByUserId: access.actor.id } });
   await recordAccountEvent(prisma, { organizationId: access.organizationId, accountId, type: "LETTER_GENERATED", userId: access.actor.id, after: { letterId: letter.id, templateKey: key, isDraftWording } });

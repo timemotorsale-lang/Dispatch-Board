@@ -8,6 +8,7 @@ import { formatCents } from "../domain/money-dates";
 import type { getReconciliation } from "../server/reconciliation-service";
 import type { MigrationReport } from "../server/migration-service";
 import { callCollections, label } from "./client-api";
+import { formatDay } from "../domain/account-ref";
 import styles from "./collections.module.css";
 
 type Data = Awaited<ReturnType<typeof getReconciliation>>;
@@ -55,8 +56,8 @@ export function ReconciliationScreen({ data }: { data: Data }) {
             <tbody>
               {data.rows.slice(0, 300).map(r => (
                 <tr key={r.accountId}>
-                  <th scope="row"><Link href={`/collections/accounts/${r.accountId}?view=ledger`}>{r.name}</Link><br /><small>{r.externalAccountId} · {label(r.status)}</small></th>
-                  <td>{r.asOfDate ?? "—"}</td>
+                  <th scope="row"><Link href={`/collections/accounts/${r.accountId}?view=ledger`}>{r.name}</Link><br /><small>{[r.refs, label(r.status)].filter(Boolean).join(" · ")}</small></th>
+                  <td>{formatDay(r.asOfDate)}</td>
                   <td>{r.compared.map(c => <div key={c.field}>{FIELD_LABEL[c.field]}: {fmt(c.field, c.dms)}</div>)}</td>
                   <td>{r.compared.map(c => <div key={c.field} style={{ fontWeight: c.difference ? 700 : 400 }}>{fmt(c.field, c.module)}{c.difference ? ` (off by ${fmt(c.field, Math.abs(c.difference))})` : ""}</div>)}</td>
                   <td>
@@ -83,7 +84,7 @@ export function ReconciliationScreen({ data }: { data: Data }) {
           <h2 id="hist-h">Match rate by day</h2>
           <div className={styles.tableWrap}><table className={styles.table}>
             <thead><tr><th scope="col">Date</th><th scope="col">Accounts</th><th scope="col">Matched</th><th scope="col">Differences</th><th scope="col">Match rate</th></tr></thead>
-            <tbody>{data.history.map(h => <tr key={h.date}><th scope="row">{h.date}</th><td>{h.accounts}</td><td>{h.matched}</td><td>{h.differences}</td><td>{h.matchRatePercent === null ? "—" : `${h.matchRatePercent}%`}</td></tr>)}</tbody>
+            <tbody>{data.history.map(h => <tr key={h.date}><th scope="row">{formatDay(h.date)}</th><td>{h.accounts}</td><td>{h.matched}</td><td>{h.differences}</td><td>{h.matchRatePercent === null ? "—" : `${h.matchRatePercent}%`}</td></tr>)}</tbody>
           </table></div>
         </section>
       ) : null}

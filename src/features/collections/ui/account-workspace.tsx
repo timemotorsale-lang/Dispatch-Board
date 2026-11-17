@@ -6,6 +6,7 @@ import { createContext, useContext, useState, type FormEvent, type ReactNode } f
 import { formatCents } from "../domain/money-dates";
 import { accountAction, callCollections, formatWhen, label, uploadAccountDocument } from "./client-api";
 import styles from "./collections.module.css";
+import { formatDay } from "../domain/account-ref";
 
 // The detail shape comes from getAccountDetail(); kept loose here so later stages can add fields.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,7 +69,7 @@ export function MoneyPanel({ d }: { d: AccountDetail }) {
         <div className={styles.tile}>Amount due<strong>{formatCents(s.amountDueCents)}</strong></div>
         <div className={styles.tile}>Days past due<strong>{s.daysPastDue}</strong></div>
         <div className={styles.tile}>Late fees<strong>{formatCents(s.lateCents)}</strong></div>
-        <div className={styles.tile}>Due date<strong>{s.paymentDueDate ?? "—"}</strong></div>
+        <div className={styles.tile}>Due date<strong>{formatDay(s.paymentDueDate)}</strong></div>
         <div className={styles.tile}>Payments left<strong>{s.paymentsRemaining ?? "—"}</strong></div>
       </div>
       <details>
@@ -79,7 +80,7 @@ export function MoneyPanel({ d }: { d: AccountDetail }) {
           <dt>Payment</dt><dd>{formatCents(s.paymentAmountCents)}</dd><dt>Autopay</dt><dd>{s.dmsAutopayStatus ?? "—"}</dd>
         </dl>
       </details>
-      <p className={styles.muted}>Data as of {s.asOfDate} (DealerCenter import). DealerCenter is still the official record.</p>
+      <p className={styles.muted}>Data as of {formatDay(s.asOfDate)} (DealerCenter import). DealerCenter is still the official record.</p>
     </section>
   );
 }
@@ -178,6 +179,7 @@ export function DetailsPanel({ d }: { d: AccountDetail }) {
           <ul>{results.map(c => <li key={c.id}>{c.displayName} ({c.customerNumber}) <button type="button" disabled={busy} onClick={() => void run("LINK_CUSTOMER", { customerId: c.id })}>Link</button></li>)}</ul>
         </>
       ) : null}
+      <p className={styles.muted} style={{ fontSize: 13 }}>DealerCenter account ID (for reference): {a.externalAccountId}</p>
       <h3>Contact details</h3>
       <p className={styles.muted}>Only the main customer is ever contacted. Never enter co-buyers or references here.</p>
       <form className={styles.form} onSubmit={event => void run("EDIT_CONTACT", formValues(event))}>

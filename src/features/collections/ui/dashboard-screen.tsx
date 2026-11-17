@@ -7,6 +7,7 @@ import { formatCents } from "../domain/money-dates";
 import type { getDashboard, getKpis } from "../server/dashboard-service";
 import { formatWhen } from "./client-api";
 import styles from "./collections.module.css";
+import { formatDay } from "../domain/account-ref";
 
 type Data = Awaited<ReturnType<typeof getDashboard>>;
 type Kpis = Awaited<ReturnType<typeof getKpis>>;
@@ -146,7 +147,7 @@ export function DashboardScreen({ data, kpis }: { data: Data; kpis: Kpis }) {
           {data.activity.length ? (
             <div className={styles.tableWrap}><table className={styles.table}>
               <thead><tr><th scope="col">Date</th><th scope="col">Staff</th><th scope="col" className={styles.num}>Contacts logged</th><th scope="col" className={styles.num}>Texts / emails</th></tr></thead>
-              <tbody>{data.activity.map(a => <tr key={`${a.date}-${a.collector}`}><th scope="row">{a.date}</th><td>{a.collector}</td><td className={styles.num}>{a.contacts}</td><td className={styles.num}>{a.messages}</td></tr>)}</tbody>
+              <tbody>{data.activity.map(a => <tr key={`${a.date}-${a.collector}`}><th scope="row">{formatDay(a.date)}</th><td>{a.collector}</td><td className={styles.num}>{a.contacts}</td><td className={styles.num}>{a.messages}</td></tr>)}</tbody>
             </table></div>
           ) : <p className={styles.empty}>No contacts or messages logged in the last 14 days.</p>}
         </Card>

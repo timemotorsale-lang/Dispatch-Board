@@ -1,3 +1,4 @@
+import { formatDay } from "../domain/account-ref";
 import Link from "next/link";
 
 import { formatCents } from "../domain/money-dates";
@@ -39,7 +40,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
     <>
       {!importedToday ? (
         <p className={styles.warning} role="status">
-          {lastImport ? `The latest DealerCenter data is from ${lastImport.asOfDate}.` : "No DealerCenter file has been imported yet."}{" "}
+          {lastImport ? `The latest DealerCenter data is from ${formatDay(lastImport.asOfDate)}.` : "No DealerCenter file has been imported yet."}{" "}
           <Link href="/collections/import">Import today&apos;s file</Link> so the queue is up to date.
         </p>
       ) : null}
@@ -94,7 +95,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
                 <div>
                   <Link className={styles.callName} href={href}>{row.buyerName}</Link>
                   {flags.map(f => <span key={f} className={`${styles.badge} ${f === "BANKRUPTCY" ? styles.badgePurple : styles.badgeWarn}`} style={{ marginLeft: 6 }}>{FLAG_LABELS[f]}</span>)}
-                  <div className={styles.callSub}>{row.vehicleDescription ?? "Vehicle not listed"} · Deal {row.dealNumber ?? "—"}{row.riskScore != null ? ` · risk ${row.riskScore}` : ""}</div>
+                  <div className={styles.callSub}>{row.vehicleDescription ?? "Vehicle not listed"}{row.dealNumber ? ` · Deal #${row.dealNumber}` : ""}{row.riskScore != null ? ` · risk ${row.riskScore}` : ""}</div>
                 </div>
                 <div>{daysChip(row.daysPastDue)}</div>
                 <div style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{formatCents(row.amountDueCents)}</div>

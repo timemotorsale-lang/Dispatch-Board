@@ -1,3 +1,4 @@
+import { formatDay } from "@/features/collections/domain/account-ref";
 import { notFound } from "next/navigation";
 
 import { CollectionsError } from "@/features/collections/config/permissions";
@@ -40,7 +41,7 @@ export default async function CollectionsAccountPage({ params, searchParams }: P
   };
   const log = typeof query.log === "string" ? (query.log === "1" ? "CALL_OUT" : query.log) : "";
   return (
-    <CollectionsFrame section="accounts" title={detail.customer?.displayName ?? detail.account.buyerNameRaw} description={`${detail.account.vehicleDescriptionRaw ?? "Vehicle not listed"}${detail.snapshot?.asOfDate ? ` · DealerCenter data as of ${detail.snapshot.asOfDate}` : ""}`}>
+    <CollectionsFrame section="accounts" title={detail.customer?.displayName ?? detail.account.buyerNameRaw} description={`${detail.account.vehicleDescriptionRaw ?? "Vehicle not listed"}${detail.snapshot?.asOfDate ? ` · DealerCenter data as of ${formatDay(detail.snapshot.asOfDate)}` : ""}`}>
       <AccountShell d={detail} u={upgrades} l={ledger} initialView={viewFrom(query)} initialLog={log} nav={nav} />
     </CollectionsFrame>
   );

@@ -8,6 +8,7 @@ import type { getAccountLedger } from "../server/ledger-service";
 import { formValues, Panel, useAccountAction, type AccountDetail } from "./account-workspace";
 import { label } from "./client-api";
 import styles from "./collections.module.css";
+import { formatDay } from "../domain/account-ref";
 
 type Ledger = Awaited<ReturnType<typeof getAccountLedger>>;
 const TYPES = ["PAYMENT", "LATE_FEE", "FEE", "LATE_FEE_WAIVER", "CREDIT", "ADJUSTMENT", "PAYMENT_REVERSAL", "RETURNED_PAYMENT", "PAYOFF", "SIDE_NOTE_PAYMENT", "REPO_EXPENSE", "SALE_PROCEEDS", "CHARGE_OFF", "RECOVERY", "OPENING_BALANCE"];
@@ -48,7 +49,7 @@ export function LedgerPanel({ d, l }: { d: AccountDetail; l: Ledger }) {
             <dt>Contract</dt><dd>{label(l.contract.calcMethod)} · {l.contract.numberOfPayments} {label(l.contract.frequency).toLowerCase()} payments of {formatCents(l.contract.paymentAmountCents)}{l.contract.aprBasisPoints ? ` · ${(l.contract.aprBasisPoints / 100).toFixed(2)}% APR` : ""} · schedule v{l.scheduleVersion}</dd>
             <dt>Total balance</dt><dd>{formatCents(l.state.totalBalanceCents)}</dd>
             <dt>Past due</dt><dd>{formatCents(l.state.pastDueCents)} · {l.state.daysPastDue} days</dd>
-            <dt>Payment due now</dt><dd>{formatCents(l.state.amountDueCents)}{l.state.nextDue ? ` · next #${l.state.nextDue.number} ${formatCents(l.state.nextDue.amountCents)} on ${l.state.nextDue.dueDate}` : ""}</dd>
+            <dt>Payment due now</dt><dd>{formatCents(l.state.amountDueCents)}{l.state.nextDue ? ` · next #${l.state.nextDue.number} ${formatCents(l.state.nextDue.amountCents)} on ${formatDay(l.state.nextDue.dueDate)}` : ""}</dd>
             <dt>Fees / late fees</dt><dd>{formatCents(l.state.feesCents)} / {formatCents(l.state.lateFeesCents)}</dd>
             {l.contract.calcMethod === "SIMPLE_INTEREST" ? <><dt>Principal / interest to date</dt><dd>{formatCents(l.state.principalCents)} / {formatCents(l.state.accruedInterestCents)}</dd></> : null}
             {l.state.chargedOffCents ? <><dt>Charged off / recovered</dt><dd>{formatCents(l.state.chargedOffCents)} / {formatCents(l.state.recoveredCents)}</dd></> : null}
@@ -57,7 +58,7 @@ export function LedgerPanel({ d, l }: { d: AccountDetail; l: Ledger }) {
           <details><summary>Schedule ({l.state.installments.length} payments)</summary>
             <div className={styles.tableWrap}><table className={styles.table}>
               <thead><tr><th scope="col">#</th><th scope="col">Due</th><th scope="col">Amount</th><th scope="col">Paid</th></tr></thead>
-              <tbody>{l.state.installments.map(i => <tr key={i.number}><th scope="row">{i.number}</th><td>{i.dueDate}</td><td>{formatCents(i.amountCents)}</td><td>{i.paidCents >= i.amountCents ? `Paid ${i.paidOn ?? ""}` : i.paidCents ? formatCents(i.paidCents) : "—"}</td></tr>)}</tbody>
+              <tbody>{l.state.installments.map(i => <tr key={i.number}><th scope="row">{i.number}</th><td>{formatDay(i.dueDate)}</td><td>{formatCents(i.amountCents)}</td><td>{i.paidCents >= i.amountCents ? `Paid ${i.paidOn ?? ""}` : i.paidCents ? formatCents(i.paidCents) : "—"}</td></tr>)}</tbody>
             </table></div>
           </details>
           <h3>Entries (never edited; corrections are reversals)</h3>
@@ -65,7 +66,7 @@ export function LedgerPanel({ d, l }: { d: AccountDetail; l: Ledger }) {
             <ul className={styles.timeline}>
               {l.transactions.map(t => (
                 <li key={t.id} style={{ opacity: t.reversed ? 0.55 : 1 }}>
-                  <strong>{label(t.type)}</strong> {t.type === "CHARGE_OFF" || REVERSAL.has(t.type) ? "" : formatCents(t.amountCents)} · {t.effectiveDate} · {label(t.source)}{t.reversed ? " · reversed" : ""}{t.memo ? ` · ${t.memo}` : ""}
+                  <strong>{label(t.type)}</strong> {t.type === "CHARGE_OFF" || REVERSAL.has(t.type) ? "" : formatCents(t.amountCents)} · {formatDay(t.effectiveDate)} · {label(t.source)}{t.reversed ? " · reversed" : ""}{t.memo ? ` · ${t.memo}` : ""}
                   {t.split.length ? <><br /><small>Split: {(t.split as Allocation[]).map(a => `${allocationLabel(a)} ${formatCents(a.amountCents)}`).join(", ")}</small></> : null}
                 </li>
               ))}

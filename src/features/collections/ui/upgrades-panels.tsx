@@ -8,6 +8,7 @@ import type { getAccountUpgrades } from "../server/upgrades-service";
 import { formValues, Panel, useAccountAction, type AccountDetail } from "./account-workspace";
 import { formatWhen, label } from "./client-api";
 import styles from "./collections.module.css";
+import { formatDay } from "../domain/account-ref";
 
 type Upgrades = Awaited<ReturnType<typeof getAccountUpgrades>>;
 
@@ -58,7 +59,7 @@ export function ExtensionsAndFeesPanel({ d, u }: { d: AccountDetail; u: Upgrades
         <ul className={styles.timeline}>
           {u.extensions.map(e => (
             <li key={e.id}>
-              <Badge status={e.status} /> <strong>{label(e.type)}</strong>: {e.requestedTerms}{e.newDueDate ? ` (new due date ${e.newDueDate})` : ""} · {formatWhen(e.createdAt)}
+              <Badge status={e.status} /> <strong>{label(e.type)}</strong>: {e.requestedTerms}{e.newDueDate ? ` (new due date ${formatDay(e.newDueDate)})` : ""} · {formatWhen(e.createdAt)}
               {!e.eligible ? <p className={styles.warning}>Doesn&apos;t meet the rules: {e.eligibilityNotes.join(" ")}</p> : null}
               {e.decisionReason ? <p className={styles.muted}>Decision: {e.decisionReason}{e.overrideReason ? ` · Override: ${e.overrideReason}` : ""}</p> : null}
               {u.canApproveMoney && e.status === "REQUESTED" ? (
@@ -179,7 +180,7 @@ export function ChargeOffPanel({ d, u }: { d: AccountDetail; u: Upgrades }) {
           ) : null}
           {c.status === "APPROVED" ? (
             <>
-              {c.payments.length ? <ul>{c.payments.map(p => <li key={p.id}>{formatCents(p.amountCents)} on {p.receivedDate} ({label(p.method)})</li>)}</ul> : null}
+              {c.payments.length ? <ul>{c.payments.map(p => <li key={p.id}>{formatCents(p.amountCents)} on {formatDay(p.receivedDate)} ({label(p.method)})</li>)}</ul> : null}
               {u.canApproveMoney ? (
                 <form className={styles.actions} onSubmit={event => { const f = event.currentTarget; void run("RECORD_RECOVERY_PAYMENT", { chargeOffId: c.id, ...formValues(event) }, () => f.reset()); }}>
                   <label>Recovery payment ($)<input name="amount" inputMode="decimal" required /></label>

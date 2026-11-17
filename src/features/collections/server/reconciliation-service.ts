@@ -13,6 +13,7 @@
  * Reconciliation: for every account with a contract, the ledger replayed to the import's
  * date is compared with DealerCenter's total balance, amount due, days past due and late fees.
  */
+import { accountRefs } from "../domain/account-ref";
 import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -30,7 +31,7 @@ import { loadCollectionsSettings } from "./settings-store";
 type Db = Prisma.TransactionClient;
 
 export type Compared = { field: "totalBalance" | "amountDue" | "daysPastDue" | "lateFees"; dms: number; module: number; difference: number };
-export type ReconRow = { accountId: string; externalAccountId: string; name: string; asOfDate: string | null; status: "MATCHED" | "DIFFERENT" | "NO_CONTRACT" | "NO_IMPORT"; compared: Compared[]; causes: string[]; note: string | null };
+export type ReconRow = { accountId: string; externalAccountId: string; refs: string; name: string; asOfDate: string | null; status: "MATCHED" | "DIFFERENT" | "NO_CONTRACT" | "NO_IMPORT"; compared: Compared[]; causes: string[]; note: string | null };
 
 /** Allowed rounding difference, in cents. */
 export const MONEY_TOLERANCE_CENTS = 1;
@@ -93,7 +94,7 @@ export async function reconcileOrganization(db: Db, organizationId: string, sett
 async function buildRows(db: Db, organizationId: string, settings: CollectionsSettings, where: Prisma.CollectionAccountWhereInput): Promise<ReconRow[]> {
   const accounts = await db.collectionAccount.findMany({
     where: { organizationId, closedStatus: null, archivedAt: null, ...where }, orderBy: { buyerNameRaw: "asc" },
-    select: { id: true, externalAccountId: true, buyerNameRaw: true, servicingContract: { select: { id: true } }, snapshots: { orderBy: [{ asOfDate: "desc" }, { createdAt: "desc" }], take: 1, select: { asOfDate: true, totalBalanceCents: true, amountDueCents: true, daysPastDue: true, lateCents: true } } }
+    select: { id: true, externalAccountId: true, dealNumber: true, stockNumberRaw: true, vin: true, buyerNameRaw: true, servicingContract: { select: { id: true } }, snapshots: { orderBy: [{ asOfDate: "desc" }, { createdAt: "desc" }], take: 1, select: { asOfDate: true, totalBalanceCents: true, amountDueCents: true, daysPastDue: true, lateCents: true } } }
   });
   const notes = await db.collectionAccountEvent.findMany({ where: { organizationId, type: "RECONCILIATION_NOTE", accountId: { in: accounts.map(a => a.id) } }, orderBy: { occurredAt: "desc" }, select: { accountId: true, reason: true } });
   const noteBy = new Map<string, string>();
@@ -101,7 +102,7 @@ async function buildRows(db: Db, organizationId: string, settings: CollectionsSe
   const out: ReconRow[] = [];
   for (const a of accounts) {
     const snap = a.snapshots[0];
-    const row: ReconRow = { accountId: a.id, externalAccountId: a.externalAccountId, name: a.buyerNameRaw, asOfDate: toYmd(snap?.asOfDate ?? null), status: "NO_CONTRACT", compared: [], causes: [], note: noteBy.get(a.id) ?? null };
+    const row: ReconRow = { accountId: a.id, externalAccountId: a.externalAccountId, refs: accountRefs(a), name: a.buyerNameRaw, asOfDate: toYmd(snap?.asOfDate ?? null), status: "NO_CONTRACT", compared: [], causes: [], note: noteBy.get(a.id) ?? null };
     if (!a.servicingContract) { out.push(row); continue; }
     if (!snap) { out.push({ ...row, status: "NO_IMPORT" }); continue; }
     const { state, transactions } = await loadLedger(db, a.servicingContract.id, settings, toYmd(snap.asOfDate)!);

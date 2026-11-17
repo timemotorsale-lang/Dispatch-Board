@@ -15,6 +15,7 @@ import { collectionsAccess, recordAccountEvent, type CollectionsAccess } from ".
 import { recalculateAccounts } from "./account-state";
 import { findAccount, text } from "./account-service";
 import { loadCollectionsSettings } from "./settings-store";
+import { formatDay } from "../domain/account-ref";
 
 type Db = Prisma.TransactionClient;
 
@@ -72,7 +73,7 @@ export async function promiseAction(actor: AuthenticatedUser | null, accountId: 
         await event("PROMISE_RECORDED", { promiseId: promise.id, amountCents: cents, promisedDate });
         await runArrangementHooks(tx, access, accountId, "PROMISE");
         await finish();
-        return { ok: true as const, message: `Promise saved: $${(cents / 100).toFixed(2)} on ${promisedDate}.`, promiseId: promise.id };
+        return { ok: true as const, message: `Promise saved: $${(cents / 100).toFixed(2)} on ${formatDay(promisedDate)}.`, promiseId: promise.id };
       }
       case "CANCEL_PROMISE": {
         const promise = await tx.paymentPromise.findFirst({ where: { id: text(input.promiseId, 100), accountId, status: "OPEN" } });

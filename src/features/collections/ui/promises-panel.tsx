@@ -6,6 +6,7 @@ import { formatCents } from "../domain/money-dates";
 import { formValues, Panel, useAccountAction, type AccountDetail } from "./account-workspace";
 import { label } from "./client-api";
 import styles from "./collections.module.css";
+import { formatDay } from "../domain/account-ref";
 
 const METHODS = ["ONLINE", "IN_PERSON", "PHONE", "CASH_AT_STORE", "ZELLE", "OTHER"];
 
@@ -26,7 +27,7 @@ export function PromisesPanel({ d }: { d: AccountDetail }) {
         <ul className={styles.timeline}>
           {d.openPromises.map((p: { id: string; amountCents: number; date: string; source: string; planId: string | null }) => (
             <li key={p.id}>
-              <strong>{formatCents(p.amountCents)}</strong> on {p.date} {p.source === "IMPORTED_FROM_DMS" ? <span className={styles.badge}>from DealerCenter</span> : p.planId ? <span className={styles.badge}>plan payment</span> : null}
+              <strong>{formatCents(p.amountCents)}</strong> on {formatDay(p.date)} {p.source === "IMPORTED_FROM_DMS" ? <span className={styles.badge}>from DealerCenter</span> : p.planId ? <span className={styles.badge}>plan payment</span> : null}
               {!p.planId ? (
                 <form className={styles.actions} onSubmit={event => void run("CANCEL_PROMISE", { promiseId: p.id, ...formValues(event) })}>
                   <label className={styles.srOnly} htmlFor={`cancel-${p.id}`}>Reason for cancelling</label>
@@ -73,7 +74,7 @@ export function PromisesPanel({ d }: { d: AccountDetail }) {
           {d.plans.map((plan: { id: string; status: string; reason: string; totalCatchUpCents: number; installments: Array<{ id: string; number: number; amountCents: number; date: string; status: string }> }) => (
             <div key={plan.id} className={styles.card}>
               <p><strong>{label(plan.status)}</strong> · {formatCents(plan.totalCatchUpCents)} · {plan.reason}</p>
-              <ul>{plan.installments.map(i => <li key={i.id}>#{i.number}: {formatCents(i.amountCents)} on {i.date} · {label(i.status)}</li>)}</ul>
+              <ul>{plan.installments.map(i => <li key={i.id}>#{i.number}: {formatCents(i.amountCents)} on {formatDay(i.date)} · {label(i.status)}</li>)}</ul>
               {plan.status === "ACTIVE" ? (
                 <form className={styles.actions} onSubmit={event => void run("CANCEL_PLAN", { planId: plan.id, ...formValues(event) })}>
                   <label className={styles.srOnly} htmlFor={`plan-${plan.id}`}>Reason for cancelling the plan</label>
@@ -99,7 +100,7 @@ export function PromisesPanel({ d }: { d: AccountDetail }) {
       {d.reportedPayments.length ? (
         <ul className={styles.timeline}>
           {d.reportedPayments.map((r: { id: string; amountCents: number; method: string; paidDate: string; status: string }) => (
-            <li key={r.id}>{formatCents(r.amountCents)} by {label(r.method)} on {r.paidDate} · <span className={`${styles.badge} ${r.status === "NOT_FOUND" ? styles.badgeBad : r.status === "CONFIRMED_BY_IMPORT" ? styles.badgeGood : ""}`}>{label(r.status)}</span>
+            <li key={r.id}>{formatCents(r.amountCents)} by {label(r.method)} on {formatDay(r.paidDate)} · <span className={`${styles.badge} ${r.status === "NOT_FOUND" ? styles.badgeBad : r.status === "CONFIRMED_BY_IMPORT" ? styles.badgeGood : ""}`}>{label(r.status)}</span>
               {r.status === "PENDING_CONFIRMATION" || r.status === "NOT_FOUND" ? (
                 <form className={styles.actions} onSubmit={event => void run("CANCEL_REPORTED_PAYMENT", { reportedPaymentId: r.id, ...formValues(event) })}>
                   <label className={styles.srOnly} htmlFor={`rp-${r.id}`}>Reason</label>

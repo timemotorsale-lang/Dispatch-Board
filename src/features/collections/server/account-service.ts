@@ -16,6 +16,7 @@ import { collectionsAccess, recordAccountEvent, type CollectionsAccess } from ".
 import { recalculateAccounts } from "./account-state";
 import { assertAccountDocument } from "./documents";
 import { loadCollectionsSettings } from "./settings-store";
+import { formatDay } from "../domain/account-ref";
 
 type Db = Prisma.TransactionClient;
 
@@ -225,7 +226,7 @@ export async function getAccountDetail(actor: AuthenticatedUser | null, accountI
   const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
   const timeline: TimelineItem[] = [
     ...contacts.map(c => ({ id: c.id, at: c.occurredAt.toISOString(), kind: "contact", title: `${c.channel.replaceAll("_", " ").toLowerCase()}: ${c.outcome.replaceAll("_", " ").toLowerCase()}`, detail: c.notes, by: who(c.userId) })),
-    ...promises.map(p => ({ id: p.id, at: p.createdAt.toISOString(), kind: "promise", title: `Promise ${money(p.promisedAmountCents)} on ${toYmd(p.promisedDate)} (${p.status.toLowerCase().replaceAll("_", " ")})`, detail: p.source === "IMPORTED_FROM_DMS" ? "From DealerCenter" : p.resolutionNote ?? undefined, by: who(p.takenByUserId) })),
+    ...promises.map(p => ({ id: p.id, at: p.createdAt.toISOString(), kind: "promise", title: `Promise ${money(p.promisedAmountCents)} on ${formatDay(toYmd(p.promisedDate))} (${p.status.toLowerCase().replaceAll("_", " ")})`, detail: p.source === "IMPORTED_FROM_DMS" ? "From DealerCenter" : p.resolutionNote ?? undefined, by: who(p.takenByUserId) })),
     ...plans.map(p => ({ id: p.id, at: p.createdAt.toISOString(), kind: "plan", title: `Payment plan ${money(p.totalCatchUpCents)} in ${p.installments.length} payments (${p.status.toLowerCase()})`, detail: p.reason, by: who(p.createdByUserId) })),
     ...reported.map(r => ({ id: r.id, at: r.reportedAt.toISOString(), kind: "reported", title: `Customer says they paid ${money(r.amountCents)} by ${r.method.toLowerCase().replaceAll("_", " ")} (${r.status.toLowerCase().replaceAll("_", " ")})`, detail: r.notes, by: who(r.enteredByUserId) })),
     ...outbound.map(m => ({ id: m.id, at: m.createdAt.toISOString(), kind: "message-out", title: `${m.channel === "SMS" ? "Text" : "Email"} ${m.status.toLowerCase().replaceAll("_", " ")}${m.automationRuleKey ? ` (automatic: ${m.automationRuleKey})` : ""}`, detail: m.blockedReason ? `Blocked: ${m.blockedReason}` : m.renderedBody, by: m.sentByUserId ? who(m.sentByUserId) : "System" })),

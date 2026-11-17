@@ -1316,3 +1316,21 @@ accessibility checks and the "fits a phone" checks on every screen.
   - the Collections database tests pass (235 tests);
   - the browser tests pass (4 of 4).
 - Nothing has been pushed.
+
+## Refinement: numbers people actually use
+
+- **Account header:** DealerCenter's long internal account ID (a 36-character code) is
+  replaced by **Deal #, Stock # and the last 6 of the VIN**. The long ID is still on the
+  "Flags and details" tab for reference, and search still finds it.
+- **Dates read like dates:** "Aug 23, 2025" instead of "2025-08-23". This covers the
+  header, the money tiles, promises, payment plans, reported payments, the ledger, the
+  dashboard, imports and reconciliation.
+- **Phone numbers:** shown as (612) 555-0123 instead of +16125550123. Tapping one still
+  dials it.
+- **Repo letters:** they print "Deal #2609" instead of the long ID, and the PDF file name
+  uses the deal number. The `{accountNumber}` placeholder in letter wording now fills in
+  the deal number.
+- **Checks:**
+  - typecheck and lint are clean;
+  - 237 Collections tests pass, 3 of them new;
+  - the browser tests pass, 4 of 4.
