@@ -51,6 +51,8 @@ import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
 
+import { CustomerCollectionsPanel } from "@/features/collections/ui/customer-collections-panel";
+import type { CustomerCollectionsAccount } from "@/features/collections/server/customer-card";
 import styles from "./crm-next-shell.module.css";
 
 function levelClass(level: "High" | "Medium" | "Low") {
@@ -2140,7 +2142,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
   );
 }
 
-export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
+export function CrmNextCustomer360View({ customer, model, collections = [] }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter; collections?: CustomerCollectionsAccount[] }) {
   const attention = model.attention ?? [];
   const activeAttentionItem = attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
@@ -2350,6 +2352,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
         </main>
 
         <aside className={styles.customerAside}>
+          <CustomerCollectionsPanel accounts={collections} className={styles.sidePanel} />
           <article className={styles.sidePanel}>
             <header><h2>Quick Actions</h2></header>
             <div className={styles.quickActionTiles}>

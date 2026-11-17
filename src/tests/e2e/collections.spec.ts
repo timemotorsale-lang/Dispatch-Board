@@ -62,6 +62,10 @@ test.describe("Collections screens", () => {
     await checkPage(page, "/collections/approvals", /decision|requests/i, "approvals");
     await checkPage(page, "/collections/queue", "Today's collections queue", "queue");
     await checkPage(page, "/collections/queue?tab=REPO", "Today's collections queue", "queue-repo");
+    await checkPage(page, "/collections/queue?dateField=due&when=this_month", "Today's collections queue", "queue-due-this-month");
+    await expect(page.getByText(/Payment due date: This month/)).toBeVisible();
+    await page.getByRole("link", { name: "Never contacted" }).click();
+    await expect(page.getByText(/Last contact: No date \(never\)/)).toBeVisible();
     await checkPage(page, "/collections/accounts", /Accounts/, "accounts");
     await checkPage(page, `/collections/accounts/${f.accountId}`, /SAMPLE|Sample|FAKE|\w+/, "account");
     for (const view of ["contact", "promises", "insurance", "recovery", "ledger", "details", "history"]) await checkPage(page, `/collections/accounts/${f.accountId}?view=${view}`, /\w+/, `account-${view}`);

@@ -11,10 +11,13 @@ The Collections automations run after each import, and from the route
 `/api/cron/collections`. That route is safe to call every 15 minutes, and it does nothing
 while `COLLECTIONS_MODULE=OFF`. It needs the same `CRON_SECRET` as the app's other jobs.
 
-Your Docker scheduler (`deploy/docker/scripts/run-production-scheduler.mjs`) calls a fixed
-list of routes. To turn the Collections job on, add `/api/cron/collections` to that list,
-or to `vercel.json` if you deploy on Vercel. I haven't changed either file, because that
-changes your deployment. Ask me, and I'll do it when you're ready.
+Your Docker scheduler (`deploy/docker/scripts/run-production-scheduler.mjs`) now calls
+`/api/cron/collections` every 15 minutes, along with the app's other jobs (added on the
+`collections-dispatch-link` branch, at your request). While `COLLECTIONS_MODULE=OFF` the
+route does nothing. When the module is on, it runs the daily automations once a day
+(creating and closing the dispatch board tasks) and the import reminder. Texts and emails
+still follow `COLLECTIONS_SMS_SENDING` / `COLLECTIONS_EMAIL_SENDING`, which stay `DRY_RUN`
+until you switch them. If you deploy on Vercel instead, add the same route to `vercel.json`.
 
 ## 2. Texts (Twilio)
 

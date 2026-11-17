@@ -39,6 +39,7 @@ import { StaffStartDayCard } from "@/features/tasks/staff-start-day-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 import { AvailableWorkCard } from "@/features/tasks/available-work-card";
 import { DailyHandoffCard } from "@/features/tasks/daily-handoff-card";
+import { collectionsTaskLinkLabel } from "@/features/collections/domain/task-links";
 
 type MyTasksScreenProps = {
   availableWorkEnabled?: boolean;
@@ -770,6 +771,11 @@ function TaskStatusEditor({
           <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
             Open detail
           </Link>
+          {task.collectionsHref ? (
+            <Link className="pill pill-secondary" href={task.collectionsHref}>
+              {collectionsTaskLinkLabel(task.collectionsHref)}
+            </Link>
+          ) : null}
           <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
             View updates
           </Link>

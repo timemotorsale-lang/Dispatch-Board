@@ -14,7 +14,10 @@ const routes = [
   "/api/cron/generate-board",
   "/api/cron/evaluate-concerns",
   "/api/cron/evaluate-purchase-imports",
-  "/api/cron/extend-dispatch-repeats"
+  "/api/cron/extend-dispatch-repeats",
+  // Collections daily automations and import reminder. Does nothing while COLLECTIONS_MODULE=OFF;
+  // texts and emails follow COLLECTIONS_SMS_SENDING / COLLECTIONS_EMAIL_SENDING (DRY_RUN by default).
+  "/api/cron/collections"
 ];
 
 const delay = (milliseconds) =>

@@ -2,7 +2,8 @@ import { formatDay } from "../domain/account-ref";
 import Link from "next/link";
 
 import { formatCents } from "../domain/money-dates";
-import { QUEUE_TABS, type QueueFacts, type QueueTab } from "../domain/queue";
+import { QUEUE_DATE_FIELDS, QUEUE_TABS, QUEUE_WHEN, queueDateRange, type QueueFacts, type QueueTab, type QueueWhen } from "../domain/queue";
+import { chicagoToday } from "../domain/money-dates";
 import { BUCKET_LABELS, BUCKETS, STATUS_LABELS, type AccountStatus } from "../domain/status";
 import styles from "./collections.module.css";
 import { QueueRowActions } from "./queue-row-actions";
@@ -13,7 +14,25 @@ type Summary = { brokenPromises: number; promisesDueToday: number; pastDueAccoun
 const FLAG_LABELS: Record<string, string> = {
   BANKRUPTCY: "Bankruptcy", ATTORNEY_REPRESENTED: "Attorney", CONTACT_RESTRICTED: "Restricted", DISPUTE: "Dispute", DECEASED: "Deceased", SKIP: "Skip", DO_NOT_REPO_REVIEW_HOLD: "Repo hold"
 };
-const SHORT_TAB: Partial<Record<QueueTab, string>> = { PAST_DUE: "Call list", BROKEN: "Broken", PROMISES_TODAY: "Due today", DISABLE: "Disable review", REPO: "Repo", INSURANCE: "Insurance", NEEDS_REVIEW: "Needs review", FLAGGED: "Flagged", MISSING: "Not in import" };
+const SHORT_TAB: Partial<Record<QueueTab, string>> = { PAST_DUE: "Call list", BROKEN: "Broken", PROMISES_TODAY: "Due today", DISABLE: "Disable review", REPO: "Repo", INSURANCE: "Insurance", NEEDS_REVIEW: "Needs review", FLAGGED: "Flagged", MISSING: "Not in import", ALL: "All accounts" };
+
+/** One-click date searches staff use most. */
+const QUICK_DATES = [
+  { label: "Due today", dateField: "due", when: "today" },
+  { label: "Due this week", dateField: "due", when: "this_week" },
+  { label: "Due this month", dateField: "due", when: "this_month" },
+  { label: "Promises this week", dateField: "promise", when: "this_week" },
+  { label: "Contacted today", dateField: "contact", when: "today" },
+  { label: "Never contacted", dateField: "contact", when: "never" }
+] as const;
+
+function rangeText(when: string, from: string, to: string) {
+  const range = queueDateRange(when as QueueWhen, chicagoToday(), from, to);
+  if (!range) return "";
+  if (range === "NEVER") return "no date yet";
+  if (range.from && range.from === range.to) return formatDay(range.from);
+  return [range.from ? formatDay(range.from) : "any time", range.to ? formatDay(range.to) : "any time"].join(" to ");
+}
 
 function daysChip(days: number) {
   const cls = days >= 30 ? styles.chipDanger : days > 0 ? styles.chipWarn : styles.chipGood;
@@ -25,7 +44,7 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
   counts: Record<QueueTab, number>;
   rows: Row[];
   totalRows: number;
-  filters: { bucket: string; type: string; q: string; status: string; sort?: string };
+  filters: { bucket: string; type: string; q: string; status: string; sort?: string; dateField?: string; when?: string; from?: string; to?: string };
   lastImport: { committedAt: string | null; asOfDate: string | null } | null;
   importedToday: boolean;
   summary: Summary;
@@ -36,6 +55,12 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
     return `/collections/queue?${params.toString()}`;
   };
   const filtered = Boolean(filters.bucket || filters.type || filters.status);
+  const dateOn = Boolean(filters.dateField && filters.when);
+  const dateLabel = dateOn ? `${QUEUE_DATE_FIELDS.find(f => f.key === filters.dateField)?.label ?? "Date"}: ${filters.when === "custom" ? "" : `${QUEUE_WHEN.find(w => w.key === filters.when)?.label ?? ""} · `}${rangeText(filters.when ?? "", filters.from ?? "", filters.to ?? "")}` : "";
+  const quickHref = (dateField: string, when: string) => {
+    const params = new URLSearchParams({ tab: "ALL", dateField, when });
+    return `/collections/queue?${params.toString()}`;
+  };
   return (
     <>
       {!importedToday ? (
@@ -69,6 +94,13 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
           <option value="">Standard order</option>
           <option value="RISK">Highest risk first</option>
         </select>
+        <fieldset className={styles.dateSearch}>
+          <legend className={styles.srOnly}>Search by date</legend>
+          <label>Date<select name="dateField" defaultValue={filters.dateField ?? ""}><option value="">Any date</option>{QUEUE_DATE_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</select></label>
+          <label>When<select name="when" defaultValue={filters.when ?? ""}><option value="">Any time</option>{QUEUE_WHEN.map(w => <option key={w.key} value={w.key}>{w.label}</option>)}</select></label>
+          <label>From<input type="date" name="from" defaultValue={filters.from ?? ""} /></label>
+          <label>To<input type="date" name="to" defaultValue={filters.to ?? ""} /></label>
+        </fieldset>
         <details className={styles.menu} open={filtered}>
           <summary>Filters{filtered ? " (on)" : ""}</summary>
           <div className={styles.menuList} style={{ display: "grid", gap: 8, padding: 12 }}>
@@ -78,10 +110,17 @@ export function QueueScreen({ tab, counts, rows, totalRows, filters, lastImport,
           </div>
         </details>
         <button type="submit" className={styles.primary}>Search</button>
-        {filters.q || filtered || filters.sort ? <Link className={styles.button} href={`/collections/queue?tab=${tab}`}>Clear</Link> : null}
+        {filters.q || filtered || filters.sort || dateOn ? <Link className={styles.button} href={`/collections/queue?tab=${tab}`}>Clear</Link> : null}
       </form>
 
-      <p className={styles.muted} aria-live="polite">{totalRows} account{totalRows === 1 ? "" : "s"} to work{totalRows > rows.length ? `, showing the first ${rows.length}` : ""}.</p>
+      <nav aria-label="Quick date searches" className={styles.quickDates}>
+        {QUICK_DATES.map(item => {
+          const on = filters.dateField === item.dateField && filters.when === item.when;
+          return <Link key={item.label} className={`${styles.chip} ${on ? styles.chipOn : ""}`} aria-current={on ? "true" : undefined} href={quickHref(item.dateField, item.when)}>{item.label}</Link>;
+        })}
+      </nav>
+
+      <p className={styles.muted} aria-live="polite">{totalRows} account{totalRows === 1 ? "" : "s"} to work{dateOn ? ` · ${dateLabel}` : ""}{totalRows > rows.length ? `, showing the first ${rows.length}` : ""}.</p>
 
       {rows.length === 0 ? <p className={styles.empty}>No one to call in this view. Nice work.</p> : (
         <ul className={styles.callList} aria-label="Accounts to work, most urgent first" style={{ listStyle: "none", margin: 0, padding: 0 }}>

@@ -72,7 +72,7 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
       promises: { where: { OR: [{ status: "OPEN" }, { status: "BROKEN", resolvedAt: { gte: brokenSince } }] }, select: { status: true, promisedDate: true, resolvedAt: true } },
       reportedPayments: { where: { status: "NOT_FOUND" }, select: { id: true } },
       insuranceRecords: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, expirationDate: true } },
-      snapshots: { orderBy: [{ asOfDate: "desc" }, { createdAt: "desc" }], take: 1, select: { dmsInsuranceStatus: true } },
+      snapshots: { orderBy: [{ asOfDate: "desc" }, { createdAt: "desc" }], take: 1, select: { dmsInsuranceStatus: true, paymentDueDate: true } },
       inboundMessages: { where: { readAt: null }, select: { id: true } }
     }
   });
@@ -100,6 +100,8 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
       riskScore: account.riskScore,
       lastContactAt: account.lastContactAt?.toISOString() ?? null,
       nextActionAt: account.nextActionAt?.toISOString() ?? null,
+      dueDate: toYmd(account.snapshots[0]?.paymentDueDate ?? null),
+      promiseDate: open.reduce<string | null>((min, p) => { const d = toYmd(p.promisedDate); return d && (!min || d < min) ? d : min; }, null),
       customerLinked: Boolean(account.customerId),
       vehicleLinked: Boolean(account.vehicleId),
       missingFromImport: Boolean(account.missingFromImportAt),
@@ -117,8 +119,8 @@ export async function loadQueueFacts(access: CollectionsAccess): Promise<QueueFa
 export async function getQueue(actor: AuthenticatedUser | null, filters: QueueFilters) {
   const access = await collectionsAccess(actor, "VIEW");
   const facts = await loadQueueFacts(access);
-  const queue = buildQueue(facts, filters);
   const today = chicagoToday();
+  const queue = buildQueue(facts, filters, today);
   const lastImport = await prisma.collectionsImportRun.findFirst({ where: { organizationId: access.organizationId, status: "COMMITTED" }, orderBy: { committedAt: "desc" }, select: { committedAt: true, asOfDate: true } });
   return {
     ...queue,

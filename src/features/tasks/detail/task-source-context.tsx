@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { BookOpen, ExternalLink, Pencil } from "lucide-react";
+import { BookOpen, ExternalLink, Pencil, WalletCards } from "lucide-react";
+import { collectionsTaskLinkLabel } from "@/features/collections/domain/task-links";
 import type { TaskReadModel } from "@/server/services/task-read";
 import styles from "./task-source-context.module.css";
 
@@ -30,6 +31,7 @@ export function TaskSourceContext({ canEdit, task }: { canEdit: boolean; task: T
   return <section className={styles.source} aria-label="Task source and context">
     <div className={styles.bar}>
       <span title={label}><BookOpen size={15} /><b>Source:</b> {compactLabel}</span>
+      {task.collectionsHref ? <Link href={task.collectionsHref}><WalletCards size={14} /> {collectionsTaskLinkLabel(task.collectionsHref)}</Link> : null}
       <button type="button" aria-label={open ? "Hide source context" : "View source context"} aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? "Hide" : "Context"}</button>
       {canEdit ? <button aria-label="Refine task" type="button" onClick={() => { setDraft(description); setEditing(true); setOpen(true); setNotice(""); }}><Pencil size={14} /> Refine</button> : null}
     </div>

@@ -450,7 +450,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   ],
   COLLECTIONS: [
     { href: "/my-tasks?workspace=collections", title: "My Collections", description: "Assigned payment follow-up and account actions.", icon: UserRoundCheck },
-    { href: "/tasks?department=COLLECTIONS", title: "Collections Queue", description: "Authorized collections work.", icon: BadgeDollarSign },
+    { href: "/collections/go?to=queue", title: "Collections Queue", description: "Today's call list in the Collections module (or Collections tasks when the module is off).", icon: BadgeDollarSign, activePaths: ["/collections"] },
     { href: CRM_NEXT_CUSTOMERS_HREF, title: "Account Context", description: "Minimum permitted Customer Console customer and account context.", icon: ContactRound, activePaths: ["/customers"] }
   ],
   GENERAL_STAFF: [

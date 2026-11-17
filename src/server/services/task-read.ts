@@ -22,6 +22,7 @@ import {
   buildTaskNextActionRecommendation,
   type TaskNextActionRecommendation
 } from "@/server/services/task-next-action";
+import { collectionsTaskHref } from "@/features/collections/domain/task-links";
 
 type TaskReadUserSummary = {
   id: string;
@@ -144,6 +145,8 @@ export type TaskReadModel = {
   } | null;
   operatingContext?: NonNullable<ReturnType<typeof readTaskOperatingContext>>;
   repairOrderHref?: string | null;
+  /** Collections tasks: the account (or Collections screen) the task is about. */
+  collectionsHref?: string | null;
   requiresManagerApproval: boolean;
   requiredUpdateFields: TaskTemplateRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
@@ -417,6 +420,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       "repairOrderId" in snapshot && typeof snapshot.repairOrderId === "string"
       ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(snapshot.repairOrderId)}`
       : null,
+    ...(task.sourceType === "COLLECTIONS" ? { collectionsHref: collectionsTaskHref(task.sourceType, snapshot) } : {}),
     requiresManagerApproval: task.requiresManagerApproval,
     requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
     updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),

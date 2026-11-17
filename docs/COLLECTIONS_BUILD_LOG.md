@@ -1334,3 +1334,56 @@ accessibility checks and the "fits a phone" checks on every screen.
   - typecheck and lint are clean;
   - 237 Collections tests pass, 3 of them new;
   - the browser tests pass, 4 of 4.
+
+## Connecting Collections and the dispatch board, plus date search in the queue
+
+Branch `collections-dispatch-link`, started from `main` after pull request #322.
+
+- **"Open collections account" button on board tasks.** Every task that Collections creates
+  now has a button that opens the account it's about. The button is on the board (desktop
+  rows and phone cards), on My Tasks, and on the task page. The daily import reminder opens
+  the import screen instead. The button reads the account from the task's own record, so it
+  works for tasks that already exist.
+- **The Collections staff menu opens the new module.** On the dispatch board, the
+  Collections workspace's "Collections Queue" link now opens today's call list in the module.
+  If the module is off, or the person has no Collections access, it opens the old Collections
+  task list as before. "My Collections" (the person's board tasks) and the Collections staff's
+  landing page are unchanged.
+- **Collections card on the customer page.** The customer page (Customer Console) shows a
+  read-only card for this customer's collections accounts: days late, amount due, balance,
+  next due date and status, with a button into the account. Payments are still recorded in
+  the account workspace. The card only appears when Collections is on for that person and the
+  customer has an account. Collectors who only see their own accounts only see those here too.
+- **Daily scheduled job.** The production scheduler now also calls `/api/cron/collections`
+  every 15 minutes. That route does nothing while Collections is off. When it's on, it runs
+  the daily automations once a day (board tasks created and closed) and the import reminder.
+  Texts and emails stay DRY_RUN until you switch them.
+- **Queue: search by date.** Next to the name search there's now a "Date" choice and a "When"
+  choice, plus From/To date boxes:
+  - **Date:**
+    - payment due date (from the latest DealerCenter file);
+    - last contact;
+    - promise date;
+    - follow-up date.
+  - **When:**
+    - today, yesterday or tomorrow;
+    - this week, last week or next week (weeks run Sunday to Saturday);
+    - this month or last month;
+    - the last 7 or the last 30 days;
+    - before today;
+    - no date (never);
+    - a date or date range you pick.
+
+  There are also one-click shortcuts:
+  - Due today
+  - Due this week
+  - Due this month
+  - Promises this week
+  - Contacted today
+  - Never contacted
+
+  All dates use Minneapolis time.
+- **New "All accounts" tab.** The call list only shows late accounts, but "due this week" is
+  mostly about customers who are current. A date search on its own therefore looks at every
+  open account, in the new "All accounts" tab. Picking a tab narrows it again.
+- **Checks:** listed in the commit.

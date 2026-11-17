@@ -235,3 +235,11 @@ a.kpi:hover { background: #f8fafd; }
 /* Checkboxes: normal size, label text beside the box (not under it). */
 .page input[type="checkbox"], .page input[type="radio"] { width: 18px; height: 18px; min-height: 18px; padding: 0; flex: none; accent-color: #315bcb; }
 .page label:has(> input[type="checkbox"]), .page label:has(> input[type="radio"]) { display: flex; flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+
+/* Queue date search */
+.dateSearch { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border: 0; margin: 0; padding: 0; min-width: 0; }
+.dateSearch label { display: grid; gap: 2px; font-size: 12px; font-weight: 600; color: var(--muted, #5b6472); }
+.dateSearch select, .dateSearch input[type="date"] { width: auto; min-width: 0; }
+.quickDates { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.quickDates a { text-decoration: none; }
+.chipOn { outline: 2px solid currentColor; outline-offset: -2px; font-weight: 700; }

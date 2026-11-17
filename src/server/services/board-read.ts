@@ -25,6 +25,7 @@ import {
 } from "@/server/services/scheduler-attempts";
 import { normalizeAppSettings } from "@/server/validation/app-settings";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
+import { collectionsTaskHref } from "@/features/collections/domain/task-links";
 
 type BoardReadUserSummary = {
   id: string;
@@ -62,6 +63,8 @@ export type BoardReadTask = {
   updatedAt: string;
   workflowArea: string;
   sourceType: string;
+  /** Collections tasks: the account (or Collections screen) the task is about. */
+  collectionsHref?: string | null;
   requiresManagerApproval: boolean;
   isClaimable?: boolean;
   requiredUpdateFields: BoardReadRequiredUpdateField[];
@@ -345,6 +348,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     updatedAt: (updatedAt ?? task.dueAt).toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
+    ...(task.sourceType === "COLLECTIONS" ? { collectionsHref: collectionsTaskHref(task.sourceType, snapshot) } : {}),
     requiresManagerApproval: task.requiresManagerApproval,
     isClaimable: task.isClaimable,
     requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
