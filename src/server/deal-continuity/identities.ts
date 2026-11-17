@@ -4,7 +4,8 @@ import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
 import { SalesDocumentsError } from "@/server/sales-documents/domain";
-import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
+import { evaluateUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
+import { requireOwnDealUser } from "./own-deal-access";
 import { getPermittedWorkspaces } from "@/server/auth/navigation";
 import { createUnifiedCrmCustomerReadRepository } from "@/server/repositories/unified-crm-customer-read-repository";
 import { normalizeUnifiedCrmCustomerListQuery, decodeUnifiedCrmCustomerCursor, encodeUnifiedCrmCustomerCursor } from "@/server/validation/unified-crm-customer-read";
@@ -21,9 +22,7 @@ import { DealCustomerMatchError } from "./customer-match-error";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 
 function requireDealIdentityUser(actor: AuthenticatedUser | null) {
-  if (!actor?.isActive) throw new SalesDocumentsError("Sign in to access shared customer and vehicle records.", 401);
-  requireUnifiedCrmCustomerReadPolicy(actor);
-  return actor;
+  return requireOwnDealUser(actor);
 }
 
 export const dealDocumentOrganization = () => resolveDocumentStorageRuntimeFromEnv().organizationId;
@@ -32,7 +31,7 @@ export function dealOrganization() {
   return configured === "default-org" && !process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID?.trim() ? INITIAL_ORGANIZATION.id : configured;
 }
 export async function dealIdentityOptions(actor: AuthenticatedUser | null, recordType: "customer" | "vehicle" = "customer") {
-  const user = requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  const user = requireDealIdentityUser(actor);
   const organizationId = dealOrganization();
   const [locations, grants] = await Promise.all([
     prisma.location.findMany({ where: { organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -46,7 +45,7 @@ export async function dealIdentityOptions(actor: AuthenticatedUser | null, recor
 // Shared intake identities are distinct from permission to edit another owner's CRM record.
 async function dealCustomerReadScope(actor: AuthenticatedUser | null, database: Prisma.TransactionClient = prisma) {
   const user = requireDealIdentityUser(actor);
-  const scope = requireUnifiedCrmCustomerReadPolicy(user);
+  const scope = evaluateUnifiedCrmCustomerReadPolicy(user).recordScope ?? { kind: "OWNER" as const, ownerUserId: user.id };
   if (scope.kind === "ORGANIZATION" || !getPermittedWorkspaces(user).some(workspace => workspace.key === "OPERATIONS_COORDINATOR")) return scope;
   const organizationId = dealOrganization(), now = new Date();
   const locations = await database.userLocationAccess.findMany({ where: {
@@ -82,8 +81,8 @@ export async function searchDealCustomers(actor: AuthenticatedUser | null, param
   const query = normalizeUnifiedCrmCustomerListQuery({ q: params.get("q") ?? "", cursor: params.get("cursor"), limit: "25", status: "active" });
   const workspaces = getPermittedWorkspaces(actor!);
   const coordinator = !workspaces.some(workspace => workspace.key === "MANAGEMENT") && workspaces.some(workspace => workspace.key === "OPERATIONS_COORDINATOR");
-  const readOptions = resolveCrmNextAccess(actor).allowed ? { readMode: "REVIEW" as const } : {};
-  if (!coordinator) {
+  const readOptions = resolveCrmNextAccess(actor, { ownDeals: true }).allowed ? { readMode: "REVIEW" as const } : {};
+  if (!coordinator && evaluateUnifiedCrmCustomerReadPolicy(actor).allowed) {
     const result = await getUnifiedCrmCustomerList(actor, query, readOptions);
     return { items: result.items.map(item => ({ id: item.id, name: item.displayName, customerNumber: item.customerNumber, phone: item.maskedPhone, email: item.maskedEmail })), nextCursor: result.page.nextCursor };
   }
@@ -102,26 +101,34 @@ export async function searchDealCustomers(actor: AuthenticatedUser | null, param
 }
 export async function dealVehicle(actor: AuthenticatedUser | null, id: string, database: Prisma.TransactionClient = prisma): Promise<DealVehicleChoice> {
   requireDealIdentityUser(actor);
-  requireUnifiedCrmCustomerReadPolicy(actor);
   const vehicle = await database.vehicle.findFirst({ where: { id, organizationId: dealOrganization(), mergedIntoVehicleId: null, status: "ACTIVE" }, include: { inventoryUnits: { where: { organizationId: dealOrganization(), closedAt: null }, orderBy: { createdAt: "desc" }, take: 1 }, odometerObservations: { where: { organizationId: dealOrganization(), status: "ACCEPTED", unit: "MILES" }, orderBy: { observedAt: "desc" }, take: 1 } } });
   if (!vehicle) throw new SalesDocumentsError("Choose an active canonical vehicle.", 404);
   const unit = vehicle.inventoryUnits[0];
-  const snapshot = vehicle.specificationSnapshot as { specifications?: { trim?: unknown } } | null;
+  const snapshot = vehicle.specificationSnapshot as { specifications?: Record<string, unknown> } | null;
+  const spec = (key: string) => {
+    const value = snapshot?.specifications?.[key];
+    return typeof value === "string" ? value.trim() : "";
+  };
   const recorded = vehicle.odometerObservations?.[0];
-  const supplemental = { trim: typeof snapshot?.specifications?.trim === "string" ? snapshot.specifications.trim : "", recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? "" };
+  const supplemental = {
+    trim: spec("trim"), interiorColor: spec("interiorColor"), bodyStyle: spec("bodyStyle") || spec("bodyClass"),
+    engine: spec("engine") || spec("engineModel"), transmission: spec("transmission") || spec("transmissionStyle"),
+    drivetrain: spec("drivetrain") || spec("driveType"), fuelType: spec("fuelType") || spec("fuelTypePrimary"),
+    recordedMileage: recorded ? String(recorded.reading) : "", mileageRecordedAt: recorded?.observedAt.toISOString() ?? ""
+  };
   const active = await database.vehicleUseBooking.findFirst({ where: { organizationId: dealOrganization(), vehicleId: id, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } }, orderBy: { startsAt: "asc" }, select: { status: true, expectedReturnAt: true, context: { select: { draft: { select: { pathway: true } } } } } });
   const eligible = Boolean(vehicle.vin && unit?.lifecycleStage === "FRONTLINE_READY" && unit.operatingState === "ACTIVE" && active?.status !== "RETURNED_REVIEW");
   return { ...supplemental, id, label: [vehicle.year, vehicle.make, vehicle.model, unit?.inventoryNumber ?? vehicle.stockNumber ?? vehicle.vehicleNumber].filter(Boolean).join(" · "), vin: vehicle.vin ?? "", stockNumber: unit?.inventoryNumber ?? vehicle.stockNumber ?? "", inventoryUnitId: unit?.id ?? null, year: vehicle.year ? String(vehicle.year) : "", make: vehicle.make ?? "", model: vehicle.model ?? "", color: vehicle.color ?? "", licensePlate: vehicle.licensePlate ?? "", locationId: unit?.locationId ?? null, availability: active?.status === "RETURNED_REVIEW" ? "Returned — unavailable pending exception review" : active ? `${active.status === "CHECKED_OUT" ? active.context.draft.pathway === "daily-rental" ? "Out on Rental — actual return required" : "Out — actual return required" : "Reserved"} · expected ${active.expectedReturnAt.toISOString()}` : eligible ? "Ready for allocation; availability rechecked on reserve" : "Not frontline-ready for temporary use", eligibleForUse: eligible };
 }
 export async function searchDealVehicles(actor: AuthenticatedUser | null, params: URLSearchParams) {
-  requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  requireDealIdentityUser(actor);
   const pageNumber = Number(params.get("page") || "1");
   if (!Number.isSafeInteger(pageNumber) || pageNumber < 1 || pageNumber > 100000) throw new SalesDocumentsError("Choose a valid vehicle-search page.");
   const page = await createVehicleRegistryRepository().search(dealOrganization(), { query: (params.get("q") ?? "").slice(0, 100), page: pageNumber, pageSize: 15 });
   return { ...page, items: await Promise.all(page.items.filter(vehicle => vehicle.status === "ACTIVE").map(vehicle => dealVehicle(actor, vehicle.id))) };
 }
 export async function createDealCustomer(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
-  requireDealIdentityUser(actor); requireUnifiedCrmCustomerReadPolicy(actor);
+  requireDealIdentityUser(actor);
   await dealCustomerReadScope(actor);
   const result = await createServiceIntakeCustomer(actor, raw, { organizationId: dealOrganization(), source: "DEAL_SHARED_CUSTOMER" });
   if (result.duplicate) {

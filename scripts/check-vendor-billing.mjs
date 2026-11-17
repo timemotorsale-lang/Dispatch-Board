@@ -21,7 +21,7 @@ try{
  mkdirSync("work",{recursive:true});writeFileSync(baseline,source);
  const setup=spawnSync(process.execPath,["node_modules/prisma/build/index.js","db","push","--skip-generate","--schema",baseline],{env,encoding:"utf8"});
  if(setup.status!==0)throw new Error(`Isolated baseline setup failed: ${setup.stderr}`);
- const migration=readFileSync("prisma/migrations/20261102050000_vendor_billing/migration.sql","utf8");
+ const migration=["20261102050000_vendor_billing","20261107170000_vendor_invoice_vehicle_review"].map(name=>readFileSync(`prisma/migrations/${name}/migration.sql`,"utf8")).join("\n");
  await isolated.$transaction(async db=>{
   await db.$executeRawUnsafe(`SET LOCAL search_path TO "${schema}"`);
   for(const statement of migration.split(";").map(s=>s.trim()).filter(Boolean))await db.$executeRawUnsafe(statement);

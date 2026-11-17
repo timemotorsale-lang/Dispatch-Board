@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import type { getPartsOperationsWorkspace } from "@/server/parts-operations/service";
 import { BackToPartsWorkspace } from "./parts-return-link";
+import {DocumentReadingPanel} from "@/features/document-library/document-reading-panel";
 
 type Model = Awaited<ReturnType<typeof getPartsOperationsWorkspace>>;
 type PurchaseOrder = Model["service"]["purchaseOrders"][number];
@@ -73,12 +74,13 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reloadRequired, setReloadRequired] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(firstReceiveableOrder(initial)?.id ?? "");
-  const selectedOrder = model.service.purchaseOrders.find((order) => order.id === selectedOrderId) ?? firstReceiveableOrder(model);
-  const [lines, setLines] = useState<ReceiveLine[]>(() => buildLines(selectedOrder));
+  const selectedOrder = model.service.purchaseOrders.find((order) => order.id === selectedOrderId && receiveableStatuses.has(order.status));
+  const [lines, setLines] = useState<ReceiveLine[]>(() => buildLines(selectedOrder ?? null));
   const [packingSource, setPackingSource] = useState("");
   const [invoiceReference, setInvoiceReference] = useState("");
-  const [stockLocationId, setStockLocationId] = useState(model.waveOne.stockLocations[0]?.id ?? "");
+  const [stockLocationId, setStockLocationId] = useState(() => model.waveOne.stockLocations.find((item) => item.locationId === selectedOrder?.locationId)?.id ?? "");
   const [placement, setPlacement] = useState("RO_BIN");
 
   const partsById = useMemo(() => new Map(model.waveOne.parts.map((part) => [part.id, part])), [model.waveOne.parts]);
@@ -87,20 +89,22 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
     return !query.trim() || haystack.includes(query.trim().toLowerCase());
   });
   const receiveableOrders = filteredOrders.filter((order) => receiveableStatuses.has(order.status));
-  const selectedStockLocation = model.waveOne.stockLocations.find((item) => item.id === stockLocationId);
+  const orderStockLocations = model.waveOne.stockLocations.filter((item) => selectedOrder && item.locationId === selectedOrder.locationId);
+  const selectedStockLocation = orderStockLocations.find((item) => item.id === stockLocationId);
   const discrepancyCount = lines.filter((line) => line.condition !== "GOOD" || Number(line.damagedQuantity) > 0).length;
   const receivedCount = lines.reduce((sum, line) => sum + Math.max(0, Number(line.quantity) || 0), 0);
   const placementLabel = `${placement.replaceAll("_", " ")} / ${selectedStockLocation ? `${selectedStockLocation.code} - ${selectedStockLocation.name}` : "Choose exact bin"}`;
 
   async function refresh() {
-    setModel(await request("/api/parts-operations"));
+    const next: Model = await request("/api/parts-operations");
+    setModel(next);
   }
 
   function selectOrder(order: PurchaseOrder) {
     setSelectedOrderId(order.id);
     setLines(buildLines(order));
     const locationStock = model.waveOne.stockLocations.find((item) => item.locationId === order.locationId);
-    setStockLocationId(locationStock?.id ?? model.waveOne.stockLocations[0]?.id ?? "");
+    setStockLocationId(locationStock?.id ?? "");
     setNotice("");
   }
 
@@ -113,8 +117,8 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
       setNotice("Select a purchase order before receiving parts.");
       return;
     }
-    if (!stockLocationId) {
-      setNotice("Choose where the received parts were placed.");
+    if (!selectedStockLocation) {
+      setNotice("Choose a stock location at the purchase order’s site. If none are listed, ask your parts manager to configure a receiving bin.");
       return;
     }
     if (!packingSource.trim()) {
@@ -145,10 +149,18 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
         stockLocationId,
         subjectId: selectedOrder.id
       });
-      await refresh();
+      setSelectedOrderId("");
+      setLines([]);
+      setStockLocationId("");
       setNotice(`Receiving completed. ${receivedCount} item(s) recorded${discrepancyCount ? ` with ${discrepancyCount} issue(s) routed for review` : ""}.`);
       setPackingSource("");
       setInvoiceReference("");
+      try {
+        await refresh();
+      } catch {
+        setReloadRequired(true);
+        setNotice("Receipt recorded. Reload this page to see the latest purchase order status before receiving again.");
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Receiving failed.");
     } finally {
@@ -167,6 +179,18 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
         </div>
       </header>
 
+      <DocumentReadingPanel purpose="PARTS" disabled={busy || reloadRequired} onApply={(reading,fields)=>{
+        const matches=model.service.purchaseOrders.filter(order=>order.purchaseOrderNumber.toUpperCase()===fields.purchaseOrderNumber?.toUpperCase());
+        if(fields.purchaseOrderNumber&&matches.length!==1)throw new Error("The printed purchase order does not match one available order. Resolve the match before applying any lines.");
+        const order=matches.length===1?matches[0]:selectedOrder;
+        if(!order)throw new Error("Select the matching purchase order before preparing received lines.");
+        if(!receiveableStatuses.has(order.status))throw new Error("This order is not ready to receive. Review its status first.");
+        if(lines.some(line=>Number(line.quantity)>0)&&!window.confirm("Replace the prepared receiving lines with reviewed packing-slip lines? No receipt will be posted yet."))return;
+        const proposed=reading.lines.map(line=>{const part=model.waveOne.parts.filter(part=>part.partNumber.toUpperCase()===line.partNumber.toUpperCase());if(part.length!==1)throw new Error(`Match part ${line.partNumber} in the parts registry before applying. No lines have been changed.`);return {partId:part[0].id,quantity:line.quantity,unitCost:line.unitCost,damagedQuantity:"0",condition:"GOOD" as const};});
+        if(!proposed.length)throw new Error("No complete part lines were read. Review the source and enter the receiving lines manually.");
+        selectOrder(order);setLines(proposed);setPackingSource(`Reviewed ${reading.fileName}`);setInvoiceReference(fields.reference||"");setNotice("Reviewed lines prepared. Confirm actual quantities, condition and bin placement before receiving.");
+      }}/>
+
       {notice ? <div className={/failed|required|choose|select|enter|not enabled|must|cannot/i.test(notice) ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
 
       <div className="parts-receiving-layout">
@@ -177,7 +201,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
             <p className="parts-receiving-help">Front desk tip: the purchase order number is usually printed on the vendor packing slip, invoice, box label, or delivery ticket. If there is no number, search the vendor name.</p>
             <div className="parts-receiving-orders">
               {receiveableOrders.map((order) => (
-                <button className={order.id === selectedOrder?.id ? "selected" : ""} key={order.id} onClick={() => selectOrder(order)} type="button">
+                <button className={order.id === selectedOrder?.id ? "selected" : ""} disabled={busy || reloadRequired} key={order.id} onClick={() => selectOrder(order)} type="button">
                   <span><strong>{order.purchaseOrderNumber}</strong><small>{order.vendor.name} - {order.status.replaceAll("_", " ")}</small></span>
                   <ArrowRight />
                 </button>
@@ -215,7 +239,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
                 <button className={placement === value ? "selected" : ""} key={value} onClick={() => setPlacement(value)} type="button">{label}</button>
               ))}
             </div>
-            <label className="parts-receiving-field"><span>Exact stock location / RO bin</span><select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)}>{model.waveOne.stockLocations.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
+            <label className="parts-receiving-field"><span>Exact stock location / RO bin</span><select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)}><option value="">Choose a receiving bin</option>{orderStockLocations.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
             <p className="parts-receiving-help">Label preview: {placementLabel}</p>
           </article>
 
@@ -225,7 +249,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
               <label><span>Packing slip / box label</span><input value={packingSource} onChange={(event) => setPackingSource(event.target.value)} placeholder="Required: slip, delivery, scan, or box reference" /></label>
               <label><span>Invoice reference</span><input value={invoiceReference} onChange={(event) => setInvoiceReference(event.target.value)} placeholder="Optional" /></label>
             </div>
-            <button className="parts-receiving-submit" disabled={busy} onClick={submit} type="button">
+            <button className="parts-receiving-submit" disabled={busy || reloadRequired} onClick={submit} type="button">
               <PackageCheck /> Complete Receiving
             </button>
           </article>

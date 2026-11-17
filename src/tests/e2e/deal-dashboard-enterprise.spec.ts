@@ -28,13 +28,14 @@ test("deal drawer links documents, exact reminders, verified money, manager cont
   await page.goto("/login"); await page.getByLabel("Email").fill("morgan.manager@local.test"); await page.getByLabel("Password", { exact: true }).fill("dispatch123!");
   const login = page.waitForResponse(response => response.url().endsWith("/api/auth/login")); await page.getByRole("button", { name: "Sign in", exact: true }).click(); expect((await login).ok()).toBe(true);
   const live = await page.request.get("/api/crm/v1/deal-drafts?view=workbench&dashboard=1&period=day&date=2026-11-01&status=CURRENT"); expect(live.status()).toBe(200);
-  await page.goto("/crm-next/deals");
+  await page.goto("/crm-next/deals?area=accounts");
   await expect(page.getByRole("button", { name: "Actions for Sample Buyer", exact: true })).toBeVisible();
   await page.screenshot({ path: "work/deal-enterprise-dashboard.png", fullPage: true });
+  await page.locator("summary").filter({ hasText: "Filters, pathway and personal views" }).click();
   await page.getByRole("button", { name: "My overdue deals", exact: true }).click();
   await expect(page.getByLabel("Workspace", { exact: true })).toHaveValue("MY"); await expect(page.getByLabel("Work view", { exact: true })).toHaveValue("overdue");
   await page.locator("summary").filter({ hasText: "Save / manage views" }).click(); await page.getByLabel("View name", { exact: true }).fill("My daily follow-ups"); await page.getByRole("button", { name: "Save current view", exact: true }).click();
-  await page.reload(); await expect(page.getByLabel("Saved view", { exact: true }).getByRole("option", { name: "My daily follow-ups" })).toHaveCount(1);
+  await page.reload(); await page.locator("summary").filter({ hasText: "Filters, pathway and personal views" }).click(); await expect(page.getByLabel("Saved view", { exact: true }).getByRole("option", { name: "My daily follow-ups" })).toHaveCount(1);
   await page.getByLabel("Saved view", { exact: true }).selectOption({ label: "My daily follow-ups" }); await expect(page.getByLabel("Work view", { exact: true })).toHaveValue("overdue");
   const statusTrigger = page.getByRole("button", { name: "Status details for Sample Buyer", exact: true });
   const dealRow = page.getByRole("row").filter({ hasText: "D-SAMPLE" });
@@ -62,7 +63,7 @@ test("deal drawer links documents, exact reminders, verified money, manager cont
   await actionsTrigger.click(); await actionMenu.getByRole("menuitem", { name: "Deal details for Sample Buyer", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Deal details · Sample Buyer", exact: true });
   expect(await drawer.evaluate(element => Math.abs(element.getBoundingClientRect().top) < 1)).toBe(true);
-  await expect(drawer.getByRole("link", { name: "Upload / correct this item", exact: true })).toHaveAttribute("href", "/sales-documents?jacketId=sample-jacket&requirementId=lease-agreement#deal-document-action");
+  await expect(drawer.getByRole("button", { name: "Upload / scan", exact: true })).toBeVisible();
   await drawer.getByRole("tab", { name: "Follow-ups", exact: true }).click();
   await drawer.getByLabel("Next action", { exact: true }).fill("Upload this deal's signed lease"); await drawer.getByLabel("Due date and time · your local time", { exact: true }).fill("2027-01-15T10:00");
   await drawer.getByRole("button", { name: "Save deal reminder", exact: true }).click(); await expect(drawer.getByRole("link", { name: "Upload this deal's signed lease", exact: true })).toBeVisible();
@@ -71,7 +72,7 @@ test("deal drawer links documents, exact reminders, verified money, manager cont
   await drawer.getByRole("button", { name: "Record verified activity", exact: true }).click(); await expect(drawer).toContainText("Verified payment · $500.00"); await expect(drawer).toContainText("$19,500.00");
   expect(commands.find(command => command.action === "DEAL_FINANCIAL")?.amountCents).toBe(50000);
   await drawer.getByRole("tab", { name: "History", exact: true }).click(); await expect(drawer).toContainText("Sold with paperwork pending");
-  await drawer.getByRole("tab", { name: "Manager", exact: true }).click(); await expect(drawer.getByRole("button", { name: "Save deal owner", exact: true })).toBeVisible(); await expect(drawer.getByRole("button", { name: "Save milestone review", exact: true })).toBeVisible();
+  await drawer.getByRole("tab", { name: "Manager", exact: true }).click(); await expect(drawer.getByRole("button", { name: "Save deal owner", exact: true })).toBeVisible(); await drawer.getByRole("tab", { name: "Completion", exact: true }).click(); await expect(drawer.getByRole("button", { name: "Save milestone review", exact: true })).toBeVisible();
   await page.screenshot({ path: "work/deal-enterprise-drawer-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 }); expect(await drawer.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   expect(await drawer.evaluate(element => Math.abs(element.getBoundingClientRect().left) < 1 && Math.abs(element.getBoundingClientRect().top) < 1)).toBe(true);

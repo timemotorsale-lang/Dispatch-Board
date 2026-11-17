@@ -38,7 +38,7 @@ export function CashRetailSaleDesk(props: Props) {
 
   const [facts, setFacts] = useDealDraftState("cashSaleFacts", { ...EMPTY_CASH_SALE, buyerAddress: props.customerPrefill.address, buyerPhone: props.customerPrefill.phoneNumber, buyerEmail: props.customerPrefill.email });
 
-  const [vehicle, setVehicle] = useDealDraftState("vehicleFacts", { vin: "", stockNumber: "", year: "", make: "", model: "", color: "", trim: "", licensePlate: "" });
+  const [vehicle, setVehicle] = useDealDraftState("vehicleFacts", { vin: "", stockNumber: "", year: "", make: "", model: "", color: "", trim: "", licensePlate: "", interiorColor: "", bodyStyle: "", engine: "", transmission: "", drivetrain: "", fuelType: "", recordedMileage: "", mileageRecordedAt: "" });
 
   useCanonicalDealVehicle(setVehicle);
 
@@ -245,7 +245,7 @@ export function CashRetailSaleDesk(props: Props) {
 
     <section className={styles.retailSection}><header><span>Inventory vehicle</span><strong>Confirm the vehicle and mileage</strong></header>
 
-      <div className={styles.retailFieldGrid}><label><span>Selected vehicle</span><input value={props.vehicle} onChange={e => props.onVehicleChange(e.target.value)} /></label>{(["vin", "stockNumber", "year", "make", "model", "color"] as const).map(key => <label key={key}><span>{key === "vin" ? "VIN" : key === "stockNumber" ? "Stock number" : key}</span><input value={vehicle[key]} onChange={e => { const value = e.target.value; setVehicle(current => ({ ...current, [key]: value })); }} /></label>)}{field("Odometer reading", "mileage")}{choice("Mileage status", "odometerStatus", ["Actual", "Not actual - odometer discrepancy", "Exceeds mechanical limits", "Exempt"])}{facts.odometerStatus === "Exempt" && field("Odometer exemption basis", "odometerExemption")}{field("Title brand (enter None if unbranded)", "titleBrand")}{field("Known damage disclosure (enter None known if applicable)", "damageDisclosure")}</div>
+      <div className={styles.retailFieldGrid}><label><span>Selected vehicle</span><input value={props.vehicle} onChange={e => props.onVehicleChange(e.target.value)} /></label>{(["vin", "stockNumber", "year", "make", "model", "trim", "color", "interiorColor", "bodyStyle", "engine", "transmission", "drivetrain", "fuelType"] as const).map(key => <label key={key}><span>{key === "vin" ? "VIN" : key === "stockNumber" ? "Stock number" : key}</span><input value={vehicle[key]} onChange={e => { const value = e.target.value; setVehicle(current => ({ ...current, [key]: value })); }} /></label>)}{vehicle.recordedMileage && <p>Inventory mileage: {vehicle.recordedMileage} mi</p>}{field("Verified delivery odometer", "mileage")}{choice("Mileage status", "odometerStatus", ["Actual", "Not actual - odometer discrepancy", "Exceeds mechanical limits", "Exempt"])}{facts.odometerStatus === "Exempt" && field("Odometer exemption basis", "odometerExemption")}{field("Title brand (enter None if unbranded)", "titleBrand")}{field("Known damage disclosure (enter None known if applicable)", "damageDisclosure")}</div>
 
       <CrmNextVinDecoder ref={decoder} vin={vehicle.vin} query={props.vehicle} fields={vehicle} onApply={(values, onlyEmpty) => setVehicle(current => ({ ...current, ...Object.fromEntries(Object.entries(values).filter(([key]) => !onlyEmpty || !current[key as keyof typeof current])) }))} />
 

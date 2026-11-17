@@ -1098,7 +1098,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
                 </article>
               );
             }) : (
-              <CrmNextEmptyCustomerSourcePanel />
+              <CrmNextEmptyCustomerSourcePanel empty={model.operationalRead?.sources?.some((source) => source.id === "customers" && source.state === "EMPTY_READ")} />
             )}
           </div>
         </article>
@@ -1107,7 +1107,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
   );
 }
 
-function CrmNextEmptyCustomerSourcePanel({ actionId }: { actionId?: string }) {
+function CrmNextEmptyCustomerSourcePanel({ actionId, empty }: { actionId?: string; empty?: boolean }) {
   const actionLabel = crmNextActionLabel(actionId ?? "");
   const newCustomerHref = actionId
     ? `/crm-next/new?returnAction=${encodeURIComponent(actionId)}`
@@ -1117,9 +1117,11 @@ function CrmNextEmptyCustomerSourcePanel({ actionId }: { actionId?: string }) {
     <article className={styles.emptyCustomerSource}>
       <div>
         <span className={styles.eyebrow}>Customer source</span>
-        <h2>No verified Customer 360 records are visible here yet</h2>
+        <h2>{empty ? "No customers are visible to you" : "No verified Customer 360 records are visible here yet"}</h2>
         <p>
-          Customer Console is waiting on the live customer source. The existing customer list is still available in Customer Archive while this view has no verified records.
+          {empty
+            ? "The customer list loaded successfully. There are no records available to your account in this environment."
+            : "Customer Console could not verify the customer list. Try again or check Customer Archive."}
         </p>
       </div>
       <div className={styles.emptyCustomerActions}>
@@ -1613,7 +1615,7 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
     <CrmNextFrame active="deals" userName={model.userName}>
       <SavedDealsLibrary
         title="Deals"
-        renderHeaderAction={() => <Link href={`${CRM_NEXT_DEAL_START_HREF}?new=1`}><UserPlus size={16} />Start Deal</Link>}
+        renderHeaderAction={pathway => <Link href={`${CRM_NEXT_DEAL_START_HREF}?${new URLSearchParams({ new: "1", ...(pathway === "repairs" ? { pathway } : {}) })}`}><UserPlus size={16} />{pathway === "repairs" ? "Start Repair" : "Start Deal"}</Link>}
         disabled={false}
         refreshKey="deals-page"
         onOpen={(id) => router.push(`${CRM_NEXT_DEAL_START_HREF}?draftId=${encodeURIComponent(id)}`)}

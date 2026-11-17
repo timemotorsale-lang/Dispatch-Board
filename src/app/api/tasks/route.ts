@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { createManualTask } from "@/server/services/task-create-service";
+import { createRepeatingDispatchTask } from "@/server/services/dispatch-task-repeat-service";
 
 function getTaskCreateErrorStatus(message: string) {
   if (message === "Authentication required.") {
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
 
   try {
+    if (payload && typeof payload === "object" && payload.repeat != null) {
+      const { repeat, repeatRequestId, repeatTime, ...taskInput } = payload;
+      return NextResponse.json(await createRepeatingDispatchTask(user, taskInput, repeat, repeatRequestId, repeatTime), { status: 201 });
+    }
     const task = await createManualTask(user, payload);
 
     return NextResponse.json(

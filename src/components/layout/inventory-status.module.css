@@ -1,0 +1,104 @@
+.inventoryStatus.inventoryStatus {
+  color: #172b42;
+  background: #eef3f9;
+  border-color: #cad5e4;
+}
+
+.scope {
+  color: #40536a;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.inventoryHeader:global(.ccc-topbar) {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding-block: 5px;
+}
+
+.inventoryHeader > :global(.ccc-home-link) {
+  flex: 0 0 auto;
+  margin-inline: 0;
+}
+
+.context {
+  display: flex;
+  flex: 1 1 19rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.context > :global(.ccc-breadcrumb) {
+  flex: 1 1 9rem;
+  flex-wrap: wrap;
+  max-width: none;
+  overflow: visible;
+  white-space: normal;
+}
+
+.context > :global(.ccc-breadcrumb) > span {
+  display: inline-flex;
+}
+
+.context :global(.ccc-breadcrumb) > span,
+.context :global(.ccc-breadcrumb) a {
+  max-width: 100%;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+.context > .inventoryStatus {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  max-width: 100%;
+  margin-inline: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.inventoryHeader > :global(.topbar-actions) {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.inventoryHeader :global(.ccc-search-trigger) > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1180px) {
+  .inventoryHeader :global(.ccc-search-trigger) {
+    display: flex;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .inventoryHeader :global(.ccc-search-trigger) kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .context {
+    flex-basis: 100%;
+  }
+
+  .inventoryHeader > :global(.topbar-actions) {
+    flex: 1 1 auto;
+  }
+
+  .inventoryHeader :global(.topbar-popover-shell) {
+    position: static;
+  }
+
+  .inventoryHeader :global(.topbar-popover) {
+    inset-inline-end: 8px;
+    max-width: calc(100% - 16px);
+  }
+}

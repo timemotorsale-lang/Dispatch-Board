@@ -18,7 +18,7 @@ export default async function ActivityPage() {
   const activity = await listActivityFeedEventsForToday(user);
 
   return (
-    <section className="page-stack dashboard-page board-page">
+    <section className="page-stack dashboard-page board-page activity-page">
       <div className="dashboard-page-header">
         <div className="dashboard-page-copy">
           <span className="eyebrow">Activity</span>

@@ -10,7 +10,9 @@ const nextConfig: NextConfig = {
     "/api/crm/v1/contract-packets": ["./docs/sales-signing-package/final/forms/**/*.pdf", "./public/brand/time-motor-sales-horizontal.png", "./public/forms/minnesota-retail-sale/*.pdf"],
     "/api/crm/v1/cash-sale-forms": ["./docs/sales-signing-package/final/forms/**/*.pdf"],
     "/api/vehicles/transfers/pdf-worker": ["./node_modules/pdfjs-dist/build/pdf.worker.min.mjs"],
-    "/api/vehicles/transfers/documents": ["./node_modules/@tesseract.js-data/eng/**/*", "./node_modules/tesseract.js-core/**/*"]
+    "/api/vehicles/transfers/documents": ["./node_modules/@tesseract.js-data/eng/**/*", "./node_modules/tesseract.js-core/**/*"],
+    "/api/vendors/*/invoice-scan": ["./node_modules/@tesseract.js-data/eng/**/*", "./node_modules/tesseract.js-core/**/*"],
+    "/api/vendors/*/invoice-batch": ["./node_modules/@tesseract.js-data/eng/**/*", "./node_modules/tesseract.js-core/**/*"]
   },
   typedRoutes: false
 };

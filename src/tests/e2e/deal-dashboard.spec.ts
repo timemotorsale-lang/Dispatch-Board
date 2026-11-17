@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { reportingRange, summarizeDeals, dealGroup, type DashboardDeal } from "../../lib/deal-dashboard";
+import { belongsToDealArea } from "../../lib/deal-work-areas";
 import { calculateTax, summarizeTax } from "../../lib/compliance-tax";
 
 test("compact dashboard filters and day/week/month summaries use the same records", async ({ page }) => {
@@ -17,7 +18,7 @@ test("compact dashboard filters and day/week/month summaries use the same record
     const range = reportingRange(query.get("date") || "2026-10-31", query.get("period") || "month");
     const filtered = rows.filter(row => !query.get("group") || query.get("group") === "ALL" || dealGroup(row.pathway) === query.get("group"));
     const bucket = query.get("bucket");
-    const items = filtered.filter(row => bucket === "completed" ? row.stage === "Completed" : bucket === "attention" ? row.needsAttention : true);
+    const items = filtered.filter(row => belongsToDealArea(row, (query.get("area") || "all") as Parameters<typeof belongsToDealArea>[1])).filter(row => bucket === "completed" ? row.stage === "Completed" : bucket === "attention" ? row.needsAttention : true);
     return route.fulfill({ json: { items, total: items.length, pages: 1, page: 1, counts: { IN_PROGRESS: 1, COMPLETED: 2 }, dashboard: { range, summary: summarizeDeals(filtered, range), owners: [{ id: "sample-owner", name: "Sample Manager" }], scope: "Your accessible records", taxes: { available: true, message: "All tax-ledger records for selected dates", summary: summarizeTax([{ id: "tax-1", status: "ACTIVE", snapshot: tax }]) } } } });
   });
   await page.goto("/login");
@@ -29,7 +30,9 @@ test("compact dashboard filters and day/week/month summaries use the same record
   const live = await page.request.get("/api/crm/v1/deal-drafts?view=workbench&dashboard=1&period=day&date=2026-10-31&status=CURRENT");
   expect(live.status()).toBe(200);
   await page.goto("/crm-next/deals");
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
   await expect(page.getByRole("region", { name: "Deal overview" })).toBeVisible();
+  await page.locator("summary").filter({ hasText: "Filters, pathway and personal views" }).click();
   await page.getByLabel("Report date", { exact: true }).fill("2026-10-31");
   await expect(page.getByLabel("Report date", { exact: true })).toHaveValue("2026-10-31");
   await page.getByRole("button", { name: /Needs attention/ }).click();
@@ -47,7 +50,7 @@ test("compact dashboard filters and day/week/month summaries use the same record
   expect((await downloaded).suggestedFilename()).toBe("deal-summary-month-2026-10-01.csv");
   await page.getByRole("button", { name: "View 2 completed records", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: "D-working" })).toHaveCount(0);
-  await page.getByRole("tab", { name: /^Current deals/ }).click();
+  await page.getByRole("tab", { name: /^Working Deals/ }).click();
   await page.getByRole("combobox", { name: "Pathway group", exact: true }).selectOption("LEASING");
   await expect(page.getByRole("row").filter({ hasText: "D-working" })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: "D-sale" })).toHaveCount(0);

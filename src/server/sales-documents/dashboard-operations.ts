@@ -120,7 +120,7 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
       // Provider references may only identify one original payment/refund per deal.
       if (["PAYMENT", "REFUND"].includes(proposed.kind) && entries.some(entry => entry.kind === proposed.kind && entry.reference.toLowerCase() === String(details.reference).toLowerCase())) throw new SalesDocumentsError("This payment or refund reference is already recorded on this deal.", 409);
     } else {
-      if (!jacket || !["FUNDING", "DELIVERY"].includes(text(input.dimension)) || !["VERIFIED", "NOT_REQUIRED", "PENDING"].includes(text(input.state))) throw new SalesDocumentsError("Choose funding or delivery and its verified state on the existing packet.");
+      if (!jacket || !["FUNDING", "DELIVERY", "TITLE"].includes(text(input.dimension)) || !["VERIFIED", "NOT_REQUIRED", "PENDING"].includes(text(input.state))) throw new SalesDocumentsError("Choose funding, delivery or title and its verified state on the existing packet.");
       if (reason.length < 10 || (input.state === "VERIFIED" && text(input.reference).length < 3)) throw new SalesDocumentsError("Record a reason of at least 10 characters and a verification reference when marking complete.");
       details = { dimension: input.dimension, state: input.state, reference: text(input.reference), reason, actorName: user.name };
       auditAction = "DEAL_MILESTONE_RECORDED";

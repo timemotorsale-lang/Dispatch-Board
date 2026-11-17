@@ -25,6 +25,18 @@ describe("compact deal row controls", () => {
     expect(html.indexOf(">Mark sold</button>")).toBeGreaterThan(menu);
     expect(html).toContain("Archive duplicate");
   });
+  it("routes repairs to repair actions and keeps archived documents discoverable", () => {
+    const repair: DealLibraryRow = { ...deal, pathway: "repairs", status: "IN_PROGRESS", stage: "Working" };
+    expect(actions(repair)).toContain("Continue repair");
+    expect(actions(repair)).toContain("Review repair handoff");
+    const archived = actions({ ...repair, status: "ARCHIVED" }, true);
+    expect(archived).toContain("Find repair documents");
+    expect(archived).not.toContain("Change revenue pathway");
+    expect(actions(repair, true)).not.toContain("Mark sold");
+    expect(renderToStaticMarkup(<DealRowStatus deal={repair} onDetails={noop} />))
+      .toContain("Estimate, authorization and closeout are recorded on the repair order.");
+  });
+
   it("only offers manager correction and unwind actions to permitted viewers", () => {
     const finished = { ...deal, packetState: "CLOSED", stage: "Completed" };
     expect(actions(finished)).not.toContain("Reopen for corrections");

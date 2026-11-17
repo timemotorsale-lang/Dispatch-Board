@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDocumentPhone } from "@/lib/service-document-phone";
 import { useEffect, useMemo, useState } from "react";
 import type { DocumentCustomerDetails } from "@/lib/service-document-review";
 import { normalizeServiceCharges, serviceChargeLines, serviceQuoteTax, type ServiceCharge } from "@/lib/service-charges";
@@ -90,7 +91,7 @@ export function ServiceDocumentReview({ repairOrderId, documentId, content, onSa
     <form onSubmit={event => { event.preventDefault(); void save(); }}><fieldset disabled={locked}>
       <fieldset disabled={!review.canEditCustomer}><legend>Customer details</legend>
         <label>Customer name<input autoComplete="name" required maxLength={200} value={review.customer.name} onChange={event => setReview({ ...review, customer: { ...review.customer, name: event.target.value } })} /></label>
-        <label>Phone<input autoComplete="tel" type="tel" maxLength={50} value={review.customer.phone} onChange={event => setReview({ ...review, customer: { ...review.customer, phone: event.target.value } })} /></label>
+        <label>Phone<input autoComplete="tel" type="tel" maxLength={50} value={review.customer.phone} placeholder="612 888 0000" onBlur={() => setReview({ ...review, customer: { ...review.customer, phone: formatDocumentPhone(review.customer.phone) } })} onChange={event => setReview({ ...review, customer: { ...review.customer, phone: event.target.value } })} /></label>
         <label>Email<input autoComplete="email" type="email" maxLength={254} value={review.customer.email} onChange={event => setReview({ ...review, customer: { ...review.customer, email: event.target.value } })} /></label>
         <label>Billing address<textarea autoComplete="street-address" maxLength={500} value={review.customer.address} onChange={event => setReview({ ...review, customer: { ...review.customer, address: event.target.value } })} /></label>
       </fieldset>

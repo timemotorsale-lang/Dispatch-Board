@@ -1,5 +1,7 @@
 "use client";
 
+import { GuideRepairHistory } from "@/features/diagnostics/guide-repair-history";
+
 import { repairExplorerHandoffHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -179,13 +181,14 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       </header>
       <main className={styles.workspace}>
         <div className={styles.intro}>
-          <div><p className={styles.eyebrow}>REPAIR EXPLORER PREVIEW</p><h1>Find the work. Build the estimate.</h1><p>{context ? <>{context.vehicleLabel} · {context.vin ?? "VIN not recorded"} · {context.repairOrderNumber}{context.inventoryNumber ? ` · ${context.inventoryNumber}` : ""}<span className={styles.dot}>•</span> Concern: {context.concern}</> : <>Reference vehicle: 2019 Ford F-150 · 3.5L <span className={styles.dot}>•</span> Concern: grinding when braking</>}</p></div>
+          <div><p className={styles.eyebrow}>LABOR GUIDE</p><h1>Find the work. Build the estimate.</h1><p>{context ? <>{context.vehicleLabel} · {context.vin ?? "VIN not recorded"} · {context.repairOrderNumber}{context.inventoryNumber ? ` · ${context.inventoryNumber}` : ""}<span className={styles.dot}>•</span> Concern: {context.concern}</> : <>No vehicle selected. Build proposed work, then select the customer and repair order before issuing an estimate.</>}</p></div>
           <nav className={styles.steps} aria-label="Estimate steps">
             <button type="button" aria-current={!review ? "step" : undefined} onClick={() => { setReview(false); focusContent(); }}><span>1</span> Find repair</button>
             <ChevronRight size={18} />
             <button type="button" aria-current={review ? "step" : undefined} disabled={!lines.length} onClick={() => { setReview(true); setQuery(""); focusContent(); }}><span>2</span> Review estimate</button>
           </nav>
         </div>
+        <GuideRepairHistory initialVehicleId={context?.vehicleId} />
         <div className={styles.searchbar}>
           <Search size={21} aria-hidden="true" />
           <input aria-label="Search all repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); setVisualOpen(false); }} />
@@ -286,7 +289,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>
-        <footer className={styles.footer}><span>{context?.repairOrderNumber ?? "Sample estimate"}</span></footer>
+        <footer className={styles.footer}><span>{context?.repairOrderNumber ?? "Preliminary work · no repair order selected"}</span></footer>
       </main>
     </div>
   );

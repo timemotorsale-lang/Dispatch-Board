@@ -46,6 +46,18 @@ const model = {
 };
 
 describe("QualityControlWorkspace", () => {
+  it("routes diagnostic-heavy jobs to detailed QC for peer verification", () => {
+    const order = model.repairOrders[0];
+    const job = { ...order.repairJobs[0], lane: "DIAGNOSTIC_HEAVY" };
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={{ ...model, repairOrders: [{ ...order, repairJobs: [job] }] }} />);
+
+    expect(html).toContain('href="#qc-review"');
+    expect(html).toContain("Open detailed QC to record peer verification");
+    expect(html).toContain("Peer verification passed");
+    expect(html).not.toContain("Save &amp; open Final QC");
+    expect(html).not.toContain("QC failed — return for correction");
+  });
+
   it("renders a compact direct-to-work QC inspector workspace", () => {
     const html = renderToStaticMarkup(<QualityControlWorkspace initial={model} />);
 
@@ -153,6 +165,14 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("QC CLEARED");
     expect(html).toContain("Green vehicle · ready for photos and frontline merchandising");
     expect(html).toContain("Green in QC list / ready for photos");
+    expect(html).toContain("Continue handoff");
+    expect(html).not.toContain("Review and create invoice");
+
+    clearedModel.repairOrders[0].origin = "CUSTOMER_REPAIR";
+    const customerHtml = renderToStaticMarkup(<QualityControlWorkspace initial={clearedModel} />);
+    expect(customerHtml).toContain('href="/vehicles/service-billing?repairOrderId=ro_1"');
+    expect(customerHtml).toContain("Review and create invoice");
+    expect(customerHtml).not.toContain("Final Frontline QC complete");
   });
 
   it("opens a vendor-return QC decision when outside vendor work comes back for inspection", () => {

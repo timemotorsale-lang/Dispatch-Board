@@ -8,6 +8,10 @@ node_modules
 .next-runtime-3000/
 .next-runtime.workspace-backup-*
 .next-e2e
+.next-e2e-*/
+.next-autobody-*/
+.next-readiness-build/
+.next-layout-check/
 .npm-cache
 coverage
 dist
@@ -24,6 +28,8 @@ yarn-error.log*
 pnpm-debug.log*
 node_modules/
 .next/
+.next-preview-repair-team/
+.next-compact-parts-build/
 .env
 .env.local
 playwright-report/
@@ -39,3 +45,4 @@ tmp/collections/
 deploy/docker/import-release-approval.json
 deploy/docker/website-review.env
 deploy/docker/.deployment-storage.lock
+tmp/autobody/browser-fixture.json

@@ -5,6 +5,8 @@ import { prisma } from "@/server/db/client";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { isManager } from "@/server/policies/access";
 import { VendorBillingError, billingCents, billingDate, billingDirection, billingText, chicagoDate, dueBalances, monthlyDate, normalizeBillingLines, repaymentSchedule } from "@/lib/vendor-billing";
+import { invoiceBatchMarker } from "@/lib/vendor-invoice-batch";
+import { vendorWorkTicketLabel } from "@/lib/vendor-readable-references";
 
 const organizationId = INITIAL_ORGANIZATION.id;
 type Tx = Prisma.TransactionClient;
@@ -16,6 +18,7 @@ function canonical(value: unknown): unknown {
   return value;
 }
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+export const preparedInvoiceBatchNumber=(vendorId:string,documentId:string)=>`VI-${hash({vendorId,source:documentId}).slice(0,14).toUpperCase()}`;
 export function requireVendorBillingUser(user: AuthenticatedUser | null, manage = false): asserts user is AuthenticatedUser {
   if (!user) throw new VendorBillingError("Sign in to open vendor billing.",401);
   if (!user.isActive || (manage && !isManager(user))) throw new VendorBillingError("Manager permission is required for this financial action.",403);
@@ -39,7 +42,10 @@ async function matchWork(db: Tx, vendorId: string, document: Awaited<ReturnType<
     if (!line.workJobId) { if (!document.unmatchedReason) throw new VendorBillingError("Match repair lines to work tickets or record why this bill is not for vehicle work."); continue; }
     const job = await db.vendorWorkJob.findFirst({ where: { id: line.workJobId, organizationId, vendorId, status: { not: "CANCELLED" } } });
     const review = await db.vendorBillingWorkReview.findUnique({ where: { organizationId_vendorId_workJobId: { organizationId, vendorId, workJobId: line.workJobId } } });
-    if (!job || !review?.accepted || hash(review.scopeSnapshot) !== hash(jobSnapshot(job))) throw new VendorBillingError("Review the approved amount, linked vehicle and accepted work/QC for each repair ticket before posting this bill.");
+    if (!job || !review?.accepted || hash(review.scopeSnapshot) !== hash(jobSnapshot(job))) throw new VendorBillingError("Review the approved amount, vehicle identity and accepted work/QC for each repair ticket before posting this bill.");
+    if(review.identityBasis==="INVOICE_REFERENCE"){
+      if(!review.identitySourceDocumentId||!review.identityReviewReason||review.invoiceVehicleReference!==job.vehicleReference||!await db.vendorDocument.findFirst({where:{id:review.identitySourceDocumentId,organizationId,vendorId},select:{id:true}}))throw new VendorBillingError("Review the original invoice vehicle reference and its supporting document before posting.");
+    }else if(review.identityBasis!=="REGISTRY"||!review.vehicleId)throw new VendorBillingError("Review the vehicle identity before posting.");
     const allLines = await db.vendorBillingLine.findMany({ where: { organizationId, vendorId, workJobId: job.id, document: { status: { in: ["POSTED","DISPUTED"] }, id: { not: document.id } } } });
     const current = document.lines.filter(l => l.workJobId === job.id).reduce((sum,l) => sum + l.amountCents,0);
     if (allLines.reduce((sum,l) => sum + l.amountCents,0) + current > review.approvedAmountCents) throw new VendorBillingError(`The billed total exceeds the approved work amount for ${job.jobNumber}. Review any supplement first.`);
@@ -65,15 +71,16 @@ async function createDocument(db: Tx, vendorId: string, actorId: string, raw: Re
 }
 export async function readVendorBilling(user: AuthenticatedUser | null, vendorId: string) {
   requireVendorBillingUser(user); const partner = await vendor(prisma,vendorId);
-  const [documents,agreements,settlements,events,jobs,reviews] = await prisma.$transaction([
+  const [documents,agreements,settlements,events,jobs,reviews,batchLinks] = await prisma.$transaction([
     prisma.vendorBillingDocument.findMany({ where:{ organizationId,vendorId }, include:{ lines:true,dueItems:{orderBy:{dueDate:"asc"}},allocations:true }, orderBy:{createdAt:"desc"} }),
     prisma.vendorBillingAgreement.findMany({where:{organizationId,vendorId},orderBy:{createdAt:"desc"}}),
     prisma.vendorBillingSettlement.findMany({where:{organizationId,vendorId},include:{allocations:true},orderBy:[{date:"desc"},{createdAt:"desc"}]}),
     prisma.vendorBillingEvent.findMany({where:{organizationId,vendorId},orderBy:{createdAt:"desc"},take:100}),
     prisma.vendorWorkJob.findMany({where:{organizationId,vendorId},include:{batch:{select:{batchNumber:true}}},orderBy:{serviceDate:"desc"}}),
-    prisma.vendorBillingWorkReview.findMany({where:{organizationId,vendorId}})
+    prisma.vendorBillingWorkReview.findMany({where:{organizationId,vendorId}}),
+    prisma.vendorRecordLink.findMany({where:{organizationId,vendorId,recordType:"OTHER",relationshipType:{startsWith:"INVOICE_BATCH:"}},select:{recordId:true,relationshipType:true}})
   ],{isolationLevel:"RepeatableRead"});
-  const rows = documents.map(doc => ({...doc,issueDate:iso(doc.issueDate),dueDate:iso(doc.dueDate),createdAt:doc.createdAt.toISOString(),appliedCents:applied(doc),balanceCents:doc.amountCents - applied(doc),dueItems:dueBalances(doc.dueItems.map(item => ({dueDate:iso(item.dueDate),amountCents:item.amountCents})),applied(doc))}));
+  const rows = documents.map(doc => ({...doc,batchId:batchLinks.find(link=>link.recordId===doc.id)?.relationshipType.slice("INVOICE_BATCH:".length)||null,issueDate:iso(doc.issueDate),dueDate:iso(doc.dueDate),createdAt:doc.createdAt.toISOString(),appliedCents:applied(doc),balanceCents:doc.amountCents - applied(doc),dueItems:dueBalances(doc.dueItems.map(item => ({dueDate:iso(item.dueDate),amountCents:item.amountCents})),applied(doc))}));
   const today=chicagoDate();
   const missingRecurring: Array<{agreementId:string;title:string;dueDate:string;amountCents:number;direction:string}>=[];
   for(const a of agreements.filter(a=>a.active&&a.kind!=="REPAYMENT"))for(let n=0;n<600;n++){
@@ -84,11 +91,14 @@ export async function readVendorBilling(user: AuthenticatedUser | null, vendorId
   const posted=rows.filter(d=>["POSTED","DISPUTED"].includes(d.status));
   const balance=(direction:string)=>posted.filter(d=>d.direction===direction).reduce((sum,d)=>sum+d.balanceCents,0);
   const due=(direction:string)=>posted.filter(d=>d.direction===direction).flatMap(d=>d.dueItems).filter(i=>i.dueDate<=today).reduce((sum,i)=>sum+i.outstandingCents,0);
-  return {vendor:{id:partner.id,name:partner.name,number:partner.vendorNumber,address:partner.addressSummary,email:partner.primaryEmail},today,canManage:isManager(user),documents:rows,agreements:agreements.map(a=>({...a,startDate:iso(a.startDate),endDate:a.endDate?iso(a.endDate):null})),settlements:settlements.map(s=>({...s,date:iso(s.date),reversed:settlements.some(r=>r.reversalOfId===s.id),unappliedCents:["RECEIPT","PAYMENT"].includes(s.kind) && !settlements.some(r=>r.reversalOfId===s.id)?s.amountCents-s.allocations.reduce((sum,a)=>sum+a.amountCents,0):0})),events:events.map(e=>({...e,actorName:staff.find(u=>u.id===e.actorId)?.name||"Former staff"})),missingRecurring,jobs:jobs.map(job=>({id:job.id,number:job.jobNumber,vehicle:job.vehicleReference,description:job.workDescription||job.workType,batch:job.batch?.batchNumber||"Unbatched",batchId:job.batchId,serviceDate:iso(job.serviceDate),amountCents:job.amount?Math.round(Number(job.amount)*100):null,status:job.status,review:reviews.find(r=>r.workJobId===job.id),reviewCurrent:reviews.some(r=>r.workJobId===job.id&&hash(r.scopeSnapshot)===hash(jobSnapshot(job)))})),summary:{receivableCents:balance("RECEIVABLE"),payableCents:balance("PAYABLE"),receivableDueCents:due("RECEIVABLE"),payableDueCents:due("PAYABLE"),draftCount:rows.filter(d=>d.status==="DRAFT").length,disputedCount:rows.filter(d=>d.status==="DISPUTED").length,unmatchedWork:jobs.filter(j=>j.status!=="CANCELLED"&&!reviews.some(r=>r.workJobId===j.id&&r.accepted&&hash(r.scopeSnapshot)===hash(jobSnapshot(j)))).length},templateVersion:1};
+  return {vendor:{id:partner.id,name:partner.name,number:partner.vendorNumber,address:partner.addressSummary,email:partner.primaryEmail},today,canManage:isManager(user),documents:rows,agreements:agreements.map(a=>({...a,startDate:iso(a.startDate),endDate:a.endDate?iso(a.endDate):null})),settlements:settlements.map(s=>({...s,date:iso(s.date),reversed:settlements.some(r=>r.reversalOfId===s.id),unappliedCents:["RECEIPT","PAYMENT"].includes(s.kind) && !settlements.some(r=>r.reversalOfId===s.id)?s.amountCents-s.allocations.reduce((sum,a)=>sum+a.amountCents,0):0})),events:events.map(e=>({...e,actorName:staff.find(u=>u.id===e.actorId)?.name||"Former staff"})),missingRecurring,jobs:jobs.map(job=>({id:job.id,number:vendorWorkTicketLabel(job.jobNumber,job.notes),vehicle:job.vehicleReference,description:job.workDescription||job.workType,batch:job.batch?.batchNumber||"Unbatched",batchId:job.batchId,serviceDate:iso(job.serviceDate),amountCents:job.amount?Math.round(Number(job.amount)*100):null,status:job.status,review:reviews.find(r=>r.workJobId===job.id),reviewCurrent:reviews.some(r=>r.workJobId===job.id&&hash(r.scopeSnapshot)===hash(jobSnapshot(job)))})),summary:{receivableCents:balance("RECEIVABLE"),payableCents:balance("PAYABLE"),receivableDueCents:due("RECEIVABLE"),payableDueCents:due("PAYABLE"),draftCount:rows.filter(d=>d.status==="DRAFT").length,disputedCount:rows.filter(d=>d.status==="DISPUTED").length,unmatchedWork:jobs.filter(j=>j.status!=="CANCELLED"&&!reviews.some(r=>r.workJobId===j.id&&r.accepted&&hash(r.scopeSnapshot)===hash(jobSnapshot(j)))).length},templateVersion:1};
 }
-export async function commandVendorBilling(user: AuthenticatedUser | null,vendorId:string,raw:Record<string,unknown>) {
+export type ScannedInvoiceSource = { bytes: Uint8Array; fileName: string; contentType: string; batchId?:string; autoCreateBatch?:boolean; sourceDocumentId?:string; pages?:number[] };
+export async function commandVendorBilling(user: AuthenticatedUser | null,vendorId:string,raw:Record<string,unknown>,source?:ScannedInvoiceSource) {
   const action=billingText(raw.action,"Action",40); requireVendorBillingUser(user,action!=="CREATE_DOCUMENT");
-  const commandKey=billingText(raw.commandKey,"Request reference",100), requestHash=hash(raw);
+  if(source && (action!=="CREATE_DOCUMENT" || raw.direction!=="PAYABLE"))throw new VendorBillingError("Scans create received invoice drafts only.");
+  const sourceHash=source?createHash("sha256").update(source.bytes).digest("hex"):null;
+  const commandKey=billingText(raw.commandKey,"Request reference",100), requestHash=hash(source?{...raw,sourceHash,fileName:source!.fileName,contentType:source!.contentType,batchId:source.batchId||null,autoCreateBatch:source.autoCreateBatch||false,sourceDocumentId:source.sourceDocumentId||null,pages:source.pages||null}:raw);
   if(!/^[\w-]{8,100}$/.test(commandKey)) throw new VendorBillingError("Refresh the request reference before retrying.");
   try {
     await prisma.$transaction(async db=>{
@@ -98,31 +108,93 @@ export async function commandVendorBilling(user: AuthenticatedUser | null,vendor
       if(replay){if(replay.requestHash!==requestHash)throw new VendorBillingError("This request reference was already used for different details.",409);return;}
       if(["INACTIVE","DO_NOT_USE"].includes(partner.status) && ["CREATE_DOCUMENT","CREATE_AGREEMENT","GENERATE_DUE","POST_DOCUMENT"].includes(action)) throw new VendorBillingError("Review this inactive or blocked vendor before creating new billing obligations.",409);
       let detail:unknown;
-      if(action==="CREATE_DOCUMENT") detail=await createDocument(db,vendorId,user.id,raw);
+      if(action==="CREATE_DOCUMENT") {
+        let values=raw;
+        let importedBatchId=source?.batchId,importedBatchNumber:string|undefined,preparedJobId:string|undefined;
+        if(source){
+          if(raw.taxBasis==="CALCULATED_REVIEW"&&raw.calculatedTaxConfirmed!==true)throw new VendorBillingError("Verify the calculated tax candidate against the original invoice before applying.");
+          const reviewedTotal=billingCents(raw.scannedTotal);
+          if(normalizeBillingLines(raw.lines).reduce((sum,line)=>sum+line.amountCents,0)+billingCents(raw.tax,true)!==reviewedTotal)throw new VendorBillingError("Invoice lines and tax must match the reviewed invoice total.");
+          let notes=`Invoice scan SHA256: ${sourceHash}`;
+          if(await db.vendorDocument.findFirst({where:{organizationId,vendorId,notes:{startsWith:notes}}}))throw new VendorBillingError("This exact invoice file was already received. Review the existing bill before importing again.",409);
+          if(source.autoCreateBatch){
+            if(!source.sourceDocumentId)throw new VendorBillingError("An original uploaded packet is required to prepare a batch.");
+            const batchNumber=preparedInvoiceBatchNumber(vendorId,source.sourceDocumentId);
+            const prior=await db.vendorInvoiceBatch.findFirst({where:{organizationId,vendorId,batchNumber}});
+            const prepared=prior||await db.vendorInvoiceBatch.create({data:{organizationId,vendorId,batchNumber,title:`Invoice intake · ${partner.name}`.slice(0,160),createdByUserId:user.id}});
+            if(prepared.status!=="OPEN")throw new VendorBillingError("The prepared intake batch is closed. Select an open batch explicitly.",409);
+            importedBatchId=prepared.id;
+          }
+          if(importedBatchId){
+            const batch=await db.vendorInvoiceBatch.findFirst({where:{id:importedBatchId,organizationId,vendorId,status:"OPEN"}});
+            if(!batch)throw new VendorBillingError("The target batch is no longer open for this vendor.",409);
+            importedBatchNumber=batch.batchNumber;
+            if(raw.workTicketProposal&&typeof raw.workTicketProposal==="object"&&normalizeBillingLines(raw.lines).some(l=>l.workJobId==="__NEW_INVOICE_JOB__")){
+              const proposal=raw.workTicketProposal as Record<string,unknown>;
+              const vehicleReference=billingText(proposal.vehicleReference,"Printed vehicle reference",160),serviceDate=billingDate(proposal.serviceDate);
+              if(await db.vendorWorkJob.findFirst({where:{organizationId,vendorId,batchId:batch.id,vehicleReference,status:{not:"CANCELLED"}}}))throw new VendorBillingError("This batch already has a ticket for that vehicle reference. Refresh and select the existing ticket.",409);
+              await db.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(196511, 1)`);
+              const [sequence]=await db.$queryRaw<Array<{next:bigint}>>(Prisma.sql`SELECT nextval('"VendorWorkJobNumberSeq"') AS next`);
+              const jobNumber=`VJ-${String(sequence.next).padStart(5,"0")}`;
+              const job=await db.vendorWorkJob.create({data:{organizationId,vendorId,batchId:batch.id,jobNumber,vehicleReference,workType:billingText(proposal.workType,"Work category",80),workDescription:billingText(proposal.workDescription,"Work description",500),serviceDate:date(serviceDate),amount:normalizeBillingLines(raw.lines).filter(l=>l.workJobId==="__NEW_INVOICE_JOB__").reduce((sum,l)=>sum+l.amountCents,0)/100,status:"BATCHED",notes:`Prepared from reviewed invoice ${String(raw.number)}; original ${source.sourceDocumentId}. Inventory identity, approved estimate and accepted-work/QC remain unverified.`,createdByUserId:user.id}});
+              preparedJobId=job.id;
+              values={...raw,lines:(raw.lines as Array<Record<string,unknown>>).map(l=>l.workJobId==="__NEW_INVOICE_JOB__"?{...l,workJobId:job.id}:l)};
+            }
+            for(const line of normalizeBillingLines(values.lines))if(line.workJobId&&!await db.vendorWorkJob.findFirst({where:{id:line.workJobId,organizationId,vendorId,batchId:batch.id,status:{not:"CANCELLED"}}}))throw new VendorBillingError("Match work lines to tickets in the selected batch; no tickets have been moved.");
+            if(!source.sourceDocumentId||!source.pages?.length)throw new VendorBillingError("Original uploaded pages are required for batch imports.");
+            const imports=await db.vendorDocument.findMany({where:{organizationId,vendorId,notes:{contains:JSON.stringify({sourceDocumentId:source.sourceDocumentId}).slice(1,-1)}},select:{notes:true}});
+            for(const imported of imports){let metadata;try{metadata=JSON.parse(imported.notes?.split("\n")[1]||"{}");}catch{continue;}if(metadata.sourceDocumentId===source.sourceDocumentId&&Array.isArray(metadata.pages)&&metadata.pages.some((p:number)=>source.pages!.includes(p)))throw new VendorBillingError("These original pages were already imported. Review the existing draft instead of importing them again.",409);}
+            notes+=`\n${JSON.stringify({sourceDocumentId:source.sourceDocumentId,pages:source.pages,batchId:batch.id,paymentTermsBasis:billingText(raw.paymentTermsBasis||"DOCUMENT_OR_STAFF","Payment terms basis",60),taxBasis:billingText(raw.taxBasis||"DOCUMENT_OR_STAFF","Tax review basis",60)})}`;
+          }
+          const original=await db.vendorDocument.create({data:{organizationId,vendorId,uploadedByUserId:user.id,title:billingText(raw.number,"Invoice number",100),documentType:"BILL_STATEMENT",fileName:source.fileName,contentType:source.contentType,fileSizeBytes:source.bytes.length,fileData:Buffer.from(source.bytes),notes}});
+          values={...values,sourceReference:`Vendor document ${original.id}: ${original.title}${importedBatchId?` ${invoiceBatchMarker(importedBatchId)} Source:${source.sourceDocumentId} Pages:${source.pages!.join(",")}`:""}`};
+        }
+        const created=await createDocument(db,vendorId,user.id,values);
+        if(importedBatchId)await db.vendorRecordLink.create({data:{organizationId,vendorId,recordType:"OTHER",recordId:created.id,relationshipType:`INVOICE_BATCH:${importedBatchId}`,labelSnapshot:`Invoice ${String(raw.number)} · batch ${importedBatchNumber||"Invoice intake"}`,createdByUserId:user.id}});
+        detail={...created,...(preparedJobId?{preparedJobId}:{}),...(importedBatchId?{batchId:importedBatchId}:{})};
+      }
       else if(action==="EDIT_DOCUMENT"){
         if(!Number.isInteger(raw.version))throw new VendorBillingError("Refresh the invoice version.",409);
         const before=await invoice(db,vendorId,raw.documentId,raw.version);
         if(before.status!=="DRAFT")throw new VendorBillingError("Only drafts can be edited. Posted invoices require an adjustment.",409);
         if(raw.direction!==before.direction)throw new VendorBillingError("The billing direction cannot change on an existing draft.");
+        const batchLink=await db.vendorRecordLink.findFirst({where:{organizationId,vendorId,recordType:"OTHER",recordId:before.id,relationshipType:{startsWith:"INVOICE_BATCH:"}}});
+        if(batchLink)for(const line of normalizeBillingLines(raw.lines))if(line.workJobId&&!await db.vendorWorkJob.findFirst({where:{id:line.workJobId,organizationId,vendorId,batchId:batchLink.relationshipType.slice("INVOICE_BATCH:".length),status:{not:"CANCELLED"}}}))throw new VendorBillingError("This invoice belongs to a batch. Match edited work lines to that batch's tickets.");
         detail={before,after:await createDocument(db,vendorId,user.id,raw,{},before)};
       } else if(["POST_DOCUMENT","DISPUTE_DOCUMENT","RESOLVE_DISPUTE","VOID_DRAFT"].includes(action)){
         if(!Number.isInteger(raw.version))throw new VendorBillingError("Refresh the invoice version.",409);
         const doc=await invoice(db,vendorId,raw.documentId,raw.version);
-        const reason=billingText(raw.reason,"Review note",1000);
+        const reason=billingText(raw.reason,"Review note",1000,action==="POST_DOCUMENT");
         if(action==="POST_DOCUMENT") {if(doc.status!=="DRAFT")throw new VendorBillingError("Only a draft can be approved and posted.",409);await matchWork(db,vendorId,doc);}
         if(action==="DISPUTE_DOCUMENT"&&doc.status!=="POSTED")throw new VendorBillingError("Choose a posted invoice to dispute.",409);
         if(action==="RESOLVE_DISPUTE"&&doc.status!=="DISPUTED")throw new VendorBillingError("This invoice has no open dispute.",409);
         if(action==="VOID_DRAFT"&&doc.status!=="DRAFT")throw new VendorBillingError("Posted invoices require a credit or adjustment; their original terms are retained.",409);
-        detail=await db.vendorBillingDocument.update({where:{id:doc.id},data:{status:action==="VOID_DRAFT"?"VOID":action==="DISPUTE_DOCUMENT"?"DISPUTED":"POSTED",disputeReason:action==="DISPUTE_DOCUMENT"?reason:"",approvedById:user.id,version:{increment:1}}});
+        const updated=await db.vendorBillingDocument.update({where:{id:doc.id},data:{status:action==="VOID_DRAFT"?"VOID":action==="DISPUTE_DOCUMENT"?"DISPUTED":"POSTED",disputeReason:action==="DISPUTE_DOCUMENT"?reason:"",approvedById:user.id,version:{increment:1}}});
+        detail={...updated,reviewNote:reason};
       } else if(action==="REVIEW_WORK"){
         const job=await db.vendorWorkJob.findFirst({where:{id:billingText(raw.workJobId,"Work ticket",150),organizationId,vendorId,status:{not:"CANCELLED"}}});
-        const vehicle=await db.vehicle.findFirst({where:{id:billingText(raw.vehicleId,"Canonical vehicle ID",150),organizationId}});
-        if(!job||!vehicle)throw new VendorBillingError("Choose this vendor's work ticket and a shared vehicle from this organization.");
+        if(!job)throw new VendorBillingError("Choose an available work ticket belonging to this vendor.");
+        const identityBasis=raw.identityBasis===undefined?"REGISTRY":billingText(raw.identityBasis,"Vehicle review method",30);
+        if(!["REGISTRY","INVOICE_REFERENCE"].includes(identityBasis))throw new VendorBillingError("Choose a registry vehicle or review the original invoice vehicle reference.");
+        let vehicleId:string|null=null,invoiceVehicleReference:string|null=null,identityReviewReason:string|null=null,identitySourceDocumentId:string|null=null;
         const repairOrderId=billingText(raw.repairOrderId,"Repair order",150,true)||null;
-        if(repairOrderId&&!await db.repairOrder.findFirst({where:{id:repairOrderId,organizationId,vehicleId:vehicle.id}}))throw new VendorBillingError("The repair order must belong to the selected vehicle.");
+        if(identityBasis==="REGISTRY"){
+          vehicleId=billingText(raw.vehicleId,"Selected work vehicle",150,true);
+          if(!vehicleId)throw new VendorBillingError("Choose the work vehicle, or select the original-invoice option for a historical/non-inventory vehicle.");
+          if(!await db.vehicle.findFirst({where:{id:vehicleId,organizationId}}))throw new VendorBillingError("Choose a vehicle from this organization.");
+          if(repairOrderId&&!await db.repairOrder.findFirst({where:{id:repairOrderId,organizationId,vehicleId}}))throw new VendorBillingError("The repair order must belong to the selected vehicle.");
+        }else{
+          if(raw.vehicleId||repairOrderId)throw new VendorBillingError("An invoice-only vehicle review cannot link a registry vehicle or repair order.");
+          invoiceVehicleReference=billingText(raw.invoiceVehicleReference,"Vehicle shown on the original invoice",160);
+          if(invoiceVehicleReference!==job.vehicleReference)throw new VendorBillingError("The invoice vehicle must match this work ticket. Correct the ticket before reviewing a different vehicle.");
+          identityReviewReason=billingText(raw.identityReviewReason,"Reason for using the invoice vehicle reference",1000);
+          identitySourceDocumentId=billingText(raw.identitySourceDocumentId,"Original invoice document",150);
+          if(!await db.vendorDocument.findFirst({where:{id:identitySourceDocumentId,organizationId,vendorId},select:{id:true}}))throw new VendorBillingError("Choose an original document saved under this vendor.");
+          if(raw.invoiceVehicleConfirmed!==true)throw new VendorBillingError("Confirm the vehicle reference against the original invoice.");
+        }
         const approvedAmountCents=billingCents(raw.approvedAmount),evidenceReference=billingText(raw.evidenceReference,"Approval / accepted-work evidence",1000);
         if(typeof raw.accepted!=="boolean")throw new VendorBillingError("Choose whether the actual work passed acceptance/QC.");
-        const values={vehicleId:vehicle.id,repairOrderId,approvedAmountCents,accepted:raw.accepted,evidenceReference,scopeSnapshot:jobSnapshot(job),reviewedById:user.id,reviewedAt:new Date()};
+        const values={vehicleId,identityBasis,invoiceVehicleReference,identityReviewReason,identitySourceDocumentId,repairOrderId,approvedAmountCents,accepted:raw.accepted,evidenceReference,scopeSnapshot:jobSnapshot(job),reviewedById:user.id,reviewedAt:new Date()};
         detail=await db.vendorBillingWorkReview.upsert({where:{organizationId_vendorId_workJobId:{organizationId,vendorId,workJobId:job.id}},create:{organizationId,vendorId,workJobId:job.id,...values},update:{...values,version:{increment:1}}});
       } else if(action==="CREATE_AGREEMENT"){
         const kind=billingText(raw.kind,"Agreement type",30);if(!["RENT","SERVICE","REPAYMENT"].includes(kind))throw new VendorBillingError("Choose rent, recurring service, or repayment of an existing balance.");

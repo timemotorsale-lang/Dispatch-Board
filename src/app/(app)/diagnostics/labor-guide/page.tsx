@@ -9,7 +9,7 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     const selected = first(value);
     if (key !== "guide" && key !== "experience" && selected !== undefined) query.set(key, selected);
   }
-  const destination = first(params.importExplorer) === "1" ? "/prototype/labor-guide" : "/prototype/repair-explorer";
+  const destination = "/prototype/repair-explorer";
   redirect(`${destination}${query.size ? `?${query}` : ""}`);
 }
 

@@ -5,11 +5,30 @@ import { EMPTY_CASH_SALE } from "@/lib/cash-retail-sale";
 import { saleLibraryCatalog, saleLibraryDefaultIds, validateCashPrintPack } from "@/lib/cash-sale-print-library";
 import { BHPH_FINANCING_VERSION, MN_BHPH_FEE_DEFAULTS, calculateBhphFinancing } from "@/lib/bhph-financing";
 import { BHPH_PAYMENT_VERSION } from "@/lib/bhph-payment";
+import { LIMITED_POA_ID, SECURE_POA_ID, salesDocumentRequirements } from "@/lib/sales-document-pathways";
 import type { AuthenticatedUser } from "@/server/auth/store";
 const actor = { id: "fictional-staff" } as AuthenticatedUser;
 const facts = { ...EMPTY_CASH_SALE, buyerAddress: "100 Sample Street", buyerPhone: "6125550100", buyerEmail: "buyer@example.test", saleDate: "2026-11-05", mileage: "54000", odometerStatus: "Actual", titleBrand: "None", damageDisclosure: "None known", authorizedAgent: "Demo Staff", warrantyType: "Dealer limited warranty", warrantyCoverage: "Powertrain; statutory coverage preserved", warrantyDuration: "30 days or 1,000 miles" };
 const vehicle = { vin: "1NXBR32E85Z123456", stockNumber: "DEMO", year: "2005", make: "Toyota", model: "Corolla", color: "Silver" };
 describe("shared vehicle sale form library", () => {
+  it("prepares a one-page Limited POA for review with unselected powers and blank signatures", async () => {
+    const packet = await generateUnifiedCrmContractPacket(actor, { customerName: "Demo Buyer", salePrice: "10000", vehicle, preparedFormIds: [LIMITED_POA_ID], sharedSaleLibrary: { pathway: "finance", facts } });
+    const document = packet.documents.find(doc => doc.formId === LIMITED_POA_ID)!;
+    const pdf = await PDFDocument.load(Buffer.from(document.contentBase64!, "base64"));
+    const form = pdf.getForm();
+    expect(pdf.getPageCount()).toBe(1);
+    expect(document.html).toContain("Review copy only");
+    expect(form.getTextField("buyer_signature").getText()).toBeUndefined();
+    expect(form.getTextField("co_buyer_signature").getText()).toBeUndefined();
+    expect(form.getFields().filter(field => field.getName().startsWith("poa_authority_"))).toHaveLength(4);
+    expect(form.getFields().some(field => /notary|expiration/i.test(field.getName()))).toBe(false);
+  });
+  it("lists Minnesota Secure POA separately and requires an official attachment", async () => {
+    expect(saleLibraryCatalog("finance").some(form => form.id === SECURE_POA_ID)).toBe(true);
+    expect(saleLibraryDefaultIds("finance", facts)).not.toContain(SECURE_POA_ID);
+    expect(salesDocumentRequirements("lease-to-own")).toContainEqual(expect.objectContaining({ id: SECURE_POA_ID, signed: true, required: false }));
+    await expect(generateUnifiedCrmContractPacket(actor, { customerName: "Demo Buyer", salePrice: "10000", vehicle, preparedFormIds: [SECURE_POA_ID], sharedSaleLibrary: { pathway: "finance", facts } })).rejects.toThrow("Attach the completed authorized Minnesota Secure POA");
+  });
   it.each(["finance", "outside-finance-one-pay"] as const)("uses the library purchase form and preserves credit documents for %s", async pathway => {
     const packet = await generateUnifiedCrmContractPacket(actor, { packetType: "MINNESOTA_RETAIL_SALE", customerName: "Demo Buyer", salePrice: "10000", vehicle, sharedSaleLibrary: { pathway, facts, loan: { downPayment: "2000", amountFinanced: "9000" } } });
     const agreement = packet.documents.find(doc => doc.formId === "sales-agreement")!;

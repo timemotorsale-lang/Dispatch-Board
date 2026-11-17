@@ -7,28 +7,36 @@ import { getConnectedCatalogSystems } from "@/server/services/labor-catalog-sett
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
-import { repairExplorerStorageKey } from "@/lib/repair-explorer-context";
+import { repairExplorerStorageKey, safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 
-export type PageProps = { searchParams?: Promise<{ workflow?: string | string[]; guide?: string | string[]; importExplorer?: string | string[]; experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
+export type PageProps = { searchParams?: Promise<{ attachRepairOrder?: string | string[]; draftId?: string | string[]; workflow?: string | string[]; guide?: string | string[]; importExplorer?: string | string[]; experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
-function safeReturnTo(value: string | undefined) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : undefined;
-}
 
-export async function renderLaborGuidePage({ searchParams }: PageProps, initialGuideView: "legacy" | "new") {
-  const user = await requireCurrentUser(initialGuideView === "new" ? "/prototype/labor-guide" : "/diagnostics/labor-guide");
+
+export async function renderLaborGuidePage({ searchParams }: PageProps, initialGuideView: "legacy" | "new", presentation: "workspace" | "explorer" = "workspace") {
   const params = searchParams ? await searchParams : {};
+  const draftId = first(params.draftId);
   const requestedMode = first(params.mode);
   const requestedRepairOrderId = first(params.repairOrderId);
-  const returnTo = safeReturnTo(first(params.returnTo));
+  const authPath = presentation === "explorer" ? "/prototype/repair-explorer" : initialGuideView === "new" ? "/prototype/labor-guide" : "/diagnostics/labor-guide";
+  const returnTo = safeLaborGuideReturnTo(first(params.returnTo));
   const returnLabel = first(params.returnLabel)?.slice(0, 120);
+  const authQuery = new URLSearchParams();
+  if (draftId !== undefined) authQuery.set("draftId", draftId);
+  if (first(params.attachRepairOrder) === "1") authQuery.set("attachRepairOrder", "1");
+  if (requestedRepairOrderId) authQuery.set("repairOrderId", requestedRepairOrderId);
+  if (first(params.importExplorer) === "1") authQuery.set("importExplorer", "1");
+  if (first(params.workflow) === "review") authQuery.set("workflow", "review");
+  if (returnTo) authQuery.set("returnTo", returnTo);
+  if (returnTo && returnLabel) authQuery.set("returnLabel", returnLabel);
+  const user = await requireCurrentUser(authQuery.size ? authPath + "?" + authQuery : authPath);
   const [ordersResult, activeResult, rateResult, catalogResult] = await Promise.allSettled([
     listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }),
     requestedRepairOrderId ? getRepairOrderDetail(user, requestedRepairOrderId) : Promise.resolve(null),
     getActiveLaborRate(user),
     getConnectedCatalogSystems(user),
   ]);
-  if (initialGuideView === "new" && first(params.importExplorer) === "1" && requestedRepairOrderId && (activeResult.status === "rejected" || !activeResult.value || activeResult.value.closedAt)) {
+  if (initialGuideView === "new" && draftId === undefined && first(params.importExplorer) === "1" && requestedRepairOrderId && (activeResult.status === "rejected" || !activeResult.value || activeResult.value.closedAt)) {
     return <main><h1>Repair order could not open</h1><p role="alert">The requested repair order is unavailable, closed, or outside your access. No draft was imported. Return to the original guide and retry.</p><a href="/diagnostics/labor-guide">Return to Labor Guide</a></main>;
   }
   const orders = ordersResult.status === "fulfilled" ? ordersResult.value : { items: [] };
@@ -57,5 +65,5 @@ export async function renderLaborGuidePage({ searchParams }: PageProps, initialG
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <LaborGuideEntry reviewWorkflow={first(params.workflow) === "review" && Boolean(activeRepairOrder)} initialGuideView={initialGuideView} explorerStorageKey={initialGuideView === "new" && first(params.importExplorer) === "1" ? `${repairExplorerStorageKey(user.id, requestedRepairOrderId)}.handoff` : undefined} activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={`${initialGuideView}:${user.id}:${activeRepairOrder?.id ?? "blank-estimate"}:${first(params.importExplorer) === "1" ? "explorer-import" : "guide"}`} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
+  return <LaborGuideEntry presentation={presentation} attachRepairOrderOnOpen={first(params.attachRepairOrder) === "1"} initialDraftId={draftId} expectedDraftRepairOrderId={requestedRepairOrderId} reviewWorkflow={first(params.workflow) === "review"} initialGuideView={initialGuideView} explorerStorageKey={initialGuideView === "new" && draftId === undefined && first(params.importExplorer) === "1" ? `${repairExplorerStorageKey(user.id, requestedRepairOrderId)}.handoff` : undefined} activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} connectedExplorer={first(params.experience) === "explorer"} connectedSystemIds={catalogResult.status === "fulfilled" ? catalogResult.value.allowedSystemIds : ["brakes", "steering"]} initialMode={requestedMode === "engine" ? "engine" : "manual"} initialNotice={initialNotice} initialPricing={{ ...initialEstimatePricing, laborRate: laborRate?.laborRate ?? 125, ratePolicyId: laborRate?.policyId, ratePolicyVersion: laborRate?.policyVersion }} pricingAvailable={Boolean(laborRate)} canOverrideLaborRate={canManageSettings(user)} key={`${first(params.attachRepairOrder) ?? ""}:${presentation}:${initialGuideView}:${user.id}:${draftId !== undefined ? `${draftId}:${requestedRepairOrderId ?? ""}` : activeRepairOrder?.id ?? "blank-estimate"}:${draftId === undefined && first(params.importExplorer) === "1" ? "explorer-import" : "guide"}`} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
 }

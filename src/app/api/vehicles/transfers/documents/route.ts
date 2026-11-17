@@ -7,7 +7,7 @@ import { purchaseJobQueue, purchaseReviewers, reassignPurchaseImport } from "@/s
 import { purchaseTemplates, savePurchaseTemplate } from "@/server/inventory-transfer/purchase-templates";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 const MAX_REQUEST = 11 * 1024 * 1024;
 function purchaseImportDisabled(headers: HeadersInit) {
   if (process.env.NODE_ENV !== "production") return null;

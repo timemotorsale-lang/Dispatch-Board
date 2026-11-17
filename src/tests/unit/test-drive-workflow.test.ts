@@ -22,6 +22,12 @@ describe("guided test-drive rules", () => {
     expect(result.identity).toBe(true); expect(result.verified).toBe(false);
     expect(result.issue?.field).toBe("Valid license verified");
   });
+  it("names the missing details blocking verification and clears them when supplied", () => {
+    expect(driveReadiness({ ...guidedFacts, driverPhone: "" }, false, "").missing).toEqual([
+      "Customer", "Vehicle with a valid 17-character VIN", "Driver phone"
+    ]);
+    expect(driveReadiness(guidedFacts, true, "1NXBR32E85Z123456").missing).toEqual([]);
+  });
   it.each([ { driverLicense: "different" }, { startTime: "12:10" }, { departureMileage: "45001" }, { insuranceBasis: "DRIVER_POLICY" }, { driveMode: "SUPERVISED" } ])("invalidates agreements on material changes: %j", change => {
     expect(driveAgreementContent({ ...guidedFacts, ...change }, "customer", "VIN")).not.toBe(driveAgreementContent(guidedFacts, "customer", "VIN"));
   });

@@ -40,8 +40,22 @@ export function driveAgreementContent(value: unknown, customerId: string, vin: s
 
 export function driveReadiness(value: unknown, customerSelected: boolean, vin: string) {
   const facts = driveFactsFromDraft(value), issue = testDriveAgreementIssue(facts);
-  const identity = customerSelected && /^[A-HJ-NPR-Z0-9]{17}$/.test(vin) && Boolean(facts.driverLicense && facts.driverPhone && facts.licenseState && facts.licenseExpiration && testDriveDeadline(facts) && facts.fuelOut && facts.departureCondition && Number.isSafeInteger(facts.departureMileage) && facts.departureMileage >= 0 && facts.mileageAllowance > 0 && facts.approvedRoute);
-  return { identity, verified: identity && !issue, issue, facts };
+  const missing = [
+    !customerSelected && "Customer",
+    !/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) && "Vehicle with a valid 17-character VIN",
+    !facts.driverPhone && "Driver phone",
+    !facts.driverLicense && "Driver license",
+    !facts.licenseState && "License state",
+    !facts.licenseExpiration && "License expiration",
+    !testDriveDeadline(facts) && "Valid departure date, time and time allowance",
+    !(facts.mileageAllowance > 0) && "Positive mileage allowance",
+    (!Number.isSafeInteger(facts.departureMileage) || facts.departureMileage < 0) && "Checkout odometer (whole number)",
+    !facts.fuelOut && "Fuel out",
+    !facts.departureCondition && "Checkout condition",
+    !facts.approvedRoute && "Approved route"
+  ].filter((field): field is string => typeof field === "string");
+  const identity = missing.length === 0;
+  return { identity, verified: identity && !issue, issue, facts, missing };
 }
 
 export function driveReturnFacts(value: Record<string, unknown>, departureMileage: number, departureAt: Date) {

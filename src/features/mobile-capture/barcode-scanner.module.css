@@ -33,4 +33,9 @@
 .idReview input { min-width: 20px; min-height: 20px; }
 .idReview p { margin: 0; color: #b5c6de; font-size: 13px; }
 .idReview + .controls .primary { flex-basis: 100%; }
+.cameraSettings { display: grid; gap: 12px; margin: 16px 0; }
+.cameraSettings label { display: grid; gap: 8px; font-size: 14px; }
+.cameraSettings select { min-height: 48px; width: 100%; border: 1px solid #526d94; border-radius: 10px; padding: 10px; font: inherit; font-size: 16px; background: #fff; color: #10233f; }
+.cameraSettings input[type="range"] { min-height: 44px; width: 100%; accent-color: #92c8ff; }
+.cameraSettings select:focus-visible { outline: 3px solid #92c8ff; outline-offset: 3px; }
 @media (max-width: 480px) { .backdrop { padding: 8px; } .dialog { padding: 14px; max-height: calc(100dvh - 16px); } .controls button { flex: 1 1 40%; } .dialog h2 { font-size: 21px; } }

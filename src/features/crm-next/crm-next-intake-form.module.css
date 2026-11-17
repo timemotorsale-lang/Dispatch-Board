@@ -1,0 +1,196 @@
+.form {
+  min-width: 0;
+}
+
+.form [hidden] {
+  display: none !important;
+}
+
+.form > header {
+  margin-bottom: 12px;
+}
+
+.form section,
+.form details {
+  min-width: 0;
+}
+
+.form section[aria-label="Detailed customer intake"] {
+  gap: 10px;
+  padding: 12px;
+}
+
+.form section[aria-label="Detailed customer intake"] > header p {
+  display: none;
+}
+
+.form section[aria-label="Buyer Info"] {
+  gap: 10px;
+}
+
+.form fieldset {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.form fieldset > label,
+.form label {
+  min-width: 0;
+}
+
+.form label > span {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.form input,
+.form select,
+.form textarea {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.form input:not([type="radio"]):not([type="checkbox"]),
+.form select {
+  min-height: 36px;
+  padding: 7px 10px;
+}
+
+.form textarea {
+  min-height: 64px;
+}
+
+.form summary {
+  color: #17365c;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 750;
+  padding: 4px 0;
+}
+
+.form summary:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #2454d6;
+  outline-offset: 3px;
+}
+
+.form summary small {
+  color: #52637a;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.form details[open] > summary {
+  margin-bottom: 12px;
+}
+
+.form details[aria-label="Capture Hub review"] {
+  padding: 12px;
+}
+
+.identity {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}
+
+.expandButton {
+  align-items: center;
+  background: #eef4ff;
+  border: 1px solid #cfdbea;
+  border-radius: 8px;
+  color: #17365c;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  gap: 8px;
+  justify-self: start;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.expandButton:hover {
+  background: #e0ebff;
+}
+
+.expandButton:focus-visible {
+  outline: 2px solid #2454d6;
+  outline-offset: 3px;
+}
+
+.businessGroups {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 760px) {
+  .form .businessGroups fieldset {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .form .businessGroups fieldset {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.businessGroups > :first-child,
+.businessGroups > p {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 759px) {
+  .businessGroups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 760px) {
+  .form section[aria-label="Buyer Info"] > div,
+  .form fieldset,
+  .form section[aria-label="Lead and assignment"] > div,
+  .form details[aria-label="Interested Vehicle"] > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .form fieldset,
+  .form section[aria-label="Lead and assignment"] > div,
+  .form details[aria-label="Interested Vehicle"] > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 759px) {
+  .form {
+    padding: 10px;
+  }
+
+  .form > header {
+    align-items: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .form input:not([type="radio"]):not([type="checkbox"]),
+  .form select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .form summary {
+    padding: 10px 0;
+  }
+}

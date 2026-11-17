@@ -1,0 +1,12 @@
+.record { max-width: 60rem; margin: 1rem auto; padding: 0 1rem; overflow-wrap: anywhere; }
+.record h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
+.record h2 { font-size: 1.2rem; }
+.record h3 { font-size: 1rem; }
+.record p { margin: .5rem 0; }
+.record dl { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(0, 3fr); gap: .35rem .75rem; }
+.record dt { font-weight: 600; }
+.record dd { margin: 0; min-width: 0; }
+.field { display: contents; }
+.record article { margin: .75rem 0; padding: .75rem; border: 1px solid currentColor; border-radius: .35rem; }
+.record footer { margin: 1rem 0; }
+@media (max-width: 400px) { .record dl { grid-template-columns: 1fr; } .record dd { margin-bottom: .35rem; } }

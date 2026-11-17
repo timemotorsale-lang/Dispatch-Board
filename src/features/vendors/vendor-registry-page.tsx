@@ -4,6 +4,8 @@ import { Building2, CheckCircle2, ClipboardList, Plus, Search, ShieldAlert } fro
 import Link from "next/link";
 import { type FormEvent, useMemo, useState } from "react";
 
+import styles from "./vendor-registry-page.module.css";
+
 import type { VendorRegistryReadModel } from "@/server/vendors/vendor-service";
 
 type VendorFormState = {
@@ -102,7 +104,7 @@ export function VendorRegistryPage({ initialReadModel }: { initialReadModel: Ven
   };
 
   return (
-    <section className="vendor-registry-shell" aria-label="Vendor Registry">
+    <section className={`vendor-registry-shell ${styles.registry}`} aria-label="Vendor Registry">
       <header className="vendor-registry-header">
         <div>
           <span className="vendor-registry-kicker">CRM department</span>

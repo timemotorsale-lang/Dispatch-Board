@@ -11,11 +11,9 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   FileText,
-  Gauge,
   Megaphone,
   RotateCcw,
   Save,
-  Sparkles,
   Upload,
   UserRound,
   UsersRound,
@@ -28,8 +26,10 @@ import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { isBroadTaskContext, taskContextAreas, taskContextLabel, type TaskContextArea, type TaskContextScope } from "@/lib/task-context";
 import type { UnifiedCrmTaskIntakeDefaults } from "@/lib/unified-crm-task-intake-handoff";
+import { QuickCalendarTaskDialog } from "@/features/tasks/quick-calendar-task";
+import { noTaskRepeat, TaskRepeatFields, toTaskRepeat, type TaskRepeatDraft } from "@/features/tasks/task-repeat-fields";
 
-type EnterpriseTool = "intake-type" | "ownership" | "context" | "workflow" | "controls" | "uploads" | "checklist" | "subtasks" | "requirements" | "review";
+type EnterpriseTool = "ownership" | "context" | "workflow" | "controls" | "uploads" | "checklist" | "subtasks" | "requirements" | "review";
 type IntakeType =
   | "Quick Task"
   | "Vehicle / Service"
@@ -43,6 +43,7 @@ type IntakeType =
   | "Operations / Action Plan";
 
 type IntakeDraft = {
+  repeatDraft?: TaskRepeatDraft;
   assignedUserId: string;
   channel: string;
   contextOmitted: boolean;
@@ -86,7 +87,6 @@ const uploadOptions = ["Customer authorization", "Vehicle photos", "Diagnostic s
 const checklistOptions = ["Confirm owner", "Validate context", "Document next step", "Capture evidence", "Notify affected staff", "Manager review if blocked"];
 const subtaskOptions = ["Customer follow-up", "Parts / document request", "Vehicle inspection", "Manager decision", "Vendor coordination", "Final QA review"];
 const enterpriseTools: Array<{ label: string; value: EnterpriseTool }> = [
-  { label: "Intake type", value: "intake-type" },
   { label: "Assignee and collaborators", value: "ownership" },
   { label: "Task context", value: "context" },
   { label: "Workflow and priority", value: "workflow" },
@@ -214,7 +214,9 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
     const intakeType = typeOptions.find((option) => option.label === initialDraft?.intakeType)?.label ?? empty.intakeType;
     return { ...empty, ...initialDraft, intakeType, contextScope: intakeType === "Operations / Action Plan" ? "OPERATIONS" : empty.contextScope };
   });
-  const [selectedTool, setSelectedTool] = useState<EnterpriseTool>("intake-type");
+  const [selectedTool, setSelectedTool] = useState<EnterpriseTool>("ownership");
+  const [quickTaskOpen, setQuickTaskOpen] = useState(false);
+  const moreOptions = useRef<HTMLDetailsElement | null>(null);
   const [customChecklistItem, setCustomChecklistItem] = useState("");
   const [customSubtaskTemplate, setCustomSubtaskTemplate] = useState("");
   const [collaboratorCandidate, setCollaboratorCandidate] = useState("");
@@ -224,6 +226,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   const [showValidation, setShowValidation] = useState(false);
   const [focusRequest, setFocusRequest] = useState<{ target: string } | null>(null);
   const submitLock = useRef(false);
+  const repeatSubmission = useRef<{ fingerprint: string; id: string } | null>(null);
   const readiness = calculateTaskIntakeReadiness(draft);
   const policy = acquisitionPolicy(draft);
   const missingRequirements = readiness.checks.filter((check) => !check.ready);
@@ -241,8 +244,11 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   function resolveRequirement(label: string) {
     const help = requirementHelp[label];
     if (!help) return;
-    if (help.tool) setSelectedTool(help.tool);
-    if (label === "Task scope and context" && draft.intakeType === "Quick Task") setSelectedTool("context");
+    const tool = help.tool ?? (label === "Task scope and context" && draft.intakeType === "Quick Task" ? "context" : undefined);
+    if (tool) {
+      setSelectedTool(tool);
+      if (moreOptions.current) moreOptions.current.open = true;
+    }
     setFocusRequest({ target: help.target });
   }
 
@@ -284,10 +290,19 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       resolveRequirement(missingRequirements[0].label);
       return;
     }
+    const repeat = toTaskRepeat(draft.repeatDraft ?? noTaskRepeat);
+    if (repeat && (!repeat.until || repeat.until <= draft.dueDate)) {
+      setSubmitError("Choose a repeat end date after the first due date.");
+      return;
+    }
     submitLock.current = true;
     setIsSubmitting(true);
     setSubmitError("");
     try {
+      const fingerprint = repeat ? JSON.stringify(draft) : null;
+      if (fingerprint && repeatSubmission.current?.fingerprint !== fingerprint) {
+        repeatSubmission.current = { fingerprint, id: crypto.randomUUID() };
+      }
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -298,6 +313,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           customerReference: !isBroadTaskContext(draft.contextScope) && !draft.contextOmitted ? draft.customerReference || undefined : undefined,
           description: draft.brief,
           dueAt: new Date(`${draft.dueDate}T${draft.dueTime}:00`).toISOString(),
+          ...(repeat ? { repeat, repeatRequestId: repeatSubmission.current?.id, repeatTime: draft.dueTime } : {}),
           intakeMetadata: {
             channel: draft.channel,
             contextOmitted: isBroadTaskContext(draft.contextScope) ? false : draft.contextOmitted,
@@ -431,25 +447,6 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   }
 
   function renderEnterpriseTool() {
-    if (selectedTool === "intake-type") {
-      return (
-        <section className="task-intake-enterprise-panel">
-          <header><p>Intake Type</p><strong>{draft.intakeType}</strong></header>
-          <div className="task-intake-type-grid">
-            {typeOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <button className={draft.intakeType === option.label ? "active" : undefined} disabled={!canAssignOthers && option.label === "Manager Decision"} key={option.label} onClick={() => selectType(option.label)} type="button">
-                  <Icon size={15} />
-                  <span>{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      );
-    }
-
     if (selectedTool === "context") {
       return draft.intakeType === "Quick Task" ? renderContextFields() : (
         <section className="task-intake-enterprise-panel">
@@ -596,7 +593,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
 
     return (
       <section className="task-intake-enterprise-panel">
-        <header><p>Review Status</p><strong>{readiness.score}% ready</strong></header>
+        <header><p>Review Status</p><strong>{missingRequirements.length ? `${missingRequirements.length} details needed` : "Ready to create"}</strong></header>
         <div className="task-intake-review-compact">
           <div className="task-intake-card-preview">
             <header><span>{draft.priority}</span><strong>{draft.dueTime || "No due time"}</strong></header>
@@ -634,27 +631,46 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           <span>Shape new work before it enters the Dispatch Board.</span>
         </div>
         <div className="task-intake-header-actions">
-          <label className="task-intake-enterprise-select"><span>Task tools</span><select onChange={(event) => setSelectedTool(event.target.value as EnterpriseTool)} value={selectedTool}>{enterpriseTools.map((tool) => <option key={tool.value} value={tool.value}>{tool.label}</option>)}</select></label>
+          {draft.intakeType === "Quick Task" && <button className="task-intake-reset" type="button" onClick={() => setQuickTaskOpen(true)}><CirclePlus size={15} />Quick add task</button>}
           <button className="task-intake-reset" onClick={() => { setDraft(createEmptyDraft(currentUserId, defaultDueDate)); setDraftMessage(""); setSubmitError(""); setShowValidation(false); window.localStorage.removeItem(draftStorageKey); }} type="button"><RotateCcw size={14} />Reset</button>
         </div>
       </header>
+      <details className="task-intake-more-options">
+        <summary>Find tasks or appointments by category</summary>
+        <form action="/appointments" method="get">
+          <input type="hidden" name="view" value="calendar" />
+          <input type="hidden" name="localDate" value={draft.dueDate} />
+          <label>Category, team, or list <input type="search" name="q" required maxLength={100} placeholder="Example: Service & Warranty" /></label>
+          <button type="submit">Search Calendar</button>
+        </form>
+        <Link href={`/appointments?view=calendar&advanced=1&localDate=${encodeURIComponent(draft.dueDate)}`}>Advanced Calendar search</Link>
+      </details>
 
-      <div className="task-intake-layout task-intake-layout-simple">
+      <div className="task-intake-layout task-intake-layout-capture">
         <main className="task-intake-form-panel">
           <div className="task-intake-section-heading">
             <div><p>Simple capture</p><h2>{draft.intakeType}</h2></div>
-            <span><Sparkles size={13} />{readiness.score}% ready</span>
           </div>
 
           <div className="task-intake-form-grid">
             <label className="task-intake-span-2"><span>Task title *</span><input id="task-intake-title" onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Diagnose 2014 Acura MDX A/C issue" value={draft.title} /></label>
-            <label className="task-intake-span-2"><span>Task description *</span><textarea id="task-intake-description" onChange={(event) => setDraft((current) => ({ ...current, brief: event.target.value }))} placeholder="Describe the action, evidence, and next step expected from the owner." rows={4} value={draft.brief} /></label>
+            <label className="task-intake-span-2"><span>Work type</span><select value={draft.intakeType} onChange={event => selectType(event.target.value as IntakeType)}>
+              {typeOptions.map(option => <option key={option.label} value={option.label} disabled={!canAssignOthers && option.label === "Manager Decision"}>{option.label}</option>)}
+            </select></label>
             <label className="task-intake-span-2"><span>Assign to staff *</span><select id="task-intake-owner" disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorIds: current.collaboratorIds.filter((id) => id !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
             <label><span>Due date *</span><input id="task-intake-due-date" onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} type="date" value={draft.dueDate} /></label>
             <label><span>Due time *</span><input onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
+            <div className="task-intake-span-2"><TaskRepeatFields date={draft.dueDate} draft={draft.repeatDraft ?? noTaskRepeat} shared
+              onChange={repeatDraft => setDraft(current => ({ ...current, repeatDraft }))} /></div>
+            <label className="task-intake-span-2"><span>Task description *</span><textarea id="task-intake-description" onChange={(event) => setDraft((current) => ({ ...current, brief: event.target.value }))} placeholder="Describe the action and next step expected from the owner." rows={3} value={draft.brief} /></label>
           </div>
 
           {draft.intakeType !== "Quick Task" && renderContextFields()}
+          <details ref={moreOptions} className="task-intake-more-options">
+            <summary>More options</summary>
+            <label className="task-intake-enterprise-select"><span>Task tools</span><select onChange={(event) => setSelectedTool(event.target.value as EnterpriseTool)} value={selectedTool}>{enterpriseTools.map((tool) => <option key={tool.value} value={tool.value}>{tool.label}</option>)}</select></label>
+            {renderEnterpriseTool()}
+          </details>
           {showValidation && missingRequirements.length > 0 && (
             <section className="task-intake-resolution" aria-label="Complete task requirements" role="alert">
               <h3>Complete these details to create the task</h3>
@@ -666,15 +682,21 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           <footer className="task-intake-form-footer">
             <div className={submitError ? "task-intake-message error" : "task-intake-message"}><Save size={14} /><span role={submitError ? "alert" : "status"}>{submitError || (showValidation ? missingRequirements.length ? "Use the correction buttons above to finish this task." : "Required details are complete. You can create this task." : draftMessage || "Draft recovery is available on this device.")}</span></div>
             <button onClick={saveDraft} type="button">Save Draft</button>
-            <button aria-label="Create Task" className="primary" disabled={isSubmitting} onClick={createTask} type="button">{isSubmitting ? "Creating task…" : readiness.score === 100 ? "Create Task" : `Review & Create · ${readiness.score}%`}</button>
+            <button aria-label="Create Task" className="primary" disabled={isSubmitting} onClick={createTask} type="button">{isSubmitting ? "Creating task…" : "Create Task"}</button>
           </footer>
         </main>
 
-        <aside className="task-intake-enterprise-column">
-          {renderEnterpriseTool()}
-          <div className="task-intake-prototype-note"><Gauge size={15} /><span>Creation is permission checked. Task tools are available from the selector without crowding the capture form.</span></div>
-        </aside>
       </div>
+      {quickTaskOpen && <QuickCalendarTaskDialog
+        date={draft.dueDate}
+        time={draft.dueTime || undefined}
+        defaultScope="dispatch"
+        defaultTeam={draft.workflowArea}
+        defaultOwnerId={canAssignOthers && draft.assignedUserId !== currentUserId ? draft.assignedUserId : undefined}
+        ownerOptions={canAssignOthers ? collaboratorOptions.filter(option => option.id !== currentUserId) : []}
+        onClose={() => setQuickTaskOpen(false)}
+        onSaved={task => setDraftMessage(`Saved ${task.title}.`)}
+      />}
     </section>
   );
 }

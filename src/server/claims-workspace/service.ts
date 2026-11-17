@@ -200,6 +200,7 @@ export type ClaimBillingRecovery = {
 };
 
 export type ClaimEstimateReview = {
+  proposedAmountCents?: number | null;
   approvedAmountCents: number | null;
   approvedAmountLabel: string;
   confidence: "HIGH" | "MEDIUM" | "NEEDS_REVIEW";
@@ -945,22 +946,13 @@ export async function attachClaimEvidence(
     createdByUserId: user.id,
     id: `claim-evidence-${randomUUID()}`
   };
-  const prior = await context.repository.findClaimById(claimId);
-  const manuallyReviewed = prior?.activities.some((activity) => activity.action === "CLAIM_APPROVED_AMOUNT_RECORDED" && activity.at === prior.claim.approvedAmountRecordedAt);
-  const amount = !manuallyReviewed && isEstimateEvidence(evidence) ? extractApprovedAmount(evidenceSearchText(evidence)) : null;
-  const aggregate = await context.repository.addEvidence(claimId, evidence, amount ? {
-    approvedAmountCents: amount.cents,
-    approvedAmountConfidence: amount.confidence,
-    approvedAmountRecordedAt: now,
-    approvedAmountSourceDocumentId: evidence.documentLibraryId,
-    approvedAmountSourceEvidenceId: evidence.id
-  } : undefined);
+  const aggregate = await context.repository.addEvidence(claimId, evidence);
   await context.repository.addActivity(claimId, {
     action: "CLAIM_EVIDENCE_ATTACHED",
     actorUserId: user.id,
     actorUserName: user.name,
     at: now,
-    detail: `${evidence.title} attached as ${evidence.category.toLowerCase().replaceAll("_", " ")}.${amount ? ` Approved repair amount ${formatMoneyCents(amount.cents)} read from the document.` : ""}`,
+    detail: `${evidence.title} attached as ${evidence.category.toLowerCase().replaceAll("_", " ")}. Extracted amounts require staff approval before billing use.`,
     id: `claim-activity-${randomUUID()}`
   });
   return toClaimReadModel(aggregate);
@@ -1064,7 +1056,7 @@ function toClaimReadModel(
     billingRecovery: buildBillingRecovery(aggregate, checklist, estimateReview),
     carrierTracker: buildCarrierTracker(aggregate),
     checklist,
-    claim: aggregate.claim,
+    claim: {...aggregate.claim,approvedAmountCents:estimateReview.approvedAmountCents??undefined},
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
     documentPlan,
     documentStorageReady: resolveDocumentStorageRuntimeFromEnv().readiness.readyForByteStorage,
@@ -1240,6 +1232,7 @@ function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: Cla
     ...(!carrierReady ? ["Carrier / adjuster"] : []),
     ...(!hasAuthorization ? ["Signed authorization"] : []),
     ...(!hasEstimate ? ["Approved estimate or supplement"] : []),
+    ...(estimateReview.approvedAmountCents===null?["Staff-reviewed repair amount"]:[]),
     ...(!finalInvoiceReady ? ["Final invoice / repair order"] : [])
   ];
   const ready = missing.length === 0;
@@ -1369,20 +1362,22 @@ function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateR
 
   const evidenceText = estimate ? evidenceSearchText(estimate) : "";
   const extractedAmount = extractApprovedAmount(evidenceText);
-  const approvedAmountCents = aggregate.claim.approvedAmountCents ?? extractedAmount?.cents ?? null;
+  const manuallyReviewed = aggregate.activities.some((activity) => activity.action === "CLAIM_APPROVED_AMOUNT_RECORDED" && activity.at === aggregate.claim.approvedAmountRecordedAt);
+  const approvedAmountCents = manuallyReviewed ? aggregate.claim.approvedAmountCents ?? null : null;
+  const proposedAmountCents = extractedAmount?.cents ?? (!manuallyReviewed ? aggregate.claim.approvedAmountCents ?? null : null);
   const amountSource = recordedSource ?? estimate;
   const amountFound = approvedAmountCents !== null;
-  const manuallyReviewed = aggregate.activities.some((activity) => activity.action === "CLAIM_APPROVED_AMOUNT_RECORDED" && activity.at === aggregate.claim.approvedAmountRecordedAt);
 
   return {
     approvedAmountCents,
+    proposedAmountCents,
     approvedAmountLabel: amountFound ? formatMoneyCents(approvedAmountCents) : "Estimate attached - amount review needed",
     confidence: amountFound ? aggregate.claim.approvedAmountConfidence ?? extractedAmount?.confidence ?? "MEDIUM" : "NEEDS_REVIEW",
     detail: manuallyReviewed
       ? "Approved repair amount was reviewed and recorded by staff. See the claim activity timeline for the approval note."
       : amountFound
       ? "Approved repair amount was read from the uploaded estimate and recorded on the claim with its source document for workflow and billing use."
-      : "Estimate evidence is attached, but the approved repair amount was not found in the title, file name, or note.",
+      : proposedAmountCents!==null ? `Document amount ${formatMoneyCents(proposedAmountCents)} is a proposal only. Review its meaning and approval evidence before recording approved repairs.` : "Estimate evidence is attached. Record a staff-reviewed approval before billing use.",
     documentLibraryId: amountSource?.documentLibraryId,
     evidenceId: amountSource?.id,
     fileName: amountSource?.fileName,
@@ -1399,22 +1394,13 @@ function isEstimateEvidence(item: ClaimEvidenceRecord) {
 
 function extractApprovedAmount(value: string): { cents: number; confidence: "HIGH" | "MEDIUM" } | null {
   const normalized = value.replace(/\s+/g, " ");
-  const currencyPattern = String.raw`\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)`;
+  const currencyPattern = String.raw`(?:\$\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)|([0-9]+(?:,[0-9]{3})*\.[0-9]{2}))`;
   const summaryLabels = String.raw`(?:approved(?: repair)? amount|authorized amount|amount authorized|allowed amount|net estimate total|estimate total|total estimate|gross total|carrier total|repair total|total repair|total cost of repairs|net claim|supplement amount)`;
-  const targeted = [...normalized.matchAll(new RegExp(String.raw`${summaryLabels}[^$0-9]{0,80}${currencyPattern}(?![0-9])`, "gi"))]
-    .map((match) => moneyTextToCents(match[1]))
-    .filter((candidate) => candidate >= 100_00)
-    .sort((left, right) => right - left)[0];
-  if (typeof targeted === "number") return { cents: targeted, confidence: "HIGH" };
-  const amountText = targeted ?? [...normalized.matchAll(new RegExp(String.raw`\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)(?![0-9])`, "g"))]
-    .map((match) => match[1])
-    .map((candidate) => moneyTextToCents(candidate))
-    .filter((candidate) => candidate >= 100_00)
-    .sort((left, right) => right - left)[0];
-  if (typeof amountText === "number") return { cents: amountText, confidence: "MEDIUM" };
-  if (!amountText) return null;
-  const cents = moneyTextToCents(amountText);
-  return cents > 0 ? { cents, confidence: "MEDIUM" } : null;
+  const targeted = [...new Set([...normalized.matchAll(new RegExp(String.raw`${summaryLabels}[^$0-9]{0,80}${currencyPattern}(?![0-9])`, "gi"))]
+    .map((match) => moneyTextToCents(match[1]??match[2]))
+    .filter((candidate) => Number.isSafeInteger(candidate)&&candidate >= 0)
+    )];
+  return targeted.length===1 ? {cents:targeted[0],confidence:"MEDIUM"} : null;
 }
 
 function moneyTextToCents(value: string) {

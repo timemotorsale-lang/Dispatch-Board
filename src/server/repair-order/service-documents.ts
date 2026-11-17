@@ -10,7 +10,7 @@ export type ServiceIdentity = { customer: string; vehicle: string; vin: string; 
 export type ServiceDocumentContent = {
   title: string; number: string; issuedAt: string; identity: ServiceIdentity; customerDetailsEdited?: boolean; revisionLabel?: string;
   estimateDetails?: EstimateDetails & { mileage: { reading: number; unit: "MILES" | "KILOMETERS" } | null; reason: string; previousDocumentId: string };
-  receipt?: { invoiceNumber: string; kind: string; amountCents: number; method: string | null; reference: string; balanceCents: number };
+  receipt?: { invoiceNumber: string; kind: string; amountCents: number; method: string | null; reference: string; balanceCents: number; referenceLabel?: string; balanceLabel?: string };
   lines: { key: string; type?: string; taxable?: boolean; description: string; quantity: number; unitPriceCents: number; totalCents: number; hours?: number; planningHourlyRateCents?: number }[];
   totals?: { subtotalCents: number; discountCents: number; taxCents: number; totalCents: number };
   decision?: { disposition: string; actor: string; channel: string; approvedLineKeys: string[]; declinedLineKeys: string[]; undecidedLineKeys: string[]; reference?: string | null };

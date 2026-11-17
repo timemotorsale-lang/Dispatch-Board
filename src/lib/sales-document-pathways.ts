@@ -15,6 +15,9 @@ export const SALES_DOCUMENT_PATHWAYS = {
 
 export type SalesDocumentPathway = keyof typeof SALES_DOCUMENT_PATHWAYS;
 export type PacketPhase = "CLOSING" | "CHECKOUT" | "RETURN";
+export const LIMITED_POA_ID = "power-of-attorney";
+export const SECURE_POA_ID = "minnesota-secure-power-of-attorney";
+export const SECURE_POA_GUIDANCE = "For a mileage-disclosure transaction with a lost or unavailable title, confirm eligibility with Minnesota DVS and obtain its authorized Secure Power of Attorney and Disclosure form. Upload a scan of the completed official form and retain the required original. A Limited POA cannot substitute for it.";
 export type SalesDocumentRequirement = {
   id: string;
   label: string;
@@ -26,6 +29,15 @@ export type SalesDocumentRequirement = {
 
 export function isSalesDocumentPathway(value: string): value is SalesDocumentPathway {
   return Object.hasOwn(SALES_DOCUMENT_PATHWAYS, value);
+}
+
+const LEASE_UNUSED_REQUIREMENTS = new Set(["sales-agreement", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure"]);
+const UNUSED_SALES_REQUIREMENTS = new Set(["odometer-disclosure", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure", "payment-schedule"]);
+
+// Apply the current lease checklist to saved jackets without rewriting their requirements or final snapshots.
+export function currentSalesDocumentRequirements(pathway: string, requirements: SalesDocumentRequirement[]) {
+  const salesPathway = ["retail-sale", "outside-finance-one-pay", "finance", "bhph", "lease-to-own", "wholesale"].includes(pathway);
+  return requirements.filter(item => (!salesPathway || !UNUSED_SALES_REQUIREMENTS.has(item.id)) && (pathway !== "lease-to-own" || !LEASE_UNUSED_REQUIREMENTS.has(item.id)));
 }
 
 export function salesDocumentRequirements(pathway: SalesDocumentPathway): SalesDocumentRequirement[] {
@@ -52,10 +64,11 @@ export function salesDocumentRequirements(pathway: SalesDocumentPathway): SalesD
   ];
   if (pathway !== "wholesale") base.push(item("tax-fee-receipt", "Taxes and fees receipt"), item("buyers-guide", "Buyer's Guide", true), item("binding-contract-disclosure", "Binding contract disclosure", true));
   if (["outside-finance-one-pay", "finance"].includes(pathway)) base.push(item("lender-approval", "Lender approval / stipulations"), item("lienholder", "Lienholder confirmation"));
-  if (pathway === "retail-sale") base.push(item("insurance-proof", "Insurance proof"), item("power-of-attorney", "Limited power of attorney, if used", true, false));
+  base.push(item(LIMITED_POA_ID, "Limited motor vehicle power of attorney, if used", true, false), item(SECURE_POA_ID, "Minnesota Secure Power of Attorney, if used", true, false));
+  if (pathway === "retail-sale") base.push(item("insurance-proof", "Insurance proof"));
   if (pathway === "bhph") base.push(item("retail-installment-contract", "Signed installment contract", true), item("payment-schedule", "Payment schedule"), item("insurance-proof", "Insurance proof"));
   if (pathway === "lease-to-own") base.push(item("lease-agreement", "Signed lease agreement", true), item("payment-schedule", "Payment schedule"), item("insurance-proof", "Insurance proof"));
-  return base;
+  return currentSalesDocumentRequirements(pathway, base);
 }
 
 export function normalizeSalesDocumentType(id: string) {

@@ -157,6 +157,24 @@ export async function seedDevelopmentData() {
     });
   }
 
+  const bayResourceType = await prisma.schedulableResourceType.findUniqueOrThrow({
+    where: { organizationId_code: { organizationId: organization.id, code: "SERVICE_BAY" } }
+  });
+  await prisma.schedulableResource.createMany({
+    data: [1, 2].map((number) => ({
+      organizationId: organization.id,
+      locationId: location.id,
+      resourceTypeId: bayResourceType.id,
+      code: `BAY-${number}`,
+      name: `Bay ${number}`,
+      capacityMode: "EXCLUSIVE",
+      capacity: 1,
+      conflictPolicy: "HARD_BLOCK",
+      effectiveFrom: new Date("2026-01-01")
+    })),
+    skipDuplicates: true
+  });
+
   const staffResourceType = await prisma.schedulableResourceType.findUnique({
     where: {
       organizationId_code: {

@@ -1,3 +1,4 @@
+import { assertRepairReadCandidate } from "./read-access";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
@@ -27,7 +28,7 @@ export async function getRepairDocuments(actor: AuthenticatedUser | null, repair
 export async function getServiceDocumentForPrint(actor: AuthenticatedUser | null, repairOrderId: string, documentId: string) {
   const user = assertAuthenticatedUser(actor), organizationId = INITIAL_ORGANIZATION.id;
   const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
-  assertVehicleCapability({ actor: user, grants, locationId: null, capability: "REPAIR_ORDER_VIEW" });
+  assertRepairReadCandidate(user, grants);
   const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, select: { locationId: true } });
   if (!order) throw new Error("Service document was not found.");
   assertVehicleCapability({ actor: user, grants, locationId: order.locationId, capability: "REPAIR_ORDER_VIEW" });

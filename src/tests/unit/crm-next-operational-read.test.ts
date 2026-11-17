@@ -100,6 +100,21 @@ function globalSearch() {
         ]
       },
       {
+        count: 1,
+        entity: "contact",
+        label: "Contacts",
+        results: [{
+          entity: "contact",
+          href: "/crm/customers/customer-amina",
+          id: "contact-amina",
+          label: "Amina Yusuf",
+          matchedOn: "email contact",
+          rank: 2,
+          secondary: "EMAIL contact",
+          updatedAt: "2026-08-30T14:00:00.000Z"
+        }]
+      },
+      {
         count: 2,
         entity: "opportunity",
         label: "Opportunities",
@@ -321,9 +336,13 @@ describe("CRM Next operational read model", () => {
     });
     expect(model.search.groups[0]).toMatchObject({
       count: 1,
-      href: "/customers/customer-amina",
+      href: "/crm-next/customers/customer-amina",
       label: "Customers"
     });
+    expect(model.search.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Contacts", href: "/crm-next/customers/customer-amina" }),
+      expect.objectContaining({ label: "Opportunities", href: "/crm/opportunities/opportunity-1" })
+    ]));
     expect(model.summary).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "2" }),

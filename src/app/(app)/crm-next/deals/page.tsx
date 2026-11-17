@@ -2,10 +2,12 @@ import { CrmNextDealsView, CrmNextUnavailable } from "@/features/crm-next/crm-ne
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextCommandCenter } from "@/server/crm-next/read-model";
+import { canUseOwnDeals } from "@/server/policies/access";
 
 export default async function CrmNextDealsPage() {
   const user = await requireCurrentUser();
-  const access = resolveCrmNextAccess(user);
+  if (!canUseOwnDeals(user)) return <p role="alert">Deals access is restricted for your account. Contact the General Manager.</p>;
+  const access = resolveCrmNextAccess(user, { ownDeals: true });
 
   if (!access.allowed) {
     return <CrmNextUnavailable fallbackHref={access.fallbackHref} reason={access.reason} />;

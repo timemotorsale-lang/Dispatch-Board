@@ -82,11 +82,12 @@ test("Deals Home quick actions and reporting shortcuts filter the existing workb
  await page.route("**/api/coo-workbook/rhythm*",route=>route.fulfill({status:503,json:{error:"Outside the workspace review"}}));
  const reads:URL[]=[];page.on("request",request=>{if(request.url().includes("/api/crm/v1/deal-drafts?")&&new URL(request.url()).searchParams.get("view")==="workbench")reads.push(new URL(request.url()));});
  await page.goto("/crm-next/deals");
+ await page.getByRole("tab",{name:"Overview",exact:true}).click();
  const quick=page.getByRole("region",{name:"Deal quick actions"});await expect(quick).toBeVisible();
  await expect(quick.getByRole("link",{name:"Start Deal",exact:true})).toHaveAttribute("href","/crm-next/deals/start?new=1");
  await page.getByLabel("Quick reporting range",{exact:true}).selectOption("yesterday");
  await expect.poll(()=>reads.at(-1)?.searchParams.get("period")).toBe("day");
  await quick.getByRole("button",{name:"Rental / loaner returns",exact:true}).click();
  await expect.poll(()=>reads.at(-1)?.searchParams.get("bucket")).toBe("returns");
- await expect(page.getByRole("tab",{name:/Current deals/})).toHaveAttribute("aria-selected","true");
+ await expect(page.getByRole("tab",{name:/Rentals & Loaners/})).toHaveAttribute("aria-selected","true");
 });

@@ -330,6 +330,32 @@ function createAppointmentReadRepositoryHarness(input?: {
 }
 
 describe("appointment read service", () => {
+  it("returns saved appointment context without a linked inventory vehicle and respects detail access", async () => {
+    const repository = createAppointmentReadRepositoryHarness({
+      appointments: [createAppointment({
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        purposeSnapshot: { reason: "Review the promised warranty repair." },
+        vehicleSnapshot: { displayName: "2014 Ford Taurus" },
+        vehicles: []
+      })]
+    });
+    const query = { locationId: "loc-time-motor-sales-minneapolis", windowStart, windowEnd };
+
+    const managerResult = await listAppointmentReadModels(managerUser, query, repository, now);
+    const viewerResult = await listAppointmentReadModels(viewerUser, query, repository, now);
+
+    expect(managerResult.appointments[0]).toMatchObject({
+      reason: "Review the promised warranty repair.",
+      vehicleDescription: "2014 Ford Taurus",
+      vehicles: []
+    });
+    expect(viewerResult.appointments[0]).toMatchObject({
+      reason: null,
+      vehicleDescription: null
+    });
+  });
+
   it("returns operational detail and mutation authority for a location manager", async () => {
     const result = await listAppointmentReadModels(
       managerUser,
@@ -819,7 +845,7 @@ describe("appointment read service", () => {
     });
   });
 
-  it("rejects unauthenticated users and users without active schedule access", async () => {
+  it("rejects unauthenticated users and hides other appointments without shared schedule access", async () => {
     await expect(
       listAppointmentReadModels(
         null,
@@ -851,7 +877,7 @@ describe("appointment read service", () => {
         }),
         now
       )
-    ).rejects.toThrow("Appointment schedule is not authorized.");
+    ).resolves.toMatchObject({ appointments: [] });
   });
 
   it("returns direct appointment detail through the same masked read projection", async () => {

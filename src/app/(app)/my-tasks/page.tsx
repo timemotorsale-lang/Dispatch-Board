@@ -1,4 +1,5 @@
 import { TasksConsoleLoader } from "@/features/tasks/tasks-console-loader";
+import { PersonalCalendarTasks } from "@/features/tasks/personal-calendar-tasks";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
@@ -16,6 +17,7 @@ type MyTasksPageProps = {
     department?: string | string[];
     group?: string | string[];
     page?: string | string[];
+    personal?: string | string[];
     queue?: string | string[];
     task?: string | string[];
     view?: string | string[];
@@ -58,6 +60,9 @@ export default async function MyTasksPage({ searchParams }: MyTasksPageProps) {
   ]);
   const manager = isManager(user);
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
+  if (readParam(resolvedSearchParams?.personal) === "1") {
+    return <PersonalCalendarTasks date={todayBoardDate} />;
+  }
   const { boardDate, errorMessage: dateErrorMessage } = resolveSelectedBoardDate(
     readParam(resolvedSearchParams?.date),
     todayBoardDate

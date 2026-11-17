@@ -1,10 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { closingChecklist, type JacketDocument } from "@/server/sales-documents/domain";
-import { SALES_DOCUMENT_PATHWAYS, normalizeSalesDocumentType, salesDocumentRequirements } from "@/lib/sales-document-pathways";
+import { SALES_DOCUMENT_PATHWAYS, normalizeSalesDocumentType, salesDocumentRequirements, currentSalesDocumentRequirements } from "@/lib/sales-document-pathways";
 
 const document = (overrides: Partial<JacketDocument> = {}): JacketDocument => ({ id: "doc", type: "signed-agreement", reviewed: true, signed: true, source: "MANUAL_UPLOAD", versionId: "v1", checksum: "checksum", fileName: "agreement.pdf", contentType: "application/pdf", ...overrides });
 
 describe("Sales Documents closing controls", () => {
+  it("removes unused lease items from new and saved checklists while preserving saved requirements", () => {
+    const removed = ["sales-agreement", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure"];
+    const lease = salesDocumentRequirements("lease-to-own");
+    expect(lease).toHaveLength(7);
+    expect(lease.map(item => item.id)).toEqual(["title-assignment", "funding-proof", "trade-documents", "power-of-attorney", "minnesota-secure-power-of-attorney", "lease-agreement", "insurance-proof"]);
+    const retail = salesDocumentRequirements("retail-sale");
+    expect(retail.some(item => item.id === "sales-agreement")).toBe(true);
+    const legacy = removed.map(id => ({ id, label: id, phase: "CLOSING" as const, required: true, signed: true }));
+    const saved = Object.freeze([...legacy, ...lease]);
+    expect(currentSalesDocumentRequirements("lease-to-own", [...saved])).toEqual(lease);
+    expect(saved).toHaveLength(12);
+  });
+  it.each(["retail-sale", "outside-finance-one-pay", "finance", "bhph", "lease-to-own", "wholesale"] as const)("removes the six circled requirements from new and legacy %s packets and finalization blockers", pathway => {
+    const removed = ["odometer-disclosure", "delivery-documents", "tax-fee-receipt", "buyers-guide", "binding-contract-disclosure", "payment-schedule"];
+    const current = salesDocumentRequirements(pathway);
+    const legacy = removed.map(id => ({ id, label: id, phase: "CLOSING" as const, required: true, signed: true }));
+    const saved = [...legacy, ...current];
+    const original = structuredClone(saved);
+    const requirements = currentSalesDocumentRequirements(pathway, saved);
+    expect(requirements).toEqual(current);
+    expect(current.some(item => removed.includes(item.id))).toBe(false);
+    const uploaded = current.filter(item => item.required).map(item => document({ id: item.id, type: item.id }));
+    expect(closingChecklist(requirements, uploaded, "CLOSING").some(item => item.blocker)).toBe(false);
+    expect(saved).toEqual(original);
+  });
   it("defines a checklist for every Deal Desk pathway", () => {
     for (const pathway of Object.keys(SALES_DOCUMENT_PATHWAYS) as Array<keyof typeof SALES_DOCUMENT_PATHWAYS>) {
       const requirements = salesDocumentRequirements(pathway);

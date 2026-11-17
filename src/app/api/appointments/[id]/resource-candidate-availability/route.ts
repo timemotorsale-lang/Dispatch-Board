@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getCalendarUser as getCurrentUser } from "@/server/auth/workflow-user";
 import {
   previewAppointmentResourceCandidateAvailability,
   type AppointmentResourceCandidateAvailabilityPreviewOptions

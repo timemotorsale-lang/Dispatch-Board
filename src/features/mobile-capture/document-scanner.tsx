@@ -6,13 +6,13 @@ import ImagePreview from "next/image";
 import { Camera, FileCheck, Plus, RotateCw, UploadCloud, X } from "lucide-react";
 import { cameraErrorMessage, createCameraSession } from "./scanner-camera";
 import { correctDocument, detectDocumentCorners, documentQualityHints, fullPageCorners, validCorners, type DocumentCorners } from "./document-image";
-import { buildScannedPdf, MAX_SCAN_BYTES, MAX_SCAN_PAGES, type ScannedPage } from "./document-pdf";
+import { buildScannedPdf, MAX_SCAN_BYTES, MAX_SCAN_PAGES, type ScannedPage, type ScanPaperSize } from "./document-pdf";
 import styles from "./document-scanner.module.css";
 
 type DraftPage = { source: ImageData; url: string };
 const cornerNames = ["Top left", "Top right", "Bottom right", "Bottom left"];
 
-export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onClose: () => void; onComplete?: (file: File) => void; onImageComplete?: (file: File) => void }) {
+export function DocumentScanner({ onClose, onComplete, onImageComplete, initialPaperSize = "ORIGINAL", maxPages = MAX_SCAN_PAGES }: { onClose: () => void; onComplete?: (file: File) => void; onImageComplete?: (file: File) => void; initialPaperSize?: ScanPaperSize; maxPages?: number }) {
   const titleId = useId();
   const [draft, setDraft] = useState<DraftPage | null>(null);
   const [corners, setCorners] = useState<DocumentCorners>(fullPageCorners);
@@ -21,6 +21,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onCl
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [grayscale, setGrayscale] = useState(false);
+  const [paperSize, setPaperSize] = useState<ScanPaperSize>(initialPaperSize);
   const [notice, setNotice] = useState("Photograph one page at a time or choose a page photo. Nothing is uploaded until you accept and send.");
   const videoRef = useRef<HTMLVideoElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -30,7 +31,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onCl
   const generation = useRef(0);
   const dragRef = useRef<number | null>(null);
   const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = () => { if ((!draft && !pages.length) || window.confirm("Discard this unsent document scan?")) onClose(); }; }, [onClose, draft, pages.length]);
+  useEffect(() => { closeRef.current = () => { if (busy) return; if ((!draft && !pages.length) || window.confirm("Discard this unsent document scan?")) onClose(); }; }, [onClose, draft, pages.length, busy]);
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overflow = document.body.style.overflow;
@@ -39,7 +40,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onCl
     function keyboard(event: KeyboardEvent) {
       if (event.key === "Escape") closeRef.current();
       if (event.key !== "Tab") return;
-      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="file"]), summary') ?? []);
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="file"]), select:not(:disabled), summary') ?? []);
       const visible = controls.filter((control) => control.getClientRects().length);
       if (event.shiftKey && (document.activeElement === visible[0] || document.activeElement === dialogRef.current)) { event.preventDefault(); visible.at(-1)?.focus(); }
       else if (!event.shiftKey && document.activeElement === visible.at(-1)) { event.preventDefault(); visible[0]?.focus(); }
@@ -146,7 +147,7 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onCl
       if (current !== generation.current) return;
       if (!blob) throw new Error("Could not prepare this page. Try again.");
       if (onImageComplete) { onImageComplete(new File([blob], "id-front.jpg", { type: "image/jpeg" })); return; }
-      if (pages.length >= MAX_SCAN_PAGES || pages.reduce((total, page) => total + page.bytes.length, 0) + blob.size > MAX_SCAN_BYTES) throw new Error("Scan limit reached. Use up to 12 pages and 25 MB, or split this document.");
+      if (pages.length >= maxPages || pages.reduce((total, page) => total + page.bytes.length, 0) + blob.size > MAX_SCAN_BYTES) throw new Error(`Scan limit reached. Use up to ${maxPages} pages and 25 MB, or split this document.`);
       const bytes = new Uint8Array(await blob.arrayBuffer());
       if (current !== generation.current) return;
       setPages((existing) => [...existing, { id: crypto.randomUUID(), bytes, rotation: 0, url: rememberUrl(blob) }]);
@@ -159,15 +160,16 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onCl
     const current = generation.current;
     setBusy(true); setNotice("Creating your PDF. Please keep this window open…");
     try {
-      const bytes = await buildScannedPdf(pages);
+      const bytes = await buildScannedPdf(pages, paperSize, maxPages);
       if (current === generation.current) onComplete?.(new File([new Uint8Array(bytes)], "scanned-document.pdf", { type: "application/pdf" }));
     } catch (error) { if (current === generation.current) setNotice(error instanceof Error ? error.message : "PDF could not be created. Your pages are still here."); }
     finally { if (current === generation.current) setBusy(false); }
   }
 
   return createPortal(<div className={styles.backdrop}><div className={styles.dialog} aria-labelledby={titleId} aria-modal="true" ref={dialogRef} role="dialog" tabIndex={-1}>
-    <header><div><span>{onImageComplete ? "ID capture · front of card" : `Document scanner · ${pages.length} / ${MAX_SCAN_PAGES} pages`}</span><h2 id={titleId}>{onImageComplete ? "Capture front of ID" : "Scan a document"}</h2></div><button aria-label="Close document scanner" onClick={() => closeRef.current()} type="button"><X /></button></header>
+    <header><div><span>{onImageComplete ? "ID capture · front of card" : `Document scanner · ${pages.length} / ${maxPages} pages`}</span><h2 id={titleId}>{onImageComplete ? "Capture front of ID" : "Scan a document"}</h2></div><button disabled={busy} aria-label="Close document scanner" onClick={() => closeRef.current()} type="button"><X /></button></header>
     <p role="status">{notice}</p>
+    {!onImageComplete && <label>PDF paper size<select aria-label="PDF paper size" disabled={busy} value={paperSize} onChange={event => setPaperSize(event.target.value as ScanPaperSize)}><option value="ORIGINAL">Match photographed page</option><option value="LETTER">US Letter</option><option value="A4">A4</option></select></label>}
     {camera ? <div className={styles.camera}><video autoPlay muted playsInline ref={videoRef} /><div className={styles.controls}><button disabled={!ready || busy} onClick={() => void capture()} type="button"><Camera />Capture page</button><button disabled={busy} onClick={() => { setCamera(false); setReady(false); }} type="button">Back to pages</button></div></div> : draft ? <>
       <svg className={styles.crop} viewBox={`0 0 ${draft.source.width} ${draft.source.height}`} aria-label="Adjust document corners" onPointerMove={(event) => {
         if (dragRef.current === null || busy) return;
@@ -185,12 +187,13 @@ export function DocumentScanner({ onClose, onComplete, onImageComplete }: { onCl
       {!validCorners(corners) ? <p role="alert">Corners must follow the page edges without crossing. Reset to the full photo if needed.</p> : null}
       <label><input disabled={busy} type="checkbox" checked={grayscale} onChange={(event) => setGrayscale(event.target.checked)} /> Enhance text · grayscale</label>
       <div className={styles.controls}><button disabled={busy || !validCorners(corners)} onClick={() => void keepPage()} type="button"><FileCheck />{onImageComplete ? "Use front photo" : "Keep page"}</button><button disabled={busy} onClick={() => setCorners(fullPageCorners())} type="button">Full photo</button><button disabled={busy} onClick={() => { releaseUrl(draft.url); setDraft(null); setNotice("Page discarded. Capture or choose another photo."); }} type="button">Discard page</button></div>
-    </> : <div className={styles.controls}><button disabled={busy || pages.length >= MAX_SCAN_PAGES} onClick={startCamera} type="button"><Plus />Add page with camera</button><button disabled={busy || pages.length >= MAX_SCAN_PAGES} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose page photo</button></div>}
+    </> : <div className={styles.controls}><button disabled={busy || pages.length >= maxPages} onClick={startCamera} type="button"><Plus />Add page with camera</button><button disabled={busy || pages.length >= maxPages} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose page photo</button></div>}
     {pages.length ? <ol className={styles.pages} aria-label="Scanned pages">{pages.map((page, index) => <li key={page.id}>
       <ImagePreview unoptimized alt={`Scanned page ${index + 1}`} src={page.url} width={400} height={500} style={{ transform: `rotate(${page.rotation}deg)` }} />
       <strong>Page {index + 1}</strong><div className={styles.controls}>
         <button aria-label={`Rotate page ${index + 1}`} disabled={busy || camera} onClick={() => setPages((current) => current.map((item) => item.id === page.id ? { ...item, rotation: (item.rotation + 90) % 360 } : item))} type="button"><RotateCw /></button>
         <button disabled={busy || camera || index === 0} onClick={() => setPages((current) => { const reordered = [...current]; [reordered[index - 1], reordered[index]] = [reordered[index], reordered[index - 1]]; return reordered; })} type="button">Move up</button>
+        <button disabled={busy || camera || index === pages.length - 1} onClick={() => setPages((current) => { const reordered = [...current]; [reordered[index + 1], reordered[index]] = [reordered[index], reordered[index + 1]]; return reordered; })} type="button">Move down</button>
         <button aria-label={`Remove page ${index + 1}`} disabled={busy || camera} onClick={() => { releaseUrl(page.url); setPages((current) => current.filter((item) => item.id !== page.id)); }} type="button"><X /></button>
       </div></li>)}</ol> : null}
     <footer>{!onImageComplete ? <button className={styles.primary} disabled={busy || camera || Boolean(draft) || !pages.length} onClick={() => void finish()} type="button">{busy ? "Preparing…" : `Create PDF · ${pages.length} ${pages.length === 1 ? "page" : "pages"}`}</button> : null}<small>{onImageComplete ? "Keep the entire card visible. After you use the photo, it is sent to this app’s OCR service to suggest fields for review; it is not filed or used to change a customer record." : "Review the PDF before sending. Auto-crop is a suggestion; check that no text was cut off."}</small></footer>

@@ -22,6 +22,7 @@ export type CrmNextAccess = {
 
 type CrmNextAccessOptions = {
   flag?: unknown;
+  ownDeals?: boolean;
 };
 
 function normalizeFlag(value: unknown): CrmNextMode {
@@ -63,7 +64,7 @@ export function resolveCrmNextAccess(
     return { allowed: false, contractVersion: "crm-next-access/v1", fallbackHref, mode, reason: "INACTIVE_USER", workspace: null };
   }
 
-  const workspace = resolveCrmNextWorkspace(user);
+  const workspace = resolveCrmNextWorkspace(user) ?? (options.ownDeals ? "SALES" : null);
   if (!workspace) {
     return { allowed: false, contractVersion: "crm-next-access/v1", fallbackHref, mode, reason: "WORKSPACE_NOT_ELIGIBLE", workspace: null };
   }

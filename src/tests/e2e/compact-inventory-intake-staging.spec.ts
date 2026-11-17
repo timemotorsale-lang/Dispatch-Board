@@ -158,6 +158,12 @@ test("compact intake saves real linked records on one page, recovers retries and
     await page.getByRole("link", { name: new RegExp("^" + label) }).click();
     await expect(page.locator("[data-repair-workflow-tool]")).not.toContainText("This tool could not load");
   }
+  await page.getByRole("link", { name: /^8\. Quality check/ }).click();
+  const prerequisites = page.getByRole("region", { name: "QC prerequisites" });
+  await expect(prerequisites).toContainText("Estimate missing");
+  await prerequisites.getByRole("link", { name: "Open estimate" }).click();
+  await expect(page).toHaveURL(`/prototype/repair-workbench?repairOrderId=${saved.result.repairOrderId}&step=estimate`);
+  await page.getByRole("link", { name: /^9\. Closeout/ }).click();
   await expect(page.getByRole("button", { name: "Close repair & record handoff", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Keys verified", exact: true })).not.toBeChecked();
   await page.screenshot({ path: "test-results/labor-staging/repair-workflow-handoff.png", fullPage: true });

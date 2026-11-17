@@ -1,0 +1,3 @@
+ALTER TABLE "User"
+ADD COLUMN "dealsRestricted" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "calendarRestricted" BOOLEAN NOT NULL DEFAULT false;

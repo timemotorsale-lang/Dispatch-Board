@@ -3,7 +3,7 @@ import DealStartPage from "@/app/(app)/crm-next/deals/start/page";
 import { getVehicleJourney } from "@/server/inventory-unit/journey-service";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 
-vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: vi.fn(async () => ({ id: "staff" })) }));
+vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: vi.fn(async () => ({ id: "staff", isActive: true })) }));
 vi.mock("@/server/crm-next/access", () => ({ resolveCrmNextAccess: vi.fn(() => ({ allowed: true })) }));
 vi.mock("@/server/crm-next/read-model", () => ({ getCrmNextOperationalCommandCenter: vi.fn(async () => ({ customers: [] })) }));
 vi.mock("@/features/crm-next/crm-next-shell", () => ({ CrmNextDealStartView: () => null, CrmNextUnavailable: () => null }));
@@ -14,7 +14,7 @@ describe("inventory Start Deal handoff", () => {
   beforeEach(() => { vi.clearAllMocks(); });
   it("resolves the selected vehicle through the authorized journey service", async () => {
     const page = await DealStartPage({ searchParams: Promise.resolve({ vehicleId: "vehicle-1", pathway: "retail-sale" }) });
-    expect(getVehicleJourney).toHaveBeenCalledWith({ id: "staff" }, "vehicle-1");
+    expect(getVehicleJourney).toHaveBeenCalledWith({ id: "staff", isActive: true }, "vehicle-1");
     expect(page.props.initialVehicleReference).toBe("2024 / Toyota / RAV4 / VIN123 / 333586");
     expect(page.props.initialWorkflowId).toBe("retail-sale");
     expect(page.props.initialVehicleFacts).toEqual({ year: "2024", make: "Toyota", model: "RAV4", vin: "VIN123", stockNumber: "333586" });

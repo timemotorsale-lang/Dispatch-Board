@@ -3,6 +3,7 @@ import { TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { verifyPassword } from "@/server/auth/password";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { vendorWorkTicketLabel } from "@/lib/vendor-readable-references";
 import { createManualTask } from "@/server/services/task-create-service";
 import {
   assertVendorCreateAccess,
@@ -176,7 +177,7 @@ function toWorkJobModel(job: NonNullable<Awaited<ReturnType<VendorRepository["ge
     batchId: job.batchId,
     batchNumber: job.batchNumber,
     createdAt: toVendorLocalTimestamp(job.createdAt),
-    jobNumber: job.jobNumber,
+    jobNumber: vendorWorkTicketLabel(job.jobNumber,job.notes),
     notes: job.notes,
     serviceDate: toDateOnly(job.serviceDate) ?? "",
     status: job.status,

@@ -90,6 +90,7 @@ describe("enterprise shell navigation", () => {
       "Overview",
       "Live Board",
       "My Tasks",
+      "Repair Priorities",
       "Tasks",
       "Projects",
       "Appointments",
@@ -99,7 +100,7 @@ describe("enterprise shell navigation", () => {
       "Labor Guide",
       "Advisor Review",
       "Autobody Estimate",
-      "Customers",
+      "Customers & Vendors",
       "CRM",
       "Sales",
       "Growth",
@@ -120,6 +121,7 @@ describe("enterprise shell navigation", () => {
       "Overview",
       "Live Board",
       "My Tasks",
+      "Repair Priorities",
       "Tasks",
       "Projects",
       "Appointments",
@@ -129,7 +131,7 @@ describe("enterprise shell navigation", () => {
       "Labor Guide",
       "Advisor Review",
       "Autobody Estimate",
-      "Customers",
+      "Customers & Vendors",
       "CRM",
       "Sales",
       "Growth",
@@ -142,7 +144,7 @@ describe("enterprise shell navigation", () => {
     ]);
   });
 
-  it("reduces a mechanic-only account to the three technician destinations", () => {
+  it("includes the shared repair plan in technician navigation", () => {
     const mechanic = user({ roles: ["Mechanic"] });
     const items = getDispatchNavigationItems(mechanic);
     const repairWorkbench = getConsoleNavigation(
@@ -153,6 +155,7 @@ describe("enterprise shell navigation", () => {
     expect(items.map((item) => [item.title, item.href])).toEqual([
       ["My Work", "/my-tasks"],
       ["Available Work", "/my-tasks/available"],
+      ["Repair Priorities", "/board/repair-priorities"],
       ["Diagnostics & Tools", "/diagnostics"]
     ]);
     expect(repairWorkbench?.subtitle).toBe("Technician Workspace");
@@ -160,6 +163,7 @@ describe("enterprise shell navigation", () => {
     expect(repairWorkbench?.items.map((item) => item.title)).toEqual([
       "My Work",
       "Available Work",
+      "Repair Priorities",
       "Diagnostics & Tools"
     ]);
   });

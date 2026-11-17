@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import compact from "@/features/inventory/operations-compact.module.css";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { autobodyReturnHref, isAutobodyReturn } from "@/lib/autobody-estimating/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1184,7 +1185,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     </section>;
   }
 
-  return <form className="service-intake-shell sic-reference-v2" noValidate onSubmit={submit} ref={formRef}>
+  return <form className={`service-intake-shell sic-reference-v2 ${compact.intake}`} noValidate onSubmit={submit} ref={formRef}>
     <header className="sic-header">
       <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/recon-repair-advisor"}>{returnTo?.startsWith("/crm-next/deals") ? "← Back to repair deal" : isAutobodyReturn(returnTo) ? "← Back to autobody estimate" : returnTo ? "← Back to Labor Guide" : "← Back to Recon / Repair Advisor"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
       <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>

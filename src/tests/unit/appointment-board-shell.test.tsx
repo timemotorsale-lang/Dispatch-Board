@@ -48,6 +48,13 @@ import {
 } from "@/features/appointments/appointment-board-shell";
 
 describe("appointment board shell", () => {
+  it("opens on the selected calendar date and links back to that date", () => {
+    const markup = renderToStaticMarkup(<AppointmentBoardShell initialFocus={{ localDate: "2026-11-09" }} />);
+
+    expect(markup).toContain("Monday, November 9, 2026");
+    expect(markup).toContain("/appointments?view=calendar&amp;localDate=2026-11-09");
+  });
+
   it("publishes the compact UX smoke-gate contract for day-one browser proof", () => {
     expect(appointmentConsoleUxSmokeGate.viewport).toEqual({
       width: 1280,
@@ -74,6 +81,11 @@ describe("appointment board shell", () => {
 
     expect(markup).toContain("Appointment Board");
     expect(markup).toContain("appointment-board-simplified");
+    expect(markup).toContain("appointment-schedule-board");
+    expect(markup).toContain('aria-label="Schedule view"');
+    expect(markup).toContain('<details class="appointment-schedule-filters"');
+    expect(markup).toContain('aria-label="Appointment details" hidden=""');
+    expect(markup).toContain("Scheduling tools");
     expect(markup).toContain('aria-label="Appointment status summary"');
     expect(markup).toContain('aria-label="Exceptions"');
     expect(markup).toContain("Group by");
@@ -81,13 +93,11 @@ describe("appointment board shell", () => {
     expect(markup).toContain("1101 E. Lake Street");
     expect(markup).toContain("New Appointment");
     expect(markup).toContain("Total Appointments");
-    expect(markup).toContain("Service / Repair");
-    expect(markup).toContain("Business Appointment");
-    expect(markup).toContain("Banker / Lender");
+    expect(markup).toContain("Service &amp; Warranty");
+    expect(markup).toContain("Staff &amp; Dealership Operations");
+    expect(markup).toContain("Body Shop &amp; Collision");
     expect(markup).toContain("Insurance");
-    expect(markup).toContain("Licensing / Permit");
-    expect(markup).toContain("Phone / Utility Company");
-    expect(markup).toContain("Administrative / Managerial");
+    expect(markup).toContain("Title, Registration &amp; Compliance");
     expect(markup).toContain("Edit appointment");
     expect(markup).toContain("Cancel appointment");
     expect(markup).toContain("Show Cancelled");

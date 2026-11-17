@@ -9,6 +9,11 @@ const request = (action = "FINISH") => ({ action, id: "draft-1", jacketId: "jack
 let draft: { id: string; dealNumber: number; status: string; revision: number; pathway: string; customerId: string; customerName: string; vehicleReference: string; snapshot: unknown; statusHistory: unknown[] };
 let jacket: { id: string; organizationId: string; packetId: string; pathway: string; customerId: string; state: string; revision: number; requirements: unknown[]; versions: Array<{ version: number; disposition: string; phase: string; finalizedAt: Date }>; packet: { documents: unknown[]; auditEvents: unknown[] }; updatedAt: Date };
 describe("existing-deal lifecycle transaction", () => {
+  it("keeps a saved vehicle-only draft from being marked sold until its shared customer is linked", async () => {
+    Object.assign(draft, { status: "IN_PROGRESS", customerId: null, customerName: "Typed customer", snapshot: { "desk:identity": { vehicleId: "vehicle-1" } } });
+    await expect(manageDealLifecycle(actor(), { ...request("MARK_SOLD"), jacketId: "" })).rejects.toThrow("Link a shared CRM customer");
+    expect(mocks.draftUpdate).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     draft = { id: "draft-1", dealNumber: 1234, status: "SOLD", revision: 3, pathway: "lease-to-own", customerId: "buyer-1", customerName: "Buyer", vehicleReference: "Vehicle", snapshot: { jackets: { "lease-to-own": "jacket-1" } }, statusHistory: [] };

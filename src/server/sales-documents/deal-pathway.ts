@@ -5,15 +5,13 @@ import { isManager } from "@/server/policies/access";
 import { dealOrganization } from "@/server/deal-continuity/identities";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { isSalesDocumentPathway } from "@/lib/sales-document-pathways";
-import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
+import { requireOwnDealUser } from "@/server/deal-continuity/own-deal-access";
 import { SalesDocumentsError } from "./domain";
 
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 export function pathwayChangeAccess() { return process.env.DEAL_PATHWAY_CHANGE_ACCESS?.trim().toUpperCase() === "MANAGERS_ONLY" ? "MANAGERS_ONLY" : "STAFF"; }
 export async function changeDealPathway(actor: AuthenticatedUser | null, raw: Record<string, unknown>) {
-  if (!actor?.isActive) throw new SalesDocumentsError("Sign in to change a deal pathway.", 401);
-  requireUnifiedCrmCustomerReadPolicy(actor);
-  const user = actor, organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
+  const user = requireOwnDealUser(actor), organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
   if (pathwayChangeAccess() === "MANAGERS_ONLY" && !isManager(user)) throw new SalesDocumentsError("Pathway changes are currently configured for managers only.", 403);
   const id = typeof raw.id === "string" ? raw.id : "", target = String(raw.pathway ?? "");
   if (raw.reason != null && typeof raw.reason !== "string") throw new SalesDocumentsError("The optional reason must be text.");

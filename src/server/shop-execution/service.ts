@@ -1,4 +1,5 @@
 import { isManager } from "@/server/policies/access";
+import { assertRepairReadEntry, readableRepairLocations } from "@/server/repair-order/read-access";
 import { randomUUID } from "node:crypto";
 import { TaskStatus } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -23,7 +24,18 @@ function command(input:{actorUserId:string;commandType:string;expectedVersion:nu
 async function jobContext(context:ReturnType<typeof deps>,jobId:string){const model=await context.repository.overview(context.organizationId,context.now()),job=model.jobs.find(item=>item.id===jobId);if(!job)throw new Error("Repair job was not found.");if(job.repairOrder.closedAt)throw new Error("This repair order is closed. Open a new repair order for further work.");return job;}
 async function repairOrderContext(context:ReturnType<typeof deps>,repairOrderId:string){const model=await context.repository.overview(context.organizationId,context.now()),repairOrder=model.repairOrders.find(item=>item.id===repairOrderId);if(!repairOrder)throw new Error("Open repair order was not found.");return repairOrder;}
 
-export async function getShopExecutionWorkspace(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await authorize(actor,false,null,context);return context.repository.overview(context.organizationId,context.now());}
+export async function getShopExecutionWorkspace(actor:AuthenticatedUser|null,input:Dependencies={}){
+  const context=deps(input),now=context.now();
+  const {user,grants}=await assertRepairReadEntry(actor,context.organizationId,context.foundationRepository,now);
+  const locations=await context.repository.readLocations(context.organizationId);
+  const allowed=new Set(readableRepairLocations(user,grants,locations,now));
+  const overview=await context.repository.overview(context.organizationId,now);
+  return {...overview,
+    jobs:overview.jobs.filter(job=>allowed.has(job.repairOrder.locationId)),
+    repairOrders:overview.repairOrders.filter(order=>allowed.has(order.locationId)),
+    resources:overview.resources.filter(resource=>allowed.has(resource.locationId)),
+    canPublishProcedure:isManager(user)};
+}
 export async function preassignRepairOrderTechnician(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeTechnicianPreassignment(value),repairOrder=await repairOrderContext(context,repairOrderId),user=await authorize(actor,true,repairOrder.locationId,context,false),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_ORDER_TECHNICIAN",repairOrderId);const result=await context.repository.preassignTechnician(command({actorUserId:user.id,commandType:"PREASSIGN_REPAIR_ORDER_TECHNICIAN",expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:repairOrder.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:repairOrderId,subjectType:"REPAIR_ORDER_TECHNICIAN"}),{...data,assignedByUserId:user.id});await context.taskBridge.reconcileOwner(context.organizationId,repairOrderId,user.id);return result;}
 export async function createWorkProcedure(actor:AuthenticatedUser|null,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeProcedure(value),user=await authorize(actor,true,null,context),id=randomUUID();return context.repository.createProcedure(command({actorUserId:user.id,commandType:"CREATE_WORK_PROCEDURE_VERSION",expectedVersion:0,idempotencyKey:data.idempotencyKey,locationId:null,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:id,subjectType:"WORK_PROCEDURE"}),{...data,createdByUserId:user.id});}
 export async function addTechnicianQualification(actor:AuthenticatedUser|null,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeQualification(value),user=await authorize(actor,true,null,context),id=randomUUID();return context.repository.createQualification(command({actorUserId:user.id,commandType:"VERIFY_TECHNICIAN_QUALIFICATION",expectedVersion:0,idempotencyKey:data.idempotencyKey,locationId:null,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:id,subjectType:"TECHNICIAN_QUALIFICATION"}),{...data,verifiedByUserId:user.id});}

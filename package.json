@@ -18,6 +18,7 @@
     "test:light-duty-catalog-ui": "node scripts/check-light-duty-catalog-ui.mjs",
     "check:purchase-import-release": "tsx scripts/check-purchase-import-release.ts",
     "reports:worker": "tsx scripts/run-reporting-worker.ts",
+    "documents:worker": "tsx scripts/run-document-reading-worker.ts",
     "pipeline:worker": "tsx scripts/run-pipeline-worker.ts",
     "test:pipeline-operations": "node scripts/check-pipeline-operations.mjs",
     "test:e2e": "node scripts/run-e2e.mjs",

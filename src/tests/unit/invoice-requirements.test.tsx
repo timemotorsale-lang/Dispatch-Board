@@ -7,10 +7,11 @@ describe("invoice prerequisites", () => {
     const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro/1" codes={["INVOICE_JOB_QC_INCOMPLETE", "INVOICE_PART_IDENTITY_MISSING"]} />);
     expect(html).toContain('role="alert"');
     expect(html).toContain("Passed QC record missing");
-    expect(html).toContain("A passed QC document is missing.");
+    expect(html).toContain("Complete the approved repair jobs");
     expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
     expect(html).toContain(">Open QC</a>");
-    expect(html).toContain("Update estimate");
+    expect(html).toContain("A part number is optional");
+    expect(html).not.toContain("step=estimate");
   });
   it("does not claim QC is missing for a different requirement", () => {
     const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={["INVOICE_AUTHORIZATION_REQUIRED"]} />);
@@ -19,5 +20,10 @@ describe("invoice prerequisites", () => {
   });
   it("shows no blocker once requirements are satisfied", () => {
     expect(renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={[]} billingMode="NATIVE" />)).toBe("");
+  });
+  it("routes unfinished technician time to repair progress", () => {
+    const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={["INVOICE_MEASURED_CLOCK_INCOMPLETE"]} />);
+    expect(html).toContain("step=repair");
+    expect(html).toContain("Open repair progress");
   });
 });

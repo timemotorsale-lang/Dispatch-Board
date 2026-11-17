@@ -247,6 +247,7 @@ export async function createManualTask(
     collaboratorRequests: normalizedInput.collaboratorRequests,
     ...(workflowFields.blockerReason ? { blockerReason: workflowFields.blockerReason } : {}),
     boardDayId: boardDay.id,
+    ...(normalizedInput.calendarAllDay ? { calendarAllDay: true } : {}),
     completedAt: workflowFields.completedAt,
     createdByUserId: authenticatedUser.id,
     ...(normalizedInput.customerReference

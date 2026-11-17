@@ -3,17 +3,18 @@ import { invoicePackageMismatchCodes } from "@/lib/service-billing-workflow";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { assertAuthenticatedUser } from "@/server/policies/access";
+import { assertAuthenticatedUser, canManageSettings } from "@/server/policies/access";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
-import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
+import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { evaluateVehicleOperationsFeature, describeVehicleOperationsBlock } from "@/server/enterprise-command/service";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { executeAggregateMutation, toJson } from "@/server/enterprise-command/aggregate-mutation";
 import { assertCurrentInvoicePackage, serviceInvoiceCandidate } from "@/server/service-close-parts/invoice-candidate";
 import { invoiceReceiptIdentity, recordServiceDocument, type ServiceDocumentContent } from "@/server/repair-order/service-documents";
 import { serviceInvoiceBalance, validateBillingEntry } from "@/lib/service-billing";
 import { createServiceClosePartsRepository } from "@/server/service-close-parts/repository";
+import { DEPOSIT_ACTIONS, executeRepairDeposit, getRepairDepositView } from "./deposits";
 
 export async function billingAccess(actor: AuthenticatedUser | null, locationId: string, manage = false, organizationId: string = INITIAL_ORGANIZATION.id, enforceRollout = true, amountCents?: number) {
   const user = assertAuthenticatedUser(actor), foundation = createEnterpriseCommandRepository();
@@ -31,10 +32,20 @@ function required(value: unknown, label: string, max = 200) {
   return value.trim();
 }
 export async function getServiceBilling(actor: AuthenticatedUser | null, repairOrderId: string, organizationId: string = INITIAL_ORGANIZATION.id) {
-  assertAuthenticatedUser(actor);
-  const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, select: { id: true, locationId: true, repairOrderNumber: true } });
+  const user = assertAuthenticatedUser(actor);
+  const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, select: { id: true, locationId: true, repairOrderNumber: true, closedAt: true } });
   if (!order) throw new Error("Repair order was not found.");
   await billingAccess(actor, order.locationId, false, organizationId);
+  const foundation = createEnterpriseCommandRepository();
+  const grants = await foundation.listCapabilityGrants(user.id, organizationId);
+  const canManage = evaluateVehicleCapability({ actor: user, grants, locationId: order.locationId, capability: "SERVICE_BILLING_MANAGE" }).allowed;
+  let mutationBlockReason = !canManage ? "You can view and print billing documents. Creating invoices or recording payments requires Service Billing manage permission at this store. Ask an administrator to review your access." : order.closedAt ? "This repair order is closed. Saved documents remain available to view and print. An authorized staff member must reopen the order before changing billing." : null;
+  if (!mutationBlockReason) {
+    const rollout = evaluateVehicleOperationsFeature(await foundation.listFeatureFlags(organizationId), "SHOP_OPERATIONS", user.id, order.locationId);
+    if (!rollout.executable) mutationBlockReason = describeVehicleOperationsBlock(rollout.reason);
+  }
+  const canManageRollout = canManageSettings(user) && (["VEHICLE_HEALTH_VIEW", "VEHICLE_ROLLOUT_MANAGE"] as const).every(capability => evaluateVehicleCapability({ actor: user, grants, locationId: null, capability }).allowed);
+  const mutationAvailability = { allowed: !mutationBlockReason, reason: mutationBlockReason, canManageRollout };
   const invoices = await prisma.serviceInvoice.findMany({ where: { organizationId, repairOrderId }, orderBy: { issuedAt: "desc" } });
   const entries = await prisma.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
   const packages = await prisma.serviceInvoicePackage.findMany({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, take: 20 });
@@ -45,13 +56,19 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
     if (!(error instanceof Error) || !error.message.startsWith("Invoice requires current exact-version authorization")) throw error;
     readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"] };
   }
-  return { order, readiness, packages: packages.map(item => ({ id: item.id, version: item.version, mismatchCodes: invoicePackageMismatchCodes(item.mismatchCodes, item.sourceSnapshot, currentFingerprint), billingMode: (item.sourceSnapshot as {billingMode?:string}).billingMode ?? "LEGACY_REVIEW_REQUIRED", preview: (item.sourceSnapshot as {commercial?:unknown}).commercial ?? null, identity: (item.sourceSnapshot as {identity?:unknown}).identity ?? null })), invoices: invoices.map(invoice => ({ ...invoice, entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
+  const deposits = await getRepairDepositView(prisma, organizationId, repairOrderId);
+  if (!mutationAvailability.allowed) deposits.collectionAvailability = { allowed: false, reason: mutationAvailability.reason, maxAmountCents: 0 };
+  return { order, canManage, mutationAvailability, readiness, deposits, packages: packages.map(item => {
+    const snapshot = item.sourceSnapshot && typeof item.sourceSnapshot === "object" && !Array.isArray(item.sourceSnapshot) ? item.sourceSnapshot as Record<string, unknown> : {};
+    return { id: item.id, version: item.version, mismatchCodes: invoicePackageMismatchCodes(item.mismatchCodes, snapshot, currentFingerprint), billingMode: typeof snapshot.billingMode === "string" ? snapshot.billingMode : "LEGACY_REVIEW_REQUIRED", preview: snapshot.commercial ?? null, identity: snapshot.identity ?? null };
+  }), invoices: invoices.map(invoice => ({ ...invoice, appliedDepositCents: deposits.entries.filter(entry => entry.invoiceId === invoice.id).reduce((sum, entry) => sum + (entry.kind === "APPLY" ? entry.amountCents : entry.kind === "UNAPPLY" ? -entry.amountCents : 0), 0), entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
 }
 export async function executeServiceBilling(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, options: { organizationId?: string; enforceRollout?: boolean } = {}) {
   assertAuthenticatedUser(actor);
   const organizationId = options.organizationId ?? INITIAL_ORGANIZATION.id;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Billing command is required.");
   const raw = value as Record<string, unknown>, action = String(raw.action);
+  if (DEPOSIT_ACTIONS.includes(action)) return executeRepairDeposit(actor, repairOrderId, raw, organizationId, options.enforceRollout ?? true);
   if (!["PREPARE_INVOICE", "POST_INVOICE", "PAYMENT", "REFUND", "CREDIT", "VOID"].includes(action)) throw new Error("Unsupported billing action.");
   const idempotencyKey = required(raw.idempotencyKey, "Idempotency key"), reason = required(raw.reason, "Reason", 500);
   if (reason.length < 10) throw new Error("A detailed financial reason is required.");
@@ -98,8 +115,8 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
       await billingAccess(actor, order.locationId, true, organizationId, options.enforceRollout ?? true, ledger.totalCents);
       const invoice = await tx.serviceInvoice.create({ data: { id: subjectId, organizationId, repairOrderId, packageId: subjectId, invoiceNumber, subtotalCents: ledger.subtotalCents, discountCents: ledger.discountCents, taxCents: ledger.taxCents, totalCents: ledger.totalCents, ledger: toJson({ ...ledger, identity: candidate.identity, authorizationId: candidate.authorization.id, estimateId: candidate.estimate.id, proposedMinutes: ledger.proposedMinutes, measuredTechnicianMinutes: candidate.clockedLaborMinutes }), sourceFingerprint: candidate.fingerprint, issuedAt: occurredAt, createdByUserId: user.id, reason, version } });
       const content: ServiceDocumentContent = { title: "Final service invoice", number: invoiceNumber, issuedAt: occurredAt.toISOString(), identity: candidate.identity, lines: ledger.lines.map(line => ({...line,...(line.type === "LABOR" && line.laborGuideMinutes ? {hours:line.laborGuideMinutes/60,planningHourlyRateCents:Math.round(line.unitPriceCents*60/line.laborGuideMinutes)} : {})})), totals: ledger, notes: ["Thank you for your business. Please retain this invoice for your records."] };
-      await recordServiceDocument(tx, { organizationId, repairOrderId, kind: "INVOICE", sourceId: invoice.id, sourceVersion: version, createdByUserId: user.id, content });
-      return { result: { id: invoice.id, invoiceNumber, version, totalCents: invoice.totalCents } };
+      const document = await recordServiceDocument(tx, { organizationId, repairOrderId, kind: "INVOICE", sourceId: invoice.id, sourceVersion: version, createdByUserId: user.id, content });
+      return { result: { id: invoice.id, documentId: document.id, invoiceNumber, version, totalCents: invoice.totalCents } };
     }
     const invoice = await tx.serviceInvoice.findFirst({ where: { id: subjectId, organizationId, repairOrderId } });
     if (!invoice || invoice.version !== expectedVersion) throw new Error("Invoice version changed. Reload before recording financial activity.");
@@ -107,6 +124,7 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
     validateBillingEntry(invoice, entries, { kind: action, amountCents, relatedEntryId, occurredAt });
     if (action === "REFUND") {
       const original = entries.find(item => item.id === relatedEntryId);
+      if (original?.evidence && typeof original.evidence === "object" && !Array.isArray(original.evidence) && original.evidence.depositTransfer === true) throw new Error("Reverse the deposit application first, then refund its available deposit funds. A deposit transfer is not a new cash payment.");
       if (!original || original.method !== method || occurredAt < original.occurredAt) throw new Error("Refund method and time must match the original verified payment.");
     }
     const originalLedger = invoice.ledger as unknown as { lines: { key: string; totalCents: number; taxable?: boolean }[] };
@@ -116,7 +134,7 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
     await tx.serviceInvoice.update({ where: { id: invoice.id }, data: { status, version } });
     const balance = serviceInvoiceBalance({ ...invoice, status }, [...entries, entry]);
     const identity = await invoiceReceiptIdentity(tx, organizationId, repairOrderId, invoice.id, (invoice.ledger as unknown as { identity: ServiceDocumentContent["identity"] }).identity);
-    await recordServiceDocument(tx, { organizationId, repairOrderId, kind: action, sourceId: entry.id, sourceVersion: 1, createdByUserId: user.id, content: { title: `Service ${action.toLowerCase()} receipt`, number: `${invoice.invoiceNumber} / R${entries.length + 1}`, issuedAt: occurredAt.toISOString(), identity, receipt: { invoiceNumber: invoice.invoiceNumber, kind: action, amountCents, method, reference, balanceCents: balance.balanceCents }, lines: [{ key: entry.id, description: `${action}: ${method ?? "Adjustment"}; reference ${reference}`, quantity: 1, unitPriceCents: amountCents, totalCents: amountCents }], ...(components ? { totals: { ...components, totalCents: amountCents } } : {}), notes: ["Please retain this receipt for your records."] } });
-    return { previous: invoice, result: { id: invoice.id, entryId: entry.id, version, balance, status } };
+    const document = await recordServiceDocument(tx, { organizationId, repairOrderId, kind: action, sourceId: entry.id, sourceVersion: 1, createdByUserId: user.id, content: { title: `Service ${action.toLowerCase()} receipt`, number: `${invoice.invoiceNumber} / R${entries.length + 1}`, issuedAt: occurredAt.toISOString(), identity, receipt: { invoiceNumber: invoice.invoiceNumber, kind: action, amountCents, method, reference, balanceCents: balance.balanceCents }, lines: [{ key: entry.id, description: `${action}: ${method ?? "Adjustment"}; reference ${reference}`, quantity: 1, unitPriceCents: amountCents, totalCents: amountCents }], ...(components ? { totals: { ...components, totalCents: amountCents } } : {}), notes: ["Please retain this receipt for your records."] } });
+    return { previous: invoice, result: { id: invoice.id, entryId: entry.id, documentId: document.id, version, balance, status } };
   });
 }

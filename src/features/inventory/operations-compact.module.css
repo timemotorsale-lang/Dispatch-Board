@@ -1,0 +1,38 @@
+/* Screen-only refinements; document and checklist printing retain existing styles. */
+@media screen {
+  .intake, .parts, .qc { min-width: 0; }
+  .parts :global(.parts-staff-hero), .qc :global(.qc-hero) { gap: 12px; }
+  .parts :global(.parts-staff-hero) h1, .qc :global(.qc-hero) h1 {
+    font-size: clamp(24px, 2.3vw, 28px); line-height: 1.15;
+  }
+  .parts :global(.parts-staff-hero) nav a, .qc :global(.qc-hero) nav a {
+    min-height: 38px; padding: 6px 10px; white-space: normal;
+  }
+  .parts :global(.parts-staff-panel)>header,
+  .qc :global(.qc-panel)>header, .qc :global(.qc-quick)>header,
+  .qc :global(.qc-quick)>footer { flex-wrap: wrap; }
+  .parts :global(.parts-staff-row) span,
+  .qc :global(.qc-selected-body) span { min-width: 0; }
+  .parts :global(.parts-staff-row) strong, .parts :global(.parts-staff-row) small,
+  .qc :global(.qc-row) strong, .qc :global(.qc-row) b, .qc :global(.qc-row) small,
+  .qc :global(.qc-selected-body) small { white-space: normal; overflow-wrap: anywhere; }
+  .qc :global(.qc-quick) { gap: 10px; padding: 12px; }
+  .qc :global(.qc-quick)>header h2 { font-size: 20px; }
+  .intake :global(.sic-header)>div { flex-wrap: wrap; min-width: 0; }
+  .intake :global(.sic-main), .intake :global(.sic-card) { min-width: 0; }
+  .intake :global(.sic-progress) { flex-wrap: wrap; gap: 8px; }
+  .intake :global(.sic-progress)>span { white-space: normal; }
+  .qc :global(.qc-form) input, .qc :global(.qc-form) select,
+  .qc :global(.qc-form) textarea { min-width: 0; max-width: 100%; }
+}
+@media screen and (max-width: 760px) {
+  .parts :global(.parts-staff-grid), .qc :global(.qc-review-grid),
+  .intake :global(.sic-layout) { grid-template-columns: minmax(0, 1fr); }
+  .parts :global(.parts-control-strip) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .qc :global(.qc-quick-checks), .qc :global(.qc-gates)>div,
+  .qc :global(.qc-checklist)>div { grid-template-columns: minmax(0, 1fr); }
+  .qc :global(.qc-quick)>footer>button { flex: 1 1 220px; white-space: normal; }
+}
+@media screen and (max-width: 420px) {
+  .parts :global(.parts-control-strip) { grid-template-columns: minmax(0, 1fr); }
+}

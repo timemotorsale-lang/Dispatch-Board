@@ -1,3 +1,4 @@
+import { documentPhoneLine } from "@/lib/service-document-phone";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { drawDealDeskPdfLogo } from "@/server/services/deal-desk-document-brand";
 import { customerDocumentNotes, estimateCorrectionNotes, isEstimateExpirationNote, legacyReceiptDetails, serviceDocumentMileage } from "@/lib/service-document-notes";
@@ -84,7 +85,7 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   paragraph(content.identity.customer, 13, bold, columnWidth, customerX);
   y -= 4;
   const contact = content.identity.customerContact;
-  if (contact) for (const value of [contact.phone, contact.email, contact.address]) if (value) paragraph(value, 9, font, columnWidth, customerX);
+  if (contact) for (const value of [documentPhoneLine(contact.phone), contact.email, contact.address]) if (value) paragraph(value, 9, font, columnWidth, customerX);
   y = Math.min(brandBottom, y);
   page!.drawLine({ start: { x: 306, y: partiesTop }, end: { x: 306, y: y + 8 }, thickness: .7, color: rule });
   y -= 12;
@@ -107,8 +108,8 @@ export async function createServiceDocumentPdf(content: ServiceDocumentContent) 
   boxedText("VEHICLE", [identity.vehicle, `VIN: ${identity.vin}`, `Mileage: ${mileage ? `${mileage.reading.toLocaleString("en-US")} ${mileage.unit === "KILOMETERS" ? "km" : "mi"}` : "Not recorded"}`, identity.licensePlate ? `Plate: ${[identity.licensePlate, identity.licensePlateState].filter(Boolean).join(" ")}` : "", identity.color ? `Color: ${identity.color}` : "", identity.stockNumber ? `Stock #: ${identity.stockNumber}` : `Vehicle ID: ${identity.vehicleNumber}`].filter(Boolean).join("  |  "), true);
   boxedText("CONCERNS / SERVICE REQUESTED", identity.concern);
   if (receipt) {
-    space(135); paragraph(receipt.kind === "PAYMENT" ? "Payment received" : receipt.kind === "REFUND" ? "Refund recorded" : "Invoice adjustment", 13, bold);
-    for (const [label, value] of [["Invoice", receipt.invoiceNumber], [receipt.kind === "PAYMENT" ? "Amount paid" : "Amount", money(receipt.amountCents)], ["Payment method", receipt.method?.replaceAll("_", " ") ?? "Adjustment"], ["Reference", receipt.reference], ["Remaining balance", money(receipt.balanceCents)]]) paragraph(`${label}: ${value}`, 10);
+    space(135); paragraph(receipt.kind.startsWith("DEPOSIT") ? content.title : receipt.kind === "PAYMENT" ? "Payment received" : receipt.kind === "REFUND" ? "Refund recorded" : "Invoice adjustment", 13, bold);
+    for (const [label, value] of [[receipt.referenceLabel ?? "Invoice", receipt.invoiceNumber], [receipt.kind === "PAYMENT" ? "Amount paid" : "Amount", money(receipt.amountCents)], ["Payment method", receipt.method?.replaceAll("_", " ") ?? "Adjustment"], ["Reference", receipt.reference], [receipt.balanceLabel ?? "Remaining balance", money(receipt.balanceCents)]]) paragraph(`${label}: ${value}`, 10);
   } else {
     space(65);
     paragraph("ITEMIZED WORK & PARTS", 8, bold);

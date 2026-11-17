@@ -39,6 +39,17 @@ const initial = {
 };
 
 describe("ServiceClosePartsWorkspace", () => {
+  it("shows actionable close blockers instead of a misleading ready package or raw codes", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{ ...initial, repairOrders: [{ ...initial.repairOrders[0], invoicePackages: [{ id: "package-1", repairOrderId: "ro-1", status: "READY", version: 2, mismatchCodes: ["INVOICE_JOB_QC_INCOMPLETE", "INVOICE_MEASURED_CLOCK_INCOMPLETE", "INVOICE_INSTALL_QUANTITY_MISMATCH"] }] }] }} />);
+    expect(html).toContain("Package v2 · Review required");
+    expect(html).not.toContain("Package v2 - Ready");
+    expect(html).not.toContain("INVOICE_JOB_QC_INCOMPLETE");
+    expect(html).toContain("repairOrderId=ro-1&amp;step=qc");
+    expect(html).toContain("repairOrderId=ro-1&amp;step=parts");
+    expect(html).toContain("Recent parts records");
+    expect(html).toContain('aria-label="Next parts action"');
+  });
+
   it("uses customer procurement even when a customer vehicle has a historic inventory link", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
       ...initial,
@@ -74,7 +85,8 @@ describe("ServiceClosePartsWorkspace", () => {
       ],
     }} initialRepairOrderId="ro-1" />);
     expect(html).toContain("$1800.00");
-    expect(html).toContain("This vehicle needs approval for $9.98");
+    expect(html).toContain("Recorded purchases are $9.98 above the recon budget.");
+    expect(html).not.toContain("Manager approval required");
   });
 
   it("opens active outside-vendor parts work directly into delivery and repair-progress controls", () => {
@@ -102,7 +114,7 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Save next move");
     expect(html).toContain("Used");
     expect(html).toContain("Returns");
-    expect(html).toContain("Approve");
+    expect(html).toContain("Issue order");
     expect(html).not.toContain("Request approval");
   });
 
@@ -156,6 +168,8 @@ describe("ServiceClosePartsWorkspace", () => {
   it("shows a manager budget-exception path when committed spend is over the recon ceiling", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
       ...initial,
+      purchaseApprovalRequired: true,
+      canSetPurchaseApproval: true,
       purchaseOrders: [{
         id: "po-1",
         locationId: "loc-1",
@@ -169,6 +183,7 @@ describe("ServiceClosePartsWorkspace", () => {
     }} initialRepairOrderId="ro-1" />);
 
     expect(html).toContain("Manager approval required");
+    expect(html).toContain("Remove approval requirement");
     expect(html).toContain("This vehicle needs approval for $26.98 before another purchase.");
     expect(html).toContain("Review this overage");
     expect(html).toContain("Return to previous work");

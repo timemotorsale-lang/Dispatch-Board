@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
-  listAppointmentReadModels: vi.fn()
+  listAppointmentReadModels: vi.fn(),
+  findCompanyBlocks: vi.fn()
+}));
+
+vi.mock("@/server/db/client", () => ({
+  prisma: { appointment: { findMany: mocks.findCompanyBlocks } }
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
@@ -99,6 +104,26 @@ describe("appointment read route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Appointment schedule is not authorized."
     });
+  });
+
+  it("shows company time blocks to staff without location details", async () => {
+    mocks.listAppointmentReadModels.mockRejectedValueOnce(new Error("Appointment schedule is not authorized."));
+    mocks.findCompanyBlocks.mockResolvedValueOnce([{
+      id: "booking-1",
+      startsAt: new Date("2026-07-06T15:00:00Z"),
+      endsAt: new Date("2026-07-06T15:30:00Z"),
+      bookingStatus: "SCHEDULED"
+    }]);
+    const response = await GET(new Request("http://localhost/api/appointments?date=2026-07-06&calendar=company"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      appointments: [{ title: "Company appointment", customer: null, viewOnly: true }]
+    });
+    expect(mocks.findCompanyBlocks).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ organizationId: "org-time-motor-sales", locationId: "loc-time-motor-sales-minneapolis" }),
+      select: { id: true, startsAt: true, endsAt: true, bookingStatus: true }
+    }));
   });
 
   it("maps invalid date input to 400", async () => {

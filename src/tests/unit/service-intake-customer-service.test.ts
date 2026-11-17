@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   duplicate: vi.fn(),
   create: vi.fn(),
   contact: vi.fn(),
-  audit: vi.fn()
+  audit: vi.fn(),
+  note: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.actor }));
@@ -22,6 +23,7 @@ vi.mock("@/server/db/client", () => {
     location: { findFirst: vi.fn().mockResolvedValue({ id: "intake-location" }) },
     customer: { findFirst: mocks.duplicate, create: mocks.create },
     customerContactPoint: { create: mocks.contact },
+    customerNote: { create: mocks.note },
     enterpriseAuditEvent: { create: mocks.audit },
     $executeRaw: vi.fn()
   };
@@ -54,6 +56,16 @@ function submitIntake() {
 }
 
 describe("service intake customer service", () => {
+  it("saves business representatives in an internal note and excludes individual identity data", async () => {
+    const response = await POST(new Request("http://localhost/api/service-intake/customers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customerType: "Business", displayName: "Example Fleet LLC", email: "fleet@example.test", locationId: "intake-location",
+        ssn: "123456789", dateOfBirth: "2000-01-01", businessIntake: { principalName: "Example Principal", ownershipPercent: "50", taxIdLast4: "4321" } })
+    }));
+    expect(response.status).toBe(201);
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ displayName: "Example Fleet LLC", ssnLast4: null, dateOfBirth: null }) }));
+    expect(mocks.note).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ visibility: "INTERNAL", authorUserId: coordinator.id, body: expect.stringContaining("Principal name: Example Principal") }) }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.actor.mockResolvedValue(coordinator);

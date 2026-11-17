@@ -252,14 +252,14 @@ describe("claims workspace service", () => {
     }, { repository });
 
     expect(model.estimateReview).toMatchObject({
-      approvedAmountCents: 481244,
-      approvedAmountLabel: "$4,812.44",
-      confidence: "HIGH",
+      approvedAmountCents: null,
+      proposedAmountCents: 481244,
+      confidence: "NEEDS_REVIEW",
       fileName: "progressive-estimate.pdf",
-      status: "AMOUNT_FOUND"
+      status: "REVIEW_NEEDED"
     });
-    expect(model.billingRecovery.summary.approvedAmountLabel).toBe("$4,812.44");
-    expect(model.billingRecovery.payerSplit[0].amountLabel).toBe("$4,812.44");
+    expect(model.claim.approvedAmountCents).toBeUndefined();
+    expect(model.billingRecovery.payerSplit[0].amountLabel).not.toBe("$4,812.44");
   });
 
   it("does not treat vehicle years or upload dates in estimate names as approved repair amounts", async () => {
@@ -312,21 +312,17 @@ describe("claims workspace service", () => {
     }, { repository });
 
     expect(model.estimateReview).toMatchObject({
-      approvedAmountCents: 664231,
-      approvedAmountLabel: "$6,642.31",
-      confidence: "HIGH",
-      status: "AMOUNT_FOUND"
+      approvedAmountCents: null,
+      proposedAmountCents: 664231,
+      status: "REVIEW_NEEDED"
     });
-    expect(model.claim).toMatchObject({
-      approvedAmountCents: 664231,
-      approvedAmountConfidence: "HIGH",
-      approvedAmountRecordedAt: expect.any(String),
-      approvedAmountSourceEvidenceId: model.estimateReview.evidenceId
-    });
+    expect(model.claim.approvedAmountCents).toBeUndefined();
 
     const reloaded = await getClaimWorkspaceReadModel(actor, created.readModel.claim.id, { repository });
-    expect(reloaded.claim.approvedAmountCents).toBe(664231);
-    expect(reloaded.estimateReview.approvedAmountLabel).toBe("$6,642.31");
+    expect(reloaded.claim.approvedAmountCents).toBeUndefined();
+    expect(reloaded.estimateReview.proposedAmountCents).toBe(664231);
+    const approved=await updateClaimExecutionDetails(actor,created.readModel.claim.id,{approvedRepairAmount:"6642.31",approvalEvidenceId:reloaded.estimateReview.evidenceId,note:"Carrier approval checked against original."},{repository});
+    expect(approved.estimateReview.approvedAmountLabel).toBe("$6,642.31");
   });
 
   it("keeps multiple uploaded documents as independent claim evidence", async () => {
@@ -385,9 +381,9 @@ describe("claims workspace service", () => {
     }, { repository });
 
     expect(model.estimateReview).toMatchObject({
-      approvedAmountCents: 660898,
-      approvedAmountLabel: "$6,608.98",
-      status: "AMOUNT_FOUND"
+      approvedAmountCents: null,
+      proposedAmountCents: 660898,
+      status: "REVIEW_NEEDED"
     });
   });
 
@@ -413,8 +409,9 @@ describe("claims workspace service", () => {
 
     expect(model.evidence[0]).toMatchObject({ category: "ESTIMATE" });
     expect(model.checklist.find((item) => item.category === "ESTIMATE")).toMatchObject({ state: "RECEIVED" });
-    expect(model.estimateReview.approvedAmountLabel).toBe("$6,210.75");
-    expect(model.billingRecovery.summary.approvedAmountLabel).toBe("$6,210.75");
+    expect(model.estimateReview.proposedAmountCents).toBe(621075);
+    expect(model.claim.approvedAmountCents).toBeUndefined();
+    expect(model.billingRecovery.summary.approvedAmountLabel).not.toBe("$6,210.75");
   });
 
   it("requires manager authority before approving a blocked repair handoff exception", async () => {

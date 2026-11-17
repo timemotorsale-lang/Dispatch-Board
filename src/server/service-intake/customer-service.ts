@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { businessIntakeNote } from "@/lib/customer-business-intake";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
@@ -15,6 +16,8 @@ export class ServiceIntakeCustomerAccessConflict extends Error {
 }
 
 type CustomerInput = {
+  customerType?: unknown;
+  businessIntake?: unknown;
   address?: unknown;
   dateOfBirth?: unknown;
   displayName?: unknown;
@@ -84,18 +87,21 @@ export async function getServiceIntakeCustomerOptions(actor: AuthenticatedUser |
 export async function createServiceIntakeCustomer(actor: AuthenticatedUser | null, value: CustomerInput, options: { organizationId?: string; source?: string } = {}) {
   const user = assertAuthenticatedUser(actor);
   const organizationId = options.organizationId ?? INITIAL_ORGANIZATION.id;
+  if (value?.customerType !== undefined && !["Individual", "Business"].includes(String(value.customerType))) throw new Error("Choose Individual or Business customer type.");
+  const business = value?.customerType === "Business";
+  const businessNote = business ? businessIntakeNote(value.businessIntake ?? {}) : "";
   const locationId = text(value?.locationId, "Location", 100, true)!;
   const displayName = text(value?.displayName, "Customer name", 200, true)!;
   const phoneNumber = text(value?.phoneNumber, "Phone number", 50);
   const email = text(value?.email, "Email", 200)?.toLocaleLowerCase() ?? null;
   const address = text(value?.address, "Address", 500);
-  const dateOfBirth = dateOnly(value?.dateOfBirth, "Date of birth");
-  const identityGender = text(value?.gender, "Gender", 40);
-  const idNumber = text(value?.idNumber, "ID number", 80);
-  const idState = text(value?.idState, "ID state", 20)?.toUpperCase() ?? null;
-  const idType = text(value?.idType, "ID type", 80);
+  const dateOfBirth = business ? null : dateOnly(value?.dateOfBirth, "Date of birth");
+  const identityGender = business ? null : text(value?.gender, "Gender", 40);
+  const idNumber = business ? null : text(value?.idNumber, "ID number", 80);
+  const idState = business ? null : text(value?.idState, "ID state", 20)?.toUpperCase() ?? null;
+  const idType = business ? null : text(value?.idType, "ID type", 80);
   const preferredContactMethod = text(value?.preferredContactMethod, "Preferred contact method", 30) ?? "PHONE";
-  const ssn = text(value?.ssn, "SSN / ITIN", 20);
+  const ssn = business ? null : text(value?.ssn, "SSN / ITIN", 20);
   if (!phoneNumber && !email) throw new Error("A phone number or email is required.");
 
   const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
@@ -153,6 +159,7 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
       select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true },
     });
     if (phoneNumber && normalizedPhone) await tx.customerContactPoint.create({ data: { customerId: id, type: "PHONE", value: phoneNumber, normalizedValue: normalizedPhone, isPrimary: preferredContactMethod === "PHONE", consentStatus: "UNKNOWN" } });
+    if (businessNote) await tx.customerNote.create({ data: { customerId: id, authorUserId: user.id, body: businessNote, visibility: "INTERNAL" } });
     if (email) await tx.customerContactPoint.create({ data: { customerId: id, type: "EMAIL", value: email, normalizedValue: email, isPrimary: preferredContactMethod === "EMAIL", consentStatus: "UNKNOWN" } });
     await tx.enterpriseAuditEvent.create({ data: { organizationId, locationId, actorUserId: user.id, domain: "SHOP_OPERATIONS", subjectType: "CUSTOMER", subjectId: id, eventType: "SERVICE_INTAKE_CUSTOMER_CREATED", reason: "Create a canonical customer during governed vehicle intake.", newValue: created, metadata: { source: "SERVICE_INTAKE" }, correlationId } });
     return { customer: created, duplicate: false };

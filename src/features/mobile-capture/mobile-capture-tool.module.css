@@ -425,3 +425,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media screen and (max-width: 430px) {
+  .previewOverlay footer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .previewOverlay footer button {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .previewOverlay footer button:first-child {
+    grid-column: 1 / -1;
+  }
+}

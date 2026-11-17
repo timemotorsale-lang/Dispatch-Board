@@ -57,3 +57,14 @@ describe("compact overview",()=>{
   expect(html).toContain('/crm-next/deals/start?new=1');expect(html).toContain('Upload Signed Documents');expect(html).toContain('Prepare Packet');expect(html).toContain('Rental / loaner returns');
  });
 });
+
+it("gives repair deals repair-specific tabs and next action copy", () => {
+  const html = renderToStaticMarkup(<DealWorkspaceOverview customer="Customer A" vehicle="Toyota" pathway="repairs"
+    pathwayLabel="Repairs" owner="Coordinator" status="IN_PROGRESS" finalized={false} saved saveStatus="Saved"
+    section="overview" onNavigate={() => {}} />);
+  for (const label of ["Repair concern", "Repair documents", "Repair handoff", "Continue service intake"]) {
+    expect(html).toContain(label);
+  }
+  expect(html).not.toContain("Terms &amp; Payments");
+  expect(html).not.toContain("generate and preview the packet");
+});

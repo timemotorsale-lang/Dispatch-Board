@@ -2,7 +2,7 @@
 
 import { Check, ClipboardList, Package, Plus, RotateCcw, ScanBarcode, ShoppingCart, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "./diagnostics-parts-ordering-workspace.module.css";
 
@@ -50,6 +50,7 @@ function normalizeCurrency(value: string) {
 }
 
 export function DiagnosticsPartsOrderingWorkspace({
+  draftKey,
   parts,
   repairOrderId,
   repairOrderNumber,
@@ -57,6 +58,7 @@ export function DiagnosticsPartsOrderingWorkspace({
   returnTo,
   vehicleLabel,
 }: {
+  draftKey?: string;
   parts: PartsDemandLine[];
   repairOrderId?: string;
   repairOrderNumber?: string;
@@ -86,6 +88,46 @@ export function DiagnosticsPartsOrderingWorkspace({
   })));
   const [notice, setNotice] = useState("");
   const workflowRef = useRef<HTMLDivElement | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("");
+
+  useEffect(() => {
+    if (!draftKey) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const raw = sessionStorage.getItem(draftKey);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (!Array.isArray(draft?.orderedParts) || !Array.isArray(draft.returnParts)
+            || !Array.isArray(draft.usedParts) || !Array.isArray(draft.sourceOptions)
+            || typeof draft.newVendorName !== "string") {
+            throw new Error("Invalid parts worksheet draft.");
+          }
+          setOrderedParts(draft.orderedParts);
+          setReturnParts(draft.returnParts);
+          setUsedParts(draft.usedParts);
+          setSourceOptions(draft.sourceOptions);
+          setNewVendorName(draft.newVendorName);
+        }
+        setDraftReady(true);
+      } catch {
+        setDraftStatus("The saved parts draft could not be opened in this tab.");
+      }
+    });
+    return () => { active = false; };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !draftReady) return;
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({ orderedParts, returnParts, usedParts, sourceOptions, newVendorName }));
+    } catch {
+      queueMicrotask(() => setDraftStatus("This tab could not save the parts draft. Keep the worksheet open to preserve your edits."));
+    }
+  }, [draftKey, draftReady, orderedParts, returnParts, usedParts, sourceOptions, newVendorName]);
+
 
   const sourcedCount = orderedParts.filter((part) => {
     if (part.source === "Custom vendor") return part.sourceCustom.trim().length > 0;
@@ -179,7 +221,7 @@ export function DiagnosticsPartsOrderingWorkspace({
   return <section className={styles.workspace} aria-label="Diagnostics parts ordering workspace">
     <header className={styles.hero}>
       <div className={styles.heroMain}>
-        <h1>Govern parts ordering, receiving, and returns in one worksheet.</h1>
+        <h1>Plan parts ordering, receiving, and returns.</h1>
         <p>Use the labor-guide demand as the source of truth, then record exactly what was ordered, from which vendor, on what date, at what cost, and what must be returned.</p>
       </div>
       <div className={styles.contextCard}>
@@ -198,6 +240,7 @@ export function DiagnosticsPartsOrderingWorkspace({
       </div>
       <button onClick={runNextAction} type="button">{nextAction.target === "ready" ? "Show completion options" : "Take me there"}</button>
     </section>
+    {draftKey ? <p className={styles.notice} role="status">{draftStatus || "Browser draft · Edits stay in this tab. Use Purchase orders & receiving to record actual orders and receipts."}</p> : null}
     {notice ? <p className={styles.notice} role="status">{notice}</p> : null}
 
     <section className={styles.quickVendorBar} aria-label="Quick add vendor">
@@ -241,7 +284,8 @@ export function DiagnosticsPartsOrderingWorkspace({
       </div>
 
       <div className={styles.commandRail}>
-        <Link href={repairOrderId ? `/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId, ...(returnLabel ? { returnLabel } : {}), returnTo }).toString()}` : returnTo}><Truck size={15} />Send estimate to repair workbench</Link>
+        {repairOrderId ? <Link href={`/vehicles/service-close-parts?${new URLSearchParams({ repairOrderId, returnTo, returnLabel: returnLabel ?? "Return to estimate" })}`}>Open purchase orders &amp; receiving</Link> : <small>Link a repair order to save worksheet edits and open purchasing and receiving.</small>}
+        <Link href={repairOrderId ? `/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId, ...(returnLabel ? { returnLabel } : {}), returnTo }).toString()}` : returnTo}><Truck size={15} />Open repair workbench</Link>
         <Link href={returnTo}><ScanBarcode size={15} />{returnLabel ?? "Return and document parts demand"}</Link>
       </div>
     </section>
@@ -261,7 +305,7 @@ export function DiagnosticsPartsOrderingWorkspace({
         <header className={styles.ledgerHeader}>
           <div>
             <span>Step 2</span>
-            <h2>Record what was actually ordered</h2>
+            <h2>Draft the ordered-parts log</h2>
             <p>Use the full-width ordered-parts ledger to preserve detailed part names, vendor choice, ordered date, and cost.</p>
           </div>
           <div className={styles.ledgerActions}>

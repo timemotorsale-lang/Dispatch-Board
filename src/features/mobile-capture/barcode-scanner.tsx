@@ -17,6 +17,10 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
 }) {
   const titleId = useId();
   const [facing, setFacing] = useState("environment");
+  const [cameraId, setCameraId] = useState("");
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState("Starting camera…");
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -34,6 +38,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
   const trackRef = useRef<MediaStreamTrack | null>(null);
   const stopRef = useRef<() => void>(() => {});
   const fileSequence = useRef(0);
+  const constraintSequence = useRef(0);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
@@ -45,7 +50,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
     function keyboard(event: KeyboardEvent) {
       if (event.key === "Escape") closeRef.current();
       if (event.key !== "Tab") return;
-      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="file"])') ?? []);
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="file"]), select:not(:disabled)') ?? []);
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -70,24 +75,39 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
       clearTimeout(timer);
       session.stop();
       trackRef.current = null;
+      constraintSequence.current += 1;
       video!.srcObject = null;
     }
     stopRef.current = stop;
     async function start() {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-        setStatus("Live camera needs HTTPS or localhost in a supported browser. Open the secure app address, choose a photo, or enter the VIN.");
+        setStatus("Live camera needs HTTPS or localhost in a supported browser. On your phone, use the app’s reachable HTTPS address. Localhost on the phone refers to the phone itself. You can also choose a photo or return to manual intake.");
         return;
       }
       try {
         const { BarcodeFormat, BrowserMultiFormatReader, BrowserPDF417Reader } = await import("@zxing/browser");
         if (cancelled) return;
         const reader = idOnly ? new BrowserPDF417Reader() : new BrowserMultiFormatReader();
-        const stream = await session.open(video!, facing);
+        const stream = await session.open(video!, facing, cameraId);
         if (!stream || cancelled) return;
         trackRef.current = stream.getVideoTracks()[0] ?? null;
-        const capabilities = trackRef.current?.getCapabilities() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+        const capabilities = trackRef.current?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean; zoom?: { min: number; max: number; step: number }; focusMode?: string[] }) | undefined;
         setTorchAvailable(Boolean(capabilities?.torch));
+        const range = capabilities?.zoom;
+        setZoomRange(range && Number.isFinite(range.min) && Number.isFinite(range.max) && range.max > range.min ? { ...range, step: range.step > 0 ? range.step : 0.1 } : null);
+        const settings = (trackRef.current?.getSettings?.() ?? {}) as MediaTrackSettings & { zoom?: number };
+        setZoom(settings.zoom ?? range?.min ?? 1);
+        if (capabilities?.focusMode?.includes("continuous")) {
+          await trackRef.current?.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
+        }
+        if (cancelled) return;
+        if (navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+          if (cancelled) return;
+          setCameras(devices.filter(device => device.kind === "videoinput" && device.deviceId).map((device, index) => ({ id: device.deviceId, label: device.label || `Camera ${index + 1}` })));
+        }
         setStatus(idOnly ? "Turn the ID over. Hold the wide PDF417 barcode flat inside the guide. Move closer until the bars look sharp." : vinOnly ? "Aim at the VIN barcode or a QR code containing a VIN. Scanning is automatic." : "Aim at a barcode or QR code. Scanning is automatic.");
+        const scanStartedAt = Date.now();
         function scan() {
           if (cancelled) return;
           try {
@@ -112,6 +132,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
               setStatus("Code read, but no 17-character VIN was found. Try the vehicle’s VIN barcode or enter it below.");
             }
           } catch {
+            if (Date.now() - scanStartedAt > 10000) setStatus(idOnly ? "Still looking for the ID barcode. Fill the guide with the entire stacked barcode, tilt away from glare, or choose a sharper photo." : "Still looking for a VIN. Try the door-jamb label, switch cameras or adjust zoom. You can also enter the VIN below.");
           }
           timer = setTimeout(scan, 300);
         }
@@ -127,7 +148,7 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
     }
     document.addEventListener("visibilitychange", visibility);
     return () => { stop(); document.removeEventListener("visibilitychange", visibility); };
-  }, [attempt, facing, result, vinOnly, idOnly]);
+  }, [attempt, facing, result, vinOnly, idOnly, cameraId]);
 
   async function readPhoto(file: File | undefined) {
     if (!file) return;
@@ -156,10 +177,22 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
   }
 
   async function toggleTorch() {
+    const track = trackRef.current;
+    if (!track || track.readyState !== "live") { setStatus("Camera is paused. Tap Try again before using the light."); return; }
     try {
-      await trackRef.current?.applyConstraints({ advanced: [{ torch: !torch } as MediaTrackConstraintSet] });
+      await track.applyConstraints({ advanced: [{ torch: !torch } as MediaTrackConstraintSet] });
       setTorch(!torch);
     } catch { setStatus("Flashlight is unavailable on this camera. Move to a brighter area."); }
+  }
+
+  async function changeZoom(value: number) {
+    const track = trackRef.current;
+    if (!track || track.readyState !== "live" || !zoomRange) return;
+    const request = ++constraintSequence.current;
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] });
+      if (trackRef.current === track && request === constraintSequence.current) setZoom(value);
+    } catch { if (trackRef.current === track) setStatus("This camera could not adjust zoom. Move the phone closer while keeping the whole code visible."); }
   }
 
   function retry() {
@@ -171,13 +204,14 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
     setIdConfirmed(false);
     setRevealId(false);
     setTorchAvailable(false);
+    setZoomRange(null);
     setStatus("Starting camera…");
     setAttempt((current) => current + 1);
   }
 
   function reviewManual() {
     const value = vinOnly ? vinFromBarcode(manual) : manual.trim();
-    if (!value) return;
+    if (!value) { setStatus(vinOnly ? "Enter a complete 17-character VIN. VINs do not contain I, O or Q." : "Enter a code before continuing."); return; }
     fileSequence.current += 1;
     stopRef.current();
     setReading(false);
@@ -195,7 +229,11 @@ export function BarcodeScanner({ vinOnly = false, idOnly = false, onClose, onCon
       </div>
       <p className={styles.status} role="status">{status}</p>
       {result ? <>{idOnly ? <div className={styles.idReview}><button aria-pressed={revealId} onClick={() => setRevealId(!revealId)} type="button">{revealId ? "Hide ID number" : "Show ID number"}</button><label><input checked={idConfirmed} onChange={(event) => setIdConfirmed(event.target.checked)} type="checkbox" /> I checked these details against the front of the ID.</label><p>Details stay in this capture session until you choose an action. No customer record is changed automatically.</p></div> : null}<div className={styles.controls}><button className={styles.primary} disabled={idOnly && (!idFields || !idConfirmed)} onClick={() => onConfirm(result, image)} type="button"><Check />{idOnly ? "Use reviewed ID" : vinOnly ? "Use this VIN" : "Use this code"}</button><button onClick={retry} type="button"><RotateCcw />Scan again</button></div></> : <>
-        <div className={styles.controls}><button disabled={reading} onClick={retry} type="button"><RotateCcw />Try again</button><button disabled={reading} onClick={() => { retry(); setFacing((current) => current === "environment" ? "user" : "environment"); }} type="button"><SwitchCamera />Flip camera</button>{torchAvailable ? <button aria-pressed={torch} onClick={() => void toggleTorch()} type="button"><Flashlight />Light {torch ? "on" : "off"}</button> : null}<button disabled={reading} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose photo</button></div>
+        <div className={styles.controls}><button disabled={reading} onClick={retry} type="button"><RotateCcw />Try again</button><button disabled={reading} onClick={() => { retry(); setCameraId(""); setFacing((current) => current === "environment" ? "user" : "environment"); }} type="button"><SwitchCamera />Flip camera</button>{torchAvailable ? <button aria-pressed={torch} onClick={() => void toggleTorch()} type="button"><Flashlight />Light {torch ? "on" : "off"}</button> : null}<button disabled={reading} onClick={() => uploadRef.current?.click()} type="button"><UploadCloud />Choose photo</button></div>
+        {(cameras.length > 1 || zoomRange) && <div className={styles.cameraSettings}>
+          {cameras.length > 1 && <label>Camera<select value={cameraId} disabled={reading} onChange={event => { retry(); setCameraId(event.target.value); }}><option value="">Automatic rear camera</option>{cameras.map(camera => <option key={camera.id} value={camera.id}>{camera.label}</option>)}</select></label>}
+          {zoomRange && <label>Zoom · {zoom.toFixed(1)}×<input aria-label="Camera zoom" type="range" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoom} disabled={reading} onChange={event => void changeZoom(Number(event.target.value))} /></label>}
+        </div>}
         <p className={styles.tip}>{idOnly ? "1. Turn the card over. 2. Keep the entire stacked barcode visible. 3. Hold steady and tilt slightly to remove glare. If it will not read, choose a sharp photo. Not all IDs use a supported PDF417 format." : "Hold steady, keep the entire code visible, and avoid glare. For an ID, scan the barcode on the back."}</p>
         {!idOnly ? <div className={styles.manual}><label htmlFor={`${titleId}-code`}>{vinOnly ? "Enter VIN instead" : "Enter code instead"}</label><input autoCapitalize={vinOnly ? "characters" : "off"} autoComplete="off" id={`${titleId}-code`} maxLength={vinOnly ? 17 : 120} onChange={(event) => setManual(vinOnly ? event.target.value.toUpperCase() : event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); reviewManual(); } }} placeholder={vinOnly ? "17-character VIN" : "Type or use a connected barcode reader"} value={manual} /><button disabled={vinOnly ? !vinFromBarcode(manual) : !manual.trim()} onClick={reviewManual} type="button">{vinOnly ? "Review VIN" : "Review code"}</button></div> : null}
       </>}

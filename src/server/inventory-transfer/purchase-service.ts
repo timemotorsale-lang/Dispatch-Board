@@ -11,7 +11,7 @@ import { isValidVin, normalizeVehicleIdentity, normalizeVinValue } from "@/serve
 import { createRegistryVehicle } from "@/server/vehicle-registry/service";
 import { getVehicleIntake, saveVehicleIntake } from "@/server/inventory-unit/intake-service";
 import { INTAKE_SOURCES, normalizeIntake, type IntakeDetails } from "@/server/inventory-unit/intake-domain";
-import { extractDocumentText } from "@/server/document-library/text-extraction";
+import { extractDocumentPages } from "@/server/document-library/read-document";
 import { scanVehicleEvidence } from "@/server/vehicle-360/domain";
 import { uploadVehicleEvidence } from "@/server/vehicle-360/service";
 import { PURCHASE_FIELDS, PURCHASE_HEADER_ALIASES, purchaseAmount, reconcilePurchase, readPurchaseText, type PurchaseRead, type PurchaseReview, type PurchaseValues, type PurchaseImportHistory } from "@/lib/inventory-purchase-import";
@@ -73,7 +73,7 @@ export async function readPurchaseDocument(actor: AuthenticatedUser | null, loca
   validatePurchaseFile(file, false);
   const readId = await stagePurchaseSource(user.id, locationId, file);
   try {
-  const extraction = await extractDocumentText(file);
+  const extraction = await extractDocumentPages(file,28);
   if (!extraction.text.trim()) throw new Error("No readable text found. Try a clearer document or use spreadsheet import. Scanned PDFs require the configured PDF OCR renderer.");
   const reading = readPurchaseText(extraction.text);
   if (reading.values.vin && !isValidVin(normalizeVinValue(reading.values.vin))) reading.warnings.push("The extracted VIN failed its check digit. Verify and correct it from the original document before importing.");

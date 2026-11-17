@@ -329,7 +329,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const selectedAuthorizedLineKey = job.authorizedLineKey || creatableAuthorizedLineKeys[0] || authorizedLaborLines[0]?.key || "";
   const selectedReleaseLine = authorizedLaborLines.find((line) => line.key === selectedAuthorizedLineKey) ?? null;
   const existingJobForSelectedLine = selected?.repairJobs.find((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ?? null;
-  const hasRepairJob = (selected?.repairJobs.length ?? 0) > 0;
+  const hasRepairJob = Boolean(selected?.repairJobs.some(job => job.status !== "CANCELLED"));
   const directPath = repairPath === "DIRECT_BODY";
   const vendorPath = repairPath === "VENDOR";
   const currentVendorWork = activeVendorWork(selected);
@@ -357,11 +357,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const orderPathLabel = vendorPath ? "Vehicle ready for outside vendor route" : directPath ? "Vehicle selected for bodywork repair" : "Vehicle released for diagnosis";
   const recentRepairUpdates = (selected?.advisorUpdates ?? []).slice(0, 6);
   const latestRepairUpdate = selected?.advisorUpdates?.[0] ?? null;
-  const qcReady = Boolean(latestRepairUpdate && qcReadyStatuses.has(latestRepairUpdate.statusCode));
+  const qcReady = Boolean(selected?.repairJobs.some(job => ["READY_FOR_QC", "QC_PASSED"].includes(job.status)));
   const qcHref = reviewOrderId ? repairReviewHref(reviewOrderId, "qc") : selected ? `/vehicles/quality-control?repairOrderId=${encodeURIComponent(selected.id)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/quality-control";
   const dispatchHref = reviewOrderId ? repairReviewHref(reviewOrderId, "assignment") : selected ? `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/shop-dispatch";
   const partsHref = selected ? `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}` : "/vehicles/service-close-parts";
-  const repairJobWorkbenchHref = selected?.repairJobs[0] ? `/vehicles/repair-jobs/${encodeURIComponent(selected.repairJobs[0].id)}/workbench` : dispatchHref;
+  const repairJobWorkbenchHref = selected?.repairJobs[0] ? repairReviewHref(selected.id, "repair") : dispatchHref;
   const repairReleaseHref = !hasRepairJob ? "#repair-planning-step-5-create-job" : qcReady ? qcHref : "#repair-result";
   const reconBudget = selected?.inventoryUnit ? buildReconBudgetSummary({
     acquisitionAppraisals: selected.inventoryUnit.acquisitionAppraisals,
@@ -742,7 +742,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setReleaseJobs([]);
     if (firstRepairJobId) {
       setNotice(`${firstRepairJobNumber || "Repair job"} created. Opening the repair workbench now.`);
-      window.setTimeout(() => router.push(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
+      window.setTimeout(() => router.push(repairReviewHref(selected.id)), 120);
       return;
     }
     setNotice("Repair job created. Open repair work order below to assign work, update parts, complete repair, then move to Final QC.");
@@ -834,7 +834,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice(`Completion job ${response.result?.job?.jobNumber ?? ""} created. Opening the repair work order.`.trim());
       await refresh();
       if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
-      else if (jobId) router.push(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
+      else if (jobId) router.push(repairReviewHref(selected.id));
       else window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Completion job creation failed.");
@@ -922,6 +922,10 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     const statusCode = statusOverride ?? repairProgress.statusCode;
     const customerVisibleSummary = repairProgress.customerVisibleSummary.trim();
     const readyForQc = qcReadyStatuses.has(statusCode);
+    if (readyForQc && !hasRepairJob) {
+      setNotice("Release an approved repair job before recording its final result.");
+      return;
+    }
     if (!customerVisibleSummary) {
       setNotice("Tell us what happened before saving this update.");
       return;
@@ -930,7 +934,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     const completedBy = model.users.find((user) => user.id === completedByUserId)?.name ?? "Staff member";
     const contactOutcome = failedRepair ? "Repair failed — QC decision required" : readyForQc ? "Repair complete and ready for QC" : repairProgress.contactOutcome.trim() || "Repair progress updated";
     const nextAction = readyForQc ? "Complete final quality control, then hand off or return the vehicle for rework." : repairProgress.nextAction.trim() || "Continue repair and record the next meaningful update.";
-    if (latestRepairUpdate?.statusCode === statusCode && latestRepairUpdate.customerVisibleSummary.trim() === customerVisibleSummary) {
+    if ((!readyForQc || qcReady) && latestRepairUpdate?.statusCode === statusCode && latestRepairUpdate.customerVisibleSummary.trim() === customerVisibleSummary) {
       if (readyForQc && openQc) {
         window.location.assign(qcHref);
         return;
@@ -1310,7 +1314,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               </details>
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <Submit busy={busy}>Confirm scope and unlock estimate</Submit>
-            </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_DIAGNOSIS", { ...diagnosis, symptoms: diagnosis.symptoms.split(",").map((value) => value.trim()).filter(Boolean), tests: [{ name: diagnosis.testName, result: diagnosis.testResult }], evidence: diagnosis.evidence.split(",").map((value) => value.trim()).filter(Boolean) }, "Record evidence-backed concern, cause, and proposed correction."); }}>
+            </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_DIAGNOSIS", { ...diagnosis, recommendation: diagnosis.recommendation.trim() || diagnosis.proposedCorrection, symptoms: diagnosis.symptoms.split(",").map((value) => value.trim()).filter(Boolean), tests: [{ name: diagnosis.testName, result: diagnosis.testResult }], evidence: diagnosis.evidence.split(",").map((value) => value.trim()).filter(Boolean) }, "Record evidence-backed concern, cause, and proposed correction."); }}>
               <section className={styles.simpleCard}>
                 <span className={styles.simpleEyebrow}>Fast diagnosis confirmation</span>
                 <h3>Confirm the likely cause and repair direction</h3>
@@ -1321,10 +1325,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                   <div><dt>Technician</dt><dd>{model.users.find((user) => user.id === diagnosis.technicianUserId)?.name ?? "Select technician"}</dd></div>
                 </dl>
               </section>
-              <details className={styles.advancedDetails}>
-                <summary>Diagnosis details when troubleshooting needs documentation</summary>
-                <FormGrid><Field label="Symptoms"><input placeholder="Comma separated" value={diagnosis.symptoms} onChange={(event) => setDiagnosis((value) => ({ ...value, symptoms: event.target.value }))} /></Field><Field label="Diagnostic test"><input value={diagnosis.testName} onChange={(event) => setDiagnosis((value) => ({ ...value, testName: event.target.value }))} /></Field><Field label="Test result"><input value={diagnosis.testResult} onChange={(event) => setDiagnosis((value) => ({ ...value, testResult: event.target.value }))} /></Field><Field label="Evidence references"><input value={diagnosis.evidence} onChange={(event) => setDiagnosis((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Root cause" wide><textarea value={diagnosis.cause} onChange={(event) => setDiagnosis((value) => ({ ...value, cause: event.target.value }))} /></Field><Field label="Diagnostic uncertainty"><select value={diagnosis.uncertainty} onChange={(event) => setDiagnosis((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Technician"><select value={diagnosis.technicianUserId} onChange={(event) => setDiagnosis((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Recommendation"><textarea value={diagnosis.recommendation} onChange={(event) => setDiagnosis((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction"><textarea value={diagnosis.proposedCorrection} onChange={(event) => setDiagnosis((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
-              </details>
+                <FormGrid><Field label="Symptoms"><input placeholder="Comma separated" value={diagnosis.symptoms} onChange={(event) => setDiagnosis((value) => ({ ...value, symptoms: event.target.value }))} /></Field><Field label="Diagnostic test"><input required value={diagnosis.testName} onChange={(event) => setDiagnosis((value) => ({ ...value, testName: event.target.value }))} /></Field><Field label="Test result"><input required value={diagnosis.testResult} onChange={(event) => setDiagnosis((value) => ({ ...value, testResult: event.target.value }))} /></Field><Field label="Evidence references"><input value={diagnosis.evidence} onChange={(event) => setDiagnosis((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Root cause" wide><textarea required value={diagnosis.cause} onChange={(event) => setDiagnosis((value) => ({ ...value, cause: event.target.value }))} /></Field><Field label="Diagnostic uncertainty"><select value={diagnosis.uncertainty} onChange={(event) => setDiagnosis((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Technician"><select required value={diagnosis.technicianUserId} onChange={(event) => setDiagnosis((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Additional recommendation (optional)"><textarea value={diagnosis.recommendation} onChange={(event) => setDiagnosis((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction"><textarea required value={diagnosis.proposedCorrection} onChange={(event) => setDiagnosis((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
               <Submit busy={busy}>Confirm diagnosis and unlock estimate</Submit>
             </form>}
           </WorkflowStep>}
@@ -1563,6 +1564,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
             )}
           </WorkflowStep>}
 
+          {!hasRepairJob && !vendorPath && (!focusStep || repairOnly) ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
+            <h2>{accepted ? "Release approved work before Final QC" : "Record approval before releasing repair work"}</h2>
+            <p>{accepted ? "The estimate is approved. Create a repair job on this order so the final result and QC checklist have a job to attach to." : "Record the customer's decision on the current estimate, then release the approved work."}</p>
+            <Link className={styles.primaryAction} href={repairReviewHref(selected.id, accepted ? "parts" : latestEstimate ? "authorization" : "estimate")}>{accepted ? "Release approved jobs" : latestEstimate ? "Record approval" : "Open estimate"}</Link>
+          </section> : null}
           {hasRepairJob && (!focusStep || repairOnly) ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
             <header>
               <span>Manage repair</span>
@@ -1601,8 +1607,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               <div className={styles.progressActions}>
                 <small>{repairProgress.customerVisibleSummary.trim() ? "Choose one clear action." : "Enter what happened to unlock save and QC actions."}</small>
                 <div className={styles.progressPrimaryActions}>
-                  {qcReady || qcReadyStatuses.has(repairProgress.statusCode) ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
-                  {!qcReady ? <button className={styles.completeQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim()} onClick={() => void submitRepairProgress("READY_FOR_QC")} type="button">{busy ? "Saving..." : "Repair complete — send to QC"}</button> : null}
+                  {qcReady ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
+                  {!qcReady ? <button className={styles.completeQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim()} onClick={() => void submitRepairProgress("READY_FOR_QC", true)} type="button">{busy ? "Saving..." : "Repair complete — send to QC"}</button> : null}
                   <button disabled={busy || !repairProgress.customerVisibleSummary.trim()} type="submit">{busy ? "Saving..." : "Save update"}</button>
                 </div>
               </div>

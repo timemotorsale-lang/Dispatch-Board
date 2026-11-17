@@ -157,7 +157,6 @@ export type AppointmentLifecycleCommandPayload = {
   hardConflicts?: AppointmentHardConflict[];
   warnings?: AppointmentWarning[];
   unresolvedWarnings?: AppointmentWarning[];
-  duplicateCustomerTimeConfirmed?: boolean;
 };
 
 export type AppointmentLifecycleCommandInput = {

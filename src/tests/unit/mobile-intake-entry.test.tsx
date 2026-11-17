@@ -24,7 +24,8 @@ describe("mobile creation entry points", () => {
   });
   it("goes straight to contact entry from a reviewed ID without putting identity data in links", () => {
     const markup = renderToStaticMarkup(<MobileCustomerIntake initialFields={{ ...emptyIdFields(), fullName: "Synthetic Person", licenseNumber: "TEST123456", dateOfBirth: "01/02/1990" }} />);
-    expect(markup).toContain("How can we reach them?");
+    expect(markup).toContain("Review customer &amp; add contact");
+    expect(markup).toContain("Rescan ID barcode");
     expect(markup).toContain('type="tel"');
     expect(markup).toContain('type="email"');
     expect(markup).toContain('type="password"');

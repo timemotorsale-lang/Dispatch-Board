@@ -31,7 +31,7 @@ export function AppSidebar({ collectionsNavigation = false, compact, isOpen, onC
   const navigationGroups = getNavigationGroups(user, { collections: collectionsNavigation });
 
   return (
-    <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
+    <aside aria-label="Command Center sidebar" className={["app-sidebar", "app-sidebar-navigation-pane", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
         <Link aria-label="Time Motor Sales Command Control Center" className="sidebar-brand" href="/command-center" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
@@ -85,6 +85,7 @@ export function AppSidebar({ collectionsNavigation = false, compact, isOpen, onC
                 ) : (
                   <Link
                     aria-current={active ? "page" : undefined}
+                    aria-label={compact ? item.title : undefined}
                     className={className}
                     href={resolvedHref}
                     key={`${item.href}-${item.title}`}

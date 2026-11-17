@@ -106,7 +106,7 @@ function restoreGeneratedTypeFiles() {
 
 const server = run(
   process.execPath,
-  [nextCli, "dev", "--hostname", baseUrlDetails.hostname, "--port", serverPort],
+  [nextCli, "dev", "--webpack", "--hostname", baseUrlDetails.hostname, "--port", serverPort],
   {
     detached: process.platform !== "win32",
     env: e2eEnvironment

@@ -759,9 +759,9 @@ describe("appointment command execution service", () => {
         executed: false,
         commandStatus: "FAILED_TERMINAL",
         resultSnapshot: {
-          rejectionCode: "UNRESOLVED_WARNING",
+          rejectionCode: "HARD_CONFLICT",
           rejectionReasons: [
-            expect.stringContaining("Amina Yusuf already has appointment APT-20001")
+            expect.stringContaining("This visit already has appointment APT-20001")
           ]
         }
       }
@@ -769,7 +769,7 @@ describe("appointment command execution service", () => {
     expect(lifecycleHarness.createdAppointments).toEqual([]);
   });
 
-  it("allows duplicate-time draft creation after explicit user confirmation", async () => {
+  it("blocks the same visit even when a legacy confirmation flag is supplied", async () => {
     const commandHarness = createCommandRepositoryHarness({
       appointment: null,
       duplicateAppointments: [
@@ -815,27 +815,54 @@ describe("appointment command execution service", () => {
     );
 
     expect(result).toMatchObject({
-      accepted: true,
-      command: {
-        commandType: "CREATE_DRAFT",
-        status: "SUCCEEDED"
-      },
-      execution: {
-        executed: true,
-        commandStatus: "SUCCEEDED",
-        appointment: {
-          appointmentNumber: "APT-20002",
-          version: 1
-        }
-      }
+      accepted: false,
+      execution: { executed: false, resultSnapshot: { rejectionCode: "HARD_CONFLICT" } }
     });
-    expect(lifecycleHarness.createdAppointments).toEqual([
-      {
-        id: "appointment-created",
-        appointmentNumber: "APT-20002",
-        version: 1
-      }
-    ]);
+    expect(lifecycleHarness.createdAppointments).toEqual([]);
+  });
+
+  it("requires a matching manager approval to schedule overlapping separate work", async () => {
+    const customerSnapshot = { customerId: "customer-1", displayName: "Amina Yusuf" };
+    const appointment = createScenarioAppointment({
+      bookingStatus: "DRAFT", customerSnapshot, purposeSnapshot: { code: "SERVICE_REPAIR" }
+    });
+    const other = createScenarioAppointment({
+      id: "appointment-other",
+      appointmentNumber: "APT-20001",
+      startsAt: new Date("2026-07-06T16:30:00.000Z"),
+      endsAt: new Date("2026-07-06T17:30:00.000Z"),
+      customerSnapshot,
+      purposeSnapshot: { code: "WARRANTY_REVIEW" }
+    });
+    const commandHarness = createCommandRepositoryHarness({ appointment, duplicateAppointments: [other!] });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+    const submit = (idempotencyKey: string, approval?: { warningKey: string; reason: string }) =>
+      submitAndExecuteAppointmentCommand(managerUser, {
+        commandType: "SCHEDULE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey,
+        correlationId: idempotencyKey,
+        payload: {
+          startsAt: "2026-07-06T16:00:00.000Z",
+          endsAt: "2026-07-06T17:00:00.000Z",
+          schedulingTimezone: "America/Chicago",
+          customerOverlapApproval: approval
+        }
+      }, {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        now
+      });
+    const firstAttempt = await submit("overlap-preview");
+    expect(firstAttempt).toMatchObject({
+      accepted: false,
+      execution: { resultSnapshot: { rejectionCode: "UNRESOLVED_WARNING" } }
+    });
+    const [warning] = firstAttempt.execution?.resultSnapshot.unresolvedWarnings as Array<{ warningKey: string }>;
+    const reason = "Separate appointment with independent staff and resources.";
+    expect((await submit("overlap-stale", { warningKey: "stale", reason })).accepted).toBe(false);
+    expect((await submit("overlap-approved", { warningKey: warning.warningKey, reason })).accepted).toBe(true);
   });
 
   it("evaluates proposed schedule times for unscheduled draft staff checks", async () => {

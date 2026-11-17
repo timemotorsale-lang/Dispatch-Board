@@ -49,6 +49,14 @@ export function canGrantManagerPowers(user: AuthenticatedUser | null) {
   return isGeneralManager(user);
 }
 
+export function canUseOwnDeals(user: AuthenticatedUser | null) {
+  return Boolean(user?.isActive && !user.dealsRestricted);
+}
+
+export function canUseStaffCalendar(user: AuthenticatedUser | null) {
+  return Boolean(user?.isActive && !user.calendarRestricted);
+}
+
 export function canManageUsers(user: AuthenticatedUser | null) {
   return isManager(user);
 }
@@ -96,37 +104,22 @@ export type AppointmentPermissionInput = {
 };
 
 export function canCreateAppointment(input: AppointmentPermissionInput) {
-  if (!input.actor || !input.locationAccess?.canViewSchedule) {
+  if (!input.actor || !canUseStaffCalendar(input.actor) || !input.locationAccess) {
     return false;
   }
 
   const managerAtLocation =
-    isManager(input.actor) && input.locationAccess.canManageAppointments;
+    isManager(input.actor) && input.locationAccess.canViewSchedule && input.locationAccess.canManageAppointments;
   const coordinatorAtLocation =
-    isAppointmentCoordinator(input.actor) && input.locationAccess.canManageAppointments;
+    isAppointmentCoordinator(input.actor) && input.locationAccess.canViewSchedule && input.locationAccess.canManageAppointments;
   const eligibleOwner =
-    input.ownerUserId === input.actor.id &&
-    input.locationAccess.canOwnAppointments &&
-    input.locationAccess.canParticipate;
+    input.ownerUserId === input.actor.id;
 
   return managerAtLocation || coordinatorAtLocation || eligibleOwner;
 }
 
 export function canMutateAppointment(input: AppointmentPermissionInput) {
-  if (!input.actor || !input.locationAccess?.canViewSchedule) {
-    return false;
-  }
-
-  const managerAtLocation =
-    isManager(input.actor) && input.locationAccess.canManageAppointments;
-  const coordinatorAtLocation =
-    isAppointmentCoordinator(input.actor) && input.locationAccess.canManageAppointments;
-  const eligibleOwner =
-    input.ownerUserId === input.actor.id &&
-    input.locationAccess.canOwnAppointments &&
-    input.locationAccess.canParticipate;
-
-  return managerAtLocation || coordinatorAtLocation || eligibleOwner;
+  return canCreateAppointment(input);
 }
 
 export type AppointmentLocationManagerPermissionInput = {
@@ -136,7 +129,7 @@ export type AppointmentLocationManagerPermissionInput = {
 
 export function canApproveAppointment(input: AppointmentLocationManagerPermissionInput) {
   return Boolean(
-    isManager(input.actor) &&
+    canUseStaffCalendar(input.actor) && isManager(input.actor) &&
       input.locationAccess?.canViewSchedule &&
       input.locationAccess.canManageAppointments
   );
@@ -157,11 +150,11 @@ export function canOverrideAppointmentWarning(
 export function canViewAppointmentSchedule(
   input: AppointmentLocationManagerPermissionInput
 ) {
-  return Boolean(input.actor && input.locationAccess?.canViewSchedule);
+  return Boolean(canUseStaffCalendar(input.actor) && input.locationAccess?.canViewSchedule);
 }
 
 export function canViewAppointmentLimitedData(input: AppointmentPermissionInput) {
-  if (!input.actor || !input.locationAccess?.canViewLimitedData) {
+  if (!input.actor || !canUseStaffCalendar(input.actor) || !input.locationAccess?.canViewLimitedData) {
     return false;
   }
 

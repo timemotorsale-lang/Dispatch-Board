@@ -3139,3 +3139,18 @@
     color: rgba(255, 255, 255, .78);
   }
 }
+
+@media screen and (max-width: 430px) {
+  .scannerFullscreen .scannerToolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scannerFullscreen .scannerToolbar select {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .scannerFullscreen :is(.scannerToolbar button, .scannerToolbar select, footer button) {
+    min-height: 44px;
+  }
+}

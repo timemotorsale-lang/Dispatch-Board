@@ -5,6 +5,21 @@ import { ServiceDocumentWorkflow, type WorkflowDocument } from "@/features/inven
 const estimate: WorkflowDocument = { id: "doc-1", sourceId: "estimate-1", kind: "ESTIMATE", sha256: "proof", templateVersion: "v1", content: { title: "Official repair estimate", number: "RO-1 / v1", issuedAt: "2026-10-28T12:00:00Z", identity: { customer: "Customer", store: "Time Motor Sales", address: "Store address", timezone: "America/Chicago", vehicle: "Actual vehicle", vin: "VIN", vehicleNumber: "VEH-1", concern: "Door glass", repairOrderNumber: "RO-1" }, lines: [], notes: [] } };
 
 describe("single document workflow", () => {
+  it("does not mark approval or invoice stages complete for a pre-invoice repair deposit", () => {
+    const deposit = { ...estimate, kind: "DEPOSIT", content: { ...estimate.content, title: "Repair deposit", receipt: { invoiceNumber: "RO-1", referenceLabel: "Repair order", balanceLabel: "Unapplied deposit", kind: "DEPOSIT", amountCents: 2500, balanceCents: 2500, method: "CASH", reference: "Cashier record" } } };
+    const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[deposit]} selectedId={deposit.id} />);
+    expect(html).toContain("Repair deposit record"); expect(html).toContain("Unapplied deposit"); expect(html).toContain("Repair order"); expect(html).not.toContain('aria-label="Document progress"'); expect(html).not.toContain("Invoice adjustment"); expect(html).toContain(">Print</button>"); expect(html).toContain(">Save PDF</a>");
+  });
+  it("shows a safe exact-selection fallback rather than crashing or selecting another document", () => {
+    const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[estimate]} selectedId="missing" />);
+    expect(html).toContain("Document unavailable"); expect(html).toContain("Open document history"); expect(html).not.toContain(">Print</button>");
+  });
+  it("keeps closed historical estimates printable without offering approval or corrections", () => {
+    const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[estimate]} selectedId={estimate.id} readOnlyReason="This repair order is closed. Saved documents remain printable." />);
+    expect(html).toContain("Saved documents remain printable");
+    expect(html).toContain(">Print</button>"); expect(html).toContain(">Save PDF</a>");
+    expect(html).not.toContain("Record customer approval"); expect(html).not.toContain("Correct estimate details"); expect(html).not.toContain("Customer details &amp; charges");
+  });
   it("opens the branded estimate with print and one next action", () => {
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[estimate]} selectedId={estimate.id} />);
     expect(html).toContain("Repair Estimate");
@@ -26,10 +41,17 @@ describe("single document workflow", () => {
     expect(html).toContain("Service Advisor");
     expect(html).toContain("Oct 29, 2026");
   });
-  it("offers invoice conversion only after a matching accepted approval", () => {
+  it("shows the signature line on the estimate and leaves it off the invoice", () => {
+    const content = { ...estimate.content, totals: { subtotalCents: 22563, discountCents: 0, taxCents: 1120, totalCents: 23683 } };
+    expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[{ ...estimate, content }]} selectedId={estimate.id} />)).toContain("Customer / authorized representative signature");
+    expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro-1" documents={[{ ...estimate, kind: "INVOICE", content: { ...content, title: "Final Service Invoice" } }]} selectedId={estimate.id} />)).not.toContain("Customer / authorized representative signature");
+  });
+  it("continues the same repair order after a matching accepted approval", () => {
     const approval: WorkflowDocument = { ...estimate, id: "decision-1", sourceId: "approval-1", kind: "AUTHORIZATION", content: { ...estimate.content, decision: { disposition: "ACCEPTED", actor: "Customer", channel: "IN_PERSON", approvedLineKeys: [], declinedLineKeys: [], undecidedLineKeys: [] }, notes: ["Source estimate estimate-1, version 1;"] } };
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[approval, estimate]} selectedId={estimate.id} />);
-    expect(html).toContain("Convert to invoice");
+    expect(html).toContain("Continue repair");
+    expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1"');
+    expect(html).toContain("Review invoice requirements");
     const unrelated = { ...approval, content: { ...approval.content, notes: ["Source estimate old-estimate, version 1;"] } };
     expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[unrelated, estimate]} selectedId={estimate.id} />)).toContain("Record customer approval");
     const revoked = { ...approval, id: "revoked", content: { ...approval.content, decision: { ...approval.content.decision!, disposition: "REVOKED" } } };

@@ -47,4 +47,4 @@ export function financialEntryError(entries: DealFinancialEntry[], proposed: Pic
   return proposed.amountCents !== original.amountCents ? "A reversal must match the full original amount." : original.kind === "PAYMENT" && refunds.length ? "Reverse its recorded refunds before reversing this payment." : null;
 }
 export type DealMilestone = { state: "VERIFIED" | "NOT_REQUIRED" | "PENDING"; reference: string; reason: string; actorName: string; at: string };
-export type DealWorkIndicators = { canEdit: boolean; ageDays: number; soldAgeDays: number; unattended: boolean; overdue: boolean; returnDueAt: string | null; alerts: string[]; funding: DealMilestone | null; delivery: DealMilestone | null; financials: ReturnType<typeof summarizeDealFinancials> | null };
+export type DealWorkIndicators = { canEdit: boolean; ageDays: number; soldAgeDays: number; unattended: boolean; overdue: boolean; returnDueAt: string | null; alerts: string[]; funding: DealMilestone | null; delivery: DealMilestone | null; title?: DealMilestone | null; financials: ReturnType<typeof summarizeDealFinancials> | null };

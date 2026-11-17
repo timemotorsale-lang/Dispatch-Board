@@ -194,6 +194,38 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  document-reader:
+    logging: *bounded-logs
+    image: dispatch-board-tooling:${APP_VERSION:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: tooling
+    restart: unless-stopped
+    init: true
+    user: node
+    command: ["npm", "run", "documents:worker"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
+      DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT: /app/data/document-library
+      DOCUMENT_LIBRARY_ORGANIZATION_ID: ${DOCUMENT_LIBRARY_ORGANIZATION_ID:-org-time-motor-sales}
+      DOCUMENT_TEXT_PDF_RENDERER_PATH: /usr/bin/pdftoppm
+      DOCUMENT_TEXT_OCR_CACHE_PATH: /tmp/tesseract-cache
+      APP_RELEASE_SHA: ${RELEASE_SHA:-unversioned}
+      TZ: ${APP_TIMEZONE:-America/Chicago}
+    volumes:
+      - document_library_data:/app/data/document-library
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - backend
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   backup:
     logging: *bounded-logs
     image: postgres:17-bookworm

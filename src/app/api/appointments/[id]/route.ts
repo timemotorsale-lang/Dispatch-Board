@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getCalendarUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { getAppointmentReadModelById } from "@/server/services/appointment-read-service";
 
 type AppointmentDetailRouteContext = {

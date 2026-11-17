@@ -1,3 +1,4 @@
+import { assertCurrentRepairAuthorization } from "@/lib/repair-authorization-current";
 import { checkReconPurchaseApproval } from "./procurement-budget";
 import { serviceInvoiceBalance } from "@/lib/service-billing";
 import { serviceInvoiceCandidate, assertCurrentInvoicePackage } from "./invoice-candidate";
@@ -6,7 +7,7 @@ import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { assertPartStockLocationWritable } from "@/server/parts-ledger/count-freeze";
-import { assertIndependentPartsApproval, type PurchaseLine, type ReceiptLine, type TransferLine } from "./domain";
+import { assertIndependentPartsApproval, normalizePurchaseTransition, receiptLineConsumedQuantities, type PurchaseLine, type ReceiptLine, type ReceivedPartOutcome, type TransferLine } from "./domain";
 import { assertPurchaseOrderDuplicateGate, type PurchaseOrderDuplicateGateFact } from "./purchase-order-control";
 
 type StockMovement = {
@@ -49,10 +50,45 @@ function total(lines: PurchaseLine[]) {
   return lines.reduce((sum, line) => sum + line.quantity * line.unitCostCents, 0);
 }
 
+const purchaseApprovalCode = "PARTS_PURCHASE_APPROVAL_REQUIRED";
+
+async function purchaseApprovalRequired(database: Pick<AggregateTx, "vehicleOperationsFeatureFlag">, organizationId: string) {
+  const policy = await database.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId, locationId: null, code: purchaseApprovalCode }, select: { mode: true } });
+  return policy?.mode === "GENERAL";
+}
+
 export function createServiceClosePartsRepository(database: PrismaClient = prisma) {
   return {
-    commandReceipt(organizationId: string, commandType: string, idempotencyKey: string) {
-      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType, idempotencyKey } }, select: { expectedVersion: true } });
+    purchaseApprovalRequired(organizationId: string) {
+      return purchaseApprovalRequired(database, organizationId);
+    },
+    setPurchaseApprovalPolicy(command: EnterpriseCommandCommitInput, required: boolean) {
+      return executeAggregateMutation(database, command, "vehicle-operations.parts", async tx => {
+        const previous = await tx.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId: command.organizationId, locationId: null, code: purchaseApprovalCode } });
+        const mode = required ? "GENERAL" : "OFF";
+        if (previous) {
+          await tx.vehicleOperationsFeatureFlag.update({ where: { id: previous.id }, data: { mode, updatedByUserId: command.actorUserId, version: { increment: 1 } } });
+        } else {
+          await tx.vehicleOperationsFeatureFlag.create({ data: { id: command.subjectId, organizationId: command.organizationId, code: purchaseApprovalCode, mode, allowedUserIds: [], updatedByUserId: command.actorUserId } });
+        }
+        return { previous, result: { purchaseApprovalRequired: required } };
+      });
+    },
+    async receivedPartSite(organizationId: string, receiptId: string, repairOrderId: string) {
+      const receipt = await database.partReceipt.findFirst({
+        where: { id: receiptId, organizationId, purchaseOrder: { requisition: { demand: { repairOrderId } } } },
+        select: { purchaseOrder: { select: { locationId: true } } },
+      });
+      return receipt?.purchaseOrder ?? null;
+    },
+    demandSite(organizationId: string, id: string) {
+      return database.repairPartDemand.findFirst({ where: { organizationId, id }, select: { repairOrder: { select: { id: true, locationId: true } } } });
+    },
+    requisitionSite(organizationId: string, id: string) {
+      return database.partRequisition.findFirst({ where: { organizationId, id }, select: { id: true, demand: { select: { repairOrder: { select: { id: true, locationId: true } } } } } });
+    },
+    commandReceipt(organizationId: string, commandType: string, idempotencyKey: string, domain: EnterpriseCommandCommitInput["domain"] = "SHOP_OPERATIONS") {
+      return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain, commandType, idempotencyKey } }, select: { expectedVersion: true, subjectId: true, locationId: true } });
     },
     async aggregateVersion(organizationId: string, domain: "SHOP_OPERATIONS" | "PARTS_OPERATIONS", subjectType: string, subjectId: string) {
       const row = await database.enterpriseAggregateVersion.findUnique({ where: { organizationId_domain_subjectType_subjectId: { domain, organizationId, subjectId, subjectType } }, select: { version: true } });
@@ -83,7 +119,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               }
             },
             invoicePackages: { orderBy: { version: "desc" }, take: 3 },
-            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true } },
+            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true, status: true, partsRequired: true, executionBlockerReason: true, partCustodyEvents: { select: { partId: true, type: true, quantity: true } }, partDemands: { select: { partId: true, status: true, quantityRequired: true, quantityReserved: true } } } },
             vendorWorks: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { updatedAt: "desc" }, take: 3 },
             closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
             deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },
@@ -118,6 +154,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               select: {
                 demand: {
                   select: {
+                    id: true,
                     repairOrder: { select: { id: true, repairOrderNumber: true } },
                   },
                 },
@@ -262,7 +299,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     createRequisition(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; demandId: string; quantity: number; reason: string; requiredAt: Date }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
-        const demand = await tx.repairPartDemand.findFirst({ where: { id: data.demandId, organizationId: command.organizationId, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, include: { part: { include: { vendorOffers: { where: { vendor: { status: "ACTIVE" }, effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, include: { vendor: true }, orderBy: [{ unitCostCents: "asc" }, { estimatedArrivalAt: "asc" }] } } } } });
+        const demand = await tx.repairPartDemand.findFirst({ where: { id: data.demandId, organizationId: command.organizationId, status: { in: ["OPEN", "PARTIALLY_RESERVED"] }, repairOrder: { locationId: command.locationId ?? undefined } }, include: { part: { include: { vendorOffers: { where: { vendor: { status: "ACTIVE" }, effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, include: { vendor: true }, orderBy: [{ unitCostCents: "asc" }, { estimatedArrivalAt: "asc" }] } } } } });
         if (!demand) throw new Error("Open part demand was not found.");
         const comparison = demand.part.vendorOffers.map((offer) => ({ availableQuantity: offer.availableQuantity, estimatedArrivalAt: offer.estimatedArrivalAt, offerId: offer.id, reliabilityBasisPoints: offer.vendor.reliabilityBasisPoints, returnTerms: offer.returnTerms, unitCostCents: offer.unitCostCents, vendorCode: offer.vendor.code, warrantyTerms: offer.warrantyTerms }));
         const record = await tx.partRequisition.create({ data: { comparisonSnapshot: toJson(comparison), createdByUserId: data.createdByUserId, demandId: demand.id, id: command.subjectId, organizationId: command.organizationId, quantity: data.quantity, reason: data.reason, requiredAt: data.requiredAt } });
@@ -272,14 +309,14 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     selectOffer(command: EnterpriseCommandCommitInput, requisitionId: string, data: { offerId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
-        const requisition = await tx.partRequisition.findFirst({ where: { id: requisitionId, organizationId: command.organizationId }, include: { demand: true, selectedOffer: true } });
+        const requisition = await tx.partRequisition.findFirst({ where: { id: requisitionId, organizationId: command.organizationId, demand: { repairOrder: { locationId: command.locationId ?? undefined } } }, include: { demand: true, selectedOffer: true } });
         if (!requisition) throw new Error("Parts requisition was not found.");
         const offer = await tx.partVendorOffer.findFirst({ where: { id: data.offerId, organizationId: command.organizationId, partId: requisition.demand.partId, vendor: { status: "ACTIVE" } } });
         if (!offer) throw new Error("Eligible vendor offer was not found.");
         // Retrying a multi-step purchase is safe when the requisition was already
-        // selected for this same vendor. This prevents a partial prior save from
+        // selected for this exact offer. This prevents a partial prior save from
         // surfacing as a false missing-requisition error.
-        if (requisition.status === "SELECTED" && requisition.selectedOffer?.vendorId === offer.vendorId) {
+        if (requisition.status === "SELECTED" && requisition.selectedOfferId === offer.id) {
           return { previous: requisition, result: { id: requisition.id, selectedOfferId: requisition.selectedOfferId, status: requisition.status, version: requisition.version } };
         }
         if (requisition.status !== "SOURCING") throw new Error("This parts requisition has already advanced. Refresh the parts board before continuing.");
@@ -295,7 +332,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         const linePartIds = [...new Set(data.lines.map((line) => line.partId))];
         let allowedDemandIds: string[] = [];
         if (data.requisitionId) {
-          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId } } });
+          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId }, demand: { repairOrder: { locationId: data.locationId } } } });
           if (!requisition) throw new Error("Selected requisition does not match this vendor.");
           allowedDemandIds = [requisition.demandId];
         }
@@ -303,10 +340,10 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           tx.repairPartDemand.findMany({ where: { organizationId: command.organizationId, partId: { in: linePartIds }, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, select: { id: true, partId: true, repairOrder: { select: { repairOrderNumber: true } } } }),
           tx.partPurchaseOrder.findMany({ where: { organizationId: command.organizationId, status: { in: ["DRAFT", "APPROVED", "ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED"] } }, select: { id: true, lines: true, purchaseOrderNumber: true, status: true } }),
           tx.partReceipt.findMany({ where: { organizationId: command.organizationId }, orderBy: { receivedAt: "desc" }, take: 250, select: { id: true, lines: true, purchaseOrder: { select: { purchaseOrderNumber: true } } } }),
-          tx.partCustodyEvent.findMany({ where: { organizationId: command.organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["ISSUE", "INSTALL"] } }, select: { sourceId: true, sourceType: true } }),
+          tx.partCustodyEvent.findMany({ where: { organizationId: command.organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["ISSUE", "INSTALL"] } }, select: { sourceId: true, quantity: true } }),
           tx.partRecoveryCase.findMany({ where: { organizationId: command.organizationId, partId: { in: linePartIds }, status: { notIn: ["CREDITED", "WRITTEN_OFF"] } }, select: { id: true, partId: true, sourceReference: true, status: true, type: true } }),
         ]);
-        const issuedReceiptLines = new Set(custodyEvents.map((event) => `${event.sourceType}:${event.sourceId}`));
+        const consumedByReceiptLine = receiptLineConsumedQuantities(custodyEvents);
         const facts: PurchaseOrderDuplicateGateFact[] = [
           ...activeDemands.map((demand) => ({ id: demand.id, label: `${demand.repairOrder.repairOrderNumber}`, partId: demand.partId, type: "ACTIVE_DEMAND" as const })),
           ...openPurchaseOrders.flatMap((order) => (Array.isArray(order.lines) ? order.lines : []).flatMap((line) => {
@@ -316,18 +353,22 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           ...receipts.flatMap((receipt) => (Array.isArray(receipt.lines) ? receipt.lines : []).flatMap((line, index) => {
             const partId = line && typeof line === "object" && "partId" in line && typeof line.partId === "string" ? line.partId : "";
             const sourceId = `${receipt.id}:${index}`;
-            return linePartIds.includes(partId) && !issuedReceiptLines.has(`PART_RECEIPT_LINE:${sourceId}`) ? [{ id: sourceId, label: `${receipt.purchaseOrder.purchaseOrderNumber} receipt line ${index + 1}`, partId, type: "RECEIVED_UNISSUED" as const }] : [];
+            const goodQuantity = line && typeof line === "object" && "quantity" in line && typeof line.quantity === "number"
+              ? line.quantity - ("damagedQuantity" in line && typeof line.damagedQuantity === "number" ? line.damagedQuantity : 0)
+              : null;
+            return linePartIds.includes(partId) && (goodQuantity === null || goodQuantity > (consumedByReceiptLine.get(sourceId) ?? 0)) ? [{ id: sourceId, label: `${receipt.purchaseOrder.purchaseOrderNumber} receipt line ${index + 1}`, partId, type: "RECEIVED_UNISSUED" as const }] : [];
           })),
           ...recoveries.map((recovery) => ({ id: recovery.id, label: `${recovery.type} ${recovery.sourceReference} (${recovery.status})`, partId: recovery.partId, type: "RECOVERY_OPEN" as const })),
         ];
         assertPurchaseOrderDuplicateGate({ allowedDemandIds, duplicateOverrideReason: data.duplicateOverrideReason, facts, lines: data.lines });
         if (data.requisitionId) {
-          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId } } });
+          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId }, demand: { repairOrder: { locationId: data.locationId } } } });
           if (!requisition) throw new Error("Selected requisition does not match this vendor.");
           await tx.partRequisition.update({ where: { id: requisition.id }, data: { status: "ORDERED", version: { increment: 1 } } });
         }
         const reason = data.duplicateOverrideReason ? `${data.reason} Duplicate-control override: ${data.duplicateOverrideReason}` : data.reason;
-        const record = await tx.partPurchaseOrder.create({ data: { createdByUserId: data.createdByUserId, id: command.subjectId, lines: toJson(data.lines), locationId: data.locationId, orderedTotalCents: total(data.lines), organizationId: command.organizationId, purchaseOrderNumber: data.purchaseOrderNumber, reason, requisitionId: data.requisitionId, vendorId: data.vendorId } });
+        const approvalRequired = await purchaseApprovalRequired(tx, command.organizationId);
+        const record = await tx.partPurchaseOrder.create({ data: { createdByUserId: data.createdByUserId, id: command.subjectId, lines: toJson(data.lines), locationId: data.locationId, orderedTotalCents: total(data.lines), organizationId: command.organizationId, purchaseOrderNumber: data.purchaseOrderNumber, reason, requisitionId: data.requisitionId, vendorId: data.vendorId, status: approvalRequired ? "DRAFT" : "ISSUED", issuedAt: approvalRequired ? null : new Date() } });
         return { result: { id: record.id, orderedTotalCents: record.orderedTotalCents, purchaseOrderNumber: record.purchaseOrderNumber, status: record.status } };
       });
     },
@@ -336,7 +377,9 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId } });
         if (!record) throw new Error("Purchase order was not found.");
-        if (data.toStatus === "APPROVED") assertIndependentPartsApproval("PURCHASE_APPROVAL", record.createdByUserId, command.actorUserId, { allowFinalAuthoritySelfApproval: data.allowFinalAuthoritySelfApproval === true });
+        normalizePurchaseTransition({ ...data, idempotencyKey: command.idempotencyKey, reason: command.reason, occurredAt: data.occurredAt.toISOString() }, record.status);
+        if (data.toStatus === "APPROVED" && !data.allowFinalAuthoritySelfApproval) throw new Error("Only a manager can approve a restricted purchase order.");
+        if (record.status === "DRAFT" && data.toStatus === "ISSUED" && await purchaseApprovalRequired(tx, command.organizationId)) throw new Error("Manager approval is required before issuing this purchase order.");
         const procurementBudget = data.toStatus === "APPROVED" ? await checkReconPurchaseApproval(tx, {
           organizationId: command.organizationId, purchaseOrderId: record.id,
           requisitionId: record.requisitionId, managerAuthority: data.allowFinalAuthoritySelfApproval === true,
@@ -356,13 +399,26 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       });
     },
 
-    receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receiptId: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
+    receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { strictRemaining?: boolean; invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receiptId: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
-        const order = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId, status: { in: ["ACKNOWLEDGED", "PARTIALLY_RECEIVED"] } }, include: { receipts: true } });
-        if (!order) throw new Error("Acknowledged purchase order was not found.");
+        const approvalRequired = await purchaseApprovalRequired(tx, command.organizationId);
+        const order = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId }, include: { receipts: true } });
+        if (!order || !["DRAFT", "APPROVED", "ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED"].includes(order.status)) throw new Error("Open purchase order was not found.");
+        if (approvalRequired && order.status === "DRAFT") throw new Error("Manager approval is required before receiving this purchase order.");
         const stockLocation = await tx.partStockLocation.findFirst({ where: { id: data.stockLocationId, organizationId: command.organizationId, locationId: order.locationId, isActive: true } });
         if (!stockLocation) throw new Error("Receipt stock location must be active at the purchase-order location.");
         const ordered = order.lines as PurchaseLine[], priorLines = order.receipts.flatMap((item) => item.lines as ReceiptLine[]);
+        if (data.strictRemaining) {
+          const parts = new Set<string>();
+          for (const line of data.lines) {
+            const matching = ordered.filter((item) => item.partId === line.partId);
+            const received = priorLines.filter((item) => item.partId === line.partId).reduce((sum, item) => sum + item.quantity, 0);
+            if (parts.has(line.partId) || matching.length !== 1 || line.quantity > matching[0].quantity - received) {
+              throw new Error("Receipt must contain one line per ordered part and stay within the remaining quantity.");
+            }
+            parts.add(line.partId);
+          }
+        }
         const receipt = await tx.partReceipt.create({ data: { id: data.receiptId, invoiceReference: data.invoiceReference, lines: toJson(data.lines), organizationId: command.organizationId, packingSource: data.packingSource, purchaseOrderId: order.id, reason: data.reason, receivedAt: data.receivedAt, receivedByUserId: data.receivedByUserId, stockLocationId: data.stockLocationId } });
         for (const [index, line] of data.lines.entries()) {
           await moveStock(tx, command, { actorUserId: data.receivedByUserId, movementType: "RECEIPT", occurredAt: data.receivedAt, partId: line.partId, quantityDelta: line.quantity - line.damagedQuantity, reason: data.reason, sourceId: `${receipt.id}:${index}`, sourceType: "PART_RECEIPT_LINE", stockLocationId: data.stockLocationId, unitCostCents: line.unitCostCents });
@@ -384,6 +440,112 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         if (!record) throw new Error("Open receiving discrepancy was not found.");
         const next = await tx.partReceivingDiscrepancy.update({ where: { id: record.id }, data: { resolution: data.resolution, resolvedAt: data.occurredAt, resolvedByUserId: data.resolvedByUserId, status: "RESOLVED", version } });
         return { previous: record, result: { id: next.id, status: next.status, version } };
+      });
+    },
+
+    recordReceivedPartOutcome(command: EnterpriseCommandCommitInput, data: ReceivedPartOutcome) {
+      return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
+        const organizationId = command.organizationId;
+        const receipt = await tx.partReceipt.findFirst({
+          where: {
+            id: data.receiptId, organizationId,
+            purchaseOrder: { organizationId, locationId: command.locationId!, requisition: { demand: { repairOrder: { id: data.repairOrderId, organizationId, locationId: command.locationId!, closedAt: null, stage: { notIn: ["CLOSED", "CANCELLED"] } } } } },
+            stockLocation: { organizationId, locationId: command.locationId!, isActive: true, type: { not: "DAMAGED" } },
+          },
+          include: { purchaseOrder: { select: { vendorId: true } } },
+        });
+        if (!receipt) throw new Error("An open repair order and its receipt at an active receiving location are required.");
+        if (data.occurredAt < receipt.receivedAt) throw new Error("Outcome time cannot precede receiving.");
+        const line = Array.isArray(receipt.lines) ? (receipt.lines as ReceiptLine[])[data.lineIndex] : undefined;
+        if (!line?.partId || !Number.isInteger(line.quantity) || line.quantity < 1 || line.damagedQuantity > 0) {
+          throw new Error("Select an undamaged receipt line with a positive quantity.");
+        }
+
+        const source = `${receipt.id}:${data.lineIndex}`;
+        // The suffix allows separate partial outcomes while preserving the exact receipt-line reference.
+        const custodySourceId = `${source}:${command.subjectId}`;
+        const returnPrefix = `RO:${data.repairOrderId}|RECEIPT:${source}|`;
+        const [legacyCustody, used, returns, stock] = await Promise.all([
+          tx.partCustodyEvent.findFirst({
+            where: { organizationId, sourceType: "PART_CUSTODY", sourceId: source, type: { in: ["INSTALL", "ISSUE"] } },
+            select: { id: true },
+          }),
+          tx.partCustodyEvent.aggregate({
+            where: { organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["INSTALL", "ISSUE"] }, OR: [{ sourceId: source }, { sourceId: { startsWith: `${source}:` } }] },
+            _sum: { quantity: true },
+          }),
+          tx.partRecoveryCase.aggregate({
+            where: { organizationId, type: "VENDOR_RETURN", OR: [{ sourceReference: source }, { sourceReference: { startsWith: `${source}:` } }, { sourceReference: { startsWith: returnPrefix } }] },
+            _sum: { quantity: true },
+          }),
+          tx.partStockBalance.findUnique({ where: { partId_stockLocationId: { partId: line.partId, stockLocationId: receipt.stockLocationId } } }),
+        ]);
+        if (legacyCustody) throw new Error("This receipt line has legacy custody records. Reconcile its issue and installation history before recording another outcome.");
+        const remaining = line.quantity - (used._sum.quantity ?? 0) - (returns._sum.quantity ?? 0);
+        if (data.quantity > remaining) throw new Error("Quantity exceeds the remaining undisposed units on this receipt line.");
+        if (!stock || (data.outcome === "RETURN" && data.quantity > stock.onHandQuantity - stock.allocatedQuantity)) {
+          throw new Error("The receipt bin does not have enough unallocated stock.");
+        }
+
+        if (data.outcome === "RETURN") {
+          const record = await tx.partRecoveryCase.create({ data: {
+            id: command.subjectId, organizationId, createdByUserId: command.actorUserId,
+            partId: line.partId, vendorId: receipt.purchaseOrder.vendorId, quantity: data.quantity,
+            type: "VENDOR_RETURN", sourceReference: `${returnPrefix}${command.subjectId}`, deadlineAt: data.deadlineAt, expectedCreditCents: 0, reason: data.reason,
+          } });
+          return { result: { id: record.id, outcome: data.outcome, status: record.status, remainingQuantity: remaining - data.quantity } };
+        }
+
+        const job = await tx.repairJob.findFirst({
+          where: { id: data.repairJobId, organizationId, repairOrderId: data.repairOrderId, status: { notIn: ["CANCELLED", "QC_PASSED"] } },
+        });
+        if (!job) throw new Error("Select an active repair job on this repair order.");
+        const [authorization, estimate] = await Promise.all([
+          tx.repairAuthorization.findFirst({ where: { organizationId, repairOrderId: data.repairOrderId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }),
+          tx.repairEstimateVersion.findFirst({ where: { organizationId, repairOrderId: data.repairOrderId }, orderBy: { version: "desc" }, select: { id: true } }),
+        ]);
+        assertCurrentRepairAuthorization(job, authorization);
+        if (!estimate || estimate.id !== job.estimateVersionId) throw new Error("Authorize the current estimate version before recording installed parts.");
+        const reservations = await tx.partReservation.findMany({
+          where: { organizationId, partId: line.partId, stockLocationId: receipt.stockLocationId, status: "ACTIVE",
+            demand: { repairOrderId: data.repairOrderId, repairJobId: job.id, status: { in: ["RESERVED", "PARTIALLY_RESERVED"] } } },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        });
+        const reservedQuantity = Math.min(data.quantity, reservations.reduce((total, reservation) => total + reservation.quantity, 0));
+        if (data.quantity - reservedQuantity > stock.onHandQuantity - stock.allocatedQuantity) {
+          throw new Error("This job does not have enough reserved or available stock in the receipt bin.");
+        }
+        let remainingReserved = reservedQuantity;
+        for (const reservation of reservations) {
+          if (remainingReserved === 0) break;
+          const usedQuantity = Math.min(reservation.quantity, remainingReserved);
+          if (usedQuantity === reservation.quantity) {
+            await tx.partReservation.update({ where: { id: reservation.id }, data: { status: "CONSUMED", releasedAt: data.occurredAt } });
+          } else {
+            await tx.partReservation.update({ where: { id: reservation.id }, data: { quantity: { decrement: usedQuantity } } });
+            await tx.partReservation.create({ data: {
+              organizationId, demandId: reservation.demandId, partId: reservation.partId, stockLocationId: reservation.stockLocationId,
+              quantity: usedQuantity, status: "CONSUMED", releasedAt: data.occurredAt,
+              actorUserId: command.actorUserId, reason: data.reason, correlationId: command.correlationId,
+            } });
+          }
+          const demand = await tx.repairPartDemand.update({ where: { id: reservation.demandId }, data: { quantityReserved: { decrement: usedQuantity }, version: { increment: 1 } } });
+          await tx.repairPartDemand.update({ where: { id: demand.id }, data: { status: demand.quantityReserved === 0 ? "RELEASED" : "PARTIALLY_RESERVED" } });
+          remainingReserved -= usedQuantity;
+        }
+        const unitCostCents = stock.averageCostCents;
+        await moveStock(tx, command, {
+          actorUserId: command.actorUserId, allocatedDelta: -reservedQuantity, movementType: "INSTALL", occurredAt: data.occurredAt,
+          partId: line.partId, quantityDelta: -data.quantity, reason: data.reason, sourceId: custodySourceId,
+          sourceType: "PART_RECEIPT_LINE", stockLocationId: receipt.stockLocationId, unitCostCents,
+        });
+        const record = await tx.partCustodyEvent.create({ data: {
+          id: command.subjectId, organizationId, actorUserId: command.actorUserId, correlationId: command.correlationId,
+          type: "INSTALL", partId: line.partId, repairJobId: job.id, fromStockLocationId: receipt.stockLocationId,
+          quantity: data.quantity, unitCostCents, sourceId: custodySourceId, sourceType: "PART_RECEIPT_LINE",
+          reason: data.reason, evidence: toJson(data.evidence), occurredAt: data.occurredAt,
+        } });
+        return { result: { id: record.id, outcome: data.outcome, status: "INSTALLED", remainingQuantity: remaining - data.quantity } };
       });
     },
 

@@ -28,12 +28,12 @@ export function catalogJobRequirements(key: string, supplied?: Partial<CatalogRe
   };
 }
 
-type PartLine = { key: string; type: string; description: string; laborLineKey?: string };
+type PartLine = { key: string; type: string; description: string; laborLineKey?: string; partNumber?: string };
 type Demand = { id: string; repairJobId?: string | null; repairJobReference?: string | null; status?: string };
 
-export function allocateApprovedJobParts(lines: PartLine[], authorizedKeys: string[], demands: Demand[], existingLaborKeys: string[] = []) {
+export function allocateApprovedJobParts(lines: PartLine[], authorizedKeys: string[], demands: Demand[], existingLaborKeys: string[] = [], allowDescriptionOnly = false) {
   const labor = lines.filter(line => line.type === "LABOR" && authorizedKeys.includes(line.key));
-  const parts = lines.filter(line => line.type === "PART" && authorizedKeys.includes(line.key));
+  const parts = lines.filter(line => line.type === "PART" && authorizedKeys.includes(line.key) && (!allowDescriptionOnly || line.partNumber?.trim()));
   const allocations = new Map(labor.map(line => [line.key, { partDemandIds: [] as string[], partsRequired: catalogJobRequirements(line.key).partsRequired || parts.some(part => part.laborLineKey === line.key) }]));
   for (const demand of demands.filter(item => !item.repairJobId && !["CANCELLED", "RELEASED"].includes(item.status ?? ""))) {
     const matches = labor.filter(line => demand.repairJobReference === line.key || demand.repairJobReference === line.description);

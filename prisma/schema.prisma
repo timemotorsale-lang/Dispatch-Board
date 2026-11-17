@@ -72,6 +72,7 @@ model ServiceDocument {
 }
 
 model ServiceInvoice {
+  depositTransfers ServiceRepairDepositEntry[]
   id               String   @id
   organizationId   String
   repairOrderId    String
@@ -96,6 +97,7 @@ model ServiceInvoice {
 }
 
 model ServiceInvoiceEntry {
+  depositTransfer ServiceRepairDepositEntry?
   id              String   @id @default(cuid())
   organizationId  String
   invoiceId       String
@@ -117,6 +119,33 @@ model ServiceInvoiceEntry {
 model ServiceInvoiceSequence {
   organizationId String @id
   nextNumber     Int
+}
+
+model ServiceRepairDepositEntry {
+  id              String   @id
+  organizationId  String
+  repairOrderId   String
+  kind            String
+  amountCents     Int
+  method          String
+  reference       String
+  relatedEntryId  String?
+  invoiceId       String?
+  invoiceEntryId  String?  @unique
+  evidence        Json
+  occurredAt      DateTime
+  createdByUserId String
+  reason          String
+  createdAt       DateTime @default(now())
+  repairOrder     RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  invoice         ServiceInvoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  invoiceEntry    ServiceInvoiceEntry? @relation(fields: [invoiceEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relatedEntry    ServiceRepairDepositEntry? @relation("DepositHistory", fields: [relatedEntryId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  relatedEntries ServiceRepairDepositEntry[] @relation("DepositHistory")
+
+  @@unique([organizationId, repairOrderId, kind, reference], map: "ServiceRepairDepositEntry_org_ro_kind_reference_key")
+  @@index([organizationId, repairOrderId, createdAt], map: "ServiceRepairDepositEntry_org_ro_createdAt_idx")
+  @@index([relatedEntryId])
 }
 
 enum BusinessDay {
@@ -2014,7 +2043,96 @@ model DiagnosticWorkspaceDraft {
   @@index([userId, updatedAt])
 }
 
+model PersonalCalendar {
+  id     String                  @id @default(cuid())
+  userId String
+  name   String
+  user   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events PersonalCalendarEvent[]
+
+  @@unique([id, userId])
+  @@unique([userId, name])
+}
+
+model PersonalCalendarEvent {
+  id         String            @id @default(cuid())
+  userId     String
+  calendarId String?
+  title      String
+  startsAt   DateTime
+  endsAt     DateTime
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendar   PersonalCalendar? @relation(fields: [calendarId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@index([userId, startsAt])
+}
+
+model PersonalCalendarTask {
+  id          String    @id @default(cuid())
+  userId      String
+  requestId   String
+  title       String
+  notes       String    @default("")
+  localDate   String?
+  localTime   String?
+  completedAt DateTime?
+  archivedAt  DateTime?
+  starredAt   DateTime?
+  position    Int       @default(0)
+  deadline    String?
+  repeat      Json?
+  listId      String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list        PersonalTaskList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  occurrences PersonalTaskOccurrence[]
+
+  @@unique([userId, requestId])
+  @@index([userId, localDate])
+}
+
+model PersonalTaskList {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks  PersonalCalendarTask[]
+
+  @@unique([userId, name])
+}
+
+model PersonalTaskOccurrence {
+  taskId      String
+  localDate   String
+  completedAt DateTime @default(now())
+  task        PersonalCalendarTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, localDate])
+}
+
+model DispatchTaskRepeatBatch {
+  userId      String
+  requestId   String
+  fingerprint String
+  firstTaskId String?
+  taskCount   Int @default(0)
+  ongoing     Json?
+  nextDate    String?
+  lastAttemptAt DateTime?
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, requestId])
+  @@index([nextDate, lastAttemptAt])
+}
+
 model User {
+  dealsRestricted Boolean @default(false)
+  calendarRestricted Boolean @default(false)
+  dispatchTaskRepeatBatches DispatchTaskRepeatBatch[]
+  personalTaskLists PersonalTaskList[]
+  personalCalendarTasks PersonalCalendarTask[]
+  personalCalendars PersonalCalendar[]
+  personalCalendarEvents PersonalCalendarEvent[]
   autobodyDrafts AutobodyEstimateDraft[]
   dispatchPresence DispatchPresence?
   dispatchSentHandoffs DispatchHandoff[] @relation("DispatchSender")
@@ -2776,6 +2894,7 @@ model Location {
   appointments                       Appointment[]
   appointmentCommandLedgerEntries    AppointmentCommandLedger[]
   userAccess                         UserLocationAccess[]
+  repairPriorities                   RepairPriority[]
   resources                          SchedulableResource[]
   enterpriseAggregateVersions        EnterpriseAggregateVersion[]
   enterpriseCommandLedgerEntries     EnterpriseCommandLedger[]
@@ -3012,6 +3131,7 @@ model AppointmentAutomationExecutionEvent {
 }
 
 model Appointment {
+  repairPriorities                RepairPriority[]
   id                              String                                 @id @default(cuid())
   appointmentNumber               String                                 @unique
   organizationId                  String
@@ -3411,6 +3531,7 @@ model DocumentLibraryDocument {
   updatedAt              DateTime                           @updatedAt
   auditEvents            DocumentLibraryAuditEvent[]
   smartIntakeRecords     DocumentSmartIntakeRecord[]
+  readingJobs            DocumentReadingJob[]
   packetLinks            DocumentLibraryPacketDocument[]
   providerReferences     DocumentLibraryProviderReference[]
   versions               DocumentLibraryObjectVersion[]
@@ -3420,6 +3541,58 @@ model DocumentLibraryDocument {
   @@index([organizationId, legalHold, status])
   @@index([organizationId, updatedAt])
   @@index([storageProvider, storageReference])
+}
+
+model DocumentReadingJob {
+  id                 String @id @default(cuid())
+  organizationId     String
+  createdByUserId    String
+  purpose            String
+  checksumSha256     String
+  originalDocumentId String
+  fileName           String
+  contentType        String
+  pageCount          Int
+  status             String @default("QUEUED")
+  leaseToken         String?
+  leaseExpiresAt     DateTime?
+  attempts           Int @default(0)
+  lastError          String?
+  reading            Json?
+  review             Json?
+  reviewVersion      Int @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  completedAt        DateTime?
+  originalDocument   DocumentLibraryDocument @relation(fields: [originalDocumentId], references: [id], onDelete: Restrict)
+  pages              DocumentReadingPage[]
+  events             DocumentReadingEvent[]
+  @@unique([organizationId, createdByUserId, purpose, checksumSha256], map: "DocumentReadingJob_dedup_key")
+  @@index([organizationId, createdByUserId, purpose, updatedAt], map: "DocumentReadingJob_owner_idx")
+  @@index([status, leaseExpiresAt], map: "DocumentReadingJob_queue_idx")
+}
+
+model DocumentReadingPage {
+  id               String @id @default(cuid())
+  jobId            String
+  page             Int
+  text             String
+  method           String
+  warnings         Json
+  createdAt        DateTime @default(now())
+  job              DocumentReadingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@unique([jobId, page])
+}
+
+model DocumentReadingEvent {
+  id        String @id @default(cuid())
+  jobId     String
+  actorId   String
+  action    String
+  detail    Json
+  createdAt DateTime @default(now())
+  job       DocumentReadingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@index([jobId, createdAt])
 }
 
 model DocumentSmartIntakeRecord {
@@ -4948,6 +5121,7 @@ model ServiceIntakeReadinessSnapshot {
 }
 
 model RepairOrder {
+  depositEntries ServiceRepairDepositEntry[]
   autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]
   id                           String                              @id @default(cuid())
@@ -8009,6 +8183,33 @@ model WorkdayChecklistItem {
   @@index([workbookId, sourceType, sourceId])
 }
 
+model RepairPriority {
+  id              String   @id @default(cuid())
+  locationId      String
+  checklistItemId String
+  sourceKey       String
+  planDate        String
+  vehicle         String   @default("")
+  summary         String
+  nextAction      String   @default("")
+  blocker         String   @default("")
+  priority        Int      @default(2)
+  status          String   @default("READY")
+  durationMinutes Int?
+  ownerUserId     String?
+  taskId          String?
+  appointmentId   String?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  task            Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@unique([locationId, checklistItemId, sourceKey])
+  @@index([locationId, planDate, priority])
+}
+
 model WorkdayDailyFocusItem {
   dispatchPresences DispatchPresence[]
   id                     String                  @id @default(cuid())
@@ -8726,6 +8927,7 @@ model UnifiedCrmSavedView {
 model Task {
   collectionRepoCases RepossessionCase[] @relation("CollectionRepoTask")
   collectionTaskLink CollectionTaskLink? @relation("CollectionTaskLinkTask")
+  repairPriorities RepairPriority[]
   dispatchPresences DispatchPresence[]
   dispatchHandoffs DispatchHandoff[]
   id                         String                          @id @default(cuid())
@@ -11100,7 +11302,11 @@ model VendorBillingWorkReview {
   organizationId String
   vendorId String
   workJobId String
-  vehicleId String
+  vehicleId String?
+  identityBasis String @default("REGISTRY")
+  invoiceVehicleReference String?
+  identityReviewReason String?
+  identitySourceDocumentId String?
   repairOrderId String?
   approvedAmountCents Int
   accepted Boolean @default(false)

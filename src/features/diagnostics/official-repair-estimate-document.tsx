@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Printer, Send } from "lucide-react";
 import Link from "next/link";
+import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
@@ -53,13 +54,19 @@ export function OfficialRepairEstimateDocument({
   summary: SummaryItem[];
   vehicle: string;
 }) {
-  const workbenchHref = repairOrderId ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}&returnTo=${encodeURIComponent(returnTo)}` : returnTo;
+  const guideReturn = safeLaborGuideReturnTo(returnTo) ?? "/prototype/repair-explorer";
+  const attachDestination = new URL(guideReturn, "https://workspace.invalid");
+  attachDestination.searchParams.set("attachRepairOrder", "1");
+  const workbenchHref = repairOrderId
+    ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}&returnTo=${encodeURIComponent(guideReturn)}`
+    : `${attachDestination.pathname}${attachDestination.search}${attachDestination.hash}`;
 
   return <section className={styles.documentShell} aria-label="Official repair estimate document">
     <div className={styles.commandBar}>
-      <Link className={styles.commandLink} href={returnTo}><ArrowLeft size={15} />Return to labor guide</Link>
+      {isDraft && <Link className={styles.commandLink} href={guideReturn}><ArrowLeft size={15} />Return to labor guide</Link>}
       <button className={styles.commandPrimary} onClick={() => window.print()} type="button"><Printer size={15} />{isDraft ? "Print preliminary quote" : "Print official estimate"}</button>
-      <Link className={styles.commandLink} href={workbenchHref}><Send size={15} />Send to repair workbench</Link>
+      <Link className={styles.commandLink} href={workbenchHref}><Send size={15} />{repairOrderId ? "Continue in Repair Workbench" : "Select repair order"}</Link>
+      {!repairOrderId && <p className={styles.nextStep}>Next: select a repair order, then issue the estimate and request approval.</p>}
     </div>
 
     <article className={styles.document}>
@@ -128,6 +135,7 @@ export function OfficialRepairEstimateDocument({
           </dl>
         </div>
         <div className={styles.footerCard}>
+          {!isDraft && <div className={styles.signature} aria-label="Customer signature"><span>Customer / authorized representative signature</span><span>Date</span></div>}
           <h2>Operational release notes</h2>
           {reviewNotes ? <p>{reviewNotes}</p> : null}
           <ul>

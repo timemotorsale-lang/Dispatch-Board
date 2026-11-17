@@ -483,6 +483,7 @@ export function MobileCaptureTool() {
 
   return (
     <main className={styles.page} aria-labelledby="mobile-capture-title">
+      <Link href="/capture/documents">Read receipts, sales packets, titles, parts, transport and warranty documents</Link>
       <header className={styles.header}>
         <Link href={returnTo?.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") ? returnTo : "/"}>Back</Link>
         <Link href={MOBILE_HOME_HREF}>Mobile home</Link>

@@ -8,3 +8,13 @@ export function resumeBodyScope(content: BodyDraft, context: { repairOrderId: st
   if (content.repairOrderId === context.repairOrderId) return { content, fork: false };
   return { fork: true, content: { ...content, vehicleId: context.vehicleId, repairOrderId: context.repairOrderId, payer: context.payer, priorEstimateId: context.estimates[0]?.id ?? null, supplementReason: "", lines: content.lines.map(line => content.vehicleId ? line : { ...line, applicability: "" }) } };
 }
+
+export function matchingBodyRecovery(raw: string | null, recordId: string, savedFingerprint?: string) {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    return value?.recordId === recordId && value.content && typeof value.content === "object" && !Array.isArray(value.content) && JSON.stringify(value.content) !== savedFingerprint ? raw : null;
+  } catch {
+    return null;
+  }
+}

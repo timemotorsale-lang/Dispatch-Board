@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
 const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn(), count: vi.fn(), groupBy: vi.fn(), preserved: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ prisma: { dealDeskDraft: mocks, $transaction: (run: (db: unknown) => unknown) => run({ dealDeskDraft: mocks, vehicleUseBooking: { count: mocks.count }, salesDocumentJacket: { findFirst: mocks.preserved } }) } }));
+const identities = vi.hoisted(() => ({ customer: vi.fn(), vehicle: vi.fn(), context: vi.fn(), upsert: vi.fn(), lock: vi.fn() }));
+vi.mock("@/server/db/client", () => ({ prisma: { dealDeskDraft: mocks, $transaction: (run: (db: unknown) => unknown) => run({ dealDeskDraft: mocks, vehicleUseBooking: { count: mocks.count }, salesDocumentJacket: { findFirst: mocks.preserved }, $executeRaw: identities.lock, dealWorkflowContext: { findUnique: identities.context, upsert: identities.upsert } }) } }));
+vi.mock("@/server/deal-continuity/identities", () => ({ dealOrganization: () => "test-org", dealDocumentOrganization: () => "test-org", dealVehicle: identities.vehicle, dealCustomer: identities.customer }));
 vi.mock("@/server/document-library/storage-config", () => ({ resolveDocumentStorageRuntimeFromEnv: () => ({ organizationId: "test-org" }) }));
 import { archiveDuplicateDealDraft, listDealDrafts, listSavedDealLibrary, readDealDeskDraft, saveDealDeskDraft, sanitizeDealDraftSnapshot } from "@/server/sales-documents/deal-drafts";
 
@@ -42,6 +44,31 @@ describe("Saved deal draft controls", () => {
     const saved = await saveDealDeskDraft(actor, draft);
     expect(saved.snapshot).toEqual(draft.snapshot);
     expect(saved.ownerUserId).toBe(actor.id);
+  });
+  it("saves a selected vehicle before the customer is linked, then attaches both to the same draft", async () => {
+    const working = { ...draft, pathway: "lease-to-own", snapshot: { "desk:identity": { vehicleId: "vehicle-1", customerId: "" } } };
+    mocks.findUnique.mockResolvedValue(null);
+    mocks.create.mockImplementation(({ data }) => data);
+    identities.vehicle.mockResolvedValue({ inventoryUnitId: "inventory-1" });
+    const saved = await saveDealDeskDraft(actor, working);
+    expect(saved).toMatchObject({ id: working.id, customerId: null, snapshot: working.snapshot });
+    expect(identities.vehicle).toHaveBeenCalledWith(actor, "vehicle-1", expect.anything());
+    expect(identities.upsert).not.toHaveBeenCalled();
+    mocks.findUnique.mockResolvedValue({ ...saved, revision: 1 });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    identities.customer.mockResolvedValue({ name: "Shared customer" });
+    await saveDealDeskDraft(actor, { ...working, revision: 1, customerId: "customer-1", snapshot: { "desk:identity": { vehicleId: "vehicle-1", customerId: "customer-1" } } });
+    expect(identities.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { draftId: working.id }, update: expect.objectContaining({ customerId: "customer-1", vehicleId: "vehicle-1", inventoryUnitId: "inventory-1" })
+    }));
+  });
+  it("does not let vehicle-only drafts bypass vehicle access or proceed as sold", async () => {
+    const working = { ...draft, snapshot: { "desk:identity": { vehicleId: "vehicle-1" } } };
+    mocks.findUnique.mockResolvedValue(null);
+    identities.vehicle.mockRejectedValueOnce(new Error("Choose an active canonical vehicle."));
+    await expect(saveDealDeskDraft(actor, working)).rejects.toThrow("Choose an active canonical vehicle.");
+    await expect(saveDealDeskDraft(actor, { ...working, status: "SOLD" })).rejects.toThrow("Choose one shared CRM customer");
+    expect(identities.upsert).not.toHaveBeenCalled();
   });
   it("does not allow another account to overwrite a draft", async () => {
     mocks.findUnique.mockResolvedValue({ organizationId: "test-org", ownerUserId: "other-staff" });

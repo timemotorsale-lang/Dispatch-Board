@@ -26,6 +26,26 @@ describe("controlled revenue pathway change", () => {
     expect(mocks.find.mock.calls[0][0].where).toEqual({ id: "draft", organizationId: "org", ownerUserId: "staff" });
     expect(mocks.update).not.toHaveBeenCalled();
   });
+  it("switches a prepared lease to Test Drive without carrying lease paperwork into the drive", async () => {
+    const leaseInputs = { agreedPrice: "28895", downPayment: "15000" };
+    const identity = { customerId: "customer", vehicleId: "vehicle", vehicle: { vin: "SAMPLE-VIN", label: "Sample vehicle" } };
+    mocks.find.mockResolvedValue({ ...draft, pathway: "lease-to-own", snapshot: {
+      "desk:identity": identity, "desk:form": { customerId: "customer", vehicle: "Sample vehicle", amount: "28895" },
+      "lease-to-own:leaseInputs": leaseInputs, "lease-to-own:generatedPacketId": "prepared-lease",
+      jackets: { "lease-to-own": "lease-jacket" }
+    } });
+    await expect(changeDealPathway(actor, { ...command, pathway: "test-drive", reason: "Prospect requested a test drive" }))
+      .resolves.toMatchObject({ id: draft.id, pathway: "test-drive", status: "IN_PROGRESS", revision: 4 });
+    const data = mocks.update.mock.calls[0][0].data;
+    expect(data.snapshot).toMatchObject({
+      "desk:workflowId": "test-drive", "desk:identity": identity,
+      "desk:form": { customerId: "customer", vehicle: "Sample vehicle", amount: "" },
+      "lease-to-own:leaseInputs": leaseInputs, "lease-to-own:generatedPacketId": "prepared-lease",
+      jackets: { "lease-to-own": "lease-jacket" }
+    });
+    expect(data.snapshot).not.toHaveProperty("test-drive:generatedPacketId");
+    expect(data.statusHistory[0]).toMatchObject({ fromPathway: "lease-to-own", toPathway: "test-drive", reason: "Prospect requested a test drive" });
+  });
   it("blocks stale edits without blocking sold deals, historical paperwork or active custody", async () => {
     await expect(changeDealPathway(actor, { ...command, revision: 2 })).rejects.toMatchObject({ status: 409 });
     mocks.booking.mockResolvedValue(1); mocks.packet.mockResolvedValue({ id: "signed" }); mocks.find.mockResolvedValue({ ...draft, pathway: "daily-rental", status: "COMPLETED" });

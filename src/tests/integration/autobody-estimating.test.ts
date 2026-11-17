@@ -7,7 +7,11 @@ describe.skipIf(process.env.RUN_AUTOBODY_DB !== "isolated")("isolated collision 
   let actor: AuthenticatedUser, locationId: string, vehicleId: string, repairOrderId: string, id: string, content: import("@/lib/autobody-estimating/domain").BodyDraft;
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL ?? "invalid:");
-    if (!["localhost", "127.0.0.1"].includes(url.hostname) || !/^\/dispatch_autobody_verify_\d+$/.test(url.pathname)) throw new Error("Synthetic collision tests require the disposable local verification database.");
+    const dedicatedDatabase = ["localhost", "127.0.0.1"].includes(url.hostname)
+      && /^\/dispatch_autobody_verify_\d+$/.test(url.pathname);
+    const disposableSchema = url.host === "127.0.0.1:55439" && url.pathname === "/postgres"
+      && /^dispatch_board_e2e_autobody_\d+$/.test(url.searchParams.get("schema") ?? "");
+    if (!dedicatedDatabase && !disposableSchema) throw new Error("Synthetic collision tests require an isolated local AutoBody database or schema.");
     const { prisma } = await import("@/server/db/client"), { hashPassword } = await import("@/server/auth/password"), { INITIAL_ORGANIZATION } = await import("@/server/appointments/location-foundation");
     const org = INITIAL_ORGANIZATION.id, prefix = `body-proof-${randomUUID()}`;
     actor = { id: `${prefix}-actor`, email: `${prefix}@example.test`, name: "Synthetic collision estimator", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
@@ -16,6 +20,14 @@ describe.skipIf(process.env.RUN_AUTOBODY_DB !== "isolated")("isolated collision 
     await prisma.userRole.create({ data: { userId: actor.id, roleId: role.id } });
     const location = await prisma.location.create({ data: { organizationId: org, code: prefix, name: "Synthetic collision verification site", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } }); locationId = location.id;
     for (const code of ["VEHICLE_OPERATIONS_MASTER", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360"]) await prisma.vehicleOperationsFeatureFlag.create({ data: { organizationId: org, locationId, code, mode: "GENERAL", rolloutPercent: 100, allowedUserIds: [] } });
+    // Vehicle evidence evaluates rollout without a location. Allow only the
+    // synthetic estimator in this disposable database or schema.
+    for (const code of ["VEHICLE_OPERATIONS_MASTER", "VEHICLE_360"]) {
+      const scope = { organizationId: org, locationId: null, code };
+      const rollout = { mode: "PILOT" as const, rolloutPercent: 0, allowedUserIds: [actor.id] };
+      const existing = await prisma.vehicleOperationsFeatureFlag.updateMany({ where: scope, data: rollout });
+      if (!existing.count) await prisma.vehicleOperationsFeatureFlag.create({ data: { ...scope, ...rollout } });
+    }
     const vehicle = await prisma.vehicle.create({ data: { organizationId: org, vehicleNumber: prefix, year: 2017, make: "SYNTHETIC", model: "Collision fixture", vinState: "NON_VIN_EXCEPTION", nonVinReason: "Synthetic isolated verification vehicle", vinValidationSource: "SYNTHETIC" } }); vehicleId = vehicle.id;
     const customer = await prisma.customer.create({ data: { organizationId: org, customerNumber: prefix, displayName: "Synthetic collision customer" } });
     const now = new Date(), visit = await prisma.serviceVisit.create({ data: { organizationId: org, locationId, vehicleId, customerId: customer.id, origin: "CUSTOMER_REPAIR", intakeSource: "WALK_IN", arrivedAt: now, concernSummary: "Synthetic visible bumper damage", consentStatus: "NOT_REQUIRED", transportMode: "DROP_OFF", createdByUserId: actor.id } });

@@ -68,6 +68,7 @@ export type CreatedTaskRecord = Prisma.TaskGetPayload<{
 }>;
 
 export type CreateTaskRecordInput = {
+  calendarAllDay?: boolean;
   assignedUserId: string;
   collaboratorIds?: string[];
   collaboratorRequests?: Array<{ userId: string; collaborationScope: string; capacityRequested?: string }>;
@@ -172,9 +173,10 @@ export function createTaskCreateRepository(
           sourceType: input.sourceType,
           status: input.status,
           title: input.title,
-          ...(input.intakeMetadata || input.conversionContract
+          ...(input.intakeMetadata || input.conversionContract || input.calendarAllDay
             ? {
                 templateSnapshot: {
+                  ...(input.calendarAllDay ? { calendarAllDay: true } : {}),
                   ...(input.intakeMetadata
                     ? {
                         completionCriteria: {

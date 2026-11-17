@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
@@ -412,7 +413,7 @@ export function BoardScreen({
 
 
   return (
-    <section className="dispatch-board-page">
+    <section className={initialView === "overview" ? "dispatch-board-page dispatch-board-overview" : "dispatch-board-page"}>
       <BoardHero
         boardDate={loadState.date}
         generationStatus={board?.generationStatus}
@@ -420,6 +421,7 @@ export function BoardScreen({
         informational={initialView === "live"}
         toolbar={
           <>
+            <Link className="pill pill-secondary" href={`/board/repair-priorities?date=${selectedBoardDate}`}>Repair Priorities</Link>
             <span className={getLiveStatusTone(isRefreshing, updatesDelayed)}>
               {updatesDelayed ? "Updates delayed" : isRefreshing ? "Updating..." : "Live"}
             </span>

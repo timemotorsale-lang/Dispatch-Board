@@ -35,3 +35,15 @@
 @media print { .printPage .noPrint { display: none; } .printPage { margin: 0; padding: 0; } }
 @media (max-width: 700px) { .workbench { padding: 12px; } .form, .row { grid-template-columns: minmax(0, 1fr); } .panel { padding: 13px; } .header h1 { font-size: 24px; } }
 @media print { .tabs, .form, .actions, .header > a { display: none !important; } .panel { border: 0; } .workbench { color: black; padding: 0; } }
+
+@media screen and (max-width: 700px) {
+  .workbench :is(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+  .actions a,
+  .upload {
+    min-height: 44px;
+  }
+
+  .workbench fieldset {
+    min-inline-size: 0;
+  }
+}

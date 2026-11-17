@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { WorkdayQuickUpdateCategory } from "@prisma/client";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { getCalendarUser as getCurrentUser } from "@/server/auth/workflow-user";
 import { prisma } from "@/server/db/client";
 import { validFlowDate } from "@/features/advisor/workbook-flow-dates";
 

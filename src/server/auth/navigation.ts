@@ -171,6 +171,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/manager-review", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
   { prefix: "/staff", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE"] },
   { prefix: "/today", workspaces: [...WORKSPACE_KEYS] },
+  { prefix: "/board/repair-priorities", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/board", workspaces: DISPATCH_BOARD_WORKSPACES },
   { prefix: "/command-center", workspaces: ["MANAGEMENT"] },
   { prefix: "/website-console", workspaces: ["MANAGEMENT"] },

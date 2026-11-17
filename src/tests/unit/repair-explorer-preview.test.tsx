@@ -4,13 +4,46 @@ import { RepairExplorer } from "@/features/prototype/repair-explorer/repair-expl
 import { CATALOG_COUNTS, CATALOG_ENTRIES, REPAIR_SYSTEMS, searchRepairs } from "@/features/prototype/repair-explorer/catalog";
 import { estimateTotals, parsePreviewDraft } from "@/features/prototype/repair-explorer/estimate";
 
-vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: vi.fn().mockResolvedValue({ id: "reviewer" }) }));
+vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: vi.fn().mockResolvedValue({ id: "reviewer", roles: [], duties: { all: [] } }) }));
 
 const { getOrder, getRate } = vi.hoisted(() => ({ getOrder: vi.fn(), getRate: vi.fn().mockResolvedValue({ laborRate: 135 }) }));
-vi.mock("@/server/repair-order/service", () => ({ getRepairOrderDetail: getOrder }));
+vi.mock("@/server/repair-order/service", () => ({ getRepairOrderDetail: getOrder, listRepairOrders: vi.fn().mockResolvedValue({ items: [] }) }));
 vi.mock("@/server/services/labor-rate-settings", () => ({ getActiveLaborRate: getRate }));
 
+vi.mock("@/server/services/labor-catalog-settings", () => ({ getConnectedCatalogSystems: vi.fn().mockResolvedValue({ allowedSystemIds: ["brakes"] }) }));
+
 describe("Repair Explorer preview", () => {
+  it.each(["saved-quote-99", ""])("routes exact draft %j into the enterprise-backed visual explorer and gates the workspace while loading", async draftId => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    const { requireCurrentUser } = await import("@/server/auth/current-user");
+    const page = await Page({ searchParams: Promise.resolve({ draftId }) });
+    expect(requireCurrentUser).toHaveBeenLastCalledWith("/prototype/repair-explorer?draftId=" + draftId);
+    expect(page.props.presentation).toBe("explorer");
+    expect(page.props.initialDraftId).toBe(draftId);
+    const html = renderToStaticMarkup(page);
+    expect(html).toContain("Opening saved quote");
+    expect(html).not.toContain("2019 Ford F-150");
+    expect(html).not.toContain("Save draft");
+  });
+
+  it("routes a bare attachment return to the real worksheet with saved quote recovery", async () => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    const page = await Page({ searchParams: Promise.resolve({ attachRepairOrder: "1" }) });
+    expect(page.props.presentation).toBe("explorer");
+    const html = renderToStaticMarkup(page);
+    expect(html).toContain("Find an open repair order");
+    expect(html).toContain("Find saved drafts");
+    expect(html).not.toContain("2019 Ford F-150");
+  });
+
+  it("uses visual enterprise review for the browser estimate handoff", async () => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    const page = await Page({ searchParams: Promise.resolve({ importExplorer: "1" }) });
+    expect(page.props.presentation).toBe("explorer");
+    expect(page.props.explorerStorageKey).toBe("dispatch-board.repair-explorer-preview.v1.reviewer.handoff");
+    expect(renderToStaticMarkup(page)).toContain("Opening estimate");
+  });
+
   it("requires authentication and scopes browser drafts to the reviewer", async () => {
     const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
     const { requireCurrentUser } = await import("@/server/auth/current-user");
@@ -21,10 +54,12 @@ describe("Repair Explorer preview", () => {
 
   it("renders a clearly isolated preview with an empty estimate and a return link", () => {
     const html = renderToStaticMarkup(<RepairExplorer storageKey="test-preview" />);
+    expect(html).toContain("Find saved repair work");
     expect(html).toContain("Labor Guide");
     expect(html).toContain("Your estimate starts here");
     expect(html).toContain('href="/my-tasks"');
-    expect(html).toContain("Sample estimate");
+    expect(html).toContain("Preliminary work · no repair order selected");
+    expect(html).not.toContain("2019 Ford F-150");
     expect(html).not.toContain('aria-label="Saved documents and billing"');
   });
 
