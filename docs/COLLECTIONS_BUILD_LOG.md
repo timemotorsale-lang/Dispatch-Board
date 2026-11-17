@@ -1273,3 +1273,26 @@ These are already in the open questions.
 **Checks:** typecheck and lint are clean (apart from the one old lint error that was
 already there). 3 new database tests pass. The browser tests (4 of 4) pass, including the
 accessibility checks.
+
+## Design update: enterprise look on the remaining screens
+
+**What changed, in plain English:**
+- **Dashboard:**
+  - The four headline numbers sit at the top, with a row of smaller counts under them.
+  - Below that, the sections are cards with a header band and a "Download CSV" link.
+  - The bucket table uses the same colour bars as the home page.
+  - Performance numbers are a tidy list.
+  - Trends show as small chart cards.
+  - Printing still prints every section.
+- **Inbox:** the conversation list is on the left, with initials, unread counts and a
+  one-line preview. The chat is on the right, with customer messages in white bubbles and
+  ours in blue. The reply box sits underneath. Dry-run sending is unchanged.
+- **Every other screen** (Import, Playbook, Settings, Integrations, Reconciliation,
+  Accounts, the account tabs) gets the same look from shared styles:
+  - panels look like cards with a header band;
+  - tables have a tinted header row and highlight the row under the mouse;
+  - checkboxes are normal size, with the label beside them.
+- Nothing about how the module behaves changed; this was layout only.
+
+**Checks:** typecheck and lint are clean. All 4 browser tests pass, including the
+accessibility checks and the "fits a phone" checks on every screen.

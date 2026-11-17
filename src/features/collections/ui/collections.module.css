@@ -162,3 +162,76 @@ dialog.dialog::backdrop { background: rgba(10, 20, 40, .45); }
 .hero h2 { margin: 0; font-size: 22px; }
 @media (max-width: 960px) { .homeGrid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .moduleBar { flex-wrap: wrap; padding: 0; } .modePill { margin: 0 8px 8px; } }
+/* ---- Enterprise look, applied to every Collections screen ---- */
+/* Panels read as cards: a header band over the content, a soft shadow. */
+.panel, .card2, .callList, .aside, .checklist, .strip, .kpi, .tile { box-shadow: 0 1px 2px rgba(15, 30, 60, .05); }
+.panel { border-radius: 10px; padding: 0 16px 16px; }
+.panel > :first-child { margin-top: 16px; }
+.panel > h2:first-child, .panel > .header:first-child { margin: 0 -16px 14px; padding: 12px 16px; border-bottom: 1px solid var(--line, #e1e8f1); background: #f8fafd; border-radius: 10px 10px 0 0; font-size: 16px; }
+.panel > .header:first-child { align-items: center; }
+.panel > .header:first-child h2 { margin: 0; font-size: 16px; }
+.panel > .header:first-child a { font-size: 13px; font-weight: 600; }
+.panel h3 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #3f5168; }
+/* Tables: tinted header row, quieter labels, row hover. */
+.table thead th { background: #f4f7fb; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 9px 8px; border-bottom: 1px solid var(--line, #d4deeb); }
+.table tbody tr:hover > * { background: #f8fafd; }
+.table tbody tr:last-child > * { border-bottom: 0; }
+.table tbody th { color: var(--ink, #172c46); font-size: 14px; font-weight: 600; white-space: normal; }
+/* Stat tiles: small label above, big number below. */
+.tile { border-radius: 8px; padding: 12px 14px; }
+.tile > span { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.tile strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.kpi { border-radius: 0 8px 8px 0; padding: 12px 16px; }
+.kpi strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+a.kpi:hover { background: #f8fafd; }
+.page details > summary { cursor: pointer; font-weight: 600; color: #1d3a7a; padding: 6px 0; }
+.page .menu > summary { color: inherit; padding: 8px 12px; }
+.notice, .error, .warning { border-radius: 6px; }
+
+/* Dashboard */
+.statGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 16px; }
+.dashGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.span2 { grid-column: 1 / -1; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: 0; }
+.metricList { display: grid; gap: 0; margin: 0; }
+.metricList > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line, #eef2f7); }
+.metricList > div:last-child { border-bottom: 0; }
+.metricList dt { color: var(--muted); font-size: 14px; }
+.metricList dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.trendGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 10px 0; }
+.trend { margin: 0; padding: 12px; border: 1px solid var(--line, #e1e8f1); border-radius: 8px; background: #fbfcfe; }
+.trend figcaption strong { font-size: 18px; }
+
+/* Inbox: conversation list on the left, chat on the right */
+.inbox { display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.inboxList, .inboxThread { border: 1px solid var(--line, #d4deeb); border-radius: 10px; background: var(--surface-strong, white); overflow: hidden; box-shadow: 0 1px 2px rgba(15, 30, 60, .05); }
+.inboxThread h2 { margin: 0; font-size: 16px; }
+.threadList { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; }
+.thread { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 11px 14px; border-bottom: 1px solid var(--line, #eef2f7); color: inherit; text-decoration: none; border-left: 3px solid transparent; }
+.thread:hover { background: #f8fafd; }
+.thread[aria-current="page"] { background: #eef3fd; border-left-color: #315bcb; }
+.threadUnread strong { color: #102a5c; }
+.threadText { display: grid; gap: 1px; min-width: 0; }
+.threadTop { display: flex; justify-content: space-between; gap: 8px; }
+.threadPreview { font-size: 13px; color: #33465e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 50%; background: #e3eafa; color: #1d3a7a; font-size: 13px; font-weight: 800; }
+.unreadDot { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #c03a3a; color: white; font-size: 12px; font-weight: 800; display: inline-grid; place-items: center; }
+.bubbles { list-style: none; margin: 0; padding: 14px 16px; display: grid; gap: 10px; max-height: 60vh; overflow-y: auto; background: #f7f9fc; border-bottom: 1px solid var(--line, #e1e8f1); }
+.bubbleIn, .bubbleOut { display: grid; max-width: min(78%, 560px); }
+.bubbleIn { justify-self: start; }
+.bubbleOut { justify-self: end; text-align: right; }
+.bubbleMeta { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.bubble { padding: 9px 12px; border-radius: 12px; text-align: left; line-height: 1.4; }
+.bubbleIn .bubble { background: white; border: 1px solid var(--line, #dde5ef); border-top-left-radius: 4px; }
+.bubbleOut .bubble { background: #315bcb; color: white; border-top-right-radius: 4px; }
+.bubbleOut .bubble .badge { background: rgba(255, 255, 255, .2); color: white; }
+.composer { padding: 14px 16px; margin: 0; }
+
+@media (max-width: 960px) {
+  .dashGrid, .inbox { grid-template-columns: minmax(0, 1fr); }
+  .threadList { max-height: 40vh; }
+}
+@media print { .panel, .card2, .tile, .kpi { box-shadow: none; } .dashGrid { grid-template-columns: minmax(0, 1fr); } .card2 { break-inside: avoid; } }
+/* Checkboxes: normal size, label text beside the box (not under it). */
+.page input[type="checkbox"], .page input[type="radio"] { width: 18px; height: 18px; min-height: 18px; padding: 0; flex: none; accent-color: #315bcb; }
+.page label:has(> input[type="checkbox"]), .page label:has(> input[type="radio"]) { display: flex; flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
