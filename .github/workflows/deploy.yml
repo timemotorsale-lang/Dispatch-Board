@@ -41,7 +41,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # Same as `npm audit --audit-level=high`, except advisories with no fix yet that are listed
+      # (with a reason and review date) in scripts/audit-gate.mjs. Production deps are also checked strictly.
+      - run: npm audit --omit=dev --audit-level=high
+      - run: node scripts/audit-gate.mjs
   lint:
     name: Lint
     runs-on: ubuntu-latest
