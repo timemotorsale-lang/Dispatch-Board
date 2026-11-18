@@ -43,6 +43,12 @@ uses the safest choice (noted next to each question).
   "Contact & details" import slot that already exists.
   *Safe choice now:* contact details are typed in by hand ("Edit details"). Nothing is
   matched by name alone.
+- **Review by Dec 31, 2026: the picomatch security advisory (GHSA-fc5q-39xc-vjpf).** On
+  Nov 17 a "high" advisory with no fixed version blocked deploys. You approved accepting it
+  until Dec 31, because picomatch is only used by developer and test tools and the live app's
+  packages audit clean. The exception is in `scripts/audit-gate.mjs` and starts blocking deploys
+  again on Jan 1. Before then, run `npm view picomatch version`. If a version newer than 4.0.7
+  exists, upgrade and remove the exception. If not, decide whether to extend the review date.
 
 7. Should collectors see **all accounts** or **only assigned accounts**?
    *Safe choice now:* a setting, default "all accounts" (you are the only user).
