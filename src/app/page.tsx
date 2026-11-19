@@ -142,7 +142,9 @@ export default async function HomePage({ searchParams }: { searchParams?: Promis
   const forceMobile = (await searchParams)?.view === "mobile";
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/login?reason=entry");
+    const params = new URLSearchParams({ reason: "entry" });
+    if (forceMobile) params.set("returnTo", MOBILE_HOME_HREF);
+    redirect(`/login?${params}`);
   }
   const currentWorkspace = user ? getWorkspaceKey(user) : null;
   const permittedWorkspaces = user ? getPermittedWorkspaces(user).map((workspace) => workspace.key) : [];

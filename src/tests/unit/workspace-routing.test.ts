@@ -96,6 +96,19 @@ describe("role landing and record routing", () => {
     expect(resolveWorkspaceForPath(brock, "/vehicles/advisor", "INVENTORY")).toBe("ADVISOR");
   });
 
+  it.each([["Operations Coordinator", "Office Manager", "Marketing/Advertisement Manager"], ["General Manager"], ["Technician"]].map(roles => ({ roles })))("honors an explicit Mobile Home link after sign-in for $roles", ({ roles }) => {
+    const actor = user(roles);
+    expect(resolvePostLoginRoute(actor, "/?view=mobile")).toBe("/?view=mobile");
+    expect(resolvePostLoginRoute({ ...actor, mustChangePassword: true }, "/?view=mobile")).toBe("/settings/password");
+    expect(resolvePostLoginRoute(actor, "https://outside.example/?view=mobile")).toBe(getPostLoginLandingRoute(actor));
+  });
+
+  it("keeps the coordinator's normal sign-in destination for unrelated links", () => {
+    const coordinator = user(["Operations Coordinator", "Office Manager"]);
+    expect(resolvePostLoginRoute(coordinator, "/customers", "OFFICE")).toBe("/time-attendance");
+    expect(resolvePostLoginRoute(coordinator, null, "OFFICE")).toBe("/time-attendance");
+  });
+
   it("gives the vehicle operations lead governed advisor and technician workspaces", () => {
     const lead = user(["Vehicle Operations Lead"]);
 

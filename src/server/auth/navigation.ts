@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "./store";
+import { MOBILE_HOME_HREF } from "@/features/mobile-capture/capture-navigation";
 import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
 
 const TECHNICIAN_ROLE_NAMES = new Set(["Mechanic", "Technician"]);
@@ -411,6 +412,9 @@ export function resolvePostLoginRoute(
   if (user.mustChangePassword) {
     return "/settings/password";
   }
+
+  if (returnTo === MOBILE_HOME_HREF) return MOBILE_HOME_HREF;
+  if (isOperationsCoordinatorDefaultUser(user)) return getPostLoginLandingRoute(user);
 
   const fallback = getPostLoginLandingRoute(user, preferredWorkspace);
   const safe = getSafePostLoginRedirect(returnTo, fallback);

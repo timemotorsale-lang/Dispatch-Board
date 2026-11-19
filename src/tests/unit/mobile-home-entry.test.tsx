@@ -11,6 +11,12 @@ const manager: AuthenticatedUser = { id: "manager-1", name: "Test Manager", emai
 beforeEach(() => { vi.mocked(getCurrentUser).mockResolvedValue(manager); });
 
 describe("explicit mobile icon home", () => {
+  it("preserves the mobile destination when sign-in is needed again", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    await expect(HomePage({ searchParams: Promise.resolve({ view: "mobile" }) })).rejects.toMatchObject({
+      digest: expect.stringContaining("/login?reason=entry&returnTo=%2F%3Fview%3Dmobile")
+    });
+  });
   it.each([{ roles: ["General Manager"] }, { roles: ["Service Advisor"] }, { roles: ["Technician"] }, { roles: [] }])("opens the signed-in user's personal workbook from My Day for roles $roles", async ({ roles }) => {
     vi.mocked(getCurrentUser).mockResolvedValue({ ...manager, roles });
     const markup = renderToStaticMarkup(await HomePage({ searchParams: Promise.resolve({ view: "mobile" }) }));
