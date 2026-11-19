@@ -5,6 +5,19 @@ where every text and email is saved as a "dry run" and nothing leaves the buildi
 Do these steps only when you're ready to send real texts (PILOT or LIVE mode), after the
 Minnesota attorney review in `docs/COLLECTIONS_OPEN_QUESTIONS.md`.
 
+## 0. Turning the module on (REVIEW)
+
+On the live server, add this line to `deploy/docker/.env`, then run the Deploy Production
+workflow again:
+
+```env
+COLLECTIONS_MODULE=REVIEW
+```
+
+Only the owner and General Manager will see Collections, and every text and email is a dry
+run. The live database starts empty: import the DealerCenter Active Accounts file on
+Collections → Import. Set the line back to `OFF` (or remove it) and deploy again to hide it.
+
 ## 1. The scheduled job
 
 The Collections automations run after each import, and from the route

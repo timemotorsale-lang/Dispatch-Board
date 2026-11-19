@@ -1387,3 +1387,19 @@ Branch `collections-dispatch-link`, started from `main` after pull request #322.
   mostly about customers who are current. A date search on its own therefore looks at every
   open account, in the new "All accounts" tab. Picking a tab narrows it again.
 - **Checks:** listed in the commit.
+
+## The Collections switch now reaches the live app (Nov 18, 2026)
+
+- **What was wrong.** On the live server the app only receives the settings listed in
+  `deploy/docker/compose.yaml`, and the Collections settings weren't on that list. So adding
+  `COLLECTIONS_MODULE=REVIEW` to the server's `deploy/docker/.env` would have done nothing.
+- **What changed.** The app now receives four Collections settings, each with the safe default
+  when it's missing:
+  - `COLLECTIONS_MODULE` (default OFF);
+  - `COLLECTIONS_SMS_SENDING` and `COLLECTIONS_EMAIL_SENDING` (default DRY_RUN);
+  - `COLLECTIONS_PILOT_USER_IDS` (default empty).
+  The same change was made in the Portainer stack file, and `deploy/docker/.env.example` and
+  `docs/DOCKER_COMPOSE_TAILSCALE.md` explain them.
+- **Not passed on purpose.** Twilio and email keys, AI and outside integrations. They all stay OFF.
+- **Nothing changes after deploying** until someone adds `COLLECTIONS_MODULE=REVIEW` to the
+  server's `deploy/docker/.env` and deploys again.

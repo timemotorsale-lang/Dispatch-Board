@@ -88,6 +88,16 @@ Docker maps `CRM_NEXT_DOCKER_MODE` to the app's `CRM_NEXT` runtime variable. If 
 CRM_NEXT_DOCKER_MODE=OFF
 ```
 
+The Collections module is hidden unless the server's `deploy/docker/.env` sets
+`COLLECTIONS_MODULE`. To preview it (owner and General Manager only, texts and emails always a
+dry run), add the line below and run the Deploy Production workflow again (or `compose up -d`):
+
+```env
+COLLECTIONS_MODULE=REVIEW
+```
+
+Remove the line, or set it to `OFF`, to hide it again.
+
 ## Start the Stack
 
 From the repository root on the Ubuntu server:
