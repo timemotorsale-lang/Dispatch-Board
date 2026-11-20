@@ -13,6 +13,7 @@ import { assertAuthenticatedUser } from "@/server/policies/access";
 import { requireTimeAttendanceCapability } from "./capabilities";
 import { createTimeCardProjectionService, type TimeCardProjectionService, type TimeCardProjectionOutcome } from "./projection-service";
 import { recordSafeInternalTimeAttendanceNotification } from "./notification-service";
+import { localDateKey } from "./period";
 
 export type TimeCardCorrectionManagerDecision =
   | "APPROVE"
@@ -55,21 +56,28 @@ type CorrectionDecisionRecord = {
   requestedStartAt?: Date | null;
   requestedEndAt?: Date | null;
   managerUserId?: string | null;
+  managerDecisionAt?: Date | null;
 };
 
 type TimeCardCorrectionDecisionDatabase = {
   $transaction?<T>(work: (tx: TimeCardCorrectionDecisionDatabase) => Promise<T>): Promise<T>;
   enterpriseAuditEvent?: { create(input: { data: Record<string, unknown> }): Promise<unknown> };
+  enterpriseCommandLedger?: { create(input: { data: Record<string, unknown> }): Promise<{ id: string }> };
   enterpriseDomainEvent?: { create(input: { data: Record<string, unknown> }): Promise<{ id: string }> };
   enterpriseOutboxMessage?: { create(input: { data: Record<string, unknown> }): Promise<unknown> };
   location?: { findFirst(input: Record<string, unknown>): Promise<{ timezone: string } | null> };
+  timeCard?: {
+    findFirst(input: Record<string, unknown>): Promise<{ id: string; status: string; lockedAt: Date | null; periodStart: Date; periodEnd: Date; payrollReady: boolean } | null>;
+    updateMany(input: Record<string, unknown>): Promise<{ count: number }>;
+  };
   timeAttendanceEvent?: {
     create(input: { data: Record<string, unknown> }): Promise<{ id: string }>;
-    findFirst(input: Record<string, unknown>): Promise<{ id: string; eventType: string; occurredAt: Date; sessionId: string | null; timezone: string } | null>;
-    update(input: { where: { id: string }; data: Record<string, unknown> }): Promise<unknown>;
+    findFirst(input: Record<string, unknown>): Promise<{ id: string; eventType: string; occurredAt: Date; sessionId: string | null; timezone: string; evidence?: unknown } | null>;
+    update(input: { where: { id: string; correctedByEventId?: null }; data: Record<string, unknown> }): Promise<unknown>;
   };
   timeCardCorrectionRequest: {
     findFirst(input: { where: Record<string, unknown> }): Promise<CorrectionDecisionRecord | null>;
+    updateMany?(input: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
     update(input: { where: { id: string }; data: Record<string, unknown> }): Promise<CorrectionDecisionRecord>;
   };
 };
@@ -77,6 +85,15 @@ type TimeCardCorrectionDecisionDatabase = {
 type CorrectionDecisionRepositoryOutcome = TimeCardCorrectionManagerDecisionResult & {
     projectionTarget?: { locationId: string; organizationId: string; staffUserId: string; occurredAt: Date };
 };
+
+function pendingProjection(record: CorrectionDecisionRecord) {
+  const evidence = evidenceObject(record.evidence);
+  if (record.status !== "APPLIED" || evidence.projectionPending !== true ||
+      !record.organizationId || !record.locationId || !record.staffUserId) return undefined;
+  const occurredAt = new Date(stringValue(evidence.projectionOccurredAt));
+  if (!Number.isFinite(occurredAt.getTime())) return undefined;
+  return { organizationId: record.organizationId, locationId: record.locationId, staffUserId: record.staffUserId, occurredAt };
+}
 
 export type TimeCardCorrectionDecisionRepository = {
   decide(input: NormalizedCorrectionDecision): Promise<CorrectionDecisionRepositoryOutcome>;
@@ -170,7 +187,7 @@ async function applyCorrectionEvidence(
 ) {
   if (
     !database.timeAttendanceEvent || !database.location || !database.enterpriseAuditEvent ||
-    !database.enterpriseDomainEvent || !database.enterpriseOutboxMessage
+    !database.enterpriseCommandLedger || !database.enterpriseDomainEvent || !database.enterpriseOutboxMessage || !database.timeCard
   ) {
     throw new Error("Correction evidence repository is unavailable.");
   }
@@ -182,14 +199,51 @@ async function applyCorrectionEvidence(
     throw new Error("Independent review is required; the approving manager cannot also apply this correction.");
   }
   const related = existing.relatedEventId
-    ? await database.timeAttendanceEvent.findFirst({ where: { id: existing.relatedEventId, organizationId: input.organizationId } })
+    ? await database.timeAttendanceEvent.findFirst({ where: { id: existing.relatedEventId, organizationId: input.organizationId, locationId: existing.locationId, staffUserId: existing.staffUserId, correctedByEventId: null } })
     : null;
+  if (existing.relatedEventId && !related) throw new Error("The original punch is unavailable or already corrected. Return this request for review.");
   const location = await database.location.findFirst({
     where: { id: existing.locationId, organizationId: input.organizationId },
     select: { timezone: true }
   });
   if (!location) throw new Error("Correction location was not found.");
   const target = correctionEvidenceTarget(existing, related);
+  const timezone = target.timezone ?? location.timezone;
+  const cardForDate = (dateKey: string) => {
+    const date = new Date(dateKey + "T00:00:00Z");
+    return database.timeCard!.findFirst({
+      where: {
+        organizationId: existing.organizationId, staffUserId: existing.staffUserId,
+        periodStart: { lte: date }, periodEnd: { gte: date }, status: { not: "VOID" }
+      },
+      orderBy: { version: "desc" }, select: { id: true, status: true, lockedAt: true, periodStart: true, periodEnd: true, payrollReady: true }
+    });
+  };
+  const targetDate = localDateKey(target.occurredAt, timezone);
+  const card = await cardForDate(targetDate);
+  if (related && localDateKey(related.occurredAt, timezone) !== targetDate) {
+    const original = await cardForDate(localDateKey(related.occurredAt, timezone));
+    if (!card || !original || card.periodStart.getTime() !== original.periodStart.getTime() || card.periodEnd.getTime() !== original.periodEnd.getTime()) {
+      throw new Error("This correction would move a punch between pay periods. Return the request for payroll review.");
+    }
+  }
+  if (card?.lockedAt || card?.status === "LOCKED" || card?.status === "EXPORTED") throw new Error("Payroll must reopen the locked or exported period before this correction can be applied.");
+  if (card) {
+    const reserved = await database.timeCard.updateMany({
+      where: { id: card.id, status: card.status, lockedAt: null, payrollReady: card.payrollReady },
+      data: { status: "REOPENED", payrollReady: false }
+    });
+    if (reserved.count !== 1) throw new EnterpriseCommandConflictError("The pay-period card changed during correction review.", "VERSION_CONFLICT");
+  }
+  const correlationId = randomUUID();
+  const version = decisionHistory(nextEvidence).length;
+  const command = await database.enterpriseCommandLedger.create({ data: {
+    organizationId: existing.organizationId, locationId: existing.locationId, actorUserId: input.managerUserId,
+    domain: "TIME_ATTENDANCE", subjectType: "TIME_CARD_CORRECTION", subjectId: existing.id,
+    commandType: "APPLY_TIME_CARD_CORRECTION", status: "SUCCEEDED", idempotencyKey: input.idempotencyKey,
+    requestHash: input.requestHash, correlationId, expectedVersion: version - 1, resultingVersion: version, completedAt: new Date()
+  } });
+  const originalEvidence = evidenceObject(related?.evidence);
   const correction = await database.timeAttendanceEvent.create({
     data: {
       organizationId: existing.organizationId,
@@ -197,16 +251,19 @@ async function applyCorrectionEvidence(
       staffUserId: existing.staffUserId,
       sessionId: target.sessionId,
       actorUserId: input.managerUserId,
+      commandId: command.id,
       eventType: "MANAGER_CORRECTION",
       source: "MANAGER",
       occurredAt: target.occurredAt,
-      timezone: target.timezone ?? location.timezone,
+      timezone,
       reason: input.managerReason,
       evidence: json({
         correctionRequestId: existing.id,
         replacementEventType: target.eventType,
         replacementOccurredAt: target.occurredAt.toISOString(),
         originalEventId: related?.id ?? null,
+        paid: typeof originalEvidence.paid === "boolean" ? originalEvidence.paid : null,
+        completelyRelieved: typeof originalEvidence.completelyRelieved === "boolean" ? originalEvidence.completelyRelieved : null,
         managerDecisionHistory: decisionHistory(nextEvidence),
         originalPunchTrailUnchanged: true
       }),
@@ -214,17 +271,17 @@ async function applyCorrectionEvidence(
     }
   });
   if (related) {
-    await database.timeAttendanceEvent.update({ where: { id: related.id }, data: { correctedByEventId: correction.id } });
+    await database.timeAttendanceEvent.update({ where: { id: related.id, correctedByEventId: null }, data: { correctedByEventId: correction.id } });
   }
-  const correlationId = randomUUID();
   const domainEvent = await database.enterpriseDomainEvent.create({
     data: {
       organizationId: existing.organizationId,
       locationId: existing.locationId,
+      commandId: command.id,
       domain: "TIME_ATTENDANCE",
       aggregateType: "TIME_CARD_CORRECTION",
       aggregateId: existing.id,
-      aggregateVersion: decisionHistory(nextEvidence).length,
+      aggregateVersion: version,
       eventType: "TIME_CARD_CORRECTION_APPLIED",
       payload: json({ correctionEventId: correction.id, originalEventId: related?.id ?? null, replacementEventType: target.eventType })
     }
@@ -234,6 +291,7 @@ async function applyCorrectionEvidence(
       organizationId: existing.organizationId,
       locationId: existing.locationId,
       actorUserId: input.managerUserId,
+      commandId: command.id,
       domain: "TIME_ATTENDANCE",
       subjectType: "TIME_CARD_CORRECTION",
       subjectId: existing.id,
@@ -254,7 +312,7 @@ async function applyCorrectionEvidence(
       payload: json({ correctionEventId: correction.id, correctionRequestId: existing.id, correlationId })
     }
   });
-  return { locationId: existing.locationId, organizationId: existing.organizationId, staffUserId: existing.staffUserId, occurredAt: target.occurredAt };
+  return { locationId: existing.locationId, organizationId: existing.organizationId, staffUserId: existing.staffUserId, occurredAt: target.occurredAt, invalidatedCardId: card?.id ?? null };
 }
 
 export function normalizeTimeCardCorrectionManagerDecision(
@@ -320,8 +378,11 @@ export function createTimeCardCorrectionDecisionRepository(
             "IDEMPOTENCY_KEY_REUSED"
           );
         }
-        return toResult(existing, true);
+        return { ...toResult(existing, true), projectionTarget: input.decision === "APPLY" ? pendingProjection(existing) : undefined };
       }
+
+      const pending = input.decision === "APPLY" ? pendingProjection(existing) : undefined;
+      if (pending) return { ...toResult(existing, true), projectionTarget: pending };
 
       if (["DENIED", "WITHDRAWN", "APPLIED"].includes(existing.status)) {
         throw new Error("Correction request is already closed.");
@@ -332,6 +393,13 @@ export function createTimeCardCorrectionDecisionRepository(
 
       const status = decisionStatus[input.decision];
       const now = new Date();
+      if (database.timeCardCorrectionRequest.updateMany) {
+        const reserved = await database.timeCardCorrectionRequest.updateMany({
+          where: { id: existing.id, status: existing.status, managerDecisionAt: existing.managerDecisionAt ?? null },
+          data: { managerDecisionAt: now }
+        });
+        if (reserved.count !== 1) throw new EnterpriseCommandConflictError("This correction changed during review. Refresh the queue before retrying.", "VERSION_CONFLICT");
+      }
       const nextEvidence = {
         ...evidence,
         managerDecisionHistory: [
@@ -360,7 +428,12 @@ export function createTimeCardCorrectionDecisionRepository(
           managerDecisionAt: now,
           managerDecision: input.decision,
           managerReason: input.managerReason,
-          evidence: json(nextEvidence)
+          evidence: json(projectionTarget ? {
+            ...nextEvidence,
+            projectionPending: true,
+            projectionOccurredAt: projectionTarget.occurredAt.toISOString(),
+            projectionCardId: projectionTarget.invalidatedCardId
+          } : nextEvidence)
         }
       });
 
@@ -393,11 +466,41 @@ export async function decideTimeCardCorrectionRequest(
   });
   const repository = input.repository ?? createTimeCardCorrectionDecisionRepository();
 
-  const result = await repository.decide(normalized);
-  const projection = normalized.decision === "APPLY" && result.projectionTarget
-    ? await (input.projectionService ?? createTimeCardProjectionService()).project({ ...result.projectionTarget, trigger: "CORRECTION" })
-    : undefined;
-  if (!input.repository) {
+  const { projectionTarget, ...result } = await repository.decide(normalized).catch((error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" &&
+        Array.isArray(error.meta?.target) && error.meta.target.includes("occurredAt")) {
+      throw new EnterpriseCommandConflictError(
+        "A correction already recorded a punch at this time. Review the existing punch before applying another request.",
+        "VERSION_CONFLICT"
+      );
+    }
+    throw error;
+  });
+  let projection: TimeCardProjectionOutcome | undefined;
+  if (normalized.decision === "APPLY" && projectionTarget) {
+    try {
+      const { locationId, organizationId, staffUserId, occurredAt } = projectionTarget;
+      projection = await (input.projectionService ?? createTimeCardProjectionService()).project({ locationId, organizationId, staffUserId, occurredAt, trigger: "CORRECTION" });
+      if (projection.state !== "BLOCKED" && !input.repository) {
+        const where = { id: normalized.requestId, organizationId: normalized.organizationId, status: "APPLIED" as const,
+          evidence: { path: ["projectionPending"], equals: true } };
+        const request = await prisma.timeCardCorrectionRequest.findFirst({ where, select: { evidence: true } });
+        if (request) {
+          await prisma.timeCardCorrectionRequest.updateMany({
+            where,
+            data: { evidence: json({ ...evidenceObject(request.evidence), projectionPending: false }) }
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Time card rebuild failed for correction", normalized.requestId, error);
+      projection = {
+        state: "BLOCKED", cardId: null, cardVersion: null, checksum: null, payrollReady: false,
+        reason: "The correction was saved. Retry rebuilding the time card from Manager review."
+      };
+    }
+  }
+  if (!input.repository && !result.duplicate) {
     const request = await prisma.timeCardCorrectionRequest.findUnique({ where: { id: normalized.requestId }, select: { staffUserId: true, locationId: true } });
     if (request) await recordSafeInternalTimeAttendanceNotification({
       organizationId: normalized.organizationId,

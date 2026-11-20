@@ -1,9 +1,11 @@
 import { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { INITIAL_MINNEAPOLIS_LOCATION, INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
 import { getTimeAttendanceCapabilitySet } from "./capabilities";
+import { localDateKey } from "./period";
+import { isTimeCardClosedForAttestation } from "./attestation-service";
 
 export type TimeAttendanceConsoleStaff = {
   id: string;
@@ -40,6 +42,8 @@ export type TimeAttendanceConsoleModel = {
   };
   employeeCard: {
     available: boolean;
+    canAttest?: boolean;
+    mealPolicy?: { expectedMealMinutes: number; paid: boolean };
     cardChecksum: string;
     cardId: string;
     shiftLabel: string;
@@ -60,6 +64,7 @@ export type TimeAttendanceConsoleModel = {
     detail: string;
     tone: "good" | "warning" | "neutral";
   }[];
+  correctionPunches?: { id: string; eventType: string; label: string }[];
   exceptions: {
     code: string;
     message: string;
@@ -167,9 +172,14 @@ function label(value: string) {
   ).join(" ");
 }
 
-function eventDetail(event: { actorUserId: string; staffUserId: string; source: string }) {
+function eventDetail(event: { actorUserId: string; staffUserId: string; source: string; eventType: string; evidence: Prisma.JsonValue }) {
   if (event.actorUserId !== event.staffUserId) {
     return `Recorded by an authorized reviewer from ${label(event.source)}.`;
+  }
+  if (["END_MEAL", "END_PAID_REST"].includes(event.eventType)) {
+    const relieved = objectValue(event.evidence).completelyRelieved;
+    if (relieved === false) return "Employee reported work or an interruption during the break.";
+    if (relieved === true) return "Employee confirmed they were fully relieved of duties.";
   }
   return `Accepted from ${label(event.source)}; exact recorded time preserved.`;
 }
@@ -208,7 +218,7 @@ function emptyModel(
       cardId: "",
       shiftLabel: "No projected pay-period card",
       policyLabel: "Policy assignment required",
-      statusLabel: reason ? "Card data unavailable" : "Waiting for live card",
+      statusLabel: reason ? "Card data unavailable" : "Awaiting punches",
       timeCardVersion: 0,
       paidMinutes: 0,
       attendanceMinutes: 0,
@@ -230,7 +240,7 @@ function emptyModel(
 
 export async function getTimeAttendanceConsoleModel(
   user: AuthenticatedUser,
-  input: { now?: Date; organizationId?: string } = {}
+  input: { now?: Date; organizationId?: string; correctionDate?: string } = {}
 ): Promise<TimeAttendanceConsoleModel> {
   const now = input.now ?? new Date();
   const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
@@ -250,12 +260,26 @@ export async function getTimeAttendanceConsoleModel(
       payroll: capabilities.TIME_PAYROLL_ADMIN || capabilities.TIME_PERIOD_LOCK_REOPEN || capabilities.TIME_EXPORT_RECONCILIATION
     };
     const manager = permissions.manager;
-    const today = new Date(now.toISOString().slice(0, 10));
-    const [card, events, assignment, policies, timeOff, corrections, notifications, activeSessions, reviewCards, queueCounts] = await Promise.all([
+    const assignment = await prisma.timeAttendancePolicyAssignment.findFirst({
+      where: {
+        organizationId,
+        staffUserId: user.id,
+        effectiveFrom: { lte: now },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        policyProfile: { status: "ACTIVE" }
+      },
+      include: { policyProfile: true },
+      orderBy: { effectiveFrom: "desc" }
+    });
+    const today = new Date(localDateKey(now, assignment?.policyProfile.timezone ?? "America/Chicago") + "T00:00:00Z");
+    const targetDate = input.correctionDate ? new Date(input.correctionDate + "T00:00:00Z") : null;
+    const targetMs = targetDate?.getTime();
+    const [card, events, policies, timeOff, corrections, notifications, activeSessions, reviewCards, queueCounts, datePunches] = await Promise.all([
       prisma.timeCard.findFirst({
         where: {
           organizationId,
           staffUserId: user.id,
+          status: { not: "VOID" },
           periodStart: { lte: today },
           periodEnd: { gte: today }
         },
@@ -271,17 +295,6 @@ export async function getTimeAttendanceConsoleModel(
         where: { organizationId, staffUserId: user.id, occurredAt: { gte: new Date(now.getTime() - 14 * 86_400_000) } },
         orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
         take: 30
-      }),
-      prisma.timeAttendancePolicyAssignment.findFirst({
-        where: {
-          organizationId,
-          staffUserId: user.id,
-          effectiveFrom: { lte: now },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
-          policyProfile: { status: "ACTIVE" }
-        },
-        include: { policyProfile: true },
-        orderBy: { effectiveFrom: "desc" }
       }),
       prisma.timeAttendancePolicyProfile.findMany({
         where: manager
@@ -326,7 +339,15 @@ export async function getTimeAttendanceConsoleModel(
         prisma.timeCardException.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
         prisma.timeCardCorrectionRequest.count({ where: { organizationId, status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } } }),
         prisma.timeCard.count({ where: { organizationId, payrollReady: false, status: { notIn: ["VOID", "EXPORTED"] } } })
-      ]) : Promise.resolve([0, 0, 0])
+      ]) : Promise.resolve([0, 0, 0]),
+      targetMs !== undefined && Number.isFinite(targetMs) && permissions.employee ? prisma.timeAttendanceEvent.findMany({
+        where: {
+          organizationId, staffUserId: user.id, locationId: INITIAL_MINNEAPOLIS_LOCATION.id,
+          correctedByEventId: null, occurredAt: { gte: new Date(targetMs - 86_400_000), lt: new Date(targetMs + 2 * 86_400_000) },
+        },
+        orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+        take: 100,
+      }) : Promise.resolve(null),
     ]);
 
     const model = emptyModel(user, now, permissions);
@@ -338,6 +359,7 @@ export async function getTimeAttendanceConsoleModel(
       ? `${timeLabel(new Date(stringValue(attendanceObject.startAt)), timezone)} – ${timeLabel(new Date(stringValue(attendanceObject.endAt)), timezone)}`
       : card ? `${card.periodStart.toISOString().slice(0, 10)} – ${card.periodEnd.toISOString().slice(0, 10)}` : "No completed shift in this period";
     const latestAttestation = card?.attestations[0];
+    const closedForAttestation = card ? isTimeCardClosedForAttestation(card) : false;
     const latestApproval = card?.approvals[0];
     const activeIds = new Set(activeSessions.map((session) => session.staffUserId));
     const latestReviewCardByStaff = new Map<string, (typeof reviewCards)[number]>();
@@ -388,6 +410,8 @@ export async function getTimeAttendanceConsoleModel(
       nextAction: card
         ? card.exceptions.some((exception) => exception.blocking)
           ? { label: "Resolve card exception", detail: "A blocking exception must be corrected or reviewed before this card can advance.", href: "/time-attendance?view=my-time#exceptions" }
+          : closedForAttestation
+            ? { label: "Review saved card", detail: "This card is closed for employee confirmation. Use a correction request if an entry needs review.", href: "/time-attendance?view=my-time#pay-periods" }
           : latestAttestation
             ? { label: "Review current status", detail: "Your attestation is recorded for this exact card version.", href: "/time-attendance?view=my-time" }
             : { label: "Review and attest", detail: "Confirm this exact card version or dispute it for manager review.", href: "/time-attendance?view=my-time#card-attestation" }
@@ -402,11 +426,13 @@ export async function getTimeAttendanceConsoleModel(
       },
       employeeCard: card ? {
         available: true,
+        canAttest: !closedForAttestation && !latestAttestation,
+        mealPolicy: mealPolicy(card.policyProfile.scheduledMealPolicy),
         cardChecksum: card.sourceEventChecksum,
         cardId: card.id,
         shiftLabel,
         policyLabel: card.policyProfile.name,
-        statusLabel: card.payrollReady ? "Payroll handoff eligible" : label(card.status),
+        statusLabel: label(card.status),
         timeCardVersion: card.version,
         paidMinutes: projection?.totals.paidWorkMinutes ?? 0,
         attendanceMinutes: projection?.totals.attendanceMinutes ?? 0,
@@ -416,6 +442,7 @@ export async function getTimeAttendanceConsoleModel(
         approvalStatus: latestApproval ? label(latestApproval.decision) : "Not yet approved"
       } : {
         ...model.employeeCard,
+        mealPolicy: assignment ? mealPolicy(assignment.policyProfile.scheduledMealPolicy) : undefined,
         policyLabel: assignment?.policyProfile.name ?? "Policy assignment required"
       },
       timeline: events.map((event) => ({
@@ -425,6 +452,10 @@ export async function getTimeAttendanceConsoleModel(
         detail: eventDetail(event),
         tone: eventTone(event.eventType)
       })),
+      correctionPunches: (datePunches ?? events).filter(event =>
+        event.locationId === INITIAL_MINNEAPOLIS_LOCATION.id && !event.correctedByEventId &&
+        (!datePunches || localDateKey(event.occurredAt, event.timezone || timezone) === input.correctionDate)
+      ).map(event => ({ id: event.id, eventType: event.eventType, label: `${label(event.eventType)} · ${dateTimeLabel(event.occurredAt, event.timezone || timezone)}` })),
       exceptions: card?.exceptions.map((exception) => ({
         code: exception.code,
         message: exception.message,
@@ -463,7 +494,7 @@ export async function getTimeAttendanceConsoleModel(
         unread: notification.status === "UNREAD"
       }))
     };
-  } catch (error) {
-    return emptyModel(user, now, permissions, error instanceof Error ? error.message : "Live time attendance data is unavailable.");
+  } catch {
+    return emptyModel(user, now, permissions, "Live time attendance data could not be read.");
   }
 }

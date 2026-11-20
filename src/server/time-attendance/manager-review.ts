@@ -17,6 +17,7 @@ export type TimeAttendanceManagerReviewItem = {
   title: string;
   cardChecksum?: string;
   timeCardVersion?: number;
+  correctionRebuildPending?: boolean;
 };
 
 export type TimeAttendanceManagerReviewQueue = {
@@ -172,7 +173,10 @@ export function createTimeAttendanceManagerReviewRepository(
         database.timeCardCorrectionRequest.findMany({
           where: {
             organizationId: input.organizationId,
-            status: { in: ["SUBMITTED", "RETURNED"] }
+            OR: [
+              { status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } },
+              { status: "APPLIED", evidence: { path: ["projectionPending"], equals: true } }
+            ]
           },
           orderBy: { requestedAt: "asc" },
           take: 50,
@@ -264,7 +268,8 @@ export function createTimeAttendanceManagerReviewRepository(
           occurredAt: request.requestedAt.toISOString(),
           severity: "warning" as const,
           staffName: request.staffUser.name,
-          status: label(request.status),
+          status: request.status === "APPLIED" ? "Applied · card rebuild pending" : request.status === "APPROVED" ? "Approved · ready to apply" : label(request.status),
+          correctionRebuildPending: request.status === "APPLIED",
           title: `${label(request.requestedChangeType)} correction request`
         })),
         ...exceptions.map((exception) => ({

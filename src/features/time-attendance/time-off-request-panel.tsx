@@ -2,6 +2,7 @@
 
 import { CalendarPlus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import styles from "./time-attendance-console.module.css";
 
@@ -19,6 +20,7 @@ function localInputValue(date: Date) {
 }
 
 export function TimeOffRequestPanel() {
+  const router = useRouter();
   const now = useMemo(() => new Date(), []);
   const [requestType, setRequestType] = useState<RequestType>("PTO");
   const [startsAt, setStartsAt] = useState(localInputValue(new Date(now.getTime() + 24 * 60 * 60000)));
@@ -55,6 +57,7 @@ export function TimeOffRequestPanel() {
       });
       setOperationalNote("");
       setRestrictedReason("");
+      router.refresh();
     } catch (error) {
       setState({
         busy: false,

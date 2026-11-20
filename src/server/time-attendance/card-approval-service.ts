@@ -112,6 +112,26 @@ export async function decideTimeCard(
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    const pendingRebuild = await tx.timeCardCorrectionRequest.findFirst({
+      where: {
+        organizationId, staffUserId: card.staffUserId, status: "APPLIED",
+        AND: [
+          { evidence: { path: ["projectionPending"], equals: true } },
+          { evidence: { path: ["projectionCardId"], equals: card.id } }
+        ]
+      },
+      select: { id: true }
+    });
+    if (pendingRebuild) throw new Error("A correction was applied to this card. Rebuild the card before reviewing it.");
+    const latest = await tx.timeCard.findFirst({
+      where: {
+        organizationId, staffUserId: card.staffUserId, periodStart: card.periodStart, periodEnd: card.periodEnd,
+        status: { not: "VOID" }
+      },
+      orderBy: { version: "desc" },
+      select: { id: true }
+    });
+    if (latest?.id !== card.id) throw new Error("A newer card version is available. Refresh before recording a decision.");
     const existing = await tx.timeCardApproval.findUnique({
       where: { timeCardId_timeCardVersion_managerUserId: { timeCardId, timeCardVersion, managerUserId: user.id } }
     });
@@ -122,7 +142,7 @@ export async function decideTimeCard(
       return { approval: existing, duplicate: true };
     }
     const changed = await tx.timeCard.updateMany({
-      where: { id: timeCardId, version: timeCardVersion, sourceEventChecksum: cardChecksum, status: card.status },
+      where: { id: timeCardId, version: timeCardVersion, sourceEventChecksum: cardChecksum, status: card.status, updatedAt: card.updatedAt },
       data: {
         payrollReady: decision === "APPROVE",
         status: decision === "APPROVE" ? "APPROVED" : "EMPLOYEE_REVIEW"

@@ -60,6 +60,12 @@ type CorrectionRequestRecord = {
 };
 
 type TimeCardCorrectionRequestDatabase = {
+  timeCard: {
+    findFirst(input: { where: Record<string, unknown>; select: { id: true } }): Promise<{ id: string } | null>;
+  };
+  timeAttendanceEvent: {
+    findFirst(input: { where: Record<string, unknown>; select: { id: true } }): Promise<{ id: string } | null>;
+  };
   location: {
     findFirst(input: { where: Record<string, unknown>; select: { id: true } }): Promise<{ id: string } | null>;
   };
@@ -227,6 +233,23 @@ export function createTimeCardCorrectionRequestRepository(
       });
       if (!location) {
         throw new Error("Location does not belong to the time attendance organization.");
+      }
+      if (input.timeCardId) {
+        const card = await database.timeCard.findFirst({
+          where: {
+            id: input.timeCardId, organizationId: input.organizationId, locationId: input.locationId, staffUserId: input.staffUserId,
+            periodStart: { lte: input.requestedDate }, periodEnd: { gte: input.requestedDate }, status: { not: "VOID" }
+          },
+          select: { id: true }
+        });
+        if (!card) throw new Error("Choose a time card that belongs to you and covers the requested date.");
+      }
+      if (input.relatedEventId) {
+        const punch = await database.timeAttendanceEvent.findFirst({
+          where: { id: input.relatedEventId, organizationId: input.organizationId, locationId: input.locationId, staffUserId: input.staffUserId, correctedByEventId: null },
+          select: { id: true }
+        });
+        if (!punch) throw new Error("Choose a current punch from your own time card.");
       }
 
       const request = await database.timeCardCorrectionRequest.create({

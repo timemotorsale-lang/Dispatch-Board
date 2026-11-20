@@ -258,7 +258,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           locationId: input.locationId,
           periodStart: input.periodStart,
           periodEnd: input.periodEnd,
-          status: { notIn: ["VOID", "REOPENED"] }
+          status: { not: "VOID" }
         },
         include: {
           approvals: true,
@@ -525,7 +525,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       const { cards, existingBatch } = await loadPeriod(input);
       return buildPreview({
         batchId: existingBatch?.id ?? null,
-        cards: cards.filter((card) => ["LOCKED", "EXPORTED", "APPROVED"].includes(card.status)),
+        cards: cards.filter((card) => card.payrollReady && ["LOCKED", "EXPORTED", "APPROVED"].includes(card.status)),
         generatedAt: new Date(),
         periodEnd: input.periodEnd,
         periodStart: input.periodStart
