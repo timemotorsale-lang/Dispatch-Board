@@ -2069,7 +2069,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   async function saveChecklistText(item: DailyChecklistItem) {
     const text = (checklistTextDrafts[item.id] ?? item.text).trim();
     if (!text || text === item.text) return;
-    await persistChecklistItem(item.id, { text });
+    if (!await persistChecklistItem(item.id, { text })) return;
     setChecklistTextDrafts((current) => {
       const next = { ...current };
       delete next[item.id];
@@ -2083,19 +2083,19 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     if (!update) return;
     const updateEntry = `${new Date().toISOString()}|${update}`;
     const updateHistory = item.update.trim() ? `${item.update.trim()}\n${updateEntry}` : updateEntry;
-    await persistChecklistItem(item.id, { update: updateHistory });
+    if (!await persistChecklistItem(item.id, { update: updateHistory, expectedUpdate: item.update })) return;
     setChecklistUpdateDrafts((current) => ({ ...current, [item.id]: "" }));
     setWorkspaceNotice(`${activeWorkbookLabel} checklist update saved.`);
   }
 
-  async function persistChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
+  async function persistChecklistItem(id: string, patch: Partial<DailyChecklistItem> & { expectedUpdate?: string }) {
     if (isClosed) {
       setWorkspaceNotice("This workbook day is closed. Reopen it before updating checklist items.");
-      return;
+      return false;
     }
     setReviewingEndDay(false);
     // Keep the last saved reminder date visible if the request fails.
-    if (!("reminderDate" in patch)) updateChecklistItem(id, patch);
+    if (!("reminderDate" in patch) && !("text" in patch) && !("update" in patch)) updateChecklistItem(id, patch);
     try {
       const response = await fetch(`/api/coo-workbook/checklist/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -2104,10 +2104,15 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update checklist item.");
-      await refreshActiveWorkbook();
+      if (patch.text !== undefined) updateChecklistItem(id, { text: patch.text });
+      if (patch.update !== undefined) updateChecklistItem(id, { update: patch.update });
+      if (patch.reminderDate !== undefined) updateChecklistItem(id, { reminderDate: patch.reminderDate });
+      await refreshActiveWorkbook().catch(() => undefined);
+      return true;
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update checklist item.");
       await refreshActiveWorkbook().catch(() => undefined);
+      return false;
     }
   }
 
@@ -3618,8 +3623,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </select>
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
-            <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={date => persistChecklistItem(item.id, { reminderDate: date })} />
-            {effectiveWorkbookView === "COO" && <PublishRepairPriorities disabled={isClosed} item={item} />}
+            <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={async date => { await persistChecklistItem(item.id, { reminderDate: date }); }} />
+            <PublishRepairPriorities date={model.boardDate} disabled={isClosed} item={item}
+              hasUnsavedChanges={(checklistTextDrafts[item.id] ?? item.text).trim() !== item.text || Boolean(checklistUpdateDrafts[item.id]?.trim())}
+              onRefine={(update) => updateChecklistItem(item.id, { update })} />
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
       </section> : null}
@@ -3673,7 +3680,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </select>
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
-            <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={date => persistChecklistItem(item.id, { reminderDate: date })} />
+            <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={async date => { await persistChecklistItem(item.id, { reminderDate: date }); }} />
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
         <div className="advisor-coo-close-flow">

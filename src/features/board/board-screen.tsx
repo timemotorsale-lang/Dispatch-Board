@@ -421,7 +421,7 @@ export function BoardScreen({
         informational={initialView === "live"}
         toolbar={
           <>
-            <Link className="pill pill-secondary" href={`/board/repair-priorities?date=${selectedBoardDate}`}>Repair Priorities</Link>
+            <Link className="pill pill-secondary" href={`/board/repair-priorities?date=${selectedBoardDate}`}>Daily Priorities</Link>
             <span className={getLiveStatusTone(isRefreshing, updatesDelayed)}>
               {updatesDelayed ? "Updates delayed" : isRefreshing ? "Updating..." : "Live"}
             </span>

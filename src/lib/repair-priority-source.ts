@@ -1,5 +1,5 @@
 export function repairPrioritySources(item: { text: string; update: string }) {
-  const lines = item.update.split("\n").map((line) => line.trim()).filter(Boolean);
+  const lines = [...new Set(item.update.split("\n").map((line) => line.trim()).filter(Boolean))];
   if (!lines.length) return [{ source: "", text: item.text }];
 
   return lines.map((source) => {

@@ -1516,7 +1516,12 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
   if (!item) throw new Error("Checklist item not found.");
   assertWorkbookEditable(user, item.workbook);
   const update = normalizeOptionalText(payload.update, "update", 5000);
+  const expectedUpdate = typeof payload.expectedUpdate === "string" ? payload.expectedUpdate : undefined;
+  if (update !== undefined && expectedUpdate !== item.update) {
+    throw new Error("Checklist updates changed. Refresh and try again.");
+  }
   await repository.updateChecklistItem({
+    ...(expectedUpdate !== undefined ? { expectedUpdate } : {}),
     reminderDate: normalizeChecklistReminderDate(payload.reminderDate),
     carryoverReady: normalizeBoolean(payload.carryoverReady, "carryoverReady"),
     convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),

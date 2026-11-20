@@ -90,7 +90,7 @@ describe("enterprise shell navigation", () => {
       "Overview",
       "Live Board",
       "My Tasks",
-      "Repair Priorities",
+      "Daily Priorities",
       "Tasks",
       "Projects",
       "Appointments",
@@ -121,7 +121,7 @@ describe("enterprise shell navigation", () => {
       "Overview",
       "Live Board",
       "My Tasks",
-      "Repair Priorities",
+      "Daily Priorities",
       "Tasks",
       "Projects",
       "Appointments",
@@ -155,7 +155,7 @@ describe("enterprise shell navigation", () => {
     expect(items.map((item) => [item.title, item.href])).toEqual([
       ["My Work", "/my-tasks"],
       ["Available Work", "/my-tasks/available"],
-      ["Repair Priorities", "/board/repair-priorities"],
+      ["Daily Priorities", "/board/repair-priorities"],
       ["Diagnostics & Tools", "/diagnostics"]
     ]);
     expect(repairWorkbench?.subtitle).toBe("Technician Workspace");
@@ -163,7 +163,7 @@ describe("enterprise shell navigation", () => {
     expect(repairWorkbench?.items.map((item) => item.title)).toEqual([
       "My Work",
       "Available Work",
-      "Repair Priorities",
+      "Daily Priorities",
       "Diagnostics & Tools"
     ]);
   });
