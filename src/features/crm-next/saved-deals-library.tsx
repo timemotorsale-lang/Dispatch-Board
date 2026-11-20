@@ -67,6 +67,10 @@ export function SavedDealsLibrary({ onOpen, disabled, refreshKey, title = "Saved
     if (isDealWorkArea(query.get("area") || "")) {
       setArea(query.get("area") as DealWorkArea); setSection("work"); setStatus("ALL"); setBucket("ALL"); setGroup("ALL"); setPathway("ALL"); setSearch(""); setOwner("ALL");
       if (Object.hasOwn(SALES_DOCUMENT_PATHWAYS, query.get("pathway") || "")) setPathway(query.get("pathway")!);
+      const requestedWorkspace = query.get("workspace");
+      if (requestedWorkspace === "TEAM" || requestedWorkspace === "MY" || requestedWorkspace === "ACCESSIBLE") setWorkspace(requestedWorkspace);
+      const requestedSearch = query.get("search");
+      if (requestedSearch) setSearch(requestedSearch.slice(0, 240));
     }
     setRestored(true);
     }, 0);

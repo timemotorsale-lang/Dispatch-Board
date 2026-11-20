@@ -3,9 +3,13 @@ import type { Prisma } from "@prisma/client";
 
 export const PIPELINE_EVIDENCE_CODES = ["INBOUND_REVIEW", "DELIVERY_REVIEW", "MISSED_APPOINTMENT", "CONTACT_PREFERENCE"] as const;
 const denied = ["DENIED", "REVOKED", "OPTED_OUT", "SUPPRESSED"];
+export function pipelineContactRestrictionWhere(organizationId: string, now: Date): Prisma.CustomerCommunicationPreferenceWhereInput {
+  return { organizationId, status: { in: denied }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] };
+}
+
 export async function pipelineContactRestrictions(db: Prisma.TransactionClient, organizationId: string, customerId: string | null, now = new Date()) {
   if (!customerId) return [];
-  return db.customerCommunicationPreference.findMany({ where: { organizationId, customerId, status: { in: denied }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] }, select: { channel: true, purpose: true, effectiveFrom: true } });
+  return db.customerCommunicationPreference.findMany({ where: { ...pipelineContactRestrictionWhere(organizationId, now), customerId }, select: { channel: true, purpose: true, effectiveFrom: true } });
 }
 
 /** Reconcile recorded evidence only. No inferred attendance, inferred delivery, or customer sends. */

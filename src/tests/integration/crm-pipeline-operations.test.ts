@@ -19,6 +19,77 @@ describe.skipIf(process.env.RUN_PIPELINE_DATABASE !== "1")("pipeline isolated Po
     }
     const actor = { id: owner, name: "Pipeline Test Manager", email: `${owner}@example.test`, isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
     const salesperson = { ...actor, id: sales, name: "Pipeline Test Sales", email: `${sales}@example.test`, roles: ["Salesperson"] };
+    const salesProfile = await prisma.customer.create({ data: { organizationId: org, customerNumber: `IT-${randomUUID()}`, displayName: "Pipeline preview customer follow-up", ownerUserId: sales } });
+    const legacyCustomer = await prisma.customer.create({ data: { organizationId: org, customerNumber: `IT-${randomUUID()}`, displayName: "Pipeline preview future prospect", ownerUserId: sales } });
+    const futureDueAt = new Date(Date.now() + 10 * 86_400_000);
+    const legacyInput = { organizationId: org, customerId: legacyCustomer.id, sourceCode: "ISOLATED_TEST", ownerUserId: sales, createdByUserId: sales,
+      vehicleInterest: "Synthetic Toyota Corolla", nextActionCode: "CONFIRM_APPOINTMENT", nextActionAt: futureDueAt, priority: "NORMAL", score: 50, confidence: "MEDIUM", qualificationSnapshot: {} };
+    const legacy = await prisma.customerLead.create({ data: { ...legacyInput, stage: "ENGAGED", leadNumber: `IT-${randomUUID()}`, idempotencyKey: randomUUID(), requestHash: randomUUID() } });
+    const lost = await prisma.customerLead.create({ data: { ...legacyInput, stage: "LOST", leadNumber: `IT-${randomUUID()}`, idempotencyKey: randomUUID(), requestHash: randomUUID() } });
+    const soldDraft = await prisma.dealDeskDraft.create({ data: { id: randomUUID(), organizationId: org, ownerUserId: sales, customerName: "Pipeline preview sold deal", customerId: salesProfile.id, pathway: "retail-sale", vehicleReference: "Synthetic Ford Focus", status: "SOLD", snapshot: {}, statusHistory: [{ to: "SOLD", at: new Date().toISOString() }] } });
+    const restrictedDraft = await prisma.dealDeskDraft.create({ data: { id: randomUUID(), organizationId: "pipeline-other-organization", ownerUserId: sales, customerName: "Outside organization draft", pathway: "retail-sale", vehicleReference: "", status: "PENDING", snapshot: {} } });
+    const { createUnifiedCrmCustomerTaskBridge } = await import("@/server/services/unified-crm-customer-task-bridge-service");
+    const reminder = await createUnifiedCrmCustomerTaskBridge(salesperson, salesProfile.id, { idempotencyKey: randomUUID(), title: "Confirm post-sale check-in", brief: "Synthetic follow-up on the customer’s recent purchase.", dueAt: futureDueAt.toISOString() });
+    await prisma.customerInteraction.create({ data: { customerId: legacyCustomer.id, actorUserId: sales, channel: "PHONE", direction: "INBOUND", summary: "Synthetic appointment inquiry", occurredAt: new Date() } });
+    const salespersonWork = (await readPipeline(salesperson)).relatedWork ?? [];
+    expect(salespersonWork).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: legacy.id, kind: "lead", activity: expect.objectContaining({ label: "Inbound Phone" }) }),
+      expect.objectContaining({ id: soldDraft.id, kind: "deal", stage: "Sold · paperwork pending" }),
+      expect.objectContaining({ id: reminder.task.id, kind: "customer", nextAction: "Confirm post-sale check-in" }),
+    ]));
+    expect(salespersonWork.some(row => row.id === lost.id || row.id === restrictedDraft.id)).toBe(false);
+    expect((await readPipeline({ ...salesperson, dealsRestricted: true })).relatedWork?.some(row => row.id === soldDraft.id)).toBe(false);
+    expect((await readPipeline(actor)).relatedWork?.find(row => row.id === soldDraft.id)?.href).toContain("workspace=TEAM");
+    const reminderDay = await prisma.boardDay.upsert({ where: { date: futureDueAt }, update: {}, create: { date: futureDueAt } });
+    const taskData = { boardDayId: reminderDay.id, customerId: salesProfile.id, assignedUserId: sales, workflowArea: "SALES" as const, sourceType: "STAFF" as const };
+    const dealTask = await prisma.task.create({ data: { ...taskData, title: "Review signed paperwork", dueAt: new Date(Date.now() + 60_000), templateSnapshot: { dealDashboard: { organizationId: org, draftId: soldDraft.id } } } });
+    const independentTask = await prisma.task.create({ data: { ...taskData, title: "Review separate customer request", dueAt: futureDueAt } });
+    const together = (await readPipeline(salesperson)).relatedWork ?? [];
+    expect(together.find(row => row.id === soldDraft.id)?.taskId).toBe(dealTask.id);
+    expect(together.find(row => row.id === independentTask.id)?.nextAction).toBe("Review separate customer request");
+    await prisma.task.updateMany({ where: { id: { in: [dealTask.id, independentTask.id] } }, data: { status: "COMPLETED", completedAt: new Date() } });
+    const contactPreference = await prisma.customerCommunicationPreference.create({
+      data: { organizationId: org, customerId: salesProfile.id, channel: "PHONE", purpose: "SALES", status: "OPTED_OUT", source: "TEST", timezone: "America/Chicago", effectiveFrom: new Date(), recordedByUserId: sales, reason: "Synthetic restriction" }
+    });
+    const restrictedWork = (await readPipeline(salesperson)).relatedWork ?? [];
+    expect(restrictedWork.find(row => row.id === reminder.task.id)).toMatchObject({ nextAction: "Review contact permissions before outreach", href: `/crm-next/customers/${salesProfile.id}` });
+    expect(restrictedWork.find(row => row.id === soldDraft.id)?.nextAction).toBe("Review contact permissions before outreach");
+    await prisma.customerCommunicationPreference.delete({ where: { id: contactPreference.id } });
+    const dealReference = `TEST-${randomUUID()}`;
+    const packet = await prisma.documentLibraryPacket.create({ data: { organizationId: org, ownerType: "DEAL", ownerId: soldDraft.id, ownerLabel: soldDraft.customerName, packetType: "TEST", workflow: "SALES", title: "Synthetic sale packet" } });
+    const jacket = await prisma.salesDocumentJacket.create({ data: { organizationId: org, packetId: packet.id, dealReference, dealNumber: String(soldDraft.dealNumber), pathway: soldDraft.pathway, customerId: salesProfile.id, customerName: soldDraft.customerName, vehicleReference: soldDraft.vehicleReference, state: "DELIVERED_FUNDING_PENDING", requirements: [], createdByUserId: sales } });
+    await prisma.dealDeskDraft.update({ where: { id: soldDraft.id }, data: { snapshot: { references: { retail: dealReference } } } });
+    expect((await readPipeline(salesperson)).relatedWork?.find(row => row.id === soldDraft.id)?.stage).toBe("Awaiting funding");
+    await prisma.salesDocumentJacket.update({ where: { id: jacket.id }, data: { state: "CLOSED" } });
+    expect((await readPipeline(salesperson)).relatedWork?.find(row => row.id === soldDraft.id)?.stage).toBe("Sold · finalized");
+    await prisma.dealDeskDraft.update({ where: { id: soldDraft.id }, data: { snapshot: {} } });
+    await prisma.salesDocumentJacket.delete({ where: { id: jacket.id } });
+    const documentOrganization = process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID;
+    try {
+      delete process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID;
+      const legacyNamespace = await prisma.dealDeskDraft.create({ data: { id: randomUUID(), organizationId: "default-org", ownerUserId: sales, customerId: salesProfile.id, customerName: "Default document namespace", pathway: "retail-sale", vehicleReference: "", status: "PENDING", snapshot: {} } });
+      expect((await readPipeline(salesperson)).relatedWork?.some(row => row.id === legacyNamespace.id)).toBe(true);
+    } finally {
+      if (documentOrganization !== undefined) process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID = documentOrganization;
+    }
+    await prisma.task.update({ where: { id: reminder.task.id }, data: { status: "COMPLETED", completedAt: new Date() } });
+    expect((await readPipeline(salesperson)).relatedWork?.some(row => row.id === reminder.task.id)).toBe(false);
+    await prisma.task.update({ where: { id: reminder.task.id }, data: { status: "NOT_STARTED", completedAt: null } });
+    const adopt = await prisma.customerLead.create({ data: { ...legacyInput, stage: "NURTURE", leadNumber: `IT-${randomUUID()}`, idempotencyKey: randomUUID(), requestHash: randomUUID(), nextActionCode: "REVIEW_NURTURE" } });
+    const adopted = await pipelineCommand(salesperson, { action: "ADOPT_LEAD", leadId: adopt.id, idempotencyKey: randomUUID() });
+    const afterAdoption = await readPipeline(salesperson);
+    expect(afterAdoption.relatedWork?.some(row => row.id === adopt.id)).toBe(false);
+    expect(afterAdoption.rows.find(row => row.id === adopted.id)).toMatchObject({ disposition: "NURTURE", nextActionLabel: "Review Nurture", nextActionDueAt: futureDueAt.toISOString() });
+    const separateCapture = { action: "CAPTURE", title: legacyCustomer.displayName, customerId: legacyCustomer.id, pathway: "retail-sale", sourceCode: "ISOLATED_TEST" };
+    const sibling = await pipelineCommand(salesperson, { ...separateCapture, sourceKey: randomUUID(), idempotencyKey: randomUUID() });
+    const adoptedRecord = afterAdoption.rows.find(row => row.id === adopted.id)!;
+    await pipelineCommand(salesperson, { action: "DISPOSITION", id: adopted.id, expectedVersion: adoptedRecord.version, idempotencyKey: randomUUID(), disposition: "DO_NOT_CONTACT", reason: "Synthetic consent restriction for both opportunities" });
+    const siblingRow = (await readPipeline(salesperson)).rows.find(row => row.id === sibling.id)!;
+    expect(siblingRow.contactSuppressed).toBe(true);
+    await expect(pipelineCommand(salesperson, { action: "OUTCOME", id: sibling.id, expectedVersion: siblingRow.version, idempotencyKey: randomUUID(), outcome: "Spoke with customer", reason: "Synthetic prohibited outreach", nextActionLabel: "Call again", nextActionDueAt: futureDueAt.toISOString() })).rejects.toThrow(/do not contact/);
+    expect((await readPipeline(salesperson)).rows.find(row => row.id === sibling.id)?.version).toBe(siblingRow.version);
+    const paused = (await readPipeline(salesperson)).rows.find(row => row.id === adopted.id)!;
+    await pipelineCommand(salesperson, { action: "DISPOSITION", id: adopted.id, expectedVersion: paused.version, idempotencyKey: randomUUID(), disposition: "ACTIVE", reason: "Restore the synthetic walkthrough fixture", nextActionLabel: "Review nurture", nextActionDueAt: futureDueAt.toISOString() });
     const customer = await prisma.customer.create({ data: { organizationId: org, customerNumber: `IT-${randomUUID()}`, displayName: "Synthetic Pipeline Buyer", phoneNumber: "+16125550123", ownerUserId: owner } });
     const capture = { action: "CAPTURE", title: "Synthetic Pipeline Buyer", customerId: customer.id, ownerUserId: owner, sourceCode: "ISOLATED_TEST", sourceKey: randomUUID(), idempotencyKey: randomUUID(), vehicle: "2022 Toyota Camry", pathway: "lease-to-own" };
     const [first, replay] = await Promise.all([pipelineCommand(actor, capture), pipelineCommand(actor, capture)]);
@@ -61,6 +132,10 @@ describe.skipIf(process.env.RUN_PIPELINE_DATABASE !== "1")("pipeline isolated Po
     expect((await runPipelineRecovery(actor)).failed).toBe(0);
     r = (await readPipeline(actor)).rows.find(r => r.id === id)!;
     expect(r.stage).toBe("WON"); expect(r.soldAt).toBeTruthy(); expect(r.completedAt).toBeNull();
+    expect((await readPipeline(actor)).relatedWork?.some(item => item.id === r.dealId)).toBe(false);
+    const restrictedHistory = (await readPipeline({ ...actor, dealsRestricted: true })).rows.find(item => item.id === r.id);
+    expect(restrictedHistory?.dealId).toBeNull();
+    expect(JSON.stringify(restrictedHistory?.history)).not.toContain(String(deal.dealId));
     expect(r.tasks.some(t => t.title === "Review sold deal paperwork and fulfillment" && t.status !== "COMPLETED")).toBe(true);
     expect(r.tasks.some(t => t.title === "Review final signed documents" && t.assignedUserId === owner)).toBe(true);
     expect((await runPipelineRecovery(actor)).tasksCreated).toBe(0);

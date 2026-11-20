@@ -68,6 +68,15 @@ describe("pipeline continuity and historical queues", () => {
   it("retains unfinished October work in November without moving its date", () => {
     const r = record(); expect(filterPipelineRows([r], defaultPipelineFilters, "owner", now)).toEqual([r]); expect(r.nextActionDueAt).toBe("2026-10-31T16:00:00.000Z");
   });
+  it("keeps future and sold work visible while removing recorded losses from the sales queue", () => {
+    const future = record({ id: "future", nextActionDueAt: "2027-01-15T18:00:00.000Z" });
+    const sold = record({ id: "sold", stage: "WON", dealStatus: "SOLD", nextActionDueAt: null });
+    const lost = record({ id: "lost", stage: "LOST" });
+    const lostDeal = record({ id: "lost-deal", dealStatus: "LOST" });
+    const anotherOwner = record({ id: "private", ownerUserId: "another-owner" });
+    const result = filterPipelineRows([future, sold, lost, lostDeal, anotherOwner], { ...defaultPipelineFilters, view: "continuity" }, "owner", now);
+    expect(result.map(row => row.id).sort()).toEqual(["future", "sold"]);
+  });
   it("separates receipt history from due dates and includes unknown dates in recovery", () => {
     const r = record({ nextActionDueAt: null });
     expect(filterPipelineRows([r], defaultPipelineFilters, "owner", now)).toHaveLength(1);

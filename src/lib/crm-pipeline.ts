@@ -64,7 +64,19 @@ export const PIPELINE_SEQUENCES = {
 export type PipelineSequenceCode = keyof typeof PIPELINE_SEQUENCES;
 export type PipelineTemplateVersion = { code: PipelineSequenceCode; version: number; steps: string[]; reason: string; savedAt: string | null; actor: string };
 export type PipelineException = { id: string; code: string; reason: string; firstSeenAt: string; reviewDueAt: string; ownerUserId: string | null; queue: string; state: string };
+export type PipelineActivity = { label: string; at: string };
+export type PipelineRelatedWork = {
+  id: string; kind: "lead" | "deal" | "customer"; customerId: string | null;
+  name: string; reference: string; vehicle: string; stage: string; pathway?: string;
+  ownerId: string | null; ownerName: string; nextAction: string; dueAt: string | null;
+  updatedAt: string; activity?: PipelineActivity | null; href: string; sold?: boolean; completed?: boolean; taskId?: string;
+};
 export type PipelineRow = {
+  customerActivity?: PipelineActivity | null;
+  contactReview?: string;
+  contactSuppressed?: boolean;
+  sourceLeadStage?: string;
+  dealHref?: string;
   inquiryReviewedAt?: string | null;
   dealReviewState?: string | null;
   responseTargetMinutes?: number;
@@ -85,7 +97,7 @@ export type PipelineRow = {
   history: { id: string; eventType: string; reason: string; actor: string; occurredAt: string; priorValue: unknown; newValue: unknown }[];
   sequence: { taskId?: string | null; id: string; code: PipelineSequenceCode; version: number; step: number; state: string; nextRunAt: string | null; reason: string | null; steps: string[] } | null;
 };
-export type PipelineWorkspace = { templateVersions?: PipelineTemplateVersion[]; importBatches?: { id: string; receivedAt: string; ownerUserId: string; remaining: number; reason: string }[]; generatedAt: string; actorId: string; organizationId: string; canManage: boolean; canWrite: boolean; scope: string; rows: PipelineRow[]; owners: { id: string; name: string }[]; customers: { id: string; name: string }[]; truncated: boolean; nextCursor?: string | null; moreLeads?: boolean; unlinkedLeads: { id: string; title: string; customerId: string; ownerUserId: string; sourceCode: string; stage?: string; nextActionAt: string; createdAt: string }[]; health: { pending: number; failed: number; oldestPendingAt: string | null; lastWorkerAt: string | null }; };
+export type PipelineWorkspace = { templateVersions?: PipelineTemplateVersion[]; importBatches?: { id: string; receivedAt: string; ownerUserId: string; remaining: number; reason: string }[]; generatedAt: string; actorId: string; organizationId: string; canManage: boolean; canWrite: boolean; scope: string; rows: PipelineRow[]; owners: { id: string; name: string }[]; customers: { id: string; name: string }[]; truncated: boolean; nextCursor?: string | null; moreLeads?: boolean; relatedWork?: PipelineRelatedWork[]; moreRelatedWork?: boolean; unlinkedLeads: { id: string; title: string; customerId: string; ownerUserId: string; sourceCode: string; stage?: string; nextActionAt: string; createdAt: string }[]; health: { pending: number; failed: number; oldestPendingAt: string | null; lastWorkerAt: string | null }; };
 export const activePipelineRow = (r: PipelineRow) => !["WON", "LOST"].includes(r.stage) && r.disposition !== "ARCHIVED";
 export function pipelineSignals(row: PipelineRow, now: Date) {
   const codes: [string, string][] = [];
