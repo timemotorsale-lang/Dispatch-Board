@@ -2,6 +2,7 @@
 
 import { FileCheck2, LockKeyhole, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import type { PayrollHandoffReadiness } from "@/server/time-attendance/payroll-handoff-service";
 
@@ -9,6 +10,7 @@ import styles from "./time-attendance-console.module.css";
 
 type PayrollHandoffPanelProps = {
   initialReadiness: PayrollHandoffReadiness;
+  initialBatchId?: string;
 };
 
 type CommandState = {
@@ -17,11 +19,12 @@ type CommandState = {
   tone: "good" | "danger" | null;
 };
 
-export function PayrollHandoffPanel({ initialReadiness }: PayrollHandoffPanelProps) {
+export function PayrollHandoffPanel({ initialReadiness, initialBatchId = "" }: PayrollHandoffPanelProps) {
+  const router = useRouter();
   const [readiness, setReadiness] = useState(initialReadiness);
   const [periodStart, setPeriodStart] = useState(initialReadiness.payPeriod.start);
   const [periodEnd, setPeriodEnd] = useState(initialReadiness.payPeriod.end);
-  const [batchId, setBatchId] = useState("");
+  const [batchId, setBatchId] = useState(initialBatchId);
   const [reason, setReason] = useState("");
   const [state, setState] = useState<CommandState>({ busy: false, message: null, tone: null });
 
@@ -56,6 +59,7 @@ export function PayrollHandoffPanel({ initialReadiness }: PayrollHandoffPanelPro
         tone: "good"
       });
       if (payload.batchId) setBatchId(payload.batchId);
+      router.refresh();
     } catch (error) {
       setState({ busy: false, message: error instanceof Error ? error.message : "Payroll command failed.", tone: "danger" });
     }

@@ -1,11 +1,13 @@
 import { Prisma, type TimeCardStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
+import { locationLocalDateMinuteToInstant } from "@/server/appointments/location-time-service";
 
 import type { TimeAttendanceSourceEvent } from "./normalization";
 import { anchoredPeriodForInstant, dateKeyWithinPeriod, localDateKey, weeklyPeriodForInstant } from "./period";
 import type { OvertimeCoverage } from "./policy-registry";
 import { hashTimeCardReplay, replayTimeCardProjection } from "./replay";
+import { storedTimeOffWindows, timeOffEvidence, timeOffMinutes } from "./time-off-windows";
 
 type ProjectionTrigger =
   | "CAPTURE"
@@ -20,6 +22,7 @@ type ProjectionRequest = {
   locationId: string;
   occurredAt: Date;
   trigger: ProjectionTrigger;
+  expectedPeriod?: { start: string; end: string; timeZone: string };
 };
 
 export type TimeCardProjectionOutcome = {
@@ -83,7 +86,12 @@ function projectionStatus(payrollReady: boolean): TimeCardStatus {
   return payrollReady ? "EMPLOYEE_REVIEW" : "OPEN";
 }
 
-async function loadProjectionInput(database: ProjectionDatabase, request: ProjectionRequest) {
+type TimeCardPeriodDatabase = Pick<ProjectionDatabase, "timeAttendancePolicyAssignment" | "timeAttendancePayPeriodDefinition">;
+
+export async function resolveTimeCardProjectionPeriod(
+  request: Omit<ProjectionRequest, "trigger">,
+  database: TimeCardPeriodDatabase = prisma
+) {
   const assignments = await database.timeAttendancePolicyAssignment.findMany({
     where: {
       organizationId: request.organizationId,
@@ -141,6 +149,18 @@ async function loadProjectionInput(database: ProjectionDatabase, request: Projec
         timeZone: policy.timezone,
         workweekStartDay: policy.workweekStartDay
       });
+  const timeZone = payPeriodDefinition?.timezone ?? policy.timezone;
+  return { blockedReason: null, input: { assignment, policy, payPeriodDefinition, period, timeZone } };
+}
+
+async function loadProjectionInput(database: ProjectionDatabase, request: ProjectionRequest) {
+  const resolved = await resolveTimeCardProjectionPeriod(request, database);
+  if (!resolved.input) return resolved;
+  const { assignment, policy, payPeriodDefinition, period, timeZone } = resolved.input;
+  if (request.expectedPeriod && (request.expectedPeriod.start !== period.periodStartKey ||
+    request.expectedPeriod.end !== period.periodEndKey || request.expectedPeriod.timeZone !== timeZone)) {
+    return { blockedReason: "The pay-period definition changed. Ask payroll to reconcile the original affected periods.", input: null };
+  }
   const broadStart = new Date(`${period.periodStartKey}T00:00:00.000Z`);
   broadStart.setUTCDate(broadStart.getUTCDate() - 1);
   const broadEnd = new Date(`${period.periodEndKey}T23:59:59.999Z`);
@@ -177,6 +197,7 @@ async function loadProjectionInput(database: ProjectionDatabase, request: Projec
       requestedMinutes: true,
       startsAt: true,
       endsAt: true,
+      evidence: true,
       balanceSnapshot: true
     }
   }), database.timeAttendanceBreakInterval.findMany({
@@ -190,9 +211,27 @@ async function loadProjectionInput(database: ProjectionDatabase, request: Projec
     select: { id: true, startAt: true, endAt: true, paid: true, completelyRelieved: true, evidence: true }
   })]);
 
+  const periodStartsAt = locationLocalDateMinuteToInstant({ localDate: period.periodStartKey, minuteOfDay: 0, timezone: timeZone });
+  const periodEndsAt = locationLocalDateMinuteToInstant({ localDate: period.periodEndKey, minuteOfDay: 1440, timezone: timeZone });
+  const periodTimeOff = timeOff.flatMap(record => {
+    const structured = Array.isArray(timeOffEvidence(record.evidence).timeOffWindows);
+    const windows = storedTimeOffWindows(record).flatMap(window => {
+      const startsAt = window.startsAt > periodStartsAt ? window.startsAt : periodStartsAt;
+      const endsAt = window.endsAt < periodEndsAt ? window.endsAt : periodEndsAt;
+      if (endsAt <= startsAt) return [];
+      const allowance = structured ? timeOffMinutes(window) : record.requestedMinutes;
+      const duration = window.endsAt.getTime() - window.startsAt.getTime();
+      const cumulative = (instant: Date) => Math.round((instant.getTime() - window.startsAt.getTime()) / duration * allowance);
+      return [{ startsAt, endsAt, minutes: cumulative(endsAt) - cumulative(startsAt) }];
+    });
+    return windows.length ? [{
+      ...record, startsAt: windows[0].startsAt, endsAt: windows.at(-1)!.endsAt,
+      requestedMinutes: windows.reduce((total, window) => total + window.minutes, 0)
+    }] : [];
+  });
   return {
     blockedReason: null,
-    input: { assignment, policy, period, payPeriodDefinition, events, eventRecords, timeOff, paidRests }
+    input: { assignment, policy, period, payPeriodDefinition, events, eventRecords, timeOff: periodTimeOff, paidRests }
   };
 }
 

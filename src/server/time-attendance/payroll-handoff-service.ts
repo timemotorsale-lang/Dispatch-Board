@@ -6,6 +6,8 @@ import { assertAuthenticatedUser } from "@/server/policies/access";
 import { requireTimeAttendanceCapability, type TimeAttendanceCapability } from "./capabilities";
 import { anchoredPeriodForInstant, weeklyPeriodForInstant } from "./period";
 import { recordSafeInternalTimeAttendanceNotification, notifyTimeAttendanceReviewers } from "./notification-service";
+import { locationLocalDateMinuteToInstant } from "@/server/appointments/location-time-service";
+import { storedTimeOffWindows, timeOffEvidence } from "./time-off-windows";
 
 export type PayrollHandoffBlockerCode =
   | "OPEN_SESSION"
@@ -120,7 +122,14 @@ type PayrollHandoffDatabase = {
     updateMany(input: Record<string, unknown>): Promise<{ count: number }>;
   };
   timeOffRequest: {
-    findMany(input: Record<string, unknown>): Promise<{ id: string; protectedRouting: boolean; requesterUser: { name: string }; status: string }[]>;
+    findMany(input: Record<string, unknown>): Promise<{
+      id: string; protectedRouting: boolean; requesterUser: { name: string }; status: string;
+      startsAt?: Date; endsAt?: Date; evidence?: unknown;
+    }[]>;
+  };
+  location?: { findFirst(input: Record<string, unknown>): Promise<{ timezone: string } | null> };
+  timeAttendancePayPeriodDefinition?: {
+    findMany(input: Record<string, unknown>): Promise<{ anchorDate: Date; periodLengthDays: number; timezone: string }[]>;
   };
   user?: {
     findMany(input: Record<string, unknown>): Promise<{ id: string; name: string }[]>;
@@ -250,7 +259,30 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
     periodEnd: Date;
     periodStart: Date;
   }) {
-    const endExclusive = periodEndExclusive(input.periodEnd);
+    const [location, definitions] = await Promise.all([
+      database.location?.findFirst({
+        where: { id: input.locationId, organizationId: input.organizationId }, select: { timezone: true }
+      }),
+      database.timeAttendancePayPeriodDefinition?.findMany({
+        where: {
+          organizationId: input.organizationId, status: "ACTIVE", effectiveFrom: { lt: periodEndExclusive(input.periodEnd) },
+          AND: [
+            { OR: [{ locationId: input.locationId }, { locationId: null }] },
+            { OR: [{ effectiveTo: null }, { effectiveTo: { gt: input.periodStart } }] }
+          ]
+        },
+        orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }],
+        select: { anchorDate: true, periodLengthDays: true, timezone: true }
+      })
+    ]);
+    const definition = definitions?.find(candidate => {
+      const reference = locationLocalDateMinuteToInstant({ localDate: dateOnly(input.periodStart), minuteOfDay: 720, timezone: candidate.timezone });
+      const period = anchoredPeriodForInstant({ ...candidate, instant: reference, timeZone: candidate.timezone });
+      return period.periodStartKey === dateOnly(input.periodStart) && period.periodEndKey === dateOnly(input.periodEnd);
+    });
+    const timezone = definition?.timezone ?? location?.timezone ?? INITIAL_MINNEAPOLIS_LOCATION.timezone;
+    const startInclusive = locationLocalDateMinuteToInstant({ localDate: dateOnly(input.periodStart), minuteOfDay: 0, timezone });
+    const endExclusive = locationLocalDateMinuteToInstant({ localDate: dateOnly(periodEndExclusive(input.periodEnd)), minuteOfDay: 0, timezone });
     const [cards, openSessions, timeOff, existingBatch, roster] = await Promise.all([
       database.timeCard.findMany({
         where: {
@@ -282,9 +314,13 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
         where: {
           organizationId: input.organizationId,
           locationId: input.locationId,
-          startsAt: { lt: endExclusive },
-          endsAt: { gt: input.periodStart },
-          status: { in: ["SUBMITTED", "LEAVE_ADMIN_REVIEW", "MANAGER_APPROVED"] }
+          startsAt: { lt: new Date(endExclusive.getTime() + 86_400_000) },
+          endsAt: { gt: new Date(startInclusive.getTime() - 86_400_000) },
+          OR: [
+            { status: { in: ["SUBMITTED", "LEAVE_ADMIN_REVIEW", "MANAGER_APPROVED"] } },
+            { status: "DRAFT", evidence: { path: ["returnedForRevision"], equals: true } },
+            { status: "APPROVED", evidence: { path: ["projectionPending"], equals: true } }
+          ]
         },
         include: { requesterUser: { select: { name: true } } }
       }),
@@ -315,7 +351,19 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
     ]);
 
     const currentCards = cards.filter((card, index, all) => all.findIndex((candidate) => candidate.staffUserId === card.staffUserId) === index);
-    return { cards: currentCards, existingBatch, openSessions, timeOff, roster };
+    const overlappingTimeOff = timeOff.filter(request => {
+      const periods = timeOffEvidence(request.evidence).projectionPeriods;
+      if (request.status === "APPROVED" && Array.isArray(periods) && periods.length) return periods.some(value => {
+        const period = timeOffEvidence(value);
+        return period.start === dateOnly(input.periodStart) && period.end === dateOnly(input.periodEnd);
+      });
+      return !request.startsAt || !request.endsAt || storedTimeOffWindows({
+        startsAt: request.startsAt, endsAt: request.endsAt, evidence: request.evidence
+      }).some(
+        window => window.startsAt < endExclusive && window.endsAt > startInclusive
+      );
+    });
+    return { cards: currentCards, existingBatch, openSessions, timeOff: overlappingTimeOff, roster };
   }
 
   return {
@@ -401,7 +449,9 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       for (const request of timeOff) {
         items.push({
           code: "PENDING_TIME_OFF",
-          detail: request.protectedRouting
+          detail: request.status === "APPROVED" ? "Approved time off must be reflected on its pay-period card before locking."
+            : request.status === "DRAFT" ? "Returned time off is awaiting an employee revision or withdrawal."
+            : request.protectedRouting
             ? "Protected leave/ESST request requires leave-admin resolution before payroll handoff."
             : `Time-off request is ${request.status.toLowerCase()} and must be approved or denied.`,
           severity: "blocking",

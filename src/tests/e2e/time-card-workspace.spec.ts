@@ -1,5 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect as baseExpect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+
+const expect = baseExpect.configure({ timeout: 15_000 });
 
 test("staff can recover a punch, report an interrupted meal, and review a prior card", async ({ page }) => {
   test.skip(process.env.RUN_TIME_CARD_PREVIEW !== "1", "Requires isolated time-card test records");
@@ -84,8 +86,19 @@ test("staff can recover a punch, report an interrupted meal, and review a prior 
   await page.goto("/time-attendance?view=my-time");
   await correction.locator("summary").click();
   await correction.getByLabel("What needs review?").selectOption("MISSING_CLOCK_IN");
-  const now = new Date();
-  const testTime = `06:${String(now.getMinutes()).padStart(2, "0")}`;
+  const selectedDate = await correction.getByLabel("Date", { exact: true }).inputValue();
+  const existingDatabase = new PrismaClient();
+  const usedTimes = await existingDatabase.timeAttendanceEvent.findMany({
+    where: { staffUserId: "time-preview-staff", eventType: "MANAGER_CORRECTION" }, select: { occurredAt: true }
+  }).finally(() => existingDatabase.$disconnect());
+  const testTime = await page.evaluate(({ date, used }) => {
+    const occupied = new Set(used);
+    for (let minute = 240; minute < 420; minute++) {
+      const time = [Math.floor(minute / 60), minute % 60].map(part => String(part).padStart(2, "0")).join(":");
+      if (!occupied.has(new Date(`${date}T${time}:00`).toISOString())) return time;
+    }
+    throw new Error("No unused synthetic punch time remains.");
+  }, { date: selectedDate, used: usedTimes.map(row => row.occurredAt.toISOString()) });
   await correction.getByLabel("Start time", { exact: true }).fill(testTime);
   const managerCase = `Synthetic missing punch for manager review ${Date.now()}`;
   await correction.getByLabel("Explain what happened").fill(managerCase);

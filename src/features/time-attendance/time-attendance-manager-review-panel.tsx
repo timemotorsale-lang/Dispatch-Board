@@ -89,6 +89,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
 
   function decisionFor(item: TimeAttendanceManagerReviewQueue["items"][number]): ManagerDecision {
     const decision = stateFor(item.id).decision;
+    if (item.timeOffReview && !item.timeOffReview.actions.some(action => action === decision)) return item.timeOffReview.actions[0] ?? "APPROVE";
     if (item.correctionRebuildPending || (item.category === "CORRECTION_REQUEST" && item.status === "Approved · ready to apply" && decision === "APPROVE")) return "APPLY";
     return decision;
   }
@@ -166,7 +167,8 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
             cardChecksum: item.cardChecksum
           }
         : item.category === "TIME_OFF_REQUEST"
-          ? { decision: current.decision, reason: current.reason, requestId: item.id }
+          ? { decision, reason: item.timeOffReview?.projectionPending ? "Retry updating the time card from the approved request." : current.reason,
+              requestId: item.id, expectedUpdatedAt: item.timeOffReview?.version }
           : {
               decision,
               idempotencyKey: `manager-correction-${item.id}-${decision}-${Date.now()}`,
@@ -190,7 +192,8 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         reason: "",
         tone: rebuildPending ? "danger" : "good"
       });
-      setDecisionNotice(`${item.staffName} · ${rebuildPending ? "Correction applied. Card rebuild pending" : payload.request?.status ?? payload.card?.status ?? decision}.`);
+      const status = payload.request?.status === "DRAFT" && decision === "RETURN" ? "Returned for revision" : payload.request?.status ?? payload.card?.status ?? decision;
+      setDecisionNotice(`${item.staffName} · ${rebuildPending ? "Card update pending" : status}.`);
       router.refresh();
     } catch (error) {
       updateDecision(item.id, {
@@ -312,6 +315,13 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
               <div className={styles.managerReviewIssue}>
                 <strong>{item.title}</strong>
                 <p>{item.detail}</p>
+                {item.timeOffReview && <details>
+                  <summary>Review coverage</summary>
+                  <ul>{item.timeOffReview.dates.map(date => <li key={date}>{date}</li>)}</ul>
+                  <p>{item.timeOffReview.appointmentConflicts === null ? "Coverage data temporarily unavailable." :
+                    `${item.timeOffReview.appointmentConflicts} assigned appointments overlap · ${item.timeOffReview.overlappingAbsences} other staff already approved off`}</p>
+                  <a href={item.timeOffReview.calendarHref}>Open appointment calendar</a>
+                </details>}
               </div>
               <span className={item.severity === "danger" ? styles.chipDanger : item.severity === "warning" ? styles.chipWarning : styles.chipNeutral}>
                 {item.severity}
@@ -328,7 +338,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                 >
                   Audit
                 </button>
-                <div className={styles.managerDecisionForm}>
+                {item.timeOffReview?.actions.length === 0 ? <p>Waiting for an authorized reviewer.</p> : <div className={styles.managerDecisionForm}>
                   <select
                     aria-label={`Decision for ${item.title}`}
                     disabled={stateFor(item.id).busy}
@@ -338,12 +348,10 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                     {item.category === "CARD_APPROVAL" ? <>
                       <option value="APPROVE">Approve exact card version</option>
                       <option value="RETURN">Return to employee</option>
-                    </> : item.category === "TIME_OFF_REQUEST" ? <>
-                      <option value="APPROVE_COVERAGE">Approve coverage (ordinary request)</option>
-                      <option value="APPROVE">Final approve (leave admin)</option>
-                      <option value="RETURN">Return for review</option>
-                      <option value="DENY">Deny (leave admin)</option>
-                    </> : <>
+                    </> : item.category === "TIME_OFF_REQUEST" ? item.timeOffReview?.actions.map(action => <option value={action} key={action}>{
+                      action === "APPROVE_COVERAGE" ? "Approve coverage" : action === "APPROVE" ? item.timeOffReview?.projectionPending ? "Retry pay-period update" : "Approve time off" :
+                        action === "RETURN" ? "Return to employee for revision" : "Deny time off"
+                    }</option>) : <>
                       {item.correctionRebuildPending ? <option value="APPLY">Retry card rebuild</option> : <>
                         {item.status === "Approved · ready to apply" ? <option value="APPLY">Apply approved correction</option> : <option value="APPROVE">Approve request</option>}
                         <option value="RETURN">Return for more info</option>
@@ -351,7 +359,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                       </>}
                     </>}
                   </select>
-                  {item.correctionRebuildPending ? null : <input
+                  {item.correctionRebuildPending || item.timeOffReview?.projectionPending ? null : <input
                     aria-label={`Reason for ${item.title}`}
                     disabled={stateFor(item.id).busy}
                     onChange={(event) => updateDecision(item.id, { reason: event.target.value })}
@@ -359,13 +367,13 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                     value={stateFor(item.id).reason}
                   />}
                   <button
-                    disabled={stateFor(item.id).busy || (!item.correctionRebuildPending && stateFor(item.id).reason.trim().length < 15)}
+                    disabled={stateFor(item.id).busy || (!item.correctionRebuildPending && !item.timeOffReview?.projectionPending && stateFor(item.id).reason.trim().length < 15)}
                     onClick={() => void submitDecision(item)}
                     type="button"
                   >
-                    {item.correctionRebuildPending ? "Rebuild card" : "Record decision"}
+                    {item.correctionRebuildPending ? "Rebuild card" : item.timeOffReview?.projectionPending ? "Update pay periods" : "Record decision"}
                   </button>
-                </div>
+                </div>}
                 {stateFor(item.id).message ? (
                   <p className={stateFor(item.id).tone === "good" ? styles.inlineSuccess : styles.inlineError}>
                     {stateFor(item.id).message}

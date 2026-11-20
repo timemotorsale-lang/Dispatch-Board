@@ -25,10 +25,17 @@ import { TimeOffRequestPanel } from "./time-off-request-panel";
 import { PersonalPeriodPanel } from "./personal-period-panel";
 import { TimeCardToolLink } from "./time-card-tool-link";
 import type { PersonalTimeCardPeriods } from "@/server/time-attendance/personal-periods";
+import type { MyTimeOffWorkspace } from "@/server/time-attendance/time-off-workspace";
+import type { getMyWorkSchedule } from "@/server/time-attendance/my-work-schedule";
+import type { PersonalJobLabor } from "@/server/time-attendance/personal-job-labor";
+import type { PayrollBatchHistoryEntry } from "@/server/time-attendance/payroll-batch-history";
+import { MyWorkSchedulePanel } from "./my-work-schedule-panel";
+import { PersonalJobLaborPanel } from "./personal-job-labor-panel";
+import { PayrollBatchHistoryPanel } from "./payroll-batch-history-panel";
 import styles from "./time-attendance-console.module.css";
 
 type TimeAttendanceConsoleProps = {
-  activeView: "today" | "my-time" | "manager" | "policies" | "payroll";
+  activeView: "today" | "my-time" | "schedule" | "manager" | "policies" | "payroll";
   captureState: TimeAttendanceCaptureState;
   managerReviewQueue: TimeAttendanceManagerReviewQueue;
   model: TimeAttendanceConsoleModel;
@@ -42,6 +49,11 @@ type TimeAttendanceConsoleProps = {
   employeeAction?: keyof typeof employeeTools;
   showOperationalHealth?: boolean;
   reviewItem?: string;
+  timeOffWorkspace?: MyTimeOffWorkspace;
+  schedule?: Awaited<ReturnType<typeof getMyWorkSchedule>>;
+  jobLabor?: PersonalJobLabor;
+  payrollBatches?: PayrollBatchHistoryEntry[] | null;
+  selectedPayrollBatchId?: string;
 };
 
 const employeeTools = {
@@ -72,7 +84,7 @@ function dotClass(tone: "good" | "warning" | "neutral") {
   return styles.dotNeutral;
 }
 
-export function TimeAttendanceConsole({ activeView, captureState, density, managerReviewQueue, model, payrollReadiness, workspaceHref, history, historicalSelection = false, hasRequestedPeriod = false, correctionDate, employeeAction, showOperationalHealth, reviewItem }: TimeAttendanceConsoleProps) {
+export function TimeAttendanceConsole({ activeView, captureState, density, managerReviewQueue, model, payrollReadiness, workspaceHref, history, historicalSelection = false, hasRequestedPeriod = false, correctionDate, employeeAction, showOperationalHealth, reviewItem, timeOffWorkspace, schedule, jobLabor, payrollBatches, selectedPayrollBatchId }: TimeAttendanceConsoleProps) {
   const isEmployeeView = !historicalSelection && (activeView === "today" || activeView === "my-time");
   const showCurrentActions = activeView === "my-time" && !historicalSelection;
   const isAdminView = activeView === "manager" || activeView === "policies" || activeView === "payroll";
@@ -80,15 +92,14 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
   const card = model.employeeCard;
   const cardBlocked = blockingExceptionCount > 0;
   const statusTone = cardBlocked ? styles.chipDanger : card.payrollReady ? styles.chipGood : styles.chipNeutral;
-  const hasOperationalHealth = activeView === "manager" || activeView === "payroll";
+  const hasOperationalHealth = (activeView === "manager" && model.permissions.manager) || activeView === "payroll";
   const healthHref = `/time-attendance?view=${activeView}&action=health#operational-health`;
   const workflowLinks = [
-    ...(activeView === "manager" ? [
-      { href: "#manager-review", label: "Review" },
-      { href: "#team-status", label: "Team" }
-    ] : []),
+    ...(activeView === "manager" ? [{ href: "#manager-review", label: "Review" }] : []),
+    ...(activeView === "manager" && model.permissions.manager ? [{ href: "#team-status", label: "Team" }] : []),
     ...(activeView === "payroll" ? [
-      { href: "#payroll-handoff", label: "Payroll" }
+      { href: "#payroll-handoff", label: "Payroll" },
+      { href: "#payroll-batch-history", label: "Batch history" }
     ] : []),
   ];
   const commandItems: TimeAttendanceCommandItem[] = [
@@ -105,7 +116,7 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
       label: staff.name,
       scope: "Staff"
     })),
-    ...(model.permissions.manager ? managerReviewQueue.items.slice(0, 8) : []).map((item) => ({
+    ...(managerReviewQueue.permitted ? managerReviewQueue.items.slice(0, 8) : []).map((item) => ({
       detail: `${item.staffName} · ${item.status} · ${item.ageLabel}`,
       href: `/time-attendance?view=manager&review=${encodeURIComponent(item.id)}#time-review-${encodeURIComponent(item.id)}`,
       label: item.title,
@@ -126,7 +137,8 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
       <nav className={styles.tabs} aria-label="Time and attendance workspaces">
         <Link aria-current={activeView === "today" ? "page" : undefined} className={activeView === "today" ? styles.tabActive : styles.tab} href="/time-attendance?view=today">Today</Link>
         <Link aria-current={activeView === "my-time" ? "page" : undefined} className={activeView === "my-time" ? styles.tabActive : styles.tab} href="/time-attendance?view=my-time">My Time</Link>
-        {model.permissions.manager ? <Link aria-current={activeView === "manager" ? "page" : undefined} className={activeView === "manager" ? styles.tabActive : styles.tab} href="/time-attendance?view=manager">Manager Review</Link> : null}
+        {model.permissions.employee && <Link aria-current={activeView === "schedule" ? "page" : undefined} className={activeView === "schedule" ? styles.tabActive : styles.tab} href="/time-attendance?view=schedule">My Schedule</Link>}
+        {managerReviewQueue.permitted || model.permissions.manager ? <Link aria-current={activeView === "manager" ? "page" : undefined} className={activeView === "manager" ? styles.tabActive : styles.tab} href="/time-attendance?view=manager">Manager Review</Link> : null}
         {model.permissions.policies ? <Link aria-current={activeView === "policies" ? "page" : undefined} className={activeView === "policies" ? styles.tabActive : styles.tab} href="/time-attendance?view=policies">Policies</Link> : null}
         {model.permissions.payroll ? <Link aria-current={activeView === "payroll" ? "page" : undefined} className={activeView === "payroll" ? styles.tabActive : styles.tab} href="/time-attendance?view=payroll">Payroll Handoff</Link> : null}
       </nav>
@@ -153,6 +165,7 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
         <div className={styles.bodyGrid}>
           <div className={styles.mainStack}>
           {history && <PersonalPeriodPanel history={history} hasRequestedPeriod={hasRequestedPeriod} />}
+          {schedule && <MyWorkSchedulePanel schedule={schedule} />}
           {activeView === "policies" ? <PolicyAdministrationPanel /> : null}
 
           {isEmployeeView ? <article className={styles.panel} id="time-card-summary">
@@ -204,19 +217,21 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
             </details>
           ) : null}
 
-          {showCurrentActions ? (
+          {showCurrentActions && timeOffWorkspace ? (
             <details className={styles.workflowDisclosure} id="time-off-request" open={employeeAction === "leave" ? true : undefined}>
-              <summary><span>Request time off</span></summary>
-              <TimeOffRequestPanel />
-              {model.timeOff.length > 0 && <ul>
-                {model.timeOff.map((request, index) => <li key={index}>{request.requestType} · {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: captureState.timezone }).format(new Date(request.startsAt))} · {request.statusLabel}</li>)}
-              </ul>}
+              <summary><span>My Time Off</span></summary>
+              <TimeOffRequestPanel workspace={timeOffWorkspace} />
             </details>
           ) : null}
 
+          {jobLabor && <PersonalJobLaborPanel labor={jobLabor} />}
+
           {activeView === "manager" ? <TimeAttendanceManagerReviewPanel key={reviewItem ?? "queue"} queue={managerReviewQueue} /> : null}
 
-          {activeView === "payroll" ? <div id="payroll-handoff"><PayrollHandoffPanel initialReadiness={payrollReadiness} /></div> : null}
+          {activeView === "payroll" ? <div id="payroll-handoff"><PayrollHandoffPanel key={selectedPayrollBatchId ?? "current"} initialBatchId={selectedPayrollBatchId} initialReadiness={payrollReadiness} /></div> : null}
+          {activeView === "payroll" && <div id="payroll-batch-history">{payrollBatches === null
+            ? <p className={styles.captureError} role="alert">Payroll batch history is temporarily unavailable.</p>
+            : <PayrollBatchHistoryPanel batches={payrollBatches ?? []} />}</div>}
 
           {hasOperationalHealth ? <details className={styles.workflowDisclosure} id="operational-health" open={showOperationalHealth ? true : undefined}>
             <summary><span>Operational health</span></summary>
@@ -254,7 +269,7 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
             </details>
           ) : null}
 
-          {activeView === "manager" ? <article className={styles.teamPanel} id="team-status">
+          {activeView === "manager" && model.permissions.manager ? <article className={styles.teamPanel} id="team-status">
             <div className={styles.teamHeader}>
               <div>
                 <span className={styles.sectionEyebrow}>CCC team view</span>
@@ -287,7 +302,7 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
           </div>
 
           <aside className={styles.sideStack} aria-label="Time attendance review rail">
-          {activeView === "manager" ? <article className={styles.reviewRail}>
+          {activeView === "manager" && model.permissions.manager ? <article className={styles.reviewRail}>
             <div className={styles.panelHeader}>
               <div>
                 <span className={styles.sectionEyebrow}>Manager queue</span>

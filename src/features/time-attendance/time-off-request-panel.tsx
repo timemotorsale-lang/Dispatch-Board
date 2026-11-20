@@ -1,138 +1,192 @@
 "use client";
 
-import { CalendarPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import type { MyTimeOffWorkspace, TimeOffDay } from "@/server/time-attendance/time-off-workspace";
 import styles from "./time-attendance-console.module.css";
 
 type RequestType = "PTO" | "ESST" | "UNPAID";
+type SavedRequest = MyTimeOffWorkspace["requests"][number];
+type DayRow = TimeOffDay & { id: number };
 
-type RequestState = {
-  busy: boolean;
-  message: string | null;
-  tone: "good" | "danger" | null;
-};
+const timeOffLabels: Record<string, string> = { PTO: "PTO", ESST: "Earned sick and safe time", UNPAID: "Unpaid time off" };
 
-function localInputValue(date: Date) {
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
+function hours(minutes: number) {
+  const duration = Math.abs(minutes);
+  const sign = minutes < 0 ? "−" : "";
+  return `${sign}${Math.floor(duration / 60)}h${duration % 60 ? ` ${duration % 60}m` : ""}`;
 }
 
-export function TimeOffRequestPanel() {
-  const router = useRouter();
-  const now = useMemo(() => new Date(), []);
-  const [requestType, setRequestType] = useState<RequestType>("PTO");
-  const [startsAt, setStartsAt] = useState(localInputValue(new Date(now.getTime() + 24 * 60 * 60000)));
-  const [endsAt, setEndsAt] = useState(localInputValue(new Date(now.getTime() + 25 * 60 * 60000)));
-  const [operationalNote, setOperationalNote] = useState("");
-  const [restrictedReason, setRestrictedReason] = useState("");
-  const [state, setState] = useState<RequestState>({ busy: false, message: null, tone: null });
+function toMinutes(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
 
-  async function submit() {
-    setState({ busy: true, message: null, tone: null });
+function requestStatus(request: SavedRequest) {
+  if (request.returned && request.status === "DRAFT") return "Returned for revision";
+  const labels: Record<string, string> = {
+    SUBMITTED: "Waiting for manager", MANAGER_APPROVED: "Coverage approved · awaiting final approval",
+    LEAVE_ADMIN_REVIEW: "Waiting for Leave Administration", APPROVED: "Approved",
+    DENIED: "Denied", WITHDRAWN: "Withdrawn", CANCELLED: "Cancelled", DRAFT: "Draft"
+  };
+  return labels[request.status] ?? request.status;
+}
+
+export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspace }) {
+  const router = useRouter();
+  const defaultDay: DayRow = { id: 0, date: workspace.today, start: "", end: "" };
+  const [requestType, setRequestType] = useState<RequestType>("PTO");
+  const [days, setDays] = useState<DayRow[]>([defaultDay]);
+  const [note, setNote] = useState("");
+  const [privateReason, setPrivateReason] = useState("");
+  const [editing, setEditing] = useState<SavedRequest | null>(null);
+  const [withdrawing, setWithdrawing] = useState<SavedRequest | null>(null);
+  const [filter, setFilter] = useState("all");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ text: string; error?: boolean }>();
+  const nextRowId = useRef(1);
+  const command = useRef<{ body: string; key: string } | null>(null);
+  const editTarget = useRef<HTMLHeadingElement>(null);
+  const year = Number(days[0]?.date.slice(0, 4) || workspace.today.slice(0, 4));
+  const balance = workspace.balances.find(entry => entry.type === requestType && entry.balanceYear === year);
+  const pending = balance?.pending.filter(entry => entry.id !== editing?.id).reduce((total, entry) => total + entry.minutes, 0) ?? 0;
+  const validDays = days.every(day => day.date && day.start && day.end && toMinutes(day.end) > toMinutes(day.start));
+  const requested = validDays ? days.reduce((total, day) => total + toMinutes(day.end) - toMinutes(day.start), 0) : 0;
+  const remaining = balance?.availableMinutes == null ? null : balance.availableMinutes - pending - requested;
+  const duplicateDates = new Set(days.map(day => day.date)).size !== days.length;
+
+  function changeDay(id: number, field: keyof TimeOffDay, value: string) {
+    setDays(current => current.map(day => day.id === id ? { ...day, [field]: value } : day));
+  }
+
+  function resetForm() {
+    setEditing(null);
+    setDays([defaultDay]);
+    setNote("");
+    setPrivateReason("");
+    setRequestType("PTO");
+  }
+
+  function edit(request: SavedRequest) {
+    setEditing(request);
+    setWithdrawing(null);
+    setRequestType(request.requestType as RequestType);
+    setDays(request.days.map(day => ({ ...day, id: nextRowId.current++ })));
+    setNote(request.note ?? "");
+    setPrivateReason("");
+    setMessage(undefined);
+    editTarget.current?.focus();
+  }
+
+  async function save(action: "REVISE" | "WITHDRAW" | "SUBMIT") {
+    const target = action === "WITHDRAW" ? withdrawing : editing;
+    const input = action === "WITHDRAW" ? {} : {
+      requestType, days: days.map(({ date, start, end }) => ({ date, start, end })),
+      operationalNote: requestType === "ESST" ? "" : note,
+      restrictedReason: requestType === "ESST" ? privateReason : ""
+    };
+    const body = { ...input, locationId: workspace.locationId, action, requestId: target?.id, expectedUpdatedAt: target?.version };
+    const fingerprint = JSON.stringify(body);
+    const key = command.current?.body === fingerprint ? command.current.key : crypto.randomUUID();
+    command.current = { body: fingerprint, key };
+    setBusy(true);
+    setMessage(undefined);
     try {
       const response = await fetch("/api/time-attendance/time-off", {
-        method: "POST",
+        method: action === "SUBMIT" ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          endsAt: new Date(endsAt).toISOString(),
-          idempotencyKey: `time-off-${requestType}-${Date.now()}`,
-          operationalNote,
-          requestType,
-          restrictedReason,
-          startsAt: new Date(startsAt).toISOString()
-        })
+        body: JSON.stringify({ ...body, idempotencyKey: key })
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(typeof payload.error === "string" ? payload.error : "Time-off request failed.");
-      }
-      setState({
-        busy: false,
-        message: requestType === "ESST"
-          ? "ESST request submitted with protected routing."
-          : `Time-off request submitted: ${payload.request?.status ?? "submitted"}.`,
-        tone: "good"
-      });
-      setOperationalNote("");
-      setRestrictedReason("");
+      if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "The request could not be saved.");
+      command.current = null;
+      if (action !== "WITHDRAW" || editing?.id === target?.id) resetForm();
+      setWithdrawing(null);
+      setMessage({ text: action === "WITHDRAW" ? "Request withdrawn." : action === "REVISE" ? "Revised request sent for review." : "Time-off request submitted." });
       router.refresh();
     } catch (error) {
-      setState({
-        busy: false,
-        message: error instanceof Error ? error.message : "Time-off request failed.",
-        tone: "danger"
-      });
+      setMessage({ text: error instanceof Error ? error.message : "The request could not be saved.", error: true });
+    } finally {
+      setBusy(false);
     }
   }
 
-  const noteRequired = requestType !== "ESST" && operationalNote.trim().length > 0 && operationalNote.trim().length < 8;
-  const privateReasonMissing = requestType === "ESST" && restrictedReason.trim().length < 10;
-  const invalidWindow = !startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt);
+  if (!workspace.available) return <p className={styles.captureError} role="alert">Time off is temporarily unavailable.</p>;
+  const calendarDate = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: workspace.timezone });
+  const activeStatuses = ["SUBMITTED", "MANAGER_APPROVED", "LEAVE_ADMIN_REVIEW", "DRAFT"];
+  const visible = workspace.requests.filter(request => filter === "all" || (filter === "active" ? activeStatuses.includes(request.status) : !activeStatuses.includes(request.status)));
 
-  return (
-    <article className={styles.panel}>
-      <div className={styles.panelHeader}>
-        <div>
-          <span className={styles.sectionEyebrow}>Time off</span>
-          <h2>Request time away</h2>
-          <p>PTO, Minnesota ESST, and unpaid requests start here. ESST private reasons are restricted from ordinary manager view.</p>
-        </div>
-        <CalendarPlus aria-hidden="true" />
+  return <section className={styles.panel} aria-label="My Time Off">
+    <div className={styles.panelHeader}><h2>My Time Off</h2></div>
+    <div className={styles.timeSummary}>
+      {workspace.balances.filter(entry => entry.balanceYear === year).map(entry => <div key={entry.type}>
+        <span>{timeOffLabels[entry.type]} · {year}</span>
+        <strong>{entry.availableMinutes === null ? "Balance unavailable" : hours(entry.availableMinutes)}</strong>
+        <small>{hours(entry.pending.reduce((total, item) => total + item.minutes, 0))} pending</small>
+      </div>)}
+    </div>
+    <form className={styles.timeOffWorkspaceForm} onSubmit={event => { event.preventDefault(); void save(editing ? "REVISE" : "SUBMIT"); }}>
+      <h3 tabIndex={-1} ref={editTarget}>{editing ? "Revise time off" : "New request"}</h3>
+      <label>Time-off type <select disabled={busy || Boolean(editing)} value={requestType} onChange={event => setRequestType(event.target.value as RequestType)}>
+        <option value="PTO">PTO</option><option value="ESST">Earned sick and safe time</option><option value="UNPAID">Unpaid time off</option>
+      </select></label>
+      <p className={styles.cardReadinessNote}>Enter the hours you need for each day · {workspace.timezone}</p>
+      {days.map((day, index) => <div className={styles.timeOffDay} key={day.id}>
+        <label>Date <input aria-label={`Date, day ${index + 1}`} required type="date" value={day.date} onChange={event => changeDay(day.id, "date", event.target.value)} disabled={busy} /></label>
+        <label>Start <input aria-label={`Start, day ${index + 1}`} required type="time" value={day.start} onChange={event => changeDay(day.id, "start", event.target.value)} disabled={busy} /></label>
+        <label>End <input aria-label={`End, day ${index + 1}`} required type="time" value={day.end} onChange={event => changeDay(day.id, "end", event.target.value)} disabled={busy} /></label>
+        {days.length > 1 && <button className={styles.ghostAction} type="button" disabled={busy} onClick={() => setDays(current => current.filter(item => item.id !== day.id))}>Remove day {index + 1}</button>}
+      </div>)}
+      <button type="button" className={styles.ghostAction} disabled={busy || days.length >= 31} onClick={() => {
+        const last = days.at(-1)!;
+        const next = new Date((last.date || workspace.today) + "T00:00:00Z");
+        next.setUTCDate(next.getUTCDate() + 1);
+        setDays([...days, { ...last, id: nextRowId.current++, date: next.toISOString().slice(0, 10) }]);
+      }}>Add another day</button>
+      <label>{requestType === "ESST" ? "Private ESST reason" : "Scheduling note (optional)"}
+        <textarea rows={2} disabled={busy} value={requestType === "ESST" ? privateReason : note}
+          required={requestType === "ESST"} minLength={requestType === "ESST" ? 10 : 8}
+          onChange={event => requestType === "ESST" ? setPrivateReason(event.target.value) : setNote(event.target.value)} />
+      </label>
+      {requestType === "ESST" && <small>Leave Administration handles this request. Your private reason stays out of the coverage queue.</small>}
+      {duplicateDates && <p className={styles.inlineError}>Enter each date once.</p>}
+      {validDays && <p className={styles.cardReadinessNote}>
+        {hours(requested)} estimated{remaining !== null ? ` · ${hours(remaining)} projected after approval of pending requests and this request` : ""}.
+        {remaining !== null && remaining < 0 ? " Review the balance before submitting." : ""}
+      </p>}
+      <div className={styles.cardExecutionRow}>
+        <button className={styles.capturePrimary} type="submit" disabled={busy || !validDays || duplicateDates}>{editing ? "Send revision" : "Submit request"}</button>
+        {editing && <button className={styles.ghostAction} type="button" disabled={busy} onClick={resetForm}>Cancel edit</button>}
       </div>
-
-      <div className={styles.timeOffForm}>
-        <label>
-          <span>Request type</span>
-          <select disabled={state.busy} onChange={(event) => setRequestType(event.target.value as RequestType)} value={requestType}>
-            <option value="PTO">PTO</option>
-            <option value="ESST">MN ESST</option>
-            <option value="UNPAID">Unpaid</option>
-          </select>
-        </label>
-        <label>
-          <span>Start</span>
-          <input disabled={state.busy} onChange={(event) => setStartsAt(event.target.value)} type="datetime-local" value={startsAt} />
-        </label>
-        <label>
-          <span>End</span>
-          <input disabled={state.busy} onChange={(event) => setEndsAt(event.target.value)} type="datetime-local" value={endsAt} />
-        </label>
-        {requestType === "ESST" ? (
-          <label className={styles.correctionWide}>
-            <span>Private ESST reason</span>
-            <textarea
-              disabled={state.busy}
-              onChange={(event) => setRestrictedReason(event.target.value)}
-              placeholder="This reason is hashed/restricted and not shown in the ordinary manager queue."
-              rows={3}
-              value={restrictedReason}
-            />
-          </label>
-        ) : (
-          <label className={styles.correctionWide}>
-            <span>Operational note</span>
-            <textarea
-              disabled={state.busy}
-              onChange={(event) => setOperationalNote(event.target.value)}
-              placeholder="Optional scheduling note for manager coverage planning."
-              rows={3}
-              value={operationalNote}
-            />
-          </label>
-        )}
-        <div className={styles.correctionFooter}>
-          <p>Submitting a request does not change payroll by itself. Approval/review remains controlled.</p>
-          <button disabled={state.busy || invalidWindow || noteRequired || privateReasonMissing} onClick={() => void submit()} type="button">
-            Submit request
-          </button>
+    </form>
+    {message && <p className={message.error ? styles.captureError : styles.captureNotice} role={message.error ? "alert" : "status"}>{message.text}</p>}
+    <div className={styles.timeOffHistory}>
+      <div className={styles.panelHeader}><h3>My requests</h3><label>Status <select value={filter} onChange={event => setFilter(event.target.value)}>
+        <option value="all">All requests</option><option value="active">In progress</option><option value="closed">Closed</option>
+      </select></label></div>
+      {!visible.length && <p className={styles.cardReadinessNote}>No matching time-off requests.</p>}
+      {visible.map(request => <article className={styles.timeOffHistoryRow} key={request.id}>
+        <div className={styles.panelHeader}>
+          <strong>{timeOffLabels[request.requestType] ?? request.requestType} · {hours(request.requestedMinutes)}</strong>
+          <span className={request.returned ? styles.chipWarning : styles.chipNeutral}>{requestStatus(request)}</span>
         </div>
-      </div>
-
-      {state.message ? (
-        <p className={state.tone === "good" ? styles.captureNotice : styles.captureError}>{state.message}</p>
-      ) : null}
-    </article>
-  );
+        <p>{calendarDate.formatRange(new Date(request.startsAt), new Date(request.endsAt))}</p>
+        {request.decisionReason && <p>{request.decisionReason}</p>}
+        {request.projectionPending && <p className={styles.cardReadinessNote}>Pay-period update is pending. Payroll or Leave Administration can retry it.</p>}
+        {request.rebuiltPeriods.length > 0 && <div className={styles.cardExecutionRow}>
+          {request.rebuiltPeriods.map(period => <Link key={period.start} href={`/time-attendance?view=my-time&period=${period.start}_${period.end}#pay-periods`}>Time card for {period.start}</Link>)}
+        </div>}
+        <div className={styles.cardExecutionRow}>
+          {request.canRevise && <button className={styles.ghostAction} type="button" disabled={busy} onClick={() => edit(request)}>Revise request</button>}
+          {request.canWithdraw && <button className={styles.ghostAction} type="button" disabled={busy} onClick={() => setWithdrawing(request)}>Withdraw request</button>}
+          {withdrawing?.id === request.id && <>
+            <button className={styles.captureSecondary} type="button" disabled={busy} onClick={() => void save("WITHDRAW")}>Confirm withdrawal</button>
+            <button className={styles.ghostAction} type="button" disabled={busy} onClick={() => setWithdrawing(null)}>Keep request</button>
+          </>}
+        </div>
+      </article>)}
+    </div>
+  </section>;
 }

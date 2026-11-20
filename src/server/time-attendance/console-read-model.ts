@@ -255,7 +255,7 @@ export async function getTimeAttendanceConsoleModel(
     const capabilities = await getTimeAttendanceCapabilitySet({ actor: user, organizationId });
     permissions = {
       employee: capabilities.TIME_SELF_SERVICE,
-      manager: capabilities.TIME_ATTENDANCE_MANAGER || capabilities.TIME_LEAVE_ADMIN,
+      manager: capabilities.TIME_ATTENDANCE_MANAGER,
       policies: capabilities.TIME_POLICY_ADMIN,
       payroll: capabilities.TIME_PAYROLL_ADMIN || capabilities.TIME_PERIOD_LOCK_REOPEN || capabilities.TIME_EXPORT_RECONCILIATION
     };

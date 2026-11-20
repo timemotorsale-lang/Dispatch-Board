@@ -119,4 +119,118 @@ it.skipIf(process.env.RUN_TIME_CARD_PREVIEW !== "1")("seeds a scoped time-card w
   expect(await prisma.timeAttendanceEvent.count({ where: { organizationId, staffUserId: recoveryId } })).toBe(1);
   expect(await prisma.enterpriseCommandLedger.count({ where: { organizationId, subjectId: recoveryDecision.requestId } })).toBe(1);
   expect(await decideTimeCardCorrectionRequest(manager, applyPayload)).toMatchObject({ duplicate: true, request: { status: "APPLIED" } });
+
+  const [{ submitStaffTimeOffRequest, changeOwnTimeOffRequest }, { decideTimeOffRequest }, { getMyTimeOffWorkspace }, { getMyWorkSchedule }] = await Promise.all([
+    import("@/server/time-attendance/time-off-service"), import("@/server/time-attendance/time-off-decision-service"),
+    import("@/server/time-attendance/time-off-workspace"), import("@/server/time-attendance/my-work-schedule")
+  ]);
+  const balance = await prisma.timeOffBalance.create({
+    data: { organizationId, userId: recoveryId, balanceType: "PTO", balanceYear: 2026, accruedMinutes: 600, availableMinutes: 600, sourceSnapshot: {} }
+  });
+  const days = [{ date: "2026-10-25", start: "20:00", end: "21:30" }, { date: "2026-10-26", start: "09:00", end: "11:00" }];
+  const leaveInput = { locationId, days, idempotencyKey: `${recoveryId}-leave`, requestType: "PTO" };
+  const request = await submitStaffTimeOffRequest(recoveryStaff, leaveInput);
+  expect(request.request.requestedMinutes).toBe(210);
+  expect((await submitStaffTimeOffRequest(recoveryStaff, leaveInput)).duplicate).toBe(true);
+  await expect(submitStaffTimeOffRequest(recoveryStaff, { ...leaveInput, idempotencyKey: `${recoveryId}-overlap` })).rejects.toThrow(/overlap/);
+  const getLeave = () => prisma.timeOffRequest.findUniqueOrThrow({ where: { id: request.request.id } });
+  const version = (await getLeave()).updatedAt.toISOString();
+  const managerInput = { requestId: request.request.id, reason: "Verified coverage for both requested workdays." };
+  const sundayPayroll = { organizationId, locationId, periodStart: new Date("2026-10-19"), periodEnd: new Date("2026-10-25"), generatedAt: new Date() };
+  await prisma.appointment.create({
+    data: { appointmentNumber: `LEAVE-${recoveryId}`, organizationId, locationId, ownerUserId: recoveryId, sourceType: "MANUAL",
+      title: "Scheduled coverage appointment", schedulingTimezone: timezone, bookingStatus: "SCHEDULED",
+      startsAt: new Date("2026-10-26T01:15:00Z"), endsAt: new Date("2026-10-26T01:45:00Z") }
+  });
+  expect((await payroll.readiness(sundayPayroll)).items).toContainEqual(expect.objectContaining({ code: "PENDING_TIME_OFF", sourceId: request.request.id }));
+  expect((await reviewQueue()).items.find(item => item.id === request.request.id)?.timeOffReview).toMatchObject({ version, appointmentConflicts: 1, overlappingAbsences: expect.any(Number) });
+  expect(await decideTimeOffRequest(manager, { ...managerInput, decision: "RETURN", expectedUpdatedAt: version })).toMatchObject({ request: { status: "DRAFT" } });
+  const ownerWorkspace = () => getMyTimeOffWorkspace(recoveryStaff, locationId, timezone, new Date("2026-10-24"));
+  expect((await getMyTimeOffWorkspace(recoveryStaff, locationId, "UTC")).timezone).toBe(timezone);
+  expect((await ownerWorkspace()).requests.find(item => item.id === request.request.id)).toMatchObject({ returned: true, canRevise: true });
+  expect((await getMyTimeOffWorkspace(manager, locationId, timezone)).requests.some(item => item.id === request.request.id)).toBe(false);
+  const revision = { ...leaveInput, action: "REVISE", requestId: request.request.id, idempotencyKey: `${recoveryId}-revise`,
+    expectedUpdatedAt: (await getLeave()).updatedAt.toISOString() };
+  await expect(changeOwnTimeOffRequest(manager, revision)).rejects.toThrow(/not found/);
+  expect(await changeOwnTimeOffRequest(recoveryStaff, revision)).toMatchObject({ request: { status: "SUBMITTED" } });
+  expect((await changeOwnTimeOffRequest(recoveryStaff, revision)).duplicate).toBe(true);
+  await expect(decideTimeOffRequest(manager, { ...managerInput, decision: "APPROVE", expectedUpdatedAt: version })).rejects.toThrow(/changed during review/);
+  expect(await decideTimeOffRequest(manager, { ...managerInput, decision: "APPROVE_COVERAGE" })).toMatchObject({ request: { status: "MANAGER_APPROVED" } });
+  expect((await reviewQueue()).items.find(item => item.id === request.request.id)?.timeOffReview?.actions).toContain("APPROVE");
+  const approved = await decideTimeOffRequest(manager, { ...managerInput, decision: "APPROVE" });
+  expect(approved.rebuiltPeriods.map(period => period.start)).toEqual(["2026-10-19", "2026-10-26"]);
+  expect((await prisma.timeOffBalance.findUniqueOrThrow({ where: { id: balance.id } })).availableMinutes).toBe(390);
+  const rebuilt = await prisma.timeCard.findMany({
+    where: { organizationId, staffUserId: recoveryId, periodStart: { in: [new Date("2026-10-19"), new Date("2026-10-26")] } },
+    orderBy: { periodStart: "asc" }, select: { calculationSnapshot: true }
+  });
+  expect(rebuilt.map(item => (item.calculationSnapshot as { timeOffTotals?: { PTO: number } }).timeOffTotals?.PTO)).toEqual([90, 120]);
+  const schedule = await getMyWorkSchedule(recoveryStaff, locationId, timezone, "2026-10-25");
+  expect(schedule.entries.filter(item => item.type === "Approved time off")).toHaveLength(1);
+  expect((await ownerWorkspace()).balances.find(item => item.type === "PTO" && item.balanceYear === 2026)?.availableMinutes).toBe(390);
+
+  const lockedLeave = await submitStaffTimeOffRequest(recoveryStaff, {
+    locationId, idempotencyKey: `${recoveryId}-locked-leave`, requestType: "PTO", days: [{ date: "2026-10-14", start: "14:00", end: "15:00" }]
+  });
+  await prisma.timeCard.update({ where: { id: recovered.projection!.cardId! }, data: { status: "LOCKED", lockedAt: new Date() } });
+  await expect(decideTimeOffRequest(manager, { ...managerInput, requestId: lockedLeave.request.id, decision: "APPROVE" })).rejects.toThrow(/locked or exported/);
+  const withdraw = { requestId: lockedLeave.request.id, action: "WITHDRAW", idempotencyKey: `${recoveryId}-withdraw-leave`,
+    expectedUpdatedAt: (await prisma.timeOffRequest.findUniqueOrThrow({ where: { id: lockedLeave.request.id } })).updatedAt.toISOString() };
+  expect(await changeOwnTimeOffRequest(recoveryStaff, withdraw)).toMatchObject({ request: { status: "WITHDRAWN" } });
+  expect((await prisma.timeOffBalance.findUniqueOrThrow({ where: { id: balance.id } })).availableMinutes).toBe(390);
+
+  const coverageManager = { ...employee, id: `${recoveryId}-coverage`, name: "Coverage reviewer", roles: ["Service Department Manager"] };
+  const leaveAdmin = { ...employee, id: `${recoveryId}-leave-admin`, name: "Leave reviewer" };
+  for (const reviewer of [coverageManager, leaveAdmin]) {
+    await prisma.user.create({ data: { id: reviewer.id, name: reviewer.name, email: `${reviewer.id}@example.test`, passwordHash, isActive: true } });
+    await prisma.vehicleCapabilityGrant.create({
+      data: { organizationId, locationId: reviewer.id === leaveAdmin.id ? null : locationId, userId: reviewer.id, capability: "TIME_LEAVE_ADMIN",
+        constraints: reviewer.id === coverageManager.id ? { requiresIndependentApproval: true } : {} }
+    });
+  }
+  const independentLeave = await submitStaffTimeOffRequest(recoveryStaff, {
+    locationId, requestType: "UNPAID", idempotencyKey: `${recoveryId}-independent`, days: [{ date: "2026-10-29", start: "09:00", end: "10:00" }]
+  });
+  const independent = { ...managerInput, requestId: independentLeave.request.id };
+  await decideTimeOffRequest(coverageManager, { ...independent, decision: "APPROVE_COVERAGE" });
+  await expect(decideTimeOffRequest(coverageManager, { ...independent, decision: "APPROVE" })).rejects.toThrow(/INDEPENDENT_REVIEW_REQUIRED/);
+  const leaveQueue = await getTimeAttendanceManagerReviewQueue(leaveAdmin);
+  expect(leaveQueue.permitted).toBe(true);
+  expect(leaveQueue.items.every(item => item.category === "TIME_OFF_REQUEST")).toBe(true);
+  const leaveAdminConsole = await getTimeAttendanceConsoleModel(leaveAdmin);
+  expect(leaveAdminConsole.permissions.manager).toBe(false);
+  expect(leaveAdminConsole.team).toEqual([]);
+  expect(leaveQueue.items.find(item => item.id === independent.requestId)?.timeOffReview?.actions).toContain("APPROVE");
+  expect(await decideTimeOffRequest(leaveAdmin, { ...independent, decision: "APPROVE" })).toMatchObject({ request: { status: "APPROVED" } });
+
+  await prisma.timeAttendancePayPeriodDefinition.upsert({
+    where: { organizationId_locationId_code_version: { organizationId, locationId, code: "WEEKLY-UTC-WORKSPACE-TEST", version: 1 } },
+    create: {
+      organizationId, locationId, code: "WEEKLY-UTC-WORKSPACE-TEST", version: 1, status: "ACTIVE", name: "UTC boundary test",
+      frequency: "WEEKLY", periodLengthDays: 7, anchorDate: new Date("2027-01-04"), effectiveFrom: new Date("2027-01-01"),
+      effectiveTo: new Date("2027-02-01"), timezone: "UTC", payrollMappingVersion: "BOUNDARY-TEST", sourceSnapshot: {}, createdByUserId: manager.id
+    },
+    update: {}
+  });
+  const utcPeriod = { periodStart: new Date("2027-01-04"), periodEnd: new Date("2027-01-10") };
+  await prisma.timeCard.create({ data: { ...card, ...utcPeriod, staffUserId: recoveryId, status: "LOCKED", version: 1 } });
+  const acrossZone = await submitStaffTimeOffRequest(recoveryStaff, {
+    locationId, idempotencyKey: `${recoveryId}-zone-leave`, requestType: "UNPAID", days: [{ date: "2027-01-03", start: "19:00", end: "20:00" }]
+  });
+  expect((await payroll.readiness({ organizationId, locationId, ...utcPeriod, generatedAt: new Date() })).items)
+    .toContainEqual(expect.objectContaining({ code: "PENDING_TIME_OFF", sourceId: acrossZone.request.id }));
+  await expect(decideTimeOffRequest(leaveAdmin, {
+    ...managerInput, requestId: acrossZone.request.id, decision: "APPROVE"
+  })).rejects.toThrow(/locked or exported/);
+  const originalPeriods = [{ start: "2026-12-28", end: "2027-01-03", timeZone: timezone }];
+  await prisma.timeOffRequest.update({
+    where: { id: acrossZone.request.id }, data: {
+      status: "APPROVED", evidence: { projectionPending: true, projectionPeriods: originalPeriods }
+    }
+  });
+  await expect(decideTimeOffRequest(leaveAdmin, {
+    ...managerInput, requestId: acrossZone.request.id, decision: "APPROVE"
+  })).rejects.toThrow(/definition changed/);
+  expect((await prisma.timeOffRequest.findUniqueOrThrow({ where: { id: acrossZone.request.id } })).evidence)
+    .toMatchObject({ projectionPending: true, projectionPeriods: originalPeriods });
 }, 60_000);

@@ -1929,6 +1929,33 @@
 .assignedPolicy summary { cursor: pointer; width: fit-content; }
 .assignedPolicy p { color: var(--muted); margin: 5px 0 0; }
 
+.timeOffWorkspaceForm,
+.timeOffHistory,
+.timeOffHistoryRow {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.timeOffWorkspaceForm { justify-items: start; }
+.timeOffWorkspaceForm h3,
+.timeOffHistory h3,
+.timeOffHistoryRow p { margin: 0; }
+.timeOffWorkspaceForm label { display: grid; gap: 4px; min-width: 0; }
+.timeOffWorkspaceForm > label:has(textarea) { width: 100%; }
+.timeOffDay { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.timeOffWorkspaceForm :is(input, select, textarea),
+.timeOffHistory select {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel, Canvas);
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px;
+}
+.timeOffHistoryRow { border-top: 1px solid var(--line); padding-top: 8px; }
+
 :global(html[data-app-theme="dark"]) .console {
   color: #edf4ff;
 }
