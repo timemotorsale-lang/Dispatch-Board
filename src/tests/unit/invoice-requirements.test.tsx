@@ -9,7 +9,7 @@ describe("invoice prerequisites", () => {
     expect(html).toContain("Passed QC record missing");
     expect(html).toContain("Complete the approved repair jobs");
     expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
-    expect(html).toContain(">Open QC</a>");
+    expect(html).toContain(">Open repair job QC</a>");
     expect(html).toContain("A part number is optional");
     expect(html).not.toContain("step=estimate");
   });
@@ -30,7 +30,7 @@ describe("invoice prerequisites", () => {
     const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={["INVOICE_JOB_QC_INCOMPLETE"]} repairJobsMissing />);
     expect(html).toContain("Approved repair jobs haven’t been created");
     expect(html).toContain("step=parts");
-    expect(html).toContain("Create approved repair jobs");
+    expect(html).toContain("Review approved repair jobs");
   });
   it("distinguishes an older invoice package from internal recon", () => {
     const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={[]} billingMode="LEGACY_REVIEW_REQUIRED" />);

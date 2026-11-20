@@ -49,7 +49,7 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   const invoices = await prisma.serviceInvoice.findMany({ where: { organizationId, repairOrderId }, orderBy: { issuedAt: "desc" } });
   const entries = await prisma.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
   const packages = await prisma.serviceInvoicePackage.findMany({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, take: 20 });
-  let readiness: { mismatchCodes: string[]; repairJobsMissing?: boolean; estimateId?: string; estimateVersion?: number };
+  let readiness: { mismatchCodes: string[]; repairJobsMissing?: boolean; missingRepairJobLines?: string[]; estimateId?: string; estimateVersion?: number };
   let currentFingerprint: string | undefined;
   try {
     const candidate = await serviceInvoiceCandidate(prisma, organizationId, repairOrderId);
@@ -57,7 +57,8 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
       mismatchCodes: candidate.mismatchCodes,
       estimateId: candidate.estimate?.id,
       estimateVersion: candidate.estimate?.version,
-      repairJobsMissing: candidate.mismatchCodes.includes("INVOICE_JOB_QC_INCOMPLETE") && candidate.order?.repairJobs.length === 0
+      repairJobsMissing: Boolean(candidate.missingRepairJobLines?.length),
+      missingRepairJobLines: candidate.missingRepairJobLines
     };
     currentFingerprint = candidate.fingerprint;
   }

@@ -8,6 +8,7 @@ describe("read-only invoice readiness", () => {
     const database = { repairOrder: { findFirst: vi.fn().mockResolvedValue({ estimateVersions: [estimate], authorizations: [{ id: "approval-1", estimateVersionId: estimate.id, disposition: "ACCEPTED", decidedAt: new Date("2026-10-28"), authorizedLineKeys: ["labor-1"], authorizedAmountCents: 25000 }], repairJobs: [] }) }, serviceDocument: { findFirst: vi.fn().mockResolvedValue({ sha256: "proof", content: { identity: frozenIdentity } }) } };
     const result = await serviceInvoiceCandidate(database as never, "org-1", "ro-1");
     expect(result.mismatchCodes).toContain("INVOICE_JOB_QC_INCOMPLETE");
+    expect(result.missingRepairJobLines).toEqual(["Repair"]);
     expect(result.ledger.totalCents).toBe(25000);
     expect(result.identity).toEqual(frozenIdentity);
   });

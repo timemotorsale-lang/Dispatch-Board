@@ -14,7 +14,7 @@ type Billing = {
   deposits?: RepairDeposits;
   canManage: boolean;
   mutationAvailability: { allowed: boolean; reason: string | null; canManageRollout?: boolean };
-  readiness?: { mismatchCodes: string[]; repairJobsMissing?: boolean; estimateId?: string; estimateVersion?: number };
+  readiness?: { mismatchCodes: string[]; repairJobsMissing?: boolean; missingRepairJobLines?: string[]; estimateId?: string; estimateVersion?: number };
   invoiceEligibility?: "INTERNAL_COST" | "CUSTOMER_REQUIRED" | "CUSTOMER_INVOICE";
   order: { id: string; repairOrderNumber: string };
   packages: { id: string; version: number; billingMode: string; mismatchCodes: string[]; identity?: { customer: string; vehicle: string; vin: string }; preview?: { lines: { key: string; description: string; quantity: number; totalCents: number }[]; subtotalCents: number; discountCents: number; taxCents: number; totalCents: number } }[];
@@ -171,14 +171,14 @@ function BillingWorkspace({ paymentOnly = false, repairOrderId: initialId, invoi
         <Link href={internal ? repairReviewHref(billing.order.id, "handoff") : `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(billing.order.id)}`}>
           {internal ? "Open internal cost closeout" : "Open repair order"}
         </Link>
-        {internal && <InvoiceRequirements repairOrderId={billing.order.id} codes={readinessCodes} repairJobsMissing={billing.readiness?.repairJobsMissing} />}
+        {internal && <InvoiceRequirements repairOrderId={billing.order.id} codes={readinessCodes} repairJobsMissing={billing.readiness?.repairJobsMissing} missingRepairJobLines={billing.readiness?.missingRepairJobLines} />}
       </section>}
       {estimateUnavailable && <Link href={repairReviewHref(billing.order.id, "estimate")}>Review current estimate</Link>}
       {!paymentOnly && !estimateUnavailable && (!ineligible || !invoiceAction) && <>
       {invoiceAction && readinessCodes.length === 0 && <p>{action === "POST_INVOICE" ? "Review the approved lines and total. Authorization, completed work and QC are checked again when you issue." : "Prepare the invoice from the approved estimate. The approved lines and prices carry forward."}</p>}
       {invoiceAction && readinessCodes.length > 0 && <p role="status"><strong>No final invoice has been issued.</strong> If the customer has already paid toward this repair, record the amount received as a deposit below.</p>}
       {billing.deposits && <details><summary>{invoiceAction ? "Receive money before invoicing (deposit)" : "Record or manage a deposit (optional)"}</summary><ServiceDepositWorkspace key={`${billing.order.id}:${invoiceId ?? ""}`} repairOrderId={billing.order.id} deposits={billing.deposits} invoices={billing.invoices} canManage={billing.canManage && billing.mutationAvailability.allowed} blockReason={billing.mutationAvailability.reason} disabled={busy || Boolean(pending)} preferredInvoiceId={invoiceId} onRefresh={load} onLockChange={setDepositLocked} /></details>}
-      {invoiceAction && <InvoiceRequirements repairOrderId={billing.order.id} codes={readinessCodes} billingMode={latestPackage?.billingMode} repairJobsMissing={billing.readiness?.repairJobsMissing} />}
+      {invoiceAction && <InvoiceRequirements repairOrderId={billing.order.id} codes={readinessCodes} billingMode={latestPackage?.billingMode} repairJobsMissing={billing.readiness?.repairJobsMissing} missingRepairJobLines={billing.readiness?.missingRepairJobLines} />}
       {invoiceAction && readinessCodes.length > 0 && <button type="button" disabled={busy || Boolean(pending) || depositLocked} onClick={() => void refreshReadiness()}>{busy ? "Refreshing billing…" : "Refresh after completing requirements"}</button>}
       {action === "POST_INVOICE" && latestPackage?.preview && <section className={styles.invoicePreview} aria-label="Invoice review"><h3>Review final invoice</h3>{billing.readiness?.estimateVersion !== undefined && <p>Approved estimate revision {billing.readiness.estimateVersion}</p>}{latestPackage.identity && <p>{latestPackage.identity.customer} · {latestPackage.identity.vehicle} · VIN {latestPackage.identity.vin}</p>}<table><thead><tr><th>Approved work / item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>{latestPackage.preview.lines.map(line => <tr key={line.key}><td>{line.description}</td><td>{line.quantity}</td><td>{money(line.totalCents)}</td></tr>)}</tbody></table><dl><dt>Subtotal</dt><dd>{money(latestPackage.preview.subtotalCents)}</dd><dt>Discount</dt><dd>{money(latestPackage.preview.discountCents)}</dd><dt>Tax</dt><dd>{money(latestPackage.preview.taxCents)}</dd><dt>Total to invoice</dt><dd><strong>{money(latestPackage.preview.totalCents)}</strong></dd></dl></section>}
 

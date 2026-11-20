@@ -37,6 +37,6 @@ export function scopedRepairOrders<Model extends { repairOrders: { id: string }[
   return repairOrderId ? { ...model, repairOrders: model.repairOrders.filter(order => order.id === repairOrderId) } : model;
 }
 
-export function notifyRepairReviewSaved(repairOrderId: string) {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("repair-workflow-saved", { detail: { repairOrderId } }));
+export function notifyRepairReviewSaved(repairOrderId: string, step?: RepairWorkflowStep) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("repair-workflow-saved", { detail: { repairOrderId, step } }));
 }
