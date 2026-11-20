@@ -80,6 +80,7 @@ type IntakeState = {
 
 type ServiceReadiness = {
   appointment: null | { appointmentNumber: string; attendanceStatus: string; endsAt: string | null; expectedVersion: number; id: string; owner: string | null; startsAt: string | null; timing: string; title: string };
+  appointmentChoices?: { id: string; appointmentNumber: string; startsAt: string | null; title: string }[];
   alternatives: string[];
   canAcceptCustody: true;
   checks: Array<{ code: string; label: string; message: string; status: "PASS" | "REVIEW" | "WARNING" }>;
@@ -252,7 +253,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialCustomerId = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false, reviewWorkbench = false }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialCustomerId?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialCustomerId = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false, reviewWorkbench = false, sourceHandoff }: { reviewWorkbench?: boolean; currentUserId?: string; initialArrivalQuery?: string; initialCustomerId?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean; sourceHandoff?: { taskId: string; requestToken: string; title: string } }) {
   const formRef = useRef<HTMLFormElement>(null);
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
@@ -261,13 +262,14 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const inventoryUnitSectionRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<IntakeState>(() => {
     const customerId = initialVehicleRelationship === "CUSTOMER_VEHICLE" && options.customers.some(customer => customer.id === initialCustomerId) ? initialCustomerId : "";
-    return { ...buildInitial(options, initialTimestamp, initialVehicleId, initialVehicleRelationship), customerId, concernSummary: initialVehicleRelationship === "DEALERSHIP_INVENTORY" || customerId ? initialConcernSummary.trim().slice(0, 2000) : "" };
+    return { ...buildInitial(options, initialTimestamp, initialVehicleId, initialVehicleRelationship), customerId, concernSummary: sourceHandoff || initialVehicleRelationship === "DEALERSHIP_INVENTORY" || customerId ? initialConcernSummary.trim().slice(0, 2000) : "" };
   });
   const [arrivalQuery, setArrivalQuery] = useState(initialArrivalQuery);
   const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
   const [customerRecords, setCustomerRecords] = useState(options.customers);
   const [vehicleRecords, setVehicleRecords] = useState(options.vehicles);
   const [repairOrderRecords, setRepairOrderRecords] = useState(options.repairOrders);
+  const [handoffAppointmentId, setHandoffAppointmentId] = useState("");
   const [drawer, setDrawer] = useState<"customer" | null>(null);
   const [newCustomer, setNewCustomer] = useState({ address: "", displayName: "", email: "", phoneNumber: "", preferredContactMethod: "PHONE" });
   const [customerDrawerMessage, setCustomerDrawerMessage] = useState("");
@@ -366,7 +368,9 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
   const ready = checklist.every((item) => item.ready);
-  const nextActionLabel = !canCompleteRelationshipIntake
+  const nextActionLabel = sourceHandoff && openVehicleOrders.length && form.customerId
+    ? "Review Existing Repair Orders"
+    : !canCompleteRelationshipIntake
     ? form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue to Acquisition Review" : "Document Ownership / Custody"
     : isCustomerVehicle && !form.customerId && !sameConcernOrder
     ? "Add / Select Customer"
@@ -436,7 +440,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     setReadinessLoading(true);
     setReadinessError("");
     try {
-      const response = await fetch("/api/service-intake/readiness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ arrivedAt: new Date(form.arrivedAt).toISOString(), customerId: form.customerId, locationId: form.locationId, vehicleId: form.vehicleId }) });
+      const response = await fetch("/api/service-intake/readiness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+        ...(handoffAppointmentId === "walk-in" ? { walkIn: true } : handoffAppointmentId ? { appointmentId: handoffAppointmentId } : {}),
+        ...(sourceHandoff ? { includeAppointmentChoices: true, sourceTaskId: sourceHandoff.taskId } : {}),
+        arrivedAt: new Date(form.arrivedAt).toISOString(), customerId: form.customerId, locationId: form.locationId, vehicleId: form.vehicleId
+      }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.readiness) throw new Error(body.error ?? "Live service readiness is unavailable.");
       setReadiness(body.readiness as ServiceReadiness);
@@ -448,7 +456,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     } finally {
       setReadinessLoading(false);
     }
-  }, [form.arrivedAt, form.customerId, form.locationId, form.vehicleId, form.vehicleRelationship]);
+  }, [form.arrivedAt, form.customerId, form.locationId, form.vehicleId, form.vehicleRelationship, handoffAppointmentId, sourceHandoff]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void evaluateReadiness(), 0);
@@ -456,6 +464,24 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }, [evaluateReadiness]);
 
   useEffect(() => {
+    if (!sourceHandoff || !form.vehicleId) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ vehicleId: form.vehicleId });
+    void fetch(`/api/tasks/${encodeURIComponent(sourceHandoff.taskId)}/service-handoff?${params}`, { signal: controller.signal })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        if (!controller.signal.aborted) {
+          setRepairOrderRecords(records => mergeById(records.filter(order => order.vehicle.id !== form.vehicleId || order.closedAt), body.orders));
+        }
+      }).catch(error => {
+        if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : "Open orders could not be loaded.");
+      });
+    return () => controller.abort();
+  }, [form.vehicleId, sourceHandoff]);
+
+  useEffect(() => {
+    if (sourceHandoff) return;
     const timer = window.setTimeout(() => {
       const saved = window.localStorage.getItem(serviceIntakeDraftKey);
       if (!saved) return;
@@ -496,7 +522,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialConcernSummary, initialCustomerId, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
+  }, [initialConcernSummary, initialCustomerId, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles, sourceHandoff]);
 
   useEffect(() => {
     if (form.vehicleRelationship !== "DEALERSHIP_INVENTORY" || !form.vehicleId || form.inventoryUnitId) return;
@@ -507,11 +533,12 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }, [form.inventoryUnitId, form.vehicleId, form.vehicleRelationship, inventoryUnitRecords]);
 
   useEffect(() => {
+    if (sourceHandoff) return;
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [customerRecords, form, inventoryUnitRecords, returnTo, vehicleRecords]);
+  }, [customerRecords, form, inventoryUnitRecords, returnTo, vehicleRecords, sourceHandoff]);
 
   function update<K extends keyof IntakeState>(key: K, value: IntakeState[K]) {
     if (key === "concernSummary" || key === "vehicleId") setNewRepairOrderConfirmed(false);
@@ -606,6 +633,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     if (customer && !customerRecords.some((record) => record.id === customer.id)) setCustomerRecords((records) => [...records, customer]);
     if (vehicle && !vehicleRecords.some((record) => record.id === vehicle.id)) setVehicleRecords((records) => [...records, vehicle]);
     setNewRepairOrderConfirmed(false);
+    if (sourceHandoff) setHandoffAppointmentId(appointment.id);
     setForm((current) => ({ ...current, customerId: customer?.id ?? current.customerId, vehicleId: vehicle?.id ?? current.vehicleId, locationId: appointment.locationId || current.locationId }));
     setArrivalQuery("");
     setNotice("Appointment context selected. Confirm the concern and live readiness before creating the repair order.");
@@ -797,6 +825,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }
 
   function runFooterAction() {
+    if (sourceHandoff && openVehicleOrders.length && form.customerId) {
+      repairOrderDecisionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setNotice("Review the open orders and link only the order that covers this visit.");
+      return;
+    }
     if (existingRepairOrderToOpen && (!usesOutsideVendor || form.vendorId)) {
       void openExistingRepairOrder(existingRepairOrderToOpen.id);
       return;
@@ -1039,6 +1072,10 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }
 
   async function openExistingRepairOrder(repairOrderId: string) {
+    if (sourceHandoff) {
+      await linkHandoffOrder(repairOrderId);
+      return;
+    }
     setBusy(true);
     setNotice("");
     try {
@@ -1054,6 +1091,32 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       window.location.assign(reviewWorkbench ? repairReviewHref(repairOrderId) : isAutobodyReturn(returnTo) ? completionLinks.returnHref : usesOutsideVendor ? completionLinks.repairWorkbenchHref : completionLinks.laborGuideHref);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The technician assignment could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function linkHandoffOrder(repairOrderId: string) {
+    if (!sourceHandoff || !form.customerId || !form.vehicleId) {
+      setNotice("Select and confirm the customer and vehicle before linking an order.");
+      return;
+    }
+    if (!window.confirm("Does this open repair order cover the reported concerns for this visit?")) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(sourceHandoff.taskId)}/service-handoff`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "link", repairOrderId, requestToken: sourceHandoff.requestToken,
+          vehicleId: form.vehicleId, customerId: form.customerId, confirmSameVisit: true
+        })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      window.location.assign(buildServiceIntakeCompletionLinks(body.result.id, returnTo).repairWorkbenchHref);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The repair order link could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -1115,6 +1178,12 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       const freshReadiness = isDealershipInventory ? null : await evaluateReadiness();
       if (isCustomerVehicle && !freshReadiness) throw new Error("A current service-readiness evaluation is required before check-in.");
       const appointment = freshReadiness?.appointment ?? null;
+      if (sourceHandoff && appointment && appointment.id !== handoffAppointmentId) {
+        throw new Error("Select the correct appointment before accepting this Service handoff.");
+      }
+      if (sourceHandoff && appointment && appointment.attendanceStatus !== "CHECKED_IN") {
+        throw new Error("Check in the matched appointment from Appointments, then return here to finish the handoff.");
+      }
       if (appointment && appointment.attendanceStatus === "EXPECTED") {
         const commandKey = `service-intake-check-in-${appointment.id}-${crypto.randomUUID()}`;
         const appointmentResponse = await fetch("/api/appointments/commands", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appointmentId: appointment.id, commandType: "CHECK_IN", correlationId: commandKey, expectedAppointmentVersion: appointment.expectedVersion, idempotencyKey: commandKey, payload: {} }) });
@@ -1125,6 +1194,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          ...(sourceHandoff ? { sourceTaskId: sourceHandoff.taskId, requestToken: sourceHandoff.requestToken } : {}),
           appointmentId: appointment?.id ?? null,
           arrivedAt: new Date(form.arrivedAt).toISOString(),
           concernSummary: form.concernSummary,
@@ -1160,11 +1230,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (!response.ok) throw new Error(body.error ?? "Vehicle check-in failed.");
       const result = body.result as { duplicateReason?: string; id: string; repairOrderNumber: string };
       const reused = body.duplicate === true;
-      if (usesOutsideVendor) await saveOutsideVendorToRepairOrder(result.id);
-      else if (reused) await saveTechnicianToRepairOrder(result.id);
+      if (usesOutsideVendor && (!sourceHandoff || !reused)) await saveOutsideVendorToRepairOrder(result.id);
+      else if (reused && !sourceHandoff) await saveTechnicianToRepairOrder(result.id);
       setCreated({ ...result, reused });
       if (reviewWorkbench) window.location.assign(repairReviewHref(result.id));
-      window.localStorage.removeItem(serviceIntakeDraftKey);
+      if (!sourceHandoff) window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(reused ? `${result.repairOrderNumber} is the active synchronized card for this vehicle. It was opened and no duplicate was created.` : `${result.repairOrderNumber} was created as this vehicle's active repair card.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Vehicle check-in failed.");
@@ -1267,9 +1337,31 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
         </section>}
 
         <section className="sic-card sic-concern">
+          {sourceHandoff ? <p><strong>Service handoff from {sourceHandoff.title}.</strong> Verify the customer and vehicle before completing check-in.</p> : null}
+          {sourceHandoff && !handoffAppointmentId && Boolean(readiness?.appointmentChoices?.length) ? <label className="field">
+            <span>Which appointment is this visit?</span>
+            <select value="" onChange={event => setHandoffAppointmentId(event.target.value)}>
+              <option value="">Choose the correct appointment</option>
+              <option value="walk-in">This is a separate walk-in visit</option>
+              {readiness?.appointmentChoices?.map(appointment => <option key={appointment.id} value={appointment.id}>
+                {appointment.appointmentNumber} · {appointment.title}{appointment.startsAt ? ` · ${new Date(appointment.startsAt).toLocaleString()}` : ""}
+              </option>)}
+            </select>
+          </label> : null}
+          {sourceHandoff && readiness?.appointment?.id === handoffAppointmentId && readiness.appointment.attendanceStatus !== "CHECKED_IN"
+            ? <Link href={`/appointments?view=board&appointment=${encodeURIComponent(readiness.appointment.appointmentNumber)}`}>Open confirmed appointment to check in</Link> : null}
+          {sourceHandoff && handoffAppointmentId ? <button type="button" onClick={() => setHandoffAppointmentId("")}>Change visit selection</button> : null}
           <header><span>3</span><div><h2>{isDealershipInventory ? "Inventory concern & recon request" : "Customer concern"}</h2><p>{isDealershipInventory ? "Record why the dealership vehicle entered recon and what inspection or condition requires attention." : "Record what the customer reports in their own words. This becomes the technician's starting context."}</p></div><em>{form.concernSummary.length} / 2,000</em></header>
           <label className="sic-concern-field"><span>{isDealershipInventory ? "What does inventory need inspected or repaired?" : "What is the customer experiencing?"} <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder={isDealershipInventory ? "Example: Newly acquired inventory requires a complete safety inspection, front brake evaluation, warning-light diagnosis, and recon estimate." : "Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…"} ref={concernRef} rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
-          {selectedVehicle && selectedVehicleOrders.length ? <section className={`sic-ro-match ${sameConcernOrder ? "same-concern" : "vehicle-history"}`} ref={repairOrderDecisionRef}>
+          {sourceHandoff && openVehicleOrders.length ? <section className="sic-ro-match" ref={repairOrderDecisionRef} aria-label="Link an existing repair order">
+            <h3>Review open repair orders for this vehicle</h3>
+            <p>Link only an order that covers this visit and its reported concerns. Leave the handoff pending if the existing work is unrelated.</p>
+            {openVehicleOrders.map(order => <article key={order.id}>
+              <strong>{order.repairOrderNumber}</strong><p>{order.serviceVisit.concernSummary}</p>
+              <Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`}>Review order</Link>{" "}
+              <button disabled={busy || !form.customerId} onClick={() => void linkHandoffOrder(order.id)} type="button">Link this repair order</button>
+            </article>)}
+          </section> : selectedVehicle && selectedVehicleOrders.length ? <section className={`sic-ro-match ${sameConcernOrder ? "same-concern" : "vehicle-history"}`} ref={repairOrderDecisionRef}>
             <header><CarFront /><div><small>VIN / canonical vehicle match</small><strong>{selectedVehicle.vin ?? selectedVehicle.vehicleNumber} already exists</strong><span>This is the same canonical vehicle. The system will not create a second vehicle record.</span></div><b>{openVehicleOrders.length} open RO{openVehicleOrders.length === 1 ? "" : "s"} found</b></header>
             {sameConcernOrder ? <div className="sic-ro-decision"><div><small>Same open concern detected</small><strong>{sameConcernOrder.repairOrderNumber} · {sameConcernOrder.stage.replaceAll("_", " ")}</strong><span>{sameConcernOrder.serviceVisit.concernSummary}</span></div><nav><button disabled={busy || usesOutsideVendor && !form.vendorId} onClick={() => void openExistingRepairOrder(sameConcernOrder.id)} type="button">{usesOutsideVendor ? "Route to vendor & open RO" : "Open Labor Guide for this RO"}</button><em>Duplicate RO blocked</em></nav></div> : openVehicleOrders.length ? <><div className="sic-ro-list">{openVehicleOrders.map((order) => <article key={order.id}><div><strong>{order.repairOrderNumber}</strong><span>{order.serviceVisit.concernSummary}</span></div><nav><button disabled={busy || usesOutsideVendor && !form.vendorId} onClick={() => void openExistingRepairOrder(order.id)} type="button">{usesOutsideVendor ? "Route to vendor & open" : "Open Labor Guide for this RO"}</button>{openVehicleOrders.length > 1 ? <button className="danger" disabled={busy} onClick={() => void closeDuplicateRepairOrder(order)} type="button">Close duplicate</button> : null}</nav></article>)}</div>{openVehicleOrders.length > 1 ? <p className="sic-duplicate-help"><AlertTriangle />If one of these ROs was opened by mistake, close the unwanted duplicate and continue with the correct RO.</p> : null}<div className="sic-ro-new-choice"><div><strong>The concern appears different</strong><span>Review the open work above. Create another RO only when this is a separate problem or visit.</span></div><button className={newRepairOrderConfirmed ? "confirmed" : ""} onClick={() => setNewRepairOrderConfirmed(true)} type="button">{newRepairOrderConfirmed ? <><Check /> Separate RO confirmed</> : <><Plus /> Create separate RO for this concern</>}</button></div></> : <div className="sic-ro-decision"><div><small>Service history found</small><strong>No open repair order</strong><span>A new RO may be created for this visit while preserving the same canonical VIN record.</span></div><em>New visit allowed</em></div>}
           </section> : null}
@@ -1279,7 +1371,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
 
         <section className="sic-card sic-technician-assignment" id="technician-assignment">
           <header><span>4</span><div><h2>Choose execution path</h2><p>Route the vehicle to the internal shop or an outside vendor without losing internal accountability.</p></div><em>Simple handoff</em></header>
-          <div aria-label="Repair execution path" className="sic-execution-path" role="group"><button className={!usesOutsideVendor ? "active" : ""} onClick={() => setForm((value) => ({ ...value, executionPath: "INTERNAL_SHOP" }))} type="button"><UserRound /><span><strong>Internal shop</strong><small>Assign dealership staff</small></span></button><button className={usesOutsideVendor ? "active vendor" : ""} onClick={() => setForm((value) => ({ ...value, executionPath: "OUTSIDE_VENDOR", ownerUserId: currentUserId && options.users.some((user) => user.id === currentUserId) ? currentUserId : value.ownerUserId, vendorDirectFromSource: true, vendorScope: value.vendorScope || value.concernSummary, vendorSentFrom: "Auction" }))} type="button"><Building2 /><span><strong>Outside vendor</strong><small>Direct or dealership-to-vendor</small></span></button></div>
+          <div aria-label="Repair execution path" className="sic-execution-path" role="group"><button className={!usesOutsideVendor ? "active" : ""} onClick={() => setForm((value) => ({ ...value, executionPath: "INTERNAL_SHOP" }))} type="button"><UserRound /><span><strong>Internal shop</strong><small>Assign dealership staff</small></span></button>{!sourceHandoff ? <button className={usesOutsideVendor ? "active vendor" : ""} onClick={() => setForm((value) => ({ ...value, executionPath: "OUTSIDE_VENDOR", ownerUserId: currentUserId && options.users.some((user) => user.id === currentUserId) ? currentUserId : value.ownerUserId, vendorDirectFromSource: true, vendorScope: value.vendorScope || value.concernSummary, vendorSentFrom: "Auction" }))} type="button"><Building2 /><span><strong>Outside vendor</strong><small>Direct or dealership-to-vendor</small></span></button> : <span>Use the repair order to assign outside work after check-in.</span>}</div>
           {usesOutsideVendor ? <div className="sic-vendor-assignment"><label><span>Outside vendor</span><select aria-label="Assign outside vendor" onChange={(event) => update("vendorId", event.target.value)} value={form.vendorId}><option value="">Select outside vendor</option>{repairVendorRecords.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name} — {vendor.vendorType.replaceAll("_", " ").toLocaleLowerCase()}</option>)}</select></label><label><span>Accountable advisor</span><select aria-label="Accountable advisor" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{otherActiveStaff.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</select></label><label className="sic-vendor-direct"><input checked={form.vendorDirectFromSource} onChange={(event) => setForm((value) => ({ ...value, vendorDirectFromSource: event.target.checked, vendorSentFrom: event.target.checked ? "Auction" : "Dealership" }))} type="checkbox" /><span><strong>Direct from auction/source</strong><small>Do not create false dealership custody.</small></span></label><label><span>Sent from</span><input onChange={(event) => update("vendorSentFrom", event.target.value)} value={form.vendorSentFrom} /></label><label className="wide"><span>Requested outside work</span><textarea onChange={(event) => update("vendorScope", event.target.value)} placeholder="Describe the body, mechanical, glass, calibration, or detail work" rows={3} value={form.vendorScope} /></label><label><span>Expected return</span><input onChange={(event) => update("vendorExpectedReturnAt", event.target.value)} type="datetime-local" value={form.vendorExpectedReturnAt} /></label>{repairVendorRecords.length ? <div className="sic-vendor-selected"><Building2 /><span><strong>{selectedVendor?.name ?? "Select a vendor"}</strong><small>{selectedVendor ? `${selectedVendor.defaultLeadDays} day typical lead · advisor remains accountable` : "Choose the work destination above"}</small></span></div> : <div className="sic-vendor-selected empty"><Building2 /><span><strong>No saved outside vendors</strong><small>Add Diego Auto Body once, then return to select it.</small></span><Link href="/vehicles/outside-vendors">Add outside vendor</Link></div>}</div> : <div className="sic-technician-assignment-row"><label><span>Technician / accountable staff</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{repairCapableTechnicians.length ? <optgroup label="Repair-capable staff">{repairCapableTechnicians.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}{otherActiveStaff.length ? <optgroup label="Other active staff">{otherActiveStaff.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>{selectedOwner && isRepairCapable(selectedOwner) ? "Repair-capable · preassigned from check-in" : "Accountable at intake · repair eligibility verified in dispatch"}</small></span></div><Link className="sic-open-dispatch" href="/vehicles/shop-dispatch">Open Shop Dispatch <ChevronRight /></Link></div>}
           {usesOutsideVendor ? <div className="sic-vendor-quick-add"><button onClick={() => setVendorCreateOpen((open) => !open)} type="button"><Plus />{vendorCreateOpen ? "Cancel new vendor" : "Add new vendor"}</button>{vendorCreateOpen ? <div><label><span>Vendor name</span><input autoFocus onChange={(event) => setNewRepairVendor((vendor) => ({ ...vendor, name: event.target.value }))} placeholder="Diego Auto Body" value={newRepairVendor.name} /></label><label><span>Work type</span><select onChange={(event) => setNewRepairVendor((vendor) => ({ ...vendor, vendorType: event.target.value }))} value={newRepairVendor.vendorType}><option value="BODY_SHOP">Body shop</option><option value="MECHANICAL_SUBLET">Mechanical sublet</option><option value="GLASS">Glass</option><option value="CALIBRATION">Calibration</option><option value="DETAIL">Detail</option><option value="TRANSPORT">Transport</option><option value="OTHER">Other</option></select></label><label><span>Normal lead time</span><input min={0} onChange={(event) => setNewRepairVendor((vendor) => ({ ...vendor, defaultLeadDays: Number(event.target.value) }))} type="number" value={newRepairVendor.defaultLeadDays} /></label><button disabled={vendorBusy || newRepairVendor.name.trim().length < 2} onClick={() => void createRepairVendor()} type="button">{vendorBusy ? "Saving…" : "Save & select vendor"}</button></div> : null}</div> : null}
           <footer><ShieldCheck /><span>{usesOutsideVendor ? "The vendor is the work destination; the selected advisor remains the dealership's accountable owner. Approval and return QC remain required." : "This assignment does not authorize repairs or bypass technician qualification, capacity, parts, or QC controls."}</span></footer>

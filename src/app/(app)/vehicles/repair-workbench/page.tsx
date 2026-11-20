@@ -21,6 +21,7 @@ import { getTaskCompletionReadiness } from "@/server/services/task-execution-rea
 import { getTaskReadModelById } from "@/server/services/task-read";
 
 import styles from "./repair-workbench.module.css";
+import { listPendingServiceHandoffs } from "@/server/repair-order/task-handoff";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -166,10 +167,22 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       if (managerContext) preserveManagerContext(canonical, managerContext.mode);
       redirect(`/vehicles/repair-workbench?${canonical}`);
     }
-    const [options, diagnostics] = await Promise.all([
+    const [options, diagnostics, sourceHandoffs] = await Promise.all([
       getRepairOrderCreateOptions(user).catch(() => ({ users: [] })),
       diagnosticsBridge(user, params.repairOrderId),
+      prisma.taskRepairHandoff.findMany({
+        where: { repairOrderId: order.id },
+        orderBy: { acceptedAt: "asc" },
+        select: { taskId: true, concern: true, task: { select: { title: true } } }
+      })
     ]);
+    const handoffSources = sourceHandoffs.length ? <section className="panel-card" aria-label="Originating Service handoffs">
+      <h2>Originating Service handoffs</h2>
+      {sourceHandoffs.map(source => <article key={source.taskId}>
+        <Link href={`/tasks/${encodeURIComponent(source.taskId)}?tool=serviceHandoff`}>{source.task.title}</Link>
+        <p style={{ whiteSpace: "pre-wrap" }}>{source.concern}</p>
+      </article>)}
+    </section> : null;
     const linkedTaskReference = await prisma.inventoryWorkPacket.findFirst({
       where: {
         organizationId: "organizationId" in order && typeof order.organizationId === "string"
@@ -198,11 +211,11 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
 
     if (showAdvisorReturn) {
       const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
-      return <AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} />;
+      return <>{handoffSources}<AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} /></>;
     }
 
     return (
-      <RepairOrderEnterpriseWorkbench
+      <>{handoffSources}<RepairOrderEnterpriseWorkbench
         actorIsManager={actorIsManager}
         canUpdateLinkedTask={canUpdateLinkedTask}
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
@@ -216,11 +229,12 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         returnTo={returnTo}
         showAdvisorReturn={showAdvisorReturn}
         showWorkspaceReturn={showWorkspaceReturn}
-      />
+      /></>
     );
   }
 
   const query = params.query?.trim().slice(0, 100) ?? "";
+  const pendingHandoffs = params.vehicleId ? [] : await listPendingServiceHandoffs(user);
   const [ordersResult, contextOptions] = await Promise.all([
     listRepairOrders(user, { page: 1, pageSize: 50, query, vehicleId: params.vehicleId }).catch((error) => ({
       error: error instanceof Error ? error.message : "Repair-order queue could not be loaded.",
@@ -295,6 +309,12 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         </div>
       </header>
 
+      {pendingHandoffs.length ? <section className="panel-card" aria-label="Pending Service handoffs">
+        <h2>Pending Service handoffs</h2>
+        <ul>{pendingHandoffs.map(handoff => <li key={handoff.taskId}>
+          <Link href={`/vehicles/repair-orders?serviceHandoff=${encodeURIComponent(handoff.taskId)}`}>{handoff.task.title}</Link>
+        </li>)}</ul>
+      </section> : null}
       {params.contextError === "REPAIR_ORDER_VEHICLE_MISMATCH" ? (
         <div className="notice notice-warning">
           <p>

@@ -13,6 +13,7 @@ export const taskTools = [
   ["checklist", "Open checklist"],
   ["updates", "Progress and comments"],
   ["repairDetails", "Repair details"],
+  ["serviceHandoff", "Hand off to Service"],
   ["metadata", "Task details and context"],
   ["approvals", "Approvals and completion"],
   ["activity", "Activity history"],
@@ -31,6 +32,7 @@ export const advancedTaskTools: Partial<Record<TaskTool, string>> = {
 
 export function TaskToolPicker({
   canOpenAdvanced = false,
+  canOpenServiceHandoff = false,
   compactReview = false,
   counts = {},
   onSelect,
@@ -39,6 +41,7 @@ export function TaskToolPicker({
   value = ""
 }: {
   canOpenAdvanced?: boolean;
+  canOpenServiceHandoff?: boolean;
   compactReview?: boolean;
   counts?: Partial<Record<TaskTool, number>>;
   onSelect?: (tool: TaskToolSelection) => void;
@@ -60,7 +63,7 @@ export function TaskToolPicker({
         router.push(`/tasks/${encodeURIComponent(taskId)}?${params.toString()}`);
       }}>
         <option value="">Select a tool...</option>
-        {taskTools.filter(([tool]) => (canOpenAdvanced || !advancedTaskTools[tool]) && (compactReview ? tool !== "activity" : tool !== "details" && tool !== "plan")).map(([tool, label]) => (
+        {taskTools.filter(([tool]) => (tool !== "serviceHandoff" || canOpenServiceHandoff) && (canOpenAdvanced || !advancedTaskTools[tool]) && (compactReview ? tool !== "activity" : tool !== "details" && tool !== "plan")).map(([tool, label]) => (
           <option key={tool} value={tool}>{compactReview && tool === "updates" ? "Work log" : compactReview && tool === "metadata" ? "Edit task details" : label}{counts[tool] !== undefined ? ` (${counts[tool]})` : ""}</option>
         ))}
       </select>

@@ -42,6 +42,7 @@ import { TaskMetadataPanel } from "./task-metadata-panel";
 import { TaskDescriptionEditor } from "./task-description-editor";
 import { TaskStatusBadge } from "./task-status-badge";
 import { advancedTaskTools, taskTools, TaskToolPicker, type TaskToolSelection } from "./task-tool-picker";
+import { TaskServiceHandoffPanel, TaskServiceHandoffSummary, type TaskServiceHandoff } from "./task-service-handoff";
 
 type TaskWorkspaceView = "simple" | "workbench";
 type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "repairDetails";
@@ -78,6 +79,7 @@ type TaskSimpleSummaryCardProps = {
   returnTo: string;
   roleLabel: string;
   sourceLabel: string;
+  serviceHandoff?: TaskServiceHandoff | null;
   statusLabel: string;
   subtaskItems: TaskDetailSubtaskItem[];
   task: TaskReadModel;
@@ -1171,6 +1173,7 @@ export function TaskSimpleSummaryCard({
   returnTo,
   roleLabel,
   sourceLabel,
+  serviceHandoff,
   subtaskItems,
   task,
   taskCategory
@@ -1178,7 +1181,7 @@ export function TaskSimpleSummaryCard({
   const router = useRouter();
   const rawRequestedTool = useSearchParams().get("tool");
   const requestedTool = compactReview && rawRequestedTool === "activity" ? "updates" : rawRequestedTool;
-  const initialTool = taskTools.some(([tool]) => tool === requestedTool && (canOpenFullWorkbench || !advancedTaskTools[tool])) ? requestedTool as TaskToolSelection : "";
+  const initialTool = taskTools.some(([tool]) => tool === requestedTool && (tool !== "serviceHandoff" || serviceHandoff) && (canOpenFullWorkbench || !advancedTaskTools[tool])) ? requestedTool as TaskToolSelection : "";
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(
     initialTool === "subtask" ? "next" : initialTool === "checklist" ? "checklist" : initialTool === "updates" ? "comments" : initialTool === "repairDetails" ? "repairDetails" : null
   );
@@ -1269,10 +1272,11 @@ export function TaskSimpleSummaryCard({
             </div>}
             {canUpdateStatus && !task.concernWorkspace ? <TaskTitleEditor taskId={task.id} title={recordTitle} /> : <h1>{recordTitle}</h1>}
           </div>
-          <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} compactReview={compactReview} counts={compactReview ? { subtask: openSubtasks.length, checklist: checklistCount, repairDetails: repairDetails.linkedCount, updates: feedItems.length } : undefined} onSelect={openTool} returnTo={returnTo} taskId={task.id} value={activeTool || (activePanel === "next" ? "subtask" : activePanel === "checklist" ? "checklist" : activePanel === "comments" ? "updates" : activePanel === "repairDetails" ? "repairDetails" : "")} />
+          <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} canOpenServiceHandoff={Boolean(serviceHandoff)} compactReview={compactReview} counts={compactReview ? { subtask: openSubtasks.length, checklist: checklistCount, repairDetails: repairDetails.linkedCount, updates: feedItems.length } : undefined} onSelect={openTool} returnTo={returnTo} taskId={task.id} value={activeTool || (activePanel === "next" ? "subtask" : activePanel === "checklist" ? "checklist" : activePanel === "comments" ? "updates" : activePanel === "repairDetails" ? "repairDetails" : "")} />
           {!compactReview ? <TaskSourceContext canEdit={canUpdateStatus} task={task} /> : null}
         </header>
 
+        {serviceHandoff && activeTool !== "serviceHandoff" ? <TaskServiceHandoffSummary handoff={serviceHandoff} /> : null}
         {compactReview ? <TaskDescriptionEditor key={recordDescription} canEdit={canUpdateStatus && !task.concernWorkspace} description={recordDescription} taskId={task.id} /> : <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>}
         <div className={compactReview ? "task-review-facts" : undefined}>
         <div className="etw-compact-task-utility-row">
@@ -1317,6 +1321,7 @@ export function TaskSimpleSummaryCard({
               <small>Selected tool</small>
               <strong>
                 {activeTool === "status" ? "Status" : null}
+                {activeTool === "serviceHandoff" ? "Hand off to Service" : null}
                 {activeTool === "workflow" ? "Role and execution path" : null}
                 {activeTool === "assignee" ? "Assign staff" : null}
                 {activeTool === "planner" ? "Planner" : null}
@@ -1330,6 +1335,7 @@ export function TaskSimpleSummaryCard({
             </div>
             <button aria-label="Close selected task tool" onClick={() => setActiveTool("")} type="button"><X size={17} /></button>
           </header>
+          {activeTool === "serviceHandoff" && serviceHandoff ? <TaskServiceHandoffPanel taskId={task.id} handoff={serviceHandoff} canSchedule={canCreateAppointment || serviceHandoff.canAccept} /> : null}
           {activeTool === "details" ? <>
             <dl className="task-review-detail-list">
               <div><dt>Task number</dt><dd>{recordNumber}</dd></div>

@@ -647,6 +647,9 @@ export async function updateTaskStatus(
   }
 
   const authenticatedUser = assertCanUpdateTaskStatus(user, task, normalizedInput.status);
+  if (normalizedInput.status === TaskStatus.COMPLETED && task.serviceHandoff && !task.serviceHandoff.repairOrderId) {
+    throw new Error("Service handoff is pending. Accept it into a repair order or cancel the handoff before completing this task.");
+  }
   assertValidTaskStatusTransition(authenticatedUser, task, normalizedInput.status);
   const staffExecutionFlags = dependencies?.staffExecutionFlags ?? getStaffExecutionFlags();
   assertExecutionEvidenceGate(

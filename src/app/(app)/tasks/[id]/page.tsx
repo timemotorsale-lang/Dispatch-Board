@@ -11,6 +11,7 @@ import { getTaskCompletionReadiness } from "@/server/services/task-execution-rea
 import { getTaskSpecialistRoutes } from "@/server/technician-workspace/service";
 import { ClaimRepairWorkflow } from "@/features/inventory/claim-repair-workflow";
 import { getClaimWorkflowTaskContext } from "@/server/claims-workspace/repair-workflow-service";
+import { getTaskRepairHandoff } from "@/server/repair-order/task-handoff";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +55,11 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const canReassign = actorIsManager || user.id === task.ownerUser?.id;
   const canManageCollaborators = canReassign || user.id === task.assignedUser.id;
   const executionFlags = getStaffExecutionFlags();
-  const [assignableUsers, activityEvents, readiness] = await Promise.all([
+  const [assignableUsers, activityEvents, readiness, serviceHandoff] = await Promise.all([
     actorIsManager || canManageCollaborators ? listActiveUserSummaries() : Promise.resolve([]),
     listActivityFeedEventsForTask(user, task.id),
-    executionFlags.taskAcceptanceEnabled ? getTaskCompletionReadiness(user, task.id) : Promise.resolve(null)
+    executionFlags.taskAcceptanceEnabled ? getTaskCompletionReadiness(user, task.id) : Promise.resolve(null),
+    getTaskRepairHandoff(user, task.id)
   ]);
   const requestedView = resolvedSearchParams.view === "simple" || resolvedSearchParams.view === "workbench"
     ? resolvedSearchParams.view
@@ -83,6 +85,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       initialView={initialView}
       readiness={readiness}
       returnTo={returnTo}
+      serviceHandoff={serviceHandoff}
       task={task}
     />
     </>
