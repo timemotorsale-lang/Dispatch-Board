@@ -41,7 +41,7 @@ describe("document workspace actions", () => {
     const estimate = { ...doc, kind: "ESTIMATE", sourceId: "estimate-1" };
     click(render(estimate), "Record customer approval"); const approval = nodes(render(estimate)).find(node => node.type === DocumentApproval)!;
     expect(approval.props.estimateId).toBe("estimate-1"); (approval.props.onApproved as () => void)();
-    expect(hooks.refresh).toHaveBeenCalledOnce(); expect(nodes(render(estimate)).some(node => node.props.children === "Review invoice requirements")).toBe(true);
+    expect(hooks.refresh).toHaveBeenCalledOnce(); expect(nodes(render(estimate)).some(node => node.props.children === "Convert estimate to invoice")).toBe(true);
   });
   it("keeps navigation and print disabled during a pending financial action", () => {
     click(render(), "Record payment"); const billing = nodes(render()).find(node => node.type === ServiceBillingWorkspace)!;

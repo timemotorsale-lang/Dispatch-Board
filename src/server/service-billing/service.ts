@@ -33,7 +33,7 @@ function required(value: unknown, label: string, max = 200) {
 }
 export async function getServiceBilling(actor: AuthenticatedUser | null, repairOrderId: string, organizationId: string = INITIAL_ORGANIZATION.id) {
   const user = assertAuthenticatedUser(actor);
-  const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, select: { id: true, locationId: true, repairOrderNumber: true, closedAt: true } });
+  const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId }, select: { id: true, locationId: true, repairOrderNumber: true, closedAt: true, origin: true, customerId: true } });
   if (!order) throw new Error("Repair order was not found.");
   await billingAccess(actor, order.locationId, false, organizationId);
   const foundation = createEnterpriseCommandRepository();
@@ -49,16 +49,27 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   const invoices = await prisma.serviceInvoice.findMany({ where: { organizationId, repairOrderId }, orderBy: { issuedAt: "desc" } });
   const entries = await prisma.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
   const packages = await prisma.serviceInvoicePackage.findMany({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, take: 20 });
-  let readiness: { mismatchCodes: string[] };
+  let readiness: { mismatchCodes: string[]; repairJobsMissing?: boolean; estimateId?: string; estimateVersion?: number };
   let currentFingerprint: string | undefined;
-  try { const candidate = await serviceInvoiceCandidate(prisma, organizationId, repairOrderId); readiness = { mismatchCodes: candidate.mismatchCodes }; currentFingerprint = candidate.fingerprint; }
+  try {
+    const candidate = await serviceInvoiceCandidate(prisma, organizationId, repairOrderId);
+    readiness = {
+      mismatchCodes: candidate.mismatchCodes,
+      estimateId: candidate.estimate?.id,
+      estimateVersion: candidate.estimate?.version,
+      repairJobsMissing: candidate.mismatchCodes.includes("INVOICE_JOB_QC_INCOMPLETE") && candidate.order?.repairJobs.length === 0
+    };
+    currentFingerprint = candidate.fingerprint;
+  }
   catch (error) {
     if (!(error instanceof Error) || !error.message.startsWith("Invoice requires current exact-version authorization")) throw error;
     readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"] };
   }
   const deposits = await getRepairDepositView(prisma, organizationId, repairOrderId);
   if (!mutationAvailability.allowed) deposits.collectionAvailability = { allowed: false, reason: mutationAvailability.reason, maxAmountCents: 0 };
-  return { order, canManage, mutationAvailability, readiness, deposits, packages: packages.map(item => {
+  const invoiceEligibility = order.origin === "INVENTORY_RECON" ? "INTERNAL_COST" : order.origin === "CUSTOMER_REPAIR" && !order.customerId ? "CUSTOMER_REQUIRED" : "CUSTOMER_INVOICE";
+  const orderSummary = { id: order.id, locationId: order.locationId, repairOrderNumber: order.repairOrderNumber, closedAt: order.closedAt };
+  return { order: orderSummary, invoiceEligibility, canManage, mutationAvailability, readiness, deposits, packages: packages.map(item => {
     const snapshot = item.sourceSnapshot && typeof item.sourceSnapshot === "object" && !Array.isArray(item.sourceSnapshot) ? item.sourceSnapshot as Record<string, unknown> : {};
     return { id: item.id, version: item.version, mismatchCodes: invoicePackageMismatchCodes(item.mismatchCodes, snapshot, currentFingerprint), billingMode: typeof snapshot.billingMode === "string" ? snapshot.billingMode : "LEGACY_REVIEW_REQUIRED", preview: snapshot.commercial ?? null, identity: snapshot.identity ?? null };
   }), invoices: invoices.map(invoice => ({ ...invoice, appliedDepositCents: deposits.entries.filter(entry => entry.invoiceId === invoice.id).reduce((sum, entry) => sum + (entry.kind === "APPLY" ? entry.amountCents : entry.kind === "UNAPPLY" ? -entry.amountCents : 0), 0), entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
@@ -68,20 +79,24 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
   const organizationId = options.organizationId ?? INITIAL_ORGANIZATION.id;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Billing command is required.");
   const raw = value as Record<string, unknown>, action = String(raw.action);
+  const expectedEstimateId = ["PREPARE_INVOICE", "POST_INVOICE"].includes(action) && raw.expectedEstimateId !== undefined
+    ? required(raw.expectedEstimateId, "Expected estimate ID", 120) : undefined;
   if (DEPOSIT_ACTIONS.includes(action)) return executeRepairDeposit(actor, repairOrderId, raw, organizationId, options.enforceRollout ?? true);
   if (!["PREPARE_INVOICE", "POST_INVOICE", "PAYMENT", "REFUND", "CREDIT", "VOID"].includes(action)) throw new Error("Unsupported billing action.");
   const idempotencyKey = required(raw.idempotencyKey, "Idempotency key"), reason = required(raw.reason, "Reason", 500);
   if (reason.length < 10) throw new Error("A detailed financial reason is required.");
   if (action === "PREPARE_INVOICE") {
-    const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId, closedAt: null }, select: { locationId: true } });
+    const order = await prisma.repairOrder.findFirst({ where: { id: repairOrderId, organizationId, closedAt: null }, select: { locationId: true, origin: true, customerId: true } });
     if (!order) throw new Error("Open repair order was not found.");
     const user = await billingAccess(actor, order.locationId, true, organizationId, options.enforceRollout ?? true);
+    if (order.origin === "INVENTORY_RECON") throw new Error("Internal recon orders use internal cost closeout. A customer invoice cannot be prepared for this order.");
+    if (order.origin === "CUSTOMER_REPAIR" && !order.customerId) throw new Error("Verify the customer on this repair order before preparing a final invoice.");
     const generatedAt = new Date(String(raw.occurredAt));
     if (!Number.isFinite(generatedAt.getTime()) || generatedAt.getTime() > Date.now() + 60_000) throw new Error("Valid nonfuture preparation time is required.");
     const repository = createServiceClosePartsRepository(), receipt = await repository.commandReceipt(organizationId, "GENERATE_INVOICE_PACKAGE", idempotencyKey);
     const expectedVersion = receipt?.expectedVersion ?? await repository.aggregateVersion(organizationId, "SHOP_OPERATIONS", "REPAIR_ORDER", repairOrderId);
-    const data = { generatedAt: generatedAt.toISOString() };
-    return repository.generateInvoice(normalizeEnterpriseCommand({ actorUserId: user.id, organizationId, domain: "SHOP_OPERATIONS", subjectType: "REPAIR_ORDER", subjectId: repairOrderId, commandType: "GENERATE_INVOICE_PACKAGE", expectedVersion, idempotencyKey, locationId: order.locationId, payload: data, reason }), { generatedAt, createdByUserId: user.id, reason });
+    const data = { generatedAt: generatedAt.toISOString(), ...(expectedEstimateId ? { expectedEstimateId } : {}) };
+    return repository.generateInvoice(normalizeEnterpriseCommand({ actorUserId: user.id, organizationId, domain: "SHOP_OPERATIONS", subjectType: "REPAIR_ORDER", subjectId: repairOrderId, commandType: "GENERATE_INVOICE_PACKAGE", expectedVersion, idempotencyKey, locationId: order.locationId, payload: data, reason }), { generatedAt, createdByUserId: user.id, reason, expectedEstimateId });
   }
   const subjectId = required(action === "POST_INVOICE" ? raw.packageId : raw.invoiceId, "Invoice/package ID", 100), expectedVersion = action === "POST_INVOICE" ? 0 : Number(raw.expectedVersion);
   if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 0) throw new Error("Exact invoice version is required.");
@@ -98,13 +113,14 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
   if (!order) throw new Error("Repair order was not found.");
   if (order.closedAt) throw new Error("Reopen the repair order before changing its financial ledger.");
   const user = await billingAccess(actor, order.locationId, true, organizationId, options.enforceRollout ?? true, amountCents);
-  const data = { action, repairOrderId, subjectId, occurredAt: occurredAt.toISOString(), amountCents, method, reference, evidence, relatedEntryId, creditComponents: action === "CREDIT" ? raw.creditComponents : null };
+  const data = { action, repairOrderId, subjectId, occurredAt: occurredAt.toISOString(), amountCents, method, reference, evidence, relatedEntryId, creditComponents: action === "CREDIT" ? raw.creditComponents : null, ...(expectedEstimateId ? { expectedEstimateId } : {}) };
   const command = normalizeEnterpriseCommand({ actorUserId: user.id, organizationId, domain: "SHOP_OPERATIONS", subjectType: "SERVICE_NATIVE_INVOICE", subjectId, commandType: action, expectedVersion, idempotencyKey, locationId: order.locationId, payload: data, reason });
   return executeAggregateMutation(prisma, command, "vehicle-operations.service-billing", async (tx, version) => {
     if (action === "POST_INVOICE") {
       const invoicePackage = await tx.serviceInvoicePackage.findFirst({ where: { id: subjectId, organizationId, repairOrderId } });
       if (!invoicePackage) throw new Error("Invoice package was not found.");
       const candidate = await assertCurrentInvoicePackage(tx, organizationId, invoicePackage);
+      if (expectedEstimateId && candidate.estimate.id !== expectedEstimateId) throw new Error("The selected estimate is no longer current. Open the repair order to review the current estimate before invoicing.");
       if (candidate.order.origin !== "CUSTOMER_REPAIR" || !candidate.order.customerId) throw new Error("Native customer invoices require a customer-linked customer-repair RO. Internal recon uses an internal cost package, not a customer receivable.");
       if (!candidate.identity || candidate.order.closedAt) throw new Error("Frozen estimate identity and an open repair order are required.");
       if (await tx.serviceInvoice.findFirst({ where: { organizationId, repairOrderId, status: "POSTED" } })) throw new Error("This RO already has a posted invoice. Use a credit/refund or audited void before reissue.");

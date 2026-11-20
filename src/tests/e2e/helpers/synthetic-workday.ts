@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../../scripts/lib/labor-staging-target.mjs";
 
 export async function explainSyntheticWorkdayDelay(page: Page, sourcePath: string, reason: string) {
-  if (process.env.LABOR_STAGING_CONFIRM !== "isolated" || process.env.PLAYWRIGHT_BASE_URL !== "http://127.0.0.1:3200") throw new Error("Synthetic workday preparation requires isolated staging.");
+  if (process.env.LABOR_STAGING_CONFIRM !== "isolated" || !["http://127.0.0.1:3200", "http://127.0.0.1:3198"].includes(process.env.PLAYWRIGHT_BASE_URL ?? "")) throw new Error("Synthetic workday preparation requires isolated staging.");
   assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
   const response = await page.request.get("/api/coo-workbook/rhythm");
   expect(response.ok()).toBe(true);

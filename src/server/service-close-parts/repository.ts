@@ -196,9 +196,10 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return { custodyEvents, demands, discrepancies, interchanges, locations, offers, parts, purchaseOrders, receipts, recoveries, repairOrders, requisitions, stockLocations, transfers, vendors };
     },
 
-    generateInvoice(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; generatedAt: Date; reason: string }) {
+    generateInvoice(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; generatedAt: Date; reason: string; expectedEstimateId?: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.shop", async (tx, aggregateVersion) => {
         const candidate = await serviceInvoiceCandidate(tx, command.organizationId, command.subjectId);
+        if (data.expectedEstimateId && candidate.estimate.id !== data.expectedEstimateId) throw new Error("The selected estimate is no longer current. Open the repair order to review the current estimate before invoicing.");
         const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: { invoicePackages: { orderBy: { version: "desc" }, take: 1 } } });
         if (!order) throw new Error("Open repair order was not found.");
         const lineItems = candidate.ledger.lines, authorizedTotalCents = candidate.ledger.totalCents;

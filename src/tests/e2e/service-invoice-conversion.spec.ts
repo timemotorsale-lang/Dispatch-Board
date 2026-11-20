@@ -1,0 +1,74 @@
+import { readFileSync } from "node:fs";
+import { expect, test } from "@playwright/test";
+import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
+import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
+
+test.use({ actionTimeout: 15_000 });
+
+test("Billing & receipts prepares an older package and issues the approved estimate once", async ({ page }) => {
+  test.setTimeout(120_000);
+  if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Use the isolated labor staging database.");
+  assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
+  const fixture = JSON.parse(readFileSync("test-results/labor-staging/invoice-conversion-fixture.json", "utf-8"));
+  const billingUrl = `/api/repair-orders/${fixture.repairOrderId}/billing`;
+  const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
+  expect(login.ok()).toBe(true);
+  await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Synthetic invoice conversion verification.");
+  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=handoff`);
+  await page.getByRole("link", { name: "Billing & receipts", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Service Billing" })).toBeVisible();
+  await expect(page.getByText(/older package needs to be refreshed/)).toBeVisible();
+  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=handoff`);
+  await page.getByRole("link", { name: "View / Print estimate" }).click();
+  await expect(page.getByRole("heading", { name: "Repair Estimate" })).toBeVisible();
+  await page.getByRole("button", { name: "Convert estimate to invoice" }).click();
+  const panel = page.getByRole("complementary", { name: "Invoice and payment actions" });
+  await expect(panel).toContainText("older package needs to be refreshed");
+  await panel.getByRole("button", { name: /invoice readiness|recheck invoice requirements/i }).click();
+  await expect(page.getByRole("heading", { name: "Review final invoice" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Invoice review" })).toContainText("$143.50");
+  await panel.getByRole("button", { name: "Create Final Invoice" }).click();
+  await expect(page.getByRole("heading", { name: "Final service invoice" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
+  const invoice = (await (await page.request.get(billingUrl)).json()).invoices[0];
+  expect(invoice).toMatchObject({ status: "POSTED", totalCents: 14350, ledger: { estimateId: fixture.estimateId } });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Final service invoice" })).toBeVisible();
+  expect((await (await page.request.get(billingUrl)).json()).invoices).toHaveLength(1);
+  await page.getByRole("link", { name: "Search estimates and issued invoices" }).click();
+  const search = page.getByRole("textbox", { name: /Search by document number/ });
+  const kind = page.getByRole("combobox", { name: "Document type" });
+  await search.fill(invoice.invoiceNumber);
+  await kind.selectOption("invoices");
+  await page.getByRole("button", { name: "Search documents" }).click();
+  await expect(page.getByRole("link", { name: `Invoice · ${invoice.invoiceNumber}` })).toBeVisible();
+  await kind.selectOption("estimates");
+  await page.getByRole("button", { name: "Search documents" }).click();
+  await expect(page.getByText("No matching documents are available to your account.")).toBeVisible();
+  const billing = await (await page.request.get(billingUrl)).json();
+  await search.fill(billing.order.repairOrderNumber);
+  await page.getByRole("button", { name: "Search documents" }).click();
+  await expect(page.getByRole("link", { name: `Estimate · ${billing.order.repairOrderNumber} / v1` })).toBeVisible();
+  await expect(page.getByRole("link", { name: `Invoice · ${invoice.invoiceNumber}` })).toHaveCount(0);
+
+  await page.request.post("/api/auth/logout");
+  expect((await page.request.post("/api/auth/login", { data: { email: "jordan.sales@local.test", password: "dispatch123!" } })).ok()).toBe(true);
+  expect((await page.request.get(billingUrl)).status()).toBe(403);
+  await page.goto(`/service-documents?${new URLSearchParams({ kind: "invoices", query: invoice.invoiceNumber })}`);
+  await expect(page.getByRole("link", { name: `Invoice · ${invoice.invoiceNumber}` })).toHaveCount(0);
+});
+
+test("an approved estimate without active repair jobs shows the recovery step", async ({ page }) => {
+  if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Use the isolated labor staging database.");
+  assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
+  const { blockedOrderId } = JSON.parse(readFileSync("test-results/labor-staging/invoice-conversion-fixture.json", "utf-8"));
+  const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
+  expect(login.ok()).toBe(true);
+  await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Synthetic invoice readiness verification.");
+  await page.goto(`/vehicles/service-billing?repairOrderId=${blockedOrderId}`);
+  await expect(page.getByRole("heading", { name: "Approved repair jobs haven’t been created" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create approved repair jobs" })).toHaveAttribute("href", `/prototype/repair-workbench?repairOrderId=${blockedOrderId}&step=parts`);
+  await expect(page.getByRole("button", { name: "Create Final Invoice" })).toHaveCount(0);
+  const billing = await page.request.get(`/api/repair-orders/${blockedOrderId}/billing`);
+  expect((await billing.json()).invoices).toEqual([]);
+});

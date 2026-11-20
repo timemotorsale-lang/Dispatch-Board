@@ -4,7 +4,7 @@ vi.mock("@/server/db/client", () => ({ prisma: { repairOrder: { findFirst: mocks
 vi.mock("@/server/enterprise-command/repository", () => ({ createEnterpriseCommandRepository: () => ({ listCapabilityGrants: mocks.grants, listFeatureFlags: mocks.flags }) }));
 vi.mock("@/server/service-close-parts/invoice-candidate", () => ({ serviceInvoiceCandidate: mocks.candidate }));
 vi.mock("@/server/service-billing/deposits", () => ({ DEPOSIT_ACTIONS: [], getRepairDepositView: async () => ({ version: 0, entries: [], balance: { collectedCents: 0, refundedCents: 0, appliedCents: 0, availableCents: 0 }, collectionAvailability: { allowed: false, reason: "No estimate", maxAmountCents: 0 } }) }));
-import { getServiceBilling, billingAccess } from "@/server/service-billing/service";
+import { getServiceBilling, billingAccess, executeServiceBilling } from "@/server/service-billing/service";
 const actor = { id: "advisor", name: "Advisor", email: "advisor@example.test", isActive: true, roles: ["Service Advisor"], duties: { all: [], direct: [], roleDefaults: [] } };
 const grant = (capability: string, locationId = "store-1", effect = "ALLOW") => ({ capability, locationId, effect, validFrom: new Date(0), validTo: null });
 const flag = (code: string, mode = "GENERAL") => ({ code, mode, locationId: null, allowedUserIds: [], rolloutPercent: 0 });
@@ -57,5 +57,18 @@ describe("billing mutation availability is informational, never an authorization
   it("does not weaken financial or store read denial", async () => {
     mocks.grants.mockResolvedValue([]); await expect(getServiceBilling(actor, "ro-1")).rejects.toThrow("SERVICE_BILLING_VIEW");
     mocks.grants.mockResolvedValue([grant("SERVICE_BILLING_VIEW"), grant("REPAIR_ORDER_VIEW", "store-1", "DENY")]); await expect(getServiceBilling(actor, "ro-1")).rejects.toThrow("REPAIR_ORDER_VIEW"); expect(mocks.invoices).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["INVENTORY_RECON", "INTERNAL_COST", "internal cost closeout"],
+    ["CUSTOMER_REPAIR", "CUSTOMER_REQUIRED", "Verify the customer"]
+  ])("explains %s before preparation and rejects direct invoice preparation", async (origin, eligibility, message) => {
+    const manager = { ...actor, roles: ["General Manager"] };
+    mocks.grants.mockResolvedValue([]);
+    mocks.order.mockResolvedValue({ id: "ro-1", locationId: "store-1", origin, customerId: null, closedAt: null });
+    expect((await getServiceBilling(manager, "ro-1")).invoiceEligibility).toBe(eligibility);
+    await expect(executeServiceBilling(manager, "ro-1", {
+      action: "PREPARE_INVOICE", idempotencyKey: "prepare-ineligible", reason: "Review final invoice readiness",
+      occurredAt: new Date().toISOString()
+    })).rejects.toThrow(message);
   });
 });

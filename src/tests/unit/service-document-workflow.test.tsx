@@ -51,7 +51,7 @@ describe("single document workflow", () => {
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[approval, estimate]} selectedId={estimate.id} />);
     expect(html).toContain("Continue repair");
     expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1"');
-    expect(html).toContain("Review invoice requirements");
+    expect(html).toContain("Convert estimate to invoice");
     const unrelated = { ...approval, content: { ...approval.content, notes: ["Source estimate old-estimate, version 1;"] } };
     expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[unrelated, estimate]} selectedId={estimate.id} />)).toContain("Record customer approval");
     const revoked = { ...approval, id: "revoked", content: { ...approval.content, decision: { ...approval.content.decision!, disposition: "REVOKED" } } };

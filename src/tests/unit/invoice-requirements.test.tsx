@@ -26,4 +26,15 @@ describe("invoice prerequisites", () => {
     expect(html).toContain("step=repair");
     expect(html).toContain("Open repair progress");
   });
+  it("routes an approved estimate with no repair jobs to Parts & release", () => {
+    const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={["INVOICE_JOB_QC_INCOMPLETE"]} repairJobsMissing />);
+    expect(html).toContain("Approved repair jobs haven’t been created");
+    expect(html).toContain("step=parts");
+    expect(html).toContain("Create approved repair jobs");
+  });
+  it("distinguishes an older invoice package from internal recon", () => {
+    const html = renderToStaticMarkup(<InvoiceRequirements repairOrderId="ro-1" codes={[]} billingMode="LEGACY_REVIEW_REQUIRED" />);
+    expect(html).toContain("older package needs to be refreshed");
+    expect(html).not.toContain("internal costs");
+  });
 });

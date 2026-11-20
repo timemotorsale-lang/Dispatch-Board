@@ -379,7 +379,7 @@ test("unlinked saved quote links through UI, issues once, recovers approval load
   await page.getByRole("checkbox", { name: "I verified the customer approved all listed work and the exact quoted amount.", exact: true }).check();
   // Two same-task DOM clicks exercise the synchronous submission latch.
   await page.getByRole("button", { name: "Record approval & continue", exact: true }).evaluate(button => { if (!(button instanceof HTMLButtonElement)) throw new Error("Expected submit button"); button.click(); button.click(); });
-  await expect(page.getByRole("button", { name: "Review invoice requirements", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Convert estimate to invoice", exact: true })).toBeVisible();
   expect(rejectedLoad).toBe(true);
   expect(approvals).toBe(1);
   expect(await prisma.repairAuthorization.count({ where: { repairOrderId: estimate.repairOrderId, estimateVersionId: estimateId, disposition: "ACCEPTED" } })).toBe(1);
@@ -419,8 +419,7 @@ test("unlinked saved quote links through UI, issues once, recovers approval load
   expect(gated.readiness.mismatchCodes).toContain("INVOICE_JOB_QC_INCOMPLETE");
   await completeLaborThroughBrowser(page);
   await page.goto(`/service-documents?repairOrderId=${estimate.repairOrderId}&documentId=${document.id}&workspace=1`);
-  await page.getByRole("button", { name: "Review invoice requirements", exact: true }).click();
-  await page.getByLabel("Detailed business reason", { exact: true }).fill("Synthetic readiness fixture - verify diagnostic invoice");
+  await page.getByRole("button", { name: "Convert estimate to invoice", exact: true }).click();
   await page.getByRole("button", { name: "Check invoice readiness", exact: true }).click();
   await page.getByRole("button", { name: "Create Final Invoice", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Final service invoice", exact: true })).toBeVisible({ timeout: 30000 });
@@ -447,7 +446,7 @@ test("unlinked saved quote links through UI, issues once, recovers approval load
   await page.getByLabel("Verified payment evidence / reference", { exact: true }).fill(`${fixture.tag}-SYNTHETIC-NO-MONEY`);
   await page.getByRole("checkbox", { name: "I verified this payment was received for this invoice.", exact: true }).check();
   const paymentRequest = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith(`/api/repair-orders/${estimate.repairOrderId}/billing`) && request.postDataJSON().action === "PAYMENT");
-  await page.getByRole("button", { name: "Record payment & view receipt", exact: true }).click();
+  await page.getByRole("button", { name: "Receive payment", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Service payment receipt", exact: true })).toBeVisible();
   const state = await (await page.request.get(`/api/repair-orders/${estimate.repairOrderId}/billing`)).json();
   expect(state.invoices[0].balance).toMatchObject({ balanceCents: 0, settlement: "SETTLED" });
@@ -627,7 +626,6 @@ test("blocked billing explains access and rechecks without posting money", async
     await expect(explanation).toContainText("Saved documents remain available to view and print.");
     await expect(explanation).toContainText(/master setting|paused|not configured/i);
     await expect(page.getByRole("link", { name: "Review Vehicle Operations settings", exact: true })).toHaveCount(0);
-    await expect(page.getByLabel("Detailed business reason", { exact: true })).toBeDisabled();
     await expect(page.getByRole("region", { name: "Repair deposits", exact: true }).getByLabel("Amount (USD)", { exact: true })).toBeDisabled();
     const reasonId = await explanation.getByRole("status").getAttribute("id");
     expect(reasonId).toBe(`billing-blocked-${repairOrderId}`);
@@ -642,7 +640,7 @@ test("blocked billing explains access and rechecks without posting money", async
     await prisma.vehicleOperationsFeatureFlag.update({ where: { id: flag.id }, data: { mode: flag.mode } });
     await page.getByRole("button", { name: "Recheck billing access", exact: true }).click();
     await expect(explanation).toHaveCount(0);
-    await expect(page.getByLabel("Detailed business reason", { exact: true })).toBeEnabled();
+    await expect(page.locator(`fieldset[aria-describedby="${reasonId}"]`)).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Repair deposits", exact: true }).getByLabel("Amount (USD)", { exact: true })).toBeEnabled();
     expect(billingPosts).toBe(0);
     expect(await snapshot()).toBe(before);

@@ -35,11 +35,17 @@ describe.skipIf(process.env.RUN_LABOR_STAGING_INTEGRATION !== "1")("isolated nat
       await prisma.partCustodyEvent.create({ data: { organizationId: org, sourceType: "SYNTHETIC", sourceId: name, repairJobId: job.id, partId: part.id, type: "INSTALL", quantity: 2, unitCostCents: 1000, actorUserId: userId, occurredAt: prior, reason: "Synthetic installation fixture", evidence: ["Synthetic installation record"], correlationId: name } });
       const candidate = await serviceInvoiceCandidate(prisma, org, order.id);
       expect(candidate.mismatchCodes).toEqual([]);
-      const invoicePackage = await prisma.serviceInvoicePackage.create({ data: { organizationId: org, repairOrderId: order.id, version: 1, status: "READY", authorizedTotalCents: candidate.ledger.totalCents, clockedLaborMinutes: candidate.clockedLaborMinutes, installedPartsCostCents: candidate.installedPartsCostCents, lineItems: candidate.ledger.lines, mismatchCodes: [], sourceSnapshot: { fingerprint: candidate.fingerprint, commercial: candidate.ledger, identity: candidate.identity, billingMode: "NATIVE" }, generatedAt: now, createdByUserId: userId, reason: "Synthetic isolated package fixture" } });
+      const invoicePackage = await prisma.serviceInvoicePackage.create({ data: { organizationId: org, repairOrderId: order.id, version: 1, status: "READY", authorizedTotalCents: candidate.ledger.totalCents, clockedLaborMinutes: candidate.clockedLaborMinutes, installedPartsCostCents: candidate.installedPartsCostCents, lineItems: candidate.ledger.lines, mismatchCodes: [], sourceSnapshot: suffix === "conversion" ? {} : { fingerprint: candidate.fingerprint, commercial: candidate.ledger, identity: candidate.identity, billingMode: "NATIVE" }, generatedAt: now, createdByUserId: userId, reason: "Synthetic isolated package fixture" } });
       return { order, invoicePackage, customer, estimate, authorization, clock, location, now };
     }
     const data = await fixture(organizationId, actor.id, "core"), options = { organizationId, enforceRollout: false };
     const post = { action: "POST_INVOICE", packageId: data.invoicePackage.id, idempotencyKey: `${prefix}-post`, reason: "Synthetic verified native invoice posting", occurredAt: data.now.toISOString() };
+    await expect(executeServiceBilling(actor, data.order.id, {
+      ...post, action: "PREPARE_INVOICE", expectedEstimateId: "older-estimate", idempotencyKey: `${prefix}-wrong-estimate`
+    }, options)).rejects.toThrow("selected estimate is no longer current");
+    expect(await prisma.serviceInvoicePackage.count({ where: { repairOrderId: data.order.id } })).toBe(1);
+    await expect(executeServiceBilling(actor, data.order.id, { ...post, expectedEstimateId: "older-estimate" }, options)).rejects.toThrow("selected estimate is no longer current");
+    expect(await prisma.serviceInvoice.count({ where: { repairOrderId: data.order.id } })).toBe(0);
     const result = await executeServiceBilling(actor, data.order.id, post, options);
     expect(result.result).toMatchObject({ totalCents: 14350, version: 1 });
     expect(await executeServiceBilling(actor, data.order.id, post, options)).toMatchObject({ duplicate: true });
@@ -112,6 +118,10 @@ describe.skipIf(process.env.RUN_LABOR_STAGING_INTEGRATION !== "1")("isolated nat
         else await prisma.vehicleOperationsFeatureFlag.create({ data: { organizationId: org, code, mode: "GENERAL", allowedUserIds: [] } });
       }
       mkdirSync("test-results/labor-staging", { recursive: true });
+      const conversion = await fixture(org, browserActor.id, "conversion");
+      const blocked = await fixture(org, browserActor.id, "blocked-conversion");
+      await prisma.repairJob.updateMany({ where: { repairOrderId: blocked.order.id }, data: { status: "CANCELLED" } });
+      writeFileSync("test-results/labor-staging/invoice-conversion-fixture.json", JSON.stringify({ repairOrderId: conversion.order.id, estimateId: conversion.estimate.id, blockedOrderId: blocked.order.id }));
       writeFileSync("test-results/labor-staging/billing-browser-fixture.json", JSON.stringify({ repairOrderId: browserData.order.id, packageId: browserData.invoicePackage.id, estimateId: browserData.estimate.id, intakeVehicleId: intakeVehicle.id }));
     }
   }, 60_000);

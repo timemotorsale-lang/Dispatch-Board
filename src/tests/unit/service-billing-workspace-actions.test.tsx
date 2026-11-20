@@ -19,8 +19,8 @@ function nodes(value: unknown): Node[] {
   const node = value as Node; return [node, ...nodes(node.props.children)];
 }
 const billing = { canManage: true, mutationAvailability: { allowed: true, reason: null }, order: { id: "ro-1", repairOrderNumber: "RO-1" }, readiness: { mismatchCodes: [] }, packages: [], invoices: [] };
-let inner: (props: { repairOrderId: string; invoiceId?: string; onDocumentReady?: (id: string) => void }) => React.ReactNode;
-function render(extra: { invoiceId?: string; onDocumentReady?: (id: string) => void } = {}) { hooks.cursor = 0; return inner({ repairOrderId: "ro-1", ...extra }); }
+let inner: (props: { repairOrderId: string; invoiceId?: string; estimateId?: string; onDocumentReady?: (id: string) => void }) => React.ReactNode;
+function render(extra: { invoiceId?: string; estimateId?: string; onDocumentReady?: (id: string) => void } = {}) { hooks.cursor = 0; return inner({ repairOrderId: "ro-1", ...extra }); }
 async function settle() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
 function submit(tree: unknown) { const forms = nodes(tree).filter(node => node.type === "form"); (forms[forms.length - 1].props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault() {} }); }
 beforeEach(() => {
@@ -34,6 +34,34 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("billing UI request boundaries", () => {
+  it("blocks conversion from an older saved estimate and links to the current estimate", () => {
+    hooks.values[4] = { ...billing, readiness: { ...billing.readiness, estimateId: "estimate-2", estimateVersion: 2 } };
+    const html = renderToStaticMarkup(render({ estimateId: "estimate-1", onDocumentReady: vi.fn() }));
+    expect(html).toContain("This document is not the current approved estimate.");
+    expect(html).toContain("Review current estimate");
+    expect(html).not.toContain("Check invoice readiness");
+  });
+  it("reloads billing after a rejected invoice so the operator can prepare again", async () => {
+    hooks.values[8] = "POST_INVOICE";
+    hooks.values[9] = "old-package";
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ error: "Invoice source changed." }) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => billing } as Response);
+    submit(render());
+    await settle();
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(hooks.values[8]).toBe("PREPARE_INVOICE");
+    expect(hooks.values[5]).toBe("Invoice source changed.");
+  });
+  it("routes internal recon to cost closeout without offering a customer invoice", () => {
+    hooks.values[4] = { ...billing, invoiceEligibility: "INTERNAL_COST" };
+    const html = renderToStaticMarkup(render());
+    expect(html).toContain("Internal recon order");
+    expect(html).toContain("Open internal cost closeout");
+    expect(html).toContain("step=handoff");
+    expect(html).not.toContain("Check invoice readiness");
+    expect(html).not.toContain("Create Final Invoice");
+  });
   it.each([undefined, false, true])("explains rollout blocks and offers settings only with explicit authorization (%s)", canManageRollout => {
     hooks.values[4] = { ...billing, mutationAvailability: { allowed: false, reason: "This workflow is paused in Settings > Vehicle Operations.", canManageRollout } };
     const tree = render();
