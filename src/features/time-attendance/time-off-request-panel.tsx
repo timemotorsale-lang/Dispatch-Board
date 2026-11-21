@@ -7,11 +7,14 @@ import { useRouter } from "next/navigation";
 import type { MyTimeOffWorkspace, TimeOffDay } from "@/server/time-attendance/time-off-workspace";
 import styles from "./time-attendance-console.module.css";
 
-type RequestType = "PTO" | "ESST" | "UNPAID";
+type RequestType = "PTO" | "ESST" | "UNPAID" | "MN_PAID_LEAVE" | "PROTECTED_UNPAID_LEAVE";
 type SavedRequest = MyTimeOffWorkspace["requests"][number];
 type DayRow = TimeOffDay & { id: number };
 
-const timeOffLabels: Record<string, string> = { PTO: "PTO", ESST: "Earned sick and safe time", UNPAID: "Unpaid time off" };
+const timeOffLabels: Record<string, string> = {
+  PTO: "PTO", ESST: "Earned sick and safe time", UNPAID: "Unpaid time off",
+  MN_PAID_LEAVE: "Minnesota Paid Leave", PROTECTED_UNPAID_LEAVE: "Protected unpaid leave"
+};
 
 function hours(minutes: number) {
   const duration = Math.abs(minutes);
@@ -25,6 +28,7 @@ function toMinutes(value: string) {
 }
 
 function requestStatus(request: SavedRequest) {
+  if (request.status === "APPROVED" && ["MN_PAID_LEAVE", "PROTECTED_UNPAID_LEAVE", "PROTECTED_REFERRAL"].includes(request.requestType)) return "Referral reviewed";
   if (request.returned && request.status === "DRAFT") return "Returned for revision";
   const labels: Record<string, string> = {
     SUBMITTED: "Waiting for manager", MANAGER_APPROVED: "Coverage approved · awaiting final approval",
@@ -40,12 +44,13 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
   const [requestType, setRequestType] = useState<RequestType>("PTO");
   const [days, setDays] = useState<DayRow[]>([defaultDay]);
   const [note, setNote] = useState("");
-  const [privateReason, setPrivateReason] = useState("");
+  const [esstQualified, setEsstQualified] = useState(false);
   const [editing, setEditing] = useState<SavedRequest | null>(null);
   const [withdrawing, setWithdrawing] = useState<SavedRequest | null>(null);
   const [filter, setFilter] = useState("all");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean }>();
+  const referral = requestType === "MN_PAID_LEAVE" || requestType === "PROTECTED_UNPAID_LEAVE";
   const nextRowId = useRef(1);
   const command = useRef<{ body: string; key: string } | null>(null);
   const editTarget = useRef<HTMLHeadingElement>(null);
@@ -65,7 +70,7 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
     setEditing(null);
     setDays([defaultDay]);
     setNote("");
-    setPrivateReason("");
+    setEsstQualified(false);
     setRequestType("PTO");
   }
 
@@ -75,7 +80,7 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
     setRequestType(request.requestType as RequestType);
     setDays(request.days.map(day => ({ ...day, id: nextRowId.current++ })));
     setNote(request.note ?? "");
-    setPrivateReason("");
+    setEsstQualified(false);
     setMessage(undefined);
     editTarget.current?.focus();
   }
@@ -84,8 +89,8 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
     const target = action === "WITHDRAW" ? withdrawing : editing;
     const input = action === "WITHDRAW" ? {} : {
       requestType, days: days.map(({ date, start, end }) => ({ date, start, end })),
-      operationalNote: requestType === "ESST" ? "" : note,
-      restrictedReason: requestType === "ESST" ? privateReason : ""
+      operationalNote: requestType === "ESST" || referral ? "" : note,
+      esstQualified
     };
     const body = { ...input, locationId: workspace.locationId, action, requestId: target?.id, expectedUpdatedAt: target?.version };
     const fingerprint = JSON.stringify(body);
@@ -124,6 +129,7 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
       {workspace.balances.filter(entry => entry.balanceYear === year).map(entry => <div key={entry.type}>
         <span>{timeOffLabels[entry.type]} · {year}</span>
         <strong>{entry.availableMinutes === null ? "Balance unavailable" : hours(entry.availableMinutes)}</strong>
+        {entry.carriedFromYear !== null && entry.carriedFromYear !== undefined && <small>Carryover from {entry.carriedFromYear}</small>}
         <small>{hours(entry.pending.reduce((total, item) => total + item.minutes, 0))} pending</small>
       </div>)}
     </div>
@@ -131,8 +137,9 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
       <h3 tabIndex={-1} ref={editTarget}>{editing ? "Revise time off" : "New request"}</h3>
       <label>Time-off type <select disabled={busy || Boolean(editing)} value={requestType} onChange={event => setRequestType(event.target.value as RequestType)}>
         <option value="PTO">PTO</option><option value="ESST">Earned sick and safe time</option><option value="UNPAID">Unpaid time off</option>
+        <option value="MN_PAID_LEAVE">Minnesota Paid Leave referral</option><option value="PROTECTED_UNPAID_LEAVE">Protected unpaid leave referral</option>
       </select></label>
-      <p className={styles.cardReadinessNote}>Enter the hours you need for each day · {workspace.timezone}</p>
+      <p className={styles.cardReadinessNote}>{referral ? "Enter the first affected workday for Leave Administration." : "Enter the hours you need for each day."} · {workspace.timezone}</p>
       {days.map((day, index) => <div className={styles.timeOffDay} key={day.id}>
         <label>Date <input aria-label={`Date, day ${index + 1}`} required type="date" value={day.date} onChange={event => changeDay(day.id, "date", event.target.value)} disabled={busy} /></label>
         <label>Start <input aria-label={`Start, day ${index + 1}`} required type="time" value={day.start} onChange={event => changeDay(day.id, "start", event.target.value)} disabled={busy} /></label>
@@ -145,14 +152,11 @@ export function TimeOffRequestPanel({ workspace }: { workspace: MyTimeOffWorkspa
         next.setUTCDate(next.getUTCDate() + 1);
         setDays([...days, { ...last, id: nextRowId.current++, date: next.toISOString().slice(0, 10) }]);
       }}>Add another day</button>
-      <label>{requestType === "ESST" ? "Private ESST reason" : "Scheduling note (optional)"}
-        <textarea rows={2} disabled={busy} value={requestType === "ESST" ? privateReason : note}
-          required={requestType === "ESST"} minLength={requestType === "ESST" ? 10 : 8}
-          onChange={event => requestType === "ESST" ? setPrivateReason(event.target.value) : setNote(event.target.value)} />
-      </label>
-      {requestType === "ESST" && <small>Leave Administration handles this request. Your private reason stays out of the coverage queue.</small>}
+      {requestType === "ESST" ? <label><span><input type="checkbox" checked={esstQualified} disabled={busy} required onChange={event => setEsstQualified(event.target.checked)} /> I’m requesting ESST for a qualifying purpose.</span></label> :
+        referral ? <small>Leave Administration will follow up about your request.</small> :
+          <label>Scheduling note (optional)<textarea rows={2} disabled={busy} value={note} minLength={8} onChange={event => setNote(event.target.value)} /></label>}
       {duplicateDates && <p className={styles.inlineError}>Enter each date once.</p>}
-      {validDays && <p className={styles.cardReadinessNote}>
+      {validDays && !referral && <p className={styles.cardReadinessNote}>
         {hours(requested)} estimated{remaining !== null ? ` · ${hours(remaining)} projected after approval of pending requests and this request` : ""}.
         {remaining !== null && remaining < 0 ? " Review the balance before submitting." : ""}
       </p>}

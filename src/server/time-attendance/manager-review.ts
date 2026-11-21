@@ -27,6 +27,7 @@ export type TimeAttendanceManagerReviewItem = {
     projectionPending: boolean;
     dates: string[];
     calendarHref: string;
+    referral?: boolean;
     appointmentConflicts: number | null;
     overlappingAbsences: number | null;
   };
@@ -381,7 +382,7 @@ export async function getTimeAttendanceManagerReviewQueue(
   const records = await prisma.timeOffRequest.findMany({
     where: { organizationId, id: { in: timeOffIds }, locationId: { in: timeOffLocations } },
     select: { id: true, locationId: true, requesterUserId: true, startsAt: true, endsAt: true, status: true, updatedAt: true,
-      protectedRouting: true, evidence: true, decisionActorUserId: true, location: { select: { timezone: true } } }
+      protectedRouting: true, evidence: true, requestType: true, decisionActorUserId: true, location: { select: { timezone: true } } }
   });
   const byId = new Map(records.map(record => [record.id, record]));
   const items = await Promise.all(queue.items.map(async item => {
@@ -414,8 +415,11 @@ export async function getTimeAttendanceManagerReviewQueue(
     const calendarHref = `/appointments?view=calendar&localDate=${getLocationLocalDate(request.startsAt, request.location.timezone)}`;
     return {
       ...item,
-      title: request.protectedRouting && !leaveAdmin ? "Protected time-off request" : item.title,
-      timeOffReview: { version: request.updatedAt.toISOString(), actions, projectionPending, dates, calendarHref, appointmentConflicts, overlappingAbsences }
+      title: request.protectedRouting && !leaveAdmin ? "Protected time-off request" :
+        request.requestType === "PROTECTED_REFERRAL" ? timeOffEvidence(request.evidence).referralKind === "MN_PAID_LEAVE"
+          ? "Minnesota Paid Leave referral" : "Protected unpaid leave referral" : item.title,
+      timeOffReview: { version: request.updatedAt.toISOString(), actions, projectionPending, dates, calendarHref,
+        referral: request.requestType === "PROTECTED_REFERRAL", appointmentConflicts, overlappingAbsences }
     };
   }));
   return { ...queue, items };
@@ -436,7 +440,8 @@ async function coverageCounts(
         ] }
       }),
       prisma.timeOffRequest.findMany({
-        where: { organizationId, locationId: request.locationId, status: "APPROVED", requesterUserId: { not: request.requesterUserId }, OR: overlap },
+        where: { organizationId, locationId: request.locationId, status: "APPROVED",
+          requestType: { not: "PROTECTED_REFERRAL" }, requesterUserId: { not: request.requesterUserId }, OR: overlap },
         select: { requesterUserId: true, startsAt: true, endsAt: true, evidence: true }
       })
     ]);

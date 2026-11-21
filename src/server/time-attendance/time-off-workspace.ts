@@ -39,8 +39,8 @@ export async function getMyTimeOffWorkspace(actor: AuthenticatedUser, locationId
         orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100, select: requestSelect
       }),
       prisma.timeOffBalance.findMany({
-        where: { organizationId, userId: actor.id, balanceYear: { in: [year, year + 1] }, balanceType: { in: ["PTO", "ESST"] } },
-        select: { balanceType: true, balanceYear: true, availableMinutes: true }
+        where: { organizationId, userId: actor.id, balanceYear: { in: [year - 1, year, year + 1] }, balanceType: { in: ["PTO", "ESST"] } },
+        select: { balanceType: true, balanceYear: true, availableMinutes: true, sourceSnapshot: true }
       }),
       prisma.timeOffRequest.findMany({
         where: { organizationId, requesterUserId: actor.id, status: { in: [...pendingTimeOffStatuses] } },
@@ -49,22 +49,29 @@ export async function getMyTimeOffWorkspace(actor: AuthenticatedUser, locationId
     ]);
     return {
       today, timezone, locationId, available: true,
-      balances: [year, year + 1].flatMap(balanceYear => (["PTO", "ESST"] as const).map(type => ({
-        balanceYear, type,
-        availableMinutes: balances.find(balance => balance.balanceType === type && balance.balanceYear === balanceYear)?.availableMinutes ?? null,
-        pending: pendingRequests.filter(request => request.requestType === type &&
-          (timeOffEvidence(request.evidence).balanceYear ?? request.startsAt.getUTCFullYear()) === balanceYear)
-          .map(request => ({ id: request.id, minutes: request.requestedMinutes }))
-      }))),
+      balances: [year, year + 1].flatMap(balanceYear => (["PTO", "ESST"] as const).map(type => {
+        const exact = balances.find(balance => balance.balanceType === type && balance.balanceYear === balanceYear);
+        const previous = type === "ESST" && !exact ? balances.find(balance => balance.balanceType === type &&
+          balance.balanceYear === balanceYear - 1 && timeOffEvidence(timeOffEvidence(balance.sourceSnapshot).esstAccrual).through) : undefined;
+        return {
+          balanceYear, type, carriedFromYear: previous?.balanceYear ?? null,
+          availableMinutes: (exact ?? previous)?.availableMinutes ?? null,
+          pending: pendingRequests.filter(request => request.requestType === type &&
+            [balanceYear, previous?.balanceYear].includes(Number(timeOffEvidence(request.evidence).balanceYear ?? request.startsAt.getUTCFullYear())))
+            .map(request => ({ id: request.id, minutes: request.requestedMinutes }))
+        };
+      })),
       requests: requests.map(request => {
         const evidence = timeOffEvidence(request.evidence);
+        const referralKind = request.requestType === "PROTECTED_REFERRAL" && (evidence.referralKind === "MN_PAID_LEAVE" || evidence.referralKind === "PROTECTED_UNPAID_LEAVE")
+          ? evidence.referralKind : null;
         const windows = storedTimeOffWindows(request);
         return {
-          id: request.id, requestType: request.requestType, status: request.status, requestedMinutes: request.requestedMinutes,
+          id: request.id, requestType: referralKind ?? request.requestType, status: request.status, requestedMinutes: request.requestedMinutes,
           startsAt: request.startsAt.toISOString(), endsAt: request.endsAt.toISOString(), version: request.updatedAt.toISOString(),
           canWithdraw: ["DRAFT", "SUBMITTED", "LEAVE_ADMIN_REVIEW"].includes(request.status),
           canRevise: ["DRAFT", "SUBMITTED", "LEAVE_ADMIN_REVIEW"].includes(request.status) &&
-            ["PTO", "ESST", "UNPAID"].includes(request.requestType) &&
+            (Boolean(referralKind) || ["PTO", "ESST", "UNPAID"].includes(request.requestType)) &&
             windows.every(window => getLocationLocalDate(window.startsAt, timezone) === getLocationLocalDate(window.endsAt, timezone)),
           days: windows.map(window => windowDay(window, timezone)),
           note: request.protectedRouting ? null : request.operationalNote,

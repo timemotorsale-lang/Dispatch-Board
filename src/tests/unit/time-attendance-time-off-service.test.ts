@@ -64,14 +64,27 @@ describe("staff time-off requests", () => {
     expect(normalized.restrictedReasonHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it("rejects ESST requests without a private reason", () => {
+  it("requires ESST qualification confirmation for new requests without private details", () => {
     expect(() => normalizeStaffTimeOffRequest(staff, request({
       requestType: "ESST",
       restrictedReason: "short"
     }), {
       locationId: "loc-1",
       organizationId: "org-1"
-    })).toThrow("ESST requests require");
+    })).toThrow("Confirm that the request");
+    expect(normalizeStaffTimeOffRequest(staff, request({
+      requestType: "ESST", esstQualified: true
+    }), { locationId: "loc-1", organizationId: "org-1" })).toMatchObject({
+      status: "LEAVE_ADMIN_REVIEW", restrictedReasonHash: null
+    });
+  });
+
+  it("routes Minnesota Paid Leave and protected unpaid leave as restricted referrals", () => {
+    for (const referralKind of ["MN_PAID_LEAVE", "PROTECTED_UNPAID_LEAVE"]) {
+      expect(normalizeStaffTimeOffRequest(staff, request({ requestType: referralKind }), {
+        locationId: "loc-1", organizationId: "org-1"
+      })).toMatchObject({ requestType: "PROTECTED_REFERRAL", referralKind, protectedRouting: true, status: "LEAVE_ADMIN_REVIEW" });
+    }
   });
 
   it("submits through the repository with the authenticated staff member", async () => {

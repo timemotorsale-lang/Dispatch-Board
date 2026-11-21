@@ -192,7 +192,8 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         reason: "",
         tone: rebuildPending ? "danger" : "good"
       });
-      const status = payload.request?.status === "DRAFT" && decision === "RETURN" ? "Returned for revision" : payload.request?.status ?? payload.card?.status ?? decision;
+      const status = payload.request?.status === "DRAFT" && decision === "RETURN" ? "Returned for revision" :
+        item.timeOffReview?.referral && payload.request?.status === "APPROVED" ? "Referral reviewed" : payload.request?.status ?? payload.card?.status ?? decision;
       setDecisionNotice(`${item.staffName} · ${rebuildPending ? "Card update pending" : status}.`);
       router.refresh();
     } catch (error) {
@@ -349,7 +350,8 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                       <option value="APPROVE">Approve exact card version</option>
                       <option value="RETURN">Return to employee</option>
                     </> : item.category === "TIME_OFF_REQUEST" ? item.timeOffReview?.actions.map(action => <option value={action} key={action}>{
-                      action === "APPROVE_COVERAGE" ? "Approve coverage" : action === "APPROVE" ? item.timeOffReview?.projectionPending ? "Retry pay-period update" : "Approve time off" :
+                      action === "APPROVE_COVERAGE" ? "Approve coverage" : action === "APPROVE" ? item.timeOffReview?.projectionPending ? "Retry pay-period update" :
+                        item.timeOffReview?.referral ? "Mark referral reviewed" : "Approve time off" :
                         action === "RETURN" ? "Return to employee for revision" : "Deny time off"
                     }</option>) : <>
                       {item.correctionRebuildPending ? <option value="APPLY">Retry card rebuild</option> : <>

@@ -3,6 +3,7 @@ import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation"
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 import { getTimeAttendanceCapabilitySet } from "./capabilities";
+import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 
 const dateKey = /^\d{4}-\d{2}-\d{2}$/;
 const object = (input: unknown): Record<string, unknown> =>
@@ -61,6 +62,15 @@ export async function getPersonalTimeCardPeriods(user: AuthenticatedUser, curren
         exceptions: { where: { status: { in: ["OPEN", "ACKNOWLEDGED"] } }, select: { code: true, message: true, blocking: true } },
       },
     }) : null;
+    const timeOff = object(object(selected?.calculationSnapshot).timeOffTotals);
+    const credit = selected && requestedPeriod ? await prisma.enterpriseAuditEvent.findFirst({
+      where: {
+        organizationId, subjectType: "ESSTPayPeriod", eventType: "ESST_PERIOD_CREDITED",
+        subjectId: hashEnterpriseCommand({ employee: user.id, start: requestedPeriod.start, end: requestedPeriod.end })
+      },
+      select: { newValue: true }
+    }) : null;
+    const posting = object(credit?.newValue);
     return {
       periods,
       unavailable: false as const,
@@ -69,6 +79,10 @@ export async function getPersonalTimeCardPeriods(user: AuthenticatedUser, curren
         policy: selected.policyProfile.name,
         timezone: selected.policyProfile.timezone,
         days: summarizePersonalCardDays(selected.calculationSnapshot, requestedPeriod.start, requestedPeriod.end),
+        esstUsedMinutes: typeof timeOff.ESST === "number" && timeOff.ESST >= 0 ? timeOff.ESST :
+          object(selected.calculationSnapshot).timeOffTotals === undefined ? null : 0,
+        esstAvailableAfterPosting: posting.cardId === requestedPeriod.id && typeof posting.availableMinutes === "number"
+          ? posting.availableMinutes : null,
         exceptions: selected.exceptions,
         payrollReady: selected.payrollReady,
       } : null,

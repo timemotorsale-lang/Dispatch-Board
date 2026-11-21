@@ -96,6 +96,7 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
     throw new EnterpriseCommandConflictError("This request changed during review. Refresh and try again.", "VERSION_CONFLICT");
   }
   const priorEvidence = timeOffEvidence(request.evidence);
+  const referral = request.requestType === "PROTECTED_REFERRAL";
   const retryProjection = decision === "APPROVE" && request.status === "APPROVED" && priorEvidence.projectionPending === true;
   if (!retryProjection && (["DRAFT", "APPROVED", "DENIED", "WITHDRAWN", "CANCELLED"].includes(request.status) ||
       (decision === "APPROVE_COVERAGE" && (request.protectedRouting || request.status !== "SUBMITTED")))) {
@@ -110,7 +111,7 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
         : "MANAGER_APPROVED";
   const correlationId = randomUUID();
   const { record: result, periods } = await prisma.$transaction(async (tx) => {
-    const periods = decision === "APPROVE" ? await resolveAffectedPeriods(tx, request) : [];
+    const periods = decision === "APPROVE" && !referral ? await resolveAffectedPeriods(tx, request) : [];
     if (retryProjection) {
       const stored = priorEvidence.projectionPeriods;
       if (!Array.isArray(stored) || stored.length !== periods.length || periods.some(period => !stored.some(value => {
@@ -137,9 +138,17 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
         throw new Error("A requested day is in a locked or exported pay period. Have payroll reopen it before approval.");
       }
     }
-    if (decision === "APPROVE" && request.requestType !== "UNPAID" && request.requestType !== "HOLIDAY") {
+    let esstDebitedBalanceYear: number | undefined;
+    if (decision === "APPROVE" && !referral && request.requestType !== "UNPAID" && request.requestType !== "HOLIDAY") {
       const year = typeof priorEvidence.balanceYear === "number" ? priorEvidence.balanceYear : request.startsAt.getUTCFullYear();
-      const balance = await tx.timeOffBalance.findUnique({
+      if (request.requestType === "ESST") {
+        const newer = await tx.timeOffBalance.findFirst({
+          where: { organizationId: request.organizationId, userId: request.requesterUserId, balanceType: "ESST", balanceYear: { gt: year } },
+          select: { id: true }
+        });
+        if (newer) throw new Error("This ESST year has been carried forward. Payroll must reconcile the prior-year usage.");
+      }
+      const exactBalance = await tx.timeOffBalance.findUnique({
         where: { organizationId_userId_balanceType_balanceYear: {
           organizationId: request.organizationId,
           userId: request.requesterUserId,
@@ -147,15 +156,23 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
           balanceYear: year
         } }
       });
+      // January leave can use the verified carryover before the first payday creates the new year's row.
+      const prior = !exactBalance && request.requestType === "ESST" ? await tx.timeOffBalance.findUnique({
+        where: { organizationId_userId_balanceType_balanceYear: {
+          organizationId: request.organizationId, userId: request.requesterUserId, balanceType: "ESST", balanceYear: year - 1
+        } }
+      }) : null;
+      const balance = exactBalance ?? (timeOffEvidence(timeOffEvidence(prior?.sourceSnapshot).esstAccrual).through ? prior : null);
       if (!balance) throw new Error(`No approved ${request.requestType} balance exists for ${year}.`);
       if (balance.availableMinutes < request.requestedMinutes) throw new Error(`Insufficient ${request.requestType} balance for this request.`);
+      if (request.requestType === "ESST") esstDebitedBalanceYear = balance.balanceYear;
       const debit = await tx.timeOffBalance.updateMany({
         where: { id: balance.id, availableMinutes: { gte: request.requestedMinutes } },
         data: {
-          usedMinutes: { increment: request.requestedMinutes },
+          ...(balance.balanceYear === year ? { usedMinutes: { increment: request.requestedMinutes } } : {}),
           availableMinutes: { decrement: request.requestedMinutes },
           sourceSnapshot: json({
-            previous: balance.sourceSnapshot,
+            ...timeOffEvidence(balance.sourceSnapshot),
             approvedRequestId: request.id,
             approvedMinutes: request.requestedMinutes,
             approvedByUserId: user.id,
@@ -178,11 +195,12 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
           nextStatus,
           decisionActorUserId: user.id,
           protectedReasonViewed: false,
-          earningCode: request.requestType === "UNPAID" ? "UNPAID" : request.requestType,
-          availabilityEffect: nextStatus === "APPROVED" ? "APPROVED_ABSENCE" : "NONE",
+          earningCode: referral ? null : request.requestType,
+          availabilityEffect: nextStatus === "APPROVED" && !referral ? "APPROVED_ABSENCE" : "NONE",
           correlationId,
           returnedForRevision: decision === "RETURN",
-          projectionPending: decision === "APPROVE",
+          projectionPending: decision === "APPROVE" && !referral,
+          ...(esstDebitedBalanceYear !== undefined ? { esstDebitedBalanceYear } : {}),
           ...(periods.length ? { projectionPeriods: periods.map(({ start, end, timeZone }) => ({ start, end, timeZone })) } : {})
         })
       }
@@ -209,7 +227,7 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
 
   let projection = null;
   const rebuiltPeriods: { start: string; end: string }[] = [];
-  if (nextStatus === "APPROVED") {
+  if (nextStatus === "APPROVED" && !referral) {
     try {
       for (const period of periods) {
         projection = await projectTimeCardAfterAttendanceChange({
@@ -240,7 +258,8 @@ export async function decideTimeOffRequest(actor: AuthenticatedUser | null, valu
     recipientUserId: request.requesterUserId,
     notificationType: "TIME_OFF_DECISION",
     severity: nextStatus === "DENIED" || nextStatus === "DRAFT" ? "WARNING" : "INFO",
-    title: decision === "RETURN" ? "Time-off request returned for revision" : `Time-off request ${nextStatus.toLowerCase().replaceAll("_", " ")}`,
+    title: decision === "RETURN" ? "Time-off request returned for revision" : referral && nextStatus === "APPROVED"
+      ? "Protected leave referral reviewed" : `Time-off request ${nextStatus.toLowerCase().replaceAll("_", " ")}`,
     body: reason,
     sourceType: "TimeOffRequest",
     sourceId: request.id,

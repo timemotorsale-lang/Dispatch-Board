@@ -147,7 +147,13 @@ describe("time attendance payroll handoff", () => {
       periodEnd: "2026-07-31",
       periodStart: "2026-07-25"
     }, {
-      repository: createPayrollHandoffRepository(db())
+      repository: createPayrollHandoffRepository(db({
+        timeCard: { findMany: vi.fn(async () => [card({
+          calculationSnapshot: {
+            totals: { esstNewlyAccruedMinutes: 60, overtimeMinutes: 30, regularMinutes: 450 }, timeOffTotals: { ESST: 5 }
+          }
+        })]), updateMany: vi.fn() }
+      }))
     })).resolves.toMatchObject({
       controlTotals: { ESST: 5, OVERTIME: 30, REGULAR: 450 },
       lineCount: 3,
@@ -157,6 +163,14 @@ describe("time attendance payroll handoff", () => {
         { earningCode: "ESST", timeCardId: "card-1", timeCardVersion: 3 }
       ]
     });
+  });
+
+  it("omits accrued ESST from legacy earning lines without recorded paid usage", async () => {
+    const result = await createPayrollHandoffRepository(db()).preview({
+      organizationId: "org-1", locationId: "loc-1", periodStart: new Date("2026-07-25"), periodEnd: new Date("2026-07-31")
+    });
+    expect(result.lines.map(line => line.earningCode)).toEqual(["REGULAR", "OVERTIME"]);
+    expect(result.controlTotals.ESST).toBe(0);
   });
 
   it("records export status decisions and reproduces historical batches", async () => {

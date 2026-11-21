@@ -29,8 +29,8 @@ it.skipIf(process.env.RUN_TIME_CARD_PREVIEW !== "1")("seeds a scoped time-card w
   const manager = { ...employee, id: "time-preview-manager", name: "Morgan Lee", email: "time-preview-manager@example.test", roles: ["General Manager"] };
   const policy = await prisma.timeAttendancePolicyProfile.upsert({
     where: { organizationId_code_version: { organizationId, code: "MN-HOURLY-60-MIN-UNPAID-MEAL", version: 1 } },
-    create: { organizationId, locationId, code: "MN-HOURLY-60-MIN-UNPAID-MEAL", name: "Hourly staff · 60-minute meal", version: 1, status: "ACTIVE", effectiveFrom, timezone, workweekStartDay: "MONDAY", payBasis: "HOURLY", overtimeCoverage: "FEDERAL_AND_MINNESOTA", scheduledMealPolicy: { expectedMealMinutes: 60, paid: false }, breakPolicyVersionIds: [], payrollMapping: {}, sourceSnapshot: {} },
-    update: { name: "Hourly staff · 60-minute meal" },
+    create: { organizationId, locationId, code: "MN-HOURLY-60-MIN-UNPAID-MEAL", name: "Hourly staff · 60-minute meal", version: 1, status: "ACTIVE", effectiveFrom, timezone, workweekStartDay: "MONDAY", payBasis: "HOURLY", overtimeCoverage: "FEDERAL_AND_MINNESOTA", scheduledMealPolicy: { expectedMealMinutes: 60, paid: false }, breakPolicyVersionIds: [], esstPolicyVersionId: "MN-ESST-STANDARD-ACCRUAL-2026-07-06", payrollMapping: {}, sourceSnapshot: {} },
+    update: { name: "Hourly staff · 60-minute meal", esstPolicyVersionId: "MN-ESST-STANDARD-ACCRUAL-2026-07-06" },
   });
   if (!await prisma.timeAttendancePolicyAssignment.count({ where: { staffUserId: employee.id, organizationId } })) {
     await prisma.timeAttendancePolicyAssignment.create({ data: { organizationId, locationId, staffUserId: employee.id, policyProfileId: policy.id, approvedByUserId: manager.id, approvalReason: "Synthetic walkthrough only", effectiveFrom } });
@@ -233,4 +233,52 @@ it.skipIf(process.env.RUN_TIME_CARD_PREVIEW !== "1")("seeds a scoped time-card w
   })).rejects.toThrow(/definition changed/);
   expect((await prisma.timeOffRequest.findUniqueOrThrow({ where: { id: acrossZone.request.id } })).evidence)
     .toMatchObject({ projectionPending: true, projectionPeriods: originalPeriods });
+
+  const { getEsstPayrollCards, recordEsstPayroll } = await import("@/server/time-attendance/esst-payroll");
+  const createEsstCard = async (start: string, end: string, worked: [string, number][]) => {
+    const paid = worked.map(([localDate, durationMinutes]) => {
+      const begins = new Date(localDate + "T14:00:00Z");
+      return { localDate, durationMinutes, startAt: begins.toISOString(), endAt: new Date(begins.getTime() + durationMinutes * 60000).toISOString() };
+    });
+    return prisma.timeCard.create({ data: { ...card, staffUserId: recoveryId, periodStart: new Date(start), periodEnd: new Date(end),
+      payrollReady: true, version: 1, calculationSnapshot: { replay: { projection: { intervals: { attendance: paid, meals: [], paidWork: paid } } } }
+    } });
+  };
+  const firstEsst = await createEsstCard("2025-12-22", "2025-12-28", [
+    ["2025-12-22", 420], ["2025-12-23", 420], ["2025-12-24", 420], ["2025-12-26", 480]
+  ]);
+  const secondEsst = await createEsstCard("2025-12-29", "2026-01-04", [["2026-01-02", 60]]);
+  const verified = { reason: "Verified payroll ledger and worked hours.", calendarYearConfirmed: true, standardAccrualConfirmed: true, eligibleConfirmed: true, eligibleFrom: "2025-12-22",
+    availableMinutes: 120, accruedMinutes: 120, remainder: 0, weekdayMinutes: null };
+  await expect(recordEsstPayroll(recoveryStaff, { ...verified, cardId: firstEsst.id, action: "SETUP" })).rejects.toThrow(/capability/);
+  expect((await getEsstPayrollCards(manager, { start: "2025-12-22", end: "2025-12-28" })).some(entry => entry.id === firstEsst.id)).toBe(true);
+  await expect(recordEsstPayroll(manager, { ...verified, cardId: firstEsst.id, action: "POST" })).rejects.toThrow(/opening/);
+  await recordEsstPayroll(manager, { ...verified, cardId: firstEsst.id, action: "SETUP" });
+  await expect(recordEsstPayroll(manager, { ...verified, cardId: secondEsst.id, action: "POST" })).rejects.toThrow(/consecutive/);
+  expect(await recordEsstPayroll(manager, { ...verified, cardId: firstEsst.id, action: "POST" })).toMatchObject({ creditedMinutes: 0, duplicate: false });
+  const januaryUse = await submitStaffTimeOffRequest(recoveryStaff, {
+    locationId, requestType: "ESST", esstQualified: true, idempotencyKey: `${recoveryId}-january-esst`,
+    days: [{ date: "2026-01-07", start: "09:00", end: "10:00" }]
+  });
+  await decideTimeOffRequest(leaveAdmin, { ...managerInput, requestId: januaryUse.request.id, decision: "APPROVE" });
+  expect((await prisma.timeOffRequest.findUniqueOrThrow({ where: { id: januaryUse.request.id } })).evidence)
+    .toMatchObject({ esstDebitedBalanceYear: 2025 });
+  expect(await recordEsstPayroll(manager, { ...verified, cardId: secondEsst.id, action: "POST" })).toMatchObject({ creditedMinutes: 60, duplicate: false });
+  expect(await recordEsstPayroll(manager, { ...verified, cardId: secondEsst.id, action: "POST" })).toMatchObject({ creditedMinutes: 60, duplicate: true });
+  const esst = await prisma.timeOffBalance.findFirstOrThrow({ where: { organizationId, userId: recoveryId, balanceYear: 2026, balanceType: "ESST" } });
+  expect(esst).toMatchObject({ availableMinutes: 120, usedMinutes: 60, accruedMinutes: 60, sourceSnapshot: { esstAccrual: { remainder: 0, through: "2026-01-04" } } });
+  const referral = await submitStaffTimeOffRequest(recoveryStaff, {
+    locationId, requestType: "MN_PAID_LEAVE", idempotencyKey: `${recoveryId}-referral`, days: [{ date: "2026-01-06", start: "09:00", end: "10:00" }]
+  });
+  expect(await decideTimeOffRequest(leaveAdmin, { ...managerInput, requestId: referral.request.id, decision: "APPROVE" }))
+    .toMatchObject({ projection: null, rebuiltPeriods: [], request: { status: "APPROVED" } });
+  expect((await prisma.timeOffBalance.findUniqueOrThrow({ where: { id: esst.id } })).availableMinutes).toBe(120);
+  const thirdEsst = await createEsstCard("2026-01-05", "2026-01-11", [["2026-01-05", 60]]);
+  await recordEsstPayroll(manager, { ...verified, cardId: thirdEsst.id, action: "POST" });
+  const afterGap = await createEsstCard("2026-01-19", "2026-01-25", []);
+  await expect(recordEsstPayroll(manager, { ...verified, cardId: afterGap.id, action: "POST" })).rejects.toThrow(/consecutive/);
+  expect(await recordEsstPayroll(manager, { ...verified, cardId: afterGap.id, action: "POST", confirmedNoWorkGap: true }))
+    .toMatchObject({ creditedMinutes: 0 });
+  expect((await prisma.timeOffBalance.findUniqueOrThrow({ where: { id: esst.id } })).sourceSnapshot)
+    .toMatchObject({ esstAccrual: { remainder: 60, through: "2026-01-25" } });
 }, 60_000);

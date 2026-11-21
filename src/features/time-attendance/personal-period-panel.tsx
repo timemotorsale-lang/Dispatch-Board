@@ -31,6 +31,9 @@ export function PersonalPeriodPanel({ history, hasRequestedPeriod }: { history: 
       {period ? <>
         <div className={styles.cardContextLine}>
           <span>{period.start} – {period.end}</span><span>{period.policy}</span><span>{period.timezone}</span><span>Version {period.version} · {status(period.status)}</span>
+          {period.esstUsedMinutes !== null && period.esstUsedMinutes !== undefined && <span>ESST used · {minutes(period.esstUsedMinutes)}</span>}
+          {period.esstAvailableAfterPosting !== null && period.esstAvailableAfterPosting !== undefined &&
+            <span>ESST balance at posting · {minutes(period.esstAvailableAfterPosting)}</span>}
         </div>
         {period.days?.length ? <div className={styles.periodTable}>
           <table>

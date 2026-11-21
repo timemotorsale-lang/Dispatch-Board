@@ -14,7 +14,7 @@ import { notifyTimeAttendanceReviewers } from "./notification-service";
 import { getLocationLocalDate } from "@/server/appointments/location-time-service";
 import { dayWindows, pendingTimeOffStatuses, storedTimeOffWindows, timeOffEvidence, timeOffMinutes, type TimeOffWindow } from "./time-off-windows";
 
-export type StaffTimeOffRequestType = "PTO" | "ESST" | "UNPAID";
+export type StaffTimeOffRequestType = "PTO" | "ESST" | "UNPAID" | "PROTECTED_REFERRAL";
 
 export type StaffTimeOffRequestResult = {
   duplicate: boolean;
@@ -46,6 +46,7 @@ type NormalizedStaffTimeOffRequest = {
   endsAt: Date;
   windows?: TimeOffWindow[];
   balanceYear?: number;
+  referralKind?: "MN_PAID_LEAVE" | "PROTECTED_UNPAID_LEAVE";
 };
 
 type TimeOffBalanceRecord = {
@@ -139,7 +140,9 @@ export function normalizeStaffTimeOffRequest(
 ): Omit<NormalizedStaffTimeOffRequest, "balanceSnapshot"> {
   const raw = requireObject(value);
   const idempotencyKey = stringValue(raw.idempotencyKey);
-  const requestType = stringValue(raw.requestType).toUpperCase() as StaffTimeOffRequestType;
+  const requestedType = stringValue(raw.requestType).toUpperCase();
+  const referralKind = requestedType === "MN_PAID_LEAVE" || requestedType === "PROTECTED_UNPAID_LEAVE" ? requestedType : undefined;
+  const requestType = referralKind ? "PROTECTED_REFERRAL" : requestedType as StaffTimeOffRequestType;
   const windows = raw.days === undefined ? undefined : dayWindows(raw.days, defaults.timezone ?? "America/Chicago");
   const startsAt = windows?.[0].startsAt ?? parseInstant(stringValue(raw.startsAt), "Start time");
   const endsAt = windows?.at(-1)?.endsAt ?? parseInstant(stringValue(raw.endsAt), "End time");
@@ -150,30 +153,31 @@ export function normalizeStaffTimeOffRequest(
   const balanceYear = windows ? Number(getLocationLocalDate(startsAt, timezone).slice(0, 4)) : undefined;
 
   if (!idempotencyKey) throw new Error("Idempotency key is required.");
-  if (!requestTypes.has(requestType)) throw new Error("Time-off request type is invalid.");
+  if (!requestTypes.has(requestType) && !referralKind) throw new Error("Time-off request type is invalid.");
   if (requestedMinutes <= 0) throw new Error("Time-off request end must be after the start.");
   if (endsAt.getTime() - startsAt.getTime() > 31 * 86_400_000) throw new Error("Time-off request cannot exceed 31 days.");
-  if (windows && requestType !== "UNPAID" && getLocationLocalDate(endsAt, timezone).slice(0, 4) !== String(balanceYear)) {
+  if (windows && (requestType === "PTO" || requestType === "ESST") && getLocationLocalDate(endsAt, timezone).slice(0, 4) !== String(balanceYear)) {
     throw new Error("Submit a separate paid time-off request for each balance year.");
   }
-  if (requestType === "ESST" && restrictedReason.length < 10) {
-    throw new Error("ESST requests require a private reason for protected routing.");
+  if (requestType === "ESST" && raw.esstQualified !== true && restrictedReason.length < 10) {
+    throw new Error("Confirm that the request is for a qualifying sick or safe time purpose.");
   }
   if (requestType !== "ESST" && operationalNote && operationalNote.length < 8) {
     throw new Error("Operational note must be at least 8 characters when provided.");
   }
 
-  const protectedRouting = requestType === "ESST";
+  const protectedRouting = requestType === "ESST" || Boolean(referralKind);
   const payload = {
     endsAt: endsAt.toISOString(),
     locationId: stringValue(raw.locationId) || defaults.locationId,
-    operationalNote: protectedRouting ? "Protected ESST request. Private reason is restricted." : operationalNote,
+    operationalNote: requestType === "ESST" ? "Protected ESST request. Private reason is restricted." :
+      referralKind ? "Protected request. Details are restricted." : operationalNote,
     organizationId: defaults.organizationId,
     protectedRouting,
     requestType,
     requestedMinutes,
     requesterUserId: actor.id,
-    restrictedReasonHash: protectedRouting
+    restrictedReasonHash: requestType === "ESST" && restrictedReason
       ? hashEnterpriseCommand({ requesterUserId: actor.id, restrictedReason, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() })
       : null,
     startsAt: startsAt.toISOString(),
@@ -184,10 +188,11 @@ export function normalizeStaffTimeOffRequest(
     ...payload,
     endsAt,
     idempotencyKey,
-    requestHash: hashEnterpriseCommand(windows ? { ...payload, windows: serializeWindows(windows) } : payload),
+    requestHash: hashEnterpriseCommand(windows || referralKind ? { ...payload, windows: windows ? serializeWindows(windows) : null, referralKind: referralKind ?? null } : payload),
     startsAt,
     windows,
-    balanceYear
+    balanceYear,
+    referralKind
   };
 }
 
@@ -228,6 +233,7 @@ async function checkRequestOverlap(
       organizationId: input.organizationId, requesterUserId: input.requesterUserId,
       id: excludeId ? { not: excludeId } : undefined,
       status: { in: [...pendingTimeOffStatuses, "APPROVED"] },
+      requestType: { not: "PROTECTED_REFERRAL" },
       startsAt: { lt: input.endsAt }, endsAt: { gt: input.startsAt }
     },
     select: { startsAt: true, endsAt: true, evidence: true }
@@ -273,7 +279,7 @@ export function createStaffTimeOffRequestRepository(
         throw new Error("Location does not belong to the time attendance organization.");
       }
 
-      await checkRequestOverlap(database, input);
+      if (!input.referralKind) await checkRequestOverlap(database, input);
       const balanceYear = input.balanceYear ?? input.startsAt.getUTCFullYear();
       const balance = await database.timeOffBalance.findUnique({
         where: {
@@ -321,7 +327,8 @@ export function createStaffTimeOffRequestRepository(
               ? "PRIVATE_REASON_HASHED_MANAGER_VIEW_REDACTED"
               : "ORDINARY_OPERATIONAL_NOTE",
             requestedByUserId: input.requesterUserId,
-            ...(input.windows ? { timeOffWindows: serializeWindows(input.windows), balanceYear } : {})
+            ...(input.windows ? { timeOffWindows: serializeWindows(input.windows), balanceYear } : {}),
+            ...(input.referralKind ? { referralKind: input.referralKind } : {})
           })
         }
       });
@@ -394,7 +401,8 @@ export async function changeOwnTimeOffRequest(actor: AuthenticatedUser | null, v
   const request = await prisma.timeOffRequest.findFirst({ where: scope, include: { location: { select: { timezone: true } } } });
   if (!request) throw new Error("Time-off request was not found.");
   await requireTimeAttendanceCapability({ actor: user, capability: "TIME_SELF_SERVICE", organizationId: request.organizationId, locationId: request.locationId });
-  const revision = action === "REVISE" ? normalizeStaffTimeOffRequest(user, { ...raw, locationId: request.locationId, requestType: request.requestType }, {
+  const requestType = request.requestType === "PROTECTED_REFERRAL" ? timeOffEvidence(request.evidence).referralKind : request.requestType;
+  const revision = action === "REVISE" ? normalizeStaffTimeOffRequest(user, { ...raw, locationId: request.locationId, requestType }, {
     locationId: request.locationId, organizationId: request.organizationId, timezone: request.location.timezone
   }) : null;
   const commandHash = hashEnterpriseCommand({ id, action, revision: revision?.requestHash, updatedAt: expectedUpdatedAt.toISOString() });
@@ -410,7 +418,7 @@ export async function changeOwnTimeOffRequest(actor: AuthenticatedUser | null, v
       throw new EnterpriseCommandConflictError("This request changed. Refresh before trying again.", "VERSION_CONFLICT");
     }
     if (!["DRAFT", "SUBMITTED", "LEAVE_ADMIN_REVIEW"].includes(latest.status)) throw new Error("This request is already in review or finalized. Contact your reviewer about changes.");
-    if (revision) await checkRequestOverlap(tx as unknown as StaffTimeOffRequestDatabase, revision, id);
+    if (revision && !revision.referralKind) await checkRequestOverlap(tx as unknown as StaffTimeOffRequestDatabase, revision, id);
     const year = revision?.balanceYear ?? revision?.startsAt.getUTCFullYear();
     const balance = revision && year !== undefined ? await tx.timeOffBalance.findUnique({
       where: { organizationId_userId_balanceType_balanceYear: { organizationId: request.organizationId, userId: user.id, balanceType: revision.requestType, balanceYear: year } }

@@ -57,7 +57,7 @@ export async function getMyWorkSchedule(actor: AuthenticatedUser, locationId: st
         select: { id: true, repairJobId: true, scheduledStartAt: true, scheduledEndAt: true, repairJob: { select: { jobNumber: true } } }
       }) : [],
       prisma.timeOffRequest.findMany({
-        where: { ...scope, ...overlapping, requesterUserId: actor.id, status: "APPROVED" },
+        where: { ...scope, ...overlapping, requesterUserId: actor.id, status: "APPROVED", requestType: { not: "PROTECTED_REFERRAL" } },
         select: { id: true, startsAt: true, endsAt: true, evidence: true }
       })
     ]);

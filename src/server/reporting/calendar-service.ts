@@ -73,7 +73,7 @@ async function previewCalendar(input: { config: unknown; from: string; to: strin
   const bounds = [config, baseline].flatMap(calendar => [resolveReportPeriod(input.from, "MONTHLY", calendar), resolveReportPeriod(input.to, "MONTHLY", calendar)]);
   const startsAt = new Date(Math.min(...bounds.map(period => period.startsAt.getTime())));
   const endsAt = new Date(Math.max(...bounds.map(period => period.reviewBy.getTime())));
-  const leave = await client.timeOffRequest.findMany({ where: { organizationId, status: "APPROVED", requesterUserId: { in: people.map(person => person.id) }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } }, select: { requesterUserId: true, startsAt: true, endsAt: true, evidence: true }, take: 10001 });
+  const leave = await client.timeOffRequest.findMany({ where: { organizationId, status: "APPROVED", requestType: { not: "PROTECTED_REFERRAL" }, requesterUserId: { in: people.map(person => person.id) }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } }, select: { requesterUserId: true, startsAt: true, endsAt: true, evidence: true }, take: 10001 });
   if (leave.length > 10000) throw new Error("Expectation preview requires a smaller time-off scope.");
   const timeOff = leave.flatMap(request => storedTimeOffWindows(request).map(window => ({ ...window, requesterUserId: request.requesterUserId })));
   const inputs = assignments.map(item => ({ ...item, cadence: item.cadence as ReportCadence })) satisfies ExpectationAssignment[];

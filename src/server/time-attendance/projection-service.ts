@@ -187,6 +187,7 @@ async function loadProjectionInput(database: ProjectionDatabase, request: Projec
       organizationId: request.organizationId,
       requesterUserId: request.staffUserId,
       status: "APPROVED",
+      requestType: { not: "PROTECTED_REFERRAL" },
       startsAt: { lte: broadEnd },
       endsAt: { gte: broadStart }
     },

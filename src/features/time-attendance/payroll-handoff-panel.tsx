@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import type { PayrollHandoffReadiness } from "@/server/time-attendance/payroll-handoff-service";
 
 import styles from "./time-attendance-console.module.css";
+import { EsstPayrollPanel } from "./esst-payroll-panel";
 
 type PayrollHandoffPanelProps = {
   initialReadiness: PayrollHandoffReadiness;
@@ -134,6 +135,7 @@ export function PayrollHandoffPanel({ initialReadiness, initialBatchId = "" }: P
       {state.message ? (
         <p className={state.tone === "good" ? styles.captureNotice : styles.captureError}>{state.message}</p>
       ) : null}
+      <EsstPayrollPanel key={`${periodStart}_${periodEnd}`} start={periodStart} end={periodEnd} />
     </article>
   );
 }

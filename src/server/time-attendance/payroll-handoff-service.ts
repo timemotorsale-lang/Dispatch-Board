@@ -173,9 +173,7 @@ function calculationTotals(snapshot: unknown) {
   } | null;
   const totals = value?.replay?.projection?.totals ?? value?.totals;
   return {
-    esst: value?.timeOffTotals
-      ? numberValue(value.timeOffTotals.ESST)
-      : numberValue(totals?.esstNewlyAccruedMinutes),
+    esst: numberValue(value?.timeOffTotals?.ESST),
     holiday: numberValue(value?.timeOffTotals?.HOLIDAY),
     overtime: numberValue(totals?.overtimeMinutes),
     pto: numberValue(value?.timeOffTotals?.PTO),
@@ -316,6 +314,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           locationId: input.locationId,
           startsAt: { lt: new Date(endExclusive.getTime() + 86_400_000) },
           endsAt: { gt: new Date(startInclusive.getTime() - 86_400_000) },
+          requestType: { not: "PROTECTED_REFERRAL" },
           OR: [
             { status: { in: ["SUBMITTED", "LEAVE_ADMIN_REVIEW", "MANAGER_APPROVED"] } },
             { status: "DRAFT", evidence: { path: ["returnedForRevision"], equals: true } },
