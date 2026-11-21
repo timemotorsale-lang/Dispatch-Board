@@ -3,6 +3,8 @@ import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation"
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { prisma } from "@/server/db/client";
 import { evaluateTimeAttendanceCapability, getTimeAttendanceCapabilityGrants } from "./capabilities";
+import { pendingTimeOffStatuses, storedTimeOffWindows, timeOffEvidence, type TimeOffWindow } from "./time-off-windows";
+import { getLocationLocalDate } from "@/server/appointments/location-time-service";
 
 export type TimeAttendanceManagerReviewItem = {
   id: string;
@@ -17,6 +19,18 @@ export type TimeAttendanceManagerReviewItem = {
   title: string;
   cardChecksum?: string;
   timeCardVersion?: number;
+  correctionRebuildPending?: boolean;
+  timeOffVersion?: string;
+  timeOffReview?: {
+    version: string;
+    actions: ("APPROVE_COVERAGE" | "APPROVE" | "DENY" | "RETURN")[];
+    projectionPending: boolean;
+    dates: string[];
+    calendarHref: string;
+    referral?: boolean;
+    appointmentConflicts: number | null;
+    overlappingAbsences: number | null;
+  };
 };
 
 export type TimeAttendanceManagerReviewQueue = {
@@ -87,6 +101,10 @@ type TimeOffRecord = {
   requesterUser: { name: string };
   startsAt: Date;
   status: string;
+  updatedAt?: Date;
+  locationId?: string;
+  requesterUserId?: string;
+  evidence?: unknown;
 };
 
 type CardRecord = {
@@ -127,6 +145,8 @@ export type TimeAttendanceManagerReviewRepository = {
   list(input: {
     organizationId: string;
     now: Date;
+    timeOffLocations?: string[];
+    includeOperations?: boolean;
   }): Promise<TimeAttendanceManagerReviewQueue>;
 };
 
@@ -169,16 +189,19 @@ export function createTimeAttendanceManagerReviewRepository(
   return {
     async list(input) {
       const [corrections, exceptions, disputes, timeOffRequests, cardVersions] = await Promise.all([
-        database.timeCardCorrectionRequest.findMany({
+        input.includeOperations === false ? Promise.resolve([]) : database.timeCardCorrectionRequest.findMany({
           where: {
             organizationId: input.organizationId,
-            status: { in: ["SUBMITTED", "RETURNED"] }
+            OR: [
+              { status: { in: ["SUBMITTED", "RETURNED", "APPROVED"] } },
+              { status: "APPLIED", evidence: { path: ["projectionPending"], equals: true } }
+            ]
           },
           orderBy: { requestedAt: "asc" },
           take: 50,
           include: { staffUser: { select: { name: true } } }
         }),
-        database.timeCardException.findMany({
+        input.includeOperations === false ? Promise.resolve([]) : database.timeCardException.findMany({
           where: {
             organizationId: input.organizationId,
             status: { in: ["OPEN", "ACKNOWLEDGED"] }
@@ -187,7 +210,7 @@ export function createTimeAttendanceManagerReviewRepository(
           take: 50,
           include: { timeCard: { include: { staffUser: { select: { name: true } } } } }
         }),
-        database.timeCardAttestation.findMany({
+        input.includeOperations === false ? Promise.resolve([]) : database.timeCardAttestation.findMany({
           where: {
             organizationId: input.organizationId,
             statement: { contains: "disputes" }
@@ -199,13 +222,17 @@ export function createTimeAttendanceManagerReviewRepository(
         database.timeOffRequest.findMany({
           where: {
             organizationId: input.organizationId,
-            status: { in: ["SUBMITTED", "LEAVE_ADMIN_REVIEW"] }
+            ...(input.timeOffLocations ? { locationId: { in: input.timeOffLocations } } : {}),
+            OR: [
+              { status: { in: [...pendingTimeOffStatuses] } },
+              { status: "APPROVED", evidence: { path: ["projectionPending"], equals: true } }
+            ]
           },
           orderBy: { startsAt: "asc" },
           take: 50,
           include: { requesterUser: { select: { name: true } } }
         }),
-        database.timeCard ? database.timeCard.findMany({
+        database.timeCard && input.includeOperations !== false ? database.timeCard.findMany({
           where: {
             organizationId: input.organizationId,
             status: { in: ["EMPLOYEE_REVIEW", "ATTESTED", "MANAGER_REVIEW"] }
@@ -264,7 +291,8 @@ export function createTimeAttendanceManagerReviewRepository(
           occurredAt: request.requestedAt.toISOString(),
           severity: "warning" as const,
           staffName: request.staffUser.name,
-          status: label(request.status),
+          status: request.status === "APPLIED" ? "Applied · card rebuild pending" : request.status === "APPROVED" ? "Approved · ready to apply" : label(request.status),
+          correctionRebuildPending: request.status === "APPLIED",
           title: `${label(request.requestedChangeType)} correction request`
         })),
         ...exceptions.map((exception) => ({
@@ -295,14 +323,13 @@ export function createTimeAttendanceManagerReviewRepository(
           id: request.id,
           ageLabel: ageLabel(request.createdAt, input.now),
           category: "TIME_OFF_REQUEST" as const,
-          detail: request.protectedRouting
-            ? `${minutesLabel(request.requestedMinutes)} requested. Private ESST reason is restricted from ordinary manager view.`
-            : request.operationalNote ?? `${minutesLabel(request.requestedMinutes)} requested.`,
-          href: `/time-attendance?timeOff=${encodeURIComponent(request.id)}`,
+          detail: `${minutesLabel(request.requestedMinutes)} requested.${!request.protectedRouting && request.operationalNote ? ` ${request.operationalNote}` : ""}`,
+          href: `/time-attendance?view=manager&review=${encodeURIComponent(request.id)}#time-review-${encodeURIComponent(request.id)}`,
           occurredAt: request.startsAt.toISOString(),
           severity: request.protectedRouting ? "warning" as const : "info" as const,
           staffName: request.requesterUser.name,
-          status: request.protectedRouting ? "Leave admin review" : label(request.status),
+          status: request.status === "APPROVED" ? "Approved · card update pending" : request.status === "MANAGER_APPROVED" ? "Coverage approved · awaiting final approval" : request.protectedRouting ? "Leave admin review" : label(request.status),
+          timeOffVersion: request.updatedAt?.toISOString(),
           title: `${label(request.requestType)} time-off request`
         }))
       ]);
@@ -338,15 +365,93 @@ export async function getTimeAttendanceManagerReviewQueue(
     actor: user,
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
   });
-  if (!evaluateTimeAttendanceCapability({ actor: user, capability: "TIME_ATTENDANCE_MANAGER", grants }).allowed) {
-    return emptyQueue({ generatedAt: now.toISOString(), permitted: false });
-  }
-
+  const includeOperations = evaluateTimeAttendanceCapability({ actor: user, capability: "TIME_ATTENDANCE_MANAGER", grants }).allowed;
   const repository = input.repository ?? createTimeAttendanceManagerReviewRepository();
-  return repository.list({
-    organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
-    now
+  const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
+  if (input.repository) return includeOperations ? repository.list({ organizationId, now }) : emptyQueue({ generatedAt: now.toISOString(), permitted: false });
+  const locations = await prisma.location.findMany({ where: { organizationId }, select: { id: true } });
+  const capabilityAt = (locationId: string, capability: "TIME_ATTENDANCE_MANAGER" | "TIME_LEAVE_ADMIN", priorActorUserId?: string | null) =>
+    evaluateTimeAttendanceCapability({ actor: user, grants, locationId, capability, priorActorUserId }).allowed;
+  const timeOffLocations = locations.filter(location =>
+    capabilityAt(location.id, "TIME_ATTENDANCE_MANAGER") || capabilityAt(location.id, "TIME_LEAVE_ADMIN")
+  ).map(location => location.id);
+  if (!includeOperations && timeOffLocations.length === 0) return emptyQueue({ generatedAt: now.toISOString(), permitted: false });
+  const queue = await repository.list({ organizationId, now, timeOffLocations, includeOperations });
+  const timeOffIds = queue.items.filter(item => item.category === "TIME_OFF_REQUEST").map(item => item.id);
+  if (timeOffIds.length === 0) return queue;
+  const records = await prisma.timeOffRequest.findMany({
+    where: { organizationId, id: { in: timeOffIds }, locationId: { in: timeOffLocations } },
+    select: { id: true, locationId: true, requesterUserId: true, startsAt: true, endsAt: true, status: true, updatedAt: true,
+      protectedRouting: true, evidence: true, requestType: true, decisionActorUserId: true, location: { select: { timezone: true } } }
   });
+  const byId = new Map(records.map(record => [record.id, record]));
+  const items = await Promise.all(queue.items.map(async item => {
+    const request = item.category === "TIME_OFF_REQUEST" ? byId.get(item.id) : undefined;
+    if (!request) return item;
+    const leaveAdmin = capabilityAt(request.locationId, "TIME_LEAVE_ADMIN");
+    const manager = capabilityAt(request.locationId, "TIME_ATTENDANCE_MANAGER");
+    const projectionPending = request.status === "APPROVED" && timeOffEvidence(request.evidence).projectionPending === true;
+    const actions: NonNullable<TimeAttendanceManagerReviewItem["timeOffReview"]>["actions"] = [];
+    if (request.requesterUserId !== user.id && item.timeOffVersion === request.updatedAt.toISOString()) {
+      if (projectionPending) {
+        if (leaveAdmin) actions.push("APPROVE");
+      } else {
+        if (manager && !request.protectedRouting && request.status === "SUBMITTED") actions.push("APPROVE_COVERAGE");
+        const priorReviewer = request.status === "MANAGER_APPROVED" ? request.decisionActorUserId : null;
+        if (leaveAdmin && capabilityAt(request.locationId, "TIME_LEAVE_ADMIN", priorReviewer)) actions.push("APPROVE");
+        if (leaveAdmin) actions.push("DENY");
+        if (request.protectedRouting ? leaveAdmin : manager || leaveAdmin) actions.push("RETURN");
+      }
+    }
+    const [appointmentConflicts, overlappingAbsences] = await coverageCounts(organizationId, request);
+    const date = new Intl.DateTimeFormat("en-US", { timeZone: request.location.timezone, month: "short", day: "numeric", year: "numeric" });
+    const clock = new Intl.DateTimeFormat("en-US", { timeZone: request.location.timezone, hour: "numeric", minute: "numeric" });
+    const dates = storedTimeOffWindows(request).map(window => {
+      const start = date.format(window.startsAt);
+      const end = date.format(window.endsAt);
+      return start === end ? `${start}, ${clock.format(window.startsAt)}–${clock.format(window.endsAt)}`
+        : `${start}, ${clock.format(window.startsAt)} – ${end}, ${clock.format(window.endsAt)}`;
+    });
+    const calendarHref = `/appointments?view=calendar&localDate=${getLocationLocalDate(request.startsAt, request.location.timezone)}`;
+    return {
+      ...item,
+      title: request.protectedRouting && !leaveAdmin ? "Protected time-off request" :
+        request.requestType === "PROTECTED_REFERRAL" ? timeOffEvidence(request.evidence).referralKind === "MN_PAID_LEAVE"
+          ? "Minnesota Paid Leave referral" : "Protected unpaid leave referral" : item.title,
+      timeOffReview: { version: request.updatedAt.toISOString(), actions, projectionPending, dates, calendarHref,
+        referral: request.requestType === "PROTECTED_REFERRAL", appointmentConflicts, overlappingAbsences }
+    };
+  }));
+  return { ...queue, items };
+}
+
+async function coverageCounts(
+  organizationId: string,
+  request: TimeOffWindow & { id: string; locationId: string; requesterUserId: string; evidence: unknown }
+): Promise<[number | null, number | null]> {
+  const windows = storedTimeOffWindows(request);
+  const overlap = windows.map(window => ({ startsAt: { lt: window.endsAt }, endsAt: { gt: window.startsAt } }));
+  try {
+    const [appointments, absences] = await Promise.all([
+      prisma.appointment.count({
+        where: { organizationId, locationId: request.locationId, bookingStatus: "SCHEDULED", AND: [
+          { OR: [{ ownerUserId: request.requesterUserId }, { participants: { some: { userId: request.requesterUserId } } }] },
+          { OR: overlap }
+        ] }
+      }),
+      prisma.timeOffRequest.findMany({
+        where: { organizationId, locationId: request.locationId, status: "APPROVED",
+          requestType: { not: "PROTECTED_REFERRAL" }, requesterUserId: { not: request.requesterUserId }, OR: overlap },
+        select: { requesterUserId: true, startsAt: true, endsAt: true, evidence: true }
+      })
+    ]);
+    const people = new Set(absences.filter(absence => storedTimeOffWindows(absence).some(window => windows.some(
+      target => window.startsAt < target.endsAt && target.startsAt < window.endsAt
+    ))).map(absence => absence.requesterUserId));
+    return [appointments, people.size];
+  } catch {
+    return [null, null];
+  }
 }
 
 export async function getSafeTimeAttendanceManagerReviewQueue(

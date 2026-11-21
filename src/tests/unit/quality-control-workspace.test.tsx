@@ -46,6 +46,22 @@ const model = {
 };
 
 describe("QualityControlWorkspace", () => {
+  it("offers detailed QC for a brake job in the repair workbench", () => {
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={model} reviewOrderId="ro_1" />);
+    expect(html).toContain("Open detailed QC for road-test evidence");
+    expect(html).toContain("Road-test outcome");
+    expect(html).toContain("Road-test evidence");
+    expect(html).not.toContain("Record passed repair QC");
+  });
+
+  it("keeps quick QC for an unrelated trim job on a brake visit", () => {
+    const order = model.repairOrders[0];
+    const trim = { ...order.repairJobs[0], description: "Driver door trim", plannedCorrection: "Replace the trim clip" };
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={{ ...model, repairOrders: [{ ...order, repairJobs: [trim] }] }} reviewOrderId="ro_1" />);
+    expect(html).toContain("Record passed repair QC");
+    expect(html).not.toContain("Open detailed QC for road-test evidence");
+  });
+
   it("routes diagnostic-heavy jobs to detailed QC for peer verification", () => {
     const order = model.repairOrders[0];
     const job = { ...order.repairJobs[0], lane: "DIAGNOSTIC_HEAVY" };

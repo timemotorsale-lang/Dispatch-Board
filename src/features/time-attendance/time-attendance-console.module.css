@@ -18,6 +18,34 @@
   padding-block: 0.55rem;
 }
 
+.periodPicker, .breakReview, .reviewFilters {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+  min-width: 0;
+}
+
+.periodPicker label, .reviewFilters label { display: grid; gap: 4px; min-width: 0; }
+.periodPicker select, .reviewFilters select, .reviewFilters input {
+  color: var(--ink);
+  background: var(--surface, white);
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 8px;
+  max-width: 100%;
+}
+.breakReview { border: 1px solid #94a3b8; border-radius: 8px; padding: 10px; }
+.breakReview legend { font-weight: 650; }
+.periodTable { overflow-x: auto; }
+.periodTable table { border-collapse: collapse; width: 100%; }
+.periodTable th, .periodTable td { border-bottom: 1px solid #94a3b84d; padding: 7px 8px; text-align: left; vertical-align: top; }
+.periodTable td { font-variant-numeric: tabular-nums; }
+.periodDayAction { display: block; font-weight: 500; margin-top: 4px; }
+.periodSrOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.console .hero p { color: #e2e8f0; }
+
 .hero {
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 32%),
@@ -26,11 +54,13 @@
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
   color: white;
-  display: grid;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.56fr);
+  justify-content: space-between;
   overflow: hidden;
-  padding: 14px 16px;
+  padding: 10px 14px;
   position: relative;
 }
 
@@ -52,7 +82,7 @@
   font-size: clamp(1.65rem, 2.6vw, 2.15rem);
   letter-spacing: -0.045em;
   line-height: 1.05;
-  margin: 7px 0 10px;
+  margin: 0;
   max-width: 860px;
 }
 
@@ -65,11 +95,11 @@
 }
 
 .heroCompactMeta {
-  align-content: start;
+  align-items: center;
   color: #dbeafe;
-  display: grid;
-  gap: 8px;
-  justify-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -277,8 +307,9 @@
 }
 
 .bodyGrid {
+  align-items: start;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
   min-width: 0;
 }
@@ -497,13 +528,15 @@
 .mainStack,
 .sideStack {
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
 }
 
 .panel,
 .reviewRail,
 .teamPanel {
-  padding: 13px;
+  padding: 10px 12px;
 }
 
 .captureHeroPanel {
@@ -595,16 +628,16 @@
 
 .timeSummary {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 12px;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 8px;
 }
 
 .timeSummary div {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 7px;
-  padding: 12px;
+  padding: 7px 9px;
 }
 
 .timeSummary span {
@@ -618,8 +651,8 @@
 
 .timeSummary strong {
   display: block;
-  font-size: 1.35rem;
-  margin-top: 5px;
+  font-size: 1.05rem;
+  margin-top: 2px;
 }
 
 .cardContextLine {
@@ -681,7 +714,7 @@
   gap: 12px;
   justify-content: space-between;
   list-style: none;
-  padding: 12px 13px;
+  padding: 9px 11px;
 }
 
 .workflowDisclosure summary::-webkit-details-marker {
@@ -725,8 +758,8 @@
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(180px, 1.35fr) minmax(120px, 0.8fr) minmax(150px, 1fr) auto;
-  padding: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px 10px;
 }
 
 .exceptionChecklistRow div {
@@ -999,53 +1032,75 @@
 }
 
 .captureStatus {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 0;
 }
 
 .captureStatus div {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.captureStatus span {
+.captureStatus dt {
   color: var(--muted);
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.82rem;
 }
 
-.captureStatus strong {
-  display: block;
-  font-size: 0.98rem;
-  margin-top: 5px;
+.captureStatus dd {
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
   overflow-wrap: anywhere;
 }
 
+.captureHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.captureHeader h2 { font-size: 1.05rem; margin: 0; }
+
+.captureHeroPanel { display: grid; gap: 10px; }
+
+.toolBar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.toolBar > a {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: inherit;
+  font-size: 0.86rem;
+  min-height: 36px;
+  padding: 7px 10px;
+  text-decoration: none;
+  align-content: center;
+}
+
+.toolBar > a:hover { border-color: #64748b; }
+
 .captureCommand {
   align-items: center;
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.capturePunchActions {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-}
-
+.capturePunchActions,
 .captureActions {
-  align-items: center;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .capturePrimary,
@@ -1069,15 +1124,11 @@
 .capturePrimary {
   background: #1d4ed8;
   color: white;
-  font-size: 1.05rem;
-  min-height: 58px;
 }
 
 .captureClockOut {
   background: #0f172a;
   color: white;
-  font-size: 1.05rem;
-  min-height: 58px;
 }
 
 .captureSecondary,
@@ -1100,27 +1151,6 @@
   opacity: 0.62;
 }
 
-.captureMoreActions {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-  overflow: hidden;
-  padding: 10px;
-}
-
-.captureMoreActions strong {
-  color: #475569;
-  font-size: 0.82rem;
-  font-weight: 900;
-}
-
-.captureMoreActions .captureActions {
-  border-top: 0;
-  padding: 0;
-}
-
 .captureNotice,
 .captureError {
   align-items: flex-start;
@@ -1130,8 +1160,8 @@
   font-weight: 800;
   gap: 9px;
   line-height: 1.5;
-  margin: 14px 0 0;
-  padding: 12px;
+  margin: 0;
+  padding: 8px 10px;
 }
 
 .captureNotice {
@@ -1264,7 +1294,7 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 7px;
-  padding: 12px;
+  padding: 8px 10px;
 }
 
 .attestationCardFacts span {
@@ -1599,7 +1629,7 @@
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(150px, 0.9fr) minmax(220px, 1.35fr) minmax(92px, auto) minmax(70px, auto) minmax(260px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto auto;
 }
 
 .managerReviewTableHeader {
@@ -1616,9 +1646,14 @@
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   color: inherit;
-  padding: 12px;
+  padding: 8px 10px;
   text-decoration: none;
+  scroll-margin-top: 110px;
 }
+
+.managerReviewTableHeader span:last-child { display: none; }
+.managerReviewAction, .managerReviewActionCompact { grid-column: 1 / -1; }
+.managerReviewPerson, .managerReviewIssue { overflow-wrap: anywhere; }
 
 .managerReviewPerson,
 .managerReviewIssue,
@@ -1739,8 +1774,9 @@
 .managerDecisionForm {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(120px, 0.75fr) minmax(150px, 1fr) auto;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) auto;
 }
+.managerDecisionForm select, .managerDecisionForm input { min-width: 0; }
 
 .auditDrawer {
   background: #ffffff;
@@ -1879,6 +1915,47 @@
   padding: 16px;
 }
 
+.cardReadinessNote {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 8px 0 0;
+}
+
+.assignedPolicy {
+  margin-top: 8px;
+  font-size: 0.86rem;
+}
+
+.assignedPolicy summary { cursor: pointer; width: fit-content; }
+.assignedPolicy p { color: var(--muted); margin: 5px 0 0; }
+
+.timeOffWorkspaceForm,
+.timeOffHistory,
+.timeOffHistoryRow {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.timeOffWorkspaceForm { justify-items: start; }
+.timeOffWorkspaceForm h3,
+.timeOffHistory h3,
+.timeOffHistoryRow p { margin: 0; }
+.timeOffWorkspaceForm label { display: grid; gap: 4px; min-width: 0; }
+.timeOffWorkspaceForm > label:has(textarea) { width: 100%; }
+.timeOffDay { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.timeOffWorkspaceForm :is(input, select, textarea),
+.timeOffHistory select {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel, Canvas);
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px;
+}
+.timeOffHistoryRow { border-top: 1px solid var(--line); padding-top: 8px; }
+
 :global(html[data-app-theme="dark"]) .console {
   color: #edf4ff;
 }
@@ -1909,7 +1986,7 @@
 :global(html[data-app-theme="dark"]) .commandCopy h2,
 :global(html[data-app-theme="dark"]) .inboxLauncher h2,
 :global(html[data-app-theme="dark"]) .commandSearchResults strong,
-:global(html[data-app-theme="dark"]) .captureStatus strong,
+:global(html[data-app-theme="dark"]) .captureStatus dd,
 :global(html[data-app-theme="dark"]) .timeSummary strong,
 :global(html[data-app-theme="dark"]) .commandMetrics dd,
 :global(html[data-app-theme="dark"]) .payrollMetrics strong,
@@ -1936,7 +2013,7 @@
 :global(html[data-app-theme="dark"]) .queueItem p,
 :global(html[data-app-theme="dark"]) .teamRow small,
 :global(html[data-app-theme="dark"]) .cardContextLine,
-:global(html[data-app-theme="dark"]) .captureStatus span,
+:global(html[data-app-theme="dark"]) .captureStatus dt,
 :global(html[data-app-theme="dark"]) .timeSummary span,
 :global(html[data-app-theme="dark"]) .commandMetrics dt,
 :global(html[data-app-theme="dark"]) .commandSearchResults span,
@@ -1975,7 +2052,6 @@
   color: #7f8da3;
 }
 
-:global(html[data-app-theme="dark"]) .captureStatus div,
 :global(html[data-app-theme="dark"]) .timeSummary div,
 :global(html[data-app-theme="dark"]) .commandMetrics div,
 :global(html[data-app-theme="dark"]) .commandSearchResults a,
@@ -1995,7 +2071,6 @@
 :global(html[data-app-theme="dark"]) .queueItem,
 :global(html[data-app-theme="dark"]) .teamRow,
 :global(html[data-app-theme="dark"]) .cardContextLine span,
-:global(html[data-app-theme="dark"]) .captureMoreActions,
 :global(html[data-app-theme="dark"]) .inboxNotice,
 :global(html[data-app-theme="dark"]) .mvpNote {
   background: #14253a;
@@ -2025,6 +2100,7 @@
 :global(html[data-app-theme="dark"]) .payrollActions button,
 :global(html[data-app-theme="dark"]) .managerReviewOpen,
 :global(html[data-app-theme="dark"]) .auditAction,
+:global(html[data-app-theme="dark"]) .toolBar > a,
 :global(html[data-app-theme="dark"]) .workflowRail a,
 :global(html[data-app-theme="dark"]) .mobileJumpRail a {
   background: #17283c;
@@ -2238,4 +2314,13 @@
 .hero :is(a, button):focus-visible {
   outline: 2px solid #bfdbfe;
   outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .toolBar > a,
+  .captureCommand button {
+    min-height: 44px;
+  }
+
+  .timeSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

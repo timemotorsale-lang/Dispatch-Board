@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Clock3, Coffee, LogIn, LogOut, RefreshCw } from "lucide-react";
 
 import type {
@@ -12,6 +13,7 @@ import styles from "./time-attendance-console.module.css";
 
 type CapturePanelProps = {
   initialState: TimeAttendanceCaptureState;
+  initialClock: string;
 };
 
 type CaptureResult = {
@@ -22,6 +24,16 @@ type CaptureResult = {
   } | null;
   version: number;
   projection: { state: "CREATED" | "CURRENT" | "BLOCKED"; reason: string | null };
+};
+type PunchRequest = {
+  commandType: TimeAttendanceCaptureAction;
+  completelyRelieved?: boolean;
+  expectedVersion: number;
+  idempotencyKey: string;
+  locationId: string;
+  occurredAt: string;
+  reason: string;
+  timezone: string;
 };
 
 const actionLabels: Record<TimeAttendanceCaptureAction, string> = {
@@ -63,22 +75,27 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
     const message = body && typeof body === "object" && "error" in body && typeof body.error === "string"
       ? body.error
       : "The time action could not be recorded.";
-    throw new Error(message);
+    throw Object.assign(new Error(message), { status: response.status });
   }
 
   return body as T;
 }
 
-export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) {
+export function TimeAttendanceCapturePanel({ initialState, initialClock }: CapturePanelProps) {
+  const router = useRouter();
   const [state, setState] = useState(initialState);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.parse(initialClock));
+  const [breakEnding, setBreakEnding] = useState<{ action: "END_MEAL" | "END_PAID_REST"; occurredAt: string } | null>(null);
+  const [retry, setRetry] = useState<PunchRequest | null>(null);
+  const [statusOutdated, setStatusOutdated] = useState(false);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!state.session) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => window.clearInterval(timer);
   }, [state.session]);
 
@@ -99,62 +116,96 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       await fetch("/api/time-attendance/capture", { cache: "no-store" })
     );
     setState(next);
+    if (next.lastAcceptedPunch) {
+      const acceptedAt = Date.parse(next.lastAcceptedPunch.occurredAt);
+      setNow(value => Math.max(value, acceptedAt));
+    }
+    setStatusOutdated(false);
     return next;
   }
 
-  function submitAction(action: TimeAttendanceCaptureAction) {
+  function recordPunch(request: PunchRequest) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     setNotice(null);
     startTransition(async () => {
       try {
         const result = await parseJsonResponse<CaptureResult>(
           await fetch("/api/time-attendance/capture", {
-            body: JSON.stringify({
-              commandType: action,
-              completelyRelieved: action === "END_MEAL" || action === "END_PAID_REST" ? true : undefined,
-              expectedVersion: state.expectedVersion,
-              idempotencyKey: newIdempotencyKey(action),
-              locationId: state.locationId,
-              occurredAt: new Date().toISOString(),
-              paid: action === "START_MEAL" ? false : undefined,
-              reason: actionReasons[action],
-              timezone: state.timezone
-            }),
+            body: JSON.stringify(request),
             headers: { "Content-Type": "application/json" },
             method: "POST"
           })
         );
-        const next = await refreshState();
-        setNotice(`${actionLabels[action]} recorded${result.duplicate ? " as an existing safe retry" : ""}. Current status: ${next.statusLabel}.${result.projection.state === "BLOCKED" && result.projection.reason ? ` Card update: ${result.projection.reason}` : ""}`);
+        setBreakEnding(null);
+        setNotice(`${actionLabels[request.commandType]} recorded.${result.projection.state === "BLOCKED" && result.projection.reason ? ` Card update: ${result.projection.reason}` : ""}`);
+        try {
+          setRetry(null);
+          await refreshState();
+        } catch {
+          setStatusOutdated(true);
+          setError("Your punch was recorded. Refresh your status before making another punch.");
+        }
+        router.refresh();
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "The time action could not be recorded.");
+        const status = caught instanceof Error && "status" in caught ? Number(caught.status) : null;
+        if (status && status < 500) {
+          setRetry(null);
+          setBreakEnding(null);
+          setError(caught instanceof Error ? caught.message : "The time action could not be recorded.");
+          if (status === 409) await refreshState().catch(() => setStatusOutdated(true));
+        } else {
+          setRetry(request);
+          setBreakEnding(null);
+          setError("We could not confirm this punch. Retry the same punch to check or finish recording it.");
+        }
+      } finally {
+        inFlight.current = false;
       }
     });
   }
 
+  function submitAction(action: TimeAttendanceCaptureAction, completelyRelieved?: boolean) {
+    if (retry || statusOutdated || inFlight.current) return;
+    if ((action === "END_MEAL" || action === "END_PAID_REST") && completelyRelieved === undefined) {
+      setBreakEnding({ action, occurredAt: new Date().toISOString() });
+      return;
+    }
+    recordPunch({
+      commandType: action,
+      completelyRelieved,
+      expectedVersion: state.expectedVersion,
+      idempotencyKey: newIdempotencyKey(action),
+      locationId: state.locationId,
+      occurredAt: breakEnding?.action === action ? breakEnding.occurredAt : new Date().toISOString(),
+      reason: actionReasons[action],
+      timezone: state.timezone
+    });
+  }
+
+  const disabled = isPending || Boolean(retry) || Boolean(breakEnding) || statusOutdated;
+  const statusLabel = state.paidRestActive ? "On paid break" : state.statusLabel;
+
   return (
     <article className={`${styles.panel} ${styles.captureHeroPanel}`}>
-      <div className={styles.panelHeader}>
-        <div>
-          <span className={styles.sectionEyebrow}>Clock in / clock out</span>
-          <h2>{state.statusLabel}</h2>
-          <p>The main punch buttons stay here at the top. Use exact time; corrections stay separate.</p>
-        </div>
+      <div className={styles.captureHeader}>
+        <h2>Clock in / clock out</h2>
         <span className={state.state === "NONE" ? styles.chipNeutral : state.state === "ON_MEAL" ? styles.chipWarning : styles.chipGood}>
-          {state.statusLabel}
+          {statusLabel}
         </span>
       </div>
 
-      <div className={styles.captureStatus}>
+      <dl className={styles.captureStatus}>
         <div>
-          <span>Elapsed shift</span>
-          <strong>{state.session ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m` : "No open session"}</strong>
+          <dt>Elapsed shift</dt>
+          <dd>{state.session ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m` : "—"}</dd>
         </div>
         <div>
-          <span>Last accepted punch</span>
-          <strong>{state.lastAcceptedPunch ? `${actionLabels[state.lastAcceptedPunch.eventType as TimeAttendanceCaptureAction]} · ${new Date(state.lastAcceptedPunch.occurredAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "None yet"}</strong>
+          <dt>Last punch</dt>
+          <dd>{state.lastAcceptedPunch ? `${actionLabels[state.lastAcceptedPunch.eventType as TimeAttendanceCaptureAction] ?? state.lastAcceptedPunch.eventType.replaceAll("_", " ")} · ${new Date(state.lastAcceptedPunch.occurredAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: state.timezone })}` : "None yet"}</dd>
         </div>
-      </div>
+      </dl>
 
       <div className={styles.captureCommand} aria-label="Time capture actions">
         {topActions.length ? (
@@ -162,7 +213,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
             {topActions.map((action) => (
               <button
                 className={action === "CLOCK_OUT" ? styles.captureClockOut : styles.capturePrimary}
-                disabled={isPending}
+                disabled={disabled}
                 key={action}
                 onClick={() => submitAction(action)}
                 type="button"
@@ -178,36 +229,45 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
             No time action is currently available.
           </p>
         )}
-        <button className={styles.captureRefresh} disabled={isPending} onClick={() => startTransition(() => { void refreshState(); })} type="button">
+        {secondaryActions.length ? (
+          <div className={styles.captureActions} role="group" aria-label="Meal and break actions">
+            {secondaryActions.map((action) => (
+              <button
+                className={styles.captureSecondary}
+                disabled={disabled}
+                key={action}
+                onClick={() => submitAction(action)}
+                type="button"
+              >
+                {iconFor(action)}
+                {actionLabels[action]}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <button className={styles.captureRefresh} disabled={isPending || Boolean(retry) || Boolean(breakEnding)} onClick={() => startTransition(async () => {
+          setError(null);
+          try { await refreshState(); router.refresh(); }
+          catch { setStatusOutdated(true); setError("Time status could not be refreshed. Try again before punching."); }
+        })} type="button">
           <RefreshCw size={16} aria-hidden="true" />
           Refresh
         </button>
       </div>
 
-      {secondaryActions.length ? (
-        <div className={styles.captureMoreActions}>
-          <strong>Meal and break actions</strong>
-          <div className={styles.captureActions}>
-          {secondaryActions.map((action) => (
-            <button
-              className={styles.captureSecondary}
-              disabled={isPending}
-              key={action}
-              onClick={() => submitAction(action)}
-              type="button"
-            >
-              {iconFor(action)}
-              {actionLabels[action]}
-            </button>
-          ))}
-          </div>
-        </div>
-      ) : null}
+      {breakEnding && <fieldset className={styles.breakReview} disabled={isPending}>
+        <legend>Were you fully relieved of duties for this {breakEnding.action === "END_MEAL" ? "meal" : "break"}?</legend>
+        <button className={styles.capturePrimary} type="button" onClick={() => submitAction(breakEnding.action, true)}>Yes, I was fully relieved</button>
+        <button className={styles.captureSecondary} type="button" onClick={() => submitAction(breakEnding.action, false)}>No, I worked or was interrupted</button>
+        <button className={styles.captureRefresh} type="button" onClick={() => setBreakEnding(null)}>Cancel</button>
+      </fieldset>}
+
+      {retry && <button className={styles.capturePrimary} type="button" disabled={isPending} onClick={() => recordPunch(retry)}>Retry same punch</button>}
 
       {unavailable ? (
         <p className={styles.captureError}>
           <AlertTriangle size={16} aria-hidden="true" />
-          Capture is temporarily unavailable because the live Time & Attendance tables are not ready in this database. No time has been changed.
+          Time capture is temporarily unavailable. Refresh to check your status.
         </p>
       ) : null}
       {notice ? (

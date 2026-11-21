@@ -1,16 +1,44 @@
-import { activePipelineRow, inPipelinePeriod, localPipelineDate, pipelineMidnight, pipelineSignals, resolvePipelinePeriod, type PipelineRow, type PipelineWorkspace } from "./crm-pipeline";
+import { activePipelineRow, inPipelinePeriod, localPipelineDate, pipelineLabel, pipelineMidnight, pipelineSignals, resolvePipelinePeriod, type PipelineActivity, type PipelineRelatedWork, type PipelineRow, type PipelineWorkspace } from "./crm-pipeline";
 export function mergePipelinePages(previous: PipelineWorkspace | null, current: PipelineWorkspace): PipelineWorkspace {
   if (!previous) return current;
-  return { ...previous, rows: [...new Map([...previous.rows, ...current.rows].map(r => [r.id, r])).values()], unlinkedLeads: [...new Map([...previous.unlinkedLeads, ...current.unlinkedLeads].map(r => [r.id, r])).values()], nextCursor: current.nextCursor, moreLeads: current.moreLeads, truncated: current.truncated };
+  const relatedWork = [...(previous.relatedWork ?? []), ...(current.relatedWork ?? [])];
+  return { ...previous, rows: [...new Map([...previous.rows, ...current.rows].map(r => [r.id, r])).values()], unlinkedLeads: [...new Map([...previous.unlinkedLeads, ...current.unlinkedLeads].map(r => [r.id, r])).values()], relatedWork: [...new Map(relatedWork.map(r => [`${r.kind}:${r.id}`, r])).values()], nextCursor: current.nextCursor, moreLeads: current.moreLeads, moreRelatedWork: current.moreRelatedWork, truncated: current.truncated };
 }
 export const PIPELINE_VIEWS = {
-  all: "All current work", close_today: "Close today", close_week: "Close this week", close_month: "Close this month",
+  continuity: "Sales work queue", all: "Work by date", close_today: "Close today", close_week: "Close this week", close_month: "Close this month",
   yesterday: "Yesterday review", last_week: "Last week review", two_weeks_ago: "Two weeks ago review", last_month: "Last month review",
   overdue: "Overdue", unassigned: "Unassigned", no_activity: "No next activity", missing_date: "Missing closing date",
   waiting: "Waiting review", nurture: "Nurture review", exceptions: "Needs attention", archived: "Archived and closed"
 } as const;
 export type PipelineFilters = { q: string; owner: string; pathway: string; period: string; basis: string; view: string; start: string; end: string; mode: string; history: string; };
 export const defaultPipelineFilters: PipelineFilters = { q: "", owner: "mine", pathway: "all", period: "today", basis: "due", view: "all", start: "", end: "", mode: "queue", history: "current" };
+
+export function latestPipelineActivity(row: PipelineRow): PipelineActivity | null {
+  const recorded = row.history.find(item => /OUTCOME|ACTIVITY|REVIEW|HANDOFF|TRANSITION|FOLLOW_UP/.test(item.eventType));
+  const completed = row.tasks.filter(task => task.completedAt).sort((a, b) => b.completedAt!.localeCompare(a.completedAt!))[0];
+  return [
+    row.customerActivity,
+    recorded && { label: pipelineLabel(recorded.eventType), at: recorded.occurredAt },
+    completed && { label: completed.title, at: completed.completedAt! },
+    row.stageEnteredAt && { label: `Moved to ${pipelineLabel(row.stage)}`, at: row.stageEnteredAt },
+  ].filter((item): item is PipelineActivity => Boolean(item)).sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
+}
+
+export function filterPipelineRelatedWork(work: PipelineRelatedWork[], filters: PipelineFilters, actorId: string) {
+  const search = filters.q.trim().toLowerCase();
+  return work.filter(item =>
+    (filters.owner === "all" || item.ownerId === (filters.owner === "mine" ? actorId : filters.owner)) &&
+    (filters.pathway === "all" || item.pathway === filters.pathway) &&
+    (!search || `${item.name} ${item.reference} ${item.vehicle} ${item.stage} ${item.nextAction}`.toLowerCase().includes(search)),
+  );
+}
+
+export function pipelineWorkPriority(dueAt: string | null, attention: boolean, completed: boolean, todayEnd: string, now: string) {
+  if (completed) return 4;
+  if (attention || dueAt && dueAt < now) return 0;
+  if (dueAt && dueAt < todayEnd) return 1;
+  return dueAt ? 3 : 2;
+}
 export function pipelineBasisDate(r: PipelineRow, basis: string) {
   if (basis === "received") return r.receivedAt;
   if (basis === "close") return r.expectedCloseAt;
@@ -30,6 +58,8 @@ export function filterPipelineRows(rows: PipelineRow[], f: PipelineFilters, acto
     if (f.owner === "mine" && r.ownerUserId !== actorId && r.pendingOwnerId !== actorId || f.owner !== "mine" && f.owner !== "all" && r.ownerUserId !== f.owner) return false;
     if (f.pathway !== "all" && r.pathway !== f.pathway) return false;
     if (f.q && !`${r.title} ${r.customerName} ${r.vehicle} ${r.opportunityNumber} ${r.sourceCode}`.toLowerCase().includes(f.q.toLowerCase())) return false;
+    if (f.view === "continuity") return r.stage !== "LOST" && r.dealStatus !== "LOST" &&
+      (r.sourceLeadStage !== "LOST" || r.stage === "WON" || Boolean(r.dealId && r.dealStatus));
     const active = activePipelineRow(r), pendingTasks = r.tasks.some(t => t.status !== "COMPLETED"), accountable = active || pendingTasks || r.exceptions.length > 0, due = pipelineBasisDate(r, "due"), signals = pipelineSignals(r, now);
     if (f.view === "archived") return !active;
     if (["overdue", "unassigned", "no_activity", "missing_date", "waiting", "nurture", "exceptions"].includes(f.view)) {

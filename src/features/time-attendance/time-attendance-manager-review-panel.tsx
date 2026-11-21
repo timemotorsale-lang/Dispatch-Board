@@ -2,6 +2,7 @@
 
 import { AlertTriangle, FileWarning, ShieldAlert, UserRoundCheck, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { TimeAttendanceManagerReviewQueue } from "@/server/time-attendance/manager-review";
@@ -44,16 +45,25 @@ function categoryIcon(category: string) {
 }
 
 export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManagerReviewPanelProps) {
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [reviewFilter, setReviewFilter] = useState("ALL");
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkReason, setBulkReason] = useState("");
   const [bulkMessage, setBulkMessage] = useState<{ text: string; tone: "good" | "danger" } | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [decisionNotice, setDecisionNotice] = useState<string | null>(null);
   const [auditItemId, setAuditItemId] = useState<string | null>(null);
   const auditButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const cleanApprovalItems = useMemo(() => queue.items.filter((item) =>
+  const visibleItems = useMemo(() => queue.items.filter(item =>
+    (reviewFilter === "ALL" || (reviewFilter === "BLOCKING" ? item.severity === "danger" : item.category === reviewFilter)) &&
+    `${item.staffName} ${item.title} ${item.status}`.toLowerCase().includes(search.trim().toLowerCase())
+  ), [queue.items, reviewFilter, search]);
+  const cleanApprovalItems = useMemo(() => visibleItems.filter((item) =>
     item.category === "CARD_APPROVAL" && item.severity === "info" && item.cardChecksum && typeof item.timeCardVersion === "number"
-  ), [queue.items]);
+  ), [visibleItems]);
+  const approvedSelection = cleanApprovalItems.filter(item => selectedIds.has(item.id));
   const auditItem = auditItemId ? queue.items.find((item) => item.id === auditItemId) ?? null : null;
 
   const closeAuditDrawer = useCallback(() => {
@@ -77,6 +87,13 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
     return decisions[id] ?? defaultDecisionState;
   }
 
+  function decisionFor(item: TimeAttendanceManagerReviewQueue["items"][number]): ManagerDecision {
+    const decision = stateFor(item.id).decision;
+    if (item.timeOffReview && !item.timeOffReview.actions.some(action => action === decision)) return item.timeOffReview.actions[0] ?? "APPROVE";
+    if (item.correctionRebuildPending || (item.category === "CORRECTION_REQUEST" && item.status === "Approved · ready to apply" && decision === "APPROVE")) return "APPLY";
+    return decision;
+  }
+
   function updateDecision(id: string, patch: Partial<DecisionState>) {
     setDecisions((current) => ({
       ...current,
@@ -94,12 +111,13 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
   }
 
   function toggleAllCleanCards() {
-    setSelectedIds((current) => current.size === cleanApprovalItems.length
+    setSelectedIds(() => approvedSelection.length === cleanApprovalItems.length
       ? new Set()
       : new Set(cleanApprovalItems.map((item) => item.id)));
   }
 
   async function submitBulkApproval() {
+    if (bulkBusy || !approvedSelection.length) return;
     setBulkBusy(true);
     setBulkMessage(null);
     try {
@@ -109,7 +127,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         body: JSON.stringify({
           command: "BULK_APPROVE_CLEAN",
           reason: bulkReason,
-          timeCardIds: Array.from(selectedIds)
+          timeCardIds: approvedSelection.map(item => item.id)
         })
       });
       const payload = await response.json().catch(() => ({}));
@@ -119,8 +137,11 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
       setBulkMessage({ text: `${payload.approved ?? 0} clean card${payload.approved === 1 ? "" : "s"} approved.`, tone: "good" });
       setSelectedIds(new Set());
       setBulkReason("");
+      router.refresh();
     } catch (error) {
-      setBulkMessage({ text: error instanceof Error ? error.message : "Bulk approval failed.", tone: "danger" });
+      setBulkMessage({ text: `${error instanceof Error ? error.message : "Bulk approval failed."} The queue is refreshing because some approvals may have been recorded.`, tone: "danger" });
+      setSelectedIds(new Set());
+      router.refresh();
     } finally {
       setBulkBusy(false);
     }
@@ -128,6 +149,8 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
 
   async function submitDecision(item: TimeAttendanceManagerReviewQueue["items"][number]) {
     const current = stateFor(item.id);
+    const decision = decisionFor(item);
+    setDecisionNotice(null);
     updateDecision(item.id, { busy: true, message: null, tone: null });
     try {
       const endpoint = item.category === "CARD_APPROVAL"
@@ -144,11 +167,12 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
             cardChecksum: item.cardChecksum
           }
         : item.category === "TIME_OFF_REQUEST"
-          ? { decision: current.decision, reason: current.reason, requestId: item.id }
+          ? { decision, reason: item.timeOffReview?.projectionPending ? "Retry updating the time card from the approved request." : current.reason,
+              requestId: item.id, expectedUpdatedAt: item.timeOffReview?.version }
           : {
-              decision: current.decision,
-              idempotencyKey: `manager-correction-${item.id}-${current.decision}-${Date.now()}`,
-              managerReason: current.reason,
+              decision,
+              idempotencyKey: `manager-correction-${item.id}-${decision}-${Date.now()}`,
+              managerReason: item.correctionRebuildPending ? "Retry rebuilding the time card from the recorded correction." : current.reason,
               requestId: item.id
             };
       const response = await fetch(endpoint, {
@@ -160,12 +184,18 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
       if (!response.ok) {
         throw new Error(typeof payload.error === "string" ? payload.error : "Manager decision failed.");
       }
+      const rebuildPending = payload.projection?.state === "BLOCKED";
       updateDecision(item.id, {
         busy: false,
-        message: `Decision recorded: ${payload.request?.status ?? payload.card?.status ?? current.decision}.`,
+        decision: "APPROVE",
+        message: rebuildPending ? payload.projection.reason : `Decision recorded: ${payload.request?.status ?? payload.card?.status ?? current.decision}.`,
         reason: "",
-        tone: "good"
+        tone: rebuildPending ? "danger" : "good"
       });
+      const status = payload.request?.status === "DRAFT" && decision === "RETURN" ? "Returned for revision" :
+        item.timeOffReview?.referral && payload.request?.status === "APPROVED" ? "Referral reviewed" : payload.request?.status ?? payload.card?.status ?? decision;
+      setDecisionNotice(`${item.staffName} · ${rebuildPending ? "Card update pending" : status}.`);
+      router.refresh();
     } catch (error) {
       updateDecision(item.id, {
         busy: false,
@@ -209,16 +239,26 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         <div><span>Corrections</span><strong>{queue.totals.corrections}</strong></div>
         <div><span>Time off</span><strong>{queue.totals.timeOff}</strong></div>
       </div>
+      <div className={styles.reviewFilters}>
+        <label>Search review queue <input value={search} onChange={event => { setSearch(event.target.value); setSelectedIds(new Set()); }} placeholder="Staff name, issue, or status" /></label>
+        <label>Review queue filter <select value={reviewFilter} onChange={event => { setReviewFilter(event.target.value); setSelectedIds(new Set()); }}>
+          <option value="ALL">All review items</option><option value="BLOCKING">Payroll blockers</option>
+          <option value="CARD_APPROVAL">Card approvals</option><option value="CORRECTION_REQUEST">Corrections</option>
+          <option value="CARD_EXCEPTION">Exceptions</option><option value="ATTESTATION_DISPUTE">Disputes</option><option value="TIME_OFF_REQUEST">Time off</option>
+        </select></label>
+        <span role="status">{visibleItems.length} shown</span>
+      </div>
+      {decisionNotice && <p role="status" className={styles.inlineSuccess}>{decisionNotice}</p>}
 
       {cleanApprovalItems.length ? (
         <div className={styles.bulkReviewBar} aria-label="Bulk review controls">
           <div>
             <span className={styles.sectionEyebrow}>Bulk approval</span>
-            <strong>{selectedIds.size} of {cleanApprovalItems.length} clean cards selected</strong>
+            <strong>{approvedSelection.length} of {cleanApprovalItems.length} clean cards selected</strong>
             <p>Only attested cards with no blocking exceptions or open corrections can be bulk approved.</p>
           </div>
           <button disabled={bulkBusy} onClick={toggleAllCleanCards} type="button">
-            {selectedIds.size === cleanApprovalItems.length ? "Clear selected" : "Select clean cards"}
+            {approvedSelection.length === cleanApprovalItems.length ? "Clear selected" : "Select clean cards"}
           </button>
           <input
             aria-label="Bulk approval reason"
@@ -228,18 +268,18 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
             value={bulkReason}
           />
           <button
-            disabled={bulkBusy || selectedIds.size === 0 || bulkReason.trim().length < 15}
+            disabled={bulkBusy || approvedSelection.length === 0 || bulkReason.trim().length < 15}
             onClick={() => void submitBulkApproval()}
             type="button"
           >
             Approve selected
           </button>
-          {bulkMessage ? <p className={bulkMessage.tone === "good" ? styles.inlineSuccess : styles.inlineError}>{bulkMessage.text}</p> : null}
         </div>
       ) : null}
+      {bulkMessage && <p role="status" className={bulkMessage.tone === "good" ? styles.inlineSuccess : styles.inlineError}>{bulkMessage.text}</p>}
 
       <div className={styles.managerReviewTable}>
-        {queue.items.length ? (
+        {visibleItems.length ? (
           <div className={styles.managerReviewTableHeader} aria-hidden="true">
             <span>Staff</span>
             <span>Issue</span>
@@ -252,11 +292,11 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
           <div className={styles.managerReviewEmpty}>
             <AlertTriangle size={20} aria-hidden="true" />
             <strong>Manager queue temporarily unavailable.</strong>
-            <p>The review queue needs the live Time & Attendance tables before it can show persisted exceptions. No review decision has been changed.</p>
+            <p>Refresh to try again.</p>
           </div>
-        ) : queue.items.length ? queue.items.map((item) => (
+        ) : visibleItems.length ? visibleItems.map((item) => (
           ["CORRECTION_REQUEST", "CARD_APPROVAL", "TIME_OFF_REQUEST"].includes(item.category) ? (
-            <div className={`${styles.managerReviewTableRow} ${severityClass(item.severity)}`} key={`${item.category}-${item.id}`}>
+            <div className={`${styles.managerReviewTableRow} ${severityClass(item.severity)}`} id={`time-review-${item.id}`} key={`${item.category}-${item.id}`}>
               <div className={styles.managerReviewPerson}>
                 {cleanApprovalItems.some((cleanItem) => cleanItem.id === item.id) ? (
                   <input
@@ -276,6 +316,13 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
               <div className={styles.managerReviewIssue}>
                 <strong>{item.title}</strong>
                 <p>{item.detail}</p>
+                {item.timeOffReview && <details>
+                  <summary>Review coverage</summary>
+                  <ul>{item.timeOffReview.dates.map(date => <li key={date}>{date}</li>)}</ul>
+                  <p>{item.timeOffReview.appointmentConflicts === null ? "Coverage data temporarily unavailable." :
+                    `${item.timeOffReview.appointmentConflicts} assigned appointments overlap · ${item.timeOffReview.overlappingAbsences} other staff already approved off`}</p>
+                  <a href={item.timeOffReview.calendarHref}>Open appointment calendar</a>
+                </details>}
               </div>
               <span className={item.severity === "danger" ? styles.chipDanger : item.severity === "warning" ? styles.chipWarning : styles.chipNeutral}>
                 {item.severity}
@@ -292,43 +339,43 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                 >
                   Audit
                 </button>
-                <div className={styles.managerDecisionForm}>
+                {item.timeOffReview?.actions.length === 0 ? <p>Waiting for an authorized reviewer.</p> : <div className={styles.managerDecisionForm}>
                   <select
                     aria-label={`Decision for ${item.title}`}
                     disabled={stateFor(item.id).busy}
                     onChange={(event) => updateDecision(item.id, { decision: event.target.value as ManagerDecision })}
-                    value={stateFor(item.id).decision}
+                    value={decisionFor(item)}
                   >
                     {item.category === "CARD_APPROVAL" ? <>
                       <option value="APPROVE">Approve exact card version</option>
                       <option value="RETURN">Return to employee</option>
-                    </> : item.category === "TIME_OFF_REQUEST" ? <>
-                      <option value="APPROVE_COVERAGE">Approve coverage (ordinary request)</option>
-                      <option value="APPROVE">Final approve (leave admin)</option>
-                      <option value="RETURN">Return for review</option>
-                      <option value="DENY">Deny (leave admin)</option>
-                    </> : <>
-                      <option value="APPROVE">Approve request</option>
-                      <option value="RETURN">Return for more info</option>
-                      <option value="DENY">Deny request</option>
-                      <option value="APPLY">Apply approved correction</option>
+                    </> : item.category === "TIME_OFF_REQUEST" ? item.timeOffReview?.actions.map(action => <option value={action} key={action}>{
+                      action === "APPROVE_COVERAGE" ? "Approve coverage" : action === "APPROVE" ? item.timeOffReview?.projectionPending ? "Retry pay-period update" :
+                        item.timeOffReview?.referral ? "Mark referral reviewed" : "Approve time off" :
+                        action === "RETURN" ? "Return to employee for revision" : "Deny time off"
+                    }</option>) : <>
+                      {item.correctionRebuildPending ? <option value="APPLY">Retry card rebuild</option> : <>
+                        {item.status === "Approved · ready to apply" ? <option value="APPLY">Apply approved correction</option> : <option value="APPROVE">Approve request</option>}
+                        <option value="RETURN">Return for more info</option>
+                        <option value="DENY">Deny request</option>
+                      </>}
                     </>}
                   </select>
-                  <input
+                  {item.correctionRebuildPending || item.timeOffReview?.projectionPending ? null : <input
                     aria-label={`Reason for ${item.title}`}
                     disabled={stateFor(item.id).busy}
                     onChange={(event) => updateDecision(item.id, { reason: event.target.value })}
                     placeholder="Manager reason required"
                     value={stateFor(item.id).reason}
-                  />
+                  />}
                   <button
-                    disabled={stateFor(item.id).busy || stateFor(item.id).reason.trim().length < 15}
+                    disabled={stateFor(item.id).busy || (!item.correctionRebuildPending && !item.timeOffReview?.projectionPending && stateFor(item.id).reason.trim().length < 15)}
                     onClick={() => void submitDecision(item)}
                     type="button"
                   >
-                    Record decision
+                    {item.correctionRebuildPending ? "Rebuild card" : item.timeOffReview?.projectionPending ? "Update pay periods" : "Record decision"}
                   </button>
-                </div>
+                </div>}
                 {stateFor(item.id).message ? (
                   <p className={stateFor(item.id).tone === "good" ? styles.inlineSuccess : styles.inlineError}>
                     {stateFor(item.id).message}
@@ -337,7 +384,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
               </div>
             </div>
           ) : (
-            <div className={`${styles.managerReviewTableRow} ${severityClass(item.severity)}`} key={`${item.category}-${item.id}`}>
+            <div className={`${styles.managerReviewTableRow} ${severityClass(item.severity)}`} id={`time-review-${item.id}`} key={`${item.category}-${item.id}`}>
               <div className={styles.managerReviewPerson}>
                 <span className={styles.managerReviewIcon}>{categoryIcon(item.category)}</span>
                 <div>
@@ -371,7 +418,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         )) : (
           <div className={styles.managerReviewEmpty}>
             <UserRoundCheck size={20} aria-hidden="true" />
-            <strong>No time cards need manager review.</strong>
+            <strong>{queue.items.length ? "No review items match these filters." : "No time cards need manager review."}</strong>
             <p>Exceptions, correction requests, and disputes will appear here before payroll handoff.</p>
           </div>
         )}

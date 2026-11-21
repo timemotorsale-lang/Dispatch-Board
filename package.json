@@ -63,7 +63,8 @@
       "uuid": "^11.1.1"
     },
     "@prisma/config": {
-      "deepmerge-ts": "8.0.0"
+      "deepmerge-ts": "8.0.0",
+      "effect": "3.22.1"
     },
     "@next/eslint-plugin-next": {
       "fast-glob": "$fast-glob"

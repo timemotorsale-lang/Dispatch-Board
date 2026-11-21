@@ -8,13 +8,21 @@ export default async function RepairPrioritiesPage({ searchParams }: {
 }) {
   await requireCurrentUser();
   const params = await searchParams;
-  let date = getBoardDateInTimeZone(new Date(), INITIAL_MINNEAPOLIS_LOCATION.timezone);
+  const today = getBoardDateInTimeZone(new Date(), INITIAL_MINNEAPOLIS_LOCATION.timezone);
+  let date = today;
   if (params?.date) {
     try {
       date = normalizeBoardDate(params.date);
     } catch {
-      return <p>The repair plan date is invalid. Open Repair Priorities from the Dispatch Board.</p>;
+      return <p>The plan date is invalid. Open Daily Priorities from the Dispatch Board.</p>;
     }
   }
-  return <RepairPriorityQueue initialDate={date} linkRow={params?.linkRow} linkAppointment={params?.linkAppointment} />;
+  return <RepairPriorityQueue
+    key={`${params?.date ?? "today"}:${params?.linkRow ?? ""}:${params?.linkAppointment ?? ""}`}
+    fixedDate={Boolean(params?.date)}
+    initialDate={date}
+    initialToday={today}
+    linkRow={params?.linkRow}
+    linkAppointment={params?.linkAppointment}
+  />;
 }

@@ -1,6 +1,50 @@
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 
+test("Pipeline opens to operational work for sales staff and managers", async ({ page }) => {
+  test.setTimeout(90000);
+  test.skip(process.env.PIPELINE_ISOLATED_E2E !== "1", "Requires the dedicated pipeline_it_ database and fixture accounts");
+  await page.route("**/api/coo-workbook/rhythm*", route => route.fulfill({ status: 503, json: { error: "Outside isolated pipeline workflow test" } }));
+  const signIn = async (email: string) => {
+    const response = await page.request.post("/api/auth/login", { data: { email, password: "PipelineTest123!" } });
+    expect(response.ok()).toBe(true);
+    await page.goto("/crm-next/pipeline");
+  };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn("pipeline-sales@example.test");
+  const workspace = page.getByRole("region", { name: "Pipeline operations" });
+  await expect(workspace.getByRole("heading", { name: "Pipeline", exact: true })).toBeVisible();
+  const prospect = workspace.getByRole("row").filter({ hasText: "Pipeline preview future prospect" }).filter({ hasText: "Confirm Appointment" });
+  await expect(prospect).toContainText("Confirm Appointment", { timeout: 20_000 });
+  await expect(prospect).toContainText("Inbound Phone");
+  const sold = workspace.getByRole("row").filter({ hasText: "Pipeline preview sold deal" });
+  await expect(sold).toContainText("Sold · paperwork pending");
+  await expect(sold.getByRole("link", { name: "Open deal" })).toHaveAttribute("href", /deals\/start\?draftId=/);
+  const reminder = workspace.getByRole("row").filter({ hasText: "Confirm post-sale check-in" });
+  await expect(reminder.getByRole("link", { name: "Open task" })).toBeVisible();
+  await expect(workspace.getByRole("row").filter({ hasText: "Outside organization draft" })).toHaveCount(0);
+  await expect(workspace.getByRole("row").filter({ hasText: "Synthetic Pipeline Buyer" })).toHaveCount(0);
+  await workspace.getByRole("button", { name: /^Sold \d+/ }).click();
+  await expect(sold).toBeVisible();
+  await expect(prospect).toHaveCount(0);
+  await page.reload();
+  await expect(prospect).toBeVisible();
+  await expect(reminder).toBeVisible();
+  await page.request.post("/api/auth/logout");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn("pipeline-manager@example.test");
+  await expect(sold.getByRole("link", { name: "Open deal" })).toHaveAttribute("href", /workspace=TEAM/);
+  await expect(workspace.getByRole("row").filter({ hasText: "Synthetic Pipeline Buyer" })).not.toHaveCount(0);
+  await sold.getByRole("link", { name: "Open deal" }).click();
+  await page.getByText("Filters, pathway and personal views", { exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Workspace", exact: true })).toHaveValue("TEAM");
+  await expect(page.getByText("Pipeline preview sold deal", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+  await page.goto("/crm-next/pipeline");
+  await workspace.getByRole("button", { name: "Automation", exact: true }).click();
+  await workspace.getByRole("button", { name: "Back to sales work queue" }).click();
+  await expect(prospect).toBeVisible();
+});
+
 test("pipeline captures, retains failed form entries, records next work and preserves compact views", async ({ page }) => {
   test.setTimeout(90000);
   test.skip(process.env.PIPELINE_ISOLATED_E2E !== "1", "Requires the dedicated pipeline_it_ database and fixture accounts");

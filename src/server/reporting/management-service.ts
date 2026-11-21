@@ -6,6 +6,7 @@ import { reportBusinessDate, resolveReportPeriod, type ReportCadence } from "@/l
 import { summarizeReportingCoverage, type ReportingCoverageRow } from "@/lib/reporting/coverage";
 import { loadReportingCalendar } from "./calendar-service";
 import { projectReportingExpectations, type ExpectationAssignment } from "@/lib/reporting/expectations";
+import { storedTimeOffWindows } from "@/server/time-attendance/time-off-windows";
 
 export async function reportingManagementCoverage(actor: AuthenticatedUser | null, date: string, cadence: ReportCadence, subjectUserId?: string) {
   const user = assertAuthenticatedUser(actor);
@@ -25,8 +26,9 @@ export async function reportingManagementCoverage(actor: AuthenticatedUser | nul
   const assignmentInputs = assignments.map(item => ({ ...item, cadence: item.cadence as ReportCadence })) satisfies ExpectationAssignment[];
   const personIds = [...new Set([...expectations.map(item => item.subjectUserId), ...series.map(item => item.subjectUserId), ...assignmentInputs.flatMap(item => [item.subjectUserId, item.reviewerUserId]), ...workbookDrafts.map(item => item.workbook.userId)])];
   const people = await prisma.user.findMany({ where: { id: { in: personIds } }, select: { id: true, name: true, isActive: true }, take: 1000 });
-  const timeOff = await prisma.timeOffRequest.findMany({ where: { organizationId: INITIAL_ORGANIZATION.id, status: "APPROVED", requesterUserId: { in: people.map(person => person.id) }, startsAt: { lt: period.endsAt }, endsAt: { gt: period.startsAt } }, select: { requesterUserId: true, startsAt: true, endsAt: true }, take: 10001 });
-  if (people.length > 999 || timeOff.length > 10000) throw new Error("Reporting coverage requires a narrower person scope.");
+  const leave = await prisma.timeOffRequest.findMany({ where: { organizationId: INITIAL_ORGANIZATION.id, status: "APPROVED", requestType: { not: "PROTECTED_REFERRAL" }, requesterUserId: { in: people.map(person => person.id) }, startsAt: { lt: period.endsAt }, endsAt: { gt: period.startsAt } }, select: { requesterUserId: true, startsAt: true, endsAt: true, evidence: true }, take: 10001 });
+  if (people.length > 999 || leave.length > 10000) throw new Error("Reporting coverage requires a narrower person scope.");
+  const timeOff = leave.flatMap(request => storedTimeOffWindows(request).map(window => ({ ...window, requesterUserId: request.requesterUserId })));
   const projected = projectReportingExpectations(calendar, assignmentInputs, period.lastDate < reportBusinessDate(new Date(), calendar.timezone) ? people.map(person => ({ ...person, isActive: true })) : people, period.startDate, period.lastDate, timeOff).filter(item => item.cadence === cadence && item.periodStart === period.startDate);
   const expected = new Map(expectations.map(item => [item.subjectUserId, item]));
   const projectedRequired = new Map(projected.map(item => [item.subjectUserId, item]));

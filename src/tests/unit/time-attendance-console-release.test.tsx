@@ -1,10 +1,9 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
 import { TimeAttendanceConsole } from "@/features/time-attendance/time-attendance-console";
 import type { TimeAttendanceCaptureState } from "@/server/time-attendance/capture-state";
 import type { TimeAttendanceConsoleModel } from "@/server/time-attendance/console-read-model";
-import type { TimeAttendanceHardeningPilotReadiness } from "@/server/time-attendance/hardening-pilot-service";
 import type { TimeAttendanceManagerReviewQueue } from "@/server/time-attendance/manager-review";
 import type { PayrollHandoffReadiness } from "@/server/time-attendance/payroll-handoff-service";
 
@@ -130,16 +129,6 @@ const payrollReadiness: PayrollHandoffReadiness = {
   }
 };
 
-const hardeningReadiness: TimeAttendanceHardeningPilotReadiness = {
-  generatedAt: "2026-09-15T15:00:00.000Z",
-  gates: [],
-  permitted: true,
-  phase: "TA-G5",
-  pilotEligible: false,
-  productionEligible: false,
-  totals: { blocked: 0, evidenceRequired: 0, gates: 0, sourceReady: 0 }
-};
-
 describe("time attendance console release UX", () => {
   it("puts clock actions at the top of employee views", () => {
     const markup = renderToStaticMarkup(
@@ -147,7 +136,6 @@ describe("time attendance console release UX", () => {
         activeView="today"
         captureState={captureState}
         density="calm"
-        hardeningReadiness={hardeningReadiness}
         managerReviewQueue={managerReviewQueue}
         model={model}
         payrollReadiness={payrollReadiness}
@@ -155,12 +143,15 @@ describe("time attendance console release UX", () => {
       />
     );
 
-    expect(markup).toContain("Time card is active");
     expect(markup).toContain("Go to my workspace");
     expect(markup).toContain("/vehicles/advisor");
-    expect(markup.indexOf("Clock in / clock out")).toBeLessThan(markup.indexOf("Time card command bar"));
+    expect(markup.indexOf("Clock in / clock out")).toBeLessThan(markup.indexOf("Time card tools"));
     expect(markup).toContain("Clock out");
     expect(markup).toContain("Meal and break actions");
+    expect(markup).toContain("action=correction#correction-request");
+    expect(markup).toContain("action=confirm#card-attestation");
+    expect(markup).toContain("action=leave#time-off-request");
+    expect(markup).not.toMatch(/Pilot|Next best action/);
   });
 
   it("renders command search, responsive jumps, manager bulk approval, and audit affordances", () => {
@@ -169,7 +160,6 @@ describe("time attendance console release UX", () => {
         activeView="manager"
         captureState={captureState}
         density="calm"
-        hardeningReadiness={hardeningReadiness}
         managerReviewQueue={managerReviewQueue}
         model={model}
         payrollReadiness={payrollReadiness}
@@ -179,14 +169,14 @@ describe("time attendance console release UX", () => {
 
     expect(markup).toContain("Time card command bar");
     expect(markup).toContain("Search staff, actions, exceptions, or payroll work");
-    expect(markup).toContain("Time card workflow");
     expect(markup).toContain("Jump to time card section");
     expect(markup).toContain("Bulk approval");
     expect(markup).toContain("Only attested cards with no blocking exceptions or open corrections can be bulk approved.");
     expect(markup).toContain("Select Pay-period card 2026-09-09 - 2026-09-15 for bulk approval");
     expect(markup).toContain("Audit");
+    expect(markup).toContain("#time-review-card-clean-1");
+    expect(markup).toContain('id="time-review-card-clean-1"');
     expect(markup).toContain("Internal inbox");
     expect(markup).toContain("1 unread");
-    expect(markup).toContain("/time-attendance?view=my-time#card-attestation");
   });
 });

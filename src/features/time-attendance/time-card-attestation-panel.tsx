@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileCheck2, ShieldCheck } from "lucide-react";
 
 import type { TimeAttendanceConsoleModel } from "@/server/time-attendance/console-read-model";
@@ -40,12 +41,14 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 }
 
 export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps) {
+  const router = useRouter();
   const [decision, setDecision] = useState<"ATTEST" | "DISPUTE">("ATTEST");
   const [disputeExplanation, setDisputeExplanation] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const cardUnavailable = !card.available;
+  const canAttest = !cardUnavailable && card.canAttest !== false;
   const statement = decision === "DISPUTE"
     ? "I dispute this time card and request manager review before payroll."
     : "I reviewed this time card and confirm it is accurate to the best of my knowledge. This does not waive wage, legal, correction, or payroll review rights.";
@@ -71,6 +74,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
           })
         );
         setNotice(`${result.attestation.decision === "DISPUTE" ? "Dispute" : "Attestation"} recorded for manager review.`);
+        router.refresh();
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "The attestation could not be recorded.");
       }
@@ -86,7 +90,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
           <p>Attestation binds to a specific card version and checksum. Corrections after attestation reopen review.</p>
         </div>
         <span className={cardUnavailable ? styles.chipWarning : styles.chipGood}>
-          {cardUnavailable ? "Awaiting live card" : "Versioned card"}
+          {cardUnavailable ? "Awaiting punches" : `Version ${card.timeCardVersion}`}
         </span>
       </div>
 
@@ -95,7 +99,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
         <div><span>Checksum</span><strong>{card.cardChecksum.slice(0, 18)}…</strong></div>
       </div>
 
-      <form className={styles.attestationForm} onSubmit={submit}>
+      {canAttest ? <form className={styles.attestationForm} onSubmit={submit}>
         <label>
           <input
             checked={decision === "ATTEST"}
@@ -128,17 +132,11 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
           />
         ) : null}
         <p className={styles.attestationStatement}>{statement}</p>
-        {cardUnavailable ? (
-          <p className={styles.captureError}>
-            <AlertTriangle size={16} aria-hidden="true" />
-            Attestation will activate when the page is backed by a persisted time-card version.
-          </p>
-        ) : null}
         <button disabled={isPending || cardUnavailable} type="submit">
           <FileCheck2 size={16} aria-hidden="true" />
           Record attestation
         </button>
-      </form>
+      </form> : <p>{cardUnavailable ? "Confirm a card after it has been calculated." : "Confirmation is closed for this version. Use Request correction if something needs review."}</p>}
 
       {notice ? <p className={styles.captureNotice}><CheckCircle2 size={16} aria-hidden="true" />{notice}</p> : null}
       {error ? <p className={styles.captureError}><AlertTriangle size={16} aria-hidden="true" />{error}</p> : null}

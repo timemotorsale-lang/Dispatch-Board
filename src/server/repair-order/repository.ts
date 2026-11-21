@@ -1,3 +1,5 @@
+import { acceptRepairHandoff, RepairHandoffError, type HandoffClaim } from "./task-handoff-record";
+import { reconcileRepairOrderOwnerTaskInTransaction } from "./task-bridge";
 import { closeOutstandingRepairWork, RepairOrderCloseBlockedError } from "./close-outstanding-work";
 import { serviceIdentity, recordServiceDocument } from "./service-documents";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -151,9 +153,109 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       data: { readinessSnapshotId },
     });
   },
-  // Intake identifiers begin as nullable inputs and are resolved from their authoritative source.
-  // eslint-disable-next-line prefer-const
-  create(command: EnterpriseCommandCommitInput, data: RepairOrderCreateRecord) { return execute(database,command,async(tx,version)=>{ let vehicleId=data.vehicleId; let customerId=data.customerId; let inventoryUnitId=data.inventoryUnitId; let sourceSnapshot: Prisma.InputJsonValue|undefined; if(data.intakeSource==="APPOINTMENT"){ const appointment=await tx.appointment.findFirst({where:{id:data.appointmentId!,organizationId:command.organizationId,locationId:data.locationId,cancelledAt:null,noShowAt:null},include:{vehicles:{where:{isPrimary:true},take:2,include:{vehicle:{select:vehicleSelect}}},participants:{where:{participantType:"CUSTOMER",isPrimary:true},take:2,include:{customer:{select:{id:true,displayName:true}}}},serviceVisit:{select:{repairOrder:{select:{id:true,repairOrderNumber:true,version:true}}}}}}); if(!appointment) throw new Error("Appointment is not eligible for repair-order intake at this location."); if(appointment.serviceVisit?.repairOrder) return {result:appointment.serviceVisit.repairOrder}; if(appointment.vehicles.length!==1||!appointment.vehicles[0].vehicle) throw new Error("Appointment must have exactly one primary vehicle."); if(appointment.participants.length!==1||!appointment.participants[0].customer) throw new Error("Appointment must have exactly one primary customer."); vehicleId=appointment.vehicles[0].vehicle.id; customerId=appointment.participants[0].customer.id; sourceSnapshot=json({appointmentNumber:appointment.appointmentNumber,appointmentVersion:appointment.version,customer:appointment.participants[0].customer,scheduledAt:appointment.startsAt,title:appointment.title,vehicle:appointment.vehicles[0].vehicle}); } else if(data.intakeSource==="INVENTORY_RECON" && inventoryUnitId){ const unit=await tx.inventoryUnit.findFirst({where:{id:inventoryUnitId!,organizationId:command.organizationId,locationId:data.locationId,closedAt:null},select:{id:true,vehicleId:true,inventoryNumber:true,version:true}}); if(!unit) throw new Error("Inventory unit is not active at the selected location."); if(vehicleId && vehicleId!==unit.vehicleId) throw new Error("Inventory unit does not belong to the selected repair vehicle."); vehicleId=unit.vehicleId; sourceSnapshot=json({inventoryNumber:unit.inventoryNumber,inventoryUnitVersion:unit.version}); } if(data.intakeSource==="INVENTORY_RECON" && !inventoryUnitId) throw new Error("Inventory unit ID is required."); const [vehicle,customer,location,owner]=await Promise.all([tx.vehicle.findFirst({where:{id:vehicleId!,organizationId:command.organizationId,status:"ACTIVE",mergedIntoVehicleId:null},select:{id:true}}),customerId?tx.customer.findFirst({where:{id:customerId,organizationId:command.organizationId,status:"ACTIVE",mergedIntoCustomerId:null},select:{id:true}}):null,tx.location.findFirst({where:{id:data.locationId,organizationId:command.organizationId},select:{id:true}}),tx.user.findFirst({where:{id:data.ownerUserId,isActive:true},select:{id:true}})]); if(!vehicle) throw new Error("Repair-order vehicle must be active in the canonical registry."); if(customerId&&!customer) throw new Error("Repair-order customer must be active."); if(!location) throw new Error("Repair-order location does not belong to the organization."); if(!owner) throw new Error("Repair-order owner must be an active user."); const visit=await tx.serviceVisit.create({data:{organizationId:command.organizationId,locationId:data.locationId,vehicleId:vehicleId!,customerId,appointmentId:data.appointmentId,inventoryUnitId,origin:data.intakeSource==="INVENTORY_RECON"?"INVENTORY_RECON":"CUSTOMER_REPAIR",intakeSource:data.intakeSource,arrivedAt:data.arrivedAt,concernSummary:data.concernSummary,promisedAt:data.promisedAt,promiseNotes:data.promiseNotes,consentStatus:data.consentStatus,consentReference:data.consentReference,consentedAt:data.consentedAt,keysReceivedCount:data.keysReceivedCount,keyTag:data.keyTag,transportMode:data.transportMode,intakeNotes:data.intakeNotes,readinessSnapshotId:data.readinessSnapshotId,sourceSnapshot,createdByUserId:data.actorUserId}}); const ro=await tx.repairOrder.create({data:{id:command.subjectId,organizationId:command.organizationId,locationId:data.locationId,serviceVisitId:visit.id,repairOrderNumber:data.repairOrderNumber,vehicleId:vehicleId!,customerId,inventoryUnitId,origin:data.intakeSource==="INVENTORY_RECON"?"INVENTORY_RECON":"CUSTOMER_REPAIR",intakeSource:data.intakeSource,stage:"INTAKE",operatingState:data.operatingState,openedAt:data.arrivedAt,stageStartedAt:data.arrivedAt,ownerUserId:data.ownerUserId,targetAt:data.targetAt,nextAction:data.nextAction,stateReason:data.stateReason,version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:null,toStage:"INTAKE",fromOperatingState:null,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:command.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.arrivedAt}}); const identity=await serviceIdentity(tx,command.organizationId,ro.id);await recordServiceDocument(tx,{organizationId:command.organizationId,repairOrderId:ro.id,kind:"RO",sourceId:ro.id,sourceVersion:version,createdByUserId:data.actorUserId,content:{title:"Original repair order intake",number:ro.repairOrderNumber,issuedAt:data.arrivedAt.toISOString(),identity,lines:[],notes:["Intake record only. It does not authorize repairs or customer charges."]}}); return {result:{id:ro.id,repairOrderNumber:ro.repairOrderNumber,stage:ro.stage,operatingState:ro.operatingState,version}}; }); },
+  create(command: EnterpriseCommandCommitInput, data: RepairOrderCreateRecord & { handoffClaim?: HandoffClaim }) {
+    return execute(database, command, async (tx, version) => {
+      let vehicleId = data.vehicleId;
+      let customerId = data.customerId;
+      let sourceSnapshot: Prisma.InputJsonValue | undefined;
+      const inventoryUnitId = data.inventoryUnitId;
+      const claim = data.handoffClaim;
+      if (data.intakeSource === "APPOINTMENT") {
+        const appointment = await tx.appointment.findFirst({
+          where: { id: data.appointmentId!, organizationId: command.organizationId, locationId: data.locationId, cancelledAt: null, noShowAt: null },
+          include: {
+            vehicles: { where: { isPrimary: true }, take: 2, include: { vehicle: { select: vehicleSelect } } },
+            participants: { where: { participantType: "CUSTOMER", isPrimary: true }, take: 2, include: { customer: { select: { id: true, displayName: true } } } },
+            serviceVisit: { select: { repairOrder: { select: { id: true, repairOrderNumber: true, version: true } } } }
+          }
+        });
+        if (!appointment) throw new Error("Appointment is not eligible for repair-order intake at this location.");
+        if (claim && appointment.attendanceStatus !== "CHECKED_IN") {
+          throw new RepairHandoffError("Check in the matched appointment before accepting this handoff.");
+        }
+        if (appointment.serviceVisit?.repairOrder) {
+          if (claim) throw new RepairHandoffError("An order already exists for the appointment. Review it and explicitly link the handoff.");
+          return { result: appointment.serviceVisit.repairOrder };
+        }
+        if (appointment.vehicles.length !== 1 || !appointment.vehicles[0].vehicle) throw new Error("Appointment must have exactly one primary vehicle.");
+        if (appointment.participants.length !== 1 || !appointment.participants[0].customer) throw new Error("Appointment must have exactly one primary customer.");
+        const appointmentVehicle = appointment.vehicles[0].vehicle;
+        const appointmentCustomer = appointment.participants[0].customer;
+        vehicleId = appointmentVehicle.id;
+        customerId = appointmentCustomer.id;
+        sourceSnapshot = json({
+          appointmentNumber: appointment.appointmentNumber, appointmentVersion: appointment.version, customer: appointmentCustomer,
+          scheduledAt: appointment.startsAt, title: appointment.title, vehicle: appointmentVehicle
+        });
+      } else if (data.intakeSource === "INVENTORY_RECON") {
+        if (!inventoryUnitId) throw new Error("Inventory unit ID is required.");
+        const unit = await tx.inventoryUnit.findFirst({
+          where: { id: inventoryUnitId, organizationId: command.organizationId, locationId: data.locationId, closedAt: null },
+          select: { id: true, vehicleId: true, inventoryNumber: true, version: true }
+        });
+        if (!unit) throw new Error("Inventory unit is not active at the selected location.");
+        if (vehicleId && vehicleId !== unit.vehicleId) throw new Error("Inventory unit does not belong to the selected repair vehicle.");
+        vehicleId = unit.vehicleId;
+        sourceSnapshot = json({ inventoryNumber: unit.inventoryNumber, inventoryUnitVersion: unit.version });
+      }
+      const [vehicle, customer, location, owner] = await Promise.all([
+        tx.vehicle.findFirst({ where: { id: vehicleId!, organizationId: command.organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, select: { id: true } }),
+        customerId ? tx.customer.findFirst({ where: { id: customerId, organizationId: command.organizationId, status: "ACTIVE", mergedIntoCustomerId: null }, select: { id: true } }) : null,
+        tx.location.findFirst({ where: { id: data.locationId, organizationId: command.organizationId }, select: { id: true } }),
+        tx.user.findFirst({ where: { id: data.ownerUserId, isActive: true }, select: { id: true } })
+      ]);
+      if (!vehicle) throw new Error("Repair-order vehicle must be active in the canonical registry.");
+      if (customerId && !customer) throw new Error("Repair-order customer must be active.");
+      if (!location) throw new Error("Repair-order location does not belong to the organization.");
+      if (!owner) throw new Error("Repair-order owner must be an active user.");
+      await tx.$queryRaw`SELECT "id" FROM "Vehicle" WHERE "id" = ${vehicle.id} AND "organizationId" = ${command.organizationId} FOR NO KEY UPDATE`;
+      const [openOrder] = await tx.repairOrder.findMany({
+        where: { organizationId: command.organizationId, vehicleId: vehicle.id, closedAt: null }, select: { id: true }, take: 1
+      });
+      if (openOrder) {
+        if (claim) throw new RepairHandoffError("An order already exists for this vehicle. Review it and explicitly link the handoff.");
+        throw new EnterpriseCommandConflictError("An order was opened while this intake was in progress. Review the current order before trying again.", "VERSION_CONFLICT");
+      }
+      if (claim && !await tx.serviceIntakeReadinessSnapshot.findFirst({
+        where: {
+          id: data.readinessSnapshotId!, organizationId: command.organizationId, locationId: data.locationId,
+          appointmentId: data.appointmentId, customerId: customerId!, vehicleId: vehicle.id, expiresAt: { gt: new Date() },
+          ...(data.appointmentId ? { facts: { path: ["selectedAppointmentId"], equals: data.appointmentId } } : {})
+        }, select: { id: true }
+      })) throw new RepairHandoffError("The readiness check no longer matches the confirmed customer, vehicle, or visit. Refresh it before accepting.");
+      const origin = data.intakeSource === "INVENTORY_RECON" ? "INVENTORY_RECON" : "CUSTOMER_REPAIR";
+      const visit = await tx.serviceVisit.create({ data: {
+        organizationId: command.organizationId, locationId: data.locationId, vehicleId: vehicle.id, customerId,
+        appointmentId: data.appointmentId, inventoryUnitId, origin, intakeSource: data.intakeSource, arrivedAt: data.arrivedAt,
+        concernSummary: data.concernSummary, promisedAt: data.promisedAt, promiseNotes: data.promiseNotes, consentStatus: data.consentStatus,
+        consentReference: data.consentReference, consentedAt: data.consentedAt, keysReceivedCount: data.keysReceivedCount, keyTag: data.keyTag,
+        transportMode: data.transportMode, intakeNotes: data.intakeNotes, readinessSnapshotId: data.readinessSnapshotId, sourceSnapshot, createdByUserId: data.actorUserId
+      } });
+      const ro = await tx.repairOrder.create({ data: {
+        id: command.subjectId, organizationId: command.organizationId, locationId: data.locationId, serviceVisitId: visit.id,
+        repairOrderNumber: data.repairOrderNumber, vehicleId: vehicle.id, customerId, inventoryUnitId, origin, intakeSource: data.intakeSource,
+        stage: "INTAKE", operatingState: data.operatingState, openedAt: data.arrivedAt, stageStartedAt: data.arrivedAt,
+        ownerUserId: data.ownerUserId, targetAt: data.targetAt, nextAction: data.nextAction, stateReason: data.stateReason, version
+      } });
+      await tx.repairOrderStateEvent.create({ data: {
+        organizationId: command.organizationId, repairOrderId: ro.id, version, fromStage: null, toStage: "INTAKE",
+        fromOperatingState: null, toOperatingState: ro.operatingState, ownerUserId: ro.ownerUserId, locationId: ro.locationId,
+        targetAt: ro.targetAt, nextAction: ro.nextAction, reason: command.reason, actorUserId: data.actorUserId,
+        correlationId: command.correlationId, occurredAt: data.arrivedAt
+      } });
+      const identity = await serviceIdentity(tx, command.organizationId, ro.id);
+      await recordServiceDocument(tx, {
+        organizationId: command.organizationId, repairOrderId: ro.id, kind: "RO", sourceId: ro.id, sourceVersion: version, createdByUserId: data.actorUserId,
+        content: { title: "Original repair order intake", number: ro.repairOrderNumber, issuedAt: data.arrivedAt.toISOString(), identity,
+          lines: [], notes: ["Intake record only. It does not authorize repairs or customer charges."] }
+      });
+      if (claim) {
+        await acceptRepairHandoff(tx, claim, ro);
+        await reconcileRepairOrderOwnerTaskInTransaction(tx, command.organizationId, ro.id, data.actorUserId);
+      }
+      return { result: { id: ro.id, repairOrderNumber: ro.repairOrderNumber, stage: ro.stage, operatingState: ro.operatingState, version } };
+    });
+  },
   updateControl(command: EnterpriseCommandCommitInput,data:RepairOrderControlRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null,stage:"INTAKE"}}); if(data.targetAt<previous.openedAt) throw new Error("Intake target cannot be before repair-order opening."); const [location,owner]=await Promise.all([tx.location.findFirst({where:{id:data.locationId,organizationId:command.organizationId},select:{id:true}}),tx.user.findFirst({where:{id:data.ownerUserId,isActive:true},select:{id:true}})]); if(!location) throw new Error("Repair-order location does not belong to the organization."); if(!owner) throw new Error("Repair-order owner must be an active user."); const ro=await tx.repairOrder.update({where:{id:previous.id},data:{locationId:data.locationId,nextAction:data.nextAction,operatingState:data.operatingState,ownerUserId:data.ownerUserId,stateReason:data.stateReason,targetAt:data.targetAt,version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:command.reason,actorUserId:data.actorUserId,correlationId:command.correlationId}}); return {previous,result:{id:ro.id,stage:ro.stage,operatingState:ro.operatingState,version}};});},
   closeDuplicate(command: EnterpriseCommandCommitInput,data:RepairOrderDuplicateCloseRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},include:{shopReconLifecycle:true}}); if(data.duplicateOfRepairOrderId){const keeper=await tx.repairOrder.findFirst({where:{id:data.duplicateOfRepairOrderId,organizationId:command.organizationId,vehicleId:previous.vehicleId,closedAt:null},select:{id:true,repairOrderNumber:true}}); if(!keeper) throw new Error("The RO to keep must be open and belong to the same vehicle.");} const ro=await tx.repairOrder.update({where:{id:previous.id},data:{closedAt:data.occurredAt,stage:"CANCELLED",operatingState:"CLOSED",stateReason:"Closed as duplicate repair order.",nextAction:data.duplicateOfRepairOrderId?`Use existing repair order ${data.duplicateOfRepairOrderId}.`:"Duplicate repair order closed; use the remaining open RO for this vehicle.",version}}); if(previous.shopReconLifecycle) await tx.shopReconLifecycle.update({where:{id:previous.shopReconLifecycle.id},data:{operatingState:"CANCELLED",nextAction:"Duplicate repair order closed. Use the remaining open RO for this vehicle.",version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:data.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.occurredAt}}); return {previous,result:{closedAt:ro.closedAt,id:ro.id,operatingState:ro.operatingState,stage:ro.stage,version}};});},
   closeNoWork(command: EnterpriseCommandCommitInput, data: RepairOrderNoWorkCloseRecord) {

@@ -169,7 +169,7 @@ export const dispatchNavigationItems: NavigationItem[] = [
   },
   {
     href: "/board/repair-priorities",
-    title: "Repair Priorities",
+    title: "Daily Priorities",
     description: "See the location’s shared repair plan and blockers.",
     icon: ClipboardCheck,
     parentHref: "/board",
@@ -343,7 +343,7 @@ const technicianNavigationItems: NavigationItem[] = [
   },
   {
     href: "/board/repair-priorities",
-    title: "Repair Priorities",
+    title: "Daily Priorities",
     description: "See the location’s shared repair plan and blockers.",
     icon: ClipboardCheck,
     matchExact: true

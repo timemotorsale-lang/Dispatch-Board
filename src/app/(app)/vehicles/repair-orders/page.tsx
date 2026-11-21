@@ -5,6 +5,8 @@ import { ServiceIntakeWorkspace } from "@/features/inventory/service-intake-work
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getWorkspaceKey } from "@/server/auth/navigation";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
+import { getServiceHandoffIntake } from "@/server/repair-order/task-handoff";
+import Link from "next/link";
 
 function safeReturnTo(value?: string) {
   return value?.startsWith("/") && !value.startsWith("//") && !value.includes("\\") ? value : undefined;
@@ -14,9 +16,33 @@ function safeSearch(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 120) : "";
 }
 
-export default async function RepairOrderCorePage({ searchParams }: { searchParams?: Promise<{ customerId?: string; reviewWorkbench?: string; concernSummary?: string; intakeSource?: string; repairOrderId?: string; returnTo?: string; search?: string; source?: string; vehicleId?: string }> }) {
+export default async function RepairOrderCorePage({ searchParams }: { searchParams?: Promise<{ customerId?: string; reviewWorkbench?: string; concernSummary?: string; intakeSource?: string; repairOrderId?: string; returnTo?: string; search?: string; serviceHandoff?: string; source?: string; vehicleId?: string }> }) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
+  if (params.serviceHandoff) {
+    const handoff = await getServiceHandoffIntake(user, params.serviceHandoff).catch(() => null);
+    if (!handoff) return <section className="page-copy"><h1>Service handoff unavailable</h1><p>Ask the task owner or receiving advisor to reopen the current handoff.</p><Link href="/vehicles/repair-workbench">Return to Repair Workbench</Link></section>;
+    if (handoff.repairOrderId) redirect(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(handoff.repairOrderId)}`);
+    const allOptions = await getRepairOrderCreateOptions(user);
+    const options = {
+      ...allOptions,
+      locations: allOptions.locations.filter(item => item.id === handoff.locationId),
+      appointments: allOptions.appointments.filter(item => item.locationId === handoff.locationId),
+      repairOrders: allOptions.repairOrders.filter(item => item.locationId === handoff.locationId)
+    };
+    if (!options.locations.length) notFound();
+    return <ServiceIntakeWorkspace
+      key={handoff.requestToken}
+      currentUserId={user.id}
+      initialCustomerId={handoff.task.customerId ?? ""}
+      initialVehicleId={handoff.task.vehicleId ?? ""}
+      initialConcernSummary={handoff.concern}
+      initialTimestamp={new Date().toISOString()}
+      options={JSON.parse(JSON.stringify(options))}
+      returnTo={`/tasks/${encodeURIComponent(handoff.taskId)}?tool=serviceHandoff`}
+      sourceHandoff={{ taskId: handoff.taskId, requestToken: handoff.requestToken, title: handoff.task.title }}
+    />;
+  }
   if (params.repairOrderId) {
     redirect(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(params.repairOrderId)}`);
   }

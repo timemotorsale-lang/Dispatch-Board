@@ -12,6 +12,7 @@ import { assertAuthenticatedUser } from "@/server/policies/access";
 import { isSameRepairOrderConcern, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, normalizeRepairOrderDuplicateClose, normalizeRepairOrderNoWorkClose, repairOrderAge } from "./domain";
 import { createRepairOrderRepository, type RepairOrderRepository } from "./repository";
 import { closeRepairOrderTasks, reconcileRepairOrderOwnerTask } from "./task-bridge";
+import { RepairHandoffError, type HandoffClaim } from "./task-handoff-record";
 
 type RepairOrderTaskBridge = {
   close(organizationId: string, repairOrderId: string, actorUserId: string, reason: string): Promise<unknown>;
@@ -19,7 +20,7 @@ type RepairOrderTaskBridge = {
 };
 const liveTaskBridge: RepairOrderTaskBridge = { close: closeRepairOrderTasks, reconcileOwner: reconcileRepairOrderOwnerTask };
 const testTaskBridge: RepairOrderTaskBridge = { close: async () => null, reconcileOwner: async () => null };
-type Dependencies = { enforceRollout?: boolean; foundationRepository?: EnterpriseCommandRepository; now?: () => Date; organizationId?: string; repository?: RepairOrderRepository; taskBridge?: RepairOrderTaskBridge };
+type Dependencies = { enforceRollout?: boolean; foundationRepository?: EnterpriseCommandRepository; now?: () => Date; organizationId?: string; repository?: RepairOrderRepository; taskBridge?: RepairOrderTaskBridge; handoffClaim?: HandoffClaim };
 function deps(input: Dependencies) { return { enforceRollout: input.enforceRollout ?? true, foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createRepairOrderRepository(), taskBridge: input.taskBridge ?? (input.repository ? testTaskBridge : liveTaskBridge) }; }
 async function authorize(actor: AuthenticatedUser|null,capability:VehicleCapability,locationId:string|null,input:ReturnType<typeof deps>,mutation=false){const user=assertAuthenticatedUser(actor);const grants=await input.foundationRepository.listCapabilityGrants(user.id,input.organizationId);assertVehicleCapability({actor:user,capability,grants,locationId,now:input.now()});if(mutation&&input.enforceRollout){const flags=await input.foundationRepository.listFeatureFlags(input.organizationId);const decision=evaluateVehicleOperationsFeature(flags,"SHOP_OPERATIONS",user.id,locationId);if(!decision.executable)throw new Error(`Shop Operations mutations are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`);}return user;}
 function command(input:{actorUserId:string;commandType:string;expectedVersion:number;idempotencyKey:string;locationId:string;organizationId:string;payload:Record<string,unknown>;reason:string;subjectId:string}){return normalizeEnterpriseCommand({...input,domain:"SHOP_OPERATIONS",subjectType:"REPAIR_ORDER"});}
@@ -31,17 +32,23 @@ export async function createRepairOrder(actor:AuthenticatedUser|null,value:unkno
   const now=context.now();
   const normalized=normalizeRepairOrderCreate(value,now);
   const user=await authorize(actor,"REPAIR_ORDER_MANAGE",normalized.locationId,context,true);
+  const claim = input.handoffClaim;
+  if (claim && !normalized.readinessSnapshotId) throw new RepairHandoffError("Complete Service readiness checks before creating the repair order.", 400);
+  if (claim && normalized.appointmentId && await context.repository.findByAppointment(context.organizationId, normalized.appointmentId)) {
+    throw new RepairHandoffError("An order already exists for this appointment. Review it and explicitly link the handoff.");
+  }
   if(normalized.appointmentId){const existing=await context.repository.findByAppointment(context.organizationId,normalized.appointmentId);if(existing){await context.taskBridge.reconcileOwner(context.organizationId,existing.id,user.id);return{duplicate:true,result:existing,version:existing.version};}}
   const concernCandidates=await context.repository.findOpenConcernCandidates(context.organizationId,{appointmentId:normalized.appointmentId,inventoryUnitId:normalized.inventoryUnitId,vehicleId:normalized.vehicleId});
   const sameConcern=concernCandidates.find(candidate=>isSameRepairOrderConcern(candidate.concernSummary,normalized.concernSummary));
   const openVehicleOrder=sameConcern??concernCandidates[0];
+  if (claim && openVehicleOrder) throw new RepairHandoffError("An order already exists for this vehicle. Review it and explicitly link the handoff if it covers this visit.");
   if(openVehicleOrder){await context.taskBridge.reconcileOwner(context.organizationId,openVehicleOrder.id,user.id);return{duplicate:true,result:{id:openVehicleOrder.id,repairOrderNumber:openVehicleOrder.repairOrderNumber,stage:openVehicleOrder.stage,operatingState:openVehicleOrder.operatingState,version:openVehicleOrder.version,duplicateReason:sameConcern?"OPEN_VEHICLE_CONCERN_MATCH":"OPEN_VEHICLE_REPAIR_ORDER"},version:openVehicleOrder.version};}
   await context.repository.validateReadinessSnapshot(context.organizationId,normalized,now);
   const id=randomUUID();
   const repairOrderNumber=`RO-${id.slice(0,8).toUpperCase()}`;
-  const payload={...normalized,arrivedAt:normalized.arrivedAt.toISOString(),consentedAt:normalized.consentedAt?.toISOString()??null,promisedAt:normalized.promisedAt?.toISOString()??null,targetAt:normalized.targetAt.toISOString()};
-  const result=await context.repository.create(command({actorUserId:user.id,commandType:"CREATE_REPAIR_ORDER",expectedVersion:0,idempotencyKey:normalized.idempotencyKey,locationId:normalized.locationId,organizationId:context.organizationId,payload,reason:normalized.reason,subjectId:id}),{...normalized,actorUserId:user.id,repairOrderNumber});
-  await context.taskBridge.reconcileOwner(context.organizationId,id,user.id);
+  const payload={...normalized, ...(claim ? { sourceTaskId: claim.taskId, handoffRequestToken: claim.requestToken } : {}), arrivedAt:normalized.arrivedAt.toISOString(),consentedAt:normalized.consentedAt?.toISOString()??null,promisedAt:normalized.promisedAt?.toISOString()??null,targetAt:normalized.targetAt.toISOString()};
+  const result=await context.repository.create(command({actorUserId:user.id,commandType:"CREATE_REPAIR_ORDER",expectedVersion:0,idempotencyKey:normalized.idempotencyKey,locationId:normalized.locationId,organizationId:context.organizationId,payload,reason:normalized.reason,subjectId:id}),{...normalized,actorUserId:user.id,repairOrderNumber, ...(claim ? { handoffClaim: claim } : {})});
+  if (!claim) await context.taskBridge.reconcileOwner(context.organizationId,id,user.id);
   return result;
 }
 export async function updateRepairOrderControl(actor:AuthenticatedUser|null,id:string,value:unknown,input:Dependencies={}){const context=deps(input);const normalized=normalizeRepairOrderControlUpdate(value);const user=await authorize(actor,"REPAIR_ORDER_MANAGE",normalized.locationId,context,true);const payload={locationId:normalized.locationId,nextAction:normalized.nextAction,operatingState:normalized.operatingState,ownerUserId:normalized.ownerUserId,stateReason:normalized.stateReason,targetAt:normalized.targetAt.toISOString()};const result=await context.repository.updateControl(command({actorUserId:user.id,commandType:"UPDATE_REPAIR_ORDER_CONTROL",expectedVersion:normalized.expectedVersion,idempotencyKey:normalized.idempotencyKey,locationId:normalized.locationId,organizationId:context.organizationId,payload,reason:normalized.reason,subjectId:id}),{...normalized,actorUserId:user.id});await context.taskBridge.reconcileOwner(context.organizationId,id,user.id);return result;}

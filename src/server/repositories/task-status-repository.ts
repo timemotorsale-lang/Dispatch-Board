@@ -53,7 +53,8 @@ const taskStatusSelect = {
       }
     }
   },
-  updatedAt: true
+  updatedAt: true,
+  serviceHandoff: { select: { repairOrderId: true } }
 } as const;
 
 export type TaskStatusRecord = Prisma.TaskGetPayload<{
@@ -87,6 +88,7 @@ export type TaskStatusLookupRecord = {
   } | null;
   boardDayId?: string;
   title?: string;
+  serviceHandoff?: { repairOrderId: string | null } | null;
 };
 
 export type TaskStatusUpdateData = {
@@ -112,7 +114,10 @@ export function createTaskStatusRepository(database: TaskStatusDatabase = prisma
     commitStatusChange: database.$transaction ? async (taskId, data, context) => {
       const settings = await getGenerationSettings(), now = new Date();
       return database.$transaction!(async tx => {
-        const changed = await tx.task.updateMany({ where: { id: taskId, updatedAt: context.expectedUpdatedAt }, data });
+        const changed = await tx.task.updateMany({ where: {
+          id: taskId, updatedAt: context.expectedUpdatedAt,
+          ...(data.status === TaskStatus.COMPLETED ? { NOT: { serviceHandoff: { is: { repairOrderId: null } } } } : {})
+        }, data });
         if (changed.count !== 1) throw new Error("This task changed. Reload before updating its status.");
         const result = await tx.task.findUniqueOrThrow({ where: { id: taskId }, select: taskStatusSelect });
         if (context.previousStatus !== result.status || context.previousBlockerReason !== result.blockerReason) {

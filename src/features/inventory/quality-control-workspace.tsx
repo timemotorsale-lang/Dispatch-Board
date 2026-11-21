@@ -50,7 +50,7 @@ type Job = {
   procedureVersion: { title: string; version: number; qcRules: string[] } | null;
   qualityInspections: Inspection[];
   dispatches: Array<{ technicianUser: { name: string } }>;
-  laborClocks: Array<{ state: string; accumulatedMinutes: number }>;
+  laborClocks: Array<{ state: string; accumulatedMinutes: number; finishedAt?: string | null }>;
   comebackCases?: Array<{ id: string; status: string; reasonCategory?: string | null; reportedConcern?: string | null }>;
   partDemands?: Array<{
     id: string;
@@ -160,9 +160,9 @@ export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: 
   const results = Object.values(answers);
   const remaining = frontlineQcItems.length - results.length;
   const disposition = results.includes("FAIL") ? "Fail" : results.includes("REVIEW") ? "Needs review" : "Pass";
-  return <details className="frontline-final-qc repair-frontline-preview" open>
-    <summary><strong>Inventory Lifecycle QC checklist</strong></summary>
-    <p>Use Pass, Fail, or Review to work through the checklist. This is a planning draft. Complete the repair and use Record QC decision to save the inspection for billing and handoff.</p>
+  return <details className="frontline-final-qc repair-frontline-preview">
+    <summary><strong>Optional QC draft · does not clear invoicing</strong></summary>
+    <p>These answers stay in this browser. Follow the QC prerequisites above to get the repair job ready. Then record a passing inspection on that job.</p>
     <div className="frontline-checklist-columns">
       {frontlineQcSections.map((section, sectionIndex) => <section className="frontline-checklist-section" key={section.title}>
         <h3>{section.title}</h3>
@@ -181,8 +181,7 @@ export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: 
     <section className="qc-panel" aria-label="Overall checklist result">
       <h3>Overall checklist result</h3>
       <p role="status">{remaining ? `${remaining} checks remaining` : `Draft checklist: ${disposition}`}</p>
-      {!remaining && <p>These answers have not been saved as the repair inspection. Once the job is ready for QC, save its inspection to continue toward invoice payment.</p>}
-      <Link className="pill" href={repairReviewHref(repairOrderId, "repair")}>Open repair progress</Link>
+      {!remaining && <p>Checklist complete. A saved inspection is still required on each approved repair job.</p>}
       <button className="pill" type="button" disabled={!draftLoaded || !results.length} onClick={saveDraft}>Save QC draft</button>
       {saveStatus && <p role="status">{saveStatus}</p>
       }
@@ -201,9 +200,19 @@ const vendorFollowUpHref = (order: Order) => `/vehicles/shop-planning?${new URLS
 const code = (value: string) => value.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toUpperCase().slice(0, 80) || "QC_CHECK";
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character] ?? character);
 const hasOpenLabor = (job: Job) => job.laborClocks.some((clock) => clock.state === "RUNNING" || clock.state === "PAUSED");
+function inspectionStatus(job: Job) {
+  if (job.status === "READY_FOR_QC") return "Ready for inspection";
+  if (job.status !== "QC_PASSED") return "Repair work pending";
+  const latest = job.qualityInspections[0];
+  const current = latest?.disposition === "PASSED" && latest.safetyChecksPassed &&
+    (!latest.peerVerificationRequired || latest.peerVerificationPassed) &&
+    (!latest.roadTestRequired || latest.roadTestOutcome === "PASSED") &&
+    !job.laborClocks.some(clock => clock.finishedAt && new Date(clock.finishedAt) > new Date(latest.inspectedAt));
+  return current ? "Pass recorded" : "Inspection evidence needs review";
+}
 const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => demand.quantityReserved < demand.quantityRequired || ["OPEN", "PARTIALLY_RESERVED", "REQUESTED"].includes(demand.status));
 const hasPartsActivity = (job: Job) => Boolean(job.partDemands?.length);
-const needsRoadTest = (job: Job, order: Order) => /brake|noise|steer|suspension|drive|vibration|alignment|engine|transmission/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
+const needsRoadTest = (job: Job) => /\b(?:brakes?|braking|steering|suspension|road test|drivability|vibrations?|alignment|engine|transmission)\b/i.test(`${job.description} ${job.plannedCorrection}`);
 const needsPeer = (job: Job) => job.lane === "DIAGNOSTIC_HEAVY" || /airbag|brake|steer|safety|engine|transmission|electrical/i.test(`${job.description} ${job.plannedCorrection}`);
 const isSafetyCritical = (job: Job, order: Order) => /airbag|srs|brake|steer|suspension|wheel|tire|seatbelt|safety|engine|transmission|abs/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
 const isFrontlineCleared = (order: Order) => Boolean(order.releaseAuthorization);
@@ -225,19 +234,19 @@ function generatedChecklist(order: Order, job: Job) {
     base.push({ label: "Parts installed or accounted for", detail: `${job.partDemands?.length ?? 0} part demand record(s) tied to this repair job.` });
     base.push({ label: "Unused parts/core returns accounted for", detail: "Confirm any unused, wrong, warranty, or core part has a return, bin, quarantine, or credit-recovery disposition in Parts." });
   }
-  if (needsRoadTest(job, order)) base.push({ label: "Road test outcome captured", detail: "A driving concern or safety-impact repair requires road-test evidence." });
+  if (needsRoadTest(job)) base.push({ label: "Road test outcome captured", detail: "This repair calls for road-test evidence." });
   if (needsPeer(job)) base.push({ label: "Independent/peer review considered", detail: "Safety-critical or heavy diagnostic work should not rely on one set of eyes." });
   return base;
 }
 
-function gateRows(order: Order, job: Job) {
+function gateRows(job: Job) {
   return [
     { label: "Technician completion evidence", state: job.executionEvidence?.length ? "ready" : "blocked", detail: job.executionEvidence?.length ? `${job.executionEvidence.length} evidence item(s)` : "Missing completion proof" },
     { label: "QC handoff notes", state: job.qcHandoffNotes ? "ready" : "blocked", detail: job.qcHandoffNotes ?? "Technician must tell QC what to verify" },
     { label: "Labor clock", state: hasOpenLabor(job) ? "blocked" : "ready", detail: hasOpenLabor(job) ? "Running or paused labor blocks release" : "No open labor clock" },
     { label: "Parts readiness", state: hasPartsBlock(job) ? "warning" : "ready", detail: hasPartsBlock(job) ? "Parts demand, reservation, or issue still needs review" : "No parts blocker detected" },
     { label: "Unused parts return control", state: hasPartsActivity(job) ? "warning" : "ready", detail: hasPartsActivity(job) ? "Verify installed vs unused/return/core disposition before release" : "No repair-linked parts demand" },
-    { label: "Road test", state: needsRoadTest(job, order) ? "warning" : "ready", detail: needsRoadTest(job, order) ? "Road-test evidence expected" : "Not automatically required" },
+    { label: "Road test", state: needsRoadTest(job) ? "warning" : "ready", detail: needsRoadTest(job) ? "Road-test evidence expected" : "Not automatically required" },
     { label: "Peer review", state: needsPeer(job) ? "warning" : "ready", detail: needsPeer(job) ? "Independent verification recommended/required for heavy work" : "Standard QC applies" }
   ];
 }
@@ -338,10 +347,12 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   );
   const latestInspection = job?.qualityInspections[0];
   const checklist = order && job ? generatedChecklist(order, job) : [];
-  const gates = order && job ? gateRows(order, job) : [];
+  const gates = job ? gateRows(job) : [];
   const locks = order ? releaseLocks(order) : [];
   const technicianScorecard = scorecardRows(jobs);
   const quickQcRequiresPeer = job?.lane === "DIAGNOSTIC_HEAVY";
+  const roadTestNeeded = Boolean(reviewOrderId && job && needsRoadTest(job));
+  const roadTestApplies = roadTestNeeded || qc.roadTestRequired;
   const safetyEscalation = Boolean(order && job && isSafetyCritical(job, order));
   const comebackCount = job?.comebackCases?.filter((item) => item.status !== "CLOSED").length ?? 0;
   const frontlineCounts = frontlineQcItems.reduce<Record<FrontlineResult, number>>((counts, item) => {
@@ -401,16 +412,16 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     setModel(next);
   }
 
-  async function submit(url: string, value: Record<string, unknown>, success: string) {
+  async function submit(url: string, value: Record<string, unknown>, success: string | ((body: { result?: { disposition?: string } }) => string)) {
     if (submitInFlightRef.current) return false;
     submitInFlightRef.current = true;
     setBusy(true);
     setNotice("");
     try {
-      await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
-      setNotice(success);
+      const body = await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
+      setNotice(typeof success === "string" ? success : success(body));
       await refresh();
-      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
+      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId, typeof success === "function" ? "qc" : undefined);
       return true;
     } catch (error) {
       setErrorNotice(error instanceof Error ? error.message : "Quality-control request failed.");
@@ -422,8 +433,19 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   function chooseJob(nextOrder: Order, nextJob: Job) {
+    if (busy || (nextOrder.id === orderId && nextJob.id === jobId)) return;
     setOrderId(nextOrder.id);
     setJobId(nextJob.id);
+    setQuickChecks({ repair: false, finish: false, safety: false });
+    setQuickNote("");
+    setQc(value => ({ ...value, completionResult: "PASS", safetyResult: "PASS", completionEvidence: "", roadTestRequired: false, roadTestOutcome: "NOT_REQUIRED", roadTestEvidence: "", peerVerificationPassed: false, reworkRoute: "TECHNICIAN", reworkInstructions: "" }));
+  }
+
+  function inspectionMessage(body: { result?: { disposition?: string } }) {
+    return body.result?.disposition === "PASSED" && job
+      ? `Passed repair QC saved for ${job.jobNumber}.`
+      : body.result?.disposition === "FAILED" && job ? `QC failed for ${job.jobNumber}. The repair was returned for correction.`
+        : "Inspection recorded. Review the saved result before continuing.";
   }
 
   function chooseVendorReturn(nextOrder: Order) {
@@ -460,7 +482,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       reworkInstructions: passed ? null : `Return for correction: ${quickNote.trim()}`,
       inspectedAt: new Date().toISOString(),
       reason: passed ? "Record quick repair QC pass and open Final Frontline QC." : "Record quick repair QC failure and return for correction."
-    }, passed ? "Repair QC saved. Final Frontline QC is open for this vehicle." : "Repair QC failed. The repair was returned for correction.");
+    }, inspectionMessage);
     if (saved) {
       setQuickChecks({ repair: false, finish: false, safety: false });
       setQuickNote("");
@@ -740,13 +762,25 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </section>
       ) : null}
 
+      {reviewOrderId && order && activeJobs.length > 0 && <section className="qc-panel" aria-label="Repair job inspections">
+        <h2>Repair job inspections</h2>
+        <p>Billing checks the saved inspection for each approved repair job. A browser checklist draft does not count.</p>
+        <ul>{activeJobs.map(item => <li key={item.id}>
+          <button type="button" aria-pressed={job?.id === item.id} disabled={busy} onClick={() => chooseJob(order, item)}>
+            {item.jobNumber} · {item.description} · {inspectionStatus(item)}
+          </button>
+        </li>)}</ul>
+        {job && inspectionStatus(job) === "Inspection evidence needs review" && <p>Ask a manager to review this job’s saved inspection and labor history.</p>}
+        {order.origin === "CUSTOMER_REPAIR" && <Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(order.id)}`}>Review invoice readiness</Link>}
+      </section>}
+
       {order && job && !showVendorReturnQc && !showFrontlineQc && !order.releaseAuthorization ? (
         <section className="qc-quick" aria-label="Quick Repair QC">
           <header>
             <div>
               <span>Quick Repair QC</span>
               <h2>{vehicleName(order)} · {order.repairOrderNumber}</h2>
-              <p>{job.description} — confirm three items, then pass or return the repair.</p>
+              <p>{job.jobNumber} · {job.description} — confirm three items, then pass or return the repair.</p>
             </div>
             <strong>{job.status.replaceAll("_", " ")}</strong>
           </header>
@@ -761,7 +795,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           <label className="qc-quick-note"><span>Note <small>(optional for pass; required for failure)</small></span><textarea placeholder="Example: Fender alignment, attachment, and finish verified." value={quickNote} onChange={(event) => { setNotice(""); setQuickNote(event.target.value); }} /></label>
           <footer>
             <button className="qc-quick-fail" disabled={busy || job.status !== "READY_FOR_QC"} onClick={() => void recordQuickQc("FAIL")} type="button">QC failed — return for correction</button>
-            <button className="qc-quick-pass" disabled={busy || job.status !== "READY_FOR_QC" || !quickChecks.repair || !quickChecks.finish || !quickChecks.safety} onClick={() => void recordQuickQc("PASS")} type="button">Save &amp; open Final QC</button>
+            {roadTestNeeded ? <button type="button" onClick={() => setShowAdvanced(true)}>Open detailed QC for road-test evidence</button>
+              : <button className="qc-quick-pass" disabled={busy || job.status !== "READY_FOR_QC" || !quickChecks.repair || !quickChecks.finish || !quickChecks.safety} onClick={() => void recordQuickQc("PASS")} type="button">{reviewOrderId ? "Record passed repair QC" : "Save & open Final QC"}</button>}
           </footer>
           </>}
           <button className="qc-advanced-toggle" onClick={() => setShowAdvanced((value) => !value)} type="button">{showAdvanced ? "Hide detailed QC tools" : "Show queue and detailed QC tools"}</button>
@@ -1020,7 +1055,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                 <p key={`${item.label}-${index}`}>
                   <CheckCircle2 />
                   <span><strong>{item.label}</strong><small>{item.detail}</small></span>
-                  {reviewOrderId ? <div className="frontline-result-options" role="group" aria-label={`${item.label} result`}>
+                  {reviewOrderId ? <span className="frontline-result-options" role="group" aria-label={`${item.label} result`}>
                     {(["PASS", "FAIL", "NOT_APPLICABLE"] as const).map(choice => {
                       const key = job.id + ":" + item.label;
                       return <button key={choice} type="button" className={choice === "NOT_APPLICABLE" ? "review" : choice.toLowerCase()}
@@ -1029,7 +1064,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                         {choice === "PASS" ? "Pass" : choice === "FAIL" ? "Fail" : "N/A"}
                       </button>;
                     })}
-                  </div> : <select aria-label={`${item.label} result`} value={resultFor(item.label)} onChange={(event) => setCheckResults((value) => ({ ...value, [job.id + ":" + item.label]: event.target.value as "PASS" | "FAIL" | "NOT_APPLICABLE" }))}>
+                  </span> : <select aria-label={`${item.label} result`} value={resultFor(item.label)} onChange={(event) => setCheckResults((value) => ({ ...value, [job.id + ":" + item.label]: event.target.value as "PASS" | "FAIL" | "NOT_APPLICABLE" }))}>
                     <option>PASS</option>
                     <option>FAIL</option>
                     <option>NOT_APPLICABLE</option>
@@ -1078,15 +1113,15 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                   ...checklist.map((item) => ({ category: isSafetyCritical(job, order) && /safety|brake|steer|suspension|road test|wheel/i.test(item.label) ? "SAFETY" : "OTHER", code: code(item.label), label: item.label, result: resultFor(item.label), evidence: list(qc.completionEvidence) }))
                 ],
                 completionEvidence: list(qc.completionEvidence),
-                roadTestRequired: qc.roadTestRequired,
-                roadTestOutcome: qc.roadTestRequired ? qc.roadTestOutcome : "NOT_REQUIRED",
+                roadTestRequired: roadTestApplies,
+                roadTestOutcome: roadTestApplies ? qc.roadTestOutcome : "NOT_REQUIRED",
                 roadTestEvidence: list(qc.roadTestEvidence),
                 peerVerificationPassed: heavy || safetyEscalation ? qc.peerVerificationPassed : false,
                 peerVerifierUserId: heavy || safetyEscalation ? qc.peerVerifierUserId : null,
                 reworkInstructions: qc.reworkInstructions ? `Route ${qc.reworkRoute}: ${qc.reworkInstructions}` : null,
                 inspectedAt: new Date().toISOString(),
                 reason: "Record attributable quality inspection and enforce release gates."
-              }, "Quality inspection recorded.");
+              }, inspectionMessage);
             }}
           >
             <header>
@@ -1124,11 +1159,11 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
               <label><span>Template</span><input value={qc.templateCode} onChange={(event) => setQc((value) => ({ ...value, templateCode: event.target.value }))} /></label>
               <label><span>Version</span><input min="1" type="number" value={qc.templateVersion} onChange={(event) => setQc((value) => ({ ...value, templateVersion: Number(event.target.value) }))} /></label>
               <label><span>Failed-QC route</span><select value={qc.reworkRoute} onChange={(event) => setQc((value) => ({ ...value, reworkRoute: event.target.value }))}>{["TECHNICIAN", "PARTS", "ADVISOR", "MANAGER", "HOLD"].map((route) => <option key={route}>{route}</option>)}</select></label>
-              <label className="qc-checkbox"><input checked={qc.roadTestRequired} type="checkbox" onChange={(event) => setQc((value) => ({ ...value, roadTestRequired: event.target.checked, roadTestOutcome: event.target.checked ? "PASSED" : "NOT_REQUIRED" }))} /> Road test applies</label>
-              {qc.roadTestRequired ? (
+              <label className="qc-checkbox"><input checked={roadTestApplies} disabled={roadTestNeeded} type="checkbox" onChange={(event) => setQc((value) => ({ ...value, roadTestRequired: event.target.checked, roadTestOutcome: event.target.checked ? "PASSED" : "NOT_REQUIRED" }))} /> Road test applies</label>
+              {roadTestApplies ? (
                 <>
-                  <label><span>Road-test outcome</span><select value={qc.roadTestOutcome} onChange={(event) => setQc((value) => ({ ...value, roadTestOutcome: event.target.value }))}><option>PASSED</option><option>FAILED</option></select></label>
-                  <label><span>Road-test evidence</span><input value={qc.roadTestEvidence} onChange={(event) => setQc((value) => ({ ...value, roadTestEvidence: event.target.value }))} /></label>
+                  <label><span>Road-test outcome</span><select required value={qc.roadTestOutcome === "NOT_REQUIRED" ? "" : qc.roadTestOutcome} onChange={(event) => setQc((value) => ({ ...value, roadTestOutcome: event.target.value || "NOT_REQUIRED" }))}><option value="">Choose result</option><option>PASSED</option><option>FAILED</option></select></label>
+                  <label><span>Road-test evidence</span><input required={roadTestNeeded} value={qc.roadTestEvidence} onChange={(event) => setQc((value) => ({ ...value, roadTestEvidence: event.target.value }))} /></label>
                 </>
               ) : null}
               {job.lane === "DIAGNOSTIC_HEAVY" || safetyEscalation ? (

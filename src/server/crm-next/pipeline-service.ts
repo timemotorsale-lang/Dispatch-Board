@@ -13,13 +13,21 @@ import { dealOrganization } from "@/server/deal-continuity/identities";
 import { persistDealContext } from "@/server/deal-continuity/service";
 import { pipelinePolicy } from "./pipeline-policy";
 import { effectivePipelineTemplate, readPipelineTemplateVersions } from "./pipeline-templates";
-import { PIPELINE_EVIDENCE_CODES, pipelineContactRestrictions, reconcilePipelineEvidence } from "./pipeline-evidence";
-import { localPipelineDate, pipelineMidnight, pipelineSignals, activePipelineRow, PIPELINE_PATHS, PIPELINE_DISPOSITIONS, PIPELINE_SEQUENCES, type PipelineRow, type PipelineWorkspace, type PipelineSequenceCode } from "@/lib/crm-pipeline";
+import { PIPELINE_EVIDENCE_CODES, pipelineContactRestrictions, pipelineContactRestrictionWhere, reconcilePipelineEvidence } from "./pipeline-evidence";
+import { localPipelineDate, pipelineMidnight, pipelineSignals, activePipelineRow, pipelineLabel, PIPELINE_PATHS, PIPELINE_DISPOSITIONS, PIPELINE_SEQUENCES, type PipelineRelatedWork, type PipelineRow, type PipelineWorkspace, type PipelineSequenceCode } from "@/lib/crm-pipeline";
+import { latestPipelineInteraction, pipelineDealScope, pipelineInteraction, readPipelineDealJackets, readPipelineRelatedWork } from "./pipeline-related-work";
 
 type Db = Prisma.TransactionClient;
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 const iso = (value: Date | null | undefined) => value?.toISOString() ?? null;
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+function pipelineHistoryValue(value: unknown, visibleDealId: string | null): unknown {
+  if (Array.isArray(value)) return value.map(item => pipelineHistoryValue(item, visibleDealId));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).filter(([key, item]) =>
+    !["dealId", "draftId", "jacketId"].includes(key) || item === visibleDealId && visibleDealId !== null,
+  ).map(([key, item]) => [key, pipelineHistoryValue(item, visibleDealId)]));
+}
 export class PipelineError extends Error {
   constructor(public code: string, message: string, public status = 400, public field?: string) { super(message); }
 }
@@ -47,13 +55,15 @@ export async function pipelineAccess(actor: AuthenticatedUser | null, write = fa
 }
 type Access = Awaited<ReturnType<typeof pipelineAccess>>;
 function where(a: Access): Prisma.UnifiedCrmOpportunityRecordWhereInput {
-  return { organizationId: a.organizationId, ...(a.scope.kind === "OWNER" ? {
-    OR: [{ ownerUserId: a.actor.id }, { pipelineState: { pendingOwnerId: a.actor.id } }],
-    AND: [{ OR: [{ customerId: null }, { customer: { ownerUserId: a.actor.id } }] }]
-  } : {}) };
+  const ownerOnly = a.scope.kind === "OWNER";
+  return {
+    organizationId: a.organizationId,
+    OR: [{ customerId: null }, { customer: { organizationId: a.organizationId, ...(ownerOnly ? { ownerUserId: a.actor.id } : {}) } }],
+    ...(ownerOnly ? { AND: [{ OR: [{ ownerUserId: a.actor.id }, { pipelineState: { pendingOwnerId: a.actor.id } }] }] } : {}),
+  };
 }
 const include = {
-  customer: { select: { id: true, displayName: true, ownerUserId: true, phoneNumber: true, email: true } },
+  customer: { select: { id: true, displayName: true, ownerUserId: true, phoneNumber: true, email: true, interactions: latestPipelineInteraction } },
   ownerUser: { select: { id: true, name: true, isActive: true } }, sourceLead: true,
   pipelineState: true, pipelineReceipts: { orderBy: { receivedAt: "asc" as const }, take: 1 },
   pipelineExceptions: { where: { state: "OPEN" }, orderBy: { firstSeenAt: "asc" as const } },
@@ -65,7 +75,10 @@ const include = {
 type RecordRow = Prisma.UnifiedCrmOpportunityRecordGetPayload<{ include: typeof include }>;
 function row(record: RecordRow): PipelineRow {
   const state = record.pipelineState, receipt = record.pipelineReceipts[0], enrollment = record.pipelineEnrollments[0], meta = object(state?.metadata);
+  const sourceLead = record.sourceLead?.organizationId === record.organizationId ? record.sourceLead : null;
   return {
+    customerActivity: pipelineInteraction(record.customer?.interactions[0]),
+    sourceLeadStage: sourceLead?.stage,
     inquiryReviewedAt: typeof meta.inquiryReviewedAt === "string" ? meta.inquiryReviewedAt : null,
     responseTargetMinutes: pipelinePolicy().responseMinutes,
     followUpPushCount: typeof meta.followUpPushCount === "number" ? meta.followUpPushCount : 0,
@@ -75,10 +88,10 @@ function row(record: RecordRow): PipelineRow {
     stalledAfterDays: pipelinePolicy().stalledDays,
     id: record.id, opportunityNumber: record.opportunityNumber, title: record.title, summary: record.summary, stage: record.stage, version: record.version,
     customerId: record.customerId, customerName: record.customer?.displayName ?? record.title, ownerUserId: record.ownerUserId, ownerName: record.ownerUser?.name ?? "Intake queue", ownerActive: record.ownerUser?.isActive ?? false,
-    sourceCode: receipt?.sourceCode ?? record.sourceLead?.sourceCode ?? "LEGACY", sourceLeadId: record.sourceLeadId, vehicle: record.sourceLead?.vehicleInterest ?? String(meta.vehicle ?? ""),
+    sourceCode: receipt?.sourceCode ?? sourceLead?.sourceCode ?? "LEGACY", sourceLeadId: sourceLead?.id ?? null, vehicle: sourceLead?.vehicleInterest ?? String(meta.vehicle ?? ""),
     pathway: state?.pathway ?? "retail-sale", temperature: state?.temperature ?? "WARM", disposition: state?.disposition ?? "ACTIVE",
     nextActionLabel: record.nextActionLabel, nextActionDueAt: iso(record.nextActionDueAt), expectedCloseAt: iso(record.expectedCloseAt), estimatedValueCents: record.estimatedValueCents,
-    receivedAt: (receipt?.receivedAt ?? record.sourceLead?.createdAt ?? record.createdAt).toISOString(), updatedAt: record.updatedAt.toISOString(), stageEnteredAt: iso(record.stageEvents[0]?.occurredAt),
+    receivedAt: (receipt?.receivedAt ?? sourceLead?.createdAt ?? record.createdAt).toISOString(), updatedAt: record.updatedAt.toISOString(), stageEnteredAt: iso(record.stageEvents[0]?.occurredAt),
     soldAt: null, completedAt: null, reviewAt: iso(state?.reviewAt), pushCount: state?.pushCount ?? 0, pendingOwnerId: state?.pendingOwnerId ?? null, handoffDueAt: iso(state?.handoffDueAt), dealId: state?.dealId ?? null, dealStatus: null,
     exceptions: record.pipelineExceptions.map(e => ({ ...e, firstSeenAt: e.firstSeenAt.toISOString(), lastSeenAt: e.lastSeenAt.toISOString(), reviewDueAt: e.reviewDueAt.toISOString(), resolvedAt: iso(e.resolvedAt) })),
     tasks: record.taskLinks.map(({ task }) => ({ id: task.id, title: task.title, dueAt: task.dueAt.toISOString(), status: task.status, completedAt: iso(task.completedAt), requiresManagerApproval: task.requiresManagerApproval, assignedUserId: task.assignedUserId })),
@@ -126,15 +139,16 @@ export async function readPipeline(actor: AuthenticatedUser | null, page: { curs
   if (!Number.isInteger(leadPage) || leadPage < 0 || leadPage > 10000) throw new PipelineError("INVALID_CURSOR", "Choose a valid intake page.");
   const records = page.skipOpportunities ? [] : await prisma.unifiedCrmOpportunityRecord.findMany({ where: { AND: [where(a), ...(cursor ? [{ OR: [{ updatedAt: { lt: new Date(cursor.updatedAt) } }, { updatedAt: new Date(cursor.updatedAt), id: { lt: cursor.id } }] }] : [])] }, include, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: 251 });
   const visible = records.slice(0, 250), ids = visible.map(r => r.opportunityNumber);
-  const [audits, owners, customers, unlinked, pending, failed, oldest, last] = await Promise.all([
+  const [audits, owners, customers, unlinked, pending, failed, oldest, last, related] = await Promise.all([
     prisma.enterpriseAuditEvent.findMany({ where: { organizationId: a.organizationId, subjectType: "OPPORTUNITY", subjectId: { in: ids }, domain: { in: ["CRM_PIPELINE", "UNIFIED_CRM"] } }, include: { actorUser: { select: { name: true } } }, orderBy: { occurredAt: "desc" }, take: 5000 }),
     prisma.user.findMany({ where: { isActive: true, ...(a.canManage ? {} : { id: a.actor.id }), appointmentLocationAccess: { some: { location: { organizationId: a.organizationId }, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gt: now } }] } } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.customer.findMany({ where: { organizationId: a.organizationId, archivedAt: null, mergedIntoCustomerId: null, ...(a.scope.kind === "OWNER" ? { ownerUserId: a.actor.id } : {}) }, select: { id: true, displayName: true }, take: 500, orderBy: { displayName: "asc" } }),
-    prisma.customerLead.findMany({ where: { organizationId: a.organizationId, unifiedCrmOpportunities: { none: {} }, ...(a.scope.kind === "OWNER" ? { ownerUserId: a.actor.id, customer: { ownerUserId: a.actor.id } } : {}) }, include: { customer: { select: { displayName: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 501, skip: leadPage * 500 }),
+    prisma.customerLead.findMany({ where: { organizationId: a.organizationId, unifiedCrmOpportunities: { none: {} }, customer: { organizationId: a.organizationId, archivedAt: null, mergedIntoCustomerId: null, ...(a.scope.kind === "OWNER" ? { ownerUserId: a.actor.id } : {}) }, ...(a.scope.kind === "OWNER" ? { ownerUserId: a.actor.id } : {}) }, include: { customer: { select: { displayName: true, interactions: latestPipelineInteraction } }, ownerUser: { select: { name: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 501, skip: leadPage * 500 }),
     prisma.enterpriseOutboxMessage.count({ where: { organizationId: a.organizationId, topic: "crm.pipeline.continuity", status: { in: ["PENDING", "PROCESSING"] }, ...(a.canManage ? {} : { messageKey: { in: ids } }) } }),
     prisma.enterpriseOutboxMessage.count({ where: { organizationId: a.organizationId, topic: "crm.pipeline.continuity", status: "DEAD_LETTER", ...(a.canManage ? {} : { messageKey: { in: ids } }) } }),
     prisma.enterpriseOutboxMessage.findFirst({ where: { organizationId: a.organizationId, topic: "crm.pipeline.continuity", status: "PENDING", ...(a.canManage ? {} : { messageKey: { in: ids } }) }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
-    prisma.enterpriseProjectionCheckpoint.findFirst({ where: { organizationId: a.organizationId, projectionCode: "CRM_PIPELINE_WORKER" }, select: { lastSuccessAt: true } })
+    prisma.enterpriseProjectionCheckpoint.findFirst({ where: { organizationId: a.organizationId, projectionCode: "CRM_PIPELINE_WORKER" }, select: { lastSuccessAt: true } }),
+    readPipelineRelatedWork(a.actor, a.organizationId, a.canManage, leadPage, where(a)),
   ]);
   const rows = visible.map(record => {
     const value = row(record);
@@ -142,24 +156,58 @@ export async function readPipeline(actor: AuthenticatedUser | null, page: { curs
     value.history = audits.filter(e => e.subjectId === record.opportunityNumber).slice(0, 35).map(e => ({ id: e.id, eventType: e.eventType, reason: e.reason, actor: e.actorUser.name, occurredAt: e.occurredAt.toISOString(), priorValue: e.priorValue, newValue: e.newValue }));
     return value;
   });
-  const deals = await prisma.dealDeskDraft.findMany({ where: { organizationId: resolveDocumentStorageRuntimeFromEnv().organizationId, id: { in: rows.flatMap(r => r.dealId ? [r.dealId] : []) }, ...(a.canManage ? {} : { ownerUserId: a.actor.id }) }, select: { id: true, status: true, statusHistory: true, snapshot: true, pathway: true } });
-  const jacketIds = deals.flatMap(d => { const id = object(object(d.snapshot).jackets)[d.pathway]; return typeof id === "string" ? [id] : []; });
-  const jackets = await prisma.salesDocumentJacket.findMany({ where: { organizationId: resolveDocumentStorageRuntimeFromEnv().organizationId, id: { in: jacketIds } }, select: { id: true, state: true, customerId: true } });
+  const dealScope = pipelineDealScope(a.actor, a.organizationId, a.canManage);
+  const deals = dealScope ? await prisma.dealDeskDraft.findMany({ where: { ...dealScope, id: { in: rows.flatMap(r => r.dealId ? [r.dealId] : []) } }, select: { id: true, customerId: true, ownerUserId: true, dealNumber: true, status: true, statusHistory: true, snapshot: true, pathway: true } }) : [];
+  const jackets = await readPipelineDealJackets(resolveDocumentStorageRuntimeFromEnv().organizationId, deals);
   for (const r of rows) {
-    const deal = deals.find(d => d.id === r.dealId); if (!deal) { r.dealId = null; continue; }
+    const deal = deals.find(d => d.id === r.dealId && d.customerId === r.customerId);
+    r.dealId = deal?.id ?? null;
+    r.history = r.history.map(event => ({ ...event, priorValue: pipelineHistoryValue(event.priorValue, r.dealId), newValue: pipelineHistoryValue(event.newValue, r.dealId) }));
+    if (!deal) continue;
     r.dealStatus = deal.status;
-    const jacketId = object(object(deal.snapshot).jackets)[deal.pathway];
-    r.dealReviewState = jackets.find(j => j.id === jacketId && j.customerId === r.customerId)?.state ?? null;
+    r.dealHref = deal.ownerUserId === a.actor.id ? `/crm-next/deals/start?draftId=${encodeURIComponent(deal.id)}` : `/crm-next/deals?${new URLSearchParams({ workspace: "TEAM", area: "all", search: String(deal.dealNumber) })}`;
+    r.dealReviewState = jackets.get(deal.id)?.state ?? null;
     const events = Array.isArray(deal.statusHistory) ? deal.statusHistory.map(object) : [];
     r.soldAt = typeof events.find(e => e.to === "SOLD")?.at === "string" ? String(events.find(e => e.to === "SOLD")!.at) : null;
     r.completedAt = typeof events.find(e => e.action === "FINISH")?.at === "string" ? String(events.find(e => e.action === "FINISH")!.at) : null;
   }
-  const choices = await prisma.dealDeskDraft.findMany({ where: { organizationId: resolveDocumentStorageRuntimeFromEnv().organizationId, ownerUserId: a.actor.id, customerId: { in: rows.flatMap(r => r.customerId ? [r.customerId] : []) }, status: { in: ["IN_PROGRESS", "PENDING", "SOLD"] } }, select: { id: true, customerId: true, status: true, vehicleReference: true, pathway: true }, take: 500 });
+  const choices = dealScope ? await prisma.dealDeskDraft.findMany({ where: { ...dealScope, ownerUserId: a.actor.id, customerId: { in: rows.flatMap(r => r.customerId ? [r.customerId] : []) }, status: { in: ["IN_PROGRESS", "PENDING", "SOLD"] } }, select: { id: true, customerId: true, status: true, vehicleReference: true, pathway: true }, take: 500 }) : [];
   for (const r of rows) r.dealChoices = choices.filter(d => d.customerId === r.customerId).map(d => ({ id: d.id, status: d.status, vehicle: d.vehicleReference, pathway: d.pathway }));
   const imports = await prisma.enterpriseCommandLedger.findMany({ where: { organizationId: a.organizationId, domain: "CRM_PIPELINE_IMPORT", status: "FAILED", ...(a.canManage ? {} : { actorUserId: a.actor.id }) }, orderBy: { createdAt: "asc" }, take: 25 });
   const importBatches = imports.map(batch => ({ id: batch.id, receivedAt: batch.createdAt.toISOString(), ownerUserId: batch.actorUserId, remaining: Array.isArray(object(batch.resultSnapshot).rows) ? (object(batch.resultSnapshot).rows as Array<{ ok: boolean }>).filter(r => !r.ok).length : 0, reason: batch.errorMessage ?? "Import needs review" }));
   const tail = visible.at(-1), nextCursor = records.length > 250 && tail ? Buffer.from(JSON.stringify({ updatedAt: tail.updatedAt.toISOString(), id: tail.id })).toString("base64url") : null;
-  return { templateVersions: await readPipelineTemplateVersions(a.organizationId), importBatches, generatedAt: now.toISOString(), actorId: a.actor.id, organizationId: a.organizationId, canManage: a.canManage, canWrite: process.env.CRM_PIPELINE_OPERATIONS !== "READ_ONLY" && evaluateUnifiedCrmCapability(actor, "crm.mutate").allowed, scope: a.canManage ? "Authorized organization records" : "Your owned records and accessible handoffs", rows, owners, customers: customers.map(c => ({ id: c.id, name: c.displayName })), truncated: Boolean(nextCursor) || unlinked.length > 500, nextCursor, moreLeads: unlinked.length > 500, unlinkedLeads: unlinked.slice(0, 500).map(l => ({ id: l.id, title: l.customer.displayName, customerId: l.customerId, ownerUserId: l.ownerUserId, sourceCode: l.sourceCode, stage: l.stage, nextActionAt: l.nextActionAt.toISOString(), createdAt: l.createdAt.toISOString() })), health: { pending, failed, oldestPendingAt: iso(oldest?.createdAt), lastWorkerAt: iso(last?.lastSuccessAt) } };
+  const legacyWork: PipelineRelatedWork[] = unlinked.slice(0, 500).filter(lead => lead.stage !== "LOST").map(lead => ({
+    id: lead.id, kind: "lead", customerId: lead.customerId, name: lead.customer.displayName,
+    reference: lead.leadNumber, vehicle: lead.vehicleInterest ?? "", stage: lead.stage === "WON" ? "Won lead" : pipelineLabel(lead.stage),
+    ownerId: lead.ownerUserId, ownerName: lead.ownerUser.name, nextAction: pipelineLabel(lead.nextActionCode),
+    dueAt: lead.stage === "WON" ? null : iso(lead.nextActionAt), updatedAt: lead.updatedAt.toISOString(),
+    activity: pipelineInteraction(lead.customer.interactions[0]), href: `/crm-next/customers/${encodeURIComponent(lead.customerId)}`, completed: lead.stage === "WON",
+  }));
+  const relatedWork = [...legacyWork, ...related.work];
+  const customerIds = [...new Set([...rows, ...relatedWork].flatMap(item => item.customerId ? [item.customerId] : []))];
+  const [restrictions, suppressed] = await Promise.all([
+    prisma.customerCommunicationPreference.findMany({ where: { ...pipelineContactRestrictionWhere(a.organizationId, now), customerId: { in: customerIds } }, distinct: ["customerId"], select: { customerId: true } }),
+    prisma.unifiedCrmOpportunityRecord.findMany({
+      where: { organizationId: a.organizationId, customerId: { in: customerIds }, pipelineState: { disposition: "DO_NOT_CONTACT" } },
+      distinct: ["customerId"], select: { customerId: true },
+    }),
+  ]);
+  const suppressedCustomers = new Set(suppressed.map(item => item.customerId));
+  const restrictedCustomers = new Set(restrictions.map(item => item.customerId));
+  const contactReview = (id: string | null) => suppressedCustomers.has(id) ? "Internal review · do not contact"
+    : id && restrictedCustomers.has(id) ? "Review contact permissions before outreach" : undefined;
+  for (const row of rows) {
+    row.contactSuppressed = row.disposition === "DO_NOT_CONTACT" || suppressedCustomers.has(row.customerId);
+    row.contactReview = row.contactSuppressed ? "Internal review · do not contact" : contactReview(row.customerId);
+  }
+  for (const item of relatedWork) {
+    const review = contactReview(item.customerId);
+    if (review && !item.completed) {
+      item.nextAction = review;
+      if (item.kind === "customer" && item.customerId) item.href = `/crm-next/customers/${encodeURIComponent(item.customerId)}`;
+    }
+  }
+  return { templateVersions: await readPipelineTemplateVersions(a.organizationId), importBatches, generatedAt: now.toISOString(), actorId: a.actor.id, organizationId: a.organizationId, canManage: a.canManage, canWrite: process.env.CRM_PIPELINE_OPERATIONS !== "READ_ONLY" && evaluateUnifiedCrmCapability(actor, "crm.mutate").allowed, scope: a.canManage ? "Authorized organization records" : "Your owned records and accessible handoffs", rows, owners, customers: customers.map(c => ({ id: c.id, name: c.displayName })), truncated: Boolean(nextCursor) || unlinked.length > 500 || related.more, nextCursor, moreLeads: unlinked.length > 500, relatedWork, moreRelatedWork: related.more, unlinkedLeads: unlinked.slice(0, 500).map(l => ({ id: l.id, title: l.customer.displayName, customerId: l.customerId, ownerUserId: l.ownerUserId, sourceCode: l.sourceCode, stage: l.stage, nextActionAt: l.nextActionAt.toISOString(), createdAt: l.createdAt.toISOString() })), health: { pending, failed, oldestPendingAt: iso(oldest?.createdAt), lastWorkerAt: iso(last?.lastSuccessAt) } };
 }
 
 export async function findPipelineMatches(actor: AuthenticatedUser | null, query: string) {
@@ -217,7 +265,8 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
       if (!(PIPELINE_PATHS as readonly string[]).includes(pathway)) throw new PipelineError("INVALID_PATHWAY", "Choose a supported revenue pathway.");
       const createdId = randomUUID(), dueAt = lead?.nextActionAt ?? new Date(now.getTime() + pipelinePolicy().responseMinutes * 60000);
       const sourceStages: Record<string, UnifiedCrmOpportunityStage> = { QUALIFIED: "QUALIFIED", ENGAGED: "QUALIFIED", APPOINTMENT_SET: "APPOINTMENT_SET", ON_SITE: "WORKING_DEAL", NEGOTIATION: "CUSTOMER_DECIDING" };
-      const initialStage = lead ? sourceStages[lead.stage] ?? "NEW_INQUIRY" : "NEW_INQUIRY", initialAction = lead?.stage === "NURTURE" ? "Review nurtured relationship" : "Respond to inquiry";
+      const initialStage = lead ? sourceStages[lead.stage] ?? "NEW_INQUIRY" : "NEW_INQUIRY";
+      const initialAction = lead?.nextActionCode ? pipelineLabel(lead.nextActionCode) : "Respond to inquiry";
       record = await db.unifiedCrmOpportunityRecord.create({ data: { id: createdId, organizationId: a.organizationId, opportunityNumber: `OPP-${createdId.replaceAll("-", "").slice(0, 16).toUpperCase()}`, title, summary: text(input.note, "Note", false, 1000) || null, stage: initialStage, nextActionLabel: initialAction, nextActionDueAt: dueAt, ownerUserId, customerId, sourceLeadId: lead?.id, createdByUserId: a.actor.id, createdReason: "Pipeline intake", version: 1,
         pipelineState: { create: { pathway, disposition: lead?.stage === "NURTURE" ? "NURTURE" : "ACTIVE", reviewAt: lead?.stage === "NURTURE" ? dueAt : null, metadata: json({ vehicle: lead?.vehicleInterest ?? text(input.vehicle, "Vehicle", false, 240) }) } },
         pipelineReceipts: { create: { id: randomUUID(), sourceCode, sourceKey, requestHash: hash, payload: json({ title, requestedOwner, phone: text(input.phone, "Phone", false, 80), email: text(input.email, "Email", false, 160) }) } },
@@ -229,17 +278,25 @@ export async function pipelineCommand(actor: AuthenticatedUser | null, input: Re
       if (record.version !== input.expectedVersion) throw new PipelineError("VERSION_CONFLICT", "This opportunity changed. Refresh and review it; your form entries remain available.", 409);
       if (record.ownerUserId !== a.actor.id && !a.canManage && !(action === "ACCEPT_HANDOFF" && record.pipelineState?.pendingOwnerId === a.actor.id)) throw new PipelineError("NOT_AUTHORIZED", "Only the responsible owner or an authorized manager can change this work.", 403);
       if (record.archivedAt && action !== "REOPEN") throw new PipelineError("ARCHIVED", "Reopen this archived opportunity before changing it.", 409);
+      if (record.customerId && (action === "OUTCOME" || action === "DISPOSITION")) {
+        const contactLock = `crm-pipeline-contact:${a.organizationId}:${record.customerId}`;
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${contactLock}, 0))`;
+      }
       await db.crmPipelineState.upsert({ where: { opportunityId: id }, create: { opportunityId: id, organizationId: a.organizationId }, update: {} });
       if (["FOLLOW_UP", "OUTCOME", "SKIP_STEP"].includes(action)) {
         const contactChannel = input.outcome === "Internal review" ? "INTERNAL_NOTE" : text(input.channel, "Channel", false, 30) || "PHONE";
         if (!["PHONE", "EMAIL", "TEXT", "MEETING", "VISIT", "INTERNAL_NOTE"].includes(contactChannel)) throw new PipelineError("INVALID_CHANNEL", "Choose a supported activity channel.", 400, "Channel");
         if (["Delivery failed", "Delivery uncertain"].includes(String(input.outcome)) && !["EMAIL", "TEXT"].includes(contactChannel)) throw new PipelineError("INVALID_CHANNEL", "Choose email or text when recording a message delivery issue.", 400, "Channel");
         if (action === "OUTCOME" && input.outcome !== "Internal review") {
+          const suppressed = record.pipelineState?.disposition === "DO_NOT_CONTACT" || record.customerId && await db.crmPipelineState.findFirst({
+            where: { organizationId: a.organizationId, disposition: "DO_NOT_CONTACT", opportunity: { organizationId: a.organizationId, customerId: record.customerId } },
+            select: { opportunityId: true },
+          });
+          if (suppressed) throw new PipelineError("CONTACT_SUPPRESSED", "This relationship is marked do not contact. Record an internal review instead.", 409);
           const restrictions = await pipelineContactRestrictions(db, a.organizationId, record.customerId, now);
           if (restrictions.some(p => [contactChannel, "ALL", "ANY"].includes(p.channel.toUpperCase()))) throw new PipelineError("CHANNEL_RESTRICTED", "This contact channel is restricted for the customer. Record an internal review and check the permitted channel and purpose.", 409);
         }
         if (action === "SKIP_STEP" && (!input.taskId || record.pipelineEnrollments[0]?.taskId !== input.taskId || record.pipelineEnrollments[0]?.state !== "ACTIVE")) throw new PipelineError("SEQUENCE_STEP_CHANGED", "Choose the current active sequence task before skipping it.", 409);
-        if (action === "OUTCOME" && record.pipelineState?.disposition === "DO_NOT_CONTACT" && input.outcome !== "Internal review") throw new PipelineError("CONTACT_SUPPRESSED", "This relationship is marked do not contact. Record an internal review instead.", 409);
         if (input.taskId) {
           const task = record.taskLinks.find(l => l.taskId === input.taskId)?.task;
           if (!task || ["COMPLETED", "CANCELLED"].includes(task.status)) throw new PipelineError("TASK_CONFLICT", "This activity is no longer open. Refresh the opportunity.", 409);

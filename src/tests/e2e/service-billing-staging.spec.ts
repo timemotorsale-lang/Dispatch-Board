@@ -22,14 +22,10 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   await expect(page.getByRole("heading", { name: "Review final invoice", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Invoice package", exact: true })).toHaveCount(0);
   await expect(page.getByRole("cell", { name: "$50.00", exact: true })).toBeVisible();
-  await page.getByLabel("Detailed business reason").fill("Synthetic browser invoice posting verification");
   await page.getByRole("button", { name: "Create Final Invoice", exact: true }).click();
-  await expect(page.getByText(/Open balance \$143.50/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open / Print Final Invoice", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Final service invoice", exact: true })).toBeVisible();
   const invoices = await (await page.request.get(billingUrl)).json();
   const invoice = invoices.invoices[0];
-  await page.getByRole("link", { name: "Open / Print Final Invoice", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Final service invoice", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("navigation", { name: "Continue repair order" })).toBeHidden();
@@ -40,7 +36,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   await page.getByLabel("Amount received (USD)").fill("143.50");
   await page.getByLabel("Verified payment evidence / reference").fill(`synthetic-browser-${crypto.randomUUID()}`);
   await page.getByRole("checkbox", { name: "I verified this payment was received for this invoice.", exact: true }).check();
-  await page.getByRole("button", { name: "Record payment & view receipt", exact: true }).click();
+  await page.getByRole("button", { name: "Receive payment", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Service payment receipt", exact: true })).toBeVisible();
   const settled = await (await page.request.get(billingUrl)).json();
   expect(settled.invoices.find((item: { id: string }) => item.id === invoice.id).balance).toMatchObject({ balanceCents: 0, settlement: "SETTLED" });

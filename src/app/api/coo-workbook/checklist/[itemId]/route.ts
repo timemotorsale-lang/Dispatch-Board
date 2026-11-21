@@ -7,6 +7,7 @@ function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
   if (message.includes("permission")) return 403;
   if (message.includes("not found")) return 404;
+  if (message.includes("updates changed")) return 409;
   if (message.includes("must be") || message.includes("unsupported")) return 400;
   return 500;
 }

@@ -13,6 +13,10 @@ import { notifyTimeAttendanceReviewers } from "./notification-service";
 
 export type TimeCardAttestationDecision = "ATTEST" | "DISPUTE";
 
+export function isTimeCardClosedForAttestation(card: { status: string; lockedAt: Date | null }) {
+  return Boolean(card.lockedAt) || ["APPROVED", "LOCKED", "EXPORTED", "VOID"].includes(card.status);
+}
+
 export type TimeCardAttestationResult = {
   duplicate: boolean;
   attestation: {
@@ -44,17 +48,6 @@ type AttestationRecord = {
   statement: string;
   timeCardId: string;
   timeCardVersion: number;
-};
-
-type TimeCardAttestationDatabase = {
-  timeCard: {
-    findFirst(input: { where: Record<string, unknown>; select: Record<string, boolean> }): Promise<{ id: string; staffUserId: string; version: number; sourceEventChecksum?: string; locationId?: string } | null>;
-    updateMany?(input: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
-  };
-  timeCardAttestation: {
-    create(input: { data: Record<string, unknown> }): Promise<AttestationRecord>;
-    findFirst(input: { where: Record<string, unknown>; orderBy: Record<string, string> }): Promise<AttestationRecord | null>;
-  };
 };
 
 export type TimeCardAttestationRepository = {
@@ -158,70 +151,88 @@ export function normalizeTimeCardAttestationRequest(
   };
 }
 
-export function createTimeCardAttestationRepository(
-  database: TimeCardAttestationDatabase = prisma as unknown as TimeCardAttestationDatabase
-): TimeCardAttestationRepository {
+export function createTimeCardAttestationRepository(database = prisma): TimeCardAttestationRepository {
   return {
     async submit(input) {
-      const existing = await database.timeCardAttestation.findFirst({
-        where: {
-          organizationId: input.organizationId,
-          staffUserId: input.staffUserId,
-          timeCardId: input.timeCardId,
-          timeCardVersion: input.timeCardVersion
-        },
-        orderBy: { createdAt: "desc" }
-      });
-      if (existing) {
-        if (existing.cardChecksum !== input.cardChecksum || existing.statement !== input.statement) {
-          throw new EnterpriseCommandConflictError(
-            "This card version already has a different employee attestation.",
-            "VERSION_CONFLICT"
-          );
+      try {
+        return await database.$transaction(async (tx) => {
+          const existing = await tx.timeCardAttestation.findFirst({
+            where: {
+              organizationId: input.organizationId,
+              staffUserId: input.staffUserId,
+              timeCardId: input.timeCardId,
+              timeCardVersion: input.timeCardVersion
+            },
+            orderBy: { createdAt: "desc" }
+          });
+          if (existing) {
+            if (existing.cardChecksum !== input.cardChecksum || existing.statement !== input.statement) {
+              throw new EnterpriseCommandConflictError(
+                "This card version already has a different employee attestation.",
+                "VERSION_CONFLICT"
+              );
+            }
+            return toResult(existing, true);
+          }
+
+          const card = await tx.timeCard.findFirst({
+            where: {
+              id: input.timeCardId,
+              organizationId: input.organizationId,
+              staffUserId: input.staffUserId,
+              version: input.timeCardVersion
+            },
+            select: { id: true, version: true, sourceEventChecksum: true, status: true, lockedAt: true, periodStart: true, periodEnd: true }
+          });
+          if (!card) {
+            throw new Error("Time card version was not found for this employee.");
+          }
+          if (card.sourceEventChecksum && card.sourceEventChecksum !== input.cardChecksum) {
+            throw new EnterpriseCommandConflictError("Time card checksum is stale. Refresh before attesting.", "VERSION_CONFLICT");
+          }
+          const newer = await tx.timeCard.findFirst({
+            where: {
+              organizationId: input.organizationId, staffUserId: input.staffUserId,
+              periodStart: card.periodStart, periodEnd: card.periodEnd, version: { gt: card.version },
+              status: { not: "VOID" }
+            },
+            select: { id: true }
+          });
+          if (newer || isTimeCardClosedForAttestation(card)) {
+            throw new EnterpriseCommandConflictError("This card is closed or has a newer version. Refresh the card or submit a correction request.", "VERSION_CONFLICT");
+          }
+          const updated = await tx.timeCard.updateMany({
+            where: { id: card.id, version: card.version, sourceEventChecksum: input.cardChecksum, status: card.status, lockedAt: null },
+            data: { status: input.decision === "ATTEST" ? "MANAGER_REVIEW" : "EMPLOYEE_REVIEW", payrollReady: false }
+          });
+          if (updated.count !== 1) throw new EnterpriseCommandConflictError("This card changed while it was being reviewed. Refresh before attesting.", "VERSION_CONFLICT");
+
+          const record = await tx.timeCardAttestation.create({
+            data: {
+              organizationId: input.organizationId,
+              timeCardId: input.timeCardId,
+              staffUserId: input.staffUserId,
+              timeCardVersion: input.timeCardVersion,
+              statement: input.statement,
+              cardChecksum: input.cardChecksum,
+              evidence: json({
+                decision: input.decision,
+                disputeExplanation: input.disputeExplanation,
+                idempotencyKey: input.idempotencyKey,
+                requestHash: input.requestHash,
+                rightsWaiver: false
+              })
+            }
+          });
+
+          return toResult(record, false);
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code)) {
+          throw new EnterpriseCommandConflictError("This card changed while it was being reviewed. Refresh and try again.", "VERSION_CONFLICT");
         }
-        return toResult(existing, true);
+        throw error;
       }
-
-      const card = await database.timeCard.findFirst({
-        where: {
-          id: input.timeCardId,
-          organizationId: input.organizationId,
-          staffUserId: input.staffUserId,
-          version: input.timeCardVersion
-        },
-        select: { id: true, staffUserId: true, version: true, sourceEventChecksum: true, locationId: true }
-      });
-      if (!card) {
-        throw new Error("Time card version was not found for this employee.");
-      }
-      if (card.sourceEventChecksum && card.sourceEventChecksum !== input.cardChecksum) {
-        throw new EnterpriseCommandConflictError("Time card checksum is stale. Refresh before attesting.", "VERSION_CONFLICT");
-      }
-
-      const record = await database.timeCardAttestation.create({
-        data: {
-          organizationId: input.organizationId,
-          timeCardId: input.timeCardId,
-          staffUserId: input.staffUserId,
-          timeCardVersion: input.timeCardVersion,
-          statement: input.statement,
-          cardChecksum: input.cardChecksum,
-          evidence: json({
-            decision: input.decision,
-            disputeExplanation: input.disputeExplanation,
-            idempotencyKey: input.idempotencyKey,
-            requestHash: input.requestHash,
-            rightsWaiver: false
-          })
-        }
-      });
-
-      await database.timeCard.updateMany?.({
-        where: { id: card.id, version: card.version, sourceEventChecksum: input.cardChecksum },
-        data: { status: input.decision === "ATTEST" ? "MANAGER_REVIEW" : "EMPLOYEE_REVIEW", payrollReady: false }
-      });
-
-      return toResult(record, false);
     }
   };
 }

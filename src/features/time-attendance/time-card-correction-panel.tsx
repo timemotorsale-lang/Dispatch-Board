@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useTransition } from "react";
+import { FormEvent, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, SendHorizonal } from "lucide-react";
 
 import styles from "./time-attendance-console.module.css";
@@ -23,7 +24,8 @@ const correctionTypes = [
 ] as const;
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
 function idempotencyKey() {
@@ -52,19 +54,23 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export function TimeCardCorrectionPanel() {
-  const [changeType, setChangeType] = useState("MEAL_TIME");
-  const [date, setDate] = useState(todayKey);
+export function TimeCardCorrectionPanel({ initialDate, punches }: { initialDate?: string; punches: { id: string; eventType: string; label: string }[] }) {
+  const router = useRouter();
+  const [changeType, setChangeType] = useState("MISSING_CLOCK_IN");
+  const [relatedEventId, setRelatedEventId] = useState("");
+  const [date, setDate] = useState(() => initialDate ?? todayKey());
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [explanation, setExplanation] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const requiresTimeWindow = useMemo(
-    () => changeType !== "OTHER",
-    [changeType]
-  );
+  const requiresPunch = changeType === "MEAL_TIME" || changeType === "WRONG_TIME";
+  const eligiblePunches = punches.filter(punch => (changeType === "MEAL_TIME" ? ["START_MEAL", "END_MEAL"] : ["CLOCK_IN", "START_MEAL", "END_MEAL", "CLOCK_OUT"]).includes(punch.eventType));
+  const chosenPunch = eligiblePunches.find(punch => punch.id === relatedEventId);
+  const isEnd = changeType === "MISSING_CLOCK_OUT" || chosenPunch?.eventType === "CLOCK_OUT" || chosenPunch?.eventType === "END_MEAL";
+  const isTimed = changeType !== "OTHER";
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,9 +84,10 @@ export function TimeCardCorrectionPanel() {
               employeeExplanation: explanation,
               idempotencyKey: idempotencyKey(),
               requestedChangeType: changeType,
+              relatedEventId: requiresPunch ? relatedEventId : undefined,
               requestedDate: date,
-              requestedEndAt: localTimeToIso(date, endTime),
-              requestedStartAt: localTimeToIso(date, startTime)
+              requestedEndAt: isEnd || !isTimed ? localTimeToIso(endDate || date, endTime) : null,
+              requestedStartAt: !isEnd || !isTimed ? localTimeToIso(date, startTime) : null
             }),
             headers: { "Content-Type": "application/json" },
             method: "POST"
@@ -88,6 +95,7 @@ export function TimeCardCorrectionPanel() {
         );
         setNotice(`Correction request ${result.request.id} submitted for manager review.`);
         setExplanation("");
+        router.refresh();
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "The correction request could not be submitted.");
       }
@@ -100,7 +108,7 @@ export function TimeCardCorrectionPanel() {
         <div>
           <span className={styles.sectionEyebrow}>Card review & correction</span>
           <h2>Request a time-card correction</h2>
-          <p>Submitting this does not change your punches. It creates a review request with the original trail preserved.</p>
+          <p>Enter times using your device’s time zone. A manager will review the correction.</p>
         </div>
         <span className={styles.chipNeutral}>Manager review</span>
       </div>
@@ -108,24 +116,32 @@ export function TimeCardCorrectionPanel() {
       <form className={styles.correctionForm} onSubmit={submit}>
         <label>
           <span>What needs review?</span>
-          <select disabled={isPending} onChange={(event) => setChangeType(event.target.value)} value={changeType}>
+          <select disabled={isPending} onChange={(event) => { setChangeType(event.target.value); setRelatedEventId(""); }} value={changeType}>
             {correctionTypes.map((type) => (
               <option key={type.value} value={type.value}>{type.label}</option>
             ))}
           </select>
         </label>
+        {requiresPunch && <label className={styles.correctionWide}>
+          <span>Original punch</span>
+          <select required disabled={isPending} value={relatedEventId} onChange={event => setRelatedEventId(event.target.value)}>
+            <option value="">{eligiblePunches.length ? "Choose a recorded punch" : "No matching punches available"}</option>
+            {eligiblePunches.map(punch => <option key={punch.id} value={punch.id}>{punch.label}</option>)}
+          </select>
+        </label>}
         <label>
           <span>Date</span>
-          <input disabled={isPending} onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+          <input disabled={isPending} onChange={(event) => setDate(event.target.value)} required type="date" value={date} />
         </label>
-        <label>
-          <span>Start time {requiresTimeWindow ? "" : "(optional)"}</span>
-          <input disabled={isPending} onChange={(event) => setStartTime(event.target.value)} type="time" value={startTime} />
-        </label>
-        <label>
-          <span>End time {requiresTimeWindow ? "" : "(optional)"}</span>
-          <input disabled={isPending} onChange={(event) => setEndTime(event.target.value)} type="time" value={endTime} />
-        </label>
+        {!isEnd && <label>
+          <span>Start time {isTimed ? "" : "(optional)"}</span>
+          <input disabled={isPending} required={isTimed} onChange={(event) => setStartTime(event.target.value)} type="time" value={startTime} />
+        </label>}
+        {(isEnd || !isTimed) && <label>
+          <span>End time {isTimed ? "" : "(optional)"}</span>
+          <input disabled={isPending} required={isTimed} onChange={(event) => setEndTime(event.target.value)} type="time" value={endTime} />
+        </label>}
+        {(isEnd || !isTimed) && endTime && <label><span>End date (for overnight corrections)</span><input disabled={isPending} min={date} onChange={event => setEndDate(event.target.value)} type="date" value={endDate} /></label>}
         <label className={styles.correctionWide}>
           <span>Explain what happened</span>
           <textarea

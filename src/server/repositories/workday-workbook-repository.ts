@@ -141,7 +141,7 @@ export type WorkdayWorkbookRepository = {
   listWorkbooksForBoardDay(input: { boardDayId: string; scope: WorkdayWorkbookScope }): Promise<WorkdayWorkbookSummaryRecord[]>;
   recordActivity(input: { actorUserId: string; boardDayId: string; eventType: string; message: string; metadata: Prisma.InputJsonValue; taskId?: string | null }): Promise<void>;
   reopenWorkbook(input: { id: string }): Promise<void>;
-  updateChecklistItem(input: { reminderDate?: string; carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; text?: string; update?: string }): Promise<void>;
+  updateChecklistItem(input: { reminderDate?: string; carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; expectedUpdate?: string; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; text?: string; update?: string }): Promise<void>;
   updateCarryover(input: { convertedTaskId?: string | null; dismissedReason?: string; id: string; status: WorkdayCarryoverStatus }): Promise<void>;
   updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; lastProgressAt?: Date | null; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; progressUpdate?: string; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; identityKey?: string; person?: string; phoneNumber?: string; relatedCustomerId?: string | null; text?: string }): Promise<void>;
@@ -375,8 +375,8 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
       });
     },
     async updateChecklistItem(input) {
-      await database.workdayChecklistItem.update({
-        where: { id: input.id },
+      const result = await database.workdayChecklistItem.updateMany({
+        where: { id: input.id, ...(input.expectedUpdate !== undefined ? { update: input.expectedUpdate } : {}) },
         data: {
           ...(input.reminderDate !== undefined ? { reminderDate: input.reminderDate } : {}),
           ...(input.carryoverReady !== undefined ? { carryoverReady: input.carryoverReady } : {}),
@@ -390,6 +390,7 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.update !== undefined ? { update: input.update } : {})
         }
       });
+      if (!result.count) throw new Error("Checklist updates changed. Refresh and try again.");
     },
     async updateCarryover(input) {
       const now = new Date();

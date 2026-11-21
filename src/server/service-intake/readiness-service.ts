@@ -6,6 +6,7 @@ import { prisma } from "@/server/db/client";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
+import { getAppointmentReadModelById } from "@/server/services/appointment-read-service";
 
 export const SERVICE_INTAKE_READINESS_CONTRACT = "service-intake/readiness-v1.0.0";
 export const SERVICE_INTAKE_READINESS_POLICY = "TMS-SERVICE-ACCEPTANCE-v1";
@@ -50,7 +51,7 @@ export type ServiceIntakeReadinessProjection = {
   status: "ACCEPT_WITH_CONSTRAINTS" | "MANAGER_REVIEW" | "READY";
 };
 
-type Input = { arrivedAt?: unknown; customerId?: unknown; locationId?: unknown; vehicleId?: unknown };
+type Input = { appointmentId?: unknown; includeAppointmentChoices?: unknown; walkIn?: unknown; arrivedAt?: unknown; customerId?: unknown; locationId?: unknown; vehicleId?: unknown };
 type Repository = {
   createSnapshot(value: {
     appointmentId: string | null;
@@ -72,7 +73,7 @@ type Repository = {
     status: ServiceIntakeReadinessProjection["status"];
     vehicleId: string;
   }): Promise<{ id: string }>;
-  readFacts(input: { arrivedAt: Date; customerId: string; locationId: string; organizationId: string; vehicleId: string }): Promise<ReadinessFacts>;
+  readFacts(input: { appointmentId?: string; includeAppointmentChoices?: boolean; walkIn?: boolean; arrivedAt: Date; customerId: string; locationId: string; organizationId: string; vehicleId: string }): Promise<ReadinessFacts>;
 };
 
 type ReadinessFacts = {
@@ -220,9 +221,9 @@ export function createServiceIntakeReadinessRepository(): Repository {
         prisma.customer.findFirst({ where: { id: input.customerId, organizationId: input.organizationId, status: "ACTIVE", mergedIntoCustomerId: null }, select: { id: true } }),
         prisma.vehicle.findFirst({ where: { id: input.vehicleId, organizationId: input.organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, select: { id: true } }),
         prisma.location.findFirst({ where: { id: input.locationId, organizationId: input.organizationId }, select: { id: true } }),
-        prisma.appointment.findMany({
-          where: { organizationId: input.organizationId, locationId: input.locationId, bookingStatus: "SCHEDULED", cancelledAt: null, noShowAt: null, completedAt: null, serviceVisit: null, startsAt: { gte: windowStart, lte: windowEnd }, participants: { some: { customerId: input.customerId, participantType: "CUSTOMER" } }, vehicles: { some: { vehicleId: input.vehicleId } } },
-          orderBy: { startsAt: "asc" }, take: 3,
+        input.walkIn ? Promise.resolve([]) : prisma.appointment.findMany({
+          where: { ...(input.appointmentId ? { id: input.appointmentId } : {}), organizationId: input.organizationId, locationId: input.locationId, bookingStatus: "SCHEDULED", cancelledAt: null, noShowAt: null, completedAt: null, serviceVisit: null, startsAt: { gte: windowStart, lte: windowEnd }, participants: { some: { customerId: input.customerId, participantType: "CUSTOMER", ...(input.appointmentId || input.includeAppointmentChoices ? { isPrimary: true } : {}) } }, vehicles: { some: { vehicleId: input.vehicleId, ...(input.appointmentId || input.includeAppointmentChoices ? { isPrimary: true } : {}) } } },
+          orderBy: [{ startsAt: "asc" }, { id: "asc" }], ...(input.includeAppointmentChoices ? {} : { take: 3 }),
           select: { id: true, appointmentNumber: true, attendanceStatus: true, startsAt: true, endsAt: true, title: true, version: true, ownerUser: { select: { name: true } }, resourceRequirements: { select: { assignmentTiming: true, hardBlockIfUnfulfilled: true, isMandatory: true, requirementCode: true, reservations: { where: { status: { in: [...activeStatuses] } }, select: { status: true, resource: { select: { resourceType: { select: { kind: true } } } } } } } } },
         }),
         prisma.repairOrder.count({ where: { organizationId: input.organizationId, locationId: input.locationId, closedAt: null } }),
@@ -240,7 +241,7 @@ export function createServiceIntakeReadinessRepository(): Repository {
   };
 }
 
-export async function evaluateServiceIntakeReadiness(actor: AuthenticatedUser | null, value: Input, input: Dependencies = {}): Promise<ServiceIntakeReadinessProjection> {
+export async function evaluateServiceIntakeReadiness(actor: AuthenticatedUser | null, value: Input, input: Dependencies = {}): Promise<ServiceIntakeReadinessProjection & { appointmentChoices?: { id: string; appointmentNumber: string; startsAt: string | null; title: string }[] }> {
   const user = assertAuthenticatedUser(actor);
   const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
   const now = input.now?.() ?? new Date();
@@ -252,9 +253,28 @@ export async function evaluateServiceIntakeReadiness(actor: AuthenticatedUser | 
   const grants = await foundation.listCapabilityGrants(user.id, organizationId);
   assertVehicleCapability({ actor: user, capability: "REPAIR_ORDER_VIEW", grants, locationId, now });
   const repository = input.repository ?? createServiceIntakeReadinessRepository();
-  const projection = buildServiceIntakeReadiness(await repository.readFacts({ arrivedAt, customerId, locationId, organizationId, vehicleId }), arrivedAt, now);
+  const appointmentId = value.appointmentId === undefined ? undefined : required(value.appointmentId, "Appointment ID");
+  const includeAppointmentChoices = value.includeAppointmentChoices === true;
+  const walkIn = value.walkIn === true;
+  if (walkIn && appointmentId) throw new Error("Choose a scheduled appointment or a walk-in.");
+  const facts = await repository.readFacts({ ...(appointmentId ? { appointmentId } : {}), ...(includeAppointmentChoices ? { includeAppointmentChoices } : {}), ...(walkIn ? { walkIn } : {}), arrivedAt, customerId, locationId, organizationId, vehicleId });
+  if (includeAppointmentChoices || appointmentId) {
+    const authorized = await Promise.all(facts.appointments.map(async item =>
+      await getAppointmentReadModelById(user, item.id).then(() => true, () => false) ? item : null
+    ));
+    facts.appointments = authorized.filter(item => item !== null);
+  }
+  if (appointmentId && !facts.appointments.some(item => item.id === appointmentId)) {
+    throw new Error("The selected appointment does not match this customer, vehicle, location, or arrival. Choose the correct visit.");
+  }
+  const projection = buildServiceIntakeReadiness(appointmentId ? { ...facts, appointments: facts.appointments.filter(item => item.id === appointmentId) } : facts, arrivedAt, now);
   const snapshotId = randomUUID();
   const expiresAt = new Date(now.getTime() + 2 * 60_000);
-  await repository.createSnapshot({ appointmentId: projection.appointment?.id ?? null, checks: projection.checks, confidence: projection.confidence, contractVersion: projection.contractVersion, customerId, diagnosisOutlook: projection.diagnosisOutlook, evaluatedByUserId: user.id, expiresAt, facts: projection.facts, generatedAt: now, id: snapshotId, locationId, organizationId, policyVersion: projection.policyVersion, promiseConfidence: projection.promiseConfidence, recommendation: projection.recommendation, status: projection.status, vehicleId });
-  return { ...projection, expiresAt: expiresAt.toISOString(), snapshotId };
+  await repository.createSnapshot({ appointmentId: projection.appointment?.id ?? null, checks: projection.checks, confidence: projection.confidence, contractVersion: projection.contractVersion, customerId, diagnosisOutlook: projection.diagnosisOutlook, evaluatedByUserId: user.id, expiresAt, facts: { ...projection.facts, ...(appointmentId ? { selectedAppointmentId: appointmentId } : {}) }, generatedAt: now, id: snapshotId, locationId, organizationId, policyVersion: projection.policyVersion, promiseConfidence: projection.promiseConfidence, recommendation: projection.recommendation, status: projection.status, vehicleId });
+  return { ...projection, expiresAt: expiresAt.toISOString(), snapshotId, ...(includeAppointmentChoices ? {
+    appointmentChoices: facts.appointments.map(appointment => ({
+      id: appointment.id, appointmentNumber: appointment.appointmentNumber, title: appointment.title,
+      startsAt: appointment.startsAt?.toISOString() ?? null
+    }))
+  } : {}) };
 }

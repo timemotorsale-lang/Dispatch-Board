@@ -242,11 +242,11 @@ function ownerTaskStatus(state: string) {
   return TaskStatus.NOT_STARTED;
 }
 
-export async function reconcileRepairOrderOwnerTask(
+export async function reconcileRepairOrderOwnerTaskInTransaction(
+  database: Prisma.TransactionClient,
   organizationId: string,
   repairOrderId: string,
-  actorUserId: string,
-  database: PrismaClient = prisma
+  actorUserId: string
 ) {
   const order = await database.repairOrder.findFirst({
     where: { id: repairOrderId, organizationId, closedAt: null },
@@ -257,7 +257,7 @@ export async function reconcileRepairOrderOwnerTask(
     }
   });
   if (!order) return null;
-  return database.$transaction((tx) => upsertRepairOrderTaskProjection(tx, {
+  return upsertRepairOrderTaskProjection(database, {
     assignmentKey: "RO_OWNER",
     assignedUserId: order.ownerUserId,
     createdByUserId: actorUserId,
@@ -273,9 +273,14 @@ export async function reconcileRepairOrderOwnerTask(
     title: `${order.repairOrderNumber} · ${order.nextAction}`,
     vehicleId: order.vehicleId,
     vehicleReference: repairOrderVehicleReference(order.vehicle)
-  }));
+  });
 }
 
+export async function reconcileRepairOrderOwnerTask(
+  organizationId: string, repairOrderId: string, actorUserId: string, database: PrismaClient = prisma
+) {
+  return database.$transaction((tx) => reconcileRepairOrderOwnerTaskInTransaction(tx, organizationId, repairOrderId, actorUserId));
+}
 export async function reconcileRepairJobTask(
   organizationId: string,
   repairJobId: string,

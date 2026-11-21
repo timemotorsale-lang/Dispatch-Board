@@ -159,7 +159,6 @@ export function PolicyAdministrationPanel() {
             <button disabled={busy || reason.trim().length < 15} type="submit">Update controlled mode</button>
             <button disabled={busy || reason.trim().length < 15} onClick={() => void run("ROLLBACK_ROLLOUT", { code: "TIME_ATTENDANCE_MASTER" })} type="button">Rollback to off</button>
           </form>
-          <p>Pilot and General activation remain blocked until real external evidence and approvals are supplied.</p>
         </details>
       </div>
 

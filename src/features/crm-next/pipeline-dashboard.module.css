@@ -4,4 +4,25 @@
 
 .complete{display:inline-block;background:#dff3e6;color:#205b38;padding:4px 7px;border-radius:4px;font-size:12px}
 
+.queueReturn{margin-bottom:12px}
+.queueFilters{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
+.queueFilters button{display:inline-flex;align-items:center;gap:8px}
+.queueFilters button[aria-pressed=true]{background:#eaf0ff;border-color:#9aafe5;color:#193a93}
+.queueFilters strong{font-variant-numeric:tabular-nums}
+.queueTable table{table-layout:auto;min-width:0}
+.queueTable th:nth-child(n){width:auto}
+.queueTable td,.queueTable td small{height:auto;white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.queueTable td:nth-child(1),.queueTable td:nth-child(3){min-width:130px}
+.queueTable td:first-child .textButton{max-width:none;white-space:normal}
+.queueTable td:first-child input{margin-right:6px}
+.srOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:830px){
+  .queueTable table,.queueTable tbody,.queueTable tr{display:block}
+  .queueTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .queueTable tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:5px 8px;border-bottom:1px solid #d7dfeb}
+  .queueTable td{display:block;border:0;min-width:0!important}
+  .queueTable td::before{content:attr(data-label);display:block;color:#5f7088;font-size:11px;margin-bottom:4px}
+  .queueTable td:first-child,.queueTable td:last-child{grid-column:1/-1}
+}
+
 .routines{position:relative;font-size:12px}.routines summary{border:1px solid #c5cfdf;border-radius:6px;padding:8px 12px;background:white}.routines>div{position:absolute;right:0;top:100%;background:white;box-shadow:0 8px 24px #13294322;border:1px solid #dce3ee;border-radius:8px;padding:10px;display:grid;gap:6px;width:230px;z-index:12}.bulkTools{border:1px solid #dce3ee;border-radius:6px;background:white;padding:9px 12px;margin:10px 0;font-size:12px}.notice button{float:right;padding:0 7px!important;background:transparent!important;border:0!important}

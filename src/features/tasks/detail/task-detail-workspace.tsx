@@ -53,6 +53,7 @@ import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution
 import { TaskTitleEditor } from "@/features/tasks/detail/task-title-editor";
 import { TaskSimpleSummaryCard } from "@/features/tasks/detail/task-simple-summary-card";
 import { TaskToolPicker } from "@/features/tasks/detail/task-tool-picker";
+import type { TaskServiceHandoff } from "@/features/tasks/detail/task-service-handoff";
 import { TaskWorkbenchSearch } from "@/features/tasks/detail/task-workbench-search";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
@@ -73,6 +74,7 @@ type TaskDetailWorkspaceProps = {
   initialView?: TaskWorkspaceView;
   readiness?: TaskCompletionReadiness | null;
   returnTo?: string;
+  serviceHandoff?: TaskServiceHandoff | null;
   task: TaskReadModel;
 };
 
@@ -248,6 +250,7 @@ export function TaskDetailWorkspace({
   initialView = "simple",
   readiness = null,
   returnTo = "/tasks",
+  serviceHandoff,
   task
 }: TaskDetailWorkspaceProps) {
   const concern = task.concernWorkspace;
@@ -334,6 +337,7 @@ export function TaskDetailWorkspace({
             recordNumber={formatTaskDisplayNumber(task.id)}
             recordTitle={recordTitle}
             returnTo={returnTo}
+            serviceHandoff={serviceHandoff}
             roleLabel={roleExecutionLabel(task)}
             sourceLabel={sourceLabel(task)}
             statusLabel={formatTaskEnumLabel(task.status)}
@@ -376,7 +380,7 @@ export function TaskDetailWorkspace({
       <header className="etw-command-bar">
         <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Resolution Workbench</span></div></div>
         <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="workbench" />
-        <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} returnTo={returnTo} taskId={task.id} />
+        <TaskToolPicker canOpenAdvanced={canOpenFullWorkbench} canOpenServiceHandoff={Boolean(serviceHandoff)} returnTo={returnTo} taskId={task.id} />
         <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}${concern?.id ? `&concern=${encodeURIComponent(concern.id)}` : ""}`}>Task Intake</Link></div>
       </header>
 

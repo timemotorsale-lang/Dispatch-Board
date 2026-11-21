@@ -5121,6 +5121,7 @@ model ServiceIntakeReadinessSnapshot {
 }
 
 model RepairOrder {
+  sourceTaskHandoffs              TaskRepairHandoff[]
   depositEntries ServiceRepairDepositEntry[]
   autobodyDrafts AutobodyEstimateDraft[]
   moneyEntries MoneyEntry[]
@@ -8925,6 +8926,7 @@ model UnifiedCrmSavedView {
 }
 
 model Task {
+  serviceHandoff TaskRepairHandoff?
   collectionRepoCases RepossessionCase[] @relation("CollectionRepoTask")
   collectionTaskLink CollectionTaskLink? @relation("CollectionTaskLinkTask")
   repairPriorities RepairPriority[]
@@ -9030,6 +9032,25 @@ model TaskAttachment {
 }
 
 /// Durable projection link from authoritative repair work into the universal Task ledger.
+model TaskRepairHandoff {
+  taskId            String      @id
+  requestToken      String
+  organizationId    String
+  locationId        String
+  receiverUserId    String
+  requestedByUserId String
+  concern           String
+  requestedAt       DateTime    @default(now())
+  acceptedAt        DateTime?
+  acceptedByUserId  String?
+  repairOrderId     String?
+  task              Task        @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  repairOrder       RepairOrder? @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, receiverUserId, repairOrderId])
+  @@index([repairOrderId])
+}
+
 model RepairOrderTaskLink {
   id              String       @id @default(cuid())
   organizationId  String

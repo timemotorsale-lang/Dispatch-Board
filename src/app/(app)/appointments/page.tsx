@@ -84,7 +84,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   if (calendarMode) {
     return (
       <>
-      <Link className="pill pill-secondary" href={`/board/repair-priorities${validFlowDate(localDate) ? `?date=${localDate}` : ""}`}>Repair Priorities</Link>
+      <Link className="pill pill-secondary" href={`/board/repair-priorities${validFlowDate(localDate) ? `?date=${localDate}` : ""}`}>Daily Priorities</Link>
       <AppointmentConsoleNewAppointment
         key={JSON.stringify([focusParams?.sourceTask, focusParams?.crmCustomerId, focusParams?.customerReference, focusParams?.vehicleReference, focusParams?.returnTo, localDate, focusParams?.startTime, focusParams?.durationMinutes, focusParams?.purpose, focusParams?.reason, focusParams?.title, focusParams?.q, focusParams?.advanced])}
         initialFullCalendar
