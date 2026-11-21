@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, CustomerCheckInResult, isServiceIntakeCustomerDraftReady, SERVICE_INTAKE_VEHICLE_CREATE_ENDPOINT, serviceIntakeVehicleRelationshipEndpoint, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -76,36 +76,36 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain('disabled="" type="button">Use Existing Repair Order');
     expect(html).not.toContain("Complete Check-In &amp; Create Repair Order");
   });
-  it("renders a guided advisor check-in with spacious concern capture and governance cues", () => {
+  it("keeps check-in focused on intake and preserves readiness and custody controls", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" options={options} />);
 
     expect(html).toContain("Check In Vehicle");
-    expect(html).toContain("Find Arrival");
+    expect(html).toContain("Find Customer, Vehicle, or Appointment");
     expect(html).toContain("Live service readiness");
     expect(html).toContain("Live appointment and capacity facts will appear here");
     expect(html).toContain("Customer concern");
-    expect(html).toContain("rows=\"5\"");
+    expect(html).toContain("rows=\"3\"");
     expect(html).toContain("maxLength=\"2000\"");
     expect(html).toContain("Helpful prompts");
     expect(html).toContain("Visit &amp; Custody");
-    expect(html).toContain("Choose execution path");
+    expect(html).toContain("Work destination");
     expect(html).toContain('aria-label="Assign technician"');
     expect(html).toContain("Internal shop");
     expect(html).toContain("Outside vendor");
-    expect(html).toContain("Route the vehicle to the internal shop or an outside vendor");
+    expect(html).toContain("Accountable staff at intake");
     expect(html).toContain("Walter Mechanic");
     expect(html).toContain("Brock Harris");
     expect(html).toContain("Alex Advisor");
     expect(html).toContain("Repair-capable staff");
     expect(html).toContain("Other active staff");
     expect(html).toContain("Brock Harris — Repair-capable");
-    expect(html).toContain("Assigned technician");
-    expect(html).toContain('href="/vehicles/shop-dispatch"');
-    expect(html).toContain("Open Shop Dispatch");
-    expect(html).toContain("Technician &amp; target");
+    expect(html).toContain("Intake owner");
+    expect(html).not.toContain('href="/vehicles/shop-dispatch"');
+    expect(html).not.toContain("Open Shop Dispatch");
+    expect(html).toContain("Intake owner &amp; target");
     expect(html).not.toContain("Advisor / owner");
     expect(html).toContain("Check-in requirements");
-    expect(html).toContain("Next: Add / Select Customer");
+    expect(html).not.toContain("Next: Add / Select Customer");
     expect(html).toContain("Add / Select Customer");
     expect(html).toContain("No repair authorization or estimate approval is implied");
   });
@@ -167,7 +167,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Vehicle color");
     expect(html).toContain("Save color");
     expect(html).toContain("Vehicle 360");
-    expect(html).toContain("Next: Add / Select Customer");
+    expect(html).not.toContain("Next: Add / Select Customer");
   });
 
   it("uses dealership inventory context without requiring a customer", () => {
@@ -209,8 +209,8 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("Customer reports a check engine warning lamp.");
     expect(html).not.toContain("Same open concern detected");
     expect(html).toContain("RO-EXISTING");
-    expect(html).toContain("Open Labor Guide for this RO");
-    expect(html).toContain("The concern appears different");
+    expect(html).toContain("Continue existing repair order");
+    expect(html).toContain("This intake keeps one open repair order per vehicle.");
     expect(html).not.toContain("Duplicate RO blocked");
     expect(html).toContain("Repair-order decision");
   });
@@ -220,18 +220,38 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports a check engine warning lamp." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
     expect(html).not.toContain("Customer reports a check engine warning lamp.");
-    expect(html).toContain("Next: Add / Select Customer");
+    expect(html).not.toContain("Next: Add / Select Customer");
     expect(html).toContain('type="button">Add / Select Customer');
   });
 
-  it("requires a deliberate new-RO choice for a different concern on the same VIN", () => {
+  it("directs a different concern to the existing order without offering a duplicate", () => {
     const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports vibration above highway speed." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
-    expect(html).toContain("The concern appears different");
-    expect(html).toContain("Open Labor Guide for this RO");
-    expect(html).toContain("Create separate RO for this concern");
+    expect(html).toContain("This intake keeps one open repair order per vehicle.");
+    expect(html).toContain("Continue existing repair order");
+    expect(html).not.toContain("Create separate RO for this concern");
     expect(html).toContain("Repair-order decision");
+  });
+
+  it("offers estimating or diagnosis for a new RO and resumes the current step for existing work", () => {
+    const order = { id: "ro-123", repairOrderNumber: "RO-123" };
+    const created = renderToStaticMarkup(<CustomerCheckInResult order={order} />);
+    const reused = renderToStaticMarkup(<CustomerCheckInResult order={{ ...order, reused: true }} onReturnToIntake={() => undefined} />);
+    const vendor = renderToStaticMarkup(<CustomerCheckInResult order={{ ...order, vendorRouted: true }} />);
+
+    expect(created).toContain("Check-in saved");
+    expect(created).toContain("Build estimate in Labor Guide");
+    expect(created).toContain("Inspect or plan diagnosis first");
+    expect(created).toContain("/diagnostics/labor-guide?repairOrderId=ro-123");
+    expect(created).toContain("returnTo=%2Fprototype%2Frepair-workbench%3FrepairOrderId%3Dro-123");
+
+    expect(reused).toContain("The new concern and custody details are still in intake");
+    expect(reused).toContain("Return to intake details");
+    expect(reused).toContain('href="/prototype/repair-workbench?repairOrderId=ro-123"');
+    expect(reused).not.toContain("Build estimate in Labor Guide");
+    expect(vendor).toContain("Outside vendor routing was recorded");
+    expect(vendor).not.toContain("Build estimate in Labor Guide");
   });
 
   it("builds a governed canonical-vehicle command for an unmatched decoded VIN", () => {

@@ -5,7 +5,7 @@ import { waitingJobPartsReady } from "@/lib/repair-job-parts-readiness";
 import { useRef, useState, type FormEvent } from "react";
 import { notifyRepairReviewSaved, repairReviewHref } from "@/lib/repair-workflow-review";
 import styles from "./repair-workflow.module.css";
-type Job = Parameters<typeof waitingJobPartsReady>[0] & { id: string; jobNumber: string; description: string; status: string; qcFailedAt?: string | null; executionBlockerReason?: string | null; dispatches: { technicianUserId: string; status: string }[]; laborClocks: { technicianUserId: string; state: string; accumulatedMinutes: number; finishedAt?: string | null }[] };
+type Job = Parameters<typeof waitingJobPartsReady>[0] & { id: string; jobNumber: string; description: string; plannedCorrection?: string | null; status: string; qcFailedAt?: string | null; executionBlockerReason?: string | null; dispatches: { technicianUserId: string; status: string }[]; laborClocks: { technicianUserId: string; state: string; accumulatedMinutes: number; finishedAt?: string | null }[] };
 const actions = {
   START: "Start repair",
   PAUSE: "Pause / record blocker",
@@ -59,6 +59,7 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
     <label>Repair job<select disabled={busy} value={selected} onChange={event => {
       setSelected(event.target.value); setChosenAction(null); setEvidence(""); setNotes(""); setBlocker(""); setProgress(""); setNotice("");
     }}>{jobs.map(job => <option key={job.id} value={job.id}>{job.jobNumber} · {job.description}</option>)}</select></label>
+    {job && <p><strong>Technician instructions</strong><br />{job.plannedCorrection || job.description}</p>}
     {job && <p role="status">{job.status.replaceAll("_", " ").toLowerCase()} · {job.laborClocks.reduce((total, item) => total + item.accumulatedMinutes, 0)} minutes recorded</p>}
     {job?.executionBlockerReason && <p>{job.executionBlockerReason}</p>}
     {job?.status === "QC_PASSED" ? <Link href={repairReviewHref(repairOrderId, "handoff")}>Continue to closeout</Link>

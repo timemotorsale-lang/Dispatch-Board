@@ -167,7 +167,7 @@ async function completeLaborThroughBrowser(page: Page) {
   await page.goto(`/vehicles/shop-planning?repairOrderId=${roId}`);
   const create = page.getByRole("button", { name: "Create repair job", exact: true });
   if (!await create.isVisible()) await page.locator("summary").filter({ hasText: /Release|repair job/i }).last().click();
-  await page.getByLabel("What should be done", { exact: true }).fill("Synthetic training operation; no physical vehicle work performed");
+  await page.getByLabel("Technician instructions", { exact: true }).fill("Synthetic training operation; no physical vehicle work performed");
   await create.click();
   await expect.poll(() => prisma.repairJob.count({ where: { repairOrderId: roId } })).toBe(1);
   const job = await prisma.repairJob.findFirstOrThrow({ where: { repairOrderId: roId } });
