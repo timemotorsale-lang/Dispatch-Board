@@ -25,7 +25,7 @@ import {
 import Link from "next/link";
 import compact from "@/features/inventory/operations-compact.module.css";
 import { RepairOrderActions } from "./vehicle-work-actions";
-import type { RepairResume } from "@/lib/repair-resume";
+import { repairLaborGuideHref, type RepairResume } from "@/lib/repair-resume";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { autobodyReturnHref, isAutobodyReturn } from "@/lib/autobody-estimating/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -257,12 +257,17 @@ export function CustomerCheckInResult({ order, returnTo, onReturnToIntake }: {
   onReturnToIntake?: () => void;
 }) {
   const workbench = repairReviewHref(order.id, undefined, { returnTo });
-  const [next, setNext] = useState<RepairResume | null>(null);
+  const [next, setNext] = useState<(RepairResume & { estimateDraftId?: string; vendor?: boolean }) | null>(null);
+  const savedOrder = next?.id === order.id ? next : null;
+  const resumeOrder = savedOrder?.canAct
+    ? { ...savedOrder, action: order.reused ? "Review existing repair order"
+      : savedOrder.stage === "authorization" && !savedOrder.vendor ? "Review repair authorization" : savedOrder.action }
+    : savedOrder;
   useEffect(() => {
     const controller = new AbortController();
     void fetch(`/api/repair-orders/${encodeURIComponent(order.id)}/resume`, { signal: controller.signal })
       .then(async response => {
-        if (response.ok) setNext(await response.json() as RepairResume);
+        if (response.ok) setNext(await response.json());
       }).catch(() => {});
     return () => controller.abort();
   }, [order.id]);
@@ -272,9 +277,17 @@ export function CustomerCheckInResult({ order, returnTo, onReturnToIntake }: {
     {order.reused && <p role="status">The new concern and custody details are still in intake. {order.vendorRouted ? "The vendor route was saved to the existing order." : "Review the existing order before recording additional work."}</p>}
     {order.vendorRouted && !order.reused && <p role="status">Outside vendor routing was recorded. Review the current vendor step on the repair order.</p>}
     <nav className="sic-success-actions" aria-label="Continue repair order">
-      {next?.id === order.id
-        ? <RepairOrderActions order={next} returnTo={returnTo} showSummary={false} />
-        : <Link className="primary" href={workbench}>Open repair order <ChevronRight /></Link>}
+      {resumeOrder
+        ? <RepairOrderActions order={resumeOrder} returnTo={returnTo} showSummary={false} resume={!order.reused} />
+        : <Link className="primary" href={workbench}>{order.reused ? "Review existing repair order" : "Open repair order"} <ChevronRight /></Link>}
+      {savedOrder?.canAct && savedOrder.stage !== "handoff" && <>
+        {!savedOrder.vendor && (order.reused || savedOrder.stage !== "estimate") && (
+          <Link className="pill" href={repairLaborGuideHref(order.id, workbench, savedOrder.estimateDraftId)}>{savedOrder.estimateDraftId ? "Resume estimate in Labor Guide" : "Open Labor Guide"}</Link>
+        )}
+        {(order.reused || savedOrder.stage !== "authorization" || savedOrder.vendor) && (
+          <Link className="pill" href={repairReviewHref(order.id, "authorization", { returnTo })}>Review repair authorization</Link>
+        )}
+      </>}
       {order.reused && onReturnToIntake && <button type="button" onClick={onReturnToIntake}>Return to intake details</button>}
       {returnTo && <Link href={buildServiceIntakeCompletionLinks(order.id, returnTo).returnHref}>Return to source workspace</Link>}
     </nav>

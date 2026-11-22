@@ -48,6 +48,38 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await expect(postCheckInAction).toBeVisible({ timeout: 30_000 });
   const inspectionHref = await postCheckInAction.getAttribute("href");
   expect(new URL(inspectionHref!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
+  const checkInActions = page.getByRole("navigation", { name: "Continue repair order" });
+  const laborGuide = checkInActions.getByRole("link", { name: "Open Labor Guide", exact: true });
+  await expect(laborGuide).toBeVisible();
+  expect(new URL((await laborGuide.getAttribute("href"))!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
+
+  const authorize = checkInActions.getByRole("link", { name: "Review repair authorization" });
+  await expect(authorize).toBeVisible();
+  const approvalPage = await page.context().newPage();
+  try {
+    await approvalPage.goto(new URL((await authorize.getAttribute("href"))!, page.url()).href);
+    const inspection = approvalPage.getByRole("region", { name: "Inspection and diagnosis permission" });
+    await expect(inspection).toContainText(concern);
+    const quoted = approvalPage.getByRole("region", { name: "Quoted repair authorization" });
+    await expect(quoted).toContainText("Present a saved estimate");
+    await expect(quoted.getByRole("link", { name: "Open Labor Guide" })).toBeVisible();
+    await inspection.getByLabel("Evidence reference").fill("Synthetic signed intake reference");
+    await inspection.getByRole("checkbox").check();
+    await inspection.getByRole("button", { name: "Save inspection permission" }).click();
+    await expect(inspection.getByRole("status")).toContainText(/Inspection permission saved|Visit consent is documented/);
+    await approvalPage.reload();
+    await expect(inspection.getByRole("status")).toContainText("Synthetic signed intake reference");
+    const saved = await prisma.serviceVisit.findUniqueOrThrow({ where: { id: order.serviceVisit.id } });
+    expect(saved.consentStatus).toBe(order.serviceVisit.consentStatus);
+    const consent = await prisma.enterpriseCommandLedger.findFirstOrThrow({
+      where: { subjectId: order.id, commandType: "RECORD_INSPECTION_CONSENT" }
+    });
+    expect(consent.resultSnapshot).toMatchObject({ consentStatus: "DOCUMENTED", consentReference: "Synthetic signed intake reference", concernSummary: concern });
+    expect(await prisma.repairAuthorization.count({ where: { repairOrderId: order.id } })).toBe(0);
+  } finally {
+    await approvalPage.close();
+  }
+
   await postCheckInAction.click();
   await expect(page.getByRole("heading", { name: "Repair Workbench" })).toBeVisible({ timeout: 25_000 });
   await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${order.id}&resume=1`);
@@ -208,7 +240,7 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await page.getByRole("button", { name: "Return to intake details" }).click();
   await expect(page.getByRole("textbox", { name: /What is the customer experiencing/ })).toHaveValue(newConcern);
   await footer.getByRole("button", { name: "Continue existing repair order" }).click();
-  await page.getByRole("navigation", { name: "Continue repair order" }).getByRole("link", { name: "Resume diagnosis", exact: true }).click();
+  await page.getByRole("navigation", { name: "Continue repair order" }).getByRole("link", { name: "Review existing repair order", exact: true }).click();
   await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
   await expect(stages).toBeHidden();
   await page.reload();

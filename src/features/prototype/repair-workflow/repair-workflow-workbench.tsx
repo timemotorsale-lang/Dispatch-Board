@@ -2,6 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getDiagnosisWorkbench, type getShopPlanningDetail, getShopPlanningWorkspace, repairJobCreationRestriction } from "@/server/shop-planning/service";
+import { CustomerRepairAuthorization } from "@/features/inventory/customer-repair-authorization";
+import { repairLaborGuideHref } from "@/lib/repair-resume";
+import { prisma } from "@/server/db/client";
+import { getRepairResume } from "@/server/repair-order/resume-service";
 import { RepairDiagnosisWork } from "@/features/inventory/repair-diagnosis-work";
 import { diagnosisRequestStatus } from "@/lib/repair-diagnosis-request";
 import { getQualityControlWorkspace } from "@/server/quality-control/service";
@@ -122,9 +126,10 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
   }
   const previewOnly = order.origin === "CUSTOMER_REPAIR"
     && repairWorkflowSteps.indexOf(selected) > repairWorkflowSteps.indexOf(current);
+  const customerAuthorization = selected === "authorization" && !closed && order.origin === "CUSTOMER_REPAIR";
   const renderTool = async () => {
     if (supportingTool) return supportingTool;
-    if (previewOnly && selected !== "handoff") {
+    if (previewOnly && selected !== "handoff" && !customerAuthorization) {
       return <p role="status">Complete the current repair step before recording work in this stage.</p>;
     }
     if (selected === "diagnosis" && current === "diagnosis") {
@@ -157,6 +162,33 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
       </section>;
     } else if (closed || selected === "handoff") {
       tool = <RepairHandoffTool repairOrderId={order.id} vehicleId={order.vehicle.id} internal={order.origin === "INVENTORY_RECON"} closed={closed} />;
+    }
+    else if (customerAuthorization) {
+      const resume = await getRepairResume(user, order.id, true);
+      const presentedEstimate = estimate?.status === "PRESENTED" && estimate.expiresAt > new Date() ? estimate : undefined;
+      const estimateDocument = presentedEstimate && await prisma.serviceDocument.findFirst({
+        where: { organizationId: order.organizationId, repairOrderId: order.id, kind: "ESTIMATE", sourceId: presentedEstimate.id },
+        select: { id: true }
+      });
+      const authorizationHref = repairReviewHref(order.id, "authorization", context);
+      const planningHref = `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: order.id, returnTo: authorizationHref })}`;
+      tool = <CustomerRepairAuthorization
+        repairOrderId={order.id}
+        version={order.version}
+        concern={order.serviceVisit.concernSummary}
+        customerName={order.customer?.displayName ?? ""}
+        consent={resume?.inspectionConsentReference
+          ? { status: "DOCUMENTED", reference: resume.inspectionConsentReference }
+          : { status: order.serviceVisit.consentStatus, reference: order.serviceVisit.consentReference }}
+        canAct={Boolean(resume?.summary.canAct && order.customer && current !== "handoff")}
+        estimateId={estimateDocument ? presentedEstimate?.id : undefined}
+        legacyEstimateHref={presentedEstimate && !estimateDocument ? `/repair-estimate?${new URLSearchParams({ repairOrderId: order.id, estimateId: presentedEstimate.id, workflow: "review" })}` : undefined}
+        hasSavedEstimate={Boolean(estimate)}
+        vendor={Boolean(activeVendor)}
+        laborGuideHref={repairLaborGuideHref(order.id, authorizationHref, resume?.draftId)}
+        planningHref={planningHref}
+        continueHref={home}
+      />;
     }
     else if (selected === "qc") {
       const canOpen = canOpenRepairQc(order);

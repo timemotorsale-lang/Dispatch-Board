@@ -4,18 +4,18 @@ import { repairReviewHref, repairWorkflowLabels } from "@/lib/repair-workflow-re
 import { shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
 import styles from "./vehicle-work-actions.module.css";
 
-export function RepairOrderActions({ order, returnTo, returnLabel, showSummary = true }: { order: RepairResume; returnTo?: string; returnLabel?: string; showSummary?: boolean }) {
+export function RepairOrderActions({ order, returnTo, returnLabel, showSummary = true, resume = true }: { order: RepairResume; returnTo?: string; returnLabel?: string; showSummary?: boolean; resume?: boolean }) {
   const repairHref = repairReviewHref(order.id, undefined, { returnTo, returnLabel });
   return <div className={styles.order}>
     {showSummary && <div className={styles.orderContext}><strong>{order.number}</strong><span>{repairWorkflowLabels[order.stage]} · {order.owner}</span>
       {order.blockedReason && <small>{order.blockedReason}</small>}
     </div>}
     <div className={styles.actions}>
-      <Link prefetch={false} className={styles.primary} href={repairResumeHref(order, returnTo, returnLabel)}>{order.action}</Link>
+      <Link prefetch={false} className={styles.primary} href={resume ? repairResumeHref(order, returnTo, returnLabel) : repairHref}>{order.action}</Link>
       <details className={styles.more}>
         <summary>More actions</summary>
         <div>
-          {order.canAct && <Link prefetch={false} href={repairHref}>Open repair order</Link>}
+          {order.canAct && resume && <Link prefetch={false} href={repairHref}>Open repair order</Link>}
           <Link prefetch={false} href={shopReconLifecycleHref(order.id, repairHref)}>Open Shop &amp; Recon</Link>
         </div>
       </details>

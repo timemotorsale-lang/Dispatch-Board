@@ -6,7 +6,8 @@ import { createEnterpriseCommandRepository } from "@/server/enterprise-command/r
 import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { currentRepairWorkflowStep } from "@/lib/repair-workflow-review";
-import { repairResumeLabel, type RepairResume, type VehicleWorkActions } from "@/lib/repair-resume";
+import { repairLaborGuideHref, repairResumeLabel, type RepairResume, type VehicleWorkActions } from "@/lib/repair-resume";
+import { createRepairOrderRepository } from "./repository";
 import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 
 const organizationId = INITIAL_ORGANIZATION.id;
@@ -87,7 +88,7 @@ async function readWorkActions(actor: AuthenticatedUser, filter: { vehicleIds: s
     canAct: can("REPAIR_ORDER_MANAGE", order.locationId)
       && evaluateVehicleOperationsFeature(flags, "SHOP_OPERATIONS", actor.id, order.locationId).executable,
   }));
-  const estimateOrders = projected.filter(row => row.canAct && row.stage === "estimate" && !row.vendor).map(row => row.order.id);
+  const estimateOrders = projected.filter(row => row.canAct && !row.vendor && (row.stage === "estimate" || "repairOrderId" in filter)).map(row => row.order.id);
   const saved = estimateOrders.length ? await prisma.diagnosticWorkspaceDraft.findMany({
     where: {
       userId: actor.id,
@@ -130,7 +131,7 @@ async function readWorkActions(actor: AuthenticatedUser, filter: { vehicleIds: s
       blockedReason: order.operatingState !== "ACTIVE" ? order.stateReason ?? undefined : undefined,
     };
     byVehicle[order.vehicleId]?.orders.push(summary);
-    return { summary, draftId, useLaborGuide: canAct && stage === "estimate" && !vendor };
+    return { summary, draftId, vendor, useLaborGuide: canAct && stage === "estimate" && !vendor };
   });
   return { byVehicle, decisions };
 }
@@ -140,16 +141,16 @@ export async function listVehicleWorkActions(actor: AuthenticatedUser, vehicleId
   return (await readWorkActions(actor, { vehicleIds })).byVehicle;
 }
 
-export async function getRepairResume(actor: AuthenticatedUser, repairOrderId: string) {
-  return (await readWorkActions(actor, { repairOrderId })).decisions[0] ?? null;
+export async function getRepairResume(actor: AuthenticatedUser, repairOrderId: string, withInspectionConsent = false) {
+  const decision = (await readWorkActions(actor, { repairOrderId })).decisions[0];
+  if (!decision) return null;
+  const entry = withInspectionConsent ? await createRepairOrderRepository().getInspectionConsent(organizationId, repairOrderId) : null;
+  const result = entry?.resultSnapshot;
+  const inspectionConsentReference = result && typeof result === "object" && !Array.isArray(result)
+    && typeof result.consentReference === "string" ? result.consentReference : undefined;
+  return { ...decision, inspectionConsentReference };
 }
 
 export function resumedLaborGuideHref(decision: NonNullable<Awaited<ReturnType<typeof getRepairResume>>>, returnTo: string) {
-  const query = new URLSearchParams({
-    repairOrderId: decision.summary.id, workflow: "review",
-    returnTo: safeLaborGuideReturnTo(returnTo) ?? "/vehicles/repair-workbench",
-    returnLabel: "Return to repair order",
-  });
-  if (decision.draftId) query.set("draftId", decision.draftId);
-  return `/diagnostics/labor-guide?${query}`;
+  return repairLaborGuideHref(decision.summary.id, safeLaborGuideReturnTo(returnTo) ?? "/vehicles/repair-workbench", decision.draftId);
 }

@@ -1,3 +1,4 @@
+import { normalizeInspectionConsent } from "@/server/repair-order/domain";
 import { describe, expect, it } from "vitest";
 import { normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, repairOrderAge } from "@/server/repair-order/domain";
 const now=new Date("2026-07-14T12:00:00Z");
@@ -20,4 +21,25 @@ describe("repair-order core domain",()=>{
   it("rejects future arrivals and sources without their authoritative identifier",()=>{expect(()=>normalizeRepairOrderCreate({...base,arrivedAt:"2026-07-14T13:00:00Z"},now)).toThrow("future");expect(()=>normalizeRepairOrderCreate({...base,intakeSource:"APPOINTMENT",appointmentId:""},now)).toThrow("Appointment ID")});
   it("does not allow later workflow states through the core control",()=>expect(()=>normalizeRepairOrderControlUpdate({expectedVersion:1,idempotencyKey:"one",locationId:"loc",nextAction:"Start repairs",operatingState:"CLOSED",ownerUserId:"owner",reason:"Attempt a premature close.",stateReason:"Work is done",targetAt:"2026-07-14T14:00:00Z"})).toThrow("invalid"));
   it("measures intake age and overdue target",()=>expect(repairOrderAge({now,openedAt:new Date("2026-07-14T08:00:00Z"),stageStartedAt:new Date("2026-07-14T09:00:00Z"),targetAt:new Date("2026-07-14T10:00:00Z")})).toMatchObject({openAgeHours:4,stageAgeHours:3,overdue:true,targetVarianceHours:2}));
+});
+
+describe("normalizeInspectionConsent", () => {
+  const now = new Date("2026-06-15T14:30:00Z");
+  const data = {
+    expectedVersion: 1, confirmed: true, consentedAt: now.toISOString(), channel: "IN_PERSON",
+    customerName: " Riley Customer ", consentReference: "Signed intake 001", idempotencyKey: "consent-001"
+  };
+
+  it("records permission against a reviewed repair order version", () => {
+    expect(normalizeInspectionConsent(data, now)).toEqual({
+      expectedVersion: 1, consentedAt: now, customerName: "Riley Customer",
+      channel: "IN_PERSON", consentReference: "Signed intake 001", idempotencyKey: "consent-001"
+    });
+  });
+
+  it("requires customer confirmation and usable evidence", () => {
+    expect(() => normalizeInspectionConsent({ ...data, confirmed: false }, now)).toThrow("Confirm");
+    expect(() => normalizeInspectionConsent({ ...data, consentReference: " " }, now)).toThrow("Consent evidence");
+    expect(() => normalizeInspectionConsent({ ...data, consentedAt: "2026-06-16T14:30:00Z" }, now)).toThrow("future");
+  });
 });

@@ -13,6 +13,7 @@ async function execute(database: PrismaClient, input: EnterpriseCommandCommitInp
 export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
 export type RepairOrderConcernCandidate = { id:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
+type InspectionConsentRecord = { customerName: string; channel: string; consentReference: string; consentedAt: Date };
 export type RepairOrderDuplicateCloseRecord = { actorUserId: string; duplicateOfRepairOrderId: string | null; occurredAt: Date; reason: string };
 export type RepairOrderNoWorkCloseRecord = { actorUserId: string; occurredAt: Date; reason: string };
 const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, specificationSnapshot: true, version: true, registryRelationships: { where: { effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, select: { relationshipType: true } } };
@@ -255,6 +256,50 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       }
       return { result: { id: ro.id, repairOrderNumber: ro.repairOrderNumber, stage: ro.stage, operatingState: ro.operatingState, version } };
     });
+  },
+  getInspectionConsent(organizationId: string, repairOrderId: string) {
+    return database.enterpriseCommandLedger.findFirst({
+      where: { organizationId, domain: "SHOP_OPERATIONS", subjectType: "REPAIR_ORDER", subjectId: repairOrderId, commandType: "RECORD_INSPECTION_CONSENT", status: "SUCCEEDED" },
+      orderBy: { resultingVersion: "desc" },
+      select: { resultSnapshot: true }
+    });
+  },
+  recordInspectionConsent(command: EnterpriseCommandCommitInput, data: InspectionConsentRecord) {
+    const locationId = command.locationId;
+    if (!locationId) throw new Error("A repair-order location is required.");
+    return execute(database, command, async (tx, version) => {
+      const order = await tx.repairOrder.findFirst({
+        where: {
+          id: command.subjectId,
+          organizationId: command.organizationId,
+          locationId,
+          origin: "CUSTOMER_REPAIR",
+          customerId: { not: null },
+          closedAt: null,
+          stage: { notIn: ["HANDOFF", "CLOSED"] },
+          releaseAuthorization: null
+        },
+        include: { serviceVisit: true }
+      });
+      if (!order) throw new Error("An active customer repair order is required to record inspection consent.");
+      if (order.version !== command.expectedVersion) throw new EnterpriseCommandConflictError("The repair order changed. Reload and review the saved concerns.", "VERSION_CONFLICT");
+      const visit = order.serviceVisit;
+      if (visit.consentStatus === "DOCUMENTED") throw new Error("This visit already has documented consent. Review the saved record.");
+      if (data.consentedAt < visit.arrivedAt) throw new Error("Record a consent time on or after the vehicle's arrival.");
+      const recorded = await tx.enterpriseCommandLedger.findFirst({
+        where: {
+          organizationId: order.organizationId, domain: command.domain, subjectType: command.subjectType,
+          subjectId: order.id, commandType: command.commandType, status: "SUCCEEDED"
+        },
+        select: { id: true }
+      });
+      if (recorded) throw new Error("Inspection permission is already recorded for this visit. Reload the repair order.");
+      await tx.repairOrder.update({ where: { id: order.id }, data: { version } });
+      return {
+        previous: { consentStatus: visit.consentStatus },
+        result: { id: order.id, consentStatus: "DOCUMENTED", concernSummary: visit.concernSummary, ...data }
+      };
+    }, true);
   },
   updateControl(command: EnterpriseCommandCommitInput,data:RepairOrderControlRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null,stage:"INTAKE"}}); if(data.targetAt<previous.openedAt) throw new Error("Intake target cannot be before repair-order opening."); const [location,owner]=await Promise.all([tx.location.findFirst({where:{id:data.locationId,organizationId:command.organizationId},select:{id:true}}),tx.user.findFirst({where:{id:data.ownerUserId,isActive:true},select:{id:true}})]); if(!location) throw new Error("Repair-order location does not belong to the organization."); if(!owner) throw new Error("Repair-order owner must be an active user."); const ro=await tx.repairOrder.update({where:{id:previous.id},data:{locationId:data.locationId,nextAction:data.nextAction,operatingState:data.operatingState,ownerUserId:data.ownerUserId,stateReason:data.stateReason,targetAt:data.targetAt,version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:command.reason,actorUserId:data.actorUserId,correlationId:command.correlationId}}); return {previous,result:{id:ro.id,stage:ro.stage,operatingState:ro.operatingState,version}};});},
   closeDuplicate(command: EnterpriseCommandCommitInput,data:RepairOrderDuplicateCloseRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},include:{shopReconLifecycle:true}}); if(data.duplicateOfRepairOrderId){const keeper=await tx.repairOrder.findFirst({where:{id:data.duplicateOfRepairOrderId,organizationId:command.organizationId,vehicleId:previous.vehicleId,closedAt:null},select:{id:true,repairOrderNumber:true}}); if(!keeper) throw new Error("The RO to keep must be open and belong to the same vehicle.");} const ro=await tx.repairOrder.update({where:{id:previous.id},data:{closedAt:data.occurredAt,stage:"CANCELLED",operatingState:"CLOSED",stateReason:"Closed as duplicate repair order.",nextAction:data.duplicateOfRepairOrderId?`Use existing repair order ${data.duplicateOfRepairOrderId}.`:"Duplicate repair order closed; use the remaining open RO for this vehicle.",version}}); if(previous.shopReconLifecycle) await tx.shopReconLifecycle.update({where:{id:previous.shopReconLifecycle.id},data:{operatingState:"CANCELLED",nextAction:"Duplicate repair order closed. Use the remaining open RO for this vehicle.",version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:data.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.occurredAt}}); return {previous,result:{closedAt:ro.closedAt,id:ro.id,operatingState:ro.operatingState,stage:ro.stage,version}};});},

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Estimate = { id: string; version: number; expiresAt: string; lineItems: { key: string; description: string }[]; authorizations: { id: string; disposition: string }[] };
+type Estimate = { id: string; version: number; totalCents: number; expiresAt: string; lineItems: { key: string; description: string }[]; authorizations: { id: string; disposition: string }[] };
 type Planning = { estimateVersions: Estimate[] };
 
-type ApprovalProps = { repairOrderId: string; estimateId: string; customerName?: string; onApproved: () => void; onLockChange?: (locked: boolean) => void };
+type ApprovalProps = { repairOrderId: string; estimateId: string; customerName?: string; showQuotedScope?: boolean; onApproved: () => void; onLockChange?: (locked: boolean) => void };
 export function DocumentApproval(props: ApprovalProps) {
   return <ApprovalForm key={`${props.repairOrderId}:${props.estimateId}`} {...props} />;
 }
-function ApprovalForm({ repairOrderId, estimateId, customerName = "", onApproved, onLockChange }: ApprovalProps) {
+function ApprovalForm({ repairOrderId, estimateId, customerName = "", showQuotedScope = false, onApproved, onLockChange }: ApprovalProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const submitting = useRef(false);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
@@ -56,6 +56,48 @@ function ApprovalForm({ repairOrderId, estimateId, customerName = "", onApproved
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Approval outcome is uncertain. Retry the unchanged request."); }
     finally { submitting.current = false; setBusy(false); }
   }
-  const accepted = ["ACCEPTED", "PARTIAL"].includes(estimate?.authorizations[0]?.disposition ?? "");
-  return <section aria-label="Customer approval"><h2>Record customer approval</h2><p>The customer must approve this exact estimate before repairs can proceed. Printing alone is not approval.</p>{error && <p role="alert">{error}</p>}{error && !estimate && <button type="button" onClick={() => { setError(""); setLoadAttempt(value => value + 1); }}>Retry loading approval details</button>}{!estimate && !error && <p role="status">Loading this estimate’s approval details…</p>}{accepted ? <><p role="status">This estimate is already approved.</p><button type="button" onClick={onApproved}>Continue repair</button></> : <form onSubmit={event => { event.preventDefault(); void submit(); }}><fieldset disabled={busy || Boolean(pending) || !estimate}><legend>Approval of estimate {estimate ? `v${estimate.version}` : ""}</legend><label>Customer / authorized representative<input required maxLength={200} value={name} onChange={event => setName(event.target.value)} /></label><label>Approval method<select value={channel} onChange={event => setChannel(event.target.value)}><option value="IN_PERSON">In person</option><option value="PHONE">Phone</option><option value="EMAIL">Email</option><option value="SMS">Text message</option></select></label><label>Customer decision time<input required type="datetime-local" step="0.001" value={decidedAt} onChange={event => setDecidedAt(event.target.value)} /></label><label>Approval evidence / reference<input required minLength={3} maxLength={300} value={reference} onChange={event => setReference(event.target.value)} placeholder="Signed estimate, email or documented call reference" /></label><label><input required type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I verified the customer approved all listed work and the exact quoted amount.</label><button disabled={!confirmed || !estimate}>Record approval & continue</button></fieldset>{pending && <><p>Confirmation is pending. Retry the same decision to avoid duplication.</p><button type="button" disabled={busy} onClick={() => void submit()}>Retry unchanged approval</button></>}</form>}</section>;
+  const decision = estimate?.authorizations[0]?.disposition;
+  const accepted = ["ACCEPTED", "PARTIAL"].includes(decision ?? "");
+  return (
+    <section aria-label="Customer approval">
+      <h2>Record customer approval</h2>
+      <p>The customer must approve this exact estimate before repairs can proceed. Printing alone is not approval.</p>
+      {error && <p role="alert">{error}</p>}
+      {error && !estimate && (
+        <button type="button" onClick={() => { setError(""); setLoadAttempt(value => value + 1); }}>
+          Retry loading approval details
+        </button>
+      )}
+      {!estimate && !error && <p role="status">Loading this estimate’s approval details…</p>}
+      {showQuotedScope && estimate && <details open>
+        <summary>Estimate v{estimate.version} · {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(estimate.totalCents / 100)}</summary>
+        <ul>{estimate.lineItems.map(line => <li key={line.key}>{line.description}</li>)}</ul>
+      </details>}
+      {accepted ? <>
+        <p role="status">{decision === "PARTIAL" ? "A partial approval is already recorded. Review the approved lines before continuing." : "This estimate is already approved."}</p>
+        <button type="button" onClick={onApproved}>Continue repair</button>
+      </> : (
+        <form onSubmit={event => { event.preventDefault(); void submit(); }}>
+          <fieldset disabled={busy || Boolean(pending) || !estimate}>
+            <legend>Approval of estimate {estimate ? `v${estimate.version}` : ""}</legend>
+            <label>Customer / authorized representative<input required maxLength={200} value={name} onChange={event => setName(event.target.value)} /></label>
+            <label>Approval method
+              <select value={channel} onChange={event => setChannel(event.target.value)}>
+                <option value="IN_PERSON">In person</option><option value="PHONE">Phone</option>
+                <option value="EMAIL">Email</option><option value="SMS">Text message</option>
+              </select>
+            </label>
+            <label>Customer decision time<input required type="datetime-local" step="0.001" value={decidedAt} onChange={event => setDecidedAt(event.target.value)} /></label>
+            <label>Approval evidence / reference<input required minLength={3} maxLength={300} value={reference} onChange={event => setReference(event.target.value)} placeholder="Signed estimate, email or documented call reference" /></label>
+            <label><input required type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I verified the customer approved all listed work and the exact quoted amount.</label>
+            <button disabled={!confirmed || !estimate}>Record approval &amp; continue</button>
+          </fieldset>
+          {pending && <>
+            <p>Confirmation is pending. Retry the same decision to avoid duplication.</p>
+            <button type="button" disabled={busy} onClick={() => void submit()}>Retry unchanged approval</button>
+          </>}
+        </form>
+      )}
+    </section>
+  );
 }

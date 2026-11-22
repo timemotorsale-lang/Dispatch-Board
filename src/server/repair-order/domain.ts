@@ -20,6 +20,24 @@ export function repairOrderConcernFingerprint(value:string){
 
 export function isSameRepairOrderConcern(left:string,right:string){const first=repairOrderConcernFingerprint(left),second=repairOrderConcernFingerprint(right);return Boolean(first&&second&&first===second);}
 
+export function normalizeInspectionConsent(value: unknown, now = new Date()) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Inspection consent is required.");
+  const input = value as Record<string, unknown>;
+  if (input.confirmed !== true) throw new Error("Confirm the customer gave permission for the saved concerns.");
+  const expectedVersion = input.expectedVersion;
+  if (typeof expectedVersion !== "number" || !Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Repair order version is required.");
+  const consentedAt = timestamp(input.consentedAt, "Customer consent time")!;
+  if (consentedAt.getTime() > now.getTime() + 60_000) throw new Error("Customer consent time cannot be in the future.");
+  return {
+    expectedVersion,
+    consentedAt,
+    customerName: required(input.customerName, "Customer or authorized representative", 200),
+    channel: oneOf(input.channel, ["IN_PERSON", "PHONE", "EMAIL", "SMS"] as const, "Consent method"),
+    consentReference: required(input.consentReference, "Consent evidence", 200),
+    idempotencyKey: required(input.idempotencyKey, "Idempotency key", 200)
+  };
+}
+
 export function normalizeRepairOrderCreate(value: unknown, now = new Date()) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Repair-order intake request must be an object.");
   const raw = value as Record<string, unknown>; const intakeSource = oneOf(raw.intakeSource, REPAIR_ORDER_INTAKE_SOURCES, "Intake source"); const arrivedAt = timestamp(raw.arrivedAt, "Arrival time")!; const targetAt = timestamp(raw.targetAt, "Intake target")!; const consentStatus = oneOf(raw.consentStatus, REPAIR_ORDER_CONSENT_STATUSES, "Consent status"); const operatingState = operating(raw.operatingState); const keysReceivedCount = Number(raw.keysReceivedCount ?? 0);
