@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type StlWorkflowProgress = {
@@ -252,9 +253,11 @@ export function StlSaleTitlingTool({
         <span><Stamp size={15} />TMS Sale Titling</span>
         <h3>STL transfer workspace</h3>
         <p>Guide the title team through buyer verification, transfer packet preparation, figure audit, signatures, exact-document QC, and submission accountability.</p>
-        <div className={styles.wopHeaderActions}>
-          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Transfer state</small>
@@ -264,8 +267,7 @@ export function StlSaleTitlingTool({
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Verify buyer and jurisdiction</h4></div><em className={completedSteps.buyer ? styles.wopComplete : ""}>{completedSteps.buyer ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Verify buyer and jurisdiction" status={<em className={completedSteps.buyer ? styles.wopComplete : ""}>{completedSteps.buyer ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopFieldGrid}>
             <label><span>Buyer type</span><select onChange={(event) => updateValue("buyerType", event.target.value as BuyerType, "buyer")} value={input.buyerType}><option>Individual</option><option>Business</option><option>Trust</option></select></label>
           </div>
@@ -275,10 +277,9 @@ export function StlSaleTitlingTool({
             <label><input checked={input.insuranceAndEntityDocsVerified} onChange={(event) => updateBoolean("insuranceAndEntityDocsVerified", event.target.checked, "buyer")} type="checkbox" /><span>Insurance and entity documents were verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.buyerComplete || completedSteps.buyer} onClick={completeBuyer} type="button">Lock buyer verification</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Prepare transfer documents</h4></div><em className={completedSteps.packet ? styles.wopComplete : ""}>{completedSteps.packet ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Prepare transfer documents" status={<em className={completedSteps.packet ? styles.wopComplete : ""}>{completedSteps.packet ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.transferAssignmentPrepared} onChange={(event) => updateBoolean("transferAssignmentPrepared", event.target.checked, "packet")} type="checkbox" /><span>Transfer assignment documents were prepared</span></label>
             <label><input checked={input.platesTaxRegistrationPrepared} onChange={(event) => updateBoolean("platesTaxRegistrationPrepared", event.target.checked, "packet")} type="checkbox" /><span>Registration, tax, and plate forms were prepared</span></label>
@@ -286,39 +287,35 @@ export function StlSaleTitlingTool({
             <label><input checked={input.lienholderAndPlateDataPrepared} onChange={(event) => updateBoolean("lienholderAndPlateDataPrepared", event.target.checked, "packet")} type="checkbox" /><span>Lienholder and plate data were prepared</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.buyer || !result.packetComplete || completedSteps.packet} onClick={completePacket} type="button">Lock transfer packet</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Reconcile financial figures</h4></div><em className={completedSteps.figures ? styles.wopComplete : ""}>{completedSteps.figures ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Reconcile financial figures" status={<em className={completedSteps.figures ? styles.wopComplete : ""}>{completedSteps.figures ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.figuresMatchContract} onChange={(event) => updateBoolean("figuresMatchContract", event.target.checked, "figures")} type="checkbox" /><span>Price, tax, fees, and title amounts match the contract</span></label>
             <label><input checked={input.fundingAndPayoffVerified} onChange={(event) => updateBoolean("fundingAndPayoffVerified", event.target.checked, "figures")} type="checkbox" /><span>Funding, payoff, and payment figures were verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.packet || !result.figuresComplete || completedSteps.figures} onClick={completeFigures} type="button">Lock figure audit</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Obtain required signatures</h4></div><em className={completedSteps.signatures ? styles.wopComplete : ""}>{completedSteps.signatures ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Obtain required signatures" status={<em className={completedSteps.signatures ? styles.wopComplete : ""}>{completedSteps.signatures ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.signaturesCaptured} onChange={(event) => updateBoolean("signaturesCaptured", event.target.checked, "signatures")} type="checkbox" /><span>Buyer and co-buyer signatures were captured</span></label>
             <label><input checked={input.dealerExecutionCaptured} onChange={(event) => updateBoolean("dealerExecutionCaptured", event.target.checked, "signatures")} type="checkbox" /><span>Dealer execution was completed</span></label>
             <label><input checked={input.notaryOrPoaCaptured} onChange={(event) => updateBoolean("notaryOrPoaCaptured", event.target.checked, "signatures")} type="checkbox" /><span>Notary or POA execution was completed</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.figures || !result.signaturesComplete || completedSteps.signatures} onClick={completeSignatures} type="button">Lock signatures</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Perform exact-document QC</h4></div><em className={completedSteps.qc ? styles.wopComplete : ""}>{completedSteps.qc ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Perform exact-document QC" status={<em className={completedSteps.qc ? styles.wopComplete : ""}>{completedSteps.qc ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.vinAndMileageQcPassed} onChange={(event) => updateBoolean("vinAndMileageQcPassed", event.target.checked, "qc")} type="checkbox" /><span>VIN and mileage fields passed QC</span></label>
             <label><input checked={input.namesAndAmountsQcPassed} onChange={(event) => updateBoolean("namesAndAmountsQcPassed", event.target.checked, "qc")} type="checkbox" /><span>Names, dates, and amounts passed QC</span></label>
             <label><input checked={input.packetAttachmentsQcPassed} onChange={(event) => updateBoolean("packetAttachmentsQcPassed", event.target.checked, "qc")} type="checkbox" /><span>Packet attachments passed QC</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.signatures || !result.qcComplete || completedSteps.qc} onClick={completeQc} type="button">Lock document QC</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Submit and record accountability</h4></div><em className={completedSteps.submission ? styles.wopComplete : ""}>{completedSteps.submission ? "Submitted" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Submit and record accountability" status={<em className={completedSteps.submission ? styles.wopComplete : ""}>{completedSteps.submission ? "Submitted" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Submission method</span><select onChange={(event) => updateValue("submissionMethod", event.target.value as SubmissionMethod, "submission")} value={input.submissionMethod}><option>Pending</option><option>State portal</option><option>Mail or courier</option><option>In-person counter</option></select></label>
             <label><span>Submission state</span><select onChange={(event) => updateValue("submissionState", event.target.value as SubmissionState, "submission")} value={input.submissionState}><option>Not submitted</option><option>Submitted</option><option>Correction pending</option></select></label>
@@ -328,54 +325,58 @@ export function StlSaleTitlingTool({
             <label><input checked={input.submissionFollowUpRecorded} onChange={(event) => updateBoolean("submissionFollowUpRecorded", event.target.checked, "submission")} type="checkbox" /><span>Follow-up owner and due date were recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.qc || !result.submissionComplete || completedSteps.submission} onClick={completeSubmission} type="button">Release submission</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><FileBadge2 size={18} /><div><span>Sale titling recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Filing" ? styles.wopComplete : result.recommendation === "Submit transfer" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Buyer type</dt><dd>{input.buyerType}</dd></div>
-          <div><dt>Submission method</dt><dd>{input.submissionMethod}</dd></div>
-          <div><dt>Submission state</dt><dd>{input.submissionState}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Filing" ? "Sale Titling is complete. The buyer transfer package has been verified, submitted, and is ready to hand off into Filing." : "Sale titling should remain fail-closed until the exact-document blocker is cleared and submission accountability is explicit."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed transfer-package strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><FileBadge2 size={18} /><div><span>Sale titling recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Filing" ? styles.wopComplete : result.recommendation === "Submit transfer" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Buyer type</dt><dd>{input.buyerType}</dd></div>
+            <div><dt>Submission method</dt><dd>{input.submissionMethod}</dd></div>
+            <div><dt>Submission state</dt><dd>{input.submissionState}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Filing" ? "Sale Titling is complete. The buyer transfer package has been verified, submitted, and is ready to hand off into Filing." : "Sale titling should remain fail-closed until the exact-document blocker is cleared and submission accountability is explicit."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed transfer-package strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No sale-titling action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No sale-titling action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Buyer and packet</span>
-        <strong>{completedSteps.packet ? "Transfer packet prepared" : "Buyer or packet still active"}</strong>
-        <small>Buyer identity, jurisdiction, transfer packet, and disclosures should be explicit before signature collection begins.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Exact-document control</span>
-        <strong>{completedSteps.qc ? "Document QC complete" : "Document QC still active"}</strong>
-        <small>Figures, signatures, VIN, mileage, names, amounts, and attachments should pass exact review before submission.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.submission ? "Ready for Filing" : "Sale Titling still active"}</strong>
-        <small>{completedSteps.submission ? "This deal can now hand off into the Filing stage." : "Finish submission proof and accountability before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Buyer and packet</span>
+          <strong>{completedSteps.packet ? "Transfer packet prepared" : "Buyer or packet still active"}</strong>
+          <small>Buyer identity, jurisdiction, transfer packet, and disclosures should be explicit before signature collection begins.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Exact-document control</span>
+          <strong>{completedSteps.qc ? "Document QC complete" : "Document QC still active"}</strong>
+          <small>Figures, signatures, VIN, mileage, names, amounts, and attachments should pass exact review before submission.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.submission ? "Ready for Filing" : "Sale Titling still active"}</strong>
+          <small>{completedSteps.submission ? "This deal can now hand off into the Filing stage." : "Finish submission proof and accountability before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

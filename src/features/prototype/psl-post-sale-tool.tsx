@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type PslWorkflowProgress = {
@@ -244,9 +245,11 @@ export function PslPostSaleTool({
         <span><SmilePlus size={15} />TMS Post-Sale</span>
         <h3>PSL outcome workspace</h3>
         <p>Guide the team through delivery acceptance, promise closure, funding, title follow-up, customer care, and final lifecycle outcome verification.</p>
-        <div className={styles.wopHeaderActions}>
-          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Outcome state</small>
@@ -256,8 +259,7 @@ export function PslPostSaleTool({
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Confirm delivery completion</h4></div><em className={completedSteps.delivery ? styles.wopComplete : ""}>{completedSteps.delivery ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Confirm delivery completion" status={<em className={completedSteps.delivery ? styles.wopComplete : ""}>{completedSteps.delivery ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.keysAndDocumentsDelivered} onChange={(event) => updateBoolean("keysAndDocumentsDelivered", event.target.checked, "delivery")} type="checkbox" /><span>Keys and documents were delivered</span></label>
             <label><input checked={input.deliveryConditionRecorded} onChange={(event) => updateBoolean("deliveryConditionRecorded", event.target.checked, "delivery")} type="checkbox" /><span>Delivery condition was recorded</span></label>
@@ -265,28 +267,25 @@ export function PslPostSaleTool({
             <label><input checked={input.customerAcceptanceRecorded} onChange={(event) => updateBoolean("customerAcceptanceRecorded", event.target.checked, "delivery")} type="checkbox" /><span>Customer acceptance was recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.deliveryComplete || completedSteps.delivery} onClick={completeDelivery} type="button">Lock delivery proof</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Close promises and due bills</h4></div><em className={completedSteps.promises ? styles.wopComplete : ""}>{completedSteps.promises ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Close promises and due bills" status={<em className={completedSteps.promises ? styles.wopComplete : ""}>{completedSteps.promises ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.promisedItemsCompleted} onChange={(event) => updateBoolean("promisedItemsCompleted", event.target.checked, "promises")} type="checkbox" /><span>Promised items were completed</span></label>
             <label><input checked={input.dueBillAppointmentsCompleted} onChange={(event) => updateBoolean("dueBillAppointmentsCompleted", event.target.checked, "promises")} type="checkbox" /><span>Due-bill appointments were completed</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.delivery || !result.weOweComplete || completedSteps.promises} onClick={completePromises} type="button">Lock promise closure</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Verify funding and payoff</h4></div><em className={completedSteps.funding ? styles.wopComplete : ""}>{completedSteps.funding ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Verify funding and payoff" status={<em className={completedSteps.funding ? styles.wopComplete : ""}>{completedSteps.funding ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.fundingVerified} onChange={(event) => updateBoolean("fundingVerified", event.target.checked, "funding")} type="checkbox" /><span>Funding was verified</span></label>
             <label><input checked={input.tradePayoffVerified} onChange={(event) => updateBoolean("tradePayoffVerified", event.target.checked, "funding")} type="checkbox" /><span>Trade payoff was verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.promises || !result.fundingComplete || completedSteps.funding} onClick={completeFunding} type="button">Lock funding proof</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Track title and registration</h4></div><em className={completedSteps.title ? styles.wopComplete : ""}>{completedSteps.title ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Track title and registration" status={<em className={completedSteps.title ? styles.wopComplete : ""}>{completedSteps.title ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Title follow-up state</span><select onChange={(event) => updateValue("titleFollowUpState", event.target.value as TitleFollowUpState, "title")} value={input.titleFollowUpState}><option>Pending</option><option>In progress</option><option>Completed</option></select></label>
           </div>
@@ -295,10 +294,9 @@ export function PslPostSaleTool({
             <label><input checked={input.platesOrRegistrationDelivered} onChange={(event) => updateBoolean("platesOrRegistrationDelivered", event.target.checked, "title")} type="checkbox" /><span>Plates or registration were delivered</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.funding || !result.titleComplete || completedSteps.title} onClick={completeTitle} type="button">Lock title completion</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Manage warranty and concerns</h4></div><em className={completedSteps.concerns ? styles.wopComplete : ""}>{completedSteps.concerns ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Manage warranty and concerns" status={<em className={completedSteps.concerns ? styles.wopComplete : ""}>{completedSteps.concerns ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Customer-care state</span><select onChange={(event) => updateValue("warrantyConcernState", event.target.value as ConcernState, "concerns")} value={input.warrantyConcernState}><option>No active case</option><option>Active case</option><option>Resolved</option></select></label>
           </div>
@@ -306,10 +304,9 @@ export function PslPostSaleTool({
             <label><input checked={input.warrantyOrConcernOwnerAssigned} onChange={(event) => updateBoolean("warrantyOrConcernOwnerAssigned", event.target.checked, "concerns")} type="checkbox" /><span>Warranty or concern owner was assigned</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.title || !result.warrantyComplete || completedSteps.concerns} onClick={completeConcerns} type="button">Lock case record</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Verify the lifecycle outcome</h4></div><em className={completedSteps.closure ? styles.wopComplete : ""}>{completedSteps.closure ? "Closed" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Verify the lifecycle outcome" status={<em className={completedSteps.closure ? styles.wopComplete : ""}>{completedSteps.closure ? "Closed" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Lifecycle state</span><select onChange={(event) => updateValue("lifecycleState", event.target.value as LifecycleState, "closure")} value={input.lifecycleState}><option>Open obligations</option><option>Ready to close</option><option>Closed</option></select></label>
           </div>
@@ -318,54 +315,58 @@ export function PslPostSaleTool({
             <label><input checked={input.finalOutcomeRecorded} onChange={(event) => updateBoolean("finalOutcomeRecorded", event.target.checked, "closure")} type="checkbox" /><span>Final lifecycle outcome was recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.concerns || !result.closureComplete || completedSteps.closure} onClick={completeClosure} type="button"><HandCoins size={14} />Close lifecycle</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><SmilePlus size={18} /><div><span>Post-sale recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Lifecycle complete" ? styles.wopComplete : result.recommendation === "Verify closure" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Title follow-up</dt><dd>{input.titleFollowUpState}</dd></div>
-          <div><dt>Customer-care state</dt><dd>{input.warrantyConcernState}</dd></div>
-          <div><dt>Lifecycle state</dt><dd>{input.lifecycleState}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Lifecycle complete" ? "Post-Sale is complete. Delivery, promises, funding, title, customer care, and final closure are all governed and complete." : "Post-Sale should remain controlled until the exact open obligation is resolved or explicitly governed."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed post-sale strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><SmilePlus size={18} /><div><span>Post-sale recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Lifecycle complete" ? styles.wopComplete : result.recommendation === "Verify closure" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Title follow-up</dt><dd>{input.titleFollowUpState}</dd></div>
+            <div><dt>Customer-care state</dt><dd>{input.warrantyConcernState}</dd></div>
+            <div><dt>Lifecycle state</dt><dd>{input.lifecycleState}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Lifecycle complete" ? "Post-Sale is complete. Delivery, promises, funding, title, customer care, and final closure are all governed and complete." : "Post-Sale should remain controlled until the exact open obligation is resolved or explicitly governed."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed post-sale strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No post-sale action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No post-sale action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Delivery and promises</span>
-        <strong>{completedSteps.promises ? "Delivery obligations closed" : "Delivery or promises still active"}</strong>
-        <small>Delivery, customer acceptance, promised items, and due bills should be explicit before financial and title follow-up close.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Funding and customer care</span>
-        <strong>{completedSteps.concerns ? "Customer-care follow-up closed" : "Funding, title, or care still active"}</strong>
-        <small>Funding, title follow-up, and customer-care ownership should be explicit before the final outcome is closed.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Lifecycle readiness</span>
-        <strong>{completedSteps.closure ? "Lifecycle complete" : "Post-Sale still active"}</strong>
-        <small>{completedSteps.closure ? "This vehicle lifecycle is fully closed." : "Finish final outcome recording before the lifecycle closure opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Delivery and promises</span>
+          <strong>{completedSteps.promises ? "Delivery obligations closed" : "Delivery or promises still active"}</strong>
+          <small>Delivery, customer acceptance, promised items, and due bills should be explicit before financial and title follow-up close.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Funding and customer care</span>
+          <strong>{completedSteps.concerns ? "Customer-care follow-up closed" : "Funding, title, or care still active"}</strong>
+          <small>Funding, title follow-up, and customer-care ownership should be explicit before the final outcome is closed.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Lifecycle readiness</span>
+          <strong>{completedSteps.closure ? "Lifecycle complete" : "Post-Sale still active"}</strong>
+          <small>{completedSteps.closure ? "This vehicle lifecycle is fully closed." : "Finish final outcome recording before the lifecycle closure opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

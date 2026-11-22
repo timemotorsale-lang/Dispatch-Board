@@ -10,9 +10,9 @@ import {
   MapPinned,
   ShieldCheck,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails, LifecycleToolLink } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import {
   evaluateIiiIntake,
@@ -200,9 +200,11 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
         <span><ClipboardList size={15} />TMS Inventory Intake Intelligence</span>
         <h3>III intake workspace</h3>
         <p>Carry forward verified facts once, set the inventory objective, and release a clean record into inspection.</p>
-        <div className={styles.iiiHeaderActions}>
-          <Link className={styles.iiiHeaderLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory">Open Vehicle Intake form</Link>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.iiiHeaderActions}>
+            <LifecycleToolLink className={styles.iiiHeaderLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory">Open Vehicle Intake form</LifecycleToolLink>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.iiiVersion}>
         <small>Intake state</small>
@@ -212,11 +214,7 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
 
     <div className={styles.iiiBody}>
       <div className={styles.iiiSteps}>
-        <section className={styles.iiiStepCard}>
-          <header>
-            <div><span>Step 1</span><h4>Confirm canonical vehicle linkage</h4></div>
-            <em className={completedSteps.canonical ? styles.iiiComplete : ""}>{completedSteps.canonical ? "Locked" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.iiiStepCard} step="Step 1" title="Confirm canonical vehicle linkage" status={<em className={completedSteps.canonical ? styles.iiiComplete : ""}>{completedSteps.canonical ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.iiiChecks}>
             <label><input checked={input.canonicalVehicleLinked} onChange={(event) => updateBoolean("canonicalVehicleLinked", event.target.checked as IiiIntakeInput["canonicalVehicleLinked"], "canonical")} type="checkbox" /><span>Vehicle 360 linked to intake record</span></label>
             <label><input checked={input.inventoryUnitCreated} onChange={(event) => updateBoolean("inventoryUnitCreated", event.target.checked as IiiIntakeInput["inventoryUnitCreated"], "canonical")} type="checkbox" /><span>Inventory unit exists</span></label>
@@ -224,24 +222,16 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
             <label><input checked={input.duplicateCheckClear} onChange={(event) => updateBoolean("duplicateCheckClear", event.target.checked as IiiIntakeInput["duplicateCheckClear"], "canonical")} type="checkbox" /><span>Duplicate check clear</span></label>
           </div>
           <button className={styles.iiiAction} disabled={!result.canonicalComplete || completedSteps.canonical} onClick={completeCanonical} type="button">Lock canonical linkage</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iiiStepCard}>
-          <header>
-            <div><span>Step 2</span><h4>Validate decoded vehicle facts</h4></div>
-            <em className={completedSteps.decoded ? styles.iiiComplete : ""}>{completedSteps.decoded ? "Reviewed" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.iiiStepCard} step="Step 2" title="Validate decoded vehicle facts" status={<em className={completedSteps.decoded ? styles.iiiComplete : ""}>{completedSteps.decoded ? "Reviewed" : "Required"}</em>}>
           <div className={styles.iiiChecks}>
             <label><input checked={input.decodedFactsReviewed} onChange={(event) => updateBoolean("decodedFactsReviewed", event.target.checked as IiiIntakeInput["decodedFactsReviewed"], "decoded")} type="checkbox" /><span>Year, make, model, trim, body, drivetrain, and engine reviewed</span></label>
           </div>
           <button className={styles.iiiAction} disabled={!completedSteps.canonical || !input.decodedFactsReviewed || completedSteps.decoded} onClick={completeDecoded} type="button">Confirm decoded facts</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iiiStepCard}>
-          <header>
-            <div><span>Step 3</span><h4>Review safety intelligence</h4></div>
-            <em className={completedSteps.safety ? styles.iiiComplete : ""}>{completedSteps.safety ? "Classified" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.iiiStepCard} step="Step 3" title="Review safety intelligence" status={<em className={completedSteps.safety ? styles.iiiComplete : ""}>{completedSteps.safety ? "Classified" : "Required"}</em>}>
           <div className={styles.iiiFieldGrid}>
             <label>
               <span>Safety decision</span>
@@ -256,13 +246,9 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
             <label><input checked={input.safetyWarningsReviewed} onChange={(event) => updateBoolean("safetyWarningsReviewed", event.target.checked as IiiIntakeInput["safetyWarningsReviewed"], "safety")} type="checkbox" /><span>Warnings and guidance reviewed</span></label>
           </div>
           <button className={styles.iiiAction} disabled={!completedSteps.decoded || !result.safetyComplete || completedSteps.safety} onClick={completeSafety} type="button"><ShieldCheck size={14} />Record safety review</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iiiStepCard}>
-          <header>
-            <div><span>Step 4</span><h4>Record the inventory objective</h4></div>
-            <em className={completedSteps.objective ? styles.iiiComplete : ""}>{completedSteps.objective ? "Set" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.iiiStepCard} step="Step 4" title="Record the inventory objective" status={<em className={completedSteps.objective ? styles.iiiComplete : ""}>{completedSteps.objective ? "Set" : "Required"}</em>}>
           <div className={styles.iiiFieldGrid}>
             <label>
               <span>Retail path</span>
@@ -289,13 +275,9 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
             <label><input checked={input.intakeNotesRecorded} onChange={(event) => updateBoolean("intakeNotesRecorded", event.target.checked as IiiIntakeInput["intakeNotesRecorded"], "objective")} type="checkbox" /><span>Intake notes recorded</span></label>
           </div>
           <button className={styles.iiiAction} disabled={!completedSteps.safety || !result.objectiveComplete || completedSteps.objective} onClick={completeObjective} type="button">Set inventory objective</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iiiStepCard}>
-          <header>
-            <div><span>Step 5</span><h4>Confirm location, custody, and ownership</h4></div>
-            <em className={completedSteps.custody ? styles.iiiComplete : ""}>{completedSteps.custody ? "Current" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.iiiStepCard} step="Step 5" title="Confirm location, custody, and ownership" status={<em className={completedSteps.custody ? styles.iiiComplete : ""}>{completedSteps.custody ? "Current" : "Required"}</em>}>
           <div className={styles.iiiChecks}>
             <label><input checked={input.currentLocationRecorded} onChange={(event) => updateBoolean("currentLocationRecorded", event.target.checked as IiiIntakeInput["currentLocationRecorded"], "custody")} type="checkbox" /><span>Current location recorded</span></label>
             <label><input checked={input.currentCustodianRecorded} onChange={(event) => updateBoolean("currentCustodianRecorded", event.target.checked as IiiIntakeInput["currentCustodianRecorded"], "custody")} type="checkbox" /><span>Current custodian recorded</span></label>
@@ -303,78 +285,78 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
             <label><input checked={input.inventoryOwnerConfirmed} onChange={(event) => updateBoolean("inventoryOwnerConfirmed", event.target.checked as IiiIntakeInput["inventoryOwnerConfirmed"], "custody")} type="checkbox" /><span>Inventory owner confirmed</span></label>
           </div>
           <button className={styles.iiiAction} disabled={!completedSteps.objective || !result.custodyComplete || completedSteps.custody} onClick={completeCustody} type="button"><MapPinned size={14} />Confirm custody facts</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iiiStepCard}>
-          <header>
-            <div><span>Step 6</span><h4>Run the intake readiness gate</h4></div>
-            <em className={completedSteps.readiness ? styles.iiiComplete : ""}>{completedSteps.readiness ? "Released" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.iiiStepCard} step="Step 6" title="Run the intake readiness gate" status={<em className={completedSteps.readiness ? styles.iiiComplete : ""}>{completedSteps.readiness ? "Released" : "Required"}</em>}>
           <div className={styles.iiiChecks}>
             <label><input checked={result.readinessGateComplete} readOnly type="checkbox" /><span>Every minimum canonical, safety, objective, and custody fact is complete</span></label>
           </div>
           <button className={styles.iiiAction} disabled={!completedSteps.custody || !result.readinessGateComplete || completedSteps.readiness} onClick={completeReadiness} type="button"><LockKeyhole size={14} />Release to inspection</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.iiiDecision}>
-        <header>
-          <LockKeyhole />
-          <div>
-            <span>III recommendation</span>
-            <strong>{result.recommendation}</strong>
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.iiiDecision}>
+          <header>
+            <LockKeyhole />
+            <div>
+              <span>III recommendation</span>
+              <strong>{result.recommendation}</strong>
+            </div>
+            <em className={result.blockers.length ? styles.iiiHold : styles.iiiComplete}>{scoreSummary}</em>
+          </header>
+          <dl>
+            <div><dt>Intake score</dt><dd>{scoreSummary}</dd></div>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
+            <div><dt>Priority</dt><dd>{input.priority}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+          </dl>
+          <p className={styles.iiiExplanation}>{result.explanation}</p>
+          <div className={styles.iiiDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed intake strength yet.</span>}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
+            </div>
           </div>
-          <em className={result.blockers.length ? styles.iiiHold : styles.iiiComplete}>{scoreSummary}</em>
-        </header>
-        <dl>
-          <div><dt>Intake score</dt><dd>{scoreSummary}</dd></div>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
-          <div><dt>Priority</dt><dd>{input.priority}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-        </dl>
-        <p className={styles.iiiExplanation}>{result.explanation}</p>
-        <div className={styles.iiiDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed intake strength yet.</span>}
-          </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
-          </div>
-        </div>
-        <section className={styles.iiiTrail}>
-          <header><Clock3 /><h4>Operational work trail</h4></header>
-          {trail.length ? <ol>
-            {trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}>
-              <div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div>
-              <p>{entry.result}</p>
-              <em>{entry.evidence}</em>
-            </li>)}
-          </ol> : <p>No intake action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.iiiTrail}>
+            <header><Clock3 /><h4>Operational work trail</h4></header>
+            {trail.length ? <ol>
+              {trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}>
+                <div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div>
+                <p>{entry.result}</p>
+                <em>{entry.evidence}</em>
+              </li>)}
+            </ol> : <p>No intake action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.iiiApproval}>
-      <div>
-        <span><LockKeyhole />Control state</span>
-        <strong>{result.canonicalComplete ? "Canonical identity locked" : "Canonical facts still open"}</strong>
-        <small>III carries verified facts forward once and avoids duplicate intake entry.</small>
-      </div>
-      <div>
-        <span><ShieldCheck />Safety and scope</span>
-        <strong>{result.safetyComplete && result.objectiveComplete ? "Ready for governed inspection scope" : "Safety or objective still open"}</strong>
-        <small>Inspection should receive a unit with a clear retail path, priority, and requested evaluation.</small>
-      </div>
-      <div>
-        <span><BadgeCheck />Stage readiness</span>
-        <strong>{completedSteps.readiness ? "Ready for inspection" : "Intake still active"}</strong>
-        <small>{completedSteps.readiness ? "The unit can move into governed inspection next." : "Complete custody facts and the intake gate before handoff."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.iiiApproval}>
+        <div>
+          <span><LockKeyhole />Control state</span>
+          <strong>{result.canonicalComplete ? "Canonical identity locked" : "Canonical facts still open"}</strong>
+          <small>III carries verified facts forward once and avoids duplicate intake entry.</small>
+        </div>
+        <div>
+          <span><ShieldCheck />Safety and scope</span>
+          <strong>{result.safetyComplete && result.objectiveComplete ? "Ready for governed inspection scope" : "Safety or objective still open"}</strong>
+          <small>Inspection should receive a unit with a clear retail path, priority, and requested evaluation.</small>
+        </div>
+        <div>
+          <span><BadgeCheck />Stage readiness</span>
+          <strong>{completedSteps.readiness ? "Ready for inspection" : "Intake still active"}</strong>
+          <small>{completedSteps.readiness ? "The unit can move into governed inspection next." : "Complete custody facts and the intake gate before handoff."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.iiiNotice} aria-live="polite"><CircleAlert />{notice}</footer>
   </section>;

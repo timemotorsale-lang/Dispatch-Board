@@ -1,11 +1,18 @@
 import { useId, useState, type FormEvent } from "react";
 
-import { FINAL_REPAIR_QC_TEMPLATE, repairChecklistItems } from "@/lib/final-repair-qc";
+import {
+  FINAL_REPAIR_QC_FINDING_MAX,
+  FINAL_REPAIR_QC_NOTE_MAX,
+  FINAL_REPAIR_QC_NOTE_MIN,
+  FINAL_REPAIR_QC_TEMPLATE,
+  repairChecklistItems
+} from "@/lib/final-repair-qc";
 import styles from "./final-repair-qc-checklist.module.css";
 
 type Result = "PASS" | "FAIL";
 
-export function FinalRepairQcChecklist({ evidence, roadTestNeeded, peerRequired, peers, procedureRules, busy, onSave }: {
+export function FinalRepairQcChecklist({ allowRecommendation = false, evidence, roadTestNeeded, peerRequired, peers, procedureRules, busy, onSave }: {
+  allowRecommendation?: boolean;
   evidence: string[];
   roadTestNeeded: boolean;
   peerRequired: boolean;
@@ -21,8 +28,12 @@ export function FinalRepairQcChecklist({ evidence, roadTestNeeded, peerRequired,
   const [roadEvidence, setRoadEvidence] = useState("");
   const [peer, setPeer] = useState("");
   const [note, setNote] = useState("");
+  const [hasRecommendation, setHasRecommendation] = useState(false);
+  const [finding, setFinding] = useState("");
+  const [recommendationNote, setRecommendationNote] = useState("");
   const [error, setError] = useState("");
   const failed = Object.values(results).includes("FAIL") || roadTest === "FAILED";
+  const recommend = allowRecommendation && !failed && hasRecommendation;
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,20 +54,26 @@ export function FinalRepairQcChecklist({ evidence, roadTestNeeded, peerRequired,
       setError("Record the road-test outcome and what you observed.");
       return;
     }
+    if (recommend && (!finding.trim() || recommendationNote.trim().length < FINAL_REPAIR_QC_NOTE_MIN)) {
+      setError("Identify the finding and describe the recommended next step (at least 10 characters).");
+      return;
+    }
 
     await onSave({
       templateCode: FINAL_REPAIR_QC_TEMPLATE,
       templateVersion: 1,
       checks: checklist.map(item => ({ ...item, result: results[item.code] ?? "NOT_APPLICABLE" })),
-      completionEvidence: [...evidence, note.trim()].filter(Boolean),
+      completionEvidence: [...evidence, recommend ? "" : note.trim()].filter(Boolean),
       peerVerifierUserId: failed ? null : peer || null,
       peerVerificationPassed: Boolean(!failed && peer),
       roadTestRequired: Boolean(roadTest),
       roadTestOutcome: roadTest || "NOT_REQUIRED",
       roadTestEvidence: roadTest ? [roadEvidence.trim()] : [],
       reworkInstructions: failed ? note.trim() : null,
+      ...(recommend ? { recommendation: { finding: finding.trim(), note: recommendationNote.trim() } } : {}),
       inspectedAt: new Date().toISOString(),
-      reason: failed ? "Return failed final QC to the shop." : "Record passed final repair QC."
+      reason: failed ? "Return failed final QC to the shop." : recommend
+        ? "Record passed final repair QC with a recommendation." : "Record passed final repair QC."
     });
   }
 
@@ -98,14 +115,26 @@ export function FinalRepairQcChecklist({ evidence, roadTestNeeded, peerRequired,
           {peers.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
         </select>
       </label>}
-      <label className={styles.field}>{failed ? "Correction or recommended next step" : "Inspection note (optional)"}
+      {allowRecommendation && !failed && <label className={styles.recommendationToggle}>
+        <input type="checkbox" checked={hasRecommendation} onChange={event => setHasRecommendation(event.target.checked)} />
+        Reviewed · recommendation
+      </label>}
+      {recommend && <div className={styles.fields}>
+        <label>Finding
+          <input value={finding} maxLength={FINAL_REPAIR_QC_FINDING_MAX} onChange={event => setFinding(event.target.value)} />
+        </label>
+        <label>Recommended next step
+          <textarea rows={2} value={recommendationNote} maxLength={FINAL_REPAIR_QC_NOTE_MAX} onChange={event => setRecommendationNote(event.target.value)} />
+        </label>
+      </div>}
+      {!recommend && <label className={styles.field}>{failed ? (allowRecommendation ? "Required correction or shop next step" : "Correction or recommended next step") : "Inspection note (optional)"}
         <textarea rows={2} value={note} onChange={event => setNote(event.target.value)} />
-      </label>
+      </label>}
       {error && <p role="alert">{error}</p>}
       {!evidence.length && <p>Record repair completion evidence in the shop before saving QC.</p>}
       <div className={styles.actions}>
-        <button className={failed ? "qc-quick-fail" : "qc-quick-pass"} disabled={busy || !evidence.length} type="submit">
-          {busy ? "Saving…" : failed ? "Return to shop" : "Save QC pass"}
+        <button className={failed ? "qc-quick-fail" : recommend ? styles.recommendation : "qc-quick-pass"} disabled={busy || !evidence.length} type="submit">
+          {busy ? "Saving…" : failed ? "Return to shop" : recommend ? "Save QC pass with recommendation" : "Save QC pass"}
         </button>
       </div>
     </form>

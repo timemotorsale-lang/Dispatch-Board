@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type PmmWorkflowProgress = {
@@ -246,9 +247,11 @@ export function PmmPhotosMarketingTool({
         <span><Megaphone size={15} />TMS Photos &amp; Marketing</span>
         <h3>PMM merchandising workspace</h3>
         <p>Guide the merchandising team through media capture, specs, listing copy, pricing, compliance, and publication.</p>
-        <div className={styles.wopHeaderActions}>
-          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><Camera size={14} />Return to lifecycle</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><Camera size={14} />Return to lifecycle</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Media state</small>
@@ -258,8 +261,7 @@ export function PmmPhotosMarketingTool({
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Capture the required media set</h4></div><em className={completedSteps.media ? styles.wopComplete : ""}>{completedSteps.media ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Capture the required media set" status={<em className={completedSteps.media ? styles.wopComplete : ""}>{completedSteps.media ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.exteriorInteriorPhotoSetCaptured} onChange={(event) => updateBoolean("exteriorInteriorPhotoSetCaptured", event.target.checked, "media")} type="checkbox" /><span>Exterior and interior photo set captured</span></label>
             <label><input checked={input.featurePhotosCaptured} onChange={(event) => updateBoolean("featurePhotosCaptured", event.target.checked, "media")} type="checkbox" /><span>Feature and option photos captured</span></label>
@@ -267,27 +269,24 @@ export function PmmPhotosMarketingTool({
             <label><input checked={input.cargoAndDefectPhotosCaptured} onChange={(event) => updateBoolean("cargoAndDefectPhotosCaptured", event.target.checked, "media")} type="checkbox" /><span>Cargo and disclosure-defect photos captured</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.mediaComplete || completedSteps.media} onClick={completeMedia} type="button">Lock media set</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Verify canonical specifications</h4></div><em className={completedSteps.specs ? styles.wopComplete : ""}>{completedSteps.specs ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Verify canonical specifications" status={<em className={completedSteps.specs ? styles.wopComplete : ""}>{completedSteps.specs ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.equipmentAndSpecsVerified} onChange={(event) => updateBoolean("equipmentAndSpecsVerified", event.target.checked, "specs")} type="checkbox" /><span>Decoded facts and observed equipment were verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.media || !result.specsComplete || completedSteps.specs} onClick={completeSpecs} type="button">Lock specifications</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Write accurate listing content</h4></div><em className={completedSteps.listing ? styles.wopComplete : ""}>{completedSteps.listing ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Write accurate listing content" status={<em className={completedSteps.listing ? styles.wopComplete : ""}>{completedSteps.listing ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.listingStoryWritten} onChange={(event) => updateBoolean("listingStoryWritten", event.target.checked, "listing")} type="checkbox" /><span>Listing story and value message were written</span></label>
             <label><input checked={input.listingCopyApproved} onChange={(event) => updateBoolean("listingCopyApproved", event.target.checked, "listing")} type="checkbox" /><span>Listing copy was approved for publication</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.specs || !result.listingComplete || completedSteps.listing} onClick={completeListing} type="button"><FileText size={14} />Lock listing copy</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Set governed pricing inputs</h4></div><em className={completedSteps.pricing ? styles.wopComplete : ""}>{completedSteps.pricing ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Set governed pricing inputs" status={<em className={completedSteps.pricing ? styles.wopComplete : ""}>{completedSteps.pricing ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Pricing state</span><select onChange={(event) => updateValue("pricingState", event.target.value as PricingState, "pricing")} value={input.pricingState}><option>Pending approval</option><option>Approved</option><option>Exception review</option></select></label>
           </div>
@@ -296,10 +295,9 @@ export function PmmPhotosMarketingTool({
             <label><input checked={input.floorPriceProtected} onChange={(event) => updateBoolean("floorPriceProtected", event.target.checked, "pricing")} type="checkbox" /><span>Cost floor and margin guardrail protected</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.listing || !result.pricingComplete || completedSteps.pricing} onClick={completePricing} type="button"><Tags size={14} />Lock pricing</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Complete compliance review</h4></div><em className={completedSteps.compliance ? styles.wopComplete : ""}>{completedSteps.compliance ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Complete compliance review" status={<em className={completedSteps.compliance ? styles.wopComplete : ""}>{completedSteps.compliance ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.complianceClaimsReviewed} onChange={(event) => updateBoolean("complianceClaimsReviewed", event.target.checked, "compliance")} type="checkbox" /><span>Claims and representation review complete</span></label>
             <label><input checked={input.complianceDisclosuresReviewed} onChange={(event) => updateBoolean("complianceDisclosuresReviewed", event.target.checked, "compliance")} type="checkbox" /><span>Disclosure review complete</span></label>
@@ -307,10 +305,9 @@ export function PmmPhotosMarketingTool({
             <label><input checked={input.titleOrSafetyHoldCleared} onChange={(event) => updateBoolean("titleOrSafetyHoldCleared", event.target.checked, "compliance")} type="checkbox" /><span>Title or safety hold reviewed for publication</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.pricing || !result.complianceComplete || completedSteps.compliance} onClick={completeCompliance} type="button">Lock compliance review</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Publish and verify channels</h4></div><em className={completedSteps.publish ? styles.wopComplete : ""}>{completedSteps.publish ? "Published" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Publish and verify channels" status={<em className={completedSteps.publish ? styles.wopComplete : ""}>{completedSteps.publish ? "Published" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Publication state</span><select onChange={(event) => updateValue("publicationState", event.target.value as PublicationState, "publish")} value={input.publicationState}><option>Not published</option><option>Published to website</option><option>Published to all channels</option></select></label>
           </div>
@@ -318,54 +315,58 @@ export function PmmPhotosMarketingTool({
             <label><input checked={input.channelPackageVerified} onChange={(event) => updateBoolean("channelPackageVerified", event.target.checked, "publish")} type="checkbox" /><span>Published package was verified in channel output</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.compliance || !result.publicationComplete || !input.channelPackageVerified || completedSteps.publish} onClick={completePublish} type="button">Release publication</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><Megaphone size={18} /><div><span>Marketing recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Title Readiness" ? styles.wopComplete : result.recommendation === "Complete compliance review" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Pricing state</dt><dd>{input.pricingState}</dd></div>
-          <div><dt>Publication state</dt><dd>{input.publicationState}</dd></div>
-          <div><dt>Channel verification</dt><dd>{input.channelPackageVerified ? "Verified" : "Pending"}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Title Readiness" ? "Media, content, pricing, compliance, and publication are complete. The unit can move into Title Readiness." : "Photos & Marketing should remain controlled until every media, compliance, and publication requirement is satisfied."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed merchandising strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><Megaphone size={18} /><div><span>Marketing recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Title Readiness" ? styles.wopComplete : result.recommendation === "Complete compliance review" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Pricing state</dt><dd>{input.pricingState}</dd></div>
+            <div><dt>Publication state</dt><dd>{input.publicationState}</dd></div>
+            <div><dt>Channel verification</dt><dd>{input.channelPackageVerified ? "Verified" : "Pending"}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Title Readiness" ? "Media, content, pricing, compliance, and publication are complete. The unit can move into Title Readiness." : "Photos & Marketing should remain controlled until every media, compliance, and publication requirement is satisfied."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed merchandising strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No merchandising action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No merchandising action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Media package</span>
-        <strong>{completedSteps.media ? "Media set complete" : "Media still active"}</strong>
-        <small>The required photo set should be complete before copy and publication controls move forward.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Compliance and publication</span>
-        <strong>{completedSteps.compliance ? "Compliance cleared" : "Compliance still active"}</strong>
-        <small>Claims, disclosures, privacy, and hold review should be complete before channel release.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.publish ? "Ready for Title Readiness" : "Photos & Marketing still active"}</strong>
-        <small>{completedSteps.publish ? "This unit can now hand off into the Title Readiness stage." : "Finish publication and channel verification before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Media package</span>
+          <strong>{completedSteps.media ? "Media set complete" : "Media still active"}</strong>
+          <small>The required photo set should be complete before copy and publication controls move forward.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Compliance and publication</span>
+          <strong>{completedSteps.compliance ? "Compliance cleared" : "Compliance still active"}</strong>
+          <small>Claims, disclosures, privacy, and hold review should be complete before channel release.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.publish ? "Ready for Title Readiness" : "Photos & Marketing still active"}</strong>
+          <small>{completedSteps.publish ? "This unit can now hand off into the Title Readiness stage." : "Finish publication and channel verification before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

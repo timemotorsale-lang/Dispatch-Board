@@ -81,7 +81,7 @@ export function RepairWorkflowFrame({
   const workOrderReturn = repairReviewHref(repairOrderId, stageOpen ? selected : undefined, {
     ...context, tool: activeTool, workflow: shopView ? "shop" : undefined
   }) + (advisorRepairTab ? "&tab=repair" : "");
-  const inventoryHref = customerOwned ? undefined : inventoryLifecycleHref(vehicleId, repairOrderId, workbenchHref);
+  const inventoryHref = customerOwned ? undefined : inventoryLifecycleHref(vehicleId, repairOrderId, workOrderReturn);
   const lifecycleHref = shopReconLifecycleHref(repairOrderId, workbenchHref);
   const toolHref = (tool: string) => repairReviewHref(repairOrderId, undefined, { ...context, tool });
   const actionHref = nextAction?.href ?? (auxiliary || selected !== current ? `${currentHref}#repair-workflow-action` : "#repair-workflow-action");

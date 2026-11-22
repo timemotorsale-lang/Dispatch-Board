@@ -1,5 +1,32 @@
 export const FINAL_REPAIR_QC_TEMPLATE = "FINAL_REPAIR_CHECKLIST";
 
+export const FINAL_REPAIR_QC_RECOMMENDATION_LABEL = "Reviewed · recommendation";
+export const FINAL_REPAIR_QC_FINDING_MAX = 200;
+export const FINAL_REPAIR_QC_NOTE_MIN = 10;
+export const FINAL_REPAIR_QC_NOTE_MAX = 1000;
+
+export type FinalRepairQcRecommendation = { finding: string; note: string };
+
+export function readFinalRepairQcRecommendation(
+  inspection: { disposition: string; templateSnapshot?: unknown } | null | undefined
+): FinalRepairQcRecommendation | null {
+  if (inspection?.disposition !== "PASSED") return null;
+  const snapshot = inspection.templateSnapshot;
+  if (!snapshot || typeof snapshot !== "object" || !("templateCode" in snapshot) ||
+    snapshot.templateCode !== FINAL_REPAIR_QC_TEMPLATE || !("recommendation" in snapshot)) return null;
+
+  const recommendation = snapshot.recommendation;
+  if (!recommendation || typeof recommendation !== "object" ||
+    !("finding" in recommendation) || typeof recommendation.finding !== "string" ||
+    !("note" in recommendation) || typeof recommendation.note !== "string") return null;
+
+  const finding = recommendation.finding.trim();
+  const note = recommendation.note.trim();
+  return finding && finding.length <= FINAL_REPAIR_QC_FINDING_MAX &&
+    note.length >= FINAL_REPAIR_QC_NOTE_MIN && note.length <= FINAL_REPAIR_QC_NOTE_MAX
+    ? { finding, note } : null;
+}
+
 export const finalRepairChecks = [
   { code: "REPAIR_COMPLETE", category: "COMPLETION", label: "Approved work is complete" },
   { code: "CONCERN_RESOLVED", category: "COMPLETION", label: "Concern covered by this job was addressed" },

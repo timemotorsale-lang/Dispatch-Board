@@ -5074,3 +5074,378 @@
     flex-direction: column;
   }
 }
+/* Task-first layout for the guided lifecycle preview. */
+.preview {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.previewHeader,
+.previewStageHeader,
+.previewNext,
+.previewDetails > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 18px;
+}
+
+.previewHeader {
+  padding: 4px 0;
+}
+
+.previewHeader h1,
+.previewStageHeader h2,
+.previewHeader p,
+.previewStageHeader p,
+.previewNext p,
+.previewStatus {
+  margin: 0;
+}
+
+.previewHeader h1 {
+  font-size: 1.5rem;
+}
+
+.previewHeader h1 small {
+  color: #335777;
+  background: #e9f0fb;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: .75rem;
+  vertical-align: middle;
+}
+
+.previewHeader p,
+.previewStageHeader p,
+.previewStageHeader > span,
+.previewNext p {
+  font-size: .875rem;
+}
+
+.previewNavigation {
+  scroll-margin-block-start: 12rem;
+}
+
+.previewStageNav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 108px), 1fr));
+  gap: 4px;
+}
+
+.previewStagePicker {
+  display: none;
+}
+
+.previewHandoff {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.previewStageNav button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 8px;
+  min-height: 36px;
+  border: 1px solid #ccd8e5;
+  border-radius: 6px;
+  background: #fff;
+  color: #263c57;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: .8rem;
+  line-height: 1.2;
+}
+
+.previewStageNav strong {
+  overflow-wrap: anywhere;
+}
+
+.previewStageNav small {
+  font-size: .7rem;
+  opacity: .8;
+}
+
+.previewStageNav button[data-complete="true"] {
+  background: #eaf6ee;
+  border-color: #90bda0;
+  color: #205c37;
+}
+
+.previewStageCheck {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.previewStageNav button[aria-pressed="true"] {
+  background: #304d98;
+  border-color: #304d98;
+  color: #fff;
+}
+
+.previewStage {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #cdd9e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #182c44;
+}
+
+.previewStageHeader h2 {
+  font-size: 1.2rem;
+}
+
+.previewNext {
+  border-inline-start: 3px solid #4766ac;
+  border-radius: 4px;
+  background: #edf3fc;
+  padding: 8px 10px;
+}
+
+.previewDetails {
+  border: 1px solid #d5dfea;
+  background: #fff;
+  color: #263c57;
+  border-radius: 6px;
+  padding: 0 10px;
+  min-width: 0;
+}
+
+.previewDetails > summary {
+  justify-content: flex-start;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: .85rem;
+  min-height: 34px;
+}
+
+.previewDetails > summary::before {
+  content: "›";
+  width: 10px;
+}
+
+.previewDetails[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.previewDetails > :last-child:not(summary) {
+  margin-block-end: 10px;
+}
+
+.previewDetails > :is(ol, ul) {
+  display: grid;
+  gap: 8px;
+  padding-inline-start: 24px;
+  margin-block: 0 10px;
+}
+
+.previewDetails li {
+  font-size: .875rem;
+}
+
+.previewDetails li > span {
+  margin-inline-start: 8px;
+  color: #405b79;
+}
+
+.previewDetails li p {
+  margin: 0;
+}
+
+.previewDetails > dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: .875rem;
+  margin-block: 0 10px;
+}
+
+.previewDetails dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.previewStatus {
+  font-size: .875rem;
+}
+
+.previewTool {
+  min-width: 0;
+}
+
+.previewTool:not([hidden]) {
+  display: grid;
+  gap: 8px;
+}
+
+.previewTool > :is(.taiWorkspace, .tciWorkspace, .rbiWorkspace, .iiiWorkspace, .igiWorkspace, .iqiWorkspace, .wopWorkspace) {
+  background: transparent;
+  border: 0;
+  min-width: 0;
+  gap: 8px;
+}
+
+/* Keep tool shortcuts and give the stage title a single place in the preview. */
+.previewTool > section > :is(.taiHeader, .tciHeader, .rbiHeader, .iiiHeader, .igiHeader, .iqiHeader, .wopHeader) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.previewTool > section > header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.previewTool > section > header:not(:has(.iiiHeaderActions, .igiHeaderActions, .iqiHeaderActions, .wopHeaderActions)),
+.previewTool > section > header > div:not(:first-child),
+.previewTool > section > header > div:first-child > :is(h3, p, span),
+.previewTool .wopHeaderLink[href="#wop-budget-approval"] {
+  display: none;
+}
+
+.previewTool :is(.iiiHeaderActions, .igiHeaderActions, .iqiHeaderActions, .wopHeaderActions) {
+  margin: 0;
+  gap: 5px;
+}
+
+.previewTool :is(.iiiHeaderLink, .igiHeaderLink, .igiHeaderButton, .iqiHeaderLink, .wopHeaderLink, .wopHeaderButton) {
+  padding: 5px 8px;
+  border: 1px solid #d5dfea;
+  border-radius: 5px;
+  background: #f6f9fd;
+  color: #263c57;
+}
+
+.previewTool > section > :is(.tciBody, .rbiBody, .iiiBody, .igiBody, .iqiBody, .wopBody) {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0;
+  gap: 8px;
+}
+
+.previewTool :is(.tciSteps, .rbiSteps, .iiiSteps, .igiSteps, .iqiSteps, .wopSteps) {
+  gap: 5px;
+  min-width: 0;
+}
+
+.previewStep > summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  min-height: 35px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-size: .875rem;
+  background: #f6f9fd;
+}
+
+.previewStep[open] > summary {
+  border-bottom: 1px solid #d5dfea;
+  background: #edf3fc;
+}
+
+.previewStep[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.previewStep > summary:focus-visible,
+.previewDetails > summary:focus-visible,
+.previewStageNav button:focus-visible {
+  outline: 2px solid #3e5fc0;
+  outline-offset: -2px;
+}
+
+.previewStepNumber,
+.previewStep > summary > em {
+  color: #405b79;
+  font-size: .75rem;
+  font-style: normal;
+}
+
+.previewStep > summary > em[class]:not([class=""]) {
+  color: #256043;
+  font-weight: 700;
+}
+
+.previewTool .quickAcquisition {
+  margin: 0;
+  padding: 10px;
+}
+
+.previewTool .quickAcquisition header :is(span, p, strong) {
+  display: none;
+}
+
+.previewTool .taiAdvanced {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .previewStageNav {
+    display: none;
+  }
+
+  .previewStagePicker {
+    display: grid;
+    gap: 4px;
+    font-size: .875rem;
+    font-weight: 700;
+  }
+
+  .previewStagePicker select {
+    border: 1px solid #304d98;
+    border-radius: 6px;
+    padding: 8px;
+    background: #304d98;
+    color: #fff;
+  }
+
+  .previewStagePicker option {
+    background: #fff;
+    color: #263c57;
+  }
+
+  .previewStage {
+    padding: 8px;
+  }
+
+  .previewTool :is(.tciModeChooser, .quickAcquisitionFields) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.previewQc {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.previewQc h3,
+.previewQc p {
+  margin: 0;
+}
+
+.previewQc h3 {
+  font-size: 1rem;
+}
+
+.previewQcPassed {
+  border-radius: 5px;
+  padding: 8px 10px;
+  color: #205c37;
+  background: #edf8f0;
+}
+
+.previewQcActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

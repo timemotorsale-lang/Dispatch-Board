@@ -3,6 +3,7 @@
 import { BadgeCheck, Check, CircleAlert, Clock3, Route, ShieldCheck, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import {
   evaluateTciTransport,
@@ -242,11 +243,7 @@ export function TciTransportTool({ initialTransportMode = null, onProgressChange
 
     <div className={styles.tciBody}>
       <div className={styles.tciSteps}>
-        <section className={styles.tciStepCard}>
-          <header>
-            <div><span>1</span><h4>Source location</h4></div>
-            <em className={completedSteps.source ? styles.tciComplete : ""}>{completedSteps.source ? "Recorded" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.tciStepCard} step="1" title="Source location" status={<em className={completedSteps.source ? styles.tciComplete : ""}>{completedSteps.source ? "Recorded" : "Required"}</em>} defaultOpen>
           <div className={styles.tciFieldGrid}>
             <label><span>Source type</span><select aria-label="Source type" onChange={(event) => update("sourceLocation", event.target.value as TciSourceLocation, "source")} value={input.sourceLocation}>{sourceOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
             <label><span>Exact current location</span><input aria-label="Exact current location" onChange={(event) => update("currentLocation", event.target.value, "source")} value={input.currentLocation} /></label>
@@ -254,13 +251,9 @@ export function TciTransportTool({ initialTransportMode = null, onProgressChange
           </div>
           <div className={styles.tciChecks}><label><input checked={input.vehicleLocatedAtSource} onChange={(event) => update("vehicleLocatedAtSource", event.target.checked, "source")} type="checkbox" /><span>Vehicle physically verified at source</span></label></div>
           <button className={styles.tciAction} disabled={!result.sourceComplete || completedSteps.source} onClick={confirmSource} type="button">Confirm source location</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.tciStepCard}>
-          <header>
-            <div><span>2</span><h4>Release readiness</h4></div>
-            <em className={completedSteps.release ? styles.tciComplete : ""}>{completedSteps.release ? "Recorded" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.tciStepCard} step="2" title="Release readiness" status={<em className={completedSteps.release ? styles.tciComplete : ""}>{completedSteps.release ? "Recorded" : "Required"}</em>}>
           <div className={styles.tciFieldGrid}>
             <label><span>Gate pass status</span><select aria-label="Gate pass status" onChange={(event) => update("gatePassReady", event.target.value === "Available", "release")} value={input.gatePassReady ? "Available" : "Missing"}><option>Available</option><option>Missing</option></select></label>
             <label><span>Keys status</span><select aria-label="Keys status" onChange={(event) => update("keysConfirmed", event.target.value === "Confirmed", "release")} value={input.keysConfirmed ? "Confirmed" : "Missing"}><option>Confirmed</option><option>Missing</option></select></label>
@@ -268,13 +261,9 @@ export function TciTransportTool({ initialTransportMode = null, onProgressChange
           </div>
           <div className={styles.tciChecks}><label><input checked={input.gateReleaseConfirmed} onChange={(event) => update("gateReleaseConfirmed", event.target.checked, "release")} type="checkbox" /><span>Release desk coordinated</span></label></div>
           <button className={styles.tciAction} disabled={!result.releaseComplete || !input.keysConfirmed || completedSteps.release} onClick={confirmRelease} type="button">Confirm release readiness</button>
-        </section>
+        </LifecycleStep>
 
-        {transportMode ? <section className={styles.tciStepCard}>
-          <header>
-            <div><span>3</span><h4>{transportMode === "TOW" ? "Tow / carrier coordination" : "Driver coordination"}</h4></div>
-            <em className={completedSteps.driver ? styles.tciComplete : ""}>{completedSteps.driver ? "Recorded" : "Required"}</em>
-          </header>
+        {transportMode ? <LifecycleStep className={styles.tciStepCard} step="3" title={transportMode === "TOW" ? "Tow / carrier coordination" : "Driver coordination"} status={<em className={completedSteps.driver ? styles.tciComplete : ""}>{completedSteps.driver ? "Recorded" : "Required"}</em>}>
           <div className={styles.tciFieldGrid}>
             {transportMode === "TOW" ? <label><span>Tow type</span><select aria-label="Tow type" onChange={(event) => updateTowPlan(event.target.value as "Tow vendor" | "Carrier")} value={input.driverPlan === "Carrier" ? "Carrier" : "Tow vendor"}><option>Tow vendor</option><option>Carrier</option></select></label> : <label><span>Driver plan</span><select aria-label="Driver plan" onChange={(event) => update("driverPlan", event.target.value as TciDriverPlan, "driver")} value={input.driverPlan}>{planOptions.filter((item) => item === "Internal driver" || item === "Driver with Uber support" || item === "Pending dispatch").map((item) => <option key={item}>{item}</option>)}</select></label>}
             <label><span>Pickup window / ETA hours</span><input aria-label="Pickup window ETA hours" min="0" onChange={(event) => update("etaHours", Number(event.target.value), "driver")} type="number" value={input.etaHours} /></label>
@@ -287,13 +276,9 @@ export function TciTransportTool({ initialTransportMode = null, onProgressChange
             {transportMode === "DRIVER" ? <><label><input checked={input.uberNeeded} onChange={(event) => update("uberNeeded", event.target.checked, "driver")} type="checkbox" /><span>Uber needed</span></label><label><input checked={input.uberPlanned} disabled={!input.uberNeeded} onChange={(event) => update("uberPlanned", event.target.checked, "driver")} type="checkbox" /><span>Uber planned</span></label></> : null}
           </div>
           <button className={styles.tciAction} disabled={!result.planComplete || completedSteps.driver} onClick={confirmDriver} type="button">Record {transportMode === "TOW" ? "tow / carrier" : "driver"} coordination</button>
-        </section> : <section className={styles.tciChoosePrompt}><Truck /><strong>Choose dealership driver or tow / carrier above</strong><span>The form will show only the questions that apply.</span></section>}
+        </LifecycleStep> : <section className={styles.tciChoosePrompt}><Truck /><strong>Choose dealership driver or tow / carrier above</strong><span>The form will show only the questions that apply.</span></section>}
 
-        {transportMode ? <section className={styles.tciStepCard}>
-          <header>
-            <div><span>4</span><h4>{transportMode === "TOW" ? "Tow movement" : "Driver pre-trip safety"}</h4></div>
-            <em className={completedSteps.safety ? styles.tciComplete : ""}>{completedSteps.safety ? "Recorded" : "Required"}</em>
-          </header>
+        {transportMode ? <LifecycleStep className={styles.tciStepCard} step="4" title={transportMode === "TOW" ? "Tow movement" : "Driver pre-trip safety"} status={<em className={completedSteps.safety ? styles.tciComplete : ""}>{completedSteps.safety ? "Recorded" : "Required"}</em>}>
           <div className={styles.tciFieldGrid}>
             {transportMode === "DRIVER" ? <><label><span>Starts / runs</span><select aria-label="Starts runs"><option>Yes</option><option>No</option><option>Unknown</option></select></label><label><span>Drive decision</span><select aria-label="Drive decision" onChange={(event) => update("mobilityDecision", event.target.value as TciMobilityDecision, "safety")} value={input.mobilityDecision}>{movementOptions.filter((item) => item === "Drive to dealership" || item === "Assessment required").map((item) => <option key={item}>{item}</option>)}</select></label></> : <label><span>Movement method</span><input aria-label="Tow movement method" readOnly value={input.mobilityDecision === "Carrier to dealership" ? "Carrier to dealership" : "Tow to dealership"} /></label>}
             <label><span>Exception needed</span><select aria-label="Exception needed" onChange={(event) => update("exceptionType", event.target.value as TciExceptionType, "safety")} value={input.exceptionType}>{exceptionOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -303,40 +288,44 @@ export function TciTransportTool({ initialTransportMode = null, onProgressChange
             <label><input checked={input.exceptionResolved} disabled={input.exceptionType === "None"} onChange={(event) => update("exceptionResolved", event.target.checked, "safety")} type="checkbox" /><span>Open blocker resolved or assigned</span></label>
           </div>
           <button className={styles.tciAction} disabled={!result.movementComplete || !blockersReady || completedSteps.safety} onClick={confirmSafety} type="button">Record {transportMode === "TOW" ? "tow" : "driver safety"} decision</button>
-        </section> : null}
+        </LifecycleStep> : null}
       </div>
 
-      <aside className={styles.tciDecision}>
-        <header>
-          <Route />
-          <div><span>Transportation readiness</span><strong>{result.recommendation} / {result.confidence}</strong></div>
-          <em className={result.blockers.length ? styles.tciHold : styles.tciComplete}>{result.transportScore}/100</em>
-        </header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{controlsComplete}/8</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
-          <div><dt>Vehicle</dt><dd>{vehicleLabel}</dd></div>
-          <div><dt>Owner</dt><dd>{owner}</dd></div>
-          <div><dt>Current location</dt><dd>{input.currentLocation}</dd></div>
-          <div><dt>Destination</dt><dd>{input.destinationLocation || "Not entered"}</dd></div>
-        </dl>
-        <p className={styles.tciExplanation}>{result.explanation}</p>
-        <div className={styles.tciDrivers}>
-          <div><strong>What is working</strong>{result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed transportation strength yet.</span>}</div>
-          <div><strong>What still needs attention</strong>{result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}</div>
-        </div>
-        <section className={styles.tciTrail}>
-          <header><Clock3 /><h4>Operational work trail</h4></header>
-          {trail.length ? <ol>{trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}><div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div><p>{entry.result}</p><em>{entry.evidence}</em></li>)}</ol> : <p>No transportation action has been recorded yet.</p>}
-        </section>
-      </aside>
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.tciDecision}>
+          <header>
+            <Route />
+            <div><span>Transportation readiness</span><strong>{result.recommendation} / {result.confidence}</strong></div>
+            <em className={result.blockers.length ? styles.tciHold : styles.tciComplete}>{result.transportScore}/100</em>
+          </header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{controlsComplete}/8</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
+            <div><dt>Vehicle</dt><dd>{vehicleLabel}</dd></div>
+            <div><dt>Owner</dt><dd>{owner}</dd></div>
+            <div><dt>Current location</dt><dd>{input.currentLocation}</dd></div>
+            <div><dt>Destination</dt><dd>{input.destinationLocation || "Not entered"}</dd></div>
+          </dl>
+          <p className={styles.tciExplanation}>{result.explanation}</p>
+          <div className={styles.tciDrivers}>
+            <div><strong>What is working</strong>{result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed transportation strength yet.</span>}</div>
+            <div><strong>What still needs attention</strong>{result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}</div>
+          </div>
+          <section className={styles.tciTrail}>
+            <header><Clock3 /><h4>Operational work trail</h4></header>
+            {trail.length ? <ol>{trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}><div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div><p>{entry.result}</p><em>{entry.evidence}</em></li>)}</ol> : <p>No transportation action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.tciApproval}>
-      <div><span><ShieldCheck />Checklist progress</span><strong>{controlsComplete}/8 checklist lines cleared</strong><small>The tool records evidence that checks the stage lines below.</small></div>
-      <div><span><BadgeCheck />Readiness</span><strong>{controlsComplete === 8 ? "Ready for Receiving" : "Not ready for Receiving"}</strong><small>Receiving stays locked until every transportation control is cleared.</small></div>
-      <div><span><Truck />Completion path</span><strong>{transportMode === "TOW" ? "Source → Release → Tow → Dispatch" : transportMode === "DRIVER" ? "Source → Release → Driver → Safety" : "Choose movement method first"}</strong><small>Only applicable questions are required.</small></div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.tciApproval}>
+        <div><span><ShieldCheck />Checklist progress</span><strong>{controlsComplete}/8 checklist lines cleared</strong><small>The tool records evidence that checks the stage lines below.</small></div>
+        <div><span><BadgeCheck />Readiness</span><strong>{controlsComplete === 8 ? "Ready for Receiving" : "Not ready for Receiving"}</strong><small>Receiving stays locked until every transportation control is cleared.</small></div>
+        <div><span><Truck />Completion path</span><strong>{transportMode === "TOW" ? "Source → Release → Tow → Dispatch" : transportMode === "DRIVER" ? "Source → Release → Driver → Safety" : "Choose movement method first"}</strong><small>Only applicable questions are required.</small></div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.tciNotice} aria-live="polite"><CircleAlert />{notice}</footer>
   </section>;

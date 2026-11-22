@@ -1,5 +1,5 @@
 export function inventoryLifecycleHref(vehicleId: string, repairOrderId: string, returnTo: string) {
-  const query = new URLSearchParams({ view: "lifecycle", repairOrderId, returnTo });
+  const query = new URLSearchParams({ view: "guided-lifecycle", repairOrderId, returnTo });
   return `/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning?${query}`;
 }
 

@@ -10,9 +10,9 @@ import {
   ScanBarcode,
   Truck,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails, LifecycleToolLink } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import {
   evaluateWopPartsOrdering,
@@ -177,9 +177,9 @@ export function WopPartsOrderingTool({
         <strong>Turn work-order scope into exact parts demand, sourcing, receipt, and repair readiness.</strong>
         <p>Labor guide creates the need. This chain proves who sourced it, how it was approved, and when the right part became usable.</p>
         <div className={styles.wopHelperLinks}>
-          <Link className={styles.wopHelperLink} href={laborGuideHref}>Mechanical labor guide</Link>
-          <Link className={styles.wopHelperLink} href={autobodyLaborGuideHref}>Autobody labor guide</Link>
-          <Link className={styles.wopHelperLink} href={partsWorkspaceHref}>Open parts workspace</Link>
+          <LifecycleToolLink className={styles.wopHelperLink} href={laborGuideHref} forRepairOrder>Mechanical labor guide</LifecycleToolLink>
+          <LifecycleToolLink className={styles.wopHelperLink} href={autobodyLaborGuideHref}>Autobody labor guide</LifecycleToolLink>
+          <LifecycleToolLink className={styles.wopHelperLink} href={partsWorkspaceHref} forRepairOrder>Open parts workspace</LifecycleToolLink>
         </div>
         <div className={styles.wopIntroResponses}>
           <label><input checked={introResponses.mechanicalGuideReviewed} onChange={(event) => updateIntroResponse("mechanicalGuideReviewed", event.target.checked)} type="checkbox" /><span>Mechanical labor guide reviewed where needed</span></label>
@@ -195,8 +195,7 @@ export function WopPartsOrderingTool({
 
     <div className={styles.wopSubworkspaceGrid}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Parts step 1</span><h4>Create parts demand</h4></div><em className={completedSteps.demand ? styles.wopComplete : ""}>{completedSteps.demand ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Parts step 1" title="Create parts demand" status={<em className={completedSteps.demand ? styles.wopComplete : ""}>{completedSteps.demand ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopFieldGrid}>
             <label><span>Source classification</span><select aria-label="Source classification" onChange={(event) => updateValue("sourceType", event.target.value as WopPartsSourceType, "demand")} value={input.sourceType}>{sourceOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label><span>Urgency</span><select aria-label="Urgency" onChange={(event) => updateValue("urgency", event.target.value as WopPartsUrgency, "demand")} value={input.urgency}>{urgencyOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -208,10 +207,9 @@ export function WopPartsOrderingTool({
             <label><input checked={input.quantityConfirmed} onChange={(event) => updateBoolean("quantityConfirmed", event.target.checked, "demand")} type="checkbox" /><span>Quantity and fitment request confirmed</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.demandComplete || completedSteps.demand} onClick={completeDemand} type="button"><ClipboardList size={14} />Lock parts demand</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Parts step 2</span><h4>Source or reserve the part</h4></div><em className={completedSteps.source ? styles.wopComplete : ""}>{completedSteps.source ? "Sourced" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Parts step 2" title="Source or reserve the part" status={<em className={completedSteps.source ? styles.wopComplete : ""}>{completedSteps.source ? "Sourced" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.sourceCommitted} onChange={(event) => updateBoolean("sourceCommitted", event.target.checked, "source")} type="checkbox" /><span>Vendor or stock source selected</span></label>
             <label><input checked={input.vendorQuoteCaptured} onChange={(event) => updateBoolean("vendorQuoteCaptured", event.target.checked, "source")} type="checkbox" /><span>Quote or stock cost captured</span></label>
@@ -219,10 +217,9 @@ export function WopPartsOrderingTool({
             <label><input checked={input.etaConfirmed} onChange={(event) => updateBoolean("etaConfirmed", event.target.checked, "source")} type="checkbox" /><span>ETA or pickup timing confirmed</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.demand || !result.sourcingComplete || completedSteps.source} onClick={completeSource} type="button"><Truck size={14} />Confirm sourcing plan</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Parts step 3</span><h4>Resolve supplement and approval</h4></div><em className={completedSteps.approval ? styles.wopComplete : ""}>{completedSteps.approval ? "Controlled" : result.supplementRequired ? "Approval required" : "No supplement"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Parts step 3" title="Resolve supplement and approval" status={<em className={completedSteps.approval ? styles.wopComplete : ""}>{completedSteps.approval ? "Controlled" : result.supplementRequired ? "Approval required" : "No supplement"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Approved work-order budget</span><input disabled type="text" value={new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(approvedBudgetDollars || 0)} /></label>
             <label><span>Revised work-order total</span><input disabled type="text" value={new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.revisedWorkOrderTotalDollars || 0)} /></label>
@@ -234,10 +231,9 @@ export function WopPartsOrderingTool({
           </div>
           <p className={styles.wopExplanation}>{result.supplementRequired ? "The revised total is above the current approved plan, so parts cannot silently move forward. Preserve the supplement decision here before repair readiness is trusted." : "The current parts plan remains inside the approved work-order total, so no supplement approval is needed."}</p>
           <button className={styles.wopAction} disabled={!completedSteps.source || !result.approvalComplete || completedSteps.approval} onClick={completeApproval} type="button"><DollarSign size={14} />Lock approval control</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Parts step 4</span><h4>Receive and match before repair</h4></div><em className={completedSteps.receive ? styles.wopComplete : ""}>{completedSteps.receive ? "Ready" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Parts step 4" title="Receive and match before repair" status={<em className={completedSteps.receive ? styles.wopComplete : ""}>{completedSteps.receive ? "Ready" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.received} onChange={(event) => updateBoolean("received", event.target.checked, "receive")} type="checkbox" /><span>Part received physically</span></label>
             <label><input checked={input.quantityMatched} onChange={(event) => updateBoolean("quantityMatched", event.target.checked, "receive")} type="checkbox" /><span>Quantity matched the order</span></label>
@@ -246,35 +242,37 @@ export function WopPartsOrderingTool({
             <label><input checked={input.readyForRepairConfirmed} onChange={(event) => updateBoolean("readyForRepairConfirmed", event.target.checked, "receive")} type="checkbox" /><span>Ready for technician use</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.approval || !result.receivingComplete || !input.readyForRepairConfirmed || completedSteps.receive} onClick={completeReceive} type="button"><ScanBarcode size={14} />Lock receiving match</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><Package size={18} /><div><span>Parts recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for repair" ? styles.wopComplete : result.recommendation === "Exception" ? styles.wopHold : ""}>{trail.length} trail</em></header>
-        <dl>
-          <div><dt>Demand</dt><dd>{completedSteps.demand ? "Locked" : "Active"}</dd></div>
-          <div><dt>Sourcing</dt><dd>{completedSteps.source ? "Controlled" : "Pending"}</dd></div>
-          <div><dt>Supplement</dt><dd>{result.supplementRequired ? "Required" : "Not required"}</dd></div>
-          <div><dt>Receiving</dt><dd>{completedSteps.receive ? "Matched" : "Pending"}</dd></div>
-          <div><dt>Urgency</dt><dd>{input.urgency}</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.explanation}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No controlled parts strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><Package size={18} /><div><span>Parts recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for repair" ? styles.wopComplete : result.recommendation === "Exception" ? styles.wopHold : ""}>{trail.length} trail</em></header>
+          <dl>
+            <div><dt>Demand</dt><dd>{completedSteps.demand ? "Locked" : "Active"}</dd></div>
+            <div><dt>Sourcing</dt><dd>{completedSteps.source ? "Controlled" : "Pending"}</dd></div>
+            <div><dt>Supplement</dt><dd>{result.supplementRequired ? "Required" : "Not required"}</dd></div>
+            <div><dt>Receiving</dt><dd>{completedSteps.receive ? "Matched" : "Pending"}</dd></div>
+            <div><dt>Urgency</dt><dd>{input.urgency}</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.explanation}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No controlled parts strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Parts work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No parts-ordering action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Parts work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No parts-ordering action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>

@@ -9,9 +9,9 @@ import {
   LockKeyhole,
   ShieldCheck,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails, LifecycleToolLink } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import {
   evaluateIqiQuality,
@@ -178,9 +178,11 @@ export function IqiQualityTool({ onProgressChange }: { onProgressChange: (progre
         <span><ClipboardCheck size={15} />TMS Initial Quality Control</span>
         <h3>IQI initial QC workspace</h3>
         <p>Independently verify the inspection package, disposition every finding, and release only a complete package into recon planning.</p>
-        <div className={styles.iqiHeaderActions}>
-          <Link className={styles.iqiHeaderLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory">Open live QC workspace</Link>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.iqiHeaderActions}>
+            <LifecycleToolLink forRepairOrder className={styles.iqiHeaderLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory">Open live QC workspace</LifecycleToolLink>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.iqiVersion}>
         <small>QC state</small>
@@ -190,8 +192,7 @@ export function IqiQualityTool({ onProgressChange }: { onProgressChange: (progre
 
     <div className={styles.iqiBody}>
       <div className={styles.iqiSteps}>
-        <section className={styles.iqiStepCard}>
-          <header><div><span>Step 1</span><h4>Confirm inspection package received</h4></div><em className={completedSteps.package ? styles.iqiComplete : ""}>{completedSteps.package ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.iqiStepCard} step="Step 1" title="Confirm inspection package received" status={<em className={completedSteps.package ? styles.iqiComplete : ""}>{completedSteps.package ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.iqiChecks}>
             <label><input checked={input.evidencePackageReceived} onChange={(event) => updateBoolean("evidencePackageReceived", event.target.checked as IqiQualityInput["evidencePackageReceived"], "package")} type="checkbox" /><span>Inspection package received</span></label>
             <label><input checked={input.qcReviewerAssigned} onChange={(event) => updateBoolean("qcReviewerAssigned", event.target.checked as IqiQualityInput["qcReviewerAssigned"], "package")} type="checkbox" /><span>QC reviewer assigned</span></label>
@@ -199,37 +200,33 @@ export function IqiQualityTool({ onProgressChange }: { onProgressChange: (progre
             <label><input checked={input.vehicleLinkedToInspection} onChange={(event) => updateBoolean("vehicleLinkedToInspection", event.target.checked as IqiQualityInput["vehicleLinkedToInspection"], "package")} type="checkbox" /><span>Vehicle linked to inspection package</span></label>
           </div>
           <button className={styles.iqiAction} disabled={!result.inspectionPackageComplete || completedSteps.package} onClick={completePackage} type="button">Lock inspection package</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iqiStepCard}>
-          <header><div><span>Step 2</span><h4>Audit inspection completeness</h4></div><em className={completedSteps.completeness ? styles.iqiComplete : ""}>{completedSteps.completeness ? "Approved" : "Required"}</em></header>
+        <LifecycleStep className={styles.iqiStepCard} step="Step 2" title="Audit inspection completeness" status={<em className={completedSteps.completeness ? styles.iqiComplete : ""}>{completedSteps.completeness ? "Approved" : "Required"}</em>}>
           <div className={styles.iqiChecks}>
             <label><input checked={input.completenessAuditPassed} onChange={(event) => updateBoolean("completenessAuditPassed", event.target.checked as IqiQualityInput["completenessAuditPassed"], "completeness")} type="checkbox" /><span>Completeness audit passed</span></label>
             <label><input checked={input.inspectionSectionsComplete} onChange={(event) => updateBoolean("inspectionSectionsComplete", event.target.checked as IqiQualityInput["inspectionSectionsComplete"], "completeness")} type="checkbox" /><span>Required inspection sections complete</span></label>
             <label><input checked={input.roadTestRequirementReviewed} onChange={(event) => updateBoolean("roadTestRequirementReviewed", event.target.checked as IqiQualityInput["roadTestRequirementReviewed"], "completeness")} type="checkbox" /><span>Road-test requirement reviewed</span></label>
           </div>
           <button className={styles.iqiAction} disabled={!completedSteps.package || !(input.completenessAuditPassed && input.inspectionSectionsComplete && input.roadTestRequirementReviewed) || completedSteps.completeness} onClick={completeCompleteness} type="button">Confirm completeness audit</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iqiStepCard}>
-          <header><div><span>Step 3</span><h4>Validate safety and severity decisions</h4></div><em className={completedSteps.safety ? styles.iqiComplete : ""}>{completedSteps.safety ? "Approved" : "Required"}</em></header>
+        <LifecycleStep className={styles.iqiStepCard} step="Step 3" title="Validate safety and severity decisions" status={<em className={completedSteps.safety ? styles.iqiComplete : ""}>{completedSteps.safety ? "Approved" : "Required"}</em>}>
           <div className={styles.iqiChecks}>
             <label><input checked={input.safetyClassificationApproved} onChange={(event) => updateBoolean("safetyClassificationApproved", event.target.checked as IqiQualityInput["safetyClassificationApproved"], "safety")} type="checkbox" /><span>Safety classifications approved</span></label>
             <label><input checked={input.severityDecisionApproved} onChange={(event) => updateBoolean("severityDecisionApproved", event.target.checked as IqiQualityInput["severityDecisionApproved"], "safety")} type="checkbox" /><span>Severity decisions approved</span></label>
           </div>
           <button className={styles.iqiAction} disabled={!completedSteps.completeness || !(input.safetyClassificationApproved && input.severityDecisionApproved) || completedSteps.safety} onClick={completeSafety} type="button"><ShieldCheck size={14} />Approve safety and severity</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iqiStepCard}>
-          <header><div><span>Step 4</span><h4>Validate evidence quality</h4></div><em className={completedSteps.evidence ? styles.iqiComplete : ""}>{completedSteps.evidence ? "Approved" : "Required"}</em></header>
+        <LifecycleStep className={styles.iqiStepCard} step="Step 4" title="Validate evidence quality" status={<em className={completedSteps.evidence ? styles.iqiComplete : ""}>{completedSteps.evidence ? "Approved" : "Required"}</em>}>
           <div className={styles.iqiChecks}>
             <label><input checked={input.evidenceQualityApproved} onChange={(event) => updateBoolean("evidenceQualityApproved", event.target.checked as IqiQualityInput["evidenceQualityApproved"], "evidence")} type="checkbox" /><span>Evidence quality approved</span></label>
           </div>
           <button className={styles.iqiAction} disabled={!completedSteps.safety || !input.evidenceQualityApproved || completedSteps.evidence} onClick={completeEvidence} type="button">Approve evidence quality</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iqiStepCard}>
-          <header><div><span>Step 5</span><h4>Disposition every finding</h4></div><em className={completedSteps.disposition ? styles.iqiComplete : ""}>{completedSteps.disposition ? "Published" : "Required"}</em></header>
+        <LifecycleStep className={styles.iqiStepCard} step="Step 5" title="Disposition every finding" status={<em className={completedSteps.disposition ? styles.iqiComplete : ""}>{completedSteps.disposition ? "Published" : "Required"}</em>}>
           <div className={styles.iqiFieldGrid}>
             <label>
               <span>Disposition decision</span>
@@ -244,67 +241,70 @@ export function IqiQualityTool({ onProgressChange }: { onProgressChange: (progre
             <label><input checked={input.nextOwnerAssigned} onChange={(event) => updateBoolean("nextOwnerAssigned", event.target.checked as IqiQualityInput["nextOwnerAssigned"], "disposition")} type="checkbox" /><span>Next owner assigned</span></label>
           </div>
           <button className={styles.iqiAction} disabled={!completedSteps.evidence || !result.dispositionComplete || completedSteps.disposition} onClick={completeDisposition} type="button">Publish QC disposition</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.iqiStepCard}>
-          <header><div><span>Step 6</span><h4>Release the controlled handoff</h4></div><em className={completedSteps.release ? styles.iqiComplete : ""}>{completedSteps.release ? "Released" : "Required"}</em></header>
+        <LifecycleStep className={styles.iqiStepCard} step="Step 6" title="Release the controlled handoff" status={<em className={completedSteps.release ? styles.iqiComplete : ""}>{completedSteps.release ? "Released" : "Required"}</em>}>
           <div className={styles.iqiChecks}>
             <label><input checked={input.handoffDecisionLocked} onChange={(event) => updateBoolean("handoffDecisionLocked", event.target.checked as IqiQualityInput["handoffDecisionLocked"], "release")} type="checkbox" /><span>Handoff decision locked</span></label>
             <label><input checked={input.noReleaseBlockersRemain} onChange={(event) => updateBoolean("noReleaseBlockersRemain", event.target.checked as IqiQualityInput["noReleaseBlockersRemain"], "release")} type="checkbox" /><span>No release blockers remain</span></label>
           </div>
           <button className={styles.iqiAction} disabled={!completedSteps.disposition || !result.readinessGateComplete || completedSteps.release} onClick={completeRelease} type="button"><LockKeyhole size={14} />Release to recon planning</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.iqiDecision}>
-        <header>
-          <LockKeyhole />
-          <div><span>IQI recommendation</span><strong>{result.recommendation}</strong></div>
-          <em className={result.blockerCount ? styles.iqiHold : styles.iqiComplete}>{`${result.readinessScore}/100`}</em>
-        </header>
-        <dl>
-          <div><dt>QC score</dt><dd>{`${result.readinessScore}/100`}</dd></div>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Disposition</dt><dd>{input.findingsDispositionDecision}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-        </dl>
-        <p className={styles.iqiExplanation}>{result.explanation}</p>
-        <div className={styles.iqiDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed QC strength yet.</span>}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.iqiDecision}>
+          <header>
+            <LockKeyhole />
+            <div><span>IQI recommendation</span><strong>{result.recommendation}</strong></div>
+            <em className={result.blockerCount ? styles.iqiHold : styles.iqiComplete}>{`${result.readinessScore}/100`}</em>
+          </header>
+          <dl>
+            <div><dt>QC score</dt><dd>{`${result.readinessScore}/100`}</dd></div>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Disposition</dt><dd>{input.findingsDispositionDecision}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+          </dl>
+          <p className={styles.iqiExplanation}>{result.explanation}</p>
+          <div className={styles.iqiDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed QC strength yet.</span>}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
-          </div>
-        </div>
-        <section className={styles.iqiTrail}>
-          <header><Clock3 /><h4>Operational work trail</h4></header>
-          {trail.length ? <ol>{trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}><div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div><p>{entry.result}</p><em>{entry.evidence}</em></li>)}</ol> : <p>No QC action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.iqiTrail}>
+            <header><Clock3 /><h4>Operational work trail</h4></header>
+            {trail.length ? <ol>{trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}><div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div><p>{entry.result}</p><em>{entry.evidence}</em></li>)}</ol> : <p>No QC action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.iqiApproval}>
-      <div>
-        <span><LockKeyhole />Package state</span>
-        <strong>{result.inspectionPackageComplete ? "Inspection package locked" : "Inspection package still open"}</strong>
-        <small>QC should begin only after the exact inspection package is received and linked to the correct unit.</small>
-      </div>
-      <div>
-        <span><ShieldCheck />Review quality</span>
-        <strong>{result.reviewComplete ? "QC review passed" : "QC review still active"}</strong>
-        <small>Completeness, safety, severity, and evidence decisions should support a governed release.</small>
-      </div>
-      <div>
-        <span><BadgeCheck />Stage readiness</span>
-        <strong>{completedSteps.release ? "Ready for recon planning" : "Initial QC still active"}</strong>
-        <small>{completedSteps.release ? "The package can now move into Work Order planning." : "Complete disposition and release decisions before handoff."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.iqiApproval}>
+        <div>
+          <span><LockKeyhole />Package state</span>
+          <strong>{result.inspectionPackageComplete ? "Inspection package locked" : "Inspection package still open"}</strong>
+          <small>QC should begin only after the exact inspection package is received and linked to the correct unit.</small>
+        </div>
+        <div>
+          <span><ShieldCheck />Review quality</span>
+          <strong>{result.reviewComplete ? "QC review passed" : "QC review still active"}</strong>
+          <small>Completeness, safety, severity, and evidence decisions should support a governed release.</small>
+        </div>
+        <div>
+          <span><BadgeCheck />Stage readiness</span>
+          <strong>{completedSteps.release ? "Ready for recon planning" : "Initial QC still active"}</strong>
+          <small>{completedSteps.release ? "The package can now move into Work Order planning." : "Complete disposition and release decisions before handoff."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.iqiNotice} aria-live="polite"><CircleAlert />{notice}</footer>
   </section>;
