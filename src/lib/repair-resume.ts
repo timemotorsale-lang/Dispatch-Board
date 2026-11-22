@@ -22,8 +22,12 @@ export type RepairResume = {
   canAct: boolean;
 };
 
-export function repairLaborGuideHref(repairOrderId: string, returnTo: string, draftId?: string) {
-  const query = new URLSearchParams({ repairOrderId, workflow: "review", returnTo, returnLabel: "Return to repair order" });
+export function repairLaborGuideHref(repairOrderId: string, returnTo?: string, draftId?: string) {
+  const query = new URLSearchParams({ repairOrderId, workflow: "review" });
+  if (returnTo) {
+    query.set("returnTo", returnTo);
+    query.set("returnLabel", "Return to repair order");
+  }
   if (draftId) query.set("draftId", draftId);
   return `/diagnostics/labor-guide?${query}`;
 }

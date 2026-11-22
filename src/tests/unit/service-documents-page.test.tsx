@@ -47,6 +47,13 @@ describe("service document history opening", () => {
     expect(html).toContain("No frozen documents have been issued for this legacy RO.");
     expect(mocks.notFound).not.toHaveBeenCalled();
   });
+  it("returns to the linked Labor Guide when no saved documents exist", async () => {
+    mocks.documents.mockResolvedValue({ order: { id: "ro-1", repairOrderNumber: "RO-1" }, documents: [] });
+    const returnTo = "/diagnostics/labor-guide?repairOrderId=ro-1";
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ repairOrderId: "ro-1", workspace: "1", returnTo }) }));
+    expect(html).toContain(`href="${returnTo}"`);
+    expect(html).toContain("No saved estimates, invoices or receipts for this repair order yet.");
+  });
   it("offers recovery without exposing record identifiers or creating replacement work", () => {
     const html = renderToStaticMarkup(<NotFound />);
     expect(html).toContain('href="/vehicles/repair-workbench"');

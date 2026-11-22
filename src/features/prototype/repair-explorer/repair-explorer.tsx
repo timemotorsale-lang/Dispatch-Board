@@ -3,7 +3,8 @@
 import { repairBillingHref } from "@/lib/service-billing-workflow";
 import { GuideRepairHistory } from "@/features/diagnostics/guide-repair-history";
 
-import { repairExplorerHandoffHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
+import { repairExplorerHandoffHref, repairOrderDocumentsHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
+import { repairLaborGuideHref } from "@/lib/repair-resume";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Search, Trash2, Wrench } from "lucide-react";
@@ -210,6 +211,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             <button type="button" aria-current={review ? "step" : undefined} disabled={!lines.length} onClick={() => { setReview(true); setQuery(""); focusContent(); }}><span>2</span> Review estimate</button>
           </nav>
         </div>
+        {context && <nav className={styles.draftActions} aria-label="Repair order documents"><a className={styles.secondary} href={repairOrderDocumentsHref(context.repairOrderId, repairLaborGuideHref(context.repairOrderId, context.returnTo))}>Estimates, invoices & receipts</a></nav>}
         <GuideRepairHistory initialVehicleId={context?.vehicleId} />
         <div className={styles.searchbar}>
           <Search size={21} aria-hidden="true" />
@@ -313,7 +315,6 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
               <a className={styles.secondary} target="_blank" rel="noreferrer" href={repairBillingHref(repairOrderId, { mode: "invoice" })}>Convert saved estimate to invoice</a>
               <a className={styles.secondary} target="_blank" rel="noreferrer" href={repairBillingHref(repairOrderId, { mode: "deposit" })}>Record deposit</a>
             </nav>}
-            {context && <nav className={styles.draftActions} aria-label="Saved documents and billing"><a href={`/service-documents?repairOrderId=${encodeURIComponent(context.repairOrderId)}&workspace=1`}>Open saved estimates, invoices & receipts</a></nav>}
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>

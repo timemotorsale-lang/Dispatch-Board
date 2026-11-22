@@ -18,6 +18,12 @@ export function repairExplorerStorageKey(userId: string, repairOrderId?: string)
   return repairOrderId ? `${base}.ro.${encodeURIComponent(repairOrderId)}` : base;
 }
 
+export function repairOrderDocumentsHref(repairOrderId: string, returnTo?: string) {
+  const query = new URLSearchParams({ repairOrderId, workspace: "1" });
+  if (returnTo) query.set("returnTo", returnTo);
+  return `/service-documents?${query}`;
+}
+
 export function repairExplorerHandoffHref(repairOrderId?: string, reviewWorkflow = false, returnTo?: string) {
   const query = new URLSearchParams({ importExplorer: "1" });
   if (reviewWorkflow) query.set("workflow", "review");

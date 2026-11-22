@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { repairReviewHref, repairWorkflowLabels, repairWorkflowSteps, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
 import { repairBillingHref } from "@/lib/service-billing-workflow";
+import { repairLaborGuideHref } from "@/lib/repair-resume";
 import { findReconRepairPath, reconRepairPathOptions, type ReconRepairPath } from "@/lib/recon-repair-paths";
 import { VehicleWorkflowSwitch } from "./vehicle-workflow-switch";
 import { customerInventoryLifecycleNotice, inventoryLifecycleHref, shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
@@ -154,6 +155,7 @@ export function RepairWorkflowFrame({
         <summary ref={trigger}>Tools <span aria-hidden="true">⋮</span></summary>
         <nav aria-label="Repair order tools">
           <strong>Documents &amp; photos</strong>
+          <Link href={repairLaborGuideHref(repairOrderId, workOrderReturn)}>Labor Guide</Link>
           <Link href={`${toolHref("details")}#repair-order-document`}>View RO</Link>
           <a href={`/api/repair-orders/${encodeURIComponent(repairOrderId)}/print`} target="_blank" rel="noreferrer">Print RO</a>
           <Link href={`/vehicles/repair-workbench/technician-work-order?${new URLSearchParams({ repairOrderId, returnTo: workOrderReturn })}`}>Technician work order</Link>
