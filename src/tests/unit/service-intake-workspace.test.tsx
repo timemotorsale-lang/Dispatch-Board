@@ -67,6 +67,24 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("sic-live-readiness ready");
   });
 
+  it("shows the linked inventory unit's location for recon instead of the default intake location", () => {
+    const inventoryOptions = {
+      ...options,
+      locations: [...options.locations, { code: "RECON", id: "location-2", name: "Recon location" }],
+      inventoryUnits: [{ id: "inventory-1", inventoryNumber: "INV-1", locationId: "location-2", vehicle: options.vehicles[0] }],
+    };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace
+      initialConcernSummary="Inspect front suspension for internal recon."
+      initialTimestamp="2026-08-02T07:00:00.000Z"
+      initialVehicleId="vehicle-1"
+      initialVehicleRelationship="DEALERSHIP_INVENTORY"
+      options={inventoryOptions}
+    />);
+    expect(html).toContain('<span>Inventory location</span><input readOnly="" value="Recon location"');
+    expect(html).toContain("<dt>Location</dt><dd>Recon location</dd>");
+    expect(html).toContain("Complete Check-In &amp; Create Repair Order");
+  });
+
   it("keeps an existing matching RO available without creating recon when inventory is missing", () => {
     const concernSummary = "Complete inventory safety inspection.";
     const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: null, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary }, stage: "INTAKE", vehicle: options.vehicles[0], version: 1 }] };

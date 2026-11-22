@@ -65,3 +65,14 @@
   .customerCheckIn :global(.sic-footer) { flex-wrap: wrap; gap: 6px; }
   .customerCheckIn :global(.sic-footer) > button { max-width: 100%; white-space: normal; }
 }
+.intakeFooterWithError { flex-wrap: wrap; row-gap: 6px; }
+.intakeFooterError {
+  flex: 0 0 100%;
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid #df9d99;
+  border-radius: 5px;
+  color: #842d28;
+  background: #fff3f2;
+  font-size: .84rem;
+}

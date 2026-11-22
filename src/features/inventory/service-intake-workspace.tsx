@@ -326,6 +326,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const [customerDrawerMessage, setCustomerDrawerMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [checkInError, setCheckInError] = useState("");
   const [created, setCreated] = useState<{ id: string; repairOrderNumber: string; reused?: boolean; vendorRouted?: boolean } | null>(null);
   const [newRepairOrderConfirmed, setNewRepairOrderConfirmed] = useState(false);
   const [readiness, setReadiness] = useState<ServiceReadiness | null>(null);
@@ -406,7 +407,8 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const inventoryEstablishmentHref = selectedVehicle ? `/vehicles/inventory/units?${new URLSearchParams({ vehicleId: selectedVehicle.id, returnTo: `/vehicles/repair-orders?${inventoryReturnQuery}` })}` : "/vehicles/inventory/units";
   const acquisitionHref = selectedVehicle ? `/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(selectedVehicle.id)}&returnTo=${encodeURIComponent(`/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${encodeURIComponent(selectedVehicle.id)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`)}` : "/vehicles/acquisition-appraisal";
   const decodedVehicleReadyToCreate = Boolean(vehicleIdentityPreview?.identity?.vin && vehicleIdentityConfirmed && vehicleOdometer && vehicleQuickDetails.year && vehicleQuickDetails.make.trim() && vehicleQuickDetails.model.trim());
-  const selectedLocation = options.locations.find((location) => location.id === form.locationId);
+  const checkInLocationId = (isDealershipInventory ? selectedInventoryUnit?.locationId : null) ?? form.locationId;
+  const selectedLocation = options.locations.find((location) => location.id === checkInLocationId);
   const selectedOwner = assignableTechnicians.find((user) => user.id === form.ownerUserId);
   const selectedVendor = repairVendorRecords.find((vendor) => vendor.id === form.vendorId);
   const usesOutsideVendor = form.executionPath === "OUTSIDE_VENDOR";
@@ -648,7 +650,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           color,
           expectedVersion: selectedVehicle.version ?? 0,
           idempotencyKey: crypto.randomUUID(),
-          locationId: form.locationId,
+          locationId: checkInLocationId,
           reason: selectedVehicle.color ? "Correct vehicle color during intake." : "Record missing vehicle color during intake.",
         }),
       });
@@ -878,6 +880,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }
 
   function runFooterAction() {
+    setCheckInError("");
     if (sourceHandoff && openVehicleOrders.length && form.customerId) {
       repairOrderDecisionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       setNotice("Review the open orders and link only the order that covers this visit.");
@@ -1150,7 +1153,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       const completionLinks = buildServiceIntakeCompletionLinks(repairOrderId, returnTo);
       window.location.assign(reviewWorkbench ? repairReviewHref(repairOrderId) : isAutobodyReturn(returnTo) ? completionLinks.returnHref : usesOutsideVendor ? completionLinks.repairWorkbenchHref : completionLinks.laborGuideHref);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "The technician assignment could not be saved.");
+      setCheckInError(error instanceof Error ? error.message : "The repair order could not be opened.");
     } finally {
       setBusy(false);
     }
@@ -1217,6 +1220,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setCheckInError("");
     if (inventoryUnitRequired) {
       runNextRequiredAction();
       return;
@@ -1270,7 +1274,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
           inventoryUnitId: isDealershipInventory ? selectedInventoryUnit!.id : null,
           keyTag: form.keyTag || null,
           keysReceivedCount: form.keysReceivedCount,
-          locationId: form.locationId,
+          locationId: checkInLocationId,
           nextAction: form.nextAction,
           operatingState: "ACTIVE",
           ownerUserId: form.ownerUserId,
@@ -1300,7 +1304,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (!sourceHandoff && (!customerCheckIn || !reused)) window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(reused ? `${result.repairOrderNumber} is the active synchronized card for this vehicle. It was opened and no duplicate was created.` : `${result.repairOrderNumber} was created as this vehicle's active repair card.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Vehicle check-in failed.");
+      setCheckInError(error instanceof Error ? error.message : "Vehicle check-in failed.");
     } finally {
       setBusy(false);
     }
@@ -1449,7 +1453,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
             <label><span>Key tag</span><input onChange={(event) => update("keyTag", event.target.value)} placeholder="Tag reference" value={form.keyTag} /></label>
             <label><span>Transportation</span><select onChange={(event) => update("transportMode", event.target.value)} value={form.transportMode}>{isDealershipInventory ? <option value="INTERNAL_TRANSPORT">Internal transport</option> : <><option value="CUSTOMER_WAITING">Customer waiting</option><option value="DROP_OFF">Customer drive / drop-off</option><option value="LOANER">Loaner</option><option value="SHUTTLE">Shuttle</option></>}<option value="TOW">Tow</option><option value="OTHER">Other</option></select></label>
           </div>
-          <details className="sic-more-context"><summary>Authorization, ownership, promise &amp; advanced custody</summary><div className="sic-three-column"><label><span><CalendarClock />Intake target</span><input onChange={(event) => update("targetAt", event.target.value)} required type="datetime-local" value={form.targetAt} /></label><label><span>Customer promise</span><input onChange={(event) => update("promisedAt", event.target.value)} type="datetime-local" value={form.promisedAt} /></label><label><span>Location</span><select onChange={(event) => update("locationId", event.target.value)} value={form.locationId}>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label><span>Priority</span><select onChange={(event) => update("urgency", event.target.value)} value={form.urgency}><option value="STANDARD">Standard</option><option value="WAITING_CUSTOMER">Customer waiting</option><option value="SAFETY_CONCERN">Potential safety concern</option><option value="COMEBACK_REVIEW">Possible comeback</option></select></label></div><div className="sic-two-column sic-consent">
+          <details className="sic-more-context"><summary>Authorization, ownership, promise &amp; advanced custody</summary><div className="sic-three-column"><label><span><CalendarClock />Intake target</span><input onChange={(event) => update("targetAt", event.target.value)} required type="datetime-local" value={form.targetAt} /></label><label><span>Customer promise</span><input onChange={(event) => update("promisedAt", event.target.value)} type="datetime-local" value={form.promisedAt} /></label>{isDealershipInventory && selectedInventoryUnit ? <label><span>Inventory location</span><input readOnly value={selectedLocation?.name ?? "Location on the linked inventory unit"} /></label> : <label><span>Location</span><select onChange={(event) => update("locationId", event.target.value)} value={form.locationId}>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}<label><span>Priority</span><select onChange={(event) => update("urgency", event.target.value)} value={form.urgency}><option value="STANDARD">Standard</option><option value="WAITING_CUSTOMER">Customer waiting</option><option value="SAFETY_CONCERN">Potential safety concern</option><option value="COMEBACK_REVIEW">Possible comeback</option></select></label></div><div className="sic-two-column sic-consent">
             <label><span>Consent status</span><select onChange={(event) => update("consentStatus", event.target.value as IntakeState["consentStatus"])} value={form.consentStatus}><option value="PENDING">Pending</option><option value="DOCUMENTED">Documented</option><option value="NOT_REQUIRED">Not required</option></select></label>
             {form.consentStatus === "DOCUMENTED" ? <><label><span>Consent reference</span><input onChange={(event) => update("consentReference", event.target.value)} placeholder="Signature, call, or document reference" value={form.consentReference} /></label><label><span>Consent recorded at</span><input onChange={(event) => update("consentedAt", event.target.value)} type="datetime-local" value={form.consentedAt} /></label></> : null}
             <label><span>Promise notes</span><input onChange={(event) => update("promiseNotes", event.target.value)} placeholder="What did we commit to communicate or complete?" value={form.promiseNotes} /></label>
@@ -1475,6 +1479,6 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       <footer><button onClick={() => { setCustomerDrawerMessage(""); setDrawer(null); }} type="button">Cancel</button><button className="primary" disabled={busy || !customerDraftReady} onClick={() => void createCustomer()} type="button">{busy ? "Saving…" : "Create & Select Customer"}</button></footer>
     </section></div> : null}
 
-    <footer className="sic-footer"><div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span>{!customerCheckIn && <span>Next: {nextActionLabel}</span>}</div><button disabled={busy || (!ready && readinessLoading)} onClick={runFooterAction} type="button">{busy ? sameConcernOrder ? "Opening existing repair order…" : "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
+    <footer className={`sic-footer ${checkInError ? compact.intakeFooterWithError : ""}`}>{checkInError && <p className={compact.intakeFooterError} role="alert">{checkInError}</p>}<div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span>{!customerCheckIn && <span>Next: {nextActionLabel}</span>}</div><button disabled={busy || (!ready && readinessLoading)} onClick={runFooterAction} type="button">{busy ? sameConcernOrder ? "Opening existing repair order…" : "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
   </form>;
 }
