@@ -137,6 +137,47 @@ export function createShopPlanningRepository(database:PrismaClient=prisma){retur
     });
   },
   commandReceipt(organizationId:string,commandType:string,idempotencyKey:string){return database.enterpriseCommandLedger.findUnique({where:{organizationId_domain_commandType_idempotencyKey:{organizationId,domain:"SHOP_OPERATIONS",commandType,idempotencyKey}},select:{expectedVersion:true}});},
+  getTechnicianWorkOrder(organizationId: string, repairOrderId: string) {
+    return database.repairOrder.findFirst({
+      where: { id: repairOrderId, organizationId },
+      include: {
+        ...planningInclude,
+        advisorUpdates: {
+          where: { statusCode: "TECHNICIAN_FINDING" },
+          orderBy: { version: "desc" },
+          take: 20,
+          select: { id: true, internalNotes: true, authorUserId: true },
+        },
+        repairJobs: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          include: {
+            partDemands: { ...planningInclude.repairJobs.include.partDemands, orderBy: { id: "asc" } },
+            partCustodyEvents: { ...planningInclude.repairJobs.include.partCustodyEvents, orderBy: { id: "asc" } },
+            dispatches: {
+              where: { status: { in: ["ACTIVE", "STAGED", "COMPLETED"] } },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                status: true, position: true, technicianUserId: true,
+                technicianUser: { select: { name: true } },
+                bayResource: { select: { name: true } },
+              },
+            },
+            laborClocks: {
+              orderBy: { technicianUserId: "asc" },
+              select: { technicianUserId: true, state: true, accumulatedMinutes: true, finishedAt: true },
+            },
+            procedureVersion: { select: { title: true, version: true, instructions: true, safetySteps: true, qcRules: true, requiredEvidence: true } },
+            qualityInspections: {
+              where: { disposition: "FAILED" },
+              orderBy: { version: "desc" },
+              take: 1,
+              select: { failureReasonCodes: true, reworkInstructions: true },
+            },
+          },
+        },
+      },
+    });
+  },
   get(organizationId:string,repairOrderId:string){return database.repairOrder.findFirst({where:{id:repairOrderId,organizationId},include:planningInclude});},
   async list(organizationId:string){const[repairOrders,users]=await Promise.all([database.repairOrder.findMany({where:{organizationId,closedAt:null},orderBy:{targetAt:"asc"},take:100,include:planningInclude}),database.user.findMany({where:{isActive:true},orderBy:{name:"asc"},select:{id:true,name:true}})]);return{repairOrders,users};},
   inspection(command:EnterpriseCommandCommitInput,data:{authorUserId:string;completedAt:Date;items:unknown;startedAt:Date;summary:string;templateCode:string;templateSnapshot:unknown;templateVersion:number}){return execute(database,command,async(tx,version)=>{const latest=await tx.vehicleInspectionVersion.findFirst({where:{repairOrderId:command.subjectId},orderBy:{version:"desc"}}),inspection=await tx.vehicleInspectionVersion.create({data:{organizationId:command.organizationId,repairOrderId:command.subjectId,version:(latest?.version??0)+1,status:"COMPLETED",templateCode:data.templateCode,templateVersion:data.templateVersion,templateSnapshot:json(data.templateSnapshot),items:json(data.items),summary:data.summary,authorUserId:data.authorUserId,startedAt:data.startedAt,completedAt:data.completedAt,supersedesId:latest?.id}});const{previous,ro}=await advance(tx,command,version,"DIAGNOSIS",{nextAction:"Review inspection findings and complete evidence-backed diagnosis"});return{previous,result:{id:inspection.id,inspectionVersion:inspection.version,repairOrderVersion:ro.version,stage:ro.stage}};});},

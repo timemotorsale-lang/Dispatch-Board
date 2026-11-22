@@ -1,5 +1,6 @@
 "use client";
 
+import { RepairProcedureEvidenceFields } from "./repair-procedure-evidence-fields";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 import {
   AlertTriangle,
@@ -87,6 +88,8 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
   const [additionalFinding, setAdditionalFinding] = useState("");
   const [blockerReason, setBlockerReason] = useState(model.job.executionBlockerReason ?? "");
   const [recommendedNextStep, setRecommendedNextStep] = useState("");
+  const [procedureEvidence, setProcedureEvidence] = useState<Record<string, string>>({});
+  const requiredEvidence = model.procedure?.requiredEvidence ?? [];
   const [verification, setVerification] = useState("");
   const [qcNotes, setQcNotes] = useState(model.job.qcHandoffNotes ?? "");
 
@@ -100,7 +103,8 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
     ? { ...outcomeNextSteps.COMPLETED, title: model.job.status === "QC_PASSED" ? "QC passed" : "Submitted to QC", detail: model.job.status === "QC_PASSED" ? "This repair has passed QC. The next staff action is release readiness or shop exit from Recon / Repair Advisor." : "This repair is waiting for Quality Control. No more technician update is needed unless QC sends it back.", action: model.job.status === "QC_PASSED" ? "Open closeout / handoff" : "Open Quality Control", href: (model) => repairReviewHref(model.repairOrder.id, model.job.status === "QC_PASSED" ? "handoff" : "qc") }
     : outcomeNextSteps[outcome];
   const incompleteIssue = incomplete ? incompleteRepairUpdateIssue({ blockerReason, recommendedNextStep }) : null;
-  const completeReady = workPerformed.trim().length > 0 && verification.trim().length > 0 && qcNotes.trim().length > 0;
+  const completeReady = workPerformed.trim().length > 0 && verification.trim().length > 0 && qcNotes.trim().length > 0 &&
+    requiredEvidence.every(item => Object.hasOwn(procedureEvidence, item) && procedureEvidence[item].trim().length >= 3);
   const offsite = Boolean(
     model.repairOrder.vendorName &&
     model.repairOrder.currentLocation &&
@@ -123,6 +127,10 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
 
     if (eventType === "FINISH" && (!workPerformed.trim() || !qcNotes.trim() || !verification.trim())) {
       setError("Work performed, verification, and QC handoff notes are required before sending the repair to QC.");
+      return;
+    }
+    if (eventType === "FINISH" && !completeReady) {
+      setError("Record the evidence required by the saved procedure.");
       return;
     }
     if (incomplete && eventType === "PAUSE" && incompleteIssue) {
@@ -153,6 +161,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
             blockerReason: eventType === "PAUSE" ? blockerReason.trim() : null,
             correctionMinutes: null,
             eventType,
+            ...(eventType === "FINISH" && requiredEvidence.length ? { procedureEvidence } : {}),
             evidence: eventType === "FINISH"
               ? [workPerformed.trim(), verification.trim(), additionalFinding.trim()].filter(Boolean)
               : [],
@@ -308,6 +317,8 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
               </label>
             )}
 
+            {!incomplete && <RepairProcedureEvidenceFields requirements={requiredEvidence} values={procedureEvidence}
+              jobId={model.job.id} onChange={(item, value) => setProcedureEvidence(previous => ({ ...previous, [item]: value }))} />}
             {error ? <div className="notice notice-danger" role="alert"><p>{error}</p></div> : null}
             {message ? <div className="notice notice-success" role="status"><p>{message}</p></div> : null}
             {incomplete && incompleteIssue && !error ? (

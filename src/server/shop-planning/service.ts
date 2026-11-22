@@ -32,6 +32,14 @@ async function mutationContext(actor:AuthenticatedUser|null,repairOrderId:string
 function command(input:{actorUserId:string;commandType:string;expectedVersion:number;idempotencyKey:string;locationId:string;organizationId:string;payload:Record<string,unknown>;reason:string;subjectId:string}){return normalizeEnterpriseCommand({...input,domain:"SHOP_OPERATIONS",subjectType:"REPAIR_ORDER"});}
 export async function getShopPlanningWorkspace(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await assertRepairReadEntry(actor,context.organizationId,context.foundationRepository,context.now());const rows=await context.repository.list(context.organizationId);const visible=[];for(const row of rows.repairOrders){try{await assertRepairLocationRead(actor,context.organizationId,row.locationId,context.foundationRepository,context.now());visible.push(row);}catch(error){if(!(error instanceof Error)||!error.message.startsWith("Vehicle capability required:"))throw error;}}return {...rows,repairOrders:visible};}
 export async function getShopPlanningDetail(actor:AuthenticatedUser|null,repairOrderId:string,input:Dependencies={}){const context=deps(input);await assertRepairReadEntry(actor,context.organizationId,context.foundationRepository,context.now());const result=await context.repository.get(context.organizationId,repairOrderId);if(!result)throw new Error("Repair order was not found.");await assertRepairLocationRead(actor,context.organizationId,result.locationId,context.foundationRepository,context.now());return result;}
+export async function getTechnicianWorkOrderDetail(actor: AuthenticatedUser | null, repairOrderId: string, input: Dependencies = {}) {
+  const context = deps(input);
+  const { user, grants } = await assertRepairReadEntry(actor, context.organizationId, context.foundationRepository, context.now());
+  const order = await context.repository.getTechnicianWorkOrder(context.organizationId, repairOrderId);
+  if (!order) throw new Error("Repair order was not found.");
+  assertVehicleCapability({ actor: user, grants, locationId: order.locationId, capability: "REPAIR_ORDER_VIEW", now: context.now() });
+  return order;
+}
 async function diagnosisAccess(user: AuthenticatedUser, locationId: string, context: ReturnType<typeof deps>) {
   const [grants, flags] = await Promise.all([
     context.foundationRepository.listCapabilityGrants(user.id, context.organizationId),

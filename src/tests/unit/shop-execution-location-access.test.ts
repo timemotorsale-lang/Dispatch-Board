@@ -3,7 +3,7 @@ import type { EnterpriseCommandRepository } from "@/server/enterprise-command/re
 import type { ShopExecutionRepository } from "@/server/shop-execution/repository";
 import type { VehicleCapabilityGrantRecord } from "@/server/enterprise-command/vehicle-capabilities";
 vi.mock("@/server/db/client", () => ({ prisma: {} }));
-import { getShopExecutionWorkspace } from "@/server/shop-execution/service";
+import { getShopExecutionWorkspace, recordRepairJobLabor } from "@/server/shop-execution/service";
 
 const sales = { id: "sales", name: "Sales", email: "sales@example.test", isActive: true, roles: ["Sales"], duties: { all: [], direct: [], roleDefaults: [] } };
 const grant = (locationId: string | null, effect: "ALLOW" | "DENY"): VehicleCapabilityGrantRecord => ({ capability: "REPAIR_ORDER_VIEW", locationId, effect, validFrom: new Date(0), validTo: null });
@@ -44,4 +44,23 @@ describe("shop execution store visibility", () => {
     await expect(getShopExecutionWorkspace({ ...sales, roles: ["General Manager"] }, input)).rejects.toThrow("NO_ACCESSIBLE_LOCATION");
     expect(overview).not.toHaveBeenCalled();
   });
+});
+
+it("replays the original labor command version and keeps a newer task state", async () => {
+  const { input } = setup([]);
+  const labor = vi.fn().mockResolvedValue({ duplicate: true, version: 4 });
+  const syncJobStatus = vi.fn();
+  const laborCommandVersion = vi.fn().mockResolvedValue({ expectedVersion: 3 });
+  await recordRepairJobLabor({ ...sales, roles: ["General Manager"] }, "job-a", {
+    eventType: "PAUSE", technicianUserId: "technician", occurredAt: "2026-10-16T12:00:00Z",
+    idempotencyKey: "retry-pause", reason: "Record partial work.", blockerReason: "Partial: waiting for the right part.",
+  }, {
+    ...input, enforceRollout: false,
+    now: () => new Date("2026-10-16T12:02:00Z"),
+    repository: { ...input.repository, labor, laborCommandVersion, aggregateVersion: async () => 5 },
+    taskBridge: { syncJobStatus, reconcileJob: vi.fn(), reconcileOwner: vi.fn() },
+  });
+  expect(laborCommandVersion).toHaveBeenCalledWith("org", "PAUSE_REPAIR_JOB_LABOR", "retry-pause");
+  expect(labor).toHaveBeenCalledWith(expect.objectContaining({ expectedVersion: 3, idempotencyKey: "retry-pause" }), expect.anything());
+  expect(syncJobStatus).not.toHaveBeenCalled();
 });

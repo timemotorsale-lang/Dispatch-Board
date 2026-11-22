@@ -743,7 +743,7 @@ function advisorActionFor(order: Awaited<ReturnType<typeof listRepairOrders>>["i
   const nextAction = nextActionRaw.toLowerCase();
   const stage = safeText(order.stage).toUpperCase();
   const operatingState = safeText(order.operatingState).toUpperCase();
-  const latestAdvisorUpdate = order.advisorUpdates[0] ?? null;
+  const latestAdvisorUpdate = order.latestAdvisorDecision;
   const exceptionCodes = advisorExceptionCodes(latestAdvisorUpdate?.exceptionCodes);
   const vendorWork = activeVendorWork(order);
   const vendorWaitingParts = vendorWork?.status === "WAITING_PARTS";

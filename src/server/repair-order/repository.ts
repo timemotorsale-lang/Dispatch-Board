@@ -100,7 +100,16 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         },
       }),
     ]);
-    return { items, page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
+    const latestAdvisorDecisions = await Promise.all(items.map(item => {
+      const latest = item.advisorUpdates.find(update => update.statusCode !== "TECHNICIAN_FINDING");
+      if (latest || item.advisorUpdates.length < 8) return latest ?? null;
+      return database.repairAdvisorUpdate.findFirst({
+        where: { organizationId, repairOrderId: item.id, statusCode: { not: "TECHNICIAN_FINDING" } },
+        orderBy: { version: "desc" },
+        include: { authorUser: { select: { id: true, name: true } } },
+      });
+    }));
+    return { items: items.map((item, index) => ({ ...item, latestAdvisorDecision: latestAdvisorDecisions[index] })), page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
   },
   getDetail(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, include: detailInclude }); },
   getCloseReceipt(organizationId: string, idempotencyKey: string) { return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType: "CLOSE_REPAIR_ORDER_NO_FURTHER_WORK", idempotencyKey } } }); },

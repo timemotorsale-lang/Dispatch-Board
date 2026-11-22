@@ -5,13 +5,14 @@ import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository,type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
-import { assertAuthenticatedUser } from "@/server/policies/access";
+import { assertRepairReadEntry } from "@/server/repair-order/read-access";
+import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import { normalizeAdvisorUpdate,normalizeComebackCreate,normalizeComebackTransition,normalizeDeliveryReadiness,normalizePresence,normalizeProductionRequest,normalizeRepairVendor,normalizeVendorWorkCreate,normalizeVendorWorkReassign,normalizeVendorWorkUpdate } from "./domain";
 import { createShopCompletionRepository,type ShopCompletionRepository } from "./repository";
 import { buildShopReconProjection } from "@/server/shop-recon/projection";
 type Dependencies={enforceRollout?:boolean;foundationRepository?:EnterpriseCommandRepository;now?:()=>Date;organizationId?:string;repository?:ShopCompletionRepository};
 function deps(input:Dependencies){return{enforceRollout:input.enforceRollout??true,foundationRepository:input.foundationRepository??createEnterpriseCommandRepository(),now:input.now??(()=>new Date()),organizationId:input.organizationId??INITIAL_ORGANIZATION.id,repository:input.repository??createShopCompletionRepository()};}
-async function authorize(actor:AuthenticatedUser|null,manage:boolean,locationId:string|null,context:ReturnType<typeof deps>){const user=assertAuthenticatedUser(actor),grants=await context.foundationRepository.listCapabilityGrants(user.id,context.organizationId);assertVehicleCapability({actor:user,capability:manage?"REPAIR_ORDER_MANAGE":"REPAIR_ORDER_VIEW",grants,locationId,now:context.now()});if(manage&&context.enforceRollout){const flags=await context.foundationRepository.listFeatureFlags(context.organizationId),decision=evaluateVehicleOperationsFeature(flags,"SHOP_OPERATIONS",user.id,locationId);if(!decision.executable)throw new Error(`Shop Operations mutations are not enabled (${decision.reason}).`);}return user;}
+async function authorize(actor:AuthenticatedUser|null,manage:boolean,locationId:string|null,context:ReturnType<typeof deps>,mutation=manage){const user=assertAuthenticatedUser(actor),grants=await context.foundationRepository.listCapabilityGrants(user.id,context.organizationId);assertVehicleCapability({actor:user,capability:manage?"REPAIR_ORDER_MANAGE":"REPAIR_ORDER_VIEW",grants,locationId,now:context.now()});if(mutation&&context.enforceRollout){const flags=await context.foundationRepository.listFeatureFlags(context.organizationId),decision=evaluateVehicleOperationsFeature(flags,"SHOP_OPERATIONS",user.id,locationId);if(!decision.executable)throw new Error(`Shop Operations mutations are not enabled (${decision.reason}).`);}return user;}
 function payload(value:unknown){return JSON.parse(JSON.stringify(value)) as Record<string,unknown>;}
 function command(input:{actorUserId:string;commandType:string;expectedVersion:number;idempotencyKey:string;locationId:string|null;organizationId:string;payload:Record<string,unknown>;reason:string;subjectId:string;subjectType:string}){return normalizeEnterpriseCommand({...input,domain:"SHOP_OPERATIONS"});}
 export async function getShopCompletionWorkspace(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await authorize(actor,false,null,context);return context.repository.overview(context.organizationId);}
@@ -39,6 +40,35 @@ export async function getShopReconLanding(actor: AuthenticatedUser | null, input
   } };
 }
 async function model(context:ReturnType<typeof deps>){return context.repository.overview(context.organizationId);}
+export async function reportTechnicianFinding(actor: AuthenticatedUser | null, repairOrderId: string, value: Record<string, unknown>, input: Dependencies = {}) {
+  const context = deps(input);
+  await assertRepairReadEntry(actor, context.organizationId, context.foundationRepository, context.now());
+  const order = await context.repository.findRepairOrderLocation(context.organizationId, repairOrderId);
+  if (!order) throw new Error("Repair order was not found.");
+  const user = await authorize(actor, false, order.locationId, context, true);
+  const jobId = typeof value.jobId === "string" ? value.jobId.trim() : "";
+  const finding = typeof value.finding === "string" ? value.finding.trim() : "";
+  if (!jobId || jobId.length > 100 || !finding || finding.length > 1000) {
+    throw new Error("Choose a repair job and enter a finding of up to 1,000 characters.");
+  }
+  const data = normalizeAdvisorUpdate({
+    contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome: "Technician finding for advisor review",
+    customerVisibleSummary: "The repair team recorded a finding for advisor review.",
+    statusCode: "TECHNICIAN_FINDING", exceptionCodes: [],
+    occurredAt: value.occurredAt, idempotencyKey: value.idempotencyKey,
+    reason: "Report a technician finding for advisor review.",
+  });
+  const subjectType = "REPAIR_ORDER_TECHNICIAN_FINDING";
+  const version = await context.repository.aggregateVersion(context.organizationId, subjectType, repairOrderId);
+  // A retry must keep the same request identity after the first save advances the aggregate version.
+  const entry = command({
+    actorUserId: user.id, commandType: "REPORT_TECHNICIAN_FINDING", expectedVersion: 0,
+    idempotencyKey: data.idempotencyKey, locationId: order.locationId, organizationId: context.organizationId,
+    payload: payload({ ...data, jobId, finding }), reason: data.reason, subjectId: repairOrderId, subjectType,
+  });
+  return context.repository.advisor({ ...entry, expectedVersion: version }, { ...data, authorUserId: user.id },
+    { jobId, manager: isManager(user), text: finding });
+}
 export async function recordAdvisorUpdate(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAdvisorUpdate(value),view=await model(context),order=view.repairOrders.find(x=>x.id===repairOrderId);if(!order)throw new Error("Repair order was not found.");const user=await authorize(actor,true,order.locationId,context),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_ORDER",order.id);return context.repository.advisor(command({actorUserId:user.id,commandType:"RECORD_ADVISOR_SERVICE_UPDATE",expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:order.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:order.id,subjectType:"REPAIR_ORDER"}),{...data,authorUserId:user.id});}
 export async function listRepairVendors(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await authorize(actor,false,null,context);return context.repository.listRepairVendors(context.organizationId);}
 export async function createRepairVendor(actor:AuthenticatedUser|null,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeRepairVendor(value),user=await authorize(actor,true,null,{...context,enforceRollout:false}),id=randomUUID();return context.repository.createRepairVendor(command({actorUserId:user.id,commandType:"CREATE_REPAIR_VENDOR",expectedVersion:0,idempotencyKey:data.idempotencyKey,locationId:null,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:id,subjectType:"REPAIR_VENDOR"}),{...data,createdByUserId:user.id});}

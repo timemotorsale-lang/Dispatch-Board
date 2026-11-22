@@ -1,53 +1,54 @@
 .page {
-  max-width: 850px;
+  max-width: 790px;
   margin: 0 auto;
-  padding: clamp(1rem, 4vw, 2rem);
+  padding: 1rem clamp(0.75rem, 3vw, 1.5rem);
+  color: #142744;
   overflow-wrap: anywhere;
 }
-
-.controls {
-  margin-block-end: 1rem;
-}
-
-nav.controls {
+nav.controls, .audit {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1.25rem;
+  gap: 0.4rem 1rem;
 }
-
-.header, .job {
-  border-block-end: 1px solid currentColor;
-  padding-block: 0.75rem;
+nav.controls { margin-bottom: 0.65rem; font-size: 0.86rem; }
+.job {
+  border: 1px solid #d1dbe8;
+  border-radius: 8px;
+  background: #fff;
+  padding: clamp(0.85rem, 3vw, 1.5rem);
 }
-
-.header h1, .job h3, .header p, .job p {
-  margin: 0 0 0.4rem;
-}
-
-.instructions {
-  white-space: pre-wrap;
-}
+.header h1 { margin: 0 0 0.2rem; font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.2; letter-spacing: -0.025em; }
+.header p { margin: 0.2rem 0; }
+.vehicle { font-size: 1.1rem; font-weight: 700; }
+.meta, .audit, .details { font-size: 0.82rem; color: #52647d; }
+.section { margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid #d1dbe8; }
+.section h2 { margin: 0 0 0.45rem; font-size: 1.04rem; }
+.concern, .steps li, .blocker { margin: 0; border-radius: 5px; padding: 0.42rem 0.65rem; background: #eef3fa; white-space: pre-wrap; }
+.steps { display: grid; gap: 0.42rem; margin: 0; padding-inline-start: 1.5rem; }
+.steps > li { padding: 0.5rem 0.65rem; }
+.steps > li::marker { color: #234e7e; font-weight: 700; }
+.stepTitle { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.2rem 0.65rem; }
+.stepTitle h3 { margin: 0; font-size: 0.95rem; color: #142744; }
+.stepMeta { display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.76rem; color: #425876; }
+.stepMeta .waiting { color: #77490e; }
+.steps li > p { margin-block: 0.3rem 0; }
+.steps ul { margin-block: 0.3rem 0; padding-inline-start: 1rem; font-size: 0.86rem; }
+.steps ul li { padding: 0; list-style-type: disc; }
+.blocker { margin-block: 0.35rem; background: #fff3dc; }
+.required, .saved { margin: 0.35rem 0 0; white-space: pre-wrap; }
+.audit { margin-top: 0.7rem; justify-content: space-between; }
+.audit button { font-size: 0.8rem; }
+.details { margin-top: 0.55rem; }
+.details summary { cursor: pointer; }
+.printNotes { display: none; }
 
 @media print {
-  :global(html:not([data-technician-print-approved])) .page {
-    display: none;
-  }
-
-  .page {
-    max-width: none;
-    margin: 0;
-    padding: 0;
-    background: white;
-    color: black;
-    font-size: 10pt;
-  }
-
-  .controls {
-    display: none !important;
-  }
-
-  .job {
-    break-inside: avoid;
-  }
+  :global(html:not([data-technician-print-approved])) .page { display: none; }
+  .page, .job { max-width: none; margin: 0; padding: 0; background: white; color: black; border: 0; font-size: 10pt; }
+  .controls { display: none !important; }
+  .section h2 { break-after: avoid; }
+  .steps li { break-inside: avoid; }
+  .printNotes { display: block; }
+  .printNotes p { margin: 0.2rem 0; padding-bottom: 1.1rem; border-bottom: 1px solid #b3becb; }
 }
