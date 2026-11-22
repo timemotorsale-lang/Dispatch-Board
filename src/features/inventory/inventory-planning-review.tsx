@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, ArrowRight, Camera, CarFront, Check, CheckCircle2, FileText, LockKeyhole, MapPin, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MapPin, RotateCcw, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
@@ -58,6 +58,7 @@ type FrontlineWorkflow = {
   transportSnapshot?: unknown; receiptSnapshot?: unknown; inspectionSnapshot?: unknown; reconSnapshot?: unknown; executionSnapshot?: unknown; qualitySnapshot?: unknown; titleSnapshot?: unknown; merchandisingSnapshot?: unknown; releaseSnapshot?: unknown; postReleaseSnapshot?: unknown; exceptionSnapshot?: unknown;
 };
 type FrontlineUser = { id: string; name: string };
+const noFrontlineUsers: FrontlineUser[] = [];
 type RegistryLocation = { id: string; code: string; name: string };
 type EligibleUnit = { id: string; inventoryNumber: string; locationId: string; vehicle: { id: string; vehicleNumber: string; year: number | null; make: string | null; model: string | null } };
 type ReconProgressUpdate = { id: string; actorName: string; blocker: string | null; completedWork: string; createdAt: string; nextAction: string; remainingWork: string | null; status: string };
@@ -65,10 +66,10 @@ type ReconProgressUpdate = { id: string; actorName: string; blocker: string | nu
 const initialChecklist: CheckGroup[] = [
   { id: "identity", label: "Identity & custody", items: [
     { id: "vin", label: "Verify canonical vehicle identity", instruction: "Scan or compare the VIN at the vehicle, confirm the decoded identity, review duplicates, and verify the stock relationship before accepting custody.", evidence: "Open identity record", evidenceRequirement: "Canonical VIN validation and duplicate review", completionCriteria: "VIN and vehicle agree; decoded identity and stock relationship are confirmed.", state: "PASS" },
-    { id: "arrival", label: "Receive the vehicle and establish custody", instruction: "Record arrival, odometer, keys or fobs, documents received, fuel or charge level, visible damage, and the person or source releasing the vehicle. If the vehicle is offsite or you are working remotely, document what is known now and defer photos until onsite staff can attach them.", evidence: "Add arrival evidence", evidenceRequirement: "Arrival facts now; photos or supporting evidence may be deferred with a reason", completionCriteria: "Arrival facts are complete and custody can be accepted, a concern is documented, or evidence is assigned for follow-up.", requiresEvidence: true, requiresNotes: true, state: "PENDING" }
+    { id: "arrival", label: "Receive the vehicle and establish custody", instruction: "Confirm odometer, keys, documents, fuel or charge, and who released the vehicle. Note any damage.", evidence: "Add arrival evidence", evidenceRequirement: "Arrival facts now; photos or supporting evidence may be deferred with a reason", completionCriteria: "Arrival facts are complete and custody can be accepted, a concern is documented, or evidence is assigned for follow-up.", requiresEvidence: true, requiresNotes: true, state: "PENDING" }
   ] },
   { id: "condition", label: "Condition evidence", items: [
-    { id: "photos", label: "Capture or defer the receiving photo set", instruction: "Photograph the VIN, odometer, dash and warning lights, four corners, interior, engine compartment, cargo area, and every visible exception when the vehicle is available. Remote staff may defer the photo set with a follow-up note instead of blocking receiving.", evidence: "Capture / upload photos", evidenceRequirement: "Governed receiving photo set or documented deferred photo follow-up", completionCriteria: "Required views are readable, or the missing photos are clearly assigned for onsite follow-up.", requiresEvidence: true, requiresNotes: true, state: "PENDING" },
+    { id: "photos", label: "Capture or defer the receiving photo set", instruction: "Capture VIN, odometer, dash, four corners, interior, engine bay, cargo area, and visible exceptions. Defer with a note if offsite.", evidence: "Capture / upload photos", evidenceRequirement: "Governed receiving photo set or documented deferred photo follow-up", completionCriteria: "Required views are readable, or the missing photos are clearly assigned for onsite follow-up.", requiresEvidence: true, requiresNotes: true, state: "PENDING" },
     { id: "condition", label: "Document physical condition and equipment", instruction: "Inspect body, paint, glass, wheels, cabin, leaks, odors, missing equipment, accessories, and transport or auction damage.", evidence: "Record condition findings", evidenceRequirement: "Finding notes and applicable photos", completionCriteria: "All condition areas are reviewed and exceptions are described for recon planning.", requiresNotes: true, state: "PENDING" }
   ] },
   { id: "safety", label: "Safety & technical", items: [
@@ -86,7 +87,6 @@ const stageIndex: Record<string, number> = { TRANSPORT_PLANNING: 0, IN_TRANSIT: 
 
 function object(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function text(value: unknown, fallback = "Not recorded") { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
-function display(value: unknown, fallback = "Not recorded") { return typeof value === "number" ? value.toLocaleString() : text(value, fallback); }
 function identityPart(value: unknown) { return typeof value === "number" ? String(value) : text(value, ""); }
 function label(value: unknown) { return text(value).replaceAll("_", " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase()); }
 function mergeChecklistDraft(savedGroups: CheckGroup[]) {
@@ -172,14 +172,6 @@ function taskRequirementMet(item: CheckItem, evidenceIds: string[], context?: { 
   if (item.state === "PENDING") return false;
   return taskMissingRequirements(item, evidenceIds, context).length === 0;
 }
-function taskAnswerLabel(state: CheckState) {
-  if (state === "PASS") return "Complete";
-  if (state === "DEFERRED") return "Unable to complete now";
-  if (state === "CONCERN") return "Needs attention";
-  if (state === "NOT_APPLICABLE") return "Not needed";
-  return "Not answered";
-}
-
 function taskNotesLabel(item: CheckItem) {
   if (item.state === "DEFERRED") return "Why can this not be completed right now, and who should follow up?";
   if (item.state === "CONCERN") return "What needs attention before or after recon?";
@@ -205,7 +197,7 @@ function receivingSubmissionItems(items: CheckItem[], handoffNotes: string) {
   return items.map(item => item.id === "move" && !item.notes?.trim() && handoffNotes.trim() ? { ...item, notes: handoffNotes.trim() } : item);
 }
 
-export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, locations = [], users = [], focused = false, returnTo, shopHref }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; locations?: RegistryLocation[]; users?: FrontlineUser[]; focused?: boolean; returnTo?: string; shopHref?: string }) {
+export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, locations = [], users = noFrontlineUsers, focused = false, returnTo, shopHref }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; locations?: RegistryLocation[]; users?: FrontlineUser[]; focused?: boolean; returnTo?: string; shopHref?: string }) {
   const identity = object(initial.identity), operation = object(initial.operation), location = object(operation.location), latestOdometer = object(operation.latestOdometer);
   const vehicleId = text(identity.id, text(identity.vehicleNumber, "vehicle"));
   const acquisitionHref = `/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(vehicleId)}&returnTo=${encodeURIComponent(`/vehicles/${vehicleId}/inventory-planning`)}`;
@@ -213,11 +205,12 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   const [workflow, setWorkflow] = useState<FrontlineWorkflow | null>(initialWorkflow);
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
   const stageDirty = useRef(false);
+  const reconFocusRequested = useRef(false);
   const [view, setView] = useState<View>(() => initialWorkflow && !["RECEIPT_AND_CUSTODY", "INSPECTION_AND_TRIAGE"].includes(initialWorkflow.stage) ? "LIFECYCLE" : "RECEIVING");
-  const savedReceipt = focused ? initialWorkflow?.receiptSnapshot : undefined;
+  const savedReceipt = initialWorkflow?.receiptSnapshot;
   const [groups, setGroups] = useState<CheckGroup[]>(() => checklistWithSavedReceipt(initialChecklist, savedReceipt));
   const [notes, setNotes] = useState("");
-  const [notice, setNotice] = useState(initialWorkflow ? `Governed workflow loaded at ${label(initialWorkflow.stage)}.` : eligibleUnit ? "This InventoryUnit is eligible to start its governed lifecycle." : "No eligible InventoryUnit or active lifecycle workflow is connected to this vehicle.");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [ownerUserId, setOwnerUserId] = useState(initialWorkflow?.ownerUser.id ?? users[0]?.id ?? "");
   const [keyCount, setKeyCount] = useState(() => String(object(savedReceipt).keyCount ?? 1));
@@ -227,16 +220,14 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   const [canonicalLocation, setCanonicalLocation] = useState<RegistryLocation | null>(() => typeof location.id === "string" && typeof location.name === "string" ? { id: location.id, code: text(location.code, ""), name: location.name } : null);
   const [reconUpdates, setReconUpdates] = useState<ReconProgressUpdate[]>([]);
   const [reconStatus, setReconStatus] = useState("NEEDS_MECHANICAL_REPAIR");
-  const [reconCompletedWork, setReconCompletedWork] = useState("Bodywork damage repaired.");
-  const [reconRemainingWork, setReconRemainingWork] = useState("Left lower control arm bolt / suspension issue remains.");
-  const [reconNextAction, setReconNextAction] = useState("Repair suspension bolt issue, then move to frontline readiness review.");
-  const [reconBlocker, setReconBlocker] = useState("Suspension issue must be corrected before frontline readiness.");
+  const [reconCompletedWork, setReconCompletedWork] = useState("");
+  const [reconRemainingWork, setReconRemainingWork] = useState("");
+  const [reconNextAction, setReconNextAction] = useState("");
+  const [reconBlocker, setReconBlocker] = useState("");
   const items = useMemo(() => groups.flatMap(group => group.items), [groups]);
   const evidenceIds = useMemo(() => initial.evidence.items.map(item => { const link = object(item); return text(object(link.evidenceObject).id, text(link.id, "")); }).filter(Boolean), [initial.evidence.items]);
   const submissionItems = useMemo(() => receivingSubmissionItems(items, notes), [items, notes]);
   const completed = submissionItems.filter(item => taskRequirementMet(item, evidenceIds, { keyCount, mileage })).length;
-  const concerns = items.filter(item => item.state === "CONCERN").length;
-  const readiness = Math.round(completed / items.length * 100);
   const vehicleName = [identity.year, identity.make, identity.model].map(identityPart).filter(Boolean).join(" ") || text(identity.vehicleNumber, "Vehicle");
 
   useEffect(() => {
@@ -244,9 +235,11 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
       const saved = window.localStorage.getItem(draftKey);
       if (!saved) return;
       try {
-        const draft = JSON.parse(saved) as { groups?: CheckGroup[]; notes?: string; mileage?: string; keyCount?: string; damageSummary?: string };
+        const draft = JSON.parse(saved) as { groups?: CheckGroup[]; notes?: string; mileage?: string; keyCount?: string; damageSummary?: string; ownerUserId?: string };
         if (draft.groups?.length) setGroups(checklistWithSavedReceipt(mergeChecklistDraft(draft.groups), savedReceipt));
         if (typeof draft.notes === "string") setNotes(draft.notes);
+        const savedOwner = draft.ownerUserId;
+        if (!initialWorkflow && savedOwner && users.some(user => user.id === savedOwner)) setOwnerUserId(savedOwner);
         if (!object(savedReceipt).custodyAccepted) {
           if (typeof draft.mileage === "string") setMileage(draft.mileage);
           if (typeof draft.keyCount === "string") setKeyCount(draft.keyCount);
@@ -258,7 +251,7 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
       }
     }, 0);
     return () => window.clearTimeout(restore);
-  }, [draftKey, savedReceipt]);
+  }, [draftKey, initialWorkflow, savedReceipt, users]);
 
   useEffect(() => {
     let active = true;
@@ -269,14 +262,23 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   }, [vehicleId]);
 
   useEffect(() => {
-    const focus = new URLSearchParams(window.location.search).get("focus");
-    if (focus !== "recon-update") return;
-    window.setTimeout(() => {
+    if (focused || new URLSearchParams(window.location.search).get("focus") !== "recon-update") return;
+    const open = window.setTimeout(() => {
+      reconFocusRequested.current = true;
       setView("RECEIVING");
-      setNotice("Rapid recon update is open. Document what happened now; formal workflow steps can be completed afterward.");
-      document.getElementById("rapid-recon-update")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setNotice("Recon update opened.");
     }, 0);
-  }, []);
+    return () => window.clearTimeout(open);
+  }, [focused]);
+
+  useEffect(() => {
+    if (view !== "RECEIVING" || !reconFocusRequested.current) return;
+    const tool = document.getElementById("rapid-recon-update");
+    if (!(tool instanceof HTMLDetailsElement)) return;
+    reconFocusRequested.current = false;
+    tool.open = true;
+    tool.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [notice, view]);
 
   function updateCheck(id: string, state: CheckState) {
     if (focused) stageDirty.current = true;
@@ -288,16 +290,21 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   }
 
   function saveDraft() {
-    window.localStorage.setItem(draftKey, JSON.stringify({ groups, notes, mileage, keyCount, damageSummary }));
-    setNotice("Review draft saved in this browser. No backend record was changed.");
+    window.localStorage.setItem(draftKey, JSON.stringify({ groups, notes, mileage, keyCount, damageSummary, ownerUserId }));
+    setNotice("Review draft saved in this browser.");
   }
 
   function resetDraft() {
     window.localStorage.removeItem(draftKey);
-    setGroups(mergeChecklistDraft([]));
+    setGroups(checklistWithSavedReceipt(mergeChecklistDraft([]), savedReceipt));
+    setMileage(String(object(savedReceipt).mileage ?? (typeof latestOdometer.reading === "number" ? latestOdometer.reading : "")));
+    setKeyCount(String(object(savedReceipt).keyCount ?? 1));
+    setDamageSummary(text(object(savedReceipt).damageSummary, ""));
+    setOwnerUserId(workflow?.ownerUser.id ?? users[0]?.id ?? "");
+    setActiveCheckId(null);
     setNotes("");
     setView("RECEIVING");
-    setNotice("Local draft reset. Authoritative workflow history was not changed.");
+    setNotice("Browser draft cleared.");
   }
 
   async function request(url: string, init?: RequestInit) {
@@ -340,7 +347,7 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
       });
       const recordedLocation = selected ?? { id: "", code: input.custodianType, name: displayName };
       setCanonicalLocation(recordedLocation);
-      setNotice(workflow && workflow.location.id !== recordedLocation.id ? `Current custody verified at ${displayName}. The active lifecycle remains operationally assigned to ${workflow.location.name}; reassign that workflow separately if needed.` : `Current location verified as ${displayName}. The source and correction reason were added to the canonical custody history.`);
+      setNotice(workflow && workflow.location.id !== recordedLocation.id ? `Current custody verified at ${displayName}. The active lifecycle remains operationally assigned to ${workflow.location.name}; reassign that workflow separately if needed.` : `Location verified as ${displayName}. Source and reason saved to custody history.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Current location could not be updated.");
       throw error;
@@ -398,38 +405,46 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   }
 
   async function advanceReceiving() {
+    function openRequiredCheck(id: string) {
+      setActiveCheckId(id);
+      document.getElementById(`receiving-check-${id}`)?.focus();
+    }
     let current = workflow;
     if (!current) {
       current = await startWorkflow();
       if (!current) return;
     }
     if (current.stage === "TRANSPORT_PLANNING") {
-      current = await act("PLAN_TRANSPORT", { carrierReference: null, costAuthorized: false, estimatedCostCents: 0, expectedAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(), method: "NO_TRANSPORT", releaseEvidenceReference: null, transportRequired: false }, "No-transport path recorded.", current) ?? current;
+      const next = await act("PLAN_TRANSPORT", { carrierReference: null, costAuthorized: false, estimatedCostCents: 0, expectedAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(), method: "NO_TRANSPORT", releaseEvidenceReference: null, transportRequired: false }, "No-transport path recorded.", current);
+      if (!next) return;
+      current = next;
     }
     if (current.stage === "RECEIPT_AND_CUSTODY") {
       const arrivalTask = submissionItems.find(item => item.id === "arrival");
       if (!arrivalTask || !taskResponded(arrivalTask)) {
-        setActiveCheckId("arrival");
+        openRequiredCheck("arrival");
         setNotice("Next step: open \"Receive the vehicle and establish custody\" and record the result for arrival and custody.");
         return;
       }
       const arrivalCoreMissing = taskMissingRequirements({ ...arrivalTask, requiresEvidence: false, requiresNotes: false }, evidenceIds, { keyCount, mileage });
       if (arrivalCoreMissing.length) {
-        setActiveCheckId("arrival");
+        openRequiredCheck("arrival");
         setNotice(`Next step: open "Receive the vehicle and establish custody" and add ${joinRequirementList(arrivalCoreMissing)}.`);
         return;
       }
       const followUpSummary = unresolvedReceivingFollowUpSummary(submissionItems, evidenceIds, { keyCount, mileage });
       const deferredReason = deferredEvidenceReason(submissionItems) ?? followUpSummary;
       const conditionSummary = notes.trim() || arrivalTask.notes?.trim() || damageSummary.trim() || "Receiving baseline recorded.";
-      current = await act("RECORD_RECEIPT", { arrivedAt: new Date().toISOString(), conditionSummary, custodyAccepted: true, damageSummary: damageSummary || null, documentSummary: { source: "VEHICLE_SPECIFIC_RECEIVING" }, evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, identityMatch: submissionItems.find(item => item.id === "vin")?.state === "PASS", keyCount: Number(keyCount), mileage: Number(mileage) }, deferredReason && !evidenceIds.length ? "Receipt and custody recorded with evidence follow-up." : "Receipt and custody recorded.", current) ?? current;
+      const next = await act("RECORD_RECEIPT", { arrivedAt: new Date().toISOString(), conditionSummary, custodyAccepted: true, damageSummary: damageSummary || null, documentSummary: { source: "VEHICLE_SPECIFIC_RECEIVING" }, evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, identityMatch: submissionItems.find(item => item.id === "vin")?.state === "PASS", keyCount: Number(keyCount), mileage: Number(mileage) }, deferredReason && !evidenceIds.length ? "Receipt and custody recorded with evidence follow-up." : "Receipt and custody recorded.", current);
+      if (!next) return;
+      current = next;
       if (followUpSummary) setNotice(`Receipt recorded. Unfinished receiving work was carried forward for follow-up: ${followUpSummary}.`);
       if (focused) return;
     }
     if (current.stage === "INSPECTION_AND_TRIAGE") {
       const unansweredWork = submissionItems.filter(item => !taskResponded(item));
       if (unansweredWork.length) {
-        setActiveCheckId(unansweredWork[0].id);
+        openRequiredCheck(unansweredWork[0].id);
         setNotice(`Next step: open "${unansweredWork[0].label}" and record a result so the receiving baseline can continue.`);
         return;
       }
@@ -438,21 +453,14 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
       const byId = Object.fromEntries(submissionItems.map(item => [item.id, item.state]));
       const next = await act("RECORD_INSPECTION", { checklistResults: submissionItems.map(item => ({ code: item.id.toUpperCase(), evidenceObjectIds: item.evidenceObjectIds ?? [], label: item.label, notes: item.notes ?? null, status: item.state })), diagnosticRequired: byId.scan === "CONCERN", evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, findings: submissionItems.filter(item => item.state === "CONCERN").map(item => ({ code: item.id.toUpperCase(), description: item.notes?.trim() || item.label, disposition: "REVIEW_REQUIRED", evidenceObjectIds: item.evidenceObjectIds ?? [] })), identityConflict: byId.vin === "CONCERN", safetyCriticalFail: byId.safety === "CONCERN", templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1, titleConcern: false }, deferredReason && !evidenceIds.length ? "Receiving inspection recorded with evidence follow-up." : "Receiving inspection recorded and baseline locked.", current);
       if (next?.stage === "RECON_PLAN_AND_APPROVAL") setView("LIFECYCLE");
-      if (followUpSummary) setNotice(`Receiving inspection recorded. Unfinished receiving work remains visible for follow-up: ${followUpSummary}.`);
+      if (next && followUpSummary) setNotice(`Receiving inspection recorded. Unfinished receiving work remains visible for follow-up: ${followUpSummary}.`);
       return;
     }
     if (current.stage === "HOLD") { await act("REOPEN_FOR_CORRECTION", {}, "Held workflow reopened for governed correction.", current); return; }
     setView("LIFECYCLE");
   }
 
-  function previewLifecycle() {
-    saveDraft();
-    setView("LIFECYCLE");
-    setNotice(workflow ? `Authoritative lifecycle opened at ${label(workflow.stage)}.` : "Lifecycle preview opened; start the governed workflow before submitting work.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  const receivingTool = <ReceivingReview compact={focused} activeCheckId={activeCheckId} busy={busy} canonicalLocation={canonicalLocation} damageSummary={damageSummary} eligibleUnit={eligibleUnit} evidenceIds={evidenceIds} identity={identity} keyCount={keyCount} locations={locations} mileage={mileage} notes={notes} onRecordLocation={recordCurrentLocation} operation={operation} ownerUserId={ownerUserId} reconBlocker={reconBlocker} reconCompletedWork={reconCompletedWork} reconNextAction={reconNextAction} reconRemainingWork={reconRemainingWork} reconStatus={reconStatus} reconUpdates={reconUpdates} saveReconUpdate={saveReconUpdate} setActiveCheckId={setActiveCheckId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setNotes={setNotes} setOwnerUserId={setOwnerUserId} setReconBlocker={setReconBlocker} setReconCompletedWork={setReconCompletedWork} setReconNextAction={setReconNextAction} setReconRemainingWork={setReconRemainingWork} setReconStatus={setReconStatus} groups={groups} updateCheck={updateCheck} updateCheckDetails={updateCheckDetails} readiness={readiness} completed={completed} concerns={concerns} initial={initial} users={users} workflow={workflow} />;
+  const receivingTool = <ReceivingReview receiptOnly={focused && workflow?.stage === "RECEIPT_AND_CUSTODY"} activeCheckId={activeCheckId} busy={busy} canonicalLocation={canonicalLocation} damageSummary={damageSummary} evidenceIds={evidenceIds} identity={identity} keyCount={keyCount} locations={locations} mileage={mileage} notes={notes} onRecordLocation={recordCurrentLocation} ownerUserId={ownerUserId} reconBlocker={reconBlocker} reconCompletedWork={reconCompletedWork} reconNextAction={reconNextAction} reconRemainingWork={reconRemainingWork} reconStatus={reconStatus} reconUpdates={reconUpdates} saveReconUpdate={saveReconUpdate} setActiveCheckId={setActiveCheckId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setNotes={setNotes} setOwnerUserId={setOwnerUserId} setReconBlocker={setReconBlocker} setReconCompletedWork={setReconCompletedWork} setReconNextAction={setReconNextAction} setReconRemainingWork={setReconRemainingWork} setReconStatus={setReconStatus} groups={groups} updateCheck={updateCheck} updateCheckDetails={updateCheckDetails} completed={completed} initial={initial} users={users} workflow={workflow} />;
   if (focused) {
     const inventoryStatus = initial.hasInventoryRecord === false ? "No linked inventory record"
       : initial.hasInventoryRecord === undefined ? "Inventory details are unavailable for your role"
@@ -524,57 +532,53 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
     </section>;
   }
 
-  return <section className={styles.workspace} aria-label={`Inventory planning review for ${vehicleName}`}>
-    <header className={styles.header}>
-      <Link href={`/vehicles/${encodeURIComponent(vehicleId)}/workbench`}><ArrowLeft size={15} /> Vehicle Workbench</Link>
-      <div className={styles.identity}><span><CarFront /></span><div><small>Inventory planning · vehicle-specific workspace</small><h1>{vehicleName}</h1><p>{text(identity.vin, label(identity.vinState))} · Stock {text(identity.stockNumber, "not assigned")} · {display(latestOdometer.reading, "Mileage not recorded")}</p></div></div>
-      <div className={styles.headerState}><small>Authoritative state</small><strong>{workflow ? label(workflow.stage) : "Not started"}</strong><span>{workflow ? `${label(workflow.operatingState)} · version ${workflow.version}` : "No workflow mutation yet"}</span></div>
-      <Link className={styles.secondaryButton} href={withQuery(initial.links.vehicle360, { returnTo: `/vehicles/${vehicleId}/inventory-planning` })}>Open Vehicle 360</Link>
+  return <section className={baseStyles.toolkit} aria-label={`Inventory planning for ${vehicleName}`}>
+    <header className={baseStyles.toolkitHeader}>
+      <div><Link href={`/vehicles/${encodeURIComponent(vehicleId)}/workbench`}><ArrowLeft size={14} /> Vehicle Workbench</Link>
+        <h1>{vehicleName}</h1><p>{text(identity.vin, label(identity.vinState))} · Stock {text(identity.stockNumber, "not assigned")}</p></div>
+      <div className={baseStyles.stageSummary}><span>Inventory lifecycle</span><strong>{workflow ? label(workflow.stage) : "Not started"}</strong>{workflow && <span>{workflow.ownerUser.name} · {label(workflow.operatingState)}</span>}</div>
     </header>
-
-    <nav className={styles.reviewSteps} aria-label="Approved experience review">
-      <button aria-current={view === "RECEIVING" ? "step" : undefined} onClick={() => setView("RECEIVING")} type="button"><b>{view === "LIFECYCLE" ? <Check size={14} /> : "1"}</b><span>Receiving & Initial QC</span></button>
-      <span aria-hidden="true" />
-      <button aria-current={view === "LIFECYCLE" ? "step" : undefined} onClick={() => setView("LIFECYCLE")} type="button"><b>2</b><span>Guided Lifecycle</span></button>
+    <nav className={baseStyles.toolNav} aria-label="Inventory planning views">
+      <button aria-current={view === "RECEIVING" ? "page" : undefined} onClick={() => setView("RECEIVING")} type="button">Receiving &amp; Initial QC</button>
+      <button aria-current={view === "LIFECYCLE" ? "page" : undefined} onClick={() => setView("LIFECYCLE")} type="button">Guided Lifecycle</button>
     </nav>
-
-    <div className={styles.notice} role="status"><ShieldCheck size={17} /><span>{notice}</span></div>
-
-    {view === "RECEIVING" ? receivingTool : <LifecycleReview act={act} busy={busy} completed={completed} concerns={concerns} evidenceIds={evidenceIds} identity={identity} initial={initial} initialRepairOrderId={initialRepairOrderId} onAdvanceReceiving={advanceReceiving} receivingChecklist={receivingAttentionChecklist(submissionItems, evidenceIds, { keyCount, mileage })} setView={setView} users={users} workflow={workflow} />}
-
-    <footer className={styles.footer}>
-      <button className={styles.textButton} onClick={resetDraft} type="button"><RotateCcw size={14} /> Reset review</button>
-      <span>{view === "RECEIVING" ? !workflow && !eligibleUnit ? "InventoryUnit required—complete acquisition before starting the lifecycle" : `${completed}/${items.length} checklist decisions completed` : "Receiving details remain available from every later stage"}</span>
-      {view === "RECEIVING" ? <div><button className={styles.secondaryButton} onClick={saveDraft} type="button">Save local draft</button><button className={styles.secondaryButton} onClick={previewLifecycle} type="button">Open lifecycle</button>{!workflow && !eligibleUnit ? <Link className={styles.primaryButton} href={acquisitionHref}>Establish acquisition first <ArrowRight size={16} /></Link> : <button className={styles.primaryButton} disabled={busy} onClick={advanceReceiving} type="button">{receivingActionLabel(workflow)} <ArrowRight size={16} /></button>}</div> : <button className={styles.primaryButton} onClick={() => setView("RECEIVING")} type="button">Review receiving details</button>}
-    </footer>
+    {notice && <p className={baseStyles.toolNotice} role="status">{notice}</p>}
+    {view === "RECEIVING" ? <>
+      {receivingTool}
+      <footer className={baseStyles.toolFooter}>
+        <div className={baseStyles.draftActions}>
+          <button className={styles.textButton} disabled={busy} onClick={saveDraft} type="button">Save browser draft</button>
+          <button className={styles.textButton} disabled={busy} onClick={resetDraft} type="button"><RotateCcw size={14} /> Reset draft</button>
+        </div>
+        {!workflow && !eligibleUnit ? <><span>Complete acquisition to start the lifecycle.</span><Link className={styles.primaryButton} href={acquisitionHref}>Open acquisition <ArrowRight size={16} /></Link></> :
+          <div className={baseStyles.submitActions}>
+            {!workflow && <Field label="Lifecycle owner"><select disabled={busy} value={ownerUserId} onChange={event => setOwnerUserId(event.target.value)}>
+              <option value="">Select owner</option>{users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select></Field>}
+            <button className={styles.primaryButton} disabled={busy || (!workflow && !ownerUserId)} onClick={() => void advanceReceiving()} type="button">{busy ? "Saving…" : receivingActionLabel(workflow)} <ArrowRight size={16} /></button>
+          </div>}
+      </footer>
+    </> : <LifecycleReview act={act} busy={busy} evidenceIds={evidenceIds} initial={initial} initialRepairOrderId={initialRepairOrderId}
+      receivingChecklist={receivingAttentionChecklist(submissionItems, evidenceIds, { keyCount, mileage })} setView={setView} users={users} workflow={workflow} />}
   </section>;
 }
 
-function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, compact = false, concerns, damageSummary, eligibleUnit, evidenceIds, groups, identity, initial, keyCount, locations, mileage, notes, onRecordLocation, operation, ownerUserId, readiness, reconBlocker, reconCompletedWork, reconNextAction, reconRemainingWork, reconStatus, reconUpdates, saveReconUpdate, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, setReconBlocker, setReconCompletedWork, setReconNextAction, setReconRemainingWork, setReconStatus, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; canonicalLocation: RegistryLocation | null; completed: number; compact?: boolean; concerns: number; damageSummary: string; eligibleUnit: EligibleUnit | null; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; locations: RegistryLocation[]; mileage: string; notes: string; onRecordLocation: (input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void>; operation: Record<string, unknown>; ownerUserId: string; readiness: number; reconBlocker: string; reconCompletedWork: string; reconNextAction: string; reconRemainingWork: string; reconStatus: string; reconUpdates: ReconProgressUpdate[]; saveReconUpdate: () => Promise<void>; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; setReconBlocker: (value: string) => void; setReconCompletedWork: (value: string) => void; setReconNextAction: (value: string) => void; setReconRemainingWork: (value: string) => void; setReconStatus: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
+function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, receiptOnly = false, damageSummary, evidenceIds, groups, identity, initial, keyCount, locations, mileage, notes, onRecordLocation, ownerUserId, reconBlocker, reconCompletedWork, reconNextAction, reconRemainingWork, reconStatus, reconUpdates, saveReconUpdate, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, setReconBlocker, setReconCompletedWork, setReconNextAction, setReconRemainingWork, setReconStatus, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; canonicalLocation: RegistryLocation | null; completed: number; receiptOnly?: boolean; damageSummary: string; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; locations: RegistryLocation[]; mileage: string; notes: string; onRecordLocation: (input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void>; ownerUserId: string; reconBlocker: string; reconCompletedWork: string; reconNextAction: string; reconRemainingWork: string; reconStatus: string; reconUpdates: ReconProgressUpdate[]; saveReconUpdate: () => Promise<void>; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; setReconBlocker: (value: string) => void; setReconCompletedWork: (value: string) => void; setReconNextAction: (value: string) => void; setReconRemainingWork: (value: string) => void; setReconStatus: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
   const [locationEditorOpen, setLocationEditorOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [conditionCorrection, setConditionCorrection] = useState(notes);
   const [needsCorrection, setNeedsCorrection] = useState(reconRemainingWork);
   const [nextActionCorrection, setNextActionCorrection] = useState(reconNextAction);
-  const orderedTasks = groups.flatMap(group => group.items);
-  const submissionItems = receivingSubmissionItems(orderedTasks, notes);
+  const visibleGroups = receiptOnly ? groups.filter(group => group.id === "identity") : groups;
+  const orderedTasks = visibleGroups.flatMap(group => group.items);
   const currentTask = orderedTasks.find(item => {
     const displayItem = receivingSubmissionItems([item], notes)[0];
     return displayItem.state === "PENDING" || !taskRequirementMet(displayItem, evidenceIds, { keyCount, mileage });
-  }) ?? orderedTasks[orderedTasks.length - 1];
-  const attentionChecklist = receivingAttentionChecklist(submissionItems, evidenceIds, { keyCount, mileage });
-  const receivingActionBlockers = workflow?.stage === "INSPECTION_AND_TRIAGE"
-    ? submissionItems.filter(item => !taskRequirementMet(item, evidenceIds, { keyCount, mileage })).map(item => `${item.label}: ${joinRequirementList(taskMissingRequirements(item, evidenceIds, { keyCount, mileage }))}`)
-    : (() => {
-      const arrivalTask = submissionItems.find(item => item.id === "arrival");
-      const blockers = arrivalTask ? taskMissingRequirements(arrivalTask, evidenceIds, { keyCount, mileage }).map(detail => `Arrival task: ${detail}`) : ["Arrival task is still required."];
-      if (!evidenceIds.length && !deferredEvidenceReason(submissionItems)) blockers.push("Attach receiving evidence or mark the unavailable evidence as deferred with a reason.");
-      return blockers;
-    })();
+  });
   function chooseResult(item: CheckItem, state: CheckState) {
     updateCheck(item.id, state);
     const next = { ...receivingSubmissionItems([item], notes)[0], state };
-    if (state !== "PENDING" && state !== "NOT_APPLICABLE" && !taskRequirementMet(next, evidenceIds, { keyCount, mileage })) setActiveCheckId(item.id);
+    setActiveCheckId(state !== "NOT_APPLICABLE" && !taskRequirementMet(next, evidenceIds, { keyCount, mileage }) ? item.id : null);
   }
   function applyIntakeCorrection() {
     const condition = conditionCorrection.trim();
@@ -605,108 +609,96 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
     setActiveCheckId("arrival");
     setCorrectionOpen(false);
   }
-  return <main className={styles.reviewBody}>
+  return <div className={baseStyles.receivingBody}>
     <div className={styles.mainColumn}>
-      <details open={!compact} className={baseStyles.receivingExtras}>
-        <summary>Vehicle details, intake corrections &amp; recon updates</summary>
-      <section className={styles.card}>
-        <div className={styles.cardHeader}><div><small>Carried forward automatically</small><h2>Detailed intake & canonical vehicle facts</h2><p>No repeated entry. These facts remain connected to their canonical origins.</p></div><span className={styles.locked}><LockKeyhole size={14} /> Baseline facts</span></div>
-        <div className={styles.factGrid}>
-          <Fact term="Canonical vehicle" value={text(identity.vehicleNumber)} /><Fact term="VIN" value={text(identity.vin, label(identity.vinState))} /><Fact term="Year / Make / Model" value={[identity.year, identity.make, identity.model].map(identityPart).filter(Boolean).join(" ")} /><Fact term="Color" value={text(identity.color)} />
-          <Fact term="License plate" value={text(identity.licensePlate)} /><Fact term="Stock number" value={text(identity.stockNumber)} /><EditableLocationFact location={canonicalLocation} onEdit={() => setLocationEditorOpen(true)} /><Fact term="Custody / state" value={label(operation.operatingState)} />
-        </div>
-        {locationEditorOpen ? <VehicleLocationEditor busy={busy} current={canonicalLocation} locations={locations} onCancel={() => setLocationEditorOpen(false)} onSave={async values => { await onRecordLocation(values); setLocationEditorOpen(false); }} /> : null}
-        <div className={styles.sourceRow}><FileText size={16} /><div><strong>Canonical origins preserved</strong><span>VIN identity, decoded specifications, arrival observations, evidence, and later corrections remain attributable in Vehicle 360.</span></div><Link href={withQuery(initial.links.vehicle360, { returnTo: `/vehicles/${text(identity.id, "")}/inventory-planning` })}>View full details</Link></div>
-      </section>
-
-      <section className={styles.correctionCard}>
-        <header><Pencil size={17} /><div><small>Need to correct intake?</small><h2>Update current condition and vehicle needs</h2><p>Use this when the original intake note was missing, copied from another vehicle, or needs clearer receiving context. It updates this vehicle&apos;s receiving baseline draft before lifecycle submission.</p></div><button onClick={() => setCorrectionOpen(value => !value)} type="button">{correctionOpen ? "Close correction" : "Correct intake info"}</button></header>
-        {correctionOpen ? <div className={styles.correctionFields}>
-          <Field label="Current condition at intake"><textarea maxLength={1200} onChange={event => setConditionCorrection(event.target.value)} placeholder="Example: Runs and drives, check-engine light on, front bumper damage, airbag light on, no obvious fluid leak." value={conditionCorrection} /></Field>
-          <Field label="What does the car need?"><textarea maxLength={1200} onChange={event => setNeedsCorrection(event.target.value)} placeholder="Example: Diagnose warning lights, inspect suspension, verify bumper/airbag repair scope, order needed parts after inspection." value={needsCorrection} /></Field>
-          <Field label="Recommended next action"><input maxLength={500} onChange={event => setNextActionCorrection(event.target.value)} placeholder="Example: Start receiving QC, then route to diagnostics/body/vendor as needed." value={nextActionCorrection} /></Field>
-          <div className={styles.inlineActions}><button className={styles.primaryButton} onClick={applyIntakeCorrection} type="button">Apply to receiving baseline</button><button className={styles.secondaryButton} onClick={() => { setConditionCorrection(""); setNeedsCorrection(""); setNextActionCorrection(""); }} type="button">Clear correction fields</button></div>
-        </div> : null}
-      </section>
-
-      <RapidReconUpdateCard busy={busy} blocker={reconBlocker} completedWork={reconCompletedWork} nextAction={reconNextAction} remainingWork={reconRemainingWork} save={saveReconUpdate} setBlocker={setReconBlocker} setCompletedWork={setReconCompletedWork} setNextAction={setReconNextAction} setRemainingWork={setReconRemainingWork} setStatus={setReconStatus} status={reconStatus} updates={reconUpdates} />
-      </details>
+      <div className={baseStyles.custodyRow}><div><span>Current location</span><strong>{canonicalLocation?.name ?? "Not recorded"}</strong></div><button className={styles.secondaryButton} aria-expanded={locationEditorOpen} onClick={() => setLocationEditorOpen(open => !open)} type="button">{locationEditorOpen ? "Close location editor" : "Verify / edit location"}</button></div>
+      {locationEditorOpen && <VehicleLocationEditor busy={busy} current={canonicalLocation} locations={locations} onCancel={() => setLocationEditorOpen(false)} onSave={async values => { await onRecordLocation(values); setLocationEditorOpen(false); }} />}
 
       <section className={styles.checklistCard}>
-        <div className={styles.cardHeader}><div><small>Receiving checklist</small><h2>{compact && workflow?.stage === "RECEIPT_AND_CUSTODY" ? "Confirm identity and custody" : "Answer each step here"}</h2>{!compact && <p>Staff should record one answer for all 8 receiving checks. If something cannot be completed now, capture the reason in the same form and continue.</p>}</div>{!compact && <strong>{completed}/8 complete</strong>}</div>
-        {!compact && <div className={styles.checklistSummary}><p className={styles.good}>Green means complete.</p><p className={styles.warning}>Yellow means follow-up is needed.</p><p className={styles.notice}>Red means an issue was found and should stay visible.</p></div>}
-        {(compact && workflow?.stage === "RECEIPT_AND_CUSTODY" ? groups.filter(group => group.id === "identity") : groups).map(group => <section className={styles.checklistGroup} key={group.id}><header><h3>{group.label}</h3><span>{group.items.filter(item => taskResponded(receivingSubmissionItems([item], notes)[0])).length}/{group.items.length} answered</span></header>{group.items.map(item => {
+        <div className={baseStyles.checklistHeading}><h2>Receiving checklist</h2><span>{receiptOnly ? orderedTasks.filter(item => taskRequirementMet(receivingSubmissionItems([item], notes)[0], evidenceIds, { keyCount, mileage })).length : completed} of {orderedTasks.length} complete</span></div>
+        {visibleGroups.map(group => <section className={styles.checklistGroup} key={group.id}><header><h3>{group.label}</h3><span>{group.items.filter(item => taskResponded(receivingSubmissionItems([item], notes)[0])).length}/{group.items.length} answered</span></header>{group.items.map(item => {
           const displayItem = receivingSubmissionItems([item], notes)[0];
           const requirementHelp = taskRequirementHelp(displayItem, evidenceIds, { keyCount, mileage });
-          const expanded = activeCheckId === item.id || (!compact && taskResponded(displayItem)) || ((!compact || activeCheckId === null) && currentTask.id === item.id);
+          const expanded = activeCheckId === null ? currentTask?.id === item.id : activeCheckId === item.id;
           return <article className={`${styles.checklistRow} ${taskRowTone(displayItem)}`} key={item.id}>
-            <div className={styles.checklistRowHeader}>
-              <div>{!compact && <small>Step {orderedTasks.findIndex(task => task.id === item.id) + 1}</small>}<h4>{item.label}</h4>{(!compact || expanded) && <p>{item.instruction}</p>}</div>
-              <span className={styles.taskBadge}>{taskAnswerLabel(displayItem.state)}</span>
+            <div className={baseStyles.checkRow}>
+              <button id={`receiving-check-${item.id}`} className={baseStyles.checkToggle} aria-controls={`receiving-fields-${item.id}`} aria-expanded={expanded} onClick={() => setActiveCheckId(expanded ? "" : item.id)} type="button">
+                <span aria-hidden="true">{expanded ? "▾" : "▸"}</span> {item.label}
+              </button>
+              <select aria-label={`Result for ${item.label}`} className={baseStyles.resultSelect} value={displayItem.state} onChange={event => chooseResult(item, event.target.value as CheckState)}>
+                <option value="PENDING">Choose result</option><option value="PASS">Complete</option><option value="DEFERRED">Unable now</option><option value="CONCERN">Needs attention</option>{item.id === "scan" && <option value="NOT_APPLICABLE">Not needed</option>}
+              </select>
             </div>
-            <div className={styles.checklistRowOutcome}>
-              <button className={displayItem.state === "PASS" ? styles.primaryButton : styles.secondaryButton} onClick={() => chooseResult(item, "PASS")} type="button">Complete</button>
-              <button className={displayItem.state === "DEFERRED" ? styles.primaryButton : styles.secondaryButton} onClick={() => chooseResult(item, "DEFERRED")} type="button">Unable now</button>
-              <button className={displayItem.state === "CONCERN" ? styles.primaryButton : styles.secondaryButton} onClick={() => chooseResult(item, "CONCERN")} type="button">Needs attention</button>
-              {item.id === "scan" ? <button className={displayItem.state === "NOT_APPLICABLE" ? styles.primaryButton : styles.secondaryButton} onClick={() => chooseResult(item, "NOT_APPLICABLE")} type="button">Not needed</button> : null}
-              {compact && <button className={styles.secondaryButton} aria-expanded={expanded} onClick={() => setActiveCheckId(expanded ? "" : item.id)} type="button">{expanded ? "Hide details" : "Details"}</button>}
-            </div>
-            {expanded ? <div className={styles.checklistRowFields}>
+            <div className={styles.checklistRowFields} hidden={!expanded} id={`receiving-fields-${item.id}`}>
+              {expanded && <>
+              <p className={baseStyles.taskInstruction}>{item.instruction}</p>
               {item.id === "arrival" ? <div className="inventory-planning-task-fields"><Field label="Odometer"><input min="0" onChange={event => setMileage(event.target.value)} type="number" value={mileage} /></Field><Field label="Keys / fobs"><input min="0" onChange={event => setKeyCount(event.target.value)} type="number" value={keyCount} /></Field><Field label="Visible damage"><input onChange={event => setDamageSummary(event.target.value)} placeholder="None observed, or describe" value={damageSummary} /></Field></div> : null}
               {item.id === "move" ? <div className="inventory-planning-task-fields"><Field label="Accountable owner"><select disabled={Boolean(workflow)} onChange={event => setOwnerUserId(event.target.value)} value={workflow?.ownerUser.id ?? ownerUserId}>{users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><div><span>Workflow target</span><strong>{workflow ? new Date(workflow.targetAt).toLocaleString() : "Set when the governed lifecycle starts"}</strong></div></div> : null}
-              {item.id === "vin" ? <div className={styles.taskActions}><ChecklistAction initial={initial} item={item} onOpen={() => undefined} /></div> : null}
-              <label><span>{taskNotesLabel(displayItem)}</span><textarea maxLength={1000} onChange={event => updateCheckDetails(item.id, { notes: event.target.value })} placeholder={displayItem.state === "DEFERRED" ? "Example: Photos cannot be taken until the vehicle reaches the lot. Onsite intake staff should add them." : displayItem.state === "CONCERN" ? "Describe the issue, risk, or exception that needs follow-up." : "Record what was checked, confirmed, or observed."} value={item.notes ?? ""} /></label>
-              {item.requiresEvidence ? <div>{evidenceIds.length ? <fieldset><legend>Link existing governed evidence</legend>{evidenceIds.map(id => <label key={id}><input checked={(item.evidenceObjectIds ?? []).includes(id)} onChange={event => updateCheckDetails(item.id, { evidenceObjectIds: event.target.checked ? [...new Set([...(item.evidenceObjectIds ?? []), id])] : (item.evidenceObjectIds ?? []).filter(value => value !== id) })} type="checkbox" /> {id}</label>)}</fieldset> : <p>{displayItem.state === "DEFERRED" ? "Reason captured here will document why evidence is missing for now." : "If evidence is not available right now, choose Unable now and explain why in the note above."}</p>}</div> : null}
+              {["vin", "nhtsa", "photos", "scan", "arrival"].includes(item.id) && <div className={styles.taskActions}><ChecklistAction initial={initial} item={item} /></div>}
+              <label><span>{taskNotesLabel(displayItem)}</span><textarea rows={2} maxLength={1000} onChange={event => updateCheckDetails(item.id, { notes: event.target.value })} placeholder={displayItem.state === "DEFERRED" ? "Example: Photos cannot be taken until the vehicle reaches the lot. Onsite intake staff should add them." : displayItem.state === "CONCERN" ? "Describe the issue, risk, or exception that needs follow-up." : "Record what was checked, confirmed, or observed."} value={item.notes ?? ""} /></label>
+              {item.requiresEvidence ? <div>{evidenceIds.length ? <fieldset><legend>Link existing governed evidence</legend>{evidenceIds.map(id => <label key={id}><input checked={(item.evidenceObjectIds ?? []).includes(id)} onChange={event => updateCheckDetails(item.id, { evidenceObjectIds: event.target.checked ? [...new Set([...(item.evidenceObjectIds ?? []), id])] : (item.evidenceObjectIds ?? []).filter(value => value !== id) })} type="checkbox" /> {id}</label>)}</fieldset> : <p>{displayItem.state === "DEFERRED" ? "Reason captured here will document why evidence is missing for now." : "No evidence yet? Choose Unable now and add a reason."}</p>}</div> : null}
               {requirementHelp ? <small className={styles.resultHelp}>{requirementHelp}</small> : null}
-            </div> : null}
+              </>}
+            </div>
           </article>;
         })}</section>)}
       </section>
 
-      <section className={styles.card}><div className={styles.cardHeader}><div><small>Optional handoff note</small><h2>Exceptions, priorities, and technician starting context</h2><p>Use this only for extra context that does not already belong in the guided tasks above.</p></div><span>{notes.length}/2,000</span></div><label className={styles.notes}><span>Anything else the recon planner and technician should know?</span><textarea maxLength={2000} onChange={event => setNotes(event.target.value)} placeholder="Optional: summarize overall condition, operability, warning lights, safety or title holds, immediate priorities, and the recommended starting point." value={notes} /></label></section>
+      <details className={baseStyles.receivingExtras}><summary>Handoff note <small>Optional</small></summary>
+        <Field label="Handoff note"><textarea rows={2} maxLength={2000} onChange={event => setNotes(event.target.value)} value={notes} /></Field>
+      </details>
+      <details className={baseStyles.receivingExtras}><summary>Vehicle details &amp; intake correction</summary>
+        <dl className={baseStyles.vehicleFacts}><Fact term="Vehicle record" value={text(identity.vehicleNumber)} /><Fact term="VIN" value={text(identity.vin, label(identity.vinState))} /><Fact term="Color" value={text(identity.color)} /><Fact term="Plate" value={text(identity.licensePlate)} /></dl>
+        <Link href={withQuery(initial.links.vehicle360, { returnTo: `/vehicles/${text(identity.id, "")}/inventory-planning` })}>Open Vehicle 360</Link>
+        <button className={styles.secondaryButton} aria-expanded={correctionOpen} onClick={() => setCorrectionOpen(value => !value)} type="button">{correctionOpen ? "Close correction" : "Correct intake info"}</button>
+        {correctionOpen && <div className={styles.correctionFields}>
+          <Field label="Current condition at intake"><textarea rows={2} maxLength={1200} onChange={event => setConditionCorrection(event.target.value)} value={conditionCorrection} /></Field>
+          <Field label="Vehicle needs"><textarea rows={2} maxLength={1200} onChange={event => setNeedsCorrection(event.target.value)} value={needsCorrection} /></Field>
+          <Field label="Recommended next action"><input maxLength={500} onChange={event => setNextActionCorrection(event.target.value)} value={nextActionCorrection} /></Field>
+          <button className={styles.secondaryButton} onClick={applyIntakeCorrection} type="button">Apply to receiving draft</button>
+        </div>}
+      </details>
+      <RapidReconUpdateCard busy={busy} blocker={reconBlocker} completedWork={reconCompletedWork} nextAction={reconNextAction} remainingWork={reconRemainingWork} save={saveReconUpdate} setBlocker={setReconBlocker} setCompletedWork={setReconCompletedWork} setNextAction={setReconNextAction} setRemainingWork={setReconRemainingWork} setStatus={setReconStatus} status={reconStatus} updates={reconUpdates} />
     </div>
-
-    {!compact && <aside className={styles.sideColumn}>
-      <section className={styles.summaryCard}><h2>Receiving readiness</h2><div className={styles.score}><strong>{readiness}%</strong><span>{completed}/{groups.flatMap(group => group.items).length} reviewed</span></div><div className={styles.progress}><span style={{ width: `${readiness}%` }} /></div><p className={concerns ? styles.warning : styles.good}>{concerns ? `${concerns} concern${concerns === 1 ? "" : "s"} will carry into recon or create a hold.` : "No concerns recorded yet."}</p><p><b>Workflow:</b> {workflow ? `${label(workflow.stage)} · v${workflow.version}` : eligibleUnit ? "Eligible to start" : "InventoryUnit required"}</p><p><b>Evidence:</b> {evidenceIds.length} governed item(s) available</p>{receivingActionBlockers.length ? <div className={styles.actionHelp}><strong>Before you continue</strong><ul className={styles.missingList}>{receivingActionBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul></div> : <p className={styles.good}>Ready to continue this receiving step.</p>}{!workflow && !eligibleUnit ? <Link className={styles.secondaryButton} href={`/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(text(identity.id, ""))}&returnTo=${encodeURIComponent(`/vehicles/${text(identity.id, "")}/inventory-planning`)}`}>Establish acquisition &amp; InventoryUnit</Link> : null}{busy ? <p>Submitting governed command…</p> : null}</section>
-      <section className={styles.summaryCard}><h2>Receiving checklist</h2><div className={styles.followUpChecklist}>{attentionChecklist.map(item => <button className={item.complete ? styles.followUpComplete : styles.followUpNeedsAttention} key={item.id} onClick={() => setActiveCheckId(item.id)} type="button"><strong>{item.label}</strong><span>{item.detail}</span></button>)}</div></section>
-      <section className={styles.summaryCard}><h2>Safety intelligence</h2><div className={styles.safetyItem}><ShieldCheck /><div><strong>NHTSA decoded identity</strong><span>Available from the canonical VIN record.</span></div></div><div className={styles.safetyItem}><AlertTriangle /><div><strong>Recall verification pending</strong><span>Model-level campaigns must remain “Potentially applicable—verify by VIN.”</span></div></div></section>
-      <section className={styles.summaryCard}><h2>Two QC controls</h2><p><b>Receiving QC</b> establishes the original vehicle baseline.</p><p><b>Final Recon QC</b> later validates completed work through independent review.</p></section>
-      <section className={styles.summaryCard}><h2>Existing connected records</h2><p>{initial.evidence.items.length} evidence item(s)</p><p>{initial.workOrders.items.length} repair order(s)</p><p>{initial.parts.demands.length} parts demand(s)</p></section>
-    </aside>}
-  </main>;
+  </div>;
 }
 
 function RapidReconUpdateCard({ blocker, busy, completedWork, nextAction, remainingWork, save, setBlocker, setCompletedWork, setNextAction, setRemainingWork, setStatus, status, updates }: { blocker: string; busy: boolean; completedWork: string; nextAction: string; remainingWork: string; save: () => Promise<void>; setBlocker: (value: string) => void; setCompletedWork: (value: string) => void; setNextAction: (value: string) => void; setRemainingWork: (value: string) => void; setStatus: (value: string) => void; status: string; updates: ReconProgressUpdate[] }) {
   const latest = updates[0];
-  return <section className={styles.card} id="rapid-recon-update">
-    <div className={styles.cardHeader}><div><small>Rapid recon update</small><h2>Document what happened now</h2><p>Use this when the vehicle is already moving through recon. It records progress without forcing diagnosis, photos, or a new RO first.</p></div><span className={styles.locked}>Simple execution</span></div>
+  return <details className={baseStyles.receivingExtras} id="rapid-recon-update"><summary>Record recon update</summary>
     <div className="inventory-planning-task-fields">
       <Field label="Current status"><select onChange={event => setStatus(event.target.value)} value={status}><option value="BODYWORK_IN_PROGRESS">Bodywork in progress</option><option value="NEEDS_MECHANICAL_REPAIR">Needs mechanical repair</option><option value="READY_FOR_QC">Ready for QC</option><option value="READY_FOR_FRONTLINE">Ready for frontline review</option><option value="ON_HOLD">On hold</option></select></Field>
-      <Field label="Completed so far"><textarea maxLength={2000} onChange={event => setCompletedWork(event.target.value)} value={completedWork} /></Field>
-      <Field label="Remaining work"><textarea maxLength={2000} onChange={event => setRemainingWork(event.target.value)} value={remainingWork} /></Field>
+      <Field label="Completed so far"><textarea rows={2} maxLength={2000} onChange={event => setCompletedWork(event.target.value)} value={completedWork} /></Field>
+      <Field label="Remaining work"><textarea rows={2} maxLength={2000} onChange={event => setRemainingWork(event.target.value)} value={remainingWork} /></Field>
       <Field label="Next action"><input maxLength={500} onChange={event => setNextAction(event.target.value)} value={nextAction} /></Field>
       <Field label="Blocker / note"><input maxLength={500} onChange={event => setBlocker(event.target.value)} value={blocker} /></Field>
     </div>
     <div className={styles.inlineActions}><button className={styles.primaryButton} disabled={busy || !completedWork.trim() || !nextAction.trim()} onClick={() => void save()} type="button">{busy ? "Saving..." : "Save recon update"}</button><Link className={styles.secondaryButton} href="/vehicles/recon-repair-advisor">Open Recon / Repair Advisor</Link></div>
     {latest ? <p className={styles.good}>Latest: {latest.status.replaceAll("_", " ").toLowerCase()} by {latest.actorName} — {latest.completedWork}{latest.remainingWork ? ` Remaining: ${latest.remainingWork}` : ""}</p> : <p className={styles.warning}>No saved recon update yet for this vehicle.</p>}
-  </section>;
+  </details>;
 }
 
-function LifecycleReview({ act, busy, completed, concerns, evidenceIds, identity, initial, initialRepairOrderId, onAdvanceReceiving, receivingChecklist, setView, users, workflow }: { act: (action: string, values: Record<string, unknown>, success: string) => Promise<FrontlineWorkflow | null>; busy: boolean; completed: number; concerns: number; evidenceIds: string[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId: string; onAdvanceReceiving: () => Promise<void>; receivingChecklist: Array<{ id: string; label: string; complete: boolean; detail: string }>; setView: (view: View) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
-  const active = workflow ? stageIndex[workflow.stage] ?? 0 : 0;
-  const receivingFollowUps = receivingChecklist.filter(item => !item.complete);
-  return <main className={styles.lifecycle}>
-    <section className={styles.stageStrip} aria-label="Inventory lifecycle stages">{stages.map((stage, index) => <button className={index < active ? styles.stageComplete : index === active ? styles.stageActive : styles.stageFuture} key={stage} type="button"><b>{index < active ? <Check size={14} /> : index + 1}</b><span>{stage}</span><small>{workflow ? index < active ? "Complete" : index === active ? "Current" : "Not ready" : index === 0 ? "Next after start" : "Not ready"}</small></button>)}</section>
-    <div className={styles.lifecycleGrid}>
-      <section className={styles.card}><div className={styles.workHeader}><small>Current governed step · {workflow ? label(workflow.stage) : "Receiving ready to submit"}</small><h2>{workflow?.nextAction ?? "Start lifecycle and carry forward receiving"}</h2><p>The full receiving baseline stays attached to {text(identity.vehicleNumber)}. Completed and deferred receiving decisions are submitted from here without re-entering the questionnaire.</p></div>{receivingFollowUps.length ? <div className={styles.actionHelp}><strong>Receiving follow-up still open</strong><ul className={styles.missingList}>{receivingFollowUps.map(item => <li key={item.id}>{item.label}: {item.detail.replace(/^Needs attention: /, "")}</li>)}</ul><button className={styles.secondaryButton} onClick={() => setView("RECEIVING")} type="button">Review receiving details</button></div> : null}<div className={styles.followUpChecklist}>{receivingChecklist.map(item => <button className={item.complete ? styles.followUpComplete : styles.followUpNeedsAttention} key={item.id} onClick={() => setView("RECEIVING")} type="button"><strong>{item.label}</strong><span>{item.detail}</span></button>)}</div>{workflow ? <GovernedStageAction act={act} busy={busy} evidenceIds={evidenceIds} initial={initial} initialRepairOrderId={initialRepairOrderId} key={`${workflow.id}:${workflow.stage}`} users={users} workflow={workflow} /> : <div className="inventory-planning-empty-action"><p>{completed}/8 receiving decisions are ready. Start the governed workflow to record transport/no-transport, receipt, and the receiving inspection baseline.</p><div className={styles.inlineActions}><button className={styles.primaryButton} disabled={busy} onClick={() => void onAdvanceReceiving()} type="button">{busy ? "Starting..." : "Start lifecycle & submit receiving"} <ArrowRight size={16} /></button><button className={styles.secondaryButton} onClick={() => setView("RECEIVING")} type="button">Review receiving details</button></div></div>}</section>
-      <aside className={styles.sideColumn}>
-        <section className={styles.summaryCard}><h2>Receiving baseline</h2><p><CheckCircle2 /> {completed}/8 checklist decisions {workflow ? "carried forward" : completed === 8 ? "ready to submit" : "started"}</p><p><AlertTriangle /> {concerns} concern(s) requiring disposition</p><p><Camera /> {initial.evidence.items.length} existing evidence item(s)</p><p className={receivingFollowUps.length ? styles.warning : styles.good}>{receivingFollowUps.length ? `${receivingFollowUps.length} receiving follow-up item${receivingFollowUps.length === 1 ? "" : "s"} still need closure.` : "No open receiving follow-up items."}</p><button onClick={() => setView("RECEIVING")} type="button">Review receiving details</button></section>
-        <section className={styles.summaryCard}><h2>Current authority</h2><p><b>Stage:</b> {workflow ? label(workflow.stage) : "Not started"}</p><p><b>State:</b> {workflow ? label(workflow.operatingState) : "No workflow"}</p><p><b>Owner:</b> {workflow?.ownerUser.name ?? "Not assigned"}</p><p><b>Version:</b> {workflow?.version ?? 0}</p></section>
-        <section className={styles.summaryCard}><h2>Controlled boundaries</h2><p>Repair execution is read from the authoritative inventory-recon Repair Order.</p><p>Parts completion is read from canonical Parts demand.</p><p>QC and frontline release require independent authority.</p></section>
-        <section className={styles.summaryCard}><h2>Pilot operations</h2><p><ShieldCheck /> Optimistic version checks and idempotency protect every lifecycle command.</p><p><AlertTriangle /> Overdue stages are evaluated by the Inventory-to-Frontline escalation sweep and routed to a controlled hold.</p><p><FileText /> Provider actions remain disabled; staff must verify external title, publication, and VIN-recall facts before recording completion.</p><Link className={styles.secondaryButton} href="/settings/vehicle-operations">Open rollout &amp; health</Link></section>
-      </aside>
-    </div>
-  </main>;
+function LifecycleReview({ act, busy, evidenceIds, initial, initialRepairOrderId, receivingChecklist, setView, users, workflow }: { act: (action: string, values: Record<string, unknown>, success: string) => Promise<FrontlineWorkflow | null>; busy: boolean; evidenceIds: string[]; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId: string; receivingChecklist: Array<{ id: string; label: string; complete: boolean; detail: string }>; setView: (view: View) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
+  const active = workflow ? stageIndex[workflow.stage] : undefined;
+  const followUps = receivingChecklist.filter(item => !item.complete);
+  const receiving = !workflow || ["RECEIPT_AND_CUSTODY", "INSPECTION_AND_TRIAGE"].includes(workflow.stage);
+  return <div className={baseStyles.receivingBody}>
+    <ol className={baseStyles.stageProgress} aria-label="Inventory lifecycle stages">
+      {stages.map((stage, index) => <li key={stage} aria-current={index === active ? "step" : undefined}>
+        {active !== undefined && index < active ? <Check size={13} aria-label="Complete" /> : null}{stage}
+      </li>)}
+    </ol>
+    <section className={baseStyles.stageTool}>
+      <header><h2>{workflow?.nextAction ?? "Start with receiving"}</h2>{workflow && <span>Version {workflow.version}</span>}</header>
+      {receiving ? <button className={styles.primaryButton} onClick={() => setView("RECEIVING")} type="button">{workflow ? "Open receiving checklist" : "Return to receiving"}</button>
+        : <GovernedStageAction act={act} busy={busy} evidenceIds={evidenceIds} initial={initial} initialRepairOrderId={initialRepairOrderId} key={`${workflow.id}:${workflow.stage}`} users={users} workflow={workflow} />}
+    </section>
+    {workflow && !receiving && followUps.length > 0 && <details className={baseStyles.receivingExtras}>
+      <summary>Receiving follow-up ({followUps.length})</summary>
+      <ul>{followUps.map(item => <li key={item.id}>{item.label} — {item.detail}</li>)}</ul>
+      <button className={styles.secondaryButton} onClick={() => setView("RECEIVING")} type="button">Review receiving checklist</button>
+    </details>}
+  </div>;
 }
 
 function GovernedStageAction({ act, busy, evidenceIds, initial, initialRepairOrderId, users, workflow }: { act: (action: string, values: Record<string, unknown>, success: string) => Promise<FrontlineWorkflow | null>; busy: boolean; evidenceIds: string[]; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId: string; users: FrontlineUser[]; workflow: FrontlineWorkflow }) {
@@ -730,27 +722,19 @@ function GovernedStageAction({ act, busy, evidenceIds, initial, initialRepairOrd
 }
 
 function Field({ children, label: fieldLabel }: { children: ReactNode; label: string }) { return <label><span>{fieldLabel}</span>{children}</label>; }
-function ChecklistAction({ initial, item, onOpen }: { initial: VehicleExecutionWorkbenchProjection; item: CheckItem; onOpen: () => void }) {
+function ChecklistAction({ initial, item }: { initial: VehicleExecutionWorkbenchProjection; item: CheckItem }) {
   const returnTo = `/vehicles/${text(object(initial.identity).id, "")}/inventory-planning`;
   if (item.id === "vin") return <Link href={withQuery(initial.links.vehicle360, { returnTo })}>{item.evidence}</Link>;
   if (item.id === "nhtsa") return <Link href={withQuery(initial.links.vehicle360, { section: "intelligence", intent: "recalls", returnTo })}>{item.evidence}</Link>;
   const category = item.id === "photos" ? "PHOTO" : item.id === "scan" ? "INSPECTION" : item.id === "arrival" ? "OTHER" : null;
   if (category) return <Link href={withQuery(initial.links.evidence, { category, returnTo })}>{item.evidence}</Link>;
-  return <button onClick={onOpen} type="button">{item.evidence}</button>;
+  return null;
 }
 function withQuery(href: string, values: Record<string, string>) { const [path, query = ""] = href.split("?", 2), params = new URLSearchParams(query); for (const [key, value] of Object.entries(values)) params.set(key, value); const serialized = params.toString(); return serialized ? `${path}?${serialized}` : path; }
 function Reviewer({ set, users, value, workflow }: { set: (value: string) => void; users: FrontlineUser[]; value: string; workflow: FrontlineWorkflow }) { return <Field label="Independent reviewer"><select onChange={event => set(event.target.value)} value={value}><option value="">Select reviewer</option>{users.filter(user => user.id !== workflow.ownerUser.id).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field>; }
 function StageSubmit({ busy, children, disabled = false }: { busy: boolean; children: ReactNode; disabled?: boolean }) { return <button className={styles.primaryButton} disabled={busy || disabled} type="submit">{busy ? "Recording…" : children}</button>; }
 function localFuture(days: number) { const date = new Date(Date.now() + days * 86_400_000); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
 function receivingActionLabel(workflow: FrontlineWorkflow | null) { if (!workflow) return "Start governed lifecycle"; if (workflow.stage === "TRANSPORT_PLANNING") return "Confirm no transport & open receipt"; if (workflow.stage === "RECEIPT_AND_CUSTODY") return "Record receipt & custody"; if (workflow.stage === "INSPECTION_AND_TRIAGE") return "Complete inspection & lock baseline"; if (workflow.stage === "HOLD") return "Reopen responsible gate"; return "Continue guided lifecycle"; }
-
-function EditableLocationFact({ location, onEdit }: { location: RegistryLocation | null; onEdit: () => void }) {
-  return <div className={styles.editableFact}>
-    <dt>Current location</dt>
-    <dd>{location?.name ?? "Not recorded"}</dd>
-    <button aria-label="Edit current vehicle location" onClick={onEdit} type="button"><Pencil size={12} /> {location ? "Edit / verify" : "Choose location"}</button>
-  </div>;
-}
 
 export function VehicleLocationEditor({ busy, current, locations, onCancel, onSave }: { busy: boolean; current: RegistryLocation | null; locations: RegistryLocation[]; onCancel: () => void; onSave: (values: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void> }) {
   const [locationKind, setLocationKind] = useState(current?.id ? "DEALERSHIP" : "EXTERNAL_REPAIR_FACILITY");

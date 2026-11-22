@@ -34,44 +34,42 @@ describe("Inventory Planning review surface", () => {
     for (const text of ["Where is the vehicle?", "At one of our dealerships", "At an auction", "At an outside repair facility", "In transport", "At another external location", "Repair facility name", "Diego Auto Body", "Verification source", "Save verified location"]) expect(html).toContain(text);
   });
 
-  it("opens with detailed receiving facts, mandatory initial QC, and a governed lifecycle start", () => {
+  it("opens with a compact receiving checklist, collapsible tools, and one lifecycle start action", () => {
     const html = renderToStaticMarkup(<InventoryPlanningReview eligibleUnit={{ id: "unit-1", inventoryNumber: "INV-1", locationId: "loc-1", vehicle: { id: "vehicle-1", vehicleNumber: "VEH-1001", year: 2023, make: "Toyota", model: "RAV4" } }} initial={projection} locations={[{ id: "loc-1", code: "MSP", name: "Minneapolis" }]} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
 
     for (const text of [
       "Receiving &amp; Initial QC",
-      "Detailed intake &amp; canonical vehicle facts",
-      "Update current condition and vehicle needs",
+      "Vehicle details &amp; intake correction",
       "Correct intake info",
-      "Canonical origins preserved",
       "Review recalls and safety intelligence",
       "Receiving checklist",
-      "Answer each step here",
-      "Green means complete.",
       "Receive the vehicle and establish custody",
       "Complete the initial safety inspection",
       "Decide disposition and assign the next owner",
-      "Optional handoff note",
-      "Exceptions, priorities, and technician starting context",
-      "Two QC controls",
-      "Open lifecycle",
+      "Handoff note",
+      "Record recon update",
+      "Guided Lifecycle",
+      "Lifecycle owner",
       "Start governed lifecycle"
     ]) expect(html).toContain(text);
-    expect(html).toContain("No workflow mutation yet");
+    expect(html).toContain("Not started");
+    expect(html).not.toContain("Receiving readiness");
+    expect(html.match(/aria-expanded="true"/g)).toHaveLength(1);
+    expect(html.match(/aria-label="Result for /g)).toHaveLength(8);
     expect(html).toContain("Complete");
     expect(html).toContain("Unable now");
     expect(html).toContain("Needs attention");
-    expect(html).toContain("Edit current vehicle location");
-    expect(html).toContain("Edit / verify");
+    expect(html).toContain("Verify / edit location");
     expect(html).toContain("2T3W1RFV4PW278629");
     expect(html).toContain("2023 Toyota RAV4");
     expect(html).toContain("/vehicles/vehicle-1/workbench");
     expect(html).toContain('href="/vehicles/360/vehicle-1?returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning"');
     expect(html).toContain("Capture or defer the receiving photo set");
-    expect(html).toContain("Recall verification pending");
+    expect(html).not.toContain("Bodywork damage repaired");
     const acquisitionHtml = renderToStaticMarkup(<InventoryPlanningReview initial={projection} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
     expect(acquisitionHtml).toContain("returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning");
-    expect(acquisitionHtml).toContain("InventoryUnit required—complete acquisition before starting the lifecycle");
-    expect(acquisitionHtml).toContain("Establish acquisition first");
+    expect(acquisitionHtml).toContain("Complete acquisition to start the lifecycle.");
+    expect(acquisitionHtml).toContain("Open acquisition");
     expect(acquisitionHtml).not.toContain("Start governed lifecycle");
   });
 
@@ -88,8 +86,8 @@ describe("Inventory Planning review surface", () => {
   ])("renders the authoritative %s action", (stage, action) => {
     const html = renderToStaticMarkup(<InventoryPlanningReview initial={projection} initialWorkflow={workflow(stage)} users={[{ id: "owner-1", name: "Inventory Owner" }, { id: "reviewer-1", name: "Independent Reviewer" }]} />);
     expect(html).toContain(action);
-    expect(html).toContain("version 4");
-    expect(html).toContain("Pilot operations");
+    expect(html).toContain("Version 4");
+    expect(html).toContain("Inventory Owner");
   });
 
   it("returns a newly created inventory-recon repair order to the exact vehicle plan", () => {
