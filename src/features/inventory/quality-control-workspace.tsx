@@ -17,8 +17,11 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
+import { FinalRepairQcChecklist } from "./final-repair-qc-checklist";
+import finalQcStyles from "./final-repair-qc-checklist.module.css";
+import { needsRepairRoadTest as needsRoadTest } from "@/lib/final-repair-qc";
 import compact from "@/features/inventory/operations-compact.module.css";
-import { notifyRepairReviewSaved, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
+import { notifyRepairReviewSaved, pendingApprovedLabor, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type User = { id: string; name: string };
@@ -39,6 +42,8 @@ type Inspection = {
 };
 type Job = {
   id: string;
+  authorizationId?: string;
+  authorizedLineKey?: string;
   jobNumber: string;
   description: string;
   plannedCorrection: string;
@@ -49,7 +54,7 @@ type Job = {
   readinessReasonCodes: string[];
   procedureVersion: { title: string; version: number; qcRules: string[] } | null;
   qualityInspections: Inspection[];
-  dispatches: Array<{ technicianUser: { name: string } }>;
+  dispatches: Array<{ status?: string; technicianUser: { id?: string; name: string } }>;
   laborClocks: Array<{ state: string; accumulatedMinutes: number; finishedAt?: string | null }>;
   comebackCases?: Array<{ id: string; status: string; reasonCategory?: string | null; reportedConcern?: string | null }>;
   partDemands?: Array<{
@@ -86,6 +91,7 @@ type Order = {
   location: { name: string };
   serviceVisit: { concernSummary: string; promisedAt: string | null };
   releaseAuthorization: { id: string; destination: string; authorizedAt: string } | null;
+  estimateVersions?: Parameters<typeof pendingApprovedLabor>[0][];
   vendorWorks: VendorWork[];
   repairJobs: Job[];
 };
@@ -192,6 +198,12 @@ const frontlineQcItems = frontlineQcSections.flatMap((section) => section.items)
 
 const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 const isFailed = (job: Job) => job.qualityInspections[0]?.disposition === "FAILED" || job.readinessReasonCodes.some((code) => code.includes("REWORK"));
+function nextQcJob(jobs: Job[] = []) {
+  return jobs.find(job => job.status === "READY_FOR_QC")
+    ?? jobs.find(job => job.status !== "QC_PASSED" && job.status !== "CANCELLED" && isFailed(job))
+    ?? jobs.find(job => job.status !== "QC_PASSED" && job.status !== "CANCELLED")
+    ?? jobs[0];
+}
 const vehicleName = (order: Order) => [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Not set";
 const workbenchHref = (order: Order) => `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
@@ -212,7 +224,6 @@ function inspectionStatus(job: Job) {
 }
 const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => demand.quantityReserved < demand.quantityRequired || ["OPEN", "PARTIALLY_RESERVED", "REQUESTED"].includes(demand.status));
 const hasPartsActivity = (job: Job) => Boolean(job.partDemands?.length);
-const needsRoadTest = (job: Job) => /\b(?:brakes?|braking|steering|suspension|road test|drivability|vibrations?|alignment|engine|transmission)\b/i.test(`${job.description} ${job.plannedCorrection}`);
 const needsPeer = (job: Job) => job.lane === "DIAGNOSTIC_HEAVY" || /airbag|brake|steer|safety|engine|transmission|electrical/i.test(`${job.description} ${job.plannedCorrection}`);
 const isSafetyCritical = (job: Job, order: Order) => /airbag|srs|brake|steer|suspension|wheel|tire|seatbelt|safety|engine|transmission|abs/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
 const isFrontlineCleared = (order: Order) => Boolean(order.releaseAuthorization);
@@ -293,7 +304,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const initialOrder = initial.repairOrders.find((order) => order.id === initialRepairOrderId) ?? initial.repairOrders[0];
   const [model, setModel] = useState(initial);
   const [orderId, setOrderId] = useState(initialOrder?.id ?? "");
-  const [jobId, setJobId] = useState(initialOrder?.repairJobs.find((job) => job.status === "READY_FOR_QC")?.id ?? initialOrder?.repairJobs[0]?.id ?? "");
+  const [jobId, setJobId] = useState(nextQcJob(initialOrder?.repairJobs)?.id ?? "");
   const [feedback, setFeedback] = useState<{ text: string; error: boolean }>({ text: "", error: false });
   const notice = feedback.text;
   const setNotice = (text: string) => setFeedback({ text, error: false });
@@ -340,11 +351,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const job = order?.repairJobs.find((item) => item.id === jobId) ?? order?.repairJobs[0];
   const vendorQcWork = activeVendorQcWork(order);
   const activeJobs = order?.repairJobs.filter(item => item.status !== "CANCELLED") ?? [];
-  const allPassed = activeJobs.length > 0 && activeJobs.every(item =>
-    item.status === "QC_PASSED" &&
-    item.qualityInspections[0]?.disposition === "PASSED" &&
-    item.qualityInspections[0]?.safetyChecksPassed
-  );
+  const outstandingQc = activeJobs.filter(item => inspectionStatus(item) !== "Pass recorded" || hasOpenLabor(item));
+  const allPassed = activeJobs.length > 0 && outstandingQc.length === 0;
   const latestInspection = job?.qualityInspections[0];
   const checklist = order && job ? generatedChecklist(order, job) : [];
   const gates = job ? gateRows(job) : [];
@@ -373,7 +381,9 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     ? frontlineExceptions.join("\n")
     : `Final Frontline QC follow-up for ${order ? vehicleName(order) : "vehicle"}.`;
   const showVendorReturnQc = Boolean(order && vendorQcWork && !order.releaseAuthorization && (!job || order.stage === "QUALITY_CONTROL"));
-  const showFrontlineQc = Boolean(order && job && !showVendorReturnQc && !order.releaseAuthorization && allPassed);
+  const hasUnreleasedLabor = pendingApprovedLabor(order?.estimateVersions?.[0], activeJobs).length > 0;
+  const showCustomerClearance = Boolean(reviewOrderId && order?.origin === "CUSTOMER_REPAIR" && allPassed && !showVendorReturnQc && !order.releaseAuthorization);
+  const showFrontlineQc = Boolean(order && job && !showCustomerClearance && !showVendorReturnQc && !order.releaseAuthorization && allPassed);
 
   useEffect(() => {
     if (!orderId) return;
@@ -410,6 +420,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     const query = reviewOrderId ? `?${new URLSearchParams({ repairOrderId: reviewOrderId })}` : "";
     const next = scopedRepairOrders(await request(`/api/quality-control${query}`) as Model, reviewOrderId);
     setModel(next);
+    return next;
   }
 
   async function submit(url: string, value: Record<string, unknown>, success: string | ((body: { result?: { disposition?: string } }) => string)) {
@@ -420,7 +431,11 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     try {
       const body = await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
       setNotice(typeof success === "string" ? success : success(body));
-      await refresh();
+      const refreshed = await refresh();
+      if (reviewOrderId && body.result?.disposition === "PASSED" && typeof success === "function") {
+        const nextJob = nextQcJob(refreshed.repairOrders[0]?.repairJobs);
+        if (nextJob) setJobId(nextJob.id);
+      }
       if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId, typeof success === "function" ? "qc" : undefined);
       return true;
     } catch (error) {
@@ -716,7 +731,21 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
 
   return (
     <section className={`qc-workspace-home ${compact.qc}`}>
-      <header className="qc-hero">
+      {reviewOrderId ? <header className={finalQcStyles.heading}>
+        <div className={finalQcStyles.headingRow}>
+          <div>
+            <h1>Final QC</h1>
+            {order && <div>{vehicleName(order)} · {order.repairOrderNumber}</div>}
+          </div>
+          {order?.origin === "CUSTOMER_REPAIR" && !order.releaseAuthorization && (
+            <Link className="pill" href={repairReviewHref(order.id, "handoff", { returnTo, returnLabel })}>Review handoff readiness</Link>
+          )}
+        </div>
+        {order?.origin === "CUSTOMER_REPAIR" && !order.releaseAuthorization && outstandingQc.length > 0 && (
+          <div>Handoff pending QC for {outstandingQc.map(item => item.jobNumber).join(", ")}.</div>
+        )}
+        {returnTo && <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link>}
+      </header> : <header className="qc-hero">
         <div>
           {returnTo ? <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link> : null}
           <p>Quality Control Workspace</p>
@@ -729,7 +758,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           <Link href={order ? workbenchHref(order) : "/vehicles/repair-workbench"}><FileText /> Repair Order</Link>
           <Link href="/my-tasks"><BadgeCheck /> My Work</Link>
         </nav>
-      </header>
+      </header>}
 
       {notice ? (
         <div className={feedback.error ? "notice notice-danger" : "notice notice-success"} role={feedback.error ? "alert" : "status"}>
@@ -762,19 +791,88 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </section>
       ) : null}
 
-      {reviewOrderId && order && activeJobs.length > 0 && <section className="qc-panel" aria-label="Repair job inspections">
+      {reviewOrderId && !order && <p>This repair order is unavailable for QC.</p>}
+      {reviewOrderId && order && !activeJobs.length && !showVendorReturnQc && !order.releaseAuthorization && <Link className="pill" href={workbenchHref(order)}>Open Repair Workbench</Link>}
+
+      {reviewOrderId && order && activeJobs.length > 1 && !showCustomerClearance && !showFrontlineQc && !order.releaseAuthorization && <section className={finalQcStyles.jobPicker} aria-label="Repair job inspections">
         <h2>Repair job inspections</h2>
-        <p>Billing checks the saved inspection for each approved repair job. A browser checklist draft does not count.</p>
         <ul>{activeJobs.map(item => <li key={item.id}>
           <button type="button" aria-pressed={job?.id === item.id} disabled={busy} onClick={() => chooseJob(order, item)}>
-            {item.jobNumber} · {item.description} · {inspectionStatus(item)}
+            {item.jobNumber} · {item.description} · {isFailed(item) && item.status !== "READY_FOR_QC" ? "Returned to shop" : inspectionStatus(item)}
           </button>
         </li>)}</ul>
-        {job && inspectionStatus(job) === "Inspection evidence needs review" && <p>Ask a manager to review this job’s saved inspection and labor history.</p>}
-        {order.origin === "CUSTOMER_REPAIR" && <Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(order.id)}`}>Review invoice readiness</Link>}
       </section>}
 
-      {order && job && !showVendorReturnQc && !showFrontlineQc && !order.releaseAuthorization ? (
+      {reviewOrderId && order && job && !showVendorReturnQc && !showFrontlineQc && !showCustomerClearance && !order.releaseAuthorization && (
+        <section className="qc-quick" aria-label="Final QC checklist">
+          <header>
+            <div>
+              <h2>{job.description}</h2>
+              <p>{job.jobNumber} · {job.status !== "READY_FOR_QC" && isFailed(job) ? "Returned to shop" : inspectionStatus(job)}</p>
+              {job.status === "READY_FOR_QC" && <p>{job.qcHandoffNotes || order.serviceVisit.concernSummary}</p>}
+            </div>
+          </header>
+          {job.status === "READY_FOR_QC" ? (
+            <FinalRepairQcChecklist
+              key={job.id}
+              evidence={job.executionEvidence ?? []}
+              roadTestNeeded={roadTestNeeded}
+              peerRequired={quickQcRequiresPeer}
+              procedureRules={job.procedureVersion?.qcRules}
+              peers={model.users.filter(person => person.id !== job.dispatches.find(dispatch => dispatch.status === "COMPLETED")?.technicianUser.id)}
+              busy={busy}
+              onSave={payload => submit(`/api/repair-jobs/${job.id}/quality-inspection`, payload, inspectionMessage)}
+            />
+          ) : isFailed(job) && job.status !== "QC_PASSED" ? (
+            <div>
+              <p>{latestInspection?.reworkInstructions}</p>
+              <Link className="pill pill-primary" href={repairReviewHref(order.id, "assignment")}>Open shop correction</Link>
+            </div>
+          ) : inspectionStatus(job) === "Inspection evidence needs review" ? (
+            <p>Ask a manager to review this job’s saved inspection and labor history.</p>
+          ) : job.status !== "QC_PASSED" ? (
+            <Link className="pill" href={workbenchHref(order)}>Resume repair work</Link>
+          ) : null}
+        </section>
+      )}
+
+      {showCustomerClearance && order && (
+        <section className="qc-quick" aria-label="Handoff clearance">
+          <header><h2>Clear for handoff</h2></header>
+          {hasUnreleasedLabor ? (
+            <div>
+              <p>Approved work still needs technician work orders and Final QC.</p>
+              <Link className="pill pill-primary" href={repairReviewHref(order.id, "parts")}>Open approved work</Link>
+            </div>
+          ) : <>
+          <p>All repair jobs passed Final QC. Verify the keys and record the vehicle’s final condition.</p>
+          <form className={finalQcStyles.form} onSubmit={event => {
+            event.preventDefault();
+            if (!release.keysVerified || !release.releaseEvidence.trim()) {
+              setErrorNotice("Verify the keys and record the final condition before clearing the vehicle.");
+              return;
+            }
+            void submit(`/api/repair-orders/${order.id}/release-authorization`, {
+              authorizedAt: new Date().toISOString(),
+              keysVerified: true,
+              openExceptions: [],
+              releaseEvidence: [release.releaseEvidence.trim()],
+              reason: "Clear customer vehicle for handoff after Final QC."
+            }, "Final QC complete. Vehicle cleared for handoff.");
+          }}>
+            <label><input type="checkbox" checked={release.keysVerified} onChange={event => setRelease(previous => ({ ...previous, keysVerified: event.target.checked }))} /> Vehicle keys verified</label>
+            <label className={finalQcStyles.field}>Final vehicle condition
+              <input value={release.releaseEvidence} onChange={event => setRelease(previous => ({ ...previous, releaseEvidence: event.target.value }))} />
+            </label>
+            <div className={finalQcStyles.actions}>
+              <button className="qc-quick-pass" type="submit" disabled={busy}>{busy ? "Saving…" : "Clear for handoff"}</button>
+            </div>
+          </form>
+          </>}
+        </section>
+      )}
+
+      {!reviewOrderId && order && job && !showVendorReturnQc && !showFrontlineQc && !order.releaseAuthorization ? (
         <section className="qc-quick" aria-label="Quick Repair QC">
           <header>
             <div>
@@ -889,14 +987,14 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </section>
       ) : null}
 
-      {order && (order.releaseAuthorization || (allPassed && order.origin === "CUSTOMER_REPAIR" && order.customer)) ? (
+      {order && (order.releaseAuthorization || (!reviewOrderId && allPassed && order.origin === "CUSTOMER_REPAIR" && order.customer)) ? (
         <section className="frontline-qc-complete">
           <CheckCircle2 />
           {order.origin === "CUSTOMER_REPAIR" ? <div>
             <strong>{order.releaseAuthorization ? "Final QC complete" : "Repair quality checks passed"}</strong>
-            <span>Continue to billing to review the approved estimate and any remaining invoice requirements.</span>
-            {order.customer && <><Link className="pill pill-primary" href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link></>}
-            {reviewOrderId && <Link className="pill" href={repairReviewHref(order.id, "handoff")}>Check readiness &amp; open handoff</Link>}
+            <span>{order.releaseAuthorization ? "Vehicle cleared for customer handoff." : "Continue to billing to review the approved estimate and any remaining invoice requirements."}</span>
+            {reviewOrderId && <Link className="pill pill-primary" href={repairReviewHref(order.id, "handoff")}>Open customer handoff</Link>}
+            {order.customer && <Link className={reviewOrderId ? "pill" : "pill pill-primary"} href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: order.id })}`}>Review and create invoice</Link>}
           </div> : <div>
             <strong>Final Frontline QC complete</strong>
             <span>This repair order is cleared for photos, merchandising, and its next frontline-readiness handoff.</span>
@@ -905,7 +1003,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </section>
       ) : null}
 
-      <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean((order && job) || showVendorReturnQc)}>
+      {(!reviewOrderId || showVendorReturnQc) && <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean((order && job) || showVendorReturnQc)}>
       <section className="qc-kpis" aria-label="Quality control snapshot">
         <article><ClipboardCheck /><span>Ready for QC</span><strong>{readyJobs.length + vendorQcRows.length}</strong><small>Awaiting inspection</small></article>
         <article><RotateCcw /><span>Recheck / Rework</span><strong>{failedJobs.length}</strong><small>Failed or returned</small></article>
@@ -1267,7 +1365,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           </section>
         </div>
       ) : null}
-      </div>
+      </div>}
     </section>
   );
 }

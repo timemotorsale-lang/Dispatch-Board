@@ -258,6 +258,7 @@ button.pathToggle:hover, button.pathToggle[aria-expanded="true"] { background: #
 .technicianWork summary { cursor: pointer; }
 .technicianWork textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px; font: inherit; }
 .technicianWork > .primaryAction { justify-self: start; cursor: pointer; }
+.technicianWork > .primaryAction:disabled { opacity: .6; cursor: wait; }
 .technicianWork [role="alert"] { color: #99212b; }
 
 .workPartMatch { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: baseline; margin: 6px 0; }

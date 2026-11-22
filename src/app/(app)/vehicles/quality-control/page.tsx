@@ -20,11 +20,13 @@ export default async function QualityControlPage({ searchParams }: { searchParam
       : undefined;
   const returnLabel = params.returnLabel?.slice(0, 120);
 
+  const reviewOrderId = returnTo?.startsWith("/vehicles/inventory") ? undefined : params.repairOrderId;
+
   let initial: Awaited<ReturnType<typeof getQualityControlWorkspace>> | null = null;
   let loadError: string | null = null;
 
   try {
-    initial = await getQualityControlWorkspace(user);
+    initial = await getQualityControlWorkspace(user, {}, reviewOrderId);
   } catch (error) {
     loadError = error instanceof Error ? error.message : "Final QC could not be opened right now.";
   }
@@ -70,6 +72,7 @@ export default async function QualityControlPage({ searchParams }: { searchParam
     <QualityControlWorkspace
       initial={serialized}
       initialRepairOrderId={params.repairOrderId}
+      reviewOrderId={reviewOrderId}
       returnLabel={returnLabel}
       returnTo={returnTo}
     />

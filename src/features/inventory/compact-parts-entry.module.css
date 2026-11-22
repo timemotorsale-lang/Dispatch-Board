@@ -23,7 +23,7 @@
 .purchase { grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); align-items: end; }
 .entry label { display: grid; gap: 3px; min-width: 0; font-size: 12px; font-weight: 650; }
 .entry [hidden] { display: none; }
-.entry input:not([type="checkbox"]), .entry select {
+.entry input:not([type="checkbox"], [type="radio"]), .entry select {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -69,11 +69,10 @@
   .part { grid-column: 1 / -1; }
 }
 @media (max-width: 600px) {
-  .entry input:not([type="checkbox"]), .entry select, .entry .check, .entry form > button { min-height: 44px; }
+  .entry input:not([type="checkbox"], [type="radio"]), .entry select, .entry .check, .entry form > button { min-height: 44px; }
   .entry form > button { width: 100%; }
 }
 
-.receiptChoices { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .reference { display: grid; gap: 4px; min-width: 0; }
 .reference button { justify-self: start; min-height: 38px; }
 @media (max-width: 600px) { .reference button { min-height: 44px; } }
@@ -94,3 +93,33 @@
   color: inherit;
 }
 .addPartRow { grid-column: 1 / -1; }
+
+.outcomeSection { margin-block: 8px; }
+.outcomeSection > p { margin: 0 0 6px; font-weight: 650; }
+.outcomeChoices { display: flex; flex-wrap: wrap; gap: 6px; }
+.entry .outcomeOption {
+  display: inline-grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  min-height: 40px;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #bbcadd;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.outcomeOption input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  accent-color: #155bc5;
+}
+.outcomeOption:has(:checked) { background: #edf4ff; border-color: #155bc5; }
+.outcomeOption:has(:disabled) { color: #52647b; background: #f3f6fa; cursor: not-allowed; }
+@container parts-entry (max-width: 360px) {
+  .entry .outcomeOption { width: 100%; min-height: 44px; }
+}

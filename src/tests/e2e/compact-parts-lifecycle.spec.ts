@@ -92,8 +92,8 @@ test("Not received creates a purchase without a receipt or outcome", async ({ pa
   let outcomeRequests = 0;
   page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/api/service-close-parts") && request.postDataJSON().action === "RECORD_RECEIVED_PART_OUTCOME") outcomeRequests++; });
   const entry = await purchaseForm(page, partsOrder.ro.id, `${partsOrder.tag} not received`);
-  await entry.getByRole("radio", { name: "Received", exact: true }).check();
-  await entry.getByRole("radio", { name: "Not received", exact: true }).check();
+  await entry.getByRole("checkbox", { name: "Received", exact: true }).check();
+  await entry.getByRole("checkbox", { name: "Received", exact: true }).uncheck();
   await entry.getByRole("button", { name: "Save parts entry", exact: true }).click();
   await expect(entry.getByLabel("Part", { exact: true })).toHaveValue("", { timeout: 45_000 });
   const orders = await prisma.partPurchaseOrder.findMany({ where: { requisition: { demand: { repairOrderId: partsOrder.ro.id } } } });
@@ -108,7 +108,7 @@ for (const lostStep of ["part", "bin"] as const) {
     const description = `${partsOrder.tag} replay ${lostStep}`;
     const physicalName = `${partsOrder.tag} actual shelf C2`;
     const entry = await purchaseForm(page, partsOrder.ro.id, description);
-    await entry.getByRole("radio", { name: "Received", exact: true }).check();
+    await entry.getByRole("checkbox", { name: "Received", exact: true }).check();
     await entry.getByLabel("Received on", { exact: true }).fill("2026-11-14");
     await entry.getByRole("combobox", { name: /^Receiving bin/ }).selectOption("__new__");
     await entry.getByLabel("Actual physical bin or shelf name", { exact: true }).fill(physicalName);

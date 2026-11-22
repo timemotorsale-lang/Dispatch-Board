@@ -119,7 +119,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               }
             },
             invoicePackages: { orderBy: { version: "desc" }, take: 3 },
-            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true, status: true, partsRequired: true, executionBlockerReason: true, partCustodyEvents: { select: { partId: true, type: true, quantity: true } }, partDemands: { select: { partId: true, status: true, quantityRequired: true, quantityReserved: true } } } },
+            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true, description: true, status: true, partsRequired: true, executionBlockerReason: true, partCustodyEvents: { select: { partId: true, type: true, quantity: true } }, partDemands: { select: { partId: true, status: true, quantityRequired: true, quantityReserved: true } } } },
             vendorWorks: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { updatedAt: "desc" }, take: 3 },
             closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
             deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },

@@ -146,7 +146,15 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     }
     let tool;
     if (!closed && selected === "handoff" && current !== "handoff" && order.origin === "CUSTOMER_REPAIR") {
-      tool = <p role="status">Vehicle handoff opens after the release is recorded. Continue the current repair step above.</p>;
+      const qcParams = new URLSearchParams({ repairOrderId: order.id });
+      if (returnTo) qcParams.set("returnTo", returnTo);
+      if (returnLabel) qcParams.set("returnLabel", returnLabel);
+      tool = <section aria-label="Handoff readiness">
+        <p role="status">Vehicle handoff opens after the release is recorded. {current === "qc"
+          ? "Finish Final QC and record clearance."
+          : "Complete the outstanding repair work and Final QC before recording clearance."}</p>
+        <Link className="pill" href={`/vehicles/quality-control?${qcParams}`}>Return to Final QC</Link>
+      </section>;
     } else if (closed || selected === "handoff") {
       tool = <RepairHandoffTool repairOrderId={order.id} vehicleId={order.vehicle.id} internal={order.origin === "INVENTORY_RECON"} closed={closed} />;
     }
@@ -154,7 +162,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
       const canOpen = canOpenRepairQc(order);
       const model = canOpen ? await getQualityControlWorkspace(user, {}, order.id).catch(() => null) : null;
       tool = <>
-        <RepairQcDiagnostics order={order} unavailable={canOpen && !model?.repairOrders.length} />
+        {!model?.repairOrders.length && <RepairQcDiagnostics order={order} unavailable={canOpen} />}
         {model?.repairOrders.length ? <QualityControlWorkspace initial={serialized(model)} initialRepairOrderId={order.id} reviewOrderId={order.id} returnTo={home} returnLabel="Return to Repair Workbench" />
           : !canOpen ? <InventoryQcChecklistPreview key={order.id} repairOrderId={order.id} /> : null}
       </>;
