@@ -1,6 +1,7 @@
 import { acceptRepairHandoff, RepairHandoffError, type HandoffClaim } from "./task-handoff-record";
 import { reconcileRepairOrderOwnerTaskInTransaction } from "./task-bridge";
 import { closeOutstandingRepairWork, RepairOrderCloseBlockedError } from "./close-outstanding-work";
+import { readDiagnosticConsent, requiresDiagnosticAuthorization } from "./diagnostic-authorization";
 import { serviceIdentity, recordServiceDocument } from "./service-documents";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
@@ -13,7 +14,7 @@ async function execute(database: PrismaClient, input: EnterpriseCommandCommitInp
 export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
 export type RepairOrderConcernCandidate = { id:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
-type InspectionConsentRecord = { customerName: string; channel: string; consentReference: string; consentedAt: Date };
+type InspectionConsentRecord = { diagnosticFeeCents: number; customerName: string; channel: string; consentReference: string; consentedAt: Date };
 export type RepairOrderDuplicateCloseRecord = { actorUserId: string; duplicateOfRepairOrderId: string | null; occurredAt: Date; reason: string };
 export type RepairOrderNoWorkCloseRecord = { actorUserId: string; occurredAt: Date; reason: string };
 const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, specificationSnapshot: true, version: true, registryRelationships: { where: { effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, select: { relationshipType: true } } };
@@ -225,6 +226,12 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         }, select: { id: true }
       })) throw new RepairHandoffError("The readiness check no longer matches the confirmed customer, vehicle, or visit. Refresh it before accepting.");
       const origin = data.intakeSource === "INVENTORY_RECON" ? "INVENTORY_RECON" : "CUSTOMER_REPAIR";
+      if (origin === "CUSTOMER_REPAIR") {
+        sourceSnapshot = {
+          ...(sourceSnapshot && typeof sourceSnapshot === "object" && !Array.isArray(sourceSnapshot) ? sourceSnapshot : {}),
+          diagnosticAuthorizationRequired: true
+        };
+      }
       const visit = await tx.serviceVisit.create({ data: {
         organizationId: command.organizationId, locationId: data.locationId, vehicleId: vehicle.id, customerId,
         appointmentId: data.appointmentId, inventoryUnitId, origin, intakeSource: data.intakeSource, arrivedAt: data.arrivedAt,
@@ -236,7 +243,9 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         id: command.subjectId, organizationId: command.organizationId, locationId: data.locationId, serviceVisitId: visit.id,
         repairOrderNumber: data.repairOrderNumber, vehicleId: vehicle.id, customerId, inventoryUnitId, origin, intakeSource: data.intakeSource,
         stage: "INTAKE", operatingState: data.operatingState, openedAt: data.arrivedAt, stageStartedAt: data.arrivedAt,
-        ownerUserId: data.ownerUserId, targetAt: data.targetAt, nextAction: data.nextAction, stateReason: data.stateReason, version
+        ownerUserId: data.ownerUserId, targetAt: data.targetAt,
+        nextAction: origin === "CUSTOMER_REPAIR" ? "Record customer diagnostic authorization" : data.nextAction,
+        stateReason: data.stateReason, version
       } });
       await tx.repairOrderStateEvent.create({ data: {
         organizationId: command.organizationId, repairOrderId: ro.id, version, fromStage: null, toStage: "INTAKE",
@@ -255,13 +264,6 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         await reconcileRepairOrderOwnerTaskInTransaction(tx, command.organizationId, ro.id, data.actorUserId);
       }
       return { result: { id: ro.id, repairOrderNumber: ro.repairOrderNumber, stage: ro.stage, operatingState: ro.operatingState, version } };
-    });
-  },
-  getInspectionConsent(organizationId: string, repairOrderId: string) {
-    return database.enterpriseCommandLedger.findFirst({
-      where: { organizationId, domain: "SHOP_OPERATIONS", subjectType: "REPAIR_ORDER", subjectId: repairOrderId, commandType: "RECORD_INSPECTION_CONSENT", status: "SUCCEEDED" },
-      orderBy: { resultingVersion: "desc" },
-      select: { resultSnapshot: true }
     });
   },
   recordInspectionConsent(command: EnterpriseCommandCommitInput, data: InspectionConsentRecord) {
@@ -284,17 +286,13 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       if (!order) throw new Error("An active customer repair order is required to record inspection consent.");
       if (order.version !== command.expectedVersion) throw new EnterpriseCommandConflictError("The repair order changed. Reload and review the saved concerns.", "VERSION_CONFLICT");
       const visit = order.serviceVisit;
-      if (visit.consentStatus === "DOCUMENTED") throw new Error("This visit already has documented consent. Review the saved record.");
       if (data.consentedAt < visit.arrivedAt) throw new Error("Record a consent time on or after the vehicle's arrival.");
-      const recorded = await tx.enterpriseCommandLedger.findFirst({
-        where: {
-          organizationId: order.organizationId, domain: command.domain, subjectType: command.subjectType,
-          subjectId: order.id, commandType: command.commandType, status: "SUCCEEDED"
-        },
-        select: { id: true }
-      });
-      if (recorded) throw new Error("Inspection permission is already recorded for this visit. Reload the repair order.");
-      await tx.repairOrder.update({ where: { id: order.id }, data: { version } });
+      const recorded = await readDiagnosticConsent(tx, order.organizationId, order.id);
+      if (recorded?.feeCents != null) throw new Error("Diagnostic authorization is already recorded for this visit.");
+      const nextAction = requiresDiagnosticAuthorization(visit.sourceSnapshot) && order.stage === "INTAKE"
+        ? "Inspect and verify the authorized customer concerns"
+        : order.nextAction;
+      await tx.repairOrder.update({ where: { id: order.id }, data: { version, nextAction } });
       return {
         previous: { consentStatus: visit.consentStatus },
         result: { id: order.id, consentStatus: "DOCUMENTED", concernSummary: visit.concernSummary, ...data }

@@ -234,15 +234,15 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Repair-order decision");
   });
 
-  it("keeps the saved repair order accessible while the live recommendation loads", () => {
+  it("offers diagnostic authorization for a newly saved order while the live recommendation loads", () => {
     const order = { id: "ro-123", repairOrderNumber: "RO-123" };
     const created = renderToStaticMarkup(<CustomerCheckInResult order={order} />);
     const reused = renderToStaticMarkup(<CustomerCheckInResult order={{ ...order, reused: true }} onReturnToIntake={() => undefined} />);
     const vendor = renderToStaticMarkup(<CustomerCheckInResult order={{ ...order, vendorRouted: true }} />);
 
     expect(created).toContain("Check-in saved");
-    expect(created).toContain("Open repair order");
-    expect(created).toContain("/vehicles/repair-workbench?repairOrderId=ro-123");
+    expect(created).toContain("Authorize diagnosis");
+    expect(created).toContain("/vehicles/repair-workbench?repairOrderId=ro-123&amp;step=authorization");
     expect(created).not.toContain("Build estimate in Labor Guide");
 
     expect(reused).toContain("The new concern and custody details are still in intake");

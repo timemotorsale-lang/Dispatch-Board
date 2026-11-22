@@ -5,6 +5,7 @@ import { getDiagnosisWorkbench, type getShopPlanningDetail, getShopPlanningWorks
 import { CustomerRepairAuthorization } from "@/features/inventory/customer-repair-authorization";
 import { repairLaborGuideHref } from "@/lib/repair-resume";
 import { prisma } from "@/server/db/client";
+import { diagnosticAuthorizationMessage, requiresDiagnosticAuthorization } from "@/server/repair-order/diagnostic-authorization";
 import { getRepairResume } from "@/server/repair-order/resume-service";
 import { RepairDiagnosisWork } from "@/features/inventory/repair-diagnosis-work";
 import { diagnosisRequestStatus } from "@/lib/repair-diagnosis-request";
@@ -56,8 +57,15 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
   sourceContext?: ReactNode;
   canCompose?: boolean;
 }) {
-  const current = currentRepairWorkflowStep(order), selected = repairWorkflowSteps.includes(params.step as RepairWorkflowStep) ? params.step as RepairWorkflowStep : current;
+  const current = currentRepairWorkflowStep(order);
   const closed = Boolean(order.closedAt);
+  const diagnosticRequired = !closed && order.origin === "CUSTOMER_REPAIR" && requiresDiagnosticAuthorization(order.serviceVisit.sourceSnapshot);
+  const authorizationResume = !closed && order.origin === "CUSTOMER_REPAIR" && (diagnosticRequired || params.step === "authorization")
+    ? await getRepairResume(user, order.id, true) : null;
+  const diagnosticPending = diagnosticRequired && (authorizationResume?.needsDiagnosticAuthorization ?? true);
+  const selected = repairWorkflowSteps.includes(params.step as RepairWorkflowStep)
+    ? params.step as RepairWorkflowStep
+    : diagnosticPending ? "authorization" : current;
   const estimate = order.estimateVersions[0];
   const authorization = estimate?.authorizations[0];
   const pendingLabor = pendingApprovedLabor(estimate, order.repairJobs);
@@ -69,7 +77,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
   const diagnosisWork = !closed && current === "diagnosis" && !activeVendor
     ? await getDiagnosisWorkbench(user, order)
     : null;
-  const canChoosePath = !closed && !activeVendor && !diagnosisWork?.request && !order.diagnosisVersions.length
+  const canChoosePath = !closed && !diagnosticPending && !activeVendor && !diagnosisWork?.request && !order.diagnosisVersions.length
     && (current === "inspection" || current === "diagnosis");
   const chosenPath = canChoosePath ? findReconRepairPath(params.reconPath) : undefined;
   const shopView = !supportingTool && params.workflow === "shop";
@@ -124,11 +132,21 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
       detail: `${diagnosisRequestStatus(diagnosisWork.request)} · ${diagnosisWork.request.assigneeName}`,
     };
   }
+  const diagnosticHref = repairReviewHref(order.id, "authorization", context);
+  if (diagnosticPending) {
+    nextAction = { label: "Authorize diagnosis", detail: "Review the saved concern and diagnostic fee with the customer.", href: diagnosticHref };
+  }
   const previewOnly = order.origin === "CUSTOMER_REPAIR"
     && repairWorkflowSteps.indexOf(selected) > repairWorkflowSteps.indexOf(current);
   const customerAuthorization = selected === "authorization" && !closed && order.origin === "CUSTOMER_REPAIR";
   const renderTool = async () => {
     if (supportingTool) return supportingTool;
+    if (diagnosticPending && !customerAuthorization) {
+      return <section aria-label="Diagnostic authorization required">
+        <p role="status">{diagnosticAuthorizationMessage}</p>
+        <Link className="pill pill-primary" href={diagnosticHref}>Open diagnostic authorization</Link>
+      </section>;
+    }
     if (previewOnly && selected !== "handoff" && !customerAuthorization) {
       return <p role="status">Complete the current repair step before recording work in this stage.</p>;
     }
@@ -164,7 +182,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
       tool = <RepairHandoffTool repairOrderId={order.id} vehicleId={order.vehicle.id} internal={order.origin === "INVENTORY_RECON"} closed={closed} />;
     }
     else if (customerAuthorization) {
-      const resume = await getRepairResume(user, order.id, true);
+      const resume = authorizationResume ?? await getRepairResume(user, order.id, true);
       const presentedEstimate = estimate?.status === "PRESENTED" && estimate.expiresAt > new Date() ? estimate : undefined;
       const estimateDocument = presentedEstimate && await prisma.serviceDocument.findFirst({
         where: { organizationId: order.organizationId, repairOrderId: order.id, kind: "ESTIMATE", sourceId: presentedEstimate.id },
@@ -177,9 +195,13 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
         version={order.version}
         concern={order.serviceVisit.concernSummary}
         customerName={order.customer?.displayName ?? ""}
-        consent={resume?.inspectionConsentReference
-          ? { status: "DOCUMENTED", reference: resume.inspectionConsentReference }
-          : { status: order.serviceVisit.consentStatus, reference: order.serviceVisit.consentReference }}
+        consent={resume?.diagnosticConsent?.feeCents != null && !diagnosticPending
+          ? { status: "DOCUMENTED", reference: resume.diagnosticConsent.reference, feeCents: resume.diagnosticConsent.feeCents, customerName: resume.diagnosticConsent.customerName }
+          : diagnosticRequired
+            ? { status: "PENDING", reference: null }
+            : { status: resume?.diagnosticConsent ? "DOCUMENTED" : order.serviceVisit.consentStatus, reference: resume?.diagnosticConsent?.reference ?? order.serviceVisit.consentReference }}
+        diagnosticOnly={diagnosticPending || (diagnosticRequired && !estimate)}
+        inspectionHref={repairReviewHref(order.id, "inspection", context)}
         canAct={Boolean(resume?.summary.canAct && order.customer && current !== "handoff")}
         estimateId={estimateDocument ? presentedEstimate?.id : undefined}
         legacyEstimateHref={presentedEstimate && !estimateDocument ? `/repair-estimate?${new URLSearchParams({ repairOrderId: order.id, estimateId: presentedEstimate.id, workflow: "review" })}` : undefined}

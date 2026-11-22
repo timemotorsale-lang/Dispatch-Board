@@ -1,3 +1,4 @@
+import { assertDiagnosticAuthorization, requiresDiagnosticAuthorization } from "@/server/repair-order/diagnostic-authorization";
 import type { DocumentCustomerDetails } from "@/lib/service-document-review";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { authorizedCommercialLedger } from "@/lib/service-commercial-ledger";
@@ -52,7 +53,20 @@ async function validateDiagnosisEvidence(tx: Tx, command: EnterpriseCommandCommi
     where: { ...diagnosisEvidenceFilter(command.organizationId, vehicleId, command.subjectId), evidenceObjectId: evidenceId }, select: { id: true },
   })) throw new Error("Choose an available attachment on this repair order or vehicle.");
 }
-async function advance(tx:Tx,command:EnterpriseCommandCommitInput,version:number,stage:keyof typeof stageRank,input:{nextAction:string;operatingState?:"ACTIVE"|"WAITING";stateReason?:string|null}){const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null}});// Fresh customer repairs need saved inspection evidence before diagnosis advances intake.
+async function advance(tx:Tx,command:EnterpriseCommandCommitInput,version:number,stage:keyof typeof stageRank,input:{nextAction:string;operatingState?:"ACTIVE"|"WAITING";stateReason?:string|null}){const previous=await tx.repairOrder.findFirstOrThrow({
+    where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},
+    include:{serviceVisit:{select:{sourceSnapshot:true,concernSummary:true}}}
+  });
+  await assertDiagnosticAuthorization(tx, previous);
+  if (stage === "ESTIMATE" && previous.origin === "CUSTOMER_REPAIR" && requiresDiagnosticAuthorization(previous.serviceVisit.sourceSnapshot)) {
+    const evidence = { organizationId: command.organizationId, repairOrderId: previous.id };
+    const [inspection, findings] = await Promise.all([
+      tx.vehicleInspectionVersion.findFirst({ where: { ...evidence, status: "COMPLETED" }, select: { id: true } }),
+      tx.repairDiagnosisVersion.findFirst({ where: evidence, select: { id: true } }),
+    ]);
+    if (!inspection || !findings) throw new Error("Save the inspection and diagnosis findings or confirmed repair scope before presenting the repair estimate.");
+  }
+  // Fresh customer repairs need saved inspection evidence before diagnosis advances intake.
   if (stage === "DIAGNOSIS" && previous.stage === "INTAKE" && previous.origin === "CUSTOMER_REPAIR"
     && command.commandType !== "RECORD_DVI_VERSION") {
     const inspection = await tx.vehicleInspectionVersion.findFirst({

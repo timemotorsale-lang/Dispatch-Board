@@ -7,13 +7,14 @@ import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-c
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { currentRepairWorkflowStep } from "@/lib/repair-workflow-review";
 import { repairLaborGuideHref, repairResumeLabel, type RepairResume, type VehicleWorkActions } from "@/lib/repair-resume";
-import { createRepairOrderRepository } from "./repository";
+import { readDiagnosticConsent, requiresDiagnosticAuthorization } from "./diagnostic-authorization";
 import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 
 const organizationId = INITIAL_ORGANIZATION.id;
 const orderSelect = {
   id: true, vehicleId: true, locationId: true, stage: true, repairOrderNumber: true,
   operatingState: true, stateReason: true, ownerUser: { select: { name: true } },
+  origin: true, serviceVisit: { select: { sourceSnapshot: true, concernSummary: true } },
   releaseAuthorization: { select: { id: true } },
   inspectionVersions: { take: 1, select: { id: true } },
   diagnosisVersions: { take: 1, select: { id: true } },
@@ -131,7 +132,11 @@ async function readWorkActions(actor: AuthenticatedUser, filter: { vehicleIds: s
       blockedReason: order.operatingState !== "ACTIVE" ? order.stateReason ?? undefined : undefined,
     };
     byVehicle[order.vehicleId]?.orders.push(summary);
-    return { summary, draftId, vendor, useLaborGuide: canAct && stage === "estimate" && !vendor };
+    return {
+      summary, draftId, vendor, useLaborGuide: canAct && stage === "estimate" && !vendor,
+      diagnosticRequired: order.origin === "CUSTOMER_REPAIR" && requiresDiagnosticAuthorization(order.serviceVisit?.sourceSnapshot),
+      concern: order.serviceVisit?.concernSummary
+    };
   });
   return { byVehicle, decisions };
 }
@@ -144,11 +149,10 @@ export async function listVehicleWorkActions(actor: AuthenticatedUser, vehicleId
 export async function getRepairResume(actor: AuthenticatedUser, repairOrderId: string, withInspectionConsent = false) {
   const decision = (await readWorkActions(actor, { repairOrderId })).decisions[0];
   if (!decision) return null;
-  const entry = withInspectionConsent ? await createRepairOrderRepository().getInspectionConsent(organizationId, repairOrderId) : null;
-  const result = entry?.resultSnapshot;
-  const inspectionConsentReference = result && typeof result === "object" && !Array.isArray(result)
-    && typeof result.consentReference === "string" ? result.consentReference : undefined;
-  return { ...decision, inspectionConsentReference };
+  const diagnosticConsent = decision.diagnosticRequired || withInspectionConsent
+    ? await readDiagnosticConsent(prisma, organizationId, repairOrderId) : null;
+  const needsDiagnosticAuthorization = decision.diagnosticRequired && (diagnosticConsent?.feeCents == null || diagnosticConsent.concern !== decision.concern);
+  return { ...decision, diagnosticConsent, needsDiagnosticAuthorization, useLaborGuide: decision.useLaborGuide && !needsDiagnosticAuthorization };
 }
 
 export function resumedLaborGuideHref(decision: NonNullable<Awaited<ReturnType<typeof getRepairResume>>>, returnTo: string) {

@@ -26,20 +26,29 @@ describe("repair-order core domain",()=>{
 describe("normalizeInspectionConsent", () => {
   const now = new Date("2026-06-15T14:30:00Z");
   const data = {
-    expectedVersion: 1, confirmed: true, consentedAt: now.toISOString(), channel: "IN_PERSON",
+    expectedVersion: 1, diagnosticFeeCents: 12500, confirmed: true, consentedAt: now.toISOString(), channel: "IN_PERSON",
     customerName: " Riley Customer ", consentReference: "Signed intake 001", idempotencyKey: "consent-001"
   };
 
   it("records permission against a reviewed repair order version", () => {
     expect(normalizeInspectionConsent(data, now)).toEqual({
-      expectedVersion: 1, consentedAt: now, customerName: "Riley Customer",
+      expectedVersion: 1, diagnosticFeeCents: 12500, consentedAt: now, customerName: "Riley Customer",
       channel: "IN_PERSON", consentReference: "Signed intake 001", idempotencyKey: "consent-001"
     });
   });
 
+  it("records a no-charge signature and rejects missing or invalid fees", () => {
+    expect(normalizeInspectionConsent({ ...data, diagnosticFeeCents: 0, consentReference: "" }, now)).toMatchObject({
+      diagnosticFeeCents: 0, consentReference: "Customer signed at check-in"
+    });
+    for (const diagnosticFeeCents of [undefined, null, -1, "0", 0.5]) {
+      expect(() => normalizeInspectionConsent({ ...data, diagnosticFeeCents }, now)).toThrow("disclosed diagnostic fee");
+    }
+  });
+
   it("requires customer confirmation and usable evidence", () => {
     expect(() => normalizeInspectionConsent({ ...data, confirmed: false }, now)).toThrow("Confirm");
-    expect(() => normalizeInspectionConsent({ ...data, consentReference: " " }, now)).toThrow("Consent evidence");
+    expect(() => normalizeInspectionConsent({ ...data, channel: "PHONE", consentReference: " " }, now)).toThrow("Consent evidence");
     expect(() => normalizeInspectionConsent({ ...data, consentedAt: "2026-06-16T14:30:00Z" }, now)).toThrow("future");
   });
 });

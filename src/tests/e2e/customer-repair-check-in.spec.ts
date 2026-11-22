@@ -44,43 +44,51 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await expect(page.getByRole("heading", { name: /Check-in saved/ })).toBeVisible({ timeout: 25_000 });
   const order = await prisma.repairOrder.findFirstOrThrow({ where: { vehicleId: vehicle.id }, include: { serviceVisit: true } });
   expect(order.serviceVisit.concernSummary).toBe(concern);
-  const postCheckInAction = page.getByRole("navigation", { name: "Continue repair order" }).getByRole("link", { name: "Open inspection checklist" });
-  await expect(postCheckInAction).toBeVisible({ timeout: 30_000 });
-  const inspectionHref = await postCheckInAction.getAttribute("href");
-  expect(new URL(inspectionHref!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
   const checkInActions = page.getByRole("navigation", { name: "Continue repair order" });
-  const laborGuide = checkInActions.getByRole("link", { name: "Open Labor Guide", exact: true });
-  await expect(laborGuide).toBeVisible();
-  expect(new URL((await laborGuide.getAttribute("href"))!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
+  const authorize = checkInActions.getByRole("link", { name: "Authorize diagnosis", exact: true });
+  await expect(authorize).toBeVisible({ timeout: 30_000 });
+  await expect(checkInActions.getByRole("link", { name: "Open Labor Guide", exact: true })).toHaveCount(0);
 
-  const authorize = checkInActions.getByRole("link", { name: "Review repair authorization" });
-  await expect(authorize).toBeVisible();
+  const planningUrl = `/api/repair-orders/${order.id}/planning`;
+  const before = new Date().toISOString();
+  const blocked = await page.request.post(planningUrl, { data: {
+    action: "RECORD_INSPECTION", templateCode: "TEST", templateVersion: 1,
+    items: [{ key: "test", label: "Synthetic check", result: "PASS" }],
+    summary: "Synthetic check prior to customer authorization", startedAt: before, completedAt: before,
+    reason: "Verify customer diagnostic authorization gate", idempotencyKey: randomUUID()
+  } });
+  expect(blocked.ok()).toBe(false);
+  expect((await blocked.json()).error).toContain("Record customer diagnostic authorization");
+  expect(await prisma.vehicleInspectionVersion.count({ where: { repairOrderId: order.id } })).toBe(0);
+
   const approvalPage = await page.context().newPage();
   try {
     await approvalPage.goto(new URL((await authorize.getAttribute("href"))!, page.url()).href);
-    const inspection = approvalPage.getByRole("region", { name: "Inspection and diagnosis permission" });
-    await expect(inspection).toContainText(concern);
-    const quoted = approvalPage.getByRole("region", { name: "Quoted repair authorization" });
-    await expect(quoted).toContainText("Present a saved estimate");
-    await expect(quoted.getByRole("link", { name: "Open Labor Guide" })).toBeVisible();
-    await inspection.getByLabel("Evidence reference").fill("Synthetic signed intake reference");
-    await inspection.getByRole("checkbox").check();
-    await inspection.getByRole("button", { name: "Save inspection permission" }).click();
-    await expect(inspection.getByRole("status")).toContainText(/Inspection permission saved|Visit consent is documented/);
+    const diagnostic = approvalPage.getByRole("region", { name: "Customer diagnostic authorization" });
+    await expect(diagnostic).toContainText(concern);
+    await expect(approvalPage.getByRole("region", { name: "Quoted repair authorization" })).toHaveCount(0);
+    await diagnostic.getByLabel("Flat diagnostic fee ($)", { exact: true }).fill("125.00");
+    await diagnostic.getByLabel("Customer signature (type full name)", { exact: true }).fill(customer.displayName);
+    await diagnostic.getByRole("checkbox").check();
+    await diagnostic.getByRole("button", { name: "Record diagnostic authorization", exact: true }).click();
+    await expect(diagnostic.getByRole("status")).toContainText("$125.00");
     await approvalPage.reload();
-    await expect(inspection.getByRole("status")).toContainText("Synthetic signed intake reference");
+    await expect(diagnostic.getByRole("status")).toContainText("Customer signed at check-in");
+    await expect(diagnostic.getByRole("link", { name: "Open inspection checklist" })).toBeVisible();
     const saved = await prisma.serviceVisit.findUniqueOrThrow({ where: { id: order.serviceVisit.id } });
     expect(saved.consentStatus).toBe(order.serviceVisit.consentStatus);
     const consent = await prisma.enterpriseCommandLedger.findFirstOrThrow({
       where: { subjectId: order.id, commandType: "RECORD_INSPECTION_CONSENT" }
     });
-    expect(consent.resultSnapshot).toMatchObject({ consentStatus: "DOCUMENTED", consentReference: "Synthetic signed intake reference", concernSummary: concern });
+    expect(consent.resultSnapshot).toMatchObject({
+      consentStatus: "DOCUMENTED", concernSummary: concern, diagnosticFeeCents: 12500, customerName: customer.displayName
+    });
     expect(await prisma.repairAuthorization.count({ where: { repairOrderId: order.id } })).toBe(0);
   } finally {
     await approvalPage.close();
   }
 
-  await postCheckInAction.click();
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${order.id}&resume=1`);
   await expect(page.getByRole("heading", { name: "Repair Workbench" })).toBeVisible({ timeout: 25_000 });
   await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${order.id}&resume=1`);
   const stages = page.getByLabel("Repair workflow", { exact: true });

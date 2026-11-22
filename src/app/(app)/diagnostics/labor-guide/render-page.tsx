@@ -1,3 +1,7 @@
+import { redirect } from "next/navigation";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
+import { requiresDiagnosticAuthorization } from "@/server/repair-order/diagnostic-authorization";
+import { getRepairResume } from "@/server/repair-order/resume-service";
 import { LaborGuideEntry } from "@/features/diagnostics/labor-guide-entry";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
@@ -47,6 +51,12 @@ export async function renderLaborGuidePage({ searchParams }: PageProps, initialG
   }
   const orders = ordersResult.status === "fulfilled" ? ordersResult.value : { items: [] };
   const active = activeResult.status === "fulfilled" ? activeResult.value : null;
+  if (active?.origin === "CUSTOMER_REPAIR" && !active.closedAt && requiresDiagnosticAuthorization(active.serviceVisit.sourceSnapshot)) {
+    const resume = await getRepairResume(user, active.id);
+    if (resume?.needsDiagnosticAuthorization ?? true) {
+      redirect(repairReviewHref(active.id, "authorization", { returnTo, returnLabel }));
+    }
+  }
   const laborRate = rateResult.status === "fulfilled" ? rateResult.value : null;
   const initialNotice = [
     ordersResult.status === "rejected" ? "Repair-order listing could not load. Check access or connectivity; this is not a no-records result." : "",

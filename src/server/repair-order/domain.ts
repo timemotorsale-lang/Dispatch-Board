@@ -26,14 +26,23 @@ export function normalizeInspectionConsent(value: unknown, now = new Date()) {
   if (input.confirmed !== true) throw new Error("Confirm the customer gave permission for the saved concerns.");
   const expectedVersion = input.expectedVersion;
   if (typeof expectedVersion !== "number" || !Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Repair order version is required.");
+  const diagnosticFeeCents = input.diagnosticFeeCents;
+  if (typeof diagnosticFeeCents !== "number" || !Number.isSafeInteger(diagnosticFeeCents) || diagnosticFeeCents < 0 || diagnosticFeeCents > 2_147_483_647) {
+    throw new Error("Enter the disclosed diagnostic fee, including zero for no charge.");
+  }
   const consentedAt = timestamp(input.consentedAt, "Customer consent time")!;
   if (consentedAt.getTime() > now.getTime() + 60_000) throw new Error("Customer consent time cannot be in the future.");
+  const channel = oneOf(input.channel, ["IN_PERSON", "PHONE", "EMAIL", "SMS"] as const, "Consent method");
+  const consentReference = channel === "IN_PERSON"
+    ? optional(input.consentReference, 200) ?? "Customer signed at check-in"
+    : required(input.consentReference, "Consent evidence", 200);
   return {
     expectedVersion,
     consentedAt,
+    diagnosticFeeCents,
     customerName: required(input.customerName, "Customer or authorized representative", 200),
-    channel: oneOf(input.channel, ["IN_PERSON", "PHONE", "EMAIL", "SMS"] as const, "Consent method"),
-    consentReference: required(input.consentReference, "Consent evidence", 200),
+    channel,
+    consentReference,
     idempotencyKey: required(input.idempotencyKey, "Idempotency key", 200)
   };
 }

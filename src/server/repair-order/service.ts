@@ -61,7 +61,7 @@ export async function recordInspectionConsent(actor: AuthenticatedUser | null, i
     actorUserId: user.id, commandType: "RECORD_INSPECTION_CONSENT", expectedVersion, idempotencyKey,
     locationId: order.locationId, organizationId: context.organizationId, subjectId: id,
     payload: { ...data, consentedAt: data.consentedAt.toISOString() },
-    reason: "Record customer permission to inspect and diagnose the saved visit concerns."
+    reason: "Record customer authorization to inspect, diagnose, and prepare an estimate for the saved concerns at the disclosed diagnostic fee."
   }), data);
 }
 

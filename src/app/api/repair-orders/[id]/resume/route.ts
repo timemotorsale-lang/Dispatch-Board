@@ -8,5 +8,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const decision = await getRepairResume(user, id);
   if (!decision) return NextResponse.json({ error: "Open repair order is unavailable." }, { status: 404 });
-  return NextResponse.json({ ...decision.summary, estimateDraftId: decision.draftId, vendor: decision.vendor }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ ...decision.summary, estimateDraftId: decision.draftId, vendor: decision.vendor, needsDiagnosticAuthorization: decision.needsDiagnosticAuthorization }, { headers: { "Cache-Control": "private, no-store" } });
 }

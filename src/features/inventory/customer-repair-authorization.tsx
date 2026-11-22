@@ -12,7 +12,9 @@ type Props = {
   version: number;
   concern: string;
   customerName: string;
-  consent: { status: string; reference: string | null };
+  consent: { status: string; reference: string | null; feeCents?: number; customerName?: string };
+  diagnosticOnly: boolean;
+  inspectionHref: string;
   canAct: boolean;
   estimateId?: string;
   hasSavedEstimate: boolean;
@@ -25,28 +27,35 @@ type Props = {
 
 export function CustomerRepairAuthorization(props: Props) {
   const router = useRouter();
-  const [inspectionSaved, setInspectionSaved] = useState(false);
+  const [savedFee, setSavedFee] = useState<number | null>(null);
   const [repairSaved, setRepairSaved] = useState(false);
 
+  const authorizedFee = savedFee ?? props.consent.feeCents;
   return (
     <div className={styles.authorization}>
-      <section aria-label="Inspection and diagnosis permission">
-        <h3>Inspection &amp; diagnosis permission</h3>
-        <p><strong>Saved concerns</strong> {props.concern}</p>
-        {inspectionSaved || props.consent.status === "DOCUMENTED" ? (
-          <p role="status">{inspectionSaved ? "Inspection permission saved." : "Visit consent is documented."}
-            {props.consent.reference && <> Evidence reference {props.consent.reference}.</>}
-          </p>
+      <section aria-label="Customer diagnostic authorization">
+        <h3>Customer diagnostic authorization</h3>
+        <p><strong>Customer concern</strong> {props.concern}</p>
+        {authorizedFee != null || props.consent.status === "DOCUMENTED" ? (
+          <>
+            <p role="status">{authorizedFee != null
+              ? `Diagnostic authorization recorded. Approved flat fee ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(authorizedFee / 100)}.`
+              : "Visit consent is documented."}
+              {props.consent.customerName && <> Authorized by {props.consent.customerName}.</>}
+              {props.consent.reference && <> Evidence reference {props.consent.reference}.</>}
+            </p>
+            {props.diagnosticOnly && <Link className="pill pill-primary" prefetch={false} href={props.inspectionHref}>Open inspection checklist</Link>}
+          </>
         ) : props.canAct ? (
           <InspectionPermissionForm
             repairOrderId={props.repairOrderId}
             version={props.version}
             customerName={props.customerName}
-            onSaved={() => { setInspectionSaved(true); router.refresh(); }}
+            onSaved={feeCents => { setSavedFee(feeCents); router.refresh(); }}
           />
         ) : <p>An advisor with repair-order access can record permission.</p>}
       </section>
-      <section aria-label="Quoted repair authorization">
+      {!props.diagnosticOnly && <section aria-label="Quoted repair authorization">
         {props.canAct && props.estimateId && !props.vendor && !repairSaved ? (
           <DocumentApproval
             repairOrderId={props.repairOrderId}
@@ -70,7 +79,7 @@ export function CustomerRepairAuthorization(props: Props) {
           {props.legacyEstimateHref && <Link className="pill" href={props.legacyEstimateHref}>View saved estimate</Link>}
           {(props.vendor || props.hasSavedEstimate) && <Link className="pill" href={props.planningHref}>{props.vendor ? "Open vendor authorization" : "Open full authorization tools"}</Link>}
         </div>
-      </section>
+      </section>}
     </div>
   );
 }
@@ -79,11 +88,12 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
   repairOrderId: string;
   version: number;
   customerName: string;
-  onSaved: () => void;
+  onSaved: (feeCents: number) => void;
 }) {
-  const [name, setName] = useState(customerName);
+  const [name, setName] = useState("");
   const [channel, setChannel] = useState("IN_PERSON");
   const [reference, setReference] = useState("");
+  const [fee, setFee] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(false);
@@ -94,6 +104,10 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if ((!confirmed && !pending.current) || inFlight.current) return;
+    if (!pending.current && !/^\d+(?:\.\d{1,2})?$/.test(fee.trim())) {
+      setError("Enter the flat diagnostic fee, including 0 for no charge.");
+      return;
+    }
     inFlight.current = true;
     setBusy(true);
     setError("");
@@ -104,6 +118,7 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
         customerName: name.trim(),
         channel,
         consentReference: reference.trim(),
+        diagnosticFeeCents: Math.round(Number(fee) * 100),
         confirmed,
         consentedAt: new Date().toISOString(),
         idempotencyKey: crypto.randomUUID()
@@ -117,10 +132,10 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
       const data = await response.json();
       if (response.status === 409) throw new Error("The repair order changed. Reload authorization and review the saved concerns before recording permission.");
       if (!response.ok) throw new Error(data.error ?? "Inspection permission could not be saved.");
-      if (data.result?.id !== repairOrderId || data.result?.consentStatus !== "DOCUMENTED") throw new Error("Confirmation was incomplete. Retry the same permission record.");
+      if (data.result?.id !== repairOrderId || data.result?.consentStatus !== "DOCUMENTED" || typeof data.result?.diagnosticFeeCents !== "number") throw new Error("Confirmation was incomplete. Retry the same permission record.");
       pending.current = null;
       setRetry(false);
-      onSaved();
+      onSaved(data.result.diagnosticFeeCents);
     } catch (failure) {
       setRetry(Boolean(pending.current));
       setError(failure instanceof Error ? failure.message : "Inspection permission could not be saved.");
@@ -133,19 +148,36 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
   return (
     <form onSubmit={submit}>
       <fieldset disabled={busy || retry}>
-        <legend>Record customer permission</legend>
-        <label>Customer / authorized representative<input required maxLength={200} value={name} onChange={event => setName(event.target.value)} /></label>
+        <legend>Customer decision</legend>
+        <label>Flat diagnostic fee ($)
+          <input required inputMode="decimal" maxLength={12} value={fee} onChange={event => { setFee(event.target.value); setConfirmed(false); }} placeholder="Enter 0 for no charge" />
+        </label>
+        <label>{channel === "IN_PERSON" ? "Customer signature (type full name)" : "Customer / authorized representative"}
+          <input required autoComplete="off" maxLength={200} value={name} onChange={event => setName(event.target.value)} />
+        </label>
         <label>Permission method
-          <select value={channel} onChange={event => setChannel(event.target.value)}>
+          <select value={channel} onChange={event => {
+            setChannel(event.target.value);
+            setName(event.target.value === "IN_PERSON" ? "" : customerName);
+            setReference("");
+            setConfirmed(false);
+          }}>
             <option value="IN_PERSON">In person</option><option value="PHONE">Phone</option>
             <option value="EMAIL">Email</option><option value="SMS">Text message</option>
           </select>
         </label>
-        <label>Evidence reference<input required maxLength={200} value={reference} onChange={event => setReference(event.target.value)} placeholder="Signed intake, email, or documented call" /></label>
-        <label className={styles.confirm}><input required type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> The customer gave permission to inspect and diagnose the saved concerns.</label>
+        {channel !== "IN_PERSON" && <label>{channel === "PHONE" ? "Phone number and call reference" : "Message or approval reference"}
+          <input required maxLength={200} value={reference} onChange={event => setReference(event.target.value)} />
+        </label>}
+        <label className={styles.confirm}>
+          <input required type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
+          {channel === "IN_PERSON"
+            ? "I authorize Time Motor Sales to inspect and diagnose the concern shown above and prepare a repair estimate. I agree to the flat diagnostic fee shown. Repairs require my separate approval."
+            : "I verified the named customer authorized inspection, diagnosis, and estimate preparation for the saved concern, and agreed to the disclosed flat diagnostic fee."}
+        </label>
       </fieldset>
       {error && <p role="alert">{error}</p>}
-      <button className="pill pill-primary" type="submit" disabled={busy || !confirmed}>{busy ? "Saving…" : retry ? "Retry same permission record" : "Save inspection permission"}</button>
+      <button className="pill pill-primary" type="submit" disabled={busy || !confirmed}>{busy ? "Saving…" : retry ? "Retry same permission record" : "Record diagnostic authorization"}</button>
     </form>
   );
 }

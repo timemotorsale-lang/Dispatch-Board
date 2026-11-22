@@ -257,8 +257,9 @@ export function CustomerCheckInResult({ order, returnTo, onReturnToIntake }: {
   onReturnToIntake?: () => void;
 }) {
   const workbench = repairReviewHref(order.id, undefined, { returnTo });
-  const [next, setNext] = useState<(RepairResume & { estimateDraftId?: string; vendor?: boolean }) | null>(null);
+  const [next, setNext] = useState<(RepairResume & { estimateDraftId?: string; vendor?: boolean; needsDiagnosticAuthorization?: boolean }) | null>(null);
   const savedOrder = next?.id === order.id ? next : null;
+  const authorizeNewVisit = !order.reused && (!savedOrder || (savedOrder.canAct && savedOrder.needsDiagnosticAuthorization));
   const resumeOrder = savedOrder?.canAct
     ? { ...savedOrder, action: order.reused ? "Review existing repair order"
       : savedOrder.stage === "authorization" && !savedOrder.vendor ? "Review repair authorization" : savedOrder.action }
@@ -277,10 +278,15 @@ export function CustomerCheckInResult({ order, returnTo, onReturnToIntake }: {
     {order.reused && <p role="status">The new concern and custody details are still in intake. {order.vendorRouted ? "The vendor route was saved to the existing order." : "Review the existing order before recording additional work."}</p>}
     {order.vendorRouted && !order.reused && <p role="status">Outside vendor routing was recorded. Review the current vendor step on the repair order.</p>}
     <nav className="sic-success-actions" aria-label="Continue repair order">
-      {resumeOrder
-        ? <RepairOrderActions order={resumeOrder} returnTo={returnTo} showSummary={false} resume={!order.reused} />
-        : <Link className="primary" href={workbench}>{order.reused ? "Review existing repair order" : "Open repair order"} <ChevronRight /></Link>}
-      {savedOrder?.canAct && savedOrder.stage !== "handoff" && <>
+      {authorizeNewVisit
+        ? <Link className="primary" href={repairReviewHref(order.id, "authorization", { returnTo })}>Authorize diagnosis <ChevronRight /></Link>
+        : resumeOrder
+          ? <RepairOrderActions order={resumeOrder} returnTo={returnTo} showSummary={false} resume={!order.reused} />
+          : <Link className="primary" href={workbench}>{order.reused ? "Review existing repair order" : "Open repair order"} <ChevronRight /></Link>}
+      {savedOrder?.canAct && savedOrder.needsDiagnosticAuthorization && order.reused && (
+        <Link className="pill" href={repairReviewHref(order.id, "authorization", { returnTo })}>Authorize diagnosis for saved concerns</Link>
+      )}
+      {savedOrder?.canAct && !savedOrder.needsDiagnosticAuthorization && savedOrder.stage !== "handoff" && <>
         {!savedOrder.vendor && (order.reused || savedOrder.stage !== "estimate") && (
           <Link className="pill" href={repairLaborGuideHref(order.id, workbench, savedOrder.estimateDraftId)}>{savedOrder.estimateDraftId ? "Resume estimate in Labor Guide" : "Open Labor Guide"}</Link>
         )}
@@ -1130,12 +1136,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (customerCheckIn) {
         const order = repairOrderRecords.find(candidate => candidate.id === repairOrderId);
         if (!order) throw new Error("The existing repair order could not be found. Search for the vehicle again.");
-        if (usesOutsideVendor) await saveOutsideVendorToRepairOrder(repairOrderId);
-        setCreated({ id: order.id, repairOrderNumber: order.repairOrderNumber, reused: true, vendorRouted: usesOutsideVendor });
+        setCreated({ id: order.id, repairOrderNumber: order.repairOrderNumber, reused: true });
         return;
       }
-      if (usesOutsideVendor) await saveOutsideVendorToRepairOrder(repairOrderId);
-      else if (form.ownerUserId) {
+      if (usesOutsideVendor && !isCustomerVehicle) await saveOutsideVendorToRepairOrder(repairOrderId);
+      else if (!usesOutsideVendor && form.ownerUserId) {
         try {
           await saveTechnicianToRepairOrder(repairOrderId);
         } catch (error) {
@@ -1227,6 +1232,8 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       form.frequency && `Frequency: ${form.frequency}`,
       form.warningIndicators && `Warning indicators: ${form.warningIndicators}`,
       form.urgency && `Advisor urgency: ${form.urgency}`,
+      isCustomerVehicle && usesOutsideVendor && selectedVendor &&
+        `Planned outside vendor: ${selectedVendor.name}. Requested scope: ${form.vendorScope.trim()}`,
       form.intakeNotes.trim(),
     ].filter(Boolean).join("\n");
     try {
@@ -1285,7 +1292,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       if (!response.ok) throw new Error(body.error ?? "Vehicle check-in failed.");
       const result = body.result as { duplicateReason?: string; id: string; repairOrderNumber: string };
       const reused = body.duplicate === true;
-      const vendorRouted = usesOutsideVendor && (!sourceHandoff || !reused);
+      const vendorRouted = usesOutsideVendor && !isCustomerVehicle && (!sourceHandoff || !reused);
       if (vendorRouted) await saveOutsideVendorToRepairOrder(result.id);
       else if (reused && !sourceHandoff && !customerCheckIn) await saveTechnicianToRepairOrder(result.id);
       setCreated({ ...result, reused, vendorRouted });
