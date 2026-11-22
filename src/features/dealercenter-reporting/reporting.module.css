@@ -1,0 +1,14 @@
+.panel { padding: 16px; min-width: 0; }
+.stack { display: grid; gap: 12px; min-width: 0; }
+.stack h2, .stack p { margin: 0; }
+.fields { display: grid; align-items: end; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); min-width: 0; }
+fieldset.fields { border: 1px solid var(--border, #d3dce8); border-radius: 8px; padding: 12px; }
+.fields input, .fields select { min-width: 0; width: 100%; }
+.table { overflow-x: auto; border: 1px solid var(--border, #d3dce8); border-radius: 8px; }
+.table table { border-collapse: collapse; min-width: 100%; }
+.table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border, #d3dce8); }
+.table thead { background: var(--surface-muted, #f1f5fb); color: #203451; }
+.table tbody tr:last-child > * { border-bottom: 0; }
+.table small { display: block; }
+.summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; }
+.summary h2, .summary p { margin: 0; }

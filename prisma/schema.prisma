@@ -2126,6 +2126,7 @@ model DispatchTaskRepeatBatch {
 }
 
 model User {
+  dealerCenterReportImports DealerCenterReportImport[]
   dealsRestricted Boolean @default(false)
   calendarRestricted Boolean @default(false)
   dispatchTaskRepeatBatches DispatchTaskRepeatBatch[]
@@ -2669,6 +2670,7 @@ model MoneyDailyClose {
 }
 
 model Organization {
+  dealerCenterReportImports DealerCenterReportImport[]
   collectionAccounts CollectionAccount[]
   collectionsImportRuns CollectionsImportRun[]
   collectionMessageTemplates MessageTemplate[]
@@ -2872,6 +2874,7 @@ model Organization {
 }
 
 model Location {
+  dealerCenterReportImports DealerCenterReportImport[]
   autobodyDrafts AutobodyEstimateDraft[]
   id                                 String                              @id @default(cuid())
   organizationId                     String
@@ -12571,4 +12574,45 @@ model LedgerAllocation {
   transaction       LedgerTransaction      @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@index([transactionId])
+}
+
+model DealerCenterReportImport {
+  id             String    @id @default(cuid())
+  organizationId String
+  locationId     String
+  actorUserId    String
+  kind           String
+  fileName       String
+  dataAsOf       String
+  fingerprint    String
+  basisId        String?
+  resultId       String?
+  rows           Json
+  createdAt      DateTime  @default(now())
+  committedAt    DateTime?
+  importedCount  Int       @default(0)
+  unchangedCount Int       @default(0)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  sales          DealerCenterReportedSale[]
+
+  @@index([organizationId, locationId, kind, committedAt])
+  @@index([organizationId, actorUserId, createdAt])
+}
+
+model DealerCenterReportedSale {
+  id             String   @id @default(cuid())
+  organizationId String
+  locationId     String
+  importId       String
+  dealNumber     String
+  soldDate       String
+  amountCents    Int
+  vin            String
+  stock          String
+  source         DealerCenterReportImport @relation(fields: [importId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, dealNumber])
+  @@index([organizationId, locationId, soldDate])
 }
