@@ -62,7 +62,7 @@ export function estimateControlsScope(vehicleId: string, lines: ReviewLine[], co
   return JSON.stringify({ work: estimateReviewScope(vehicleId, lines), taxability: lines.map(line => ({ key: line.key, taxable: (line as ReviewLine & { taxable?: boolean }).taxable === true })), pricing: validateEstimatePricing(controls.pricing), fitment: Object.entries(controls.fitment).sort(([left], [right]) => left.localeCompare(right)), overlapResolution: controls.overlapResolution, ...(controls.brakeReview ? { brakeReview: controls.brakeReview } : {}), ...(controls.steeringReview ? { steeringReview: controls.steeringReview } : {}), ...(controls.systemReviews ? { systemReviews: Object.fromEntries(Object.entries(controls.systemReviews).sort(([left], [right]) => left.localeCompare(right))) } : {}) });
 }
 
-export function checkStaffQuotePricing(lines: ReviewLine[], controls: EstimateControls, labor: LaborScope[], taxCents: number, discountCents = 0) {
+export function checkStaffQuotePricing(lines: ReviewLine[], controls: EstimateControls, labor: LaborScope[], taxCents: number, discountCents = 0, preservedLaborKeys: ReadonlySet<string> = new Set()) {
   const checked = validateEstimateControls(controls);
   const pricing = checked.pricing;
   if (pricing.taxRatePercent === null) throw new Error("Enter a tax rate.");
@@ -70,7 +70,7 @@ export function checkStaffQuotePricing(lines: ReviewLine[], controls: EstimateCo
   const taxable = lines.filter(line => line.type === "PART" ? (line as ReviewLine & { taxable?: boolean }).taxable !== false : line.type === "FEE" && (line as ReviewLine & { taxable?: boolean }).taxable === true).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
   const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
   if (taxCents !== serviceQuoteTax(subtotal, taxable, pricing.taxRatePercent, discountCents)) throw new Error("Tax does not match the estimate.");
-  for (const line of lines.filter(item => item.type === "LABOR")) {
+  for (const line of lines.filter(item => item.type === "LABOR" && !preservedLaborKeys.has(item.key))) {
     if (line.quantity !== 1 || line.unitPriceCents !== Math.round(line.laborGuideMinutes / 60 * pricing.laborRate * 100)) throw new Error("Labor amount does not match the hours and rate.");
   }
   return checked;

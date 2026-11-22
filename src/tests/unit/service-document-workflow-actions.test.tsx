@@ -9,6 +9,7 @@ vi.mock("@/lib/service-document-print", () => ({ openServiceDocumentPrint: hooks
 import { ServiceDocumentWorkflow, type WorkflowDocument } from "@/features/inventory/service-document-workflow";
 import { ServiceBillingWorkspace } from "@/features/inventory/service-billing-workspace";
 import { DocumentApproval } from "@/features/inventory/document-approval";
+import { EstimateAdditionalWork } from "@/features/inventory/estimate-additional-work";
 import { ServiceDocumentReview } from "@/features/inventory/service-document-review";
 type Node = { type: unknown; props: Record<string, unknown> };
 function nodes(value: unknown): Node[] { if (Array.isArray(value)) return value.flatMap(nodes); if (!value || typeof value !== "object" || !("props" in value)) return []; const node = value as Node; return [node, ...nodes(node.props.children)]; }
@@ -42,6 +43,19 @@ describe("document workspace actions", () => {
     click(render(estimate), "Record customer approval"); const approval = nodes(render(estimate)).find(node => node.type === DocumentApproval)!;
     expect(approval.props.estimateId).toBe("estimate-1"); (approval.props.onApproved as () => void)();
     expect(hooks.refresh).toHaveBeenCalledOnce(); expect(nodes(render(estimate)).some(node => node.props.children === "Convert estimate to invoice")).toBe(true);
+  });
+  it("opens additional work from an approved estimate and navigates to the exact saved revision", () => {
+    const estimate = { ...doc, kind: "ESTIMATE", sourceId: "estimate-1" };
+    click(render(estimate), "Record customer approval");
+    const approval = nodes(render(estimate)).find(node => node.type === DocumentApproval)!;
+    (approval.props.onApproved as () => void)();
+    expect(nodes(render(estimate)).find(node => node.props.children === "Edit in Labor Guide")?.props.href)
+      .toBe("/prototype/repair-explorer?repairOrderId=ro-1&reviseDocument=doc-1");
+    click(render(estimate), "Add labor or parts");
+    const revision = nodes(render(estimate)).find(node => node.type === EstimateAdditionalWork)!;
+    expect(revision.props.document).toBe(estimate);
+    (revision.props.onEstimate as (sourceId: string) => void)("estimate-2");
+    expect(hooks.push).toHaveBeenCalledWith("/service-documents?repairOrderId=ro-1&sourceId=estimate-2&workspace=1");
   });
   it("keeps navigation and print disabled during a pending financial action", () => {
     click(render(), "Record payment"); const billing = nodes(render()).find(node => node.type === ServiceBillingWorkspace)!;

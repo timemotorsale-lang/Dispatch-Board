@@ -11,7 +11,7 @@ const estimateHref = (repairOrderId: string, estimateId: string) => `/repair-est
 const reasonCodes = (value: unknown) => Array.isArray(value) ? value.filter((code): code is string => typeof code === "string") : [];
 const approval = (value?: string) => value ? ({ ACCEPTED: "Approved", PARTIAL: "Partially approved" } as Record<string, string>)[value] ?? readableRepairStatus(value) : "Pending";
 
-export function RepairRecordedWork({ order }: { order: Order }) {
+export function RepairRecordedWork({ order, awaitingDiagnosis = false }: { order: Order; awaitingDiagnosis?: boolean }) {
   const estimates = [...order.estimateVersions].sort((left, right) => right.version - left.version);
   const latest = estimates[0], decision = latest?.authorizations[0];
   const jobs = order.repairJobs.filter(job => job.status !== "CANCELLED");
@@ -22,7 +22,7 @@ export function RepairRecordedWork({ order }: { order: Order }) {
     <h2>Already recorded</h2>
     <dl className={styles.recordedStrip}>
       <div><dt>Received</dt><dd><time dateTime={order.serviceVisit.arrivedAt.toISOString()}>{date(order.serviceVisit.arrivedAt)}</time><small>RO owner: {order.ownerUser.name}</small></dd></div>
-      <div><dt>Estimate</dt><dd>{latest ? <><strong>v{latest.version} · {money(latest.totalCents)}</strong><small>{readableRepairStatus(latest.status)}</small><Link href={estimateHref(order.id, latest.id)}>View / Print estimate</Link></> : <>No saved estimate<small>Browser-only drafts are not saved RO estimates.</small> <Link href={repairReviewHref(order.id, "estimate")}>Build estimate</Link></>}</dd></div>
+      <div><dt>Estimate</dt><dd>{latest ? <><strong>v{latest.version} · {money(latest.totalCents)}</strong><small>{readableRepairStatus(latest.status)}</small><Link href={estimateHref(order.id, latest.id)}>View / Print estimate</Link></> : awaitingDiagnosis ? "Awaiting diagnosis findings" : <>No saved estimate<small>Browser-only drafts are not saved RO estimates.</small> <Link href={repairReviewHref(order.id, "estimate")}>Build estimate</Link></>}</dd></div>
       <div><dt>Authorization</dt><dd>{latest ? <>{approval(decision?.disposition)} · v{latest.version}{decision && <small>{decision.decisionActorName} · {date(decision.decidedAt)}</small>}<Link href={repairReviewHref(order.id, "authorization")}>Review decision</Link></> : "No estimate to authorize"}</dd></div>
       <div><dt>Repair work</dt><dd>{jobs.length ? <>{passed}/{jobs.length} jobs QC passed<small>{awaitingQc} awaiting QC · {jobs.length - passed - awaitingQc} unfinished</small></> : "No repair jobs recorded"}</dd></div>
     </dl>
@@ -33,7 +33,9 @@ export function RepairRecordedWork({ order }: { order: Order }) {
       <h3>Estimate revisions &amp; decisions</h3>
       {estimates.length ? <ul>{estimates.map(estimate => <li key={estimate.id}><Link href={estimateHref(order.id, estimate.id)}>Estimate v{estimate.version} · {money(estimate.totalCents)}</Link> · {estimate.id === latest.id ? "Latest revision" : "Earlier revision"} · {readableRepairStatus(estimate.status)}<small>Presented {date(estimate.presentedAt)} · expires {date(estimate.expiresAt)}</small>{estimate.authorizations.length ? <ul>{estimate.authorizations.map(authorization => <li key={authorization.id}>{approval(authorization.disposition)} · {authorization.decisionActorName} · {date(authorization.decidedAt)}<small>{authorization.reason}</small></li>)}</ul> : <small>No authorization decision recorded for this revision.</small>}</li>)}</ul> : <p>No saved estimate revisions.</p>}
       <h3>Inspection &amp; diagnosis</h3>
-      <ul>{order.inspectionVersions.map(inspection => <li key={inspection.id}>Inspection v{inspection.version} · {date(inspection.completedAt)}<small>{inspection.summary}</small></li>)}{order.diagnosisVersions.map(diagnosis => <li key={diagnosis.id}>Diagnosis / scope v{diagnosis.version} · {date(diagnosis.diagnosedAt)} · {diagnosis.technicianUser.name}<small>{diagnosis.cause} · {diagnosis.proposedCorrection}</small></li>)}</ul>
+      <ul>{order.inspectionVersions.map(inspection => <li key={inspection.id}>Inspection v{inspection.version} · {date(inspection.completedAt)}<small>{inspection.summary}</small></li>)}{order.diagnosisVersions.map(diagnosis => <li key={diagnosis.id}>Diagnosis / scope v{diagnosis.version} · {date(diagnosis.diagnosedAt)} · {diagnosis.technicianUser.name}
+        {reasonCodes(diagnosis.symptoms).length > 0 && <small>{reasonCodes(diagnosis.symptoms).join(" · ")}</small>}
+        <small>{diagnosis.cause} · {diagnosis.proposedCorrection}</small></li>)}</ul>
       {!order.inspectionVersions.length && !order.diagnosisVersions.length && <p>No saved inspection or diagnosis versions.</p>}
       <h3>Repair jobs</h3>
       {order.repairJobs.length ? <ul>{order.repairJobs.map(job => <li key={job.id}>{job.jobNumber} · {job.description} · {readableRepairStatus(job.status)}{reasonCodes(job.readinessReasonCodes).length > 0 && <small>Readiness reasons: {reasonCodes(job.readinessReasonCodes).map(readableRepairStatus).join(", ")}</small>}</li>)}</ul> : <p>No repair jobs recorded.</p>}

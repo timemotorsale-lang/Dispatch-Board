@@ -2,7 +2,7 @@
  * never discard an uncertain purchase request and start a new submission. */
 export type CompactPartsEntryInput = {
   usage?: "NOT_YET" | "USED" | "RETURN"; receiptId?: string; lineIndex?: number;
-  usageQuantity?: number; usageOccurredAt?: string; repairJobId?: string; evidence?: string[];
+  usageQuantity?: number; usageOccurredAt?: string; repairJobId?: string; matchRepairJob?: boolean; evidence?: string[];
   installationEvidence?: string; returnReason?: string; deadlineAt?: string;
   mode: "NEEDED" | "PURCHASED"; repairOrderId: string; locationId: string;
   description: string; quantity: number; partNumber?: string; partId?: string; vendorId?: string; vendorName?: string;
@@ -11,7 +11,7 @@ export type CompactPartsEntryInput = {
 };
 export type CompactPartsEntryModel = {
   repairOrders: { id: string; locationId: string; closedAt?: string | null }[];
-  demands?: { id: string; repairOrderId: string; partId: string; quantityRequired: number; quantityReserved: number; status: string }[];
+  demands?: { id: string; repairOrderId: string; repairJobId?: string | null; partId: string; quantityRequired: number; quantityReserved: number; status: string }[];
   requisitions?: { id: string; demandId: string; status: string }[];
   catalog: { id: string; partNumber: string; description?: string; status?: string }[];
   vendors: { id: string; name: string; status?: string }[];
@@ -184,7 +184,7 @@ export async function runCompactPartsEntry(input: CompactPartsEntryInput, model:
     }
     if (part) await options.onProgress(copy(progress));
     ids.partId = part?.id ?? id(await step("part", "/api/parts", { description: input.description, partNumber: input.partNumber?.trim().toUpperCase() || generateCompactPartNumber(progress.submissionId), standardCostCents: input.unitPriceCents ?? 0, unitOfMeasure: "EACH", reason: input.note }));
-    const eligible = (demand: NonNullable<CompactPartsEntryModel["demands"]>[number]) => demand.repairOrderId === input.repairOrderId && demand.partId === ids.partId && ["OPEN", "PARTIALLY_RESERVED"].includes(demand.status);
+    const eligible = (demand: NonNullable<CompactPartsEntryModel["demands"]>[number]) => demand.repairOrderId === input.repairOrderId && demand.partId === ids.partId && (!input.matchRepairJob || demand.repairJobId === input.repairJobId) && ["OPEN", "PARTIALLY_RESERVED"].includes(demand.status);
     const candidates = (model.demands ?? []).filter(demand => eligible(demand) && (!input.demandId || demand.id === input.demandId));
     if (!progress.steps.demand && candidates.length > 1) return finish("BLOCKED", "More than one saved need matches this part.", "Select the exact saved need.");
     if (!progress.steps.demand && input.demandId && !candidates.length) return finish("BLOCKED", "This saved need is no longer open.", "Refresh and select an open need.");

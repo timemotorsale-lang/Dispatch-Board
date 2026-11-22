@@ -49,6 +49,8 @@ type Props = {
   target?: string;
   vendorAmount?: string;
   nextAction?: { label: string; detail?: string; href?: string };
+  inlineNextAction?: boolean;
+  suppressFooterAction?: boolean;
   recordedWork?: ReactNode;
   stepStatus: Record<RepairWorkflowStep, string>;
   children: ReactNode;
@@ -57,7 +59,7 @@ type Props = {
 export function RepairWorkflowFrame({
   repairOrderId, vehicleId, number, vehicle, stock, location, owner, concern, inventoryRecon,
   current, selected, closed, returnTo, returnLabel, auxiliary, activeTool, canCompose,
-  inventoryStage, customerOwned, repairPath, canChoosePath, chosenPath, shopView, stageOpen = true, custody, target, vendorAmount, nextAction, recordedWork, stepStatus, children,
+  inventoryStage, customerOwned, repairPath, canChoosePath, chosenPath, shopView, stageOpen = true, custody, target, vendorAmount, nextAction, inlineNextAction, suppressFooterAction, recordedWork, stepStatus, children,
 }: Props) {
   const router = useRouter();
   const dirty = useRef(false);
@@ -198,7 +200,7 @@ export function RepairWorkflowFrame({
           <h2>{actionLabel}</h2>
           {nextAction?.detail && <p>{nextAction.detail}</p>}
         </div>
-        <Link className={styles.primaryAction} href={actionHref}>{actionLabel}</Link>
+        {!inlineNextAction && <Link className={styles.primaryAction} href={actionHref}>{actionLabel}</Link>}
       </section>}
     </div>
 
@@ -239,7 +241,7 @@ export function RepairWorkflowFrame({
       {returnTo && <Link href={returnTo}>{returnLabel ?? "Source workspace"}</Link>}
       {canCompose && <Link href={toolHref("advisor")}>Advisor tools</Link>}
       <Link href={queueHref}>All Repair Orders</Link>
-      {!shopView && <Link className={styles.primaryAction} href={actionHref}>{actionLabel}</Link>}
+      {!shopView && !suppressFooterAction && <Link className={styles.primaryAction} href={actionHref}>{actionLabel}</Link>}
     </footer>
   </section>;
 }

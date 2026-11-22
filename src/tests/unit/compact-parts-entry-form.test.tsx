@@ -26,6 +26,12 @@ describe("compact parts entry", () => {
       .toEqual({ repairOrderId: "ro-1", part: "Pads", quantity: 2, purchased: false, received: false });
   });
 
+  it("carries a selected work order when recording a new part for multiple jobs", () => {
+    const html = renderToStaticMarkup(<CompactPartsEntry repairOrderId="ro-1" linkNewPartsToJob jobs={[{ id: "job-1", label: "J001" }, { id: "job-2", label: "J002" }]} onSave={vi.fn()} />);
+    expect(html).toContain('name="needJobId"');
+    expect(readCompactPartsEntry(fields({ part: "Link", quantity: "2", needJobId: "job-2" }), "ro-1")).toMatchObject({ repairJobId: "job-2", quantity: 2 });
+  });
+
   it("receives the exact existing part and PO with its saved price and no second purchase fields required", () => {
     expect(readCompactPartsEntry(fields({ received: "yes", receivedOn: "2026-11-14", packingSource: "Slip-9", stockLocationId: "bin-4", unitPrice: "1.00" }), "ro-1", order))
       .toMatchObject({ repairOrderId: "ro-1", purchaseOrderId: "po-2", partId: "part-2", part: "Brake pads", quantity: 2, unitPriceCents: 8299, received: true, receivedOn: "2026-11-14", stockLocationId: "bin-4", packingSource: "Slip-9" });

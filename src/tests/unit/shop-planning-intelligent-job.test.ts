@@ -39,6 +39,34 @@ describe("intelligent approved repair-job creation", () => {
     expect(job).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ authorizationId: "auth-1", authorizedLineKey: "labor-brakes", partDemandIds: ["demand-1"] }));
   });
 
+  it("checks the submitted approval and carries technician instructions onto the job", async () => {
+    const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "job-1" }, version: 5 });
+    const repository = { get: vi.fn().mockResolvedValue(order()), job } as unknown as ShopPlanningRepository;
+    const dependencies = { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository };
+    const request = { idempotencyKey: "compact-work", reason: "Prepare approved technician work.", estimateId: "estimate-1",
+      authorizationId: "auth-1", instructions: [{ lineKey: "labor-brakes", text: "Verify the approved scope on completion." }],
+      additionalPartsRequiredKeys: ["labor-brakes"] };
+    await expect(createApprovedRepairJobs(manager, "ro-1", { ...request, authorizationId: "old-approval" }, dependencies)).rejects.toThrow("approved estimate changed");
+    expect(job).not.toHaveBeenCalled();
+    await createApprovedRepairJobs(manager, "ro-1", request, dependencies);
+    expect(job).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({
+      authorizationId: "auth-1", plannedCorrection: "Verify the approved scope on completion.", partsRequired: true,
+    }));
+  });
+
+  it("requires confirmation before attaching a legacy unassigned demand to the only approved job", async () => {
+    const snapshot = { ...order(), partDemands: [{ id: "demand-1", repairJobId: null, status: "OPEN", repairJobReference: "Old label" }] };
+    const job = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "job-1" }, version: 5 });
+    const repository = { get: vi.fn().mockResolvedValue(snapshot), job } as unknown as ShopPlanningRepository;
+    const dependencies = { enforceRollout: false, foundationRepository: foundation, organizationId: "org-1", repository };
+    const request = { idempotencyKey: "compact-legacy-match", reason: "Review existing parts." };
+    await expect(createApprovedRepairJobs(manager, "ro-1", request, dependencies)).rejects.toThrow("Map each active");
+    await expect(createApprovedRepairJobs(manager, "ro-1", { ...request, demandAssignments: [{ id: "wrong-demand", lineKey: "labor-brakes" }] }, dependencies)).rejects.toThrow("parts records changed");
+    expect(job).not.toHaveBeenCalled();
+    await createApprovedRepairJobs(manager, "ro-1", { ...request, demandAssignments: [{ id: "demand-1", lineKey: "labor-brakes" }] }, dependencies);
+    expect(job).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ partDemandIds: ["demand-1"], partsRequired: true }));
+  });
+
   it("does not duplicate a job for the current authorization", async () => {
     const snapshot = { ...order(), repairJobs: [{ authorizationId: "auth-1", authorizedLineKey: "labor-brakes" }] };
     const job = vi.fn();

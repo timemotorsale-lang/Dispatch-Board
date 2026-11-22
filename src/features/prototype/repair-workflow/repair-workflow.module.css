@@ -249,3 +249,16 @@ button.pathToggle:hover, button.pathToggle[aria-expanded="true"] { background: #
   .footer { position: static; }
   .toolsMenu[open] nav { position: fixed; inset: auto 8px 10px; max-height: 55dvh; }
 }
+
+.technicianWork { display: grid; gap: 12px; }
+.technicianWork p, .technicianWork ul { margin: 0; }
+.technicianWork ul { list-style: none; display: grid; gap: 8px; padding: 0; }
+.technicianWork li { display: grid; gap: 6px; border: 1px solid #d5deeb; border-radius: 8px; padding: 10px 12px; }
+.technicianWork li > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; }
+.technicianWork summary { cursor: pointer; }
+.technicianWork textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px; font: inherit; }
+.technicianWork > .primaryAction { justify-self: start; cursor: pointer; }
+.technicianWork [role="alert"] { color: #99212b; }
+
+.workPartMatch { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: baseline; margin: 6px 0; }
+.workPartMatch select { max-width: 100%; }

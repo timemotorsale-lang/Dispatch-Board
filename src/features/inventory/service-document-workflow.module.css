@@ -21,6 +21,9 @@
 .controls li { margin: 8px 0; overflow-wrap: anywhere; }
 .panel { background: #fff; border: 1px solid #c4d5e9; border-left: 4px solid #175b9e; border-radius: 12px; padding: 24px; margin: 0 0 24px; }
 .panel form fieldset { display: grid; gap: 16px; border: 0; padding: 0; margin: 20px 0; }
+.panel form .workPart { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; border: 1px solid #d4dfeb; border-radius: 8px; margin: 0; gap: 10px; }
+.workPart label:nth-of-type(-n+2) { grid-column: 1 / -1; }
+.workPart button { grid-column: 1 / -1; justify-self: start; }
 .panel label { display: grid; gap: 6px; }
 .panel label:has(input[type=checkbox]) { display: flex; align-items: flex-start; }
 .panel input:not([type=checkbox]), .panel select { padding: 10px; border: 1px solid #bbcadb; border-radius: 6px; font: inherit; width: 100%; box-sizing: border-box; }

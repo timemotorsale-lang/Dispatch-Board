@@ -60,6 +60,10 @@ describe("repair QC prerequisites", () => {
 });
 describe("complete repair workflow review", () => {
   it("derives tasks from saved evidence without advancing records", () => {
+    expect(currentRepairWorkflowStep({ ...empty, repairJobs: [{ authorizationId: "current", authorizedLineKey: "first", status: "READY_FOR_REPAIR" }],
+      estimateVersions: [{ authorizations: [{ id: "current", disposition: "ACCEPTED", authorizedLineKeys: ["first", "second"] }],
+        lineItems: [{ key: "first", type: "LABOR" }, { key: "second", type: "LABOR" }] }],
+    })).toBe("parts");
     expect(currentRepairWorkflowStep(empty)).toBe("inspection");
     expect(currentRepairWorkflowStep({ ...empty, inspectionVersions: [{}] })).toBe("diagnosis");
     expect(currentRepairWorkflowStep({ ...empty, diagnosisVersions: [{}] })).toBe("estimate");

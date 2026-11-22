@@ -8,14 +8,16 @@ import { checkEstimateControls, checkStaffQuotePricing, validateEstimateControls
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings } from "@/server/policies/access";
-import { allocateApprovedJobParts, catalogJobRequirements } from "@/lib/catalog-job-readiness";
+import { allocateApprovedJobParts, catalogJobRequirements, unmatchedApprovedJobDemands } from "@/lib/catalog-job-readiness";
 import { repairBaselineForId } from "@/lib/repair-catalog-baselines";
 import { laborOperationForLineKey } from "@/lib/labor-catalog-selection";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand, hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository,type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
-import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import type { DiagnosisRequest } from "@/lib/repair-diagnosis-request";
+import { normalizeDiagnosisWork, RECORD_DIAGNOSIS_FINDINGS, SAVE_DIAGNOSIS_REQUEST } from "./diagnosis-request";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { normalizeAuthorization,normalizeDiagnosis,normalizeDirectRepairScope,normalizeEstimate,normalizeInspection,normalizeJob } from "./domain";
 import { createShopPlanningRepository,type ShopPlanningRepository } from "./repository";
@@ -30,10 +32,72 @@ async function mutationContext(actor:AuthenticatedUser|null,repairOrderId:string
 function command(input:{actorUserId:string;commandType:string;expectedVersion:number;idempotencyKey:string;locationId:string;organizationId:string;payload:Record<string,unknown>;reason:string;subjectId:string}){return normalizeEnterpriseCommand({...input,domain:"SHOP_OPERATIONS",subjectType:"REPAIR_ORDER"});}
 export async function getShopPlanningWorkspace(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await assertRepairReadEntry(actor,context.organizationId,context.foundationRepository,context.now());const rows=await context.repository.list(context.organizationId);const visible=[];for(const row of rows.repairOrders){try{await assertRepairLocationRead(actor,context.organizationId,row.locationId,context.foundationRepository,context.now());visible.push(row);}catch(error){if(!(error instanceof Error)||!error.message.startsWith("Vehicle capability required:"))throw error;}}return {...rows,repairOrders:visible};}
 export async function getShopPlanningDetail(actor:AuthenticatedUser|null,repairOrderId:string,input:Dependencies={}){const context=deps(input);await assertRepairReadEntry(actor,context.organizationId,context.foundationRepository,context.now());const result=await context.repository.get(context.organizationId,repairOrderId);if(!result)throw new Error("Repair order was not found.");await assertRepairLocationRead(actor,context.organizationId,result.locationId,context.foundationRepository,context.now());return result;}
+async function diagnosisAccess(user: AuthenticatedUser, locationId: string, context: ReturnType<typeof deps>) {
+  const [grants, flags] = await Promise.all([
+    context.foundationRepository.listCapabilityGrants(user.id, context.organizationId),
+    context.enforceRollout ? context.foundationRepository.listFeatureFlags(context.organizationId) : [],
+  ]);
+  const can = (capability: Parameters<typeof evaluateVehicleCapability>[0]["capability"], location: string | null = locationId) =>
+    evaluateVehicleCapability({ actor: user, capability, grants, locationId: location, now: context.now() }).allowed;
+  const enabled = !context.enforceRollout || evaluateVehicleOperationsFeature(flags, "SHOP_OPERATIONS", user.id, locationId).executable;
+  return {
+    read: can("REPAIR_ORDER_VIEW"), enabled,
+    manage: can("REPAIR_ORDER_MANAGE"), technician: can("DIAGNOSTIC_EVIDENCE_RECORD"),
+    viewEvidence: can("VEHICLE_EVIDENCE_VIEW", null), uploadEvidence: can("VEHICLE_EVIDENCE_MANAGE", null),
+  };
+}
+
+export async function repairJobCreationRestriction(user: AuthenticatedUser, locationId: string, input: Dependencies = {}) {
+  try {
+    await authorize(user, true, locationId, deps(input));
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Vehicle capability required:")) return "A service advisor with repair-order access must create the technician work orders.";
+    if (error instanceof Error && error.message.startsWith("Shop Operations mutations")) return "Shop Operations is unavailable for this store. Ask a manager to check store access.";
+    throw error;
+  }
+}
+
+/** Workbench callers have already read the scoped order using getShopPlanningDetail. */
+export async function getDiagnosisWorkbench(user: AuthenticatedUser, order: NonNullable<Awaited<ReturnType<ShopPlanningRepository["get"]>>>, input: Dependencies = {}) {
+  const context = deps(input);
+  const [access, request] = await Promise.all([
+    diagnosisAccess(user, order.locationId, context),
+    context.repository.diagnosisRequest(context.organizationId, order.id),
+  ]);
+  const editable = access.read && access.enabled && order.operatingState !== "BLOCKED" && order.stage === "DIAGNOSIS";
+  const canRequest = editable && access.manage;
+  const canRecord = editable && Boolean(request && (access.manage || isAssignedDiagnostician(user, request, access.technician)));
+  const options = await context.repository.diagnosisOptions(context.organizationId, order.id, order.vehicle.id, access.viewEvidence, canRequest);
+  return { ...options, request, canRequest, canRecord, canUpload: access.uploadEvidence && access.viewEvidence,
+    blocker: !access.enabled ? "Shop Operations updates are disabled for this location." : order.operatingState === "BLOCKED" ? order.stateReason ?? "Resolve the repair-order blocker before continuing." : null };
+}
+
+function isAssignedDiagnostician(user: AuthenticatedUser, request: DiagnosisRequest | null, canRecordEvidence: boolean) {
+  return canRecordEvidence && request?.route === "IN_HOUSE" && request.assigneeId === user.id;
+}
+
+export async function saveRepairDiagnosisWork(actor: AuthenticatedUser | null, repairOrderId: string, action: "request" | "findings", value: unknown, input: Dependencies = {}) {
+  const context = deps(input);
+  const user = assertAuthenticatedUser(actor);
+  const data = normalizeDiagnosisWork(action, value);
+  const order = await context.repository.get(context.organizationId, repairOrderId);
+  if (!order) throw new Error("Repair order was not found.");
+  const access = await diagnosisAccess(user, order.locationId, context);
+  if (!access.read || (!access.manage && (action !== "findings" || !access.technician))) {
+    throw new Error("Vehicle capability required: diagnosis work for this location.");
+  }
+  if (!access.enabled) throw new Error("Shop Operations updates are disabled for this location.");
+  if (data.evidenceId && !access.viewEvidence) throw new Error("Vehicle capability required: vehicle evidence.");
+  const { expectedVersion, idempotencyKey, ...details } = data;
+  const entry = command({ actorUserId: user.id, commandType: data.kind === "request" ? SAVE_DIAGNOSIS_REQUEST : RECORD_DIAGNOSIS_FINDINGS,
+    expectedVersion, idempotencyKey, locationId: order.locationId, organizationId: context.organizationId, subjectId: order.id,
+    payload: payload(details), reason: data.kind === "request" ? "Save diagnosis instructions and responsible party." : "Record findings from the requested diagnosis." });
+  return data.kind === "request" ? context.repository.saveDiagnosisRequest(entry, data) : context.repository.recordDiagnosisFindings(entry, data, !access.manage);
+}
 export async function recordVehicleInspection(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeInspection(value),{ro,user}=await mutationContext(actor,repairOrderId,context);return context.repository.inspection(command({actorUserId:user.id,commandType:"RECORD_DVI_VERSION",expectedVersion:ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),{...data,authorUserId:user.id});}
 export async function recordRepairDiagnosis(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeDiagnosis(value),{ro,user}=await mutationContext(actor,repairOrderId,context);return context.repository.diagnosis(command({actorUserId:user.id,commandType:"RECORD_DIAGNOSIS_VERSION",expectedVersion:ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}
 export async function recordDirectRepairScope(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeDirectRepairScope(value),{ro,user}=await mutationContext(actor,repairOrderId,context);return context.repository.directRepairScope(command({actorUserId:user.id,commandType:"RECORD_DIRECT_REPAIR_SCOPE",expectedVersion:ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}
-export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){
+export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}, preservedLaborKeys?: ReadonlySet<string>){
   const context=deps(input),data=normalizeEstimate(value,context.now()),{ro,user}=await mutationContext(actor,repairOrderId,context);
   const reviewValue=(value as Record<string,unknown>).manualLaborReview;
   const staffQuote=(value as Record<string,unknown>).estimateWorkflow==="STAFF_QUOTE";
@@ -63,7 +127,7 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
   });
   const controlValue=(value as Record<string,unknown>).estimateControls;
   if(staffQuote || selectedCatalog.length || controlValue!==undefined){
-    const controls=staffQuote ? checkStaffQuotePricing(data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents,data.discountCents) : checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
+    const controls=staffQuote ? checkStaffQuotePricing(data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents,data.discountCents,preservedLaborKeys) : checkEstimateControls(ro.vehicle.id,data.lineItems,validateEstimateControls(controlValue),selectedCatalog,data.taxCents);
     const activeRate=await getActiveLaborRate(user);
     if(controls.pricing.laborRate!==activeRate.laborRate){
       if(!canManageSettings(user))throw new Error("Only an administrator may override the active shop labor rate. Use the current shop rate and repeat review.");
@@ -86,7 +150,8 @@ export async function presentRepairEstimate(actor:AuthenticatedUser|null,repairO
     if(typeof review.documentId !== "string" || !review.documentId || typeof review.documentHash !== "string" || !review.documentHash || !chargeRevisionFrom) throw new Error("Invalid document review source.");
     documentReview={documentId:review.documentId,documentHash:review.documentHash,...(review.customer === undefined ? {} : {customer:normalizeDocumentCustomer(review.customer)})};
   }
-  const estimateData={...data,...(documentReview?{documentReview}:{}),...(collision?{estimateWorkflow:"COLLISION_REVIEW" as const}:staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{})};
+  const optionGroups = staffQuote && !data.optionGroups ? { servicePricing: { taxRatePercent: validateEstimateControls(controlValue).pricing.taxRatePercent } } : data.optionGroups;
+  const estimateData={...data,optionGroups,...(documentReview?{documentReview}:{}),...(collision?{estimateWorkflow:"COLLISION_REVIEW" as const}:staffQuote?{estimateWorkflow:"STAFF_QUOTE" as const}:{}),...(typeof chargeRevisionFrom==="string"?{chargeRevisionFrom}:{}),...(preservedLaborKeys ? { additionalWork: true } : {})};
   return context.repository.estimate(command({actorUserId:user.id,commandType:"PRESENT_ESTIMATE_VERSION",expectedVersion,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(estimateData),reason:data.reason,subjectId:ro.id}),estimateData);
 }
 export async function decideRepairAuthorization(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAuthorization(value),{ro,user}=await mutationContext(actor,repairOrderId,context);const receipt=await context.repository.commandReceipt?.(context.organizationId,"DECIDE_ESTIMATE_AUTHORIZATION",data.idempotencyKey);return context.repository.authorization(command({actorUserId:user.id,commandType:"DECIDE_ESTIMATE_AUTHORIZATION",expectedVersion:receipt?.expectedVersion??ro.version,idempotencyKey:data.idempotencyKey,locationId:ro.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:ro.id}),data);}
@@ -101,8 +166,29 @@ export async function createApprovedRepairJobs(actor:AuthenticatedUser|null,repa
   if(!estimate)throw new Error("A presented estimate is required before repair jobs can be created.");
   const latestAuthorization=estimate.authorizations[0]??null;
   if(!latestAuthorization||!["ACCEPTED","PARTIAL"].includes(latestAuthorization.disposition))throw new Error("The latest estimate decision must approve work before repair jobs can be created.");
+  if ((raw.estimateId !== undefined && raw.estimateId !== estimate.id) ||
+      (raw.authorizationId !== undefined && raw.authorizationId !== latestAuthorization.id)) {
+    throw new Error("The approved estimate changed. Reload before creating technician work.");
+  }
   const authorizedKeys=Array.isArray(latestAuthorization.authorizedLineKeys)?latestAuthorization.authorizedLineKeys.filter((item):item is string=>typeof item==="string"):[];
   const lines=Array.isArray(estimate.lineItems)?estimate.lineItems as unknown as Array<{description:string;key:string;laborGuideMinutes:number;plannedCorrection:string;type:string;workTypeCode:string;laborLineKey?:string}>:[];
+  const instructions = new Map<string, string>();
+  if (raw.instructions !== undefined) {
+    if (!Array.isArray(raw.instructions) || raw.instructions.length > lines.length) throw new Error("Invalid technician instructions.");
+    for (const entry of raw.instructions) {
+      if (!entry || typeof entry.lineKey !== "string" || typeof entry.text !== "string" || !entry.text.trim() ||
+          entry.text.length > 500 || instructions.has(entry.lineKey) ||
+          !lines.some(line => line.type === "LABOR" && line.key === entry.lineKey && authorizedKeys.includes(line.key))) {
+        throw new Error("Technician instructions must belong to an approved labor line.");
+      }
+      instructions.set(entry.lineKey, entry.text.trim());
+    }
+  }
+  const extraPartKeys = raw.additionalPartsRequiredKeys ?? [];
+  if (!Array.isArray(extraPartKeys) || extraPartKeys.length > lines.length ||
+      extraPartKeys.some(key => !lines.some(line => line.type === "LABOR" && line.key === key && authorizedKeys.includes(line.key)))) {
+    throw new Error("Parts requirements must belong to approved labor lines.");
+  }
   // Superseded approvals cannot satisfy the current exact-version job scope.
   const currentJobs=order.repairJobs.filter(job=>job.authorizationId===latestAuthorization.id);
   const existingKeys=new Set(currentJobs.map(job=>job.authorizedLineKey));
@@ -113,10 +199,29 @@ export async function createApprovedRepairJobs(actor:AuthenticatedUser|null,repa
     throw new Error("The approved scope does not contain an executable labor line.");
   }
   const diagnosisVersionId=order.diagnosisVersions[0]?.id??null;
-  const allocations=allocateApprovedJobParts(lines,authorizedKeys,order.partDemands,[...existingKeys],order.origin==="CUSTOMER_REPAIR");
+  const requestedDemands = raw.demandAssignments ?? [];
+  if (!Array.isArray(requestedDemands) || requestedDemands.length > order.partDemands.length) throw new Error("Invalid parts assignments.");
+  const demandAssignments = new Map<string, string>();
+  if (requestedDemands.length) {
+    const unmatched = unmatchedApprovedJobDemands(lines, authorizedKeys, order.partDemands);
+    for (const entry of requestedDemands) {
+      const attached = order.partDemands.find(demand => demand.id === entry?.id)?.repairJobId;
+      if (attached && currentJobs.some(job => job.id === attached && job.authorizedLineKey === entry.lineKey)) continue;
+      if (!entry || !unmatched.includes(entry.id) || demandAssignments.has(entry.id) || !executable.some(line => line.key === entry.lineKey)) {
+        throw new Error("The parts records changed. Reload and confirm which work order needs each part.");
+      }
+      demandAssignments.set(entry.id, entry.lineKey);
+    }
+    if (demandAssignments.size !== unmatched.length) throw new Error("Choose the work order for each saved part.");
+  }
+  const demands = order.partDemands.map(demand => {
+    const lineKey = demandAssignments.get(demand.id);
+    return lineKey ? { ...demand, repairJobReference: lineKey } : demand;
+  });
+  const allocations=allocateApprovedJobParts(lines,authorizedKeys,demands,[...existingKeys],order.origin==="CUSTOMER_REPAIR");
   const createdJobs=[];
   for(const line of executable){
-    const result=await createAuthorizedRepairJob(actor,repairOrderId,{authorizationId:latestAuthorization.id,authorizedLineKey:line.key,bayRequirements:[],dependencyJobIds:[],description:line.description,diagnosisVersionId,idempotencyKey:`${idempotencyKey}:${line.key}`,laborGuideMinutes:line.laborGuideMinutes,partDemandIds:allocations.get(line.key)!.partDemandIds,partsRequired:allocations.get(line.key)!.partsRequired,plannedCorrection:line.plannedCorrection,priority:"NORMAL",reason,requiredCertifications:[],requiredSkills:[],toolRequirements:[],workTypeCode:line.workTypeCode},input);
+    const result=await createAuthorizedRepairJob(actor,repairOrderId,{authorizationId:latestAuthorization.id,authorizedLineKey:line.key,bayRequirements:[],dependencyJobIds:[],description:line.description,diagnosisVersionId,idempotencyKey:`${idempotencyKey}:${line.key}`,laborGuideMinutes:line.laborGuideMinutes,partDemandIds:allocations.get(line.key)!.partDemandIds,partsRequired:allocations.get(line.key)!.partsRequired || extraPartKeys.includes(line.key),plannedCorrection:instructions.get(line.key) || line.plannedCorrection || line.description,priority:"NORMAL",reason,requiredCertifications:[],requiredSkills:[],toolRequirements:[],workTypeCode:line.workTypeCode},input);
     createdJobs.push(result.result);
   }
   return{duplicate:false,result:{createdJobs,message:`${createdJobs.length} approved repair job${createdJobs.length===1?"":"s"} created.`},version:order.version+createdJobs.length};

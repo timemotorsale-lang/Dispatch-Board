@@ -39,7 +39,10 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   const [review, setReview] = useState(false);
   const [visualOpen, setVisualOpen] = useState(false);
   const [status, setStatus] = useState("Choose a repair to start your estimate.");
+  const [showPartErrors, setShowPartErrors] = useState(false);
+  const [transferError, setTransferError] = useState("");
   const contentHeading = useRef<HTMLHeadingElement>(null);
+  const contentPanel = useRef<HTMLElement>(null);
   const system = REPAIR_SYSTEMS.find((item) => item.id === systemId)!;
   const group = system.groups.find((item) => item.id === groupId);
   const selected = group?.operations.find((item) => item.id === selectedId);
@@ -47,6 +50,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   const results = query.trim() ? searchRepairs(query) : [];
   const totals = estimateTotals(lines, rate);
   const scopeConflict = lines.some((line, index) => lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)));
+  const incompleteLine = lines.find(line => line.partItems?.some(item => !item.name.trim() || item.unitPrice === null));
 
   function focusContent() {
     requestAnimationFrame(() => contentHeading.current?.focus());
@@ -116,7 +120,12 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
 
   function generateEstimate() {
     if (!lines.length || scopeConflict) { setStatus("Add work and resolve scope conflicts before generating an estimate."); return; }
-    if (lines.some(line => line.partItems?.some(item => !item.name.trim() || item.unitPrice === null))) { setReview(true); setStatus("Enter a description and unit price for each part."); return; }
+    setTransferError("");
+    if (incompleteLine) {
+      setShowPartErrors(true);
+      requestAnimationFrame(() => contentPanel.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus());
+      return;
+    }
     try {
       const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId });
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
@@ -124,7 +133,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
       router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow, context?.returnTo));
     } catch {
-      setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
+      setTransferError("The estimate could not open for review. Check the draft values and browser storage, then try again. Your work is still on this page.");
     }
   }
 
@@ -212,7 +221,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             ))}
             <p className={styles.catalogNote}>{CATALOG_COUNTS.systems} systems · {CATALOG_COUNTS.groups} groups · {CATALOG_COUNTS.operations} operations. Broad preview catalog; confirm vehicle applicability before pricing.</p>
           </aside>
-          <section className={styles.content} aria-label={review ? "Review estimate" : "Repair selection"}>
+          <section ref={contentPanel} className={styles.content} aria-label={review ? "Review estimate" : "Repair selection"}>
             {review ? <>
               <p className={styles.breadcrumb}>Estimate / Review</p>
               <h2 ref={contentHeading} tabIndex={-1}>Review your estimate</h2>
@@ -222,7 +231,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
                 <div className={styles.row}><h3>{line.label}</h3><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label}`} onClick={() => removeLine(line.id)}><Trash2 size={17} /></button></div>
                 <p className={styles.laborBasis}>{line.laborBasis === "PLANNING" ? "Provisional planning allowance · no measured job evidence" : line.laborBasis === "REPORTED_MEDIAN" ? `Technician-reported median · ${line.reportedJobCount} jobs · ${line.laborConfiguration}` : "Manually entered hours · not source-verified"}</p>
                 <div className={styles.lineFields}><label>Labor hours<input aria-label={`Labor hours for ${line.label}`} type="number" min="0" max="100" step="0.1" placeholder="Enter hours" value={line.hours ?? ""} onChange={(event) => updateLine(line.id, "hours", event.target.value)} /></label>{line.partItems === undefined && <label>Parts total ($)<input aria-label={`Parts total for ${line.label}`} type="number" min="0" max="100000" step="0.01" placeholder="Enter parts total" value={line.parts ?? ""} onChange={(event) => updateLine(line.id, "parts", event.target.value)} /></label>}<strong>{line.hours === null || line.parts === null ? "Needs pricing" : money(estimateTotals([line], rate).subtotal)}</strong></div>
-                {line.partItems === undefined ? <button type="button" className={styles.secondary} onClick={() => updateParts(line.id, [{ id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Itemize parts for {line.label}</button> : <PartsBreakdown items={line.partItems} onChange={items => updateParts(line.id, items)} />}
+                {line.partItems === undefined ? <button type="button" className={styles.secondary} onClick={() => updateParts(line.id, [{ id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Itemize parts for {line.label}</button> : <PartsBreakdown items={line.partItems} onChange={items => updateParts(line.id, items)} showErrors={showPartErrors} />}
               </article>)}
               <div className={styles.note}><CircleHelp size={19} /><p>Ready for a customer estimate? Choose Generate / Print Estimate, select the actual repair order, then review labor, itemized parts and taxes. Printing is available after the official estimate is issued. Customer approval and final invoicing remain separate steps.</p></div>
               <button type="button" className={styles.secondary} onClick={() => { setReview(false); focusContent(); }}><ArrowLeft size={16} /> Keep adding work</button>
@@ -282,6 +291,8 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
             <p className={styles.priceNote}>Excludes taxes and fees.</p>
             <button type="button" className={review ? styles.secondary : styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
+            {review && showPartErrors && incompleteLine && <p role="alert" className={styles.generateError}>Complete the highlighted part fields for {incompleteLine.label} to continue.</p>}
+            {review && transferError && <p role="alert" className={styles.generateError}>{transferError}</p>}
             {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
             {review && <p className={styles.priceNote}>{context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>

@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
 import { describe, expect, it } from "vitest";
 
+import { estimateRevisionSeed, type SavedEstimateRevision } from "@/lib/labor-guide-estimate-revision";
+import { searchRepairs } from "@/features/prototype/repair-explorer/catalog";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
 import { ConnectedRepairCatalog } from "@/features/diagnostics/connected-repair-catalog";
 import { GuidedEstimate } from "@/features/diagnostics/guided-estimate";
@@ -25,6 +27,23 @@ describe("enterprise labor guide console", () => {
     expect(review).toContain("Find repair");
     expect(review).not.toContain('aria-label="Search connected repairs"');
     expect(review).not.toContain('aria-label="Connected vehicle systems"');
+  });
+
+  it("starts saved estimate revisions in the shop catalog and keeps saved scope in view", () => {
+    const revision: SavedEstimateRevision = {
+      documentId: "document", documentHash: "hash", estimateId: "estimate", version: 1, expectedVersion: 4, discountCents: 0, taxRatePercent: 7,
+      lines: [
+        { key: "saved-labor", type: "LABOR", description: "Saved labor line", laborGuideMinutes: 60, quantity: 1, unitPriceCents: 10000 },
+        { key: "saved-part", type: "PART", description: "Saved part line", quantity: 1, unitPriceCents: 5000 },
+      ],
+    };
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole presentation="explorer" activeRepairOrder={{ id: "ro", repairOrderNumber: "RO-1", openedAt: "2026-07-21T14:00:00.000Z", concern: "", customer: "Saved customer", vehicle: { id: "vehicle", label: "Saved vehicle", vin: "VIN" } }} catalog={[]} laborAddOns={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} estimateRevision={revision} initialExplorerSeed={estimateRevisionSeed(revision, [])} />);
+    expect(markup).toContain('aria-label="Search connected repairs"');
+    expect(markup).toContain("Revising estimate v1");
+    expect(markup).toContain("Saved labor line");
+    expect(markup).toContain("Saved part line");
+    expect(markup).not.toContain("Add manual labor");
+    expect(searchRepairs("front sway bar link").some(match => match.repair.label === "Replace front stabilizer link")).toBe(true);
   });
 
   it("shows My work once and keeps a distinct source link", () => {

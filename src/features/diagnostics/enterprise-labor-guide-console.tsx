@@ -17,7 +17,7 @@ import { evaluateRepairAreaIntelligence, type RepairAreaPartRule } from "@/serve
 import styles from "./enterprise-labor-guide-console.module.css";
 import explorerStyles from "@/features/prototype/repair-explorer/repair-explorer.module.css";
 import { ServiceChargesEditor } from "@/features/inventory/service-charges-editor";
-import { SERVICE_CHARGES_POLICY, normalizeServiceCharges, serviceChargeLines, serviceQuoteTax, type ServiceCharge } from "@/lib/service-charges";
+import { SERVICE_CHARGES_POLICY, SHOP_SUPPLIES_KEY, normalizeServiceCharges, serviceChargeLines, serviceQuoteTax, type ServiceCharge } from "@/lib/service-charges";
 import { LaborGuideDetailsForm, emptyLaborGuideDetails, type LaborGuideDetails } from "./labor-guide-details";
 import { useWorkspaceDraft } from "./use-workspace-draft";
 import { DiagnosticWorkspace } from "./diagnostic-workspace";
@@ -35,6 +35,7 @@ import { connectedLaborSelection, LABOR_PILOT_SYSTEMS } from "@/lib/labor-catalo
 import type { RepairOperation } from "@/features/prototype/repair-explorer/catalog";
 import { repairBaselineForId, repairScopeConflict } from "@/lib/repair-catalog-baselines";
 import { isExplorerPartsAllowance, replaceExplorerPartsAllowance, unresolvedExplorerAllowance, type ExplorerEstimateSeed } from "@/lib/explorer-estimate-handoff";
+import { manualRevisionLabor, retainedLaborKeys, type SavedEstimateRevision } from "@/lib/labor-guide-estimate-revision";
 import { checkEstimateControls, checkStaffQuotePricing, estimateControlsScope, initialEstimatePricing, type EstimateControls, type EstimatePricing } from "@/lib/labor-guide-controls";
 
 type ActiveRepairOrder = {
@@ -243,11 +244,11 @@ function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQu
   return matchingSystem?.id ?? fallback;
 }
 
-export function EnterpriseLaborGuideConsole({ presentation = "workspace", attachRepairOrderOnOpen = false, reviewWorkflow = false, initialDraftId, expectedDraftRepairOrderId, initialExplorerSeed, activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { presentation?: "workspace" | "explorer"; attachRepairOrderOnOpen?: boolean; reviewWorkflow?: boolean; initialDraftId?: string; expectedDraftRepairOrderId?: string; initialGuideView?: LaborGuideView; initialExplorerSeed?: ExplorerEstimateSeed; activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
+export function EnterpriseLaborGuideConsole({ presentation = "workspace", attachRepairOrderOnOpen = false, reviewWorkflow = false, initialDraftId, expectedDraftRepairOrderId, initialExplorerSeed, estimateRevision, activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo, initialNotice = "", initialPricing = initialEstimatePricing, pricingAvailable = true, canOverrideLaborRate = false, connectedSystemIds = LABOR_PILOT_SYSTEMS }: { presentation?: "workspace" | "explorer"; attachRepairOrderOnOpen?: boolean; reviewWorkflow?: boolean; initialDraftId?: string; expectedDraftRepairOrderId?: string; initialGuideView?: LaborGuideView; initialExplorerSeed?: ExplorerEstimateSeed; estimateRevision?: SavedEstimateRevision; activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string; initialNotice?: string; initialPricing?: EstimatePricing; pricingAvailable?: boolean; canOverrideLaborRate?: boolean; connectedExplorer?: boolean; connectedSystemIds?: readonly string[] }) {
   const router = useRouter();
   const guideView: LaborGuideView = "new";
   const explorerPresentation = presentation === "explorer";
-  const [explorerReviewOpen, setExplorerReviewOpen] = useState(Boolean(initialExplorerSeed) || attachRepairOrderOnOpen);
+  const [explorerReviewOpen, setExplorerReviewOpen] = useState(!estimateRevision && (Boolean(initialExplorerSeed) || attachRepairOrderOnOpen));
   const [savedDraftTitle, setSavedDraftTitle] = useState("");
   const [leavingExplorer, setLeavingExplorer] = useState(false);
   const [sidebarSaveResult, setSidebarSaveResult] = useState<"saved" | "error" | null>(null);
@@ -266,7 +267,9 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
   const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialExplorerSeed?.labor ?? (initialSelectedWork === "empty" ? [] : (initialSelectedWork === "transmission" ? transmissionStarter : brakeStarter).map((operation) => ({ ...operation, rowId: operation.id }))));
   const [serviceCharges, setServiceCharges] = useState<ServiceCharge[]>([]);
   const [suppliesTaxable, setSuppliesTaxable] = useState(false);
-  const [discountCents, setDiscountCents] = useState(0);
+  const [discountCents, setDiscountCents] = useState(estimateRevision?.discountCents ?? 0);
+  const [revisionReason, setRevisionReason] = useState("");
+  const originalLines = useMemo(() => new Map(estimateRevision?.lines.map(line => [line.key, line])), [estimateRevision]);
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>(initialExplorerSeed?.parts ?? (initialSelectedWork === "starter" ? defaultParts : []));
   const [evidenceDrafts, setEvidenceDrafts] = useState<EvidenceDraft[]>([]);
   const [evidenceNote, setEvidenceNote] = useState("");
@@ -429,9 +432,9 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
   const visibleGroupId = openGroupId && groupedCatalog.some((group) => group.id === openGroupId) ? openGroupId : normalizedQuery ? groupedCatalog[0]?.id ?? "" : "";
 
   const taxRatePercent = estimateControls.pricing.taxRatePercent ?? 0;
-  const taxRateInvalid = !Number.isFinite(taxRatePercent) || taxRatePercent < 0 || taxRatePercent > 30;
+  const taxRateInvalid = (Boolean(estimateRevision) && estimateControls.pricing.taxRatePercent === null) || !Number.isFinite(taxRatePercent) || taxRatePercent < 0 || taxRatePercent > 30;
   const calculationTaxRate = taxRateInvalid ? 0 : taxRatePercent;
-  const estimatePolicy = useMemo(() => evaluateEstimatePartsTaxPolicy({ labor: selectedLabor, parts: selectedParts, taxRate: calculationTaxRate / 100 }), [selectedLabor, selectedParts, calculationTaxRate]);
+  const estimatePolicy = useMemo(() => evaluateEstimatePartsTaxPolicy({ labor: selectedLabor.filter(line => !originalLines.has(line.rowId)), parts: selectedParts, taxRate: calculationTaxRate / 100 }), [selectedLabor, selectedParts, calculationTaxRate, originalLines]);
   const estimateLabor = useMemo(() => [
     ...selectedLabor,
     ...allOperations
@@ -439,17 +442,28 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
       .map((operation) => ({ ...operation, rowId: operation.id, source: "POLICY_REQUIRED" as const }))
   ], [allOperations, estimatePolicy.requiredAddOnIds, selectedLabor]);
   const totalHours = estimateLabor.reduce((sum, item) => sum + item.hours, 0);
-  const laborTotal = estimateLabor.reduce((sum, item) => sum + Math.round(Math.round(item.hours * 60) / 60 * laborRate * 100), 0) / 100;
+  const laborAmounts = useMemo(() => new Map(estimateLabor.map(item => {
+    const minutes = Math.round(item.hours * 60), saved = originalLines.get(item.rowId);
+    return [item.rowId, saved && (saved.laborGuideMinutes ?? 0) === minutes
+      ? saved.unitPriceCents : Math.round(minutes / 60 * laborRate * 100)];
+  })), [estimateLabor, originalLines, laborRate]);
+  const laborTotal = [...laborAmounts.values()].reduce((sum, price) => sum + price, 0) / 100;
   const estimateParts = useMemo(() => [
     ...selectedParts,
     ...estimatePolicy.missingRequiredParts.map(requiredPartToSelectedPart)
   ], [estimatePolicy.missingRequiredParts, selectedParts]);
   const partsTotal = estimateParts.reduce((sum, item) => sum + item.quantity * Math.round(item.unitPrice * 100), 0) / 100;
-  const feeLines = useMemo(() => connectedExplorer ? serviceChargeLines(Math.round(laborTotal * 100), serviceCharges, suppliesTaxable) : [], [connectedExplorer, laborTotal, serviceCharges, suppliesTaxable]);
-  const feesTotal = feeLines.reduce((sum, line) => sum + line.unitPriceCents, 0) / 100;
+  const feeLines = useMemo(() => {
+    if (estimateRevision) {
+      const savedFees = estimateRevision.lines.filter(line => line.type === "FEE");
+      return [...savedFees.filter(line => line.key !== SHOP_SUPPLIES_KEY), ...serviceChargeLines(Math.round(laborTotal * 100), [], savedFees.some(line => line.key === SHOP_SUPPLIES_KEY && line.taxable))];
+    }
+    return connectedExplorer ? serviceChargeLines(Math.round(laborTotal * 100), serviceCharges, suppliesTaxable) : [];
+  }, [connectedExplorer, estimateRevision, laborTotal, serviceCharges, suppliesTaxable]);
+  const feesTotal = feeLines.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0) / 100;
   const subtotal = laborTotal + partsTotal + feesTotal;
   const subtotalCents = Math.round(subtotal * 100);
-  const taxableCents = estimatePolicy.tax.taxablePartsCents + feeLines.filter(line => line.taxable).reduce((sum, line) => sum + line.unitPriceCents, 0);
+  const taxableCents = estimatePolicy.tax.taxablePartsCents + feeLines.filter(line => line.taxable).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
   const effectiveDiscountCents = Math.min(discountCents, subtotalCents);
   const estimateTaxCents = serviceQuoteTax(subtotalCents, taxableCents, calculationTaxRate, effectiveDiscountCents);
   const taxAndSupplies = estimateTaxCents / 100;
@@ -968,36 +982,37 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
   const lineItems = useMemo(() => [
     ...estimateLabor.map((item) => ({
       description: item.title,
-      key: lineKey("labor", item.rowId),
+      key: originalLines.has(item.rowId) ? item.rowId : lineKey("labor", item.rowId),
       laborGuideMinutes: Math.round(item.hours * 60),
-      plannedCorrection: item.title,
+      plannedCorrection: originalLines.get(item.rowId)?.description === item.title ? originalLines.get(item.rowId)?.plannedCorrection ?? item.title : item.title,
       quantity: 1,
       taxable: false,
       type: "LABOR" as const,
-      unitPriceCents: Math.round(Math.round(item.hours * 60) / 60 * laborRate * 100),
-      workTypeCode: item.operation.toUpperCase().replaceAll(" ", "_").replaceAll("/", "_"),
+      unitPriceCents: laborAmounts.get(item.rowId) ?? 0,
+      workTypeCode: originalLines.get(item.rowId)?.workTypeCode ?? item.operation.toUpperCase().replaceAll(" ", "_").replaceAll("/", "_"),
     })),
     ...estimateParts.map((part) => ({
-      description: part.number.trim() ? `${part.name} (${part.number.trim()})` : part.name,
-      key: lineKey("part", part.id),
+      description: !originalLines.has(part.id) && part.number.trim() ? `${part.name} (${part.number.trim()})` : part.name,
+      key: originalLines.has(part.id) ? part.id : lineKey("part", part.id),
       laborGuideMinutes: 0,
-      plannedCorrection: `Supply ${part.name}`,
+      plannedCorrection: originalLines.get(part.id)?.description === part.name ? originalLines.get(part.id)?.plannedCorrection ?? part.name : `Supply ${part.name}`,
       quantity: part.quantity,
       taxable: part.taxable !== false,
       type: "PART" as const,
       partNumber: part.number.trim() || undefined,
-      laborLineKey: laborLineForEstimatePart(part.laborRowId, estimateLabor),
+      laborLineKey: originalLines.has(part.laborRowId) ? part.laborRowId : laborLineForEstimatePart(part.laborRowId, estimateLabor),
       unitPriceCents: Math.round(part.unitPrice * 100),
       workTypeCode: "PART",
     })),
-    ...feeLines,
-  ], [estimateLabor, estimateParts, laborRate, feeLines]);
+    ...feeLines.map(line => ({ ...line, laborGuideMinutes: 0 })),
+  ], [estimateLabor, estimateParts, feeLines, originalLines, laborAmounts]);
+  const preservedLabor = useMemo(() => retainedLaborKeys(estimateRevision?.lines ?? [], lineItems), [estimateRevision, lineItems]);
   const reviewScope = estimateReviewScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems);
   const controlsScope = taxRateInvalid ? "" : estimateControlsScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems, estimateControls);
   const controlsReady = useMemo(() => {
-    try { if (connectedExplorer) checkStaffQuotePricing(lineItems, estimateControls, estimateLabor, estimateTaxCents, discountCents); else checkEstimateControls(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); return true; }
+    try { if (connectedExplorer) checkStaffQuotePricing(lineItems, estimateControls, estimateLabor, estimateTaxCents, discountCents, preservedLabor); else checkEstimateControls(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); return true; }
     catch { return false; }
-  }, [connectedExplorer, selectedRepairOrder?.vehicle.id, contextVehicle, contextVin, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents, estimateTaxCents, discountCents]);
+  }, [connectedExplorer, selectedRepairOrder?.vehicle.id, contextVehicle, contextVin, lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents, estimateTaxCents, discountCents, preservedLabor]);
   const unresolvedAllowances = estimateParts.some(unresolvedExplorerAllowance);
   const reviewReady = manualReviewComplete(laborReview, reviewScope);
 
@@ -1041,12 +1056,22 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
       setEstimateError("Complete the labor basis review before presenting.");
       return;
     }
-    try { if (connectedExplorer) checkStaffQuotePricing(lineItems, estimateControls, estimateLabor, estimateTaxCents, discountCents); else checkEstimateControls(selectedRepairOrder.vehicle.id ?? "", lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); }
+    try { if (connectedExplorer) checkStaffQuotePricing(lineItems, estimateControls, estimateLabor, estimateTaxCents, discountCents, preservedLabor); else checkEstimateControls(selectedRepairOrder.vehicle.id ?? "", lineItems, estimateControls, estimateLabor, estimatePolicy.tax.taxCents); }
     catch (error) {
       const message = error instanceof Error ? error.message : "Check estimate pricing.";
       if (connectedExplorer) reportEstimateError(message);
       else { setEstimateError(message); revealChecks(); }
       return;
+    }
+    if (estimateRevision) {
+      if (estimateLabor.some(line => !line.title.trim() || (!originalLines.has(line.rowId) && Math.round(line.hours * 60) < 1))) {
+        reportEstimateError("Enter a description for every labor line and planned hours for new work.");
+        return;
+      }
+      if (!revisionReason.trim()) {
+        reportEstimateError("Enter the reason for revising this estimate.");
+        return;
+      }
     }
     setPresenting(true);
     setBusy(true);
@@ -1055,7 +1080,23 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
       const presentedAt = new Date();
       const expiresAt = new Date(presentedAt.getTime() + 7 * 86_400_000);
       const taxCents = estimateTaxCents;
-      const fingerprint = JSON.stringify({ ro: selectedRepairOrder.id, lineItems, taxCents, discountCents, laborReview, estimateControls });
+      const fingerprint = JSON.stringify({ ro: selectedRepairOrder.id, lineItems, taxCents, discountCents, laborReview, estimateControls, revisionReason });
+      if (estimateRevision) {
+        const attempt = estimateAttempt?.fingerprint === fingerprint ? estimateAttempt : { fingerprint, body: {
+          action: "LABOR_GUIDE_REVISION", documentId: estimateRevision.documentId, documentHash: estimateRevision.documentHash,
+          estimateId: estimateRevision.estimateId, expectedVersion: estimateRevision.expectedVersion,
+          lineItems: lineItems.filter(line => line.type !== "FEE"), laborRate, discountCents,
+          taxRatePercent: estimateControls.pricing.taxRatePercent, revisionReason,
+          idempotencyKey: crypto.randomUUID(), presentedAt: presentedAt.toISOString(), expiresAt: expiresAt.toISOString(),
+        } };
+        setEstimateAttempt(attempt);
+        const saved = await request<{ result?: { id?: string } }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/document-review`, {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(attempt.body),
+        });
+        if (!saved.result?.id) throw new Error("The save response was incomplete. Retry the same save.");
+        router.push(`/service-documents?${new URLSearchParams({ repairOrderId: selectedRepairOrder.id, sourceId: saved.result.id, workspace: "1" })}`);
+        return;
+      }
       const planning = estimateAttempt?.fingerprint === fingerprint ? null : await request<{ version: number }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`);
       const attempt = estimateAttempt?.fingerprint === fingerprint ? estimateAttempt : { fingerprint, body: {
           expectedVersion: planning!.version,
@@ -1090,6 +1131,10 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
       // A definite rejection can start a fresh attempt after the prerequisite is corrected.
       // Network failures and uncertain server errors retain the saved retry identity.
       if (error instanceof Error && "status" in error && ([400, 401, 403].includes(Number(error.status)) || (error.status === 409 && error.message.startsWith("Expected version")))) setEstimateAttempt(null);
+      if (estimateRevision && error instanceof Error && "status" in error && error.status === 409) {
+        reportEstimateError("This estimate changed. Go back to the saved estimate and reopen the latest version from Document history.");
+        return;
+      }
       reportEstimateError(error instanceof Error ? estimatePresentationError(error.message) : "Unable to generate the estimate. Try again.");
     } finally {
       setPresenting(false);
@@ -1222,12 +1267,21 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
       {initialNotice ? <p role="alert">{initialNotice}</p> : null}
       {unresolvedAllowances && <p role="alert">Explorer parts allowances need itemization. Edit part details below or remove the allowance and add actual parts. A price alone does not resolve an allowance.</p>}
       <div ref={estimateGuideRef} tabIndex={-1}>
-      {connectedExplorer && <ServiceChargesEditor laborCents={Math.round(laborTotal * 100)} charges={serviceCharges} suppliesTaxable={suppliesTaxable} discountCents={discountCents} subtotalCents={Math.round(subtotal * 100)} onDiscount={setDiscountCents} busy={busy || draft.saving} onChange={setServiceCharges} onSuppliesTaxable={setSuppliesTaxable} />}
+      {estimateRevision && <section aria-label="Estimate revision">
+        <h2>Revise estimate v{estimateRevision.version}</h2>
+        <p>Save the updated labor and parts as a new estimate for customer approval.</p>
+        <label>Reason for revision <input maxLength={350} value={revisionReason} disabled={busy} onChange={event => setRevisionReason(event.target.value)} /></label>
+        {estimateRevision.discountCents > 0 && <label>Discount ($) <input type="number" min="0" step="0.01" value={discountCents / 100} disabled={busy} onChange={event => setDiscountCents(Math.max(0, Math.round(Number(event.target.value) * 100)))} /></label>}
+      </section>}
+      {connectedExplorer && !estimateRevision && <ServiceChargesEditor laborCents={Math.round(laborTotal * 100)} charges={serviceCharges} suppliesTaxable={suppliesTaxable} discountCents={discountCents} subtotalCents={Math.round(subtotal * 100)} onDiscount={setDiscountCents} busy={busy || draft.saving} onChange={setServiceCharges} onSuppliesTaxable={setSuppliesTaxable} />}
       {connectedExplorer && <label>Tax rate (%) <input aria-label="Estimate tax rate" aria-invalid={taxRateInvalid || undefined} aria-describedby={taxRateInvalid ? "estimate-tax-error" : undefined} disabled={busy || draft.saving || openingPreview} type="number" min="0" max="30" step="0.001" value={estimateControls.pricing.taxRatePercent ?? ""} onChange={event => setEstimateControls(current => ({ ...current, pricing: { ...current.pricing, taxRatePercent: event.target.value === "" ? null : Number(event.target.value) } }))} />{taxRateInvalid && <small id="estimate-tax-error" role="alert">Enter a tax rate between 0% and 30%.</small>}</label>}
       <EstimateWorksheet feedback={estimateError} saveNotice={worksheetSaveNotice} savingDraft={draft.saving} feedbackRef={estimateFeedbackRef} presenting={presenting} reviewLaborRequested={reviewLaborRequested} onPreview={!selectedRepairOrder && totalWorkLines > 0 ? () => void openPreliminaryPreview() : undefined} openingPreview={openingPreview} simplified={connectedExplorer} vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
-        ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, removable: selectedLabor.some(row => row.rowId === item.rowId), editable: selectedLabor.some(row => row.rowId === item.rowId) })),
-        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, number: item.number, allowance: isExplorerPartsAllowance(item), pending: item.pricingStatus === "PRICE_PENDING" || unresolvedExplorerAllowance(item), removable: item.source !== "POLICY_REQUIRED", editable: true })),
-      ]} onAddPart={connectedExplorer ? () => addWorksheetPart() : undefined} onItemizePart={connectedExplorer ? line => addWorksheetPart(line.id) : undefined} checksReady={controlsReady && pricingAvailable && !unresolvedAllowances} onReviewChecks={revealChecks} summary={worksheetSummary} onRemove={line => { if (line.kind === "Labor") deleteLabor(line.id); else deletePart(line.id); }} onPartChange={(line, field, value) => { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, [field]: value }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }} review={laborReview} scope={reviewScope} total={taxRateInvalid ? "Pending tax rate" : money(total)} busy={busy || draft.saving || openingPreview} onFindVehicle={findRepairOrder} onAddWork={() => explorerPresentation ? setExplorerReviewOpen(false) : revealWorkTools("labor")} onReview={setLaborReview} onSave={() => void saveWorksheetDraft()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
+        ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: estimateRevision && item.hours ? (laborAmounts.get(item.rowId) ?? 0) / 100 / item.hours : laborRate, ...(estimateRevision ? { amount: (laborAmounts.get(item.rowId) ?? 0) / 100 } : {}), pending: false, removable: selectedLabor.some(row => row.rowId === item.rowId), editable: selectedLabor.some(row => row.rowId === item.rowId) })),
+        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, number: item.number, laborId: estimateLabor.find(labor => labor.rowId === item.laborRowId || labor.id === item.laborRowId)?.rowId, canRelink: item.source !== "POLICY_REQUIRED", allowance: isExplorerPartsAllowance(item), pending: item.pricingStatus === "PRICE_PENDING" || unresolvedExplorerAllowance(item), removable: item.source !== "POLICY_REQUIRED", editable: true })),
+      ]} onAddPart={connectedExplorer ? () => addWorksheetPart() : undefined} onItemizePart={connectedExplorer ? line => addWorksheetPart(line.id) : undefined} checksReady={controlsReady && pricingAvailable && !unresolvedAllowances} onReviewChecks={revealChecks} summary={worksheetSummary} onRemove={line => { if (line.kind === "Labor") deleteLabor(line.id); else deletePart(line.id); }} onPartChange={(line, field, value) => { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, [field]: value }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }} review={laborReview} scope={reviewScope} total={taxRateInvalid ? "Pending tax rate" : money(total)} busy={busy || draft.saving || openingPreview} onFindVehicle={findRepairOrder} onAddWork={() => explorerPresentation ? setExplorerReviewOpen(false) : revealWorkTools("labor")} onReview={setLaborReview} onSave={estimateRevision ? undefined : () => void saveWorksheetDraft()} revision={Boolean(estimateRevision)} onAddManualLabor={estimateRevision ? () => {
+        const row = manualRevisionLabor(`manual-${crypto.randomUUID()}`);
+        setSelectedLabor(rows => [...rows, row]);
+      } : undefined} onPartLaborChange={estimateRevision ? (id, laborRowId) => setSelectedParts(rows => rows.map(part => part.id === id ? { ...part, laborRowId } : part)) : undefined} onLaborDescriptionChange={estimateRevision ? (id, title) => setSelectedLabor(rows => rows.map(row => row.rowId === id ? { ...row, title } : row)) : undefined} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
         if (line.kind === "Labor") setSelectedLabor(rows => rows.map(row => row.rowId === line.id ? { ...row, hours: value } : row));
         else { const part = estimateParts.find(item => item.id === line.id); if (!part) return; setSelectedParts(rows => { const current = rows.find(item => item.id === line.id) ?? part; const updated = { ...current, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) }; return rows.some(item => item.id === line.id) ? rows.map(item => item.id === line.id ? updated : item) : [...rows, updated]; }); }
       }} />
@@ -1249,21 +1303,21 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
         <div className={explorerStyles.subtotal}><dt>Estimate total</dt><dd><strong>{taxRateInvalid ? "Pending tax rate" : money(total)}</strong></dd></div>
       </dl>
       <button className={explorerStyles.primary} type="button" onClick={revealEstimateGuide}>Review selected work</button>
-      <button className={explorerStyles.secondary} type="button" disabled={busy || draft.saving} onClick={async () => {
+      {!estimateRevision && <button className={explorerStyles.secondary} type="button" disabled={busy || draft.saving} onClick={async () => {
         setSidebarSaveResult(null);
         const savedId = await draft.saveAndGetId();
         if (savedId) window.history.replaceState(window.history.state, "", guideHref(savedId));
         setSidebarSaveResult(savedId ? "saved" : "error");
-      }}>{draft.saving ? "Saving draft…" : "Save quote"}</button>
+      }}>{draft.saving ? "Saving draft…" : "Save quote"}</button>}
       {billingHref ? <Link className={explorerStyles.secondary} href={billingHref}>Billing &amp; receipts</Link> : <p className={explorerStyles.priceNote}>Link a repair order to open billing and receipts.</p>}
-      <p className={explorerStyles.status} role={sidebarSaveResult === "error" ? "alert" : "status"}>
+      {!estimateRevision && <p className={explorerStyles.status} role={sidebarSaveResult === "error" ? "alert" : "status"}>
         {sidebarSaveResult === "error" ? draft.status : sidebarSaveResult === "saved" ? "Quote draft saved." : draft.status}
-      </p>
+      </p>}
     </>;
 
     return <main onClickCapture={async event => {
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
-      if (!link || link.target === "_blank" || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      if (estimateRevision || !link || link.target === "_blank" || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       if (leavingExplorer) return;
       setLeavingExplorer(true);
@@ -1281,7 +1335,7 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
         reviewOpen: explorerReviewOpen,
         onFind: () => setExplorerReviewOpen(false),
         context: <div aria-label="Saved quote context">
-          {savedDraftTitle && <strong>{savedDraftTitle}</strong>}
+          {estimateRevision ? <strong>Revising estimate v{estimateRevision.version}</strong> : savedDraftTitle && <strong>{savedDraftTitle}</strong>}
           <p>{[contextCustomer, contextVin, selectedRepairOrder?.repairOrderNumber ?? "Preliminary quote · no repair order"].filter(Boolean).join(" · ")}</p>
           {initialNotice && <p role="alert">{initialNotice}</p>}
         </div>,
@@ -1289,7 +1343,7 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
           <GuideRepairHistory initialVehicleId={selectedRepairOrder?.vehicle.id} />
           {notice && <div className={styles.notice} role="status">{notice}</div>}
           {leavingExplorer && <p role="status">Saving your draft before opening the next workspace…</p>}
-          {explorerReviewOpen && draftTools}
+          {explorerReviewOpen && !estimateRevision && draftTools}
         </>,
         sidebar: estimateSidebar,
         review: <div className={`${styles.console} ${styles.explorerReview}`} aria-label="Estimate editor">{worksheet}</div>,

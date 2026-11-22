@@ -34,7 +34,7 @@ export function compactPartsModel(model: Model): CompactPartsEntryModel {
     repairOrders: model.repairOrders.map(order => ({ id: order.id, locationId: order.locationId, closedAt: order.closedAt })),
     demands: model.demands.flatMap(demand => {
       const repairOrderId = demand.repairOrderId ?? demand.repairOrder.id;
-      return repairOrderId ? [{ id: demand.id, repairOrderId, partId: demand.partId, quantityRequired: demand.quantityRequired, quantityReserved: demand.quantityReserved, status: demand.status ?? "" }] : [];
+      return repairOrderId ? [{ id: demand.id, repairOrderId, repairJobId: demand.repairJobId, partId: demand.partId, quantityRequired: demand.quantityRequired, quantityReserved: demand.quantityReserved, status: demand.status ?? "" }] : [];
     }),
     requisitions: model.requisitions.flatMap(item => item.demandId ? [{ id: item.id, demandId: item.demandId, status: item.status ?? "" }] : []),
     catalog: model.parts.map(part => ({ id: part.id, partNumber: part.partNumber ?? "", description: part.description, status: part.status })),
@@ -132,7 +132,7 @@ export function partsEntryRecoveryGuidance(saved: SavedCompactEntry, purchaseOrd
   return saved.nextAction ?? "Review the saved parts records. Resume any unfinished request unchanged.";
 }
 
-type Props = { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
+type Props = { initial: Model; compactStage?: boolean; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string; reviewOrderId?: string };
 type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "progress" | "use" | "return";
 type BudgetRequestStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "DENIED";
 
@@ -324,7 +324,7 @@ function Notice({ value }: { value: string }) {
   return <div className={`scp-notice ${danger ? "danger" : "success"}`} role="status">{value}</div>;
 }
 
-export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo, reviewOrderId }: Props) {
+export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, returnLabel, returnTo, reviewOrderId, compactStage = false }: Props) {
   const router = useRouter();
   const initialOrderId = initialRepairOrderId ?? first(initial.repairOrders);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -454,9 +454,12 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         order = workingModel.repairOrders.find(item => item.id === entry.repairOrderId);
         if (!order || order.closedAt) return { status: "error", message: "This repair order is unavailable or closed. Review the saved parts records." };
       }
+      if (!restored && entry.repairJobId && !entry.usage && !order.repairJobs?.some(job => job.id === entry.repairJobId && job.status && !["UNKNOWN", "CANCELLED", "QC_PASSED", "COMPLETED"].includes(job.status))) {
+        return { status: "error", message: "This repair job is no longer open. Refresh the repair order and choose an open job." };
+      }
       const key = compactEntryStorageKey(entry);
       const prior = restored ?? readUnfinishedPartsEntries(sessionStorage, order.id).find(item => item.entry.requestId === entry.requestId);
-      const activeJobs = (order.repairJobs ?? []).filter(job => job.status && !["UNKNOWN", "CANCELLED", "QC_PASSED"].includes(job.status));
+      const activeJobs = (order.repairJobs ?? []).filter(job => job.status && !["UNKNOWN", "CANCELLED", "QC_PASSED", ...(compactStage ? ["COMPLETED"] : [])].includes(job.status));
       const input: CompactPartsEntryInput = prior?.progress.input ?? {
         mode: entry.purchased ? "PURCHASED" : "NEEDED", repairOrderId: order.id, locationId: order.locationId,
         description: entry.part, quantity: entry.quantity, partId: entry.partId, partNumber: entry.partNumber, demandId: entry.demandId, vendorId: entry.supplierId, vendorName: entry.vendor,
@@ -465,7 +468,8 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         stockLocationId: entry.stockLocationId, stockLocationName: entry.stockLocationName, packingSource: entry.packingSource, purchaseOrderId: entry.purchaseOrderId,
         receiptId: entry.receiptId, lineIndex: entry.lineIndex, usage: entry.usage,
         usageQuantity: entry.usageQuantity, usageOccurredAt: entry.usageOccurredAt ? new Date(entry.usageOccurredAt).toISOString() : undefined,
-        repairJobId: entry.repairJobId ?? (activeJobs.length === 1 ? activeJobs[0].id : undefined), evidence: entry.evidence, returnReason: entry.returnReason,
+        repairJobId: entry.repairJobId ?? (activeJobs.length === 1 ? activeJobs[0].id : undefined),
+        ...(entry.repairJobId && !entry.usage ? { matchRepairJob: true } : {}), evidence: entry.evidence, returnReason: entry.returnReason,
         deadlineAt: entry.deadlineAt ? new Date(entry.deadlineAt).toISOString() : undefined,
         note: entry.note?.trim() || (entry.purchaseOrderId ? "Record received repair parts." : entry.purchased ? "Record purchased repair parts." : "Record needed repair parts."),
       };
@@ -1251,7 +1255,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const receivedParts = compactReceivedParts(model, orderId);
   const closeGuidance = selectedOrder ? repairCloseGuidance(selectedOrder.id, activeInvoice?.mismatchCodes ?? []) : [];
   return <section className={`scp-workspace ${compactStyles.workspace}`}>
-    <header className="scp-header">
+    {!compactStage && <header className="scp-header">
       <div>
         {returnTo ? <Link className="workspace-return-link" href={returnTo}>{returnLabel ?? "Return to source workspace"}</Link> : null}
         <span>Parts Workspace</span>
@@ -1259,22 +1263,22 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         <p>Record needed, purchased and received parts.</p>
       </div>
 
-    </header>
+    </header>}
 
     <Notice value={notice.includes("PARTS_MANAGE") && notice.includes("CAPABILITY_REQUIRED") ? "Ask someone with parts access at this store to review the saved records and finish this entry. You can enter a different part below." : notice} />
 
-    <section className={compactStyles.context} aria-label="Parts entry repair order">
+    {!compactStage && <section className={compactStyles.context} aria-label="Parts entry repair order">
       <Field label="Repair order"><select disabled={busy || Boolean(reviewOrderId)} value={orderId} onChange={event => changeRepairOrder(event.target.value)}>{model.repairOrders.map(order => <option key={order.id} value={order.id}>{order.repairOrderNumber} · {vehicleLabelFor(order)}</option>)}</select></Field>
       <p><strong>{selectedVehicleLabel}</strong><br />{selectedOrder?.customer?.displayName ?? "Internal repair"} · {selectedNumber}</p>
-    </section>
-    <section className={compactStyles.nextAction} aria-label="Next parts action">
+    </section>}
+    {(!compactStage || purchaseOrdersNeedingApproval.length > 0 || scopedDiscrepancies.some(item => item.status === "OPEN") || (isInternalRecon && (!hasReconBudget || remainingReconBudgetCents < 0))) && <section className={compactStyles.nextAction} aria-label="Next parts action">
       {purchaseOrdersNeedingApproval.length ? <><p><strong>{purchaseOrdersNeedingApproval.length} purchase order{purchaseOrdersNeedingApproval.length === 1 ? "" : "s"} awaiting approval.</strong> An authorized approver must review these orders before receiving.</p><button type="button" onClick={() => { setDetailsOpen(true); setMode("order"); }}>Open approvals</button></>
         : scopedDiscrepancies.some(item => item.status === "OPEN") ? <><p><strong>Receiving issue needs review.</strong> Review short, damaged or mismatched deliveries before installation.</p><button type="button" onClick={() => { setDetailsOpen(true); setMode("receive"); requestAnimationFrame(() => document.getElementById("parts-work-area")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Review receiving issues</button></>
         : compactPurchaseOptions(model, orderId).length ? <p><strong>Parts are ordered.</strong> Choose “Receive existing order” below and record only the quantity that arrived.</p>
         : scopedReceipts.length && selectedOrder ? <><p><strong>Parts received.</strong> Receipt does not record installation or complete the repair.</p><button type="button" onClick={() => { setDetailsOpen(true); setMode("use"); requestAnimationFrame(() => document.getElementById("parts-work-area")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Record installation</button> <Link href={repairReviewHref(selectedOrder.id, "repair")}>Continue repair</Link></>
         : <p>Add a needed part, or choose “Purchase needed part” to finish buying a saved need.</p>}
       {isInternalRecon && (!hasReconBudget || remainingReconBudgetCents < 0) && <p role="status"><strong>{!hasReconBudget ? "Recon budget not set." : `Recorded purchases are ${money(overBudgetCents)} above the recon budget.`}</strong> <button type="button" onClick={openBudgetApproval}>Review recon budget</button></p>}
-    </section>
+    </section>}
     {partsRecoverySummary && <p role="status">{partsRecoverySummary}</p>}
     {unfinished.length > 0 && <section id="unfinished-parts-entry" tabIndex={-1} className={compactStyles.recovery} aria-label="Unfinished parts entries"><h2>Finish saving parts</h2><p>Continue from the purchase and receipt details already entered. If a save stops, review the message here before retrying.</p>{unfinished.length > 1 && <button type="button" disabled={busy || resumingParts || refreshNeeded} onClick={() => void resumePartsTogether()}>{resumingParts ? "Saving parts…" : `Retry saving ${unfinished.length} entries`}</button>}{unfinished.map(item => {
       const po = model.purchaseOrders.find(po => po.id === item.purchaseOrderId && po.requisition?.demand?.repairOrder?.id === orderId);
@@ -1314,7 +1318,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       : refreshNeeded ? <p role="status">Reload the parts board below before recording another entry.</p>
         : busy ? <p role="status">Updating parts records…</p> : null}
     {selectedOrder && openNeededParts.length > 0 && <section className={compactStyles.recent} aria-label="Needed parts purchasing">
-      <h2>Needed parts purchasing</h2>
+      <h2>{compactStage ? "Saved parts needed" : "Needed parts purchasing"}</h2>
       <ul>{openNeededParts.map(demand => {
         const orders = scopedPurchaseOrders.filter(po => po.status !== "CANCELLED" && po.requisition?.demand?.id === demand.id);
         const purchasedQuantity = orders.filter(po => ["ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(po.status ?? ""))
@@ -1327,22 +1331,22 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           {!orders.length && needed > 0 && ["OPEN", "PARTIALLY_RESERVED"].includes(demand.status ?? "") && <button type="button" disabled={busy || !storageReady || refreshNeeded || unfinished.length > 0 || Boolean(selectedOrder.closedAt)} onClick={() => {
             setEntrySelection({ demandId: demand.id, token: crypto.randomUUID() });
             setFormRevision(value => value + 1);
-          }}>Mark purchased</button>}
+          }}>{compactStage ? "Record purchase" : "Mark purchased"}</button>}
         </li>;
       })}</ul>
     </section>}
-    <p>{unfinished.length > 0 ? "Use Retry save above to finish recording the existing entries. This form is for a different part." : <>To record a purchase, check <strong>Purchased</strong> below.</>} Saved purchase orders appear in {scopedPurchaseOrders.length || scopedDemands.length ? <a href="#saved-parts-records">Recent parts records</a> : "Recent parts records after saving"}.</p>
-    <CompactPartsEntry usageEnabled key={`${orderId}:${formRevision}`} receivedParts={receivedParts.filter(part => part.quantity > 0)} jobs={(selectedOrder?.repairJobs ?? []).filter(job => Boolean(job.status) && !["UNKNOWN", "CANCELLED", "QC_PASSED"].includes(job.status ?? "")).map(job => ({ id: job.id, label: job.jobNumber }))} selection={entrySelection} repairOrderId={selectedOrder?.id ?? ""} disabled={busy || resumingParts || !storageReady || refreshNeeded || Boolean(selectedOrder?.closedAt)} neededParts={(compactPartsModel(model).demands ?? []).filter(demand => demand.repairOrderId === orderId && ["OPEN", "PARTIALLY_RESERVED"].includes(demand.status) && demand.quantityRequired > demand.quantityReserved).map(demand => ({ id: demand.id, partId: demand.partId, part: model.parts.find(part => part.id === demand.partId)?.description || model.parts.find(part => part.id === demand.partId)?.partNumber || "Needed repair part", quantity: demand.quantityRequired - demand.quantityReserved }))} suppliers={model.vendors.filter(vendor => vendor.status !== "INACTIVE").map(vendor => ({ id: vendor.id, name: vendor.name ?? "Saved supplier" }))} purchaseOrders={compactPurchaseOptions(model, orderId)} stockLocations={model.stockLocations.filter(stock => stock.locationId === selectedOrder?.locationId && stock.isActive !== false && stock.status !== "INACTIVE" && stock.type !== "DAMAGED").map(stock => ({ id: stock.id, label: [stock.code, stock.name].filter(Boolean).join(" · ") || "Receiving bin" }))} onSave={entry => saveCompact(entry)} />
+    {!compactStage && <p>{unfinished.length > 0 ? "Use Retry save above to finish recording the existing entries. This form is for a different part." : <>To record a purchase, check <strong>Purchased</strong> below.</>} Saved purchase orders appear in {scopedPurchaseOrders.length || scopedDemands.length ? <a href="#saved-parts-records">Recent parts records</a> : "Recent parts records after saving"}.</p>}
+    <CompactPartsEntry usageEnabled linkNewPartsToJob={compactStage} key={`${orderId}:${formRevision}`} receivedParts={receivedParts.filter(part => part.quantity > 0)} jobs={(selectedOrder?.repairJobs ?? []).filter(job => Boolean(job.status) && !["UNKNOWN", "CANCELLED", "QC_PASSED", ...(compactStage ? ["COMPLETED"] : [])].includes(job.status ?? "")).map(job => ({ id: job.id, label: job.jobNumber }))} selection={entrySelection} repairOrderId={selectedOrder?.id ?? ""} disabled={busy || resumingParts || !storageReady || refreshNeeded || Boolean(selectedOrder?.closedAt)} neededParts={(compactPartsModel(model).demands ?? []).filter(demand => demand.repairOrderId === orderId && ["OPEN", "PARTIALLY_RESERVED"].includes(demand.status) && demand.quantityRequired > demand.quantityReserved).map(demand => ({ id: demand.id, partId: demand.partId, part: model.parts.find(part => part.id === demand.partId)?.description || model.parts.find(part => part.id === demand.partId)?.partNumber || "Needed repair part", quantity: demand.quantityRequired - demand.quantityReserved }))} suppliers={model.vendors.filter(vendor => vendor.status !== "INACTIVE").map(vendor => ({ id: vendor.id, name: vendor.name ?? "Saved supplier" }))} purchaseOrders={compactPurchaseOptions(model, orderId)} stockLocations={model.stockLocations.filter(stock => stock.locationId === selectedOrder?.locationId && stock.isActive !== false && stock.status !== "INACTIVE" && stock.type !== "DAMAGED").map(stock => ({ id: stock.id, label: [stock.code, stock.name].filter(Boolean).join(" · ") || "Receiving bin" }))} onSave={entry => saveCompact(entry)} />
     </div>
     {selectedOrder && !selectedOrder.closedAt && <section className={compactStyles.recent} aria-label="Finish parts stage">
-      <h2>Finish parts stage</h2>
+      {!compactStage && <h2>Finish parts stage</h2>}
       {unfinished.length > 0 ? <p><a href="#unfinished-parts-entry">Finish saving the pending parts entries</a> before continuing.</p>
         : !selectedOrder.repairJobs?.length ? <p>Release the approved repair job before continuing.</p>
         : selectedOrder.repairJobs.some(job => job.status === "WAITING_PARTS" && !waitingJobPartsReady(job))
           ? <p>Receive and reserve the required stock for the repair job before continuing.</p>
-          : !busy && !resumingParts && !refreshNeeded && <Link href={repairReviewHref(selectedOrder.id, selectedOrder.repairJobs.some(job => ["WAITING_PARTS", "READY_FOR_REPAIR"].includes(job.status ?? "")) ? "assignment" : "repair")}>Finish parts &amp; continue repair</Link>}
+          : !busy && !resumingParts && !refreshNeeded && <Link href={repairReviewHref(selectedOrder.id, selectedOrder.repairJobs.some(job => ["WAITING_PARTS", "READY_FOR_REPAIR"].includes(job.status ?? "")) ? "assignment" : "repair")}>{compactStage ? (selectedOrder.repairJobs.some(job => ["WAITING_PARTS", "READY_FOR_REPAIR"].includes(job.status ?? "")) ? "Continue to assignment" : "Continue repair") : "Finish parts & continue repair"}</Link>}
     </section>}
-    {selectedOrder && <section className={compactStyles.recent} aria-label="Invoice and vehicle handoff">
+    {!compactStage && selectedOrder && <section className={compactStyles.recent} aria-label="Invoice and vehicle handoff">
       <h2>Invoice, payment &amp; handoff</h2>
       <p>Open billing to check what this repair order still needs before you can issue the invoice. After recording payment, open the repair workflow to check readiness and record the handoff.</p>
       <nav className={compactStyles.receiptActions} aria-label="Repair closeout">

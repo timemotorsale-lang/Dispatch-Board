@@ -20,15 +20,26 @@ export function repairReviewHref(repairOrderId: string, step?: RepairWorkflowSte
   if (context.workflow) query.set("workflow", context.workflow);
   return `/vehicles/repair-workbench?${query}`;
 }
+export function pendingApprovedLabor(estimate: { lineItems?: unknown; authorizations: { id?: string; disposition: string; authorizedLineKeys?: unknown }[] } | undefined,
+  jobs: { authorizationId?: string; authorizedLineKey?: string }[]) {
+  const approval = estimate?.authorizations[0];
+  if (!approval?.id || !["ACCEPTED", "PARTIAL"].includes(approval.disposition) || !Array.isArray(approval.authorizedLineKeys) || !Array.isArray(estimate?.lineItems)) return [];
+  const approved = new Set(approval.authorizedLineKeys);
+  const created = new Set(jobs.filter(job => job.authorizationId === approval.id).map(job => job.authorizedLineKey));
+  return (estimate.lineItems as { key: string; type: string; description: string; plannedCorrection: string; laborGuideMinutes: number; laborLineKey?: string; partNumber?: string }[])
+    .filter(line => line.type === "LABOR" && approved.has(line.key) && !created.has(line.key));
+}
+
 export function currentRepairWorkflowStep(order: {
   closedAt?: unknown; stage: string; releaseAuthorization?: unknown;
   inspectionVersions: unknown[]; diagnosisVersions: unknown[];
-  estimateVersions: { authorizations: { disposition: string }[] }[];
-  repairJobs: ({ status: string } & Parameters<typeof waitingJobPartsReady>[0])[];
+  estimateVersions: Parameters<typeof pendingApprovedLabor>[0][];
+  repairJobs: ({ status: string } & Parameters<typeof waitingJobPartsReady>[0] & Parameters<typeof pendingApprovedLabor>[1][number])[];
   vendorWorks?: { status: string; approvalStatus: string }[];
 }): RepairWorkflowStep {
   const jobs = order.repairJobs.filter(job => !["CANCELLED", "CANCELED"].includes(job.status));
   if (order.closedAt || ["CLOSED", "HANDOFF"].includes(order.stage) || order.releaseAuthorization) return "handoff";
+  if (!order.vendorWorks?.some(work => !["CANCELLED", "COMPLETED"].includes(work.status)) && pendingApprovedLabor(order.estimateVersions[0], order.repairJobs).length) return "parts";
   if (jobs.some(job => ["QC_FAILED", "REWORK_REQUIRED", "PAUSED"].includes(job.status))) return "repair";
   if (jobs.length && jobs.every(job => ["READY_FOR_QC", "QC_PASSED", "COMPLETED"].includes(job.status))) return "qc";
   if (jobs.some(job => job.status === "WAITING_PARTS" && !waitingJobPartsReady(job))) return "parts";
@@ -42,7 +53,7 @@ export function currentRepairWorkflowStep(order: {
     if (!["APPROVED", "NOT_REQUIRED"].includes(vendor.approvalStatus)) return "authorization";
     return "repair";
   }
-  if (["ACCEPTED", "PARTIAL"].includes(order.estimateVersions[0]?.authorizations[0]?.disposition)) return "parts";
+  if (["ACCEPTED", "PARTIAL"].includes(order.estimateVersions[0]?.authorizations[0]?.disposition ?? "")) return "parts";
   if (order.estimateVersions.length) return "authorization";
   if (order.diagnosisVersions.length) return "estimate";
   return order.inspectionVersions.length ? "diagnosis" : "inspection";

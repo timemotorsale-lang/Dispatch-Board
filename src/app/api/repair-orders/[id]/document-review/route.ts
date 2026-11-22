@@ -19,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const user = await getCurrentUser(), id = (await context.params).id;
     if (body.action === "CUSTOMER_DETAILS") return NextResponse.json(await updateServiceDocumentCustomer(user, id, body), { headers: { "Cache-Control": "no-store" } });
     if (body.action === "ESTIMATE_DETAILS") return NextResponse.json(await updateServiceDocumentCustomer(user, id, body, true), { headers: { "Cache-Control": "no-store" } });
-    if (body.action === "CHARGES") return NextResponse.json(await reviseServiceDocumentCharges(user, id, body), { headers: { "Cache-Control": "no-store" } });
+    if (["CHARGES", "ADD_WORK", "LABOR_GUIDE_REVISION"].includes(body.action)) return NextResponse.json(await reviseServiceDocumentCharges(user, id, body), { headers: { "Cache-Control": "no-store" } });
     throw new Error("Unsupported document review action.");
   } catch (error) { return failure(error); }
 }

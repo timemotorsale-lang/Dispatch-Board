@@ -7,10 +7,10 @@ import { repairExplorerStorageKey, safeLaborGuideReturnTo, type RepairExplorerCo
 
 export const metadata = { title: "Labor Guide | Dispatch Board" };
 
-export default async function RepairExplorerPreviewPage({ searchParams }: { searchParams?: Promise<{ attachRepairOrder?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[]; draftId?: string | string[]; importExplorer?: string; workflow?: string; system?: string; group?: string; repairOrderId?: string | string[] }> } = {}) {
+export default async function RepairExplorerPreviewPage({ searchParams }: { searchParams?: Promise<{ attachRepairOrder?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[]; draftId?: string | string[]; reviseDocument?: string | string[]; importExplorer?: string; workflow?: string; system?: string; group?: string; repairOrderId?: string | string[] }> } = {}) {
   const params = searchParams ? await searchParams : {};
   const attach = Array.isArray(params.attachRepairOrder) ? params.attachRepairOrder[0] : params.attachRepairOrder;
-  if (params.draftId !== undefined || params.importExplorer === "1" || attach === "1") {
+  if (params.reviseDocument !== undefined || params.draftId !== undefined || params.importExplorer === "1" || attach === "1") {
     return renderLaborGuidePage({ searchParams: Promise.resolve(params) }, "new", "explorer");
   }
   const repairOrderId = Array.isArray(params.repairOrderId) ? params.repairOrderId[0] : params.repairOrderId;

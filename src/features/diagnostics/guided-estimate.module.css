@@ -34,3 +34,6 @@
 }
 
 .guide footer .previewAction { background: #fff; color: #243b60; }
+
+.manualEntry { margin-bottom: 10px; }
+.manualEntry button { margin: 0 8px 8px 0; }
