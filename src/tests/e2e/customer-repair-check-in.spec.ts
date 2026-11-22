@@ -5,8 +5,9 @@ import { prisma } from "@/server/db/client";
 import { prepareIsolatedRepairWorkday } from "./helpers/synthetic-workday";
 
 test("an advisor checks in a vehicle and resumes its existing order without replacing intake details", async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   page.setDefaultTimeout(25_000);
+  page.setDefaultNavigationTimeout(60_000);
   const schema = new URL(process.env.DATABASE_URL ?? "").searchParams.get("schema");
   if (!schema?.startsWith("dispatch_board_e2e_")) throw new Error("Customer check-in requires an isolated browser test schema.");
   const suffix = randomUUID().slice(0, 8);
@@ -43,11 +44,13 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await expect(page.getByRole("heading", { name: /Check-in saved/ })).toBeVisible({ timeout: 25_000 });
   const order = await prisma.repairOrder.findFirstOrThrow({ where: { vehicleId: vehicle.id }, include: { serviceVisit: true } });
   expect(order.serviceVisit.concernSummary).toBe(concern);
-  const estimateHref = await page.getByRole("link", { name: "Build estimate in Labor Guide" }).getAttribute("href");
-  expect(new URL(estimateHref!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
-  await page.getByRole("link", { name: "Inspect or plan diagnosis first" }).click();
+  const postCheckInAction = page.getByRole("navigation", { name: "Continue repair order" }).getByRole("link", { name: "Open inspection checklist" });
+  await expect(postCheckInAction).toBeVisible({ timeout: 30_000 });
+  const inspectionHref = await postCheckInAction.getAttribute("href");
+  expect(new URL(inspectionHref!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
+  await postCheckInAction.click();
   await expect(page.getByRole("heading", { name: "Repair Workbench" })).toBeVisible({ timeout: 25_000 });
-  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${order.id}`);
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${order.id}&resume=1`);
   const stages = page.getByLabel("Repair workflow", { exact: true });
   const shopStateBefore = await prisma.shopReconLifecycle.findUnique({ where: { repairOrderId: order.id }, select: { stage: true, version: true } });
   const switcher = page.getByRole("navigation", { name: "Vehicle workflows" });
@@ -186,6 +189,16 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   expect(await prisma.repairDiagnosisVersion.count({ where: { repairOrderId: order.id } })).toBe(0);
   expect(await prisma.vehicleInspectionVersion.count({ where: { repairOrderId: order.id } })).toBe(1);
   const inspected = await prisma.repairOrder.findUniqueOrThrow({ where: { id: order.id } });
+  await page.goto("/vehicles/registry");
+  await page.getByRole("textbox", { name: /Search VIN/ }).fill(vehicle.vehicleNumber);
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const match = page.getByRole("row").filter({ hasText: vehicle.vehicleNumber });
+  await expect(match.getByRole("link", { name: "Resume diagnosis" })).toBeVisible({ timeout: 30_000 });
+  await expect(match).toContainText(order.repairOrderNumber);
+  await expect(match.getByText("Prepare for Sale")).toHaveCount(0);
+  await match.getByRole("link", { name: "Resume diagnosis" }).click();
+  await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("repairOrderId")).toBe(order.id);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(intakeHref(newConcern));
@@ -199,7 +212,7 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await page.getByRole("button", { name: "Return to intake details" }).click();
   await expect(page.getByRole("textbox", { name: /What is the customer experiencing/ })).toHaveValue(newConcern);
   await footer.getByRole("button", { name: "Continue existing repair order" }).click();
-  await page.getByRole("link", { name: "Continue repair order", exact: true }).click();
+  await page.getByRole("navigation", { name: "Continue repair order" }).getByRole("link", { name: "Resume diagnosis", exact: true }).click();
   await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
   await expect(stages).toBeHidden();
   await page.reload();
@@ -207,4 +220,11 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   const saved = await prisma.repairOrder.findMany({ where: { vehicleId: vehicle.id }, include: { serviceVisit: true } });
   expect(saved).toHaveLength(1);
   expect(saved[0]).toMatchObject({ id: order.id, ownerUserId: order.ownerUserId, version: inspected.version, serviceVisit: { concernSummary: concern } });
+
+  await page.goto(`/vehicles/360/${vehicle.id}?section=identity`);
+  await expect(page.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-current", "page", { timeout: 25_000 });
+  await expect(page.getByRole("link", { name: "Resume diagnosis", exact: true })).toBeVisible();
+  await page.goto(`/vehicles/${vehicle.id}/workbench`);
+  await expect(page.getByRole("link", { name: "Resume diagnosis", exact: true })).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText("Review unavailable work source", { exact: true })).toHaveCount(0);
 });

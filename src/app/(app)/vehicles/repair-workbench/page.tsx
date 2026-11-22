@@ -17,6 +17,8 @@ import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 import { prisma } from "@/server/db/client";
 import { isManager } from "@/server/policies/access";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
+import { getRepairResume, resumedLaborGuideHref } from "@/server/repair-order/resume-service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import { getServiceClosePartsWorkspace } from "@/server/service-close-parts/service";
@@ -31,6 +33,7 @@ type PageProps = {
     contextError?: string;
     step?: string;
     reconPath?: string;
+    resume?: string;
     workflow?: string;
     estimateId?: string;
     tool?: string;
@@ -158,6 +161,12 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       if (returnTo) mismatch.set("returnTo", returnTo);
       if (managerContext) preserveManagerContext(mismatch, managerContext.mode);
       redirect(`/vehicles/repair-workbench?${mismatch}`);
+    }
+    if (params.resume === "1" && !params.step && !params.tool) {
+      const resume = await getRepairResume(user, order.id);
+      if (resume?.useLaborGuide) {
+        redirect(resumedLaborGuideHref(resume, repairReviewHref(order.id, undefined, { returnTo, returnLabel })));
+      }
     }
     const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
     const canOpenAdvisorTools = permittedWorkspaces.some(workspace => workspace.key === "ADVISOR");

@@ -2,6 +2,7 @@ import { VehicleExecutionWorkbench } from "@/features/inventory/vehicle-executio
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getVehicleExecutionWorkbench } from "@/server/inventory-execution/workbench-service";
 import Link from "next/link";
+import { listVehicleWorkActions } from "@/server/repair-order/resume-service";
 
 function VehicleWorkbenchUnavailable({ vehicleId }: { vehicleId: string }) {
   return (
@@ -42,5 +43,6 @@ export default async function VehicleWorkbenchPage({ params }: { params: Promise
   const user = await requireCurrentUser(), { id } = await params;
   const projection = await getVehicleExecutionWorkbench(user, id).catch(() => null);
   if (!projection) return <VehicleWorkbenchUnavailable vehicleId={id} />;
-  return <VehicleExecutionWorkbench initial={JSON.parse(JSON.stringify(projection))} />;
+  const work = await listVehicleWorkActions(user, [id]);
+  return <VehicleExecutionWorkbench initial={JSON.parse(JSON.stringify(projection))} work={work[id]} />;
 }

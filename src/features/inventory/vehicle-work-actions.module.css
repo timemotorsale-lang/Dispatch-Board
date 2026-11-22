@@ -1,0 +1,28 @@
+.toolkit, .order, .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .75rem;
+}
+.toolkit, .order { min-width: 0; }
+.orderContext { display: grid; gap: .1rem; }
+.order span, .order small { color: var(--muted, #526174); font-size: .85em; }
+.order small { max-width: 34ch; }
+.primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.4rem;
+  padding: .35rem .75rem;
+  border-radius: .5rem;
+  background: #4154bb;
+  color: white;
+  font-weight: 650;
+  text-decoration: none;
+}
+.primary:hover { background: #344399; color: white; }
+.more summary, .orderList summary { cursor: pointer; font-weight: 600; }
+.more > div { display: grid; gap: .3rem; padding: .4rem .6rem; }
+.orderList > .order { margin-top: .5rem; }
+@media (max-width: 640px) {
+  .order, .toolkit { align-items: flex-start; flex-direction: column; }
+}

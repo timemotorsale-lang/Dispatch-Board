@@ -7,7 +7,6 @@ import {
   BadgeCheck,
   CalendarClock,
   Camera,
-  CarFront,
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
@@ -23,6 +22,9 @@ import {
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
+import { VehicleWorkToolkit } from "./vehicle-work-actions";
+import type { VehicleWorkActions } from "@/lib/repair-resume";
+import { repairResumeHref } from "@/lib/repair-resume";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -150,7 +152,7 @@ function SafetyIntelligence({ intelligence, loading, error, onRefresh, vehicle }
   </div>;
 }
 
-export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
+export function Vehicle360Workspace({ initial, work }: { initial: Vehicle360View; work?: VehicleWorkActions }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section");
@@ -186,9 +188,10 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   const identityName = [specifications.modelYear ?? vehicle.year, specifications.make ?? vehicle.make, specifications.model ?? vehicle.model, specifications.trim].filter(Boolean).join(" ") || vehicle.vehicleNumber;
   const mileage = view.summary.latestOdometer ? view.summary.latestOdometer.reading : null;
   const missingCanonical = [["Plate", vehicle.licensePlate], ["Color", vehicle.color], ["Year", vehicle.year], ["Make", vehicle.make], ["Model", vehicle.model]].filter(([, value]) => !present(value));
-  const primaryHref = returnTo || (view.tabs.inventory.items.length ? `/vehicles/${vehicle.id}/inventory-planning` : `/vehicles/${vehicle.id}/workbench`);
   const vehicle360Return = withReturn(`/vehicles/360/${vehicle.id}`, returnTo);
-  const primaryLabel = returnTo ? "Return to current workflow" : view.summary.nextAction ? "Continue current work" : "Open vehicle workbench";
+  const primaryHref = work?.orders.length === 1
+    ? repairResumeHref(work.orders[0], vehicle360Return, "Back to Vehicle 360")
+    : withReturn(`/vehicles/${vehicle.id}/workbench`, vehicle360Return);
 
   async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Vehicle 360 request failed."); return body; }
   async function refresh() { setView(await request(`/api/vehicles/${vehicle.id}/360`) as Vehicle360View); }
@@ -198,10 +201,10 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   const safetyYear = Number(specifications.modelYear ?? vehicle.year);
   const safetyMake = String(specifications.make ?? vehicle.make ?? "").trim();
   const safetyModel = String(specifications.model ?? vehicle.model ?? "").trim();
-  const loadSafety = useCallback(async () => { if (!safetyYear || !safetyMake || !safetyModel) { setSafety(null); setSafetyError("Year, make, and model are required before NHTSA safety intelligence can be checked."); return; } setSafetyLoading(true); setSafetyError(""); try { const response = await fetch("/api/service-intake/safety-intelligence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ concern: "", make: safetyMake, model: safetyModel, year: safetyYear }) }); const body = await response.json().catch(() => ({})) as { error?: string; safetyIntelligence?: NhtsaSafetyIntelligence }; if (!response.ok || !body.safetyIntelligence) throw new Error(body.error ?? "Vehicle safety intelligence is unavailable."); setSafety(body.safetyIntelligence); } catch (error) { setSafety(null); setSafetyError(error instanceof Error ? error.message : "Vehicle safety intelligence is unavailable."); } finally { setSafetyLoading(false); } }, [safetyMake, safetyModel, safetyYear]);
+  const loadSafety = useCallback(async () => { if (!safetyYear || !safetyMake || !safetyModel) { setSafety(null); setSafetyError("Year, make, and model are required before NHTSA safety intelligence can be checked."); return; } setSafetyLoading(true); setSafetyError(""); try { const response = await fetch("/api/service-intake/safety-intelligence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ concern: "", make: safetyMake, model: safetyModel, year: safetyYear }) }); const body = await response.json().catch(() => ({})) as { error?: string; safetyIntelligence?: NhtsaSafetyIntelligence }; if (!response.ok || !body.safetyIntelligence) throw new Error(body.error ?? "Vehicle safety intelligence is unavailable."); setSafety(body.safetyIntelligence); } catch (error) { setSafety(null); setSafetyError(error instanceof Error ? error.message : "Vehicle safety intelligence is unavailable."); } finally { setSafetyLoading(false); } }, [safetyMake, safetyModel, safetyYear, setSafety, setSafetyError, setSafetyLoading]);
 
   useEffect(() => {
-    if (view.tabs.specifications.available || !vehicle.vin) return;
+    if (!["identity", "safety"].includes(active) || view.tabs.specifications.available || !vehicle.vin) return;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setDecodeLoading(true);
@@ -219,28 +222,48 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
       }
     }, 0);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [vehicle.vin, view.tabs.specifications.available]);
+  }, [active, vehicle.vin, view.tabs.specifications.available]);
 
-  useEffect(() => { const timer = window.setTimeout(() => void loadSafety(), 0); return () => window.clearTimeout(timer); }, [loadSafety]);
+  useEffect(() => {
+    if (active !== "safety") return;
+    const timer = window.setTimeout(() => void loadSafety(), 0);
+    return () => window.clearTimeout(timer);
+  }, [active, loadSafety]);
 
   return <section className={styles.workspace} aria-label={`Vehicle 360 for ${identityName}`}>
     <header className={styles.hero}>
       <div className={styles.breadcrumb}><Link href="/vehicles/registry">Vehicle registry</Link><span>/</span><span>Vehicle 360</span><span>/</span><strong>{vehicle.vehicleNumber}</strong></div>
-      <div className={styles.identityRow}>
-        <div className={styles.vehicleIcon}><CarFront /></div>
-        <div className={styles.identityCopy}><small>Canonical vehicle command center</small><h1>{identityName}</h1><p>VIN {vehicle.vin ?? vehicle.vinState} · Stock {vehicle.stockNumber ?? "not recorded"} · Plate {vehicle.licensePlate ?? "not recorded"} · {typeof mileage === "number" ? `${mileage.toLocaleString()} mi` : "Mileage not recorded"}</p><div className={styles.badgeRow}><OperationalBadge tone={vehicle.vinState === "VERIFIED" ? "good" : "attention"}><BadgeCheck />VIN {sentence(vehicle.vinState)}</OperationalBadge><OperationalBadge>{relationship(view)}</OperationalBadge>{view.summary.risks.length ? <OperationalBadge tone="attention"><AlertTriangle />{view.summary.risks.length} operational signal{view.summary.risks.length === 1 ? "" : "s"}</OperationalBadge> : <OperationalBadge tone="good"><CheckCircle2 />No active operating risks</OperationalBadge>}</div></div>
-        <div className={styles.heroActions}><button className={styles.secondaryButton} onClick={() => setActive("photos")} type="button"><Camera />360 photos</button><button className={styles.secondaryButton} onClick={() => setActive("evidence")} type="button"><FileText />Add evidence</button><Link className={styles.secondaryButton} href={withReturn(`/vehicles/repair-workbench?vehicleId=${encodeURIComponent(vehicle.id)}`, vehicle360Return)}><Wrench />Start repair order</Link><Link className={styles.primaryButton} href={primaryHref}>{primaryLabel}<ArrowRight /></Link></div>
+      <div className={styles.compactIdentity}>
+        <div className={styles.identityCopy}><h1>{identityName}</h1>
+          <p>{[vehicle.vehicleNumber, vehicle.stockNumber && `Stock ${vehicle.stockNumber}`, typeof mileage === "number" && `${mileage.toLocaleString()} mi`].filter(Boolean).join(" · ")}</p>
+          {returnTo && <Link href={returnTo}>Back to previous work</Link>}
+        </div>
+        <VehicleWorkToolkit work={work} vehicleId={vehicle.id} returnTo={vehicle360Return} returnLabel="Back to Vehicle 360" showDetails={false} />
       </div>
-      <nav className={styles.tabs} aria-label="Vehicle 360 sections">{sections.map(section => <button aria-current={active === section ? "page" : undefined} className={active === section ? styles.activeTab : ""} key={section} onClick={() => setActive(section)} type="button">{section === "photos" ? "360 Photos" : section === "identity" ? "Identity & specifications" : section === "work" ? "Work & service history" : section === "safety" ? "Safety intelligence" : section === "evidence" ? "Evidence & documents" : "Overview"}</button>)}</nav>
+      <nav className={styles.tabs} aria-label="Vehicle 360 sections">{sections.map(section => <button aria-current={active === section ? "page" : undefined} className={active === section ? styles.activeTab : ""} key={section} onClick={() => setActive(section)} type="button">{section === "photos" ? "360 Photos" : section === "identity" ? "Details" : section === "work" ? "Service history" : section === "safety" ? "Safety" : section === "evidence" ? "Documents" : "Overview"}</button>)}</nav>
     </header>
 
     {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? styles.warning : styles.success}><ShieldCheck /><p>{notice}</p></div> : null}
 
-    {decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
+    {active === "identity" && decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
     {active === "evidence" && view.tabs.documents.allowed ? <Link className={styles.secondaryButton} href={`/sales-documents?q=${encodeURIComponent(vehicle.vin || vehicle.stockNumber || identityName)}`}><FileText />Saved sales packets</Link> : null}
-    {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenPhotos={() => setActive("photos")} onOpenSafety={() => setActive("safety")} onOpenWork={() => setActive("work")} primaryHref={primaryHref} vehicle360Return={vehicle360Return} /> : null}
+    {active === "overview" ? <section className={styles.panel}>
+      <div className={styles.quickTools}>
+        <button className={styles.secondaryButton} onClick={() => setActive("identity")} type="button">View VIN &amp; specifications</button>
+        <button className={styles.secondaryButton} onClick={() => setActive("photos")} type="button"><Camera />View photos</button>
+        {view.tabs.documents.allowed && <button className={styles.secondaryButton} onClick={() => setActive("evidence")} type="button"><FileText />Open documents</button>}
+      </div>
+      <details className={styles.extraDetails}><summary>Vehicle status and related records</summary>
+      <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenPhotos={() => setActive("photos")} onOpenSafety={() => setActive("safety")} onOpenWork={() => setActive("work")} primaryHref={primaryHref} vehicle360Return={vehicle360Return} />
+      </details>
+    </section> : null}
     {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { router.push(`/vehicles/${encodeURIComponent(vehicle.id)}/media`); }} /> : null}
-    {active === "identity" ? <VehicleSpecifications view={specificationView} /> : null}
+    {active === "identity" ? <>
+      <section className={styles.panel} aria-label="Vehicle identity">
+        <p>{[vehicle.vin ? `VIN ${vehicle.vin}` : null, vehicle.licensePlate ? `Plate ${vehicle.licensePlate}` : null, relationship(view)].filter(Boolean).join(" · ")}</p>
+      </section>
+      <VehicleSpecifications view={specificationView} />
+    </> : null}
     {active === "work" ? <WorkHistory view={view} /> : null}
     {active === "safety" ? <SafetyIntelligence intelligence={safety} loading={safetyLoading} error={safetyError} onRefresh={() => void loadSafety()} vehicle={vehicle} /> : null}
     {active === "evidence" ? <EvidenceWorkspace accessLevel={accessLevel} busy={busy} category={category} file={file} items={view.tabs.documents.items} allowed={view.tabs.documents.allowed} retention={retention} onAccessLevel={setAccessLevel} onCategory={setCategory} onFile={setFile} onGovern={govern} onRetention={setRetention} onUpload={upload} /> : null}
@@ -292,7 +315,7 @@ function VehicleTruthMap({ view, missingCanonical, onOpenEvidence, onOpenIdentit
     { action: "Continue", detail: view.summary.risks[0] ? sentence(view.summary.risks[0]) : "No active blocker recorded", href: primaryHref, icon: AlertTriangle, label: "Current blocker", value: view.summary.risks.length || "Clear" },
   ];
   return <section className={`${styles.panel} ${styles.truthCenter}`}>
-    <SectionHeading eyebrow="Vehicle truth center" title="Everything important about this vehicle, one jump away" detail="Open only the part of the record needed for the next decision or task." action={<div className={styles.heroActions}><Link className={styles.secondaryButton} href={`/vehicles/${encodeURIComponent(view.summary.vehicle.id)}/sale`}>Prepare for Sale<ArrowRight /></Link><Link className={styles.secondaryButton} href={`/vehicles/${encodeURIComponent(view.summary.vehicle.id)}/sale?mode=as-is`}>Start As-Is Sale<ArrowRight /></Link><Link className={styles.primaryButton} href={primaryHref}>Next best action<ArrowRight /></Link></div>} />
+    <SectionHeading eyebrow="Vehicle truth center" title="Everything important about this vehicle, one jump away" detail="Open only the part of the record needed for the next decision or task."  />
     <div className={styles.truthGrid}>{cards.map(card => {
       const Icon = card.icon;
       const body = <><Icon /><div><small>{card.label}</small><strong>{card.value}</strong><p>{card.detail}</p></div><b>{card.action}<ArrowRight /></b></>;

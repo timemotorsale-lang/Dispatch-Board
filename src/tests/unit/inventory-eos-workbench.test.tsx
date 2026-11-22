@@ -38,7 +38,7 @@ function projection(
 describe("official Vehicle Execution Workbench", () => {
   it("opens first to the neutral vehicle home with role lenses and one-click work areas", () => {
     const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection()} />);
-    for (const value of ["Vehicle Workbench", "View as:", "Neutral vehicle home", "Do This Now", "Replace brake pads", "Current situation", "Lifecycle Planning", "Repair &amp; Shop", "Parts Readiness", "Evidence, files &amp; comments", "Inventory Manager", "Technician", "Return rule"]) expect(html).toContain(value);
+    for (const value of ["Vehicle Workbench", "View as:", "Staff views", "Open current work", "Replace brake pads", "Current situation", "Lifecycle Planning", "Repair &amp; Shop", "Parts Readiness", "Evidence, files &amp; comments", "Inventory Manager", "Technician", "Return rule"]) expect(html).toContain(value);
     expect(html).toContain("/vehicles/vehicle-1/inventory-planning");
     expect(html).toContain("repairOrderId=ro-1&amp;vehicleId=vehicle-1");
     expect(html).toContain("returnTo=%2Fvehicles%2Fvehicle-1%2Fworkbench");
@@ -52,7 +52,7 @@ describe("official Vehicle Execution Workbench", () => {
   it("shows the Parts lens as the same canonical work-order parts records", () => {
     const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection()} initialRoleLens="Parts" />);
 
-    expect(html).toContain("Parts lens shows canonical work-order parts records.");
+    expect(html).toContain('aria-current="page" class="active" type="button">Parts (1)');
     expect(html).toContain("Canonical Parts Records");
     expect(html).toContain("Same demand records shown in Parts Workspace");
     expect(html).toContain("PAD-100");
@@ -68,7 +68,7 @@ describe("official Vehicle Execution Workbench", () => {
 
     expect(html).toContain(">Inventory Manager</button>");
     expect(html).not.toContain(">General Manager</button>");
-    expect(html).toContain("Neutral vehicle home.");
+    expect(html).toContain("Staff views");
   });
 
   it("shows a truthful unavailable state instead of inventing work", () => {

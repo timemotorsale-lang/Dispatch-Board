@@ -122,7 +122,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
       window.localStorage.setItem(storageKey, raw);
       window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
-      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow));
+      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow, context?.returnTo));
     } catch {
       setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
     }
@@ -176,7 +176,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   return (
     <div className={styles.preview}>
       <header className={styles.topbar}>
-        <a href="/my-tasks"><ArrowLeft size={16} /> My work</a>
+        <a href={context?.returnTo ?? "/my-tasks"}><ArrowLeft size={16} /> {context?.returnTo ? "Back to repair order" : "My work"}</a>
         <strong>Dispatch Board <span>/ Labor Guide</span></strong>
       </header>
       <main className={styles.workspace}>

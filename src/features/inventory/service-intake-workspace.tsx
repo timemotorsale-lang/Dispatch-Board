@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import compact from "@/features/inventory/operations-compact.module.css";
+import { RepairOrderActions } from "./vehicle-work-actions";
+import type { RepairResume } from "@/lib/repair-resume";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { autobodyReturnHref, isAutobodyReturn } from "@/lib/autobody-estimating/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -254,19 +256,25 @@ export function CustomerCheckInResult({ order, returnTo, onReturnToIntake }: {
   returnTo?: string;
   onReturnToIntake?: () => void;
 }) {
-  const workbench = repairReviewHref(order.id);
-  const resume = order.reused || order.vendorRouted;
-  const estimate = `/diagnostics/labor-guide?${new URLSearchParams({
-    repairOrderId: order.id, workflow: "review", returnLabel: "Return to repair order", returnTo: workbench,
-  })}`;
+  const workbench = repairReviewHref(order.id, undefined, { returnTo });
+  const [next, setNext] = useState<RepairResume | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`/api/repair-orders/${encodeURIComponent(order.id)}/resume`, { signal: controller.signal })
+      .then(async response => {
+        if (response.ok) setNext(await response.json() as RepairResume);
+      }).catch(() => {});
+    return () => controller.abort();
+  }, [order.id]);
 
   return <section className={`service-intake-shell ${compact.checkInResult}`} aria-labelledby="check-in-result">
     <h1 id="check-in-result">{order.reused ? "Existing repair order found" : "Check-in saved"} · {order.repairOrderNumber}</h1>
     {order.reused && <p role="status">The new concern and custody details are still in intake. {order.vendorRouted ? "The vendor route was saved to the existing order." : "Review the existing order before recording additional work."}</p>}
     {order.vendorRouted && !order.reused && <p role="status">Outside vendor routing was recorded. Review the current vendor step on the repair order.</p>}
     <nav className="sic-success-actions" aria-label="Continue repair order">
-      <Link className="primary" href={resume ? workbench : estimate}>{resume ? "Continue repair order" : "Build estimate in Labor Guide"} <ChevronRight /></Link>
-      {!resume && <Link href={workbench}>Inspect or plan diagnosis first</Link>}
+      {next?.id === order.id
+        ? <RepairOrderActions order={next} returnTo={returnTo} showSummary={false} />
+        : <Link className="primary" href={workbench}>Open repair order <ChevronRight /></Link>}
       {order.reused && onReturnToIntake && <button type="button" onClick={onReturnToIntake}>Return to intake details</button>}
       {returnTo && <Link href={buildServiceIntakeCompletionLinks(order.id, returnTo).returnHref}>Return to source workspace</Link>}
     </nav>

@@ -3,7 +3,7 @@ import { RepairExplorer } from "@/features/prototype/repair-explorer/repair-expl
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getRepairOrderDetail } from "@/server/repair-order/service";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
-import { repairExplorerStorageKey, type RepairExplorerContext } from "@/lib/repair-explorer-context";
+import { repairExplorerStorageKey, safeLaborGuideReturnTo, type RepairExplorerContext } from "@/lib/repair-explorer-context";
 
 export const metadata = { title: "Labor Guide | Dispatch Board" };
 
@@ -22,6 +22,7 @@ export default async function RepairExplorerPreviewPage({ searchParams }: { sear
       if (!order || order.closedAt) throw new Error("Repair order is unavailable.");
       context = {
         reviewWorkflow: params.workflow === "review", repairOrderId: order.id, repairOrderNumber: order.repairOrderNumber,
+        returnTo: safeLaborGuideReturnTo(Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo),
         vehicleId: order.vehicle.id, vehicleLabel: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber,
         vin: order.vehicle.vin, inventoryUnitId: order.inventoryUnit?.id ?? null, inventoryNumber: order.inventoryUnit?.inventoryNumber ?? null,
         concern: order.serviceVisit.concernSummary, laborRate: rate.laborRate,

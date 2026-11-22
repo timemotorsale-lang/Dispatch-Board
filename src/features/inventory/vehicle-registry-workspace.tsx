@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { ArrowRight, Eye } from "lucide-react";
+import { VehicleWorkToolkit } from "./vehicle-work-actions";
+import type { VehicleWorkActions } from "@/lib/repair-resume";
 import styles from "./vehicle-registry-workspace.module.css";
 
 type VehicleListItem = {
@@ -20,6 +21,7 @@ type VehicleListItem = {
   status: string;
   version: number;
   updatedAt: string;
+  work?: VehicleWorkActions;
   _count: { duplicateCasesAsCandidate: number; duplicateCasesAsPrimary: number };
 };
 
@@ -280,16 +282,12 @@ export function VehicleRegistryWorkspace({
     }
   }
 
-  async function refresh(search = query, openSingleMatch = false) {
+  async function refresh(search = query) {
     setBusy(true);
     try {
-      const body = await request(`/api/vehicles?query=${encodeURIComponent(search)}`) as RegistryList;
+      const body = await request(`/api/vehicles?includeWork=1&query=${encodeURIComponent(search)}`) as RegistryList;
       setList(body);
-      if (openSingleMatch && body.items.length === 1) {
-        window.location.assign(vehicleDetailsHref(body.items[0].id));
-      } else if (body.items.length === 1) {
-        await load(body.items[0].id);
-      } else if (!body.items.some((item) => item.id === selected?.id)) {
+      if (!body.items.some((item) => item.id === selected?.id)) {
         setSelected(null);
       }
     } catch (error) {
@@ -458,15 +456,7 @@ export function VehicleRegistryWorkspace({
   return (
     <section className={`page-stack ${styles.workspace}`}>
       <header className="page-copy">
-        <span className="eyebrow">Vehicle Operations · Canonical registry</span>
-        <h1>Find the vehicle and go straight to work</h1>
-        <p>Dealership inventory and linked vehicle records.</p>
-        <div className="form-actions">
-          <Link className="pill pill-primary" href="/vehicles/registry">Find Vehicle / Open Vehicle Details</Link>
-          <Link className="pill pill-secondary" href="/vehicles/inventory">Inventory Lifecycle</Link>
-          <Link className="pill pill-secondary" href="/vehicles/control-tower">Control Tower</Link>
-          <Link className="pill pill-secondary" href="/settings/vehicle-operations">Rollout &amp; health</Link>
-        </div>
+        <h1>Find Work / Vehicle</h1>
       </header>
 
       {notice ? (
@@ -482,16 +472,15 @@ export function VehicleRegistryWorkspace({
       ) : null}
 
       <section className="panel-card">
-        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(query, true); }}>
+        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(query); }}>
           <label className="form-field">
             <span>Search VIN, partial VIN, stock, plate, vehicle, customer, or external ID</span>
             <input onChange={(event) => setQuery(event.target.value)} value={query} />
           </label>
-          <button className="button button-primary" disabled={busy} type="submit">Search and open</button>
+          <button className="button button-primary" disabled={busy} type="submit">Search</button>
         </form>
         <p>
           {activeQuery ? `${list.total} vehicle match${list.total === 1 ? "" : "es"} for "${activeQuery}"` : `${list.total} canonical vehicles`} · page {list.page} of {list.totalPages}
-          {list.items.length === 1 ? " · single match opens automatically" : ""}
         </p>
       </section>
 
@@ -499,14 +488,16 @@ export function VehicleRegistryWorkspace({
         <section className={styles.registry}>
           <div className="page-copy"><h2>Registry</h2></div>
           <div className={styles.table}>
-            {list.items.length ? <table><thead><tr><th>Vehicle</th><th>Stock</th><th>VIN</th><th>Plate</th><th>Status</th><th>Actions</th></tr></thead><tbody>{list.items.map(item => (
+            {list.items.length ? <table><thead><tr><th>Vehicle</th><th>Work &amp; tools</th></tr></thead><tbody>{list.items.map(item => (
               <tr key={item.id} aria-selected={selected?.id === item.id}>
-                <td><Link href={vehicleDetailsHref(item.id)}><strong>{vehicleTitle(item)}</strong></Link><small>{item.vehicleNumber}</small></td>
-                <td>{stockNumberForDisplay(item)}</td>
-                <td>{item.vin ?? item.vinState}</td>
-                <td>{item.licensePlate ?? "Not recorded"}</td>
-                <td>{item.status}{item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}</td>
-                <td><div className={styles.actions}><Link href={`/vehicles/${encodeURIComponent(item.id)}/sale`}>Prepare for Sale<ArrowRight size={16}/></Link><Link href={`/vehicles/${encodeURIComponent(item.id)}/sale?mode=as-is`}>Start As-Is Sale<ArrowRight size={16}/></Link><Link href={vehicleDetailsHref(item.id)} aria-label={`Open Vehicle Details for ${vehicleTitle(item)}`} title="Open Vehicle Details">Vehicle Details<ArrowRight size={16}/></Link><Link href={`/vehicles/360/${item.id}`} aria-label={`Open Vehicle 360 for ${vehicleTitle(item)}`} title="Open Vehicle 360">Vehicle 360<ArrowRight size={16}/></Link><button disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Preview ${vehicleTitle(item)}`} title="Preview here"><Eye size={18}/></button></div></td>
+                <td>
+                  <strong>{vehicleTitle(item)}</strong>
+                  <small>{[item.vehicleNumber, stockNumberForDisplay(item), item.licensePlate].filter(Boolean).join(" · ")}</small>
+                  {item.vin && <small>{item.vin}</small>}
+                  {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary > 0 && <small>Duplicate review required</small>}
+                  <button className={styles.previewLink} disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Registry record for ${vehicleTitle(item)}`}>Registry record</button>
+                </td>
+                <td><VehicleWorkToolkit work={item.work} vehicleId={item.id} returnTo={activeQuery ? `/vehicles/registry?${new URLSearchParams({ query: activeQuery })}` : "/vehicles/registry"} returnLabel="Back to vehicle search" /></td>
               </tr>
             ))}</tbody></table> : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
           </div>
