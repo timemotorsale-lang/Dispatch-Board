@@ -5,10 +5,17 @@ import { repairExplorerHandoffHref } from "@/lib/repair-explorer-context";
 import { laborGuideHref } from "@/features/diagnostics/labor-guide-view-switch";
 import { RepairHandoffTool } from "@/features/prototype/repair-workflow/repair-handoff-tool";
 import { RepairExecutionTool } from "@/features/prototype/repair-workflow/repair-execution-tool";
+import { repairExecutionNextStep } from "@/features/prototype/repair-workflow/technician-execution-state";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { canOpenRepairQc, RepairQcDiagnostics } from "@/features/prototype/repair-workflow/repair-qc-diagnostics";
 
 const empty = { stage: "INTAKE", inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [] };
+it("keeps a started job on Repair and opens QC when the last unfinished job is completed", () => {
+  const jobs = [{ id: "J001", status: "QC_PASSED" }, { id: "J002", status: "DISPATCHED" }];
+  expect(repairExecutionNextStep("START", "J002", jobs)).toBe("repair");
+  expect(repairExecutionNextStep("FINISH", "J002", jobs)).toBe("qc");
+  expect(repairExecutionNextStep("FINISH", "J002", [...jobs, { id: "J003", status: "IN_PROGRESS" }])).toBe("repair");
+});
 const approvedOrder = {
   id: "ro-escape",
   estimateVersions: [{ version: 2, lineItems: [{ key: "labor", type: "LABOR" }], authorizations: [{ disposition: "ACCEPTED", authorizedLineKeys: ["labor"] }] }],

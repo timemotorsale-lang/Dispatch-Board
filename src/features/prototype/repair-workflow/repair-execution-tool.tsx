@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { RepairProcedureEvidenceFields } from "@/features/technician/repair-procedure-evidence-fields";
 import { repairProcedureEvidenceRequirements } from "@/lib/repair-procedure-evidence";
-import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 
 import { notifyRepairReviewSaved, repairReviewHref } from "@/lib/repair-workflow-review";
-import { laborActionLabels, technicianExecutionState, type LaborAction, type TechnicianExecutionJob } from "./technician-execution-state";
+import { laborActionLabels, repairExecutionNextStep, technicianExecutionState, type LaborAction, type TechnicianExecutionJob } from "./technician-execution-state";
 import styles from "./repair-workflow.module.css";
 
 const actions = {
@@ -23,7 +22,6 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
   actorId: string;
   manager: boolean;
 }) {
-  const router = useRouter();
   const [selected, setSelected] = useState(jobs.find(job => ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status))?.id);
   const [chosenAction, setChosenAction] = useState<RepairAction | null>(null);
   const [evidence, setEvidence] = useState(""), [notes, setNotes] = useState(""), [blocker, setBlocker] = useState("");
@@ -31,6 +29,8 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
   const [verification, setVerification] = useState(""), [finding, setFinding] = useState("");
   const [progress, setProgress] = useState("");
   const [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [awaitingRefresh, setAwaitingRefresh] = useState<{ jobId: string; previousStatus: string } | null>(null);
   const saving = useRef(false);
   const pending = useRef<{ signature: string; body: Record<string, unknown> } | null>(null);
   const job = jobs.find(item => item.id === selected) ?? jobs[0];
@@ -38,6 +38,8 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
   const requiredEvidence = repairProcedureEvidenceRequirements(job?.procedureVersion?.requiredEvidence);
   const state = job ? technicianExecutionState(job) : undefined;
   const technician = state?.active?.technicianUserId;
+  const refreshingLabor = awaitingRefresh !== null && awaitingRefresh.jobId === job?.id
+    && awaitingRefresh.previousStatus === job.status;
   const canRecordLabor = Boolean(technician && (manager || technician === actorId));
   const canRecordProgress = Boolean(technician && state?.executable && !state.waitingForParts);
   const available: RepairAction[] = canRecordLabor && state ? [...state.actions] : [];
@@ -48,23 +50,26 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
   function selectJob(id: string) {
     currentJobId.current = id;
     setSelected(id); setChosenAction(null); setEvidence(""); setNotes(""); setVerification("");
-    setBlocker(""); setProgress(""); setFinding(""); setProcedureEvidence({}); setNotice("");
+    setBlocker(""); setProgress(""); setFinding(""); setProcedureEvidence({}); setNotice(""); setFailed(false); setAwaitingRefresh(null);
   }
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (saving.current || !job || !technician || !eventType) return;
+    if (saving.current || refreshingLabor || !job || !technician || !eventType) return;
     if (eventType === "FINISH" && (!notes.trim() || !verification.trim())) {
       setNotice("Enter the work completed and verification performed.");
+      setFailed(true);
       return;
     }
     if (eventType === "FINDING" && !finding.trim()) {
       setNotice("Describe the finding for the advisor.");
+      setFailed(true);
       return;
     }
     saving.current = true;
     setBusy(true);
     setNotice("");
+    setFailed(false);
 
     try {
       const orderUrl = `/api/repair-orders/${encodeURIComponent(repairOrderId)}/planning`;
@@ -98,8 +103,8 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
         pending.current = { signature, body: { ...values, occurredAt: new Date().toISOString(), idempotencyKey: crypto.randomUUID() } };
       }
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current.body) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "Repair action could not be recorded.");
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body) throw new Error(body?.error ?? "The repair update could not be confirmed. Retry the same action to recover it.");
 
       pending.current = null;
       setChosenAction(null);
@@ -110,12 +115,17 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
       setProcedureEvidence({});
       setNotes("");
       setVerification("");
+      const nextStep = repairExecutionNextStep(eventType, job.id, jobs);
+      if (typeof body.result?.status === "string" && body.result.status !== job.status) {
+        setAwaitingRefresh({ jobId: job.id, previousStatus: job.status });
+      }
       setNotice(eventType === "FINDING" ? "Update saved to the advisor’s team inbox."
-        : eventType === "FINISH" ? "Repair update saved. Ready for QC."
+        : eventType === "FINISH" ? (nextStep === "qc" ? "Repair saved. Opening Quality Check." : "This job is ready for QC. Review the remaining repair jobs.")
+        : eventType === "START" || eventType === "RESUME" ? "Repair is in progress. Record the completed work and verification when finished."
         : eventType === "PAUSE" ? "Update saved. This job is paused." : "Repair update saved.");
-      notifyRepairReviewSaved(repairOrderId);
-      if (eventType === "FINISH") router.push(repairReviewHref(repairOrderId, "qc"));
+      notifyRepairReviewSaved(repairOrderId, nextStep);
     } catch (error) {
+      setFailed(true);
       setNotice(error instanceof Error ? error.message : "Request interrupted. Retry unchanged to recover the saved action.");
     } finally {
       saving.current = false;
@@ -151,7 +161,7 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
         }} />
       <details><summary>Add supporting references (optional)</summary><label>References, one per line<textarea rows={2} value={evidence} onChange={event => setEvidence(event.target.value)} /></label></details>
     </>}
-    {eventType && <button disabled={busy} type="submit">{busy ? "Saving…" : actions[eventType]}</button>}
-    {notice && <p role="status">{notice}</p>}
+    {notice && <p role={failed ? "alert" : "status"}>{notice}{refreshingLabor && <> <button type="button" onClick={() => notifyRepairReviewSaved(repairOrderId, "repair")}>Refresh repair status</button></>}</p>}
+    {eventType && <button disabled={busy || refreshingLabor} type="submit">{busy ? "Saving…" : refreshingLabor ? "Refreshing repair…" : actions[eventType]}</button>}
   </form>;
 }

@@ -21,6 +21,11 @@ export const laborActionLabels = {
 
 export type LaborAction = keyof typeof laborActionLabels;
 
+export function repairExecutionNextStep(action: string, finishedJobId: string, jobs: Pick<TechnicianExecutionJob, "id" | "status">[]) {
+  return action === "FINISH" && jobs.every(job => job.id === finishedJobId
+    || ["READY_FOR_QC", "QC_PASSED", "COMPLETED", "CANCELLED"].includes(job.status)) ? "qc" : "repair";
+}
+
 export function technicianExecutionState(job: TechnicianExecutionJob) {
   const active = job.dispatches.find(dispatch => dispatch.status === "ACTIVE");
   const staged = job.dispatches.find(dispatch => dispatch.status === "STAGED");
