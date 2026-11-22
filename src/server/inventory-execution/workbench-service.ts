@@ -102,7 +102,7 @@ export async function getVehicleExecutionWorkbench(actor: AuthenticatedUser | nu
     staged,
     other: packetRows.filter(packet => packet !== current && packet !== staged)
   };
-  const workOrders = { allowed: view.tabs.service.allowed, items: orders.map(order => ({ ...order, jobs: list(order.repairJobs) })) };
+  const workOrders = { allowed: view.tabs.service.allowed, items: orders.map(order => ({ ...order, id: order.id, jobs: list(order.repairJobs) })) };
   const parts = { allowed: view.tabs.parts.allowed, demands, custody: view.tabs.parts.custody.map(record) };
   const evidence = { allowed: view.tabs.documents.allowed, items: documents };
   const operation = { ...view.summary, vehicle: undefined };
@@ -121,6 +121,7 @@ export async function getVehicleExecutionWorkbench(actor: AuthenticatedUser | nu
     generatedAt: (input.now ?? (() => new Date()))().toISOString(),
     roleLenses,
     identity: view.summary.vehicle,
+    ...("inventory" in view.tabs && view.tabs.inventory.allowed ? { hasInventoryRecord: view.tabs.inventory.items.length > 0 } : {}),
     operation,
     overview: buildVehicleWorkbenchOverview({ activity: view.timeline, evidence, identity: view.summary.vehicle, links, operation, parts, work, workOrders }),
     work,

@@ -1,6 +1,7 @@
 "use client";
 
 import { currentRepairWorkflowStep, repairReviewHref } from "@/lib/repair-workflow-review";
+import { reconRepairPathOptions, type ReconRepairPath } from "@/lib/recon-repair-paths";
 
 import {
   Activity,
@@ -182,20 +183,7 @@ type RelatedPurchaseOrder = {
   vendor?: { name?: string } | null;
 };
 
-type ReconRepairPath = "MECHANICAL" | "BODYWORK" | "OUTSIDE_VENDOR" | "DETAIL_PREP" | "INSPECTION_ONLY";
 type RoSummaryDrawer = "progress" | "subtasks" | "checklist" | "comments" | "fullTools" | "repairDetails";
-
-const reconRepairPathOptions: Array<{
-  detail: string;
-  label: string;
-  value: ReconRepairPath;
-}> = [
-  { detail: "Diagnosis, estimate, parts, repair, QC", label: "Mechanical repair", value: "MECHANICAL" },
-  { detail: "Visible damage, body labor, paint, vendor if needed", label: "Bodywork", value: "BODYWORK" },
-  { detail: "Send out, track estimate, approval, ETA, return", label: "Outside vendor", value: "OUTSIDE_VENDOR" },
-  { detail: "Detail, cleanup, recon package, frontline prep", label: "Detail / prep", value: "DETAIL_PREP" },
-  { detail: "Verify condition, document, then close or QC", label: "Inspection only", value: "INSPECTION_ONLY" },
-];
 
 type DiagnosticsBridge =
   | Awaited<ReturnType<typeof getRepairOrderDiagnosticsBridge>>
@@ -651,6 +639,7 @@ export function RepairOrderEnterpriseWorkbench({
   order,
   options,
   relatedPurchaseOrders = [],
+  recordTool,
   returnLabel,
   returnTo,
   showAdvisorReturn = false,
@@ -665,6 +654,7 @@ export function RepairOrderEnterpriseWorkbench({
   order: RepairOrderWorkbenchOrder;
   options: Options;
   relatedPurchaseOrders?: RelatedPurchaseOrder[];
+  recordTool?: RoSummaryDrawer | "details" | "recon" | "close";
   returnLabel?: string;
   returnTo?: string;
   showAdvisorReturn?: boolean;
@@ -673,7 +663,7 @@ export function RepairOrderEnterpriseWorkbench({
   const router = useRouter();
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [closePanelOpen, setClosePanelOpen] = useState(false);
+  const [closePanelOpen, setClosePanelOpen] = useState(recordTool === "close");
   const [closedLocally, setClosedLocally] = useState(false);
   useEffect(() => {
     try { if (sessionStorage.getItem(`repair-order-close:${order.id}`)) queueMicrotask(() => setClosePanelOpen(true)); } catch { /* Server-confirmed closure still remains visible. */ }
@@ -684,7 +674,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [evidencePreviewOpen, setEvidencePreviewOpen] = useState(false);
   const [useInternalRecon, setUseInternalRecon] = useState(false);
   const [reconReportOpen, setReconReportOpen] = useState(false);
-  const [activeRoDrawer, setActiveRoDrawer] = useState<RoSummaryDrawer | null>(null);
+  const [activeRoDrawer, setActiveRoDrawer] = useState<RoSummaryDrawer | null>(() => recordTool && recordTool !== "details" && recordTool !== "recon" && recordTool !== "close" ? recordTool : null);
   const [roCommentDraft, setRoCommentDraft] = useState("");
   const [roCommentSaving, setRoCommentSaving] = useState(false);
   const [roCommentMessage, setRoCommentMessage] = useState("");
@@ -693,7 +683,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [vehicleColorBusy, setVehicleColorBusy] = useState(false);
   const [vehicleVersion, setVehicleVersion] = useState(order.vehicle.version ?? 0);
   const [selectedReconPath, setSelectedReconPath] = useState<ReconRepairPath>(() => inferReconRepairPath(order));
-  const [advancedDetailOpen, setAdvancedDetailOpen] = useState(false);
+  const [advancedDetailOpen, setAdvancedDetailOpen] = useState(recordTool === "details");
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
@@ -1395,9 +1385,11 @@ export function RepairOrderEnterpriseWorkbench({
     </section>
   ) : null;
 
+  if (recordTool === "recon") return reconReportPanel;
+
   return (
     <section className={`rowb-shell${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
-      {fullDetailMode ? (
+      {fullDetailMode && !recordTool ? (
         <>
           <header className="rowb-header">
             <div>
@@ -1455,7 +1447,7 @@ export function RepairOrderEnterpriseWorkbench({
         </>
       ) : null}
       {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
-      {fullDetailMode ? (
+      {fullDetailMode && !recordTool ? (
         <section className="rowb-daily-command" aria-label="Daily repair-order action">
           <div className="rowb-daily-primary">
             <span>Today&apos;s RO action</span>
@@ -1494,7 +1486,7 @@ export function RepairOrderEnterpriseWorkbench({
       ) : null}
       {!fullDetailMode ? (
       <section className="rowb-summary-card" aria-label="Vehicle summary card">
-        <nav className="rowb-summary-nav" aria-label="Repair order navigation">
+        {!recordTool && <><nav className="rowb-summary-nav" aria-label="Repair order navigation">
           <div>
             {returnTo ? (
               <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link>
@@ -1557,6 +1549,7 @@ export function RepairOrderEnterpriseWorkbench({
           <Link href={repairReviewHref(order.id, "qc")}>Quality check <ChevronRight /></Link>
           <Link href={repairReviewHref(order.id, "handoff")}>Closeout &amp; handoff <ChevronRight /></Link>
         </nav>}
+        </>}
         {closePanelOpen && <RepairOrderCloseForm repairOrderId={order.id} expectedVersion={currentVersion} onLockChange={setBusy} onCancel={() => setClosePanelOpen(false)} onClosed={result => {
           if (result.version && result.version > currentVersion) setCurrentVersion(result.version);
           setClosedLocally(true); setClosePanelOpen(false);
@@ -1564,6 +1557,7 @@ export function RepairOrderEnterpriseWorkbench({
           if (returnTo) router.push(returnToAfterRepairOrderClose(returnTo, order.id));
           router.refresh();
         }} />}
+        {!recordTool && <>
         {reconPathSelector}
         {reconReportOpen ? reconReportPanel : null}
         <dl className="rowb-summary-facts">
@@ -1580,15 +1574,16 @@ export function RepairOrderEnterpriseWorkbench({
             </span>
           ))}
         </div>
+        </>}
         <div className="rowb-summary-drawer-stack">
-          <nav className="rowb-summary-drawer-tabs" aria-label="Repair order drawers">
+          {!recordTool && <nav className="rowb-summary-drawer-tabs" aria-label="Repair order drawers">
             <button aria-pressed={activeRoDrawer === "progress"} onClick={() => toggleRoDrawer("progress")} type="button"><Activity />Progress / Updates <span>{reportEvents.length}</span></button>
             <button aria-pressed={activeRoDrawer === "subtasks"} onClick={() => toggleRoDrawer("subtasks")} type="button"><ListChecks />Subtasks <span>{roSubtasks.length}</span></button>
             <button aria-pressed={activeRoDrawer === "checklist"} onClick={() => toggleRoDrawer("checklist")} type="button"><ClipboardCheck />Checklist <span>{openSummaryChecklistCount}</span></button>
             <button aria-pressed={activeRoDrawer === "comments"} onClick={() => toggleRoDrawer("comments")} type="button"><MessageSquareText />Comments <span>{summaryCommentCount}</span></button>
             <button aria-pressed={activeRoDrawer === "fullTools"} onClick={() => toggleRoDrawer("fullTools")} type="button"><Grid3X3 />Full tools <span>{workspaceTabs.length}</span></button>
             <button aria-pressed={activeRoDrawer === "repairDetails"} onClick={() => toggleRoDrawer("repairDetails")} type="button"><Wrench />RO statistics <span>{repairDetailCount}</span></button>
-          </nav>
+          </nav>}
           {activeRoDrawer ? (
             <section className="rowb-summary-drawer-panel">
               {activeRoDrawer === "progress" ? (
@@ -1638,7 +1633,7 @@ export function RepairOrderEnterpriseWorkbench({
                   )) : <p><span>RO comments</span><b>None yet</b>Add the first repair-order comment above.</p>}
                 </div>
               ) : null}
-              {activeRoDrawer === "fullTools" ? (
+              {activeRoDrawer === "fullTools" ? (<>
                 <div className="rowb-summary-drawer-tools">
                   <Link href={calendarPlannerHref}>
                     <CalendarClock />
@@ -1654,7 +1649,8 @@ export function RepairOrderEnterpriseWorkbench({
                     </Link>
                   ))}
                 </div>
-              ) : null}
+                {recordTool === "fullTools" && reconReportOpen ? reconReportPanel : null}
+              </>) : null}
               {activeRoDrawer === "repairDetails" ? (
                 <div className="rowb-summary-details rowb-summary-details-panel" id="repair-order-details">
                   <article>
@@ -2021,7 +2017,7 @@ export function RepairOrderEnterpriseWorkbench({
       </div>
       </details>
       ) : null}
-      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(order.id)}`}>Billing &amp; receipts</Link>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
+      {!recordTool && <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div><Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(order.id)}`}>Billing &amp; receipts</Link>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/recon-repair-advisor">Recon / Repair Advisor</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>}
     </section>
   );
 }

@@ -8,7 +8,7 @@ describe("invoice prerequisites", () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain("Passed QC record missing");
     expect(html).toContain("Complete the approved repair jobs");
-    expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
+    expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
     expect(html).toContain(">Open repair job QC</a>");
     expect(html).toContain("A part number is optional");
     expect(html).not.toContain("step=estimate");

@@ -147,7 +147,7 @@ test("compact intake saves real linked records on one page, recovers retries and
   await page.goto("/prototype/repair-workflow");
   await page.getByRole("searchbox").fill(fixture.vin);
   await page.getByRole("button", { name: "Find work", exact: true }).click();
-  await expect(page).toHaveURL(`/prototype/repair-workbench?repairOrderId=${saved.result.repairOrderId}`);
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${saved.result.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Repair Workbench", exact: true })).toBeVisible();
   await expect(page.locator('nav[aria-label="Repair workflow"] a')).toHaveCount(9);
   await expect(page.locator('[data-repair-workflow-tool] details[id^="repair-planning-step-"]')).toHaveCount(1);
@@ -162,7 +162,7 @@ test("compact intake saves real linked records on one page, recovers retries and
   const prerequisites = page.getByRole("region", { name: "QC prerequisites" });
   await expect(prerequisites).toContainText("Estimate missing");
   await prerequisites.getByRole("link", { name: "Open estimate" }).click();
-  await expect(page).toHaveURL(`/prototype/repair-workbench?repairOrderId=${saved.result.repairOrderId}&step=estimate`);
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${saved.result.repairOrderId}&step=estimate`);
   await page.getByRole("link", { name: /^9\. Closeout/ }).click();
   await expect(page.getByRole("button", { name: "Close repair & record handoff", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Keys verified", exact: true })).not.toBeChecked();

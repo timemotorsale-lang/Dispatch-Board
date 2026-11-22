@@ -233,7 +233,7 @@ async function completeHandoffThroughBrowser(page: Page) {
   for (let index = 0; index < 19; index++) await checks.nth(index).getByRole("button", { name: /Pass$/ }).click();
   await finalQc.getByRole("button", { name: "Mark Frontline Ready", exact: true }).click();
   await expect.poll(() => prisma.repairOrderReleaseAuthorization.count({ where: { repairOrderId: repairOrderId } })).toBe(1);
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${repairOrderId}&step=handoff`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${repairOrderId}&step=handoff`);
   await page.getByLabel("Receiving person / department", { exact: true }).fill("Synthetic training customer");
   await page.getByLabel("Final odometer", { exact: true }).fill("123456");
   await page.getByLabel("Handoff evidence (one reference per line)", { exact: true }).fill("synthetic:training-handoff-no-real-vehicle");

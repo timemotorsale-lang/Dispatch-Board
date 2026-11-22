@@ -14,11 +14,12 @@ test("Billing & receipts prepares an older package and issues the approved estim
   const login = await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } });
   expect(login.ok()).toBe(true);
   await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Synthetic invoice conversion verification.");
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=handoff`);
-  await page.getByRole("link", { name: "Billing & receipts", exact: true }).click();
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=handoff`);
+  await page.locator("summary").filter({ hasText: "Tools ⋮" }).click();
+  await page.getByRole("navigation", { name: "Repair order tools" }).getByRole("link", { name: "Billing & receipts", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Service Billing" })).toBeVisible();
   await expect(page.getByText(/older package needs to be refreshed/)).toBeVisible({ timeout: 20_000 });
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=handoff`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=handoff`);
   await page.getByRole("link", { name: "View / Print estimate" }).click();
   await expect(page.getByRole("heading", { name: "Repair Estimate" })).toBeVisible();
   await page.getByRole("button", { name: "Convert estimate to invoice" }).click();
@@ -67,9 +68,9 @@ test("an approved estimate without active repair jobs shows the recovery step", 
   await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Synthetic invoice readiness verification.");
   await page.goto(`/vehicles/service-billing?repairOrderId=${blockedOrderId}`);
   await expect(page.getByRole("heading", { name: "Approved repair jobs haven’t been created" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Review approved repair jobs" })).toHaveAttribute("href", `/prototype/repair-workbench?repairOrderId=${blockedOrderId}&step=parts`);
+  await expect(page.getByRole("link", { name: "Review approved repair jobs" })).toHaveAttribute("href", `/vehicles/repair-workbench?repairOrderId=${blockedOrderId}&step=parts`);
   await expect(page.getByRole("button", { name: "Create Final Invoice" })).toHaveCount(0);
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${blockedOrderId}&step=qc`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${blockedOrderId}&step=qc`);
   const draftSummary = page.getByText("Optional QC draft · does not clear invoicing", { exact: true });
   const saveDraft = page.getByRole("button", { name: "Save QC draft" });
   await expect(draftSummary).toBeVisible();

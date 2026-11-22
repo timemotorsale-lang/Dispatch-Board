@@ -1,10 +1,24 @@
 import { waitingJobPartsReady } from "./repair-job-parts-readiness";
+import type { ReconRepairPath } from "./recon-repair-paths";
 
 export const repairWorkflowSteps = ["inspection", "diagnosis", "estimate", "authorization", "parts", "assignment", "repair", "qc", "handoff"] as const;
 export type RepairWorkflowStep = typeof repairWorkflowSteps[number];
 export const repairWorkflowLabels: Record<RepairWorkflowStep, string> = { inspection: "Inspect", diagnosis: "Diagnose / scope", estimate: "Estimate", authorization: "Authorize", parts: "Parts & release", assignment: "Assign", repair: "Repair", qc: "Quality check", handoff: "Closeout / handoff" };
-export function repairReviewHref(repairOrderId: string, step?: RepairWorkflowStep) {
-  return `/prototype/repair-workbench?${new URLSearchParams({ repairOrderId, ...(step ? { step } : {}) })}`;
+export function repairReviewHref(repairOrderId: string, step?: RepairWorkflowStep, context: {
+  returnTo?: string;
+  returnLabel?: string;
+  tool?: string;
+  reconPath?: ReconRepairPath;
+  workflow?: "shop";
+} = {}) {
+  const query = new URLSearchParams({ repairOrderId });
+  if (step) query.set("step", step);
+  if (context.returnTo) query.set("returnTo", context.returnTo);
+  if (context.returnLabel) query.set("returnLabel", context.returnLabel);
+  if (context.tool) query.set("tool", context.tool);
+  if (context.reconPath) query.set("reconPath", context.reconPath);
+  if (context.workflow) query.set("workflow", context.workflow);
+  return `/vehicles/repair-workbench?${query}`;
 }
 export function currentRepairWorkflowStep(order: {
   closedAt?: unknown; stage: string; releaseAuthorization?: unknown;
@@ -23,6 +37,7 @@ export function currentRepairWorkflowStep(order: {
   const vendor = order.vendorWorks?.find(work => !["CANCELLED", "COMPLETED"].includes(work.status));
   if (vendor) {
     if (["RETURNED", "QC_REQUIRED"].includes(vendor.status)) return "qc";
+    if (vendor.status === "WAITING_PARTS") return "parts";
     if (["ESTIMATE_NEEDED", "SUPPLEMENT_NEEDED"].includes(vendor.status)) return "estimate";
     if (!["APPROVED", "NOT_REQUIRED"].includes(vendor.approvalStatus)) return "authorization";
     return "repair";

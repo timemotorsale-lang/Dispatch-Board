@@ -62,8 +62,9 @@ describe("recorded work visibility", () => {
     expect(order.estimateVersions[0].version).toBe(1);
   });
   it("keeps saved context visible while looking at parts without implying navigation is completion", () => {
-    const html = renderToStaticMarkup(<RepairWorkflowFrame repairOrderId="selected-ro" number="RO-1" vehicle="Ford" stock="406095" location="Shop" current="parts" selected="parts" closed={false} stepStatus={repairWorkflowEvidence(fixture())} recordedWork={<p>Saved estimate v2</p>}><p>Parts form</p></RepairWorkflowFrame>);
-    expect(html).toContain('href="/vehicles/service-billing?repairOrderId=selected-ro">Billing &amp; receipts</a>');
+    const html = renderToStaticMarkup(<RepairWorkflowFrame shopView repairOrderId="selected-ro" vehicleId="vehicle" owner="Advisor Morgan" concern="Brakes" inventoryRecon={false} number="RO-1" vehicle="Ford" stock="406095" location="Shop" current="parts" selected="parts" closed={false} stepStatus={repairWorkflowEvidence(fixture())} recordedWork={<p>Saved estimate v2</p>}><p>Parts form</p></RepairWorkflowFrame>);
+    expect(html).toContain('/vehicles/service-billing?repairOrderId=selected-ro&amp;returnTo=');
+    expect(html).toContain("Repair order tools");
     expect(html).toContain("Saved estimate v2");
     expect(html).toContain("Saved · v2");
     expect(html).toContain("Pending · v2");

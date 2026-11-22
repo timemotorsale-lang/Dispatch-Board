@@ -11,3 +11,20 @@
  .correctionFields textarea,.correctionFields input{min-height:38px;border:1px solid #c5d2df;border-radius:6px;padding:9px;color:#172942;background:#fff;font:inherit;resize:vertical}
  .correctionFields textarea{min-height:84px}
  .correctionFields label:nth-child(3),.correctionFields .inlineActions{grid-column:1/-1}
+
+.focusedLifecycle { min-width: 0; padding: 12px; }
+.focusedHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 14px; }
+.focusedHeader h1 { margin: 0 0 4px; font-size: 1.35rem; }
+.focusedLifecycle .stageStrip { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(105px, 1fr); margin: 0; }
+.focusedLifecycle .stageStrip button[aria-current="step"] { box-shadow: inset 0 -3px #3261d6; }
+.focusedNotice { margin: 10px 0; color: var(--text-secondary, #52657b); }
+.focusedTool { padding: 12px; border: 1px solid var(--line, #ccd7e4); border-radius: 8px; background: var(--surface, #fff); }
+.focusedTool > h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.focusedTool .reviewBody { grid-template-columns: minmax(0, 1fr); padding: 0 0 10px; }
+.focusedTool .stageForm { max-width: 880px; padding: 0; }
+.focusedTool .checklistRow { padding: 8px; }
+.focusedTool .checklistRowFields textarea { min-height: 52px; }
+.receivingExtras { border: 1px solid var(--line, #ccd7e4); border-radius: 8px; padding: 8px; }
+.receivingExtras summary { font-weight: 700; cursor: pointer; }
+.receivingExtras[open] > section { margin-top: 8px; }
+.focusedActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

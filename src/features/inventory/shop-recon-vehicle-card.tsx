@@ -10,9 +10,12 @@ import { evaluateShopReconPilotProgress, type ShopReconPilotScenario } from "@/s
 import { getShopReconStageWorkspace, type ShopReconFormField } from "@/server/shop-recon/stage-workspace";
 import { getShopReconStageHref } from "./shop-recon-navigation";
 import { ShopReconParallelTitlePreparation, type TitlePreparationWorkspace } from "./shop-recon-parallel-title-preparation";
+import { VehicleWorkflowSwitch } from "@/features/prototype/repair-workflow/vehicle-workflow-switch";
+import styles from "./shop-recon-lifecycle.module.css";
 
 export type ShopReconVehicleCardModel = {
   id: string;
+  stage?: string;
   vehicleId: string | null;
   vin: string | null;
   repairOrderNumber: string;
@@ -96,9 +99,10 @@ function stageLoopGuidance(stage: ShopReconStageCode, item: ShopReconVehicleCard
   return guidance;
 }
 
-export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, returnTo = "/vehicles/shop-recon", titlePreparationWorkspace = null }: { initialStage?: string; item: ShopReconVehicleCardModel; lifecycleWorkspace: ShopReconLifecycleWorkspaceModel; returnTo?: string; titlePreparationWorkspace?: TitlePreparationWorkspace }) {
+export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, returnTo = "/vehicles/shop-recon", titlePreparationWorkspace = null, focused = false, inventoryHref, inventoryUnavailableReason }: { initialStage?: string; item: ShopReconVehicleCardModel; lifecycleWorkspace: ShopReconLifecycleWorkspaceModel; returnTo?: string; titlePreparationWorkspace?: TitlePreparationWorkspace; focused?: boolean; inventoryHref?: string; inventoryUnavailableReason?: string }) {
   const lifecycle = lifecycleWorkspace.lifecycle;
   const [selectedStage, setSelectedStage] = useState<ShopReconStageCode>(() => stageFromQuery(initialStage, lifecycle.stage));
+  const [stageExpanded, setStageExpanded] = useState(!focused || Boolean(initialStage));
   const [checklist, setChecklist] = useState<Record<string, boolean>>(lifecycleWorkspace.currentDraft?.checklist ?? {});
   const [formData, setFormData] = useState<Record<string, unknown>>(lifecycleWorkspace.currentDraft?.formData ?? {});
   const [evidenceText, setEvidenceText] = useState((lifecycleWorkspace.currentDraft?.evidence ?? []).join("\n"));
@@ -112,10 +116,12 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
   const workspace = getShopReconStageWorkspace(selectedStage);
   const operationalWorkspace = getShopReconOperationalWorkspace(selectedStage, item.workLane);
   const usesExternalIntake = selectedStage === "SERVICE_RECON_JOB_INTAKE";
-  const laneClass = item.workLane === "INVENTORY_RECON" ? "inventory" : "customer", isCurrent = selectedStage === lifecycle.stage;
+  const laneClass = item.workLane === "INVENTORY_RECON" ? "inventory" : "customer";
+  const closed = item.stage === "CLOSED" || lifecycle.operatingState === "CLOSED";
+  const isCurrent = selectedStage === lifecycle.stage && !closed;
   const overallLifecycle = item.workLane === "INVENTORY_RECON" ? words(item.inventoryLifecycleStage ?? "RECONDITIONING") : "Customer Repair";
   const currentIndex = SHOP_RECON_STAGES.findIndex(stage => stage.code === lifecycle.stage), selectedIndex = SHOP_RECON_STAGES.findIndex(stage => stage.code === selectedStage), nextStage = SHOP_RECON_STAGES[currentIndex + 1]?.code ?? (currentIndex === 15 ? "VEHICLE_HANDOVER_SHOP_EXIT" : null), requiresPublishedEvidence = currentIndex < 16;
-  const stageReturnTo = getShopReconStageHref(item.id, selectedDefinition.code, returnTo);
+  const stageReturnTo = getShopReconStageHref(item.id, selectedDefinition.code, returnTo, focused);
   const stageReturnLabel = `Return to Shop & Recon · Stage ${selectedDefinition.order}: ${selectedDefinition.label}`;
   const sourceContext = new URLSearchParams({ repairOrderId: item.id, returnLabel: stageReturnLabel, returnTo: stageReturnTo, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}) });
   const assignmentHref = `/vehicles/repair-workbench?${sourceContext.toString()}#assignment`;
@@ -253,9 +259,9 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
   async function publishEvidenceRequest(expectedVersion: number) { return post(`/api/shop-recon/${item.id}/evidence`, { expectedVersion, idempotencyKey: crypto.randomUUID(), reason: `Published authoritative operational evidence for ${workspace.formTitle}.` }); }
   async function moveStageRequest(destination: ShopReconStageCode, expectedVersion: number) { return post(`/api/shop-recon/${item.id}/transition`, { toStage: destination, expectedVersion, idempotencyKey: crypto.randomUUID(), reason: currentIndex === 15 && destination === lifecycle.stage ? "Completed the physical Shop exit and custody handoff under the approved terminal-stage policy." : destination === nextStage ? `Completed ${workspace.formTitle} and advanced under the approved stage policy.` : `General Manager controlled movement from ${lifecycle.stage} to ${destination}.`, facts: {}, overrideId: overrideId || null }); }
   function responseVersion(response: { version?: number; result?: { lifecycleVersion?: number } }, fallback: number) { return response.version ?? response.result?.lifecycleVersion ?? fallback + 1; }
-  async function saveDraft() { setBusy(true); setFeedback(null); try { await saveDraftRequest(lifecycle.version); setDirty(false); setFeedback({ tone: "success", text: "Draft saved. The vehicle did not move; your name and save time were recorded." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Draft could not be saved." }); } finally { setBusy(false); } }
-  async function publishEvidence() { setBusy(true); setFeedback(null); try { await publishEvidenceRequest(lifecycle.version); setFeedback({ tone: "success", text: "Operational evidence published and linked to its authoritative Shop records. The stage has not moved." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Operational evidence could not be published." }); } finally { setBusy(false); } }
-  async function moveStage(destination: ShopReconStageCode) { setBusy(true); setFeedback(null); try { await moveStageRequest(destination, lifecycle.version); window.location.assign(getShopReconStageHref(item.id, destination, returnTo)); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Stage could not be completed." }); } finally { setBusy(false); } }
+  async function saveDraft() { setBusy(true); setFeedback(null); try { await saveDraftRequest(lifecycle.version); setDirty(false); setFeedback({ tone: "success", text: "Draft saved. The vehicle did not move; your name and save time were recorded." }); if (focused) window.location.assign(stageReturnTo); else window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Draft could not be saved." }); } finally { setBusy(false); } }
+  async function publishEvidence() { setBusy(true); setFeedback(null); try { await publishEvidenceRequest(lifecycle.version); setFeedback({ tone: "success", text: "Operational evidence published and linked to its authoritative Shop records. The stage has not moved." }); if (focused) window.location.assign(stageReturnTo); else window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Operational evidence could not be published." }); } finally { setBusy(false); } }
+  async function moveStage(destination: ShopReconStageCode) { setBusy(true); setFeedback(null); try { await moveStageRequest(destination, lifecycle.version); window.location.assign(getShopReconStageHref(item.id, destination, returnTo, focused)); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Stage could not be completed." }); } finally { setBusy(false); } }
   async function finalizeShopExit() {
     if (!nextStage) return;
     if (!stageEvidenceComplete) return openCompletionGate("Add one handoff note before finalizing this repair order.");
@@ -274,7 +280,7 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
       setBusy(false);
     }
   }
-  async function returnToPartsReadiness() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/parts-readiness`, { expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: "Repair work paused because required parts are not purchased, reserved, or available." }); window.location.assign(getShopReconStageHref(item.id, "PARTS_RESOURCE_READINESS", returnTo)); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Parts readiness could not be reopened." }); } finally { setBusy(false); } }
+  async function returnToPartsReadiness() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/parts-readiness`, { expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: "Repair work paused because required parts are not purchased, reserved, or available." }); window.location.assign(getShopReconStageHref(item.id, "PARTS_RESOURCE_READINESS", returnTo, focused)); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Parts readiness could not be reopened." }); } finally { setBusy(false); } }
   async function grantOverride() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/override`, { kind: overrideKind, expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: overrideReason, boundaries: ["Applies only to this vehicle and current stage"] }); setFeedback({ tone: "success", text: "General Manager exception recorded. Safety, identity, authorization, QC, road-test, and release gates remain non-overridable." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Override could not be recorded." }); } finally { setBusy(false); } }
   async function submitScopeChange() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/scope-change`, { expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: "Additional finding changed the currently authorized repair scope.", finding: scopeFinding, affectedRepairJobIds: [], originalScope: formData, proposedScope: { finding: scopeFinding } }); setFeedback({ tone: "success", text: "Affected work stopped. A new scope version was created and the card returned to Findings Verification." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Scope change could not be submitted." }); } finally { setBusy(false); } }
   function openCompletionGate(message: string) {
@@ -357,11 +363,27 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
       </>}
       <small>{currentIndex === 15 ? "Finalize RO records the handoff note, publishes the terminal stage record, and closes Shop control in one action." : "Saving records all work, corrections, evidence references, user attribution, and time without moving the vehicle. Completion separately rechecks every gate."}</small>
     </section>;
-    if (selectedIndex < currentIndex && lifecycleWorkspace.permissions.canOverride) return <section className="srv-live-actions"><h2>Controlled Stage Movement</h2><p>A General Manager override for backward movement or reopening is required.</p><label><span>Approved exception</span><select onChange={event => setOverrideId(event.target.value)} value={overrideId}><option value="">Select an active override</option>{activeOverrides.filter(record => ["CONTROLLED_BACKWARD_MOVEMENT", "REOPEN_STAGE"].includes(record.kind)).map(record => <option key={record.id} value={record.id}>{words(record.kind)} · {record.authorizedByName}</option>)}</select></label><button disabled={busy || !overrideId} onClick={() => moveStage(selectedStage)} type="button"><RotateCcw />Move vehicle to this stage</button></section>;
+    if (!closed && selectedIndex < currentIndex && lifecycleWorkspace.permissions.canOverride) return <section className="srv-live-actions"><h2>Controlled Stage Movement</h2><p>A General Manager override for backward movement or reopening is required.</p><label><span>Approved exception</span><select onChange={event => setOverrideId(event.target.value)} value={overrideId}><option value="">Select an active override</option>{activeOverrides.filter(record => ["CONTROLLED_BACKWARD_MOVEMENT", "REOPEN_STAGE"].includes(record.kind)).map(record => <option key={record.id} value={record.id}>{words(record.kind)} · {record.authorizedByName}</option>)}</select></label><button disabled={busy || !overrideId} onClick={() => moveStage(selectedStage)} type="button"><RotateCcw />Move vehicle to this stage</button></section>;
     return <section className="srv-live-actions"><h2>Future-stage preview</h2><p>This stage becomes operational after the current stage and all required gates are complete.</p></section>;
   })();
 
-  return <section className={`srv-card lane-${laneClass}`} aria-label={`Unified vehicle card for ${item.vehicle}`}>
+  const StageDetails = focused ? "details" : "div";
+  return <section className={`srv-card lane-${laneClass}${focused ? ` ${styles.focused}` : ""}`} aria-label={`Unified vehicle card for ${item.vehicle}`} onClickCapture={event => {
+    const link = (event.target as HTMLElement).closest("a");
+    if (focused && dirty && link && !link.hash.startsWith("#stage-") && !window.confirm("Leave this stage without saving the entered changes?")) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }}>
+    {focused ? <header className={styles.header}>
+      <Link href={returnTo}>← Return to Repair Workbench</Link>
+      <div className={styles.headerRow}>
+        <div><h1>Shop &amp; Recon</h1><strong>{item.vehicle} · {item.repairOrderNumber}</strong></div>
+        <VehicleWorkflowSwitch active="shop" inventoryHref={inventoryHref} inventoryUnavailableReason={inventoryUnavailableReason} />
+      </div>
+      <p>{closed ? "Repair order closed" : lifecycle.nextAction}</p>
+      {!closed && lifecycle.blockerCodes.length > 0 && <p role="status">{lifecycle.blockerCodes.map(String).join(" · ")}</p>}
+    </header> : <>
     <header className="srv-card-header">
       <Link href={returnTo}><ArrowLeft /> Shop &amp; Recon</Link>
       <div className="srv-card-identity">
@@ -414,19 +436,28 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
       <b>{item.priorityBand} · {item.priorityScore}<small>{words(item.stageTargetBand)} · {item.stageElapsedMinutes} staffed min</small></b>
       {isCurrent && currentIndex === 15 ? <button className="srv-stage-finalize" disabled={busy || !activeProgress.ready} onClick={finalizeShopExitFromSummary} type="button"><CheckCircle2 />{activeProgress.ready ? "Finalize RO" : "Complete handoff checklist"}</button> : null}
     </section>
+    </>}
 
     <nav className="srv-stage-nav" aria-label="Sixteen Shop and Recon stages">
       {SHOP_RECON_STAGES.map(stage => {
         const state = stage.order < currentIndex + 1 ? "complete" : stage.order === currentIndex + 1 ? "current" : "upcoming";
         const stageWorkspace = getShopReconStageWorkspace(stage.code), selectedProgress = stage.code === selectedStage ? activeProgress : null;
         const readiness = lifecycle.blockerCodes.length && stage.code === lifecycle.stage ? "blocked" : state === "complete" ? "ready" : selectedProgress?.ready ? "ready" : selectedProgress && selectedProgress.complete > 0 ? "partial" : "missing";
-        return <button aria-current={selectedStage === stage.code ? "step" : undefined} className={`${state} ${readiness} ${selectedStage === stage.code ? "selected" : ""}`} key={stage.code} onClick={() => { setSelectedStage(stage.code); setWorkspaceView("work"); setWorkGuidance(null); }} type="button">
+        const expanded = stageExpanded && selectedStage === stage.code;
+        return <button aria-current={(stageExpanded ? selectedStage : lifecycle.stage) === stage.code ? "step" : undefined}
+          aria-expanded={focused ? expanded : undefined} aria-controls={focused ? "shop-recon-stage-panel" : undefined}
+          className={`${state} ${readiness} ${expanded ? "selected" : ""}`} key={stage.code} disabled={focused && busy}
+          onClick={() => {
+            if (focused && expanded) { setStageExpanded(false); return; }
+            setStageExpanded(true); setSelectedStage(stage.code); setWorkspaceView("work"); setWorkGuidance(null);
+          }} type="button">
           <i>{selectedStage === stage.code ? <em /> : state === "complete" ? <Check /> : stage.order}</i>
           <span>{stage.label}<small>{stage.code === selectedStage ? `${selectedProgress?.complete ?? 0}/${stageWorkspace.checklist.length} ${readiness}` : state === "current" ? readiness === "blocked" ? "Blocked" : "Current work" : state === "complete" ? "Prior stage" : "Upcoming"}</small></span>
         </button>;
       })}
     </nav>
 
+    <div id={focused ? "shop-recon-stage-panel" : undefined} hidden={!stageExpanded}>
     <main className="srv-workspace">
       <section className="srv-workspace-main">
         <header>
@@ -462,7 +493,11 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
         </section> : <><div className="srv-work-grid"><section className="srv-checklist"><header><ClipboardCheck /><div><h3>Stage Checklist</h3><p>Required before the card can advance.</p></div><span>{workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`]).length} / {workspace.checklist.length}</span></header>{workspace.checklist.map((label, index) => { const key = `item_${index + 1}`, checked = checklist[key] === true; return <label key={label}><input checked={checked} disabled={!isCurrent || busy} onChange={event => { setChecklist(value => ({ ...value, [key]: event.target.checked })); changed(); }} type="checkbox" /><i>{checked ? <Check /> : <Circle />}</i><span><strong>{label}</strong><small>Required gate {index + 1}</small></span></label>; })}</section><section className="srv-form-preview"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>{isCurrent ? "Work saves as an attributable draft." : "Read-only stage review."}</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Draft v${lifecycleWorkspace.currentDraft.revision}` : "New draft"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={(key, value) => { setFormData(current => ({ ...current, [key]: value })); changed(); }} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section></div><section className="srv-evidence"><header><Camera /><div><h3>Required Evidence</h3><p>Enter one attachment, photo, measurement, or source reference per line. The saved revision remains in history.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent ? <label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One evidence reference per line" value={evidenceText} /></label> : null}</section></>}
       </section>
 
-      <aside className="srv-workspace-rail">
+      <aside className={focused ? undefined : "srv-workspace-rail"}>
+        <StageDetails className={focused ? styles.stageDetails : styles.legacyRail}>
+          {focused && <summary>Stage details, history and exceptions</summary>}
+          <div className={focused ? "srv-workspace-rail" : styles.legacyRail}>
+        {focused && !closed && titlePreparationWorkspace && <ShopReconParallelTitlePreparation currentStageLabel={SHOP_RECON_STAGES[currentIndex].label} initial={titlePreparationWorkspace} repairOrderId={item.id} />}
         {item.pilot ? <section className="srv-pilot-panel"><h2><FlaskConical /> {item.pilot.label}</h2><p>{item.pilot.objective}</p><strong>Journey validation</strong><div>{pilotProgress.map(group => <p className={group.status.toLowerCase()} key={group.id}>{group.status === "COMPLETE" ? <CheckCircle2 /> : group.status === "IN_PROGRESS" ? <Clock3 /> : <Circle />}<span>{group.label}<small>Stages {group.fromStage}–{group.toStage} · {words(group.status)}</small></span></p>)}</div><details><summary>Exception drills</summary>{item.pilot.exceptionDrills.map(drill => <p key={drill.id}><AlertTriangle /><span><strong>{drill.label}</strong><small>Stage {SHOP_RECON_STAGES.find(stage => stage.code === drill.stage)?.order}: {drill.expectedControl}</small></span></p>)}</details><footer>Expected exit: <strong>{item.pilot.expectedHandoff}</strong></footer></section> : null}
         <section className="srv-current-context"><h2>Current Vehicle Context</h2><Fact icon={MapPin} label="Location" value={item.location} /><Fact icon={UserRound} label="Accountable owner" value={item.owner} /><Fact icon={Wrench} label="Technician / bay" value={[item.technician, item.bay].filter(Boolean).join(" · ") || "Not assigned"} /><Fact icon={Clock3} label={item.commitmentLabel} value={date(lifecycle.targetAt)} /></section>
         <SourceReturnPathPanel item={item} />
@@ -475,8 +510,11 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
         {!operationalWorkspace && feedback ? <p className={`srv-action-feedback ${feedback.tone}`}>{feedback.text}</p> : null}
         <section><h2><History /> Recent Stage History</h2>{lifecycleWorkspace.history.length ? lifecycleWorkspace.history.slice(0, 5).map(event => <p className="srv-history-event" key={event.sequence}><strong>{words(event.eventType)}</strong><span>{event.actorName} · {date(event.occurredAt)}</span><small>{event.reason}</small></p>) : <small>No governed stage events yet. The first save initializes the operational lifecycle.</small>}</section>
         <section><h2>Policy Guardrails</h2><small>Scope change stops affected work and loops through findings, plan, authorization, and readiness. Failed QC or road test forces rework and a fresh QC; it cannot be overridden.</small></section>
+          </div>
+        </StageDetails>
       </aside>
     </main>
+    </div>
   </section>;
 }
 

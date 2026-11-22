@@ -8580,6 +8580,10 @@ body:has([data-inventory-intake], [data-service-intake]) .operating-rhythm-toast
   max-height: 40dvh;
   overflow-y: auto;
 }
+[data-open-repair-order] .operating-rhythm-toast {
+  position: static;
+  margin: 8px 14px 0 auto;
+}
 .operating-rhythm-lock * {
   box-sizing: border-box;
 }

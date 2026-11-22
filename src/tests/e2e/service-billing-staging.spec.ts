@@ -15,7 +15,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   expect((await request.get(billingUrl)).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
   await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Isolated synthetic billing verification; not starting a real operational workday.");
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=qc`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=qc`);
   await page.getByRole("link", { name: "Review and create invoice", exact: true }).click();
   await expect(page).toHaveURL(`/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Service Billing", exact: true })).toBeVisible();
@@ -75,7 +75,8 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   const report = await page.request.get(`/api/reports/labor-billing?from=${today}&to=${today}`);
   expect(report.ok()).toBe(true);
   expect((await report.json()).financial).toContainEqual(expect.objectContaining({ invoice: invoice.invoiceNumber, balanceCents: 0, netPaidCents: 14350 }));
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=parts`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=parts`);
+  await page.getByText("Saved repair record", { exact: true }).click();
   const recorded = page.getByRole("region", { name: "Already recorded", exact: true });
   await expect(recorded).toBeVisible();
   await expect(recorded).toContainText("v1 · $143.50");
@@ -95,7 +96,7 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   expect(evidenceAfterView.repairJobs).toEqual(planningAfter.repairJobs);
   const release = await page.request.post(`/api/repair-orders/${fixture.repairOrderId}/release-authorization`, { data: { authorizedAt: new Date().toISOString(), idempotencyKey: crypto.randomUUID(), keysVerified: true, openExceptions: [], releaseEvidence: ["Synthetic verified QC fixture and keys; not an actual vehicle release"], reason: "Synthetic isolated review workbench closeout acceptance" } });
   expect(await release.json()).toMatchObject({ result: { stage: "HANDOFF" } });
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${fixture.repairOrderId}`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${fixture.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Closeout / handoff", exact: true })).toBeVisible();
   await page.getByLabel("Receiving person / department", { exact: true }).fill("Synthetic acceptance recipient");
   await page.getByLabel("Final odometer", { exact: true }).fill("120");

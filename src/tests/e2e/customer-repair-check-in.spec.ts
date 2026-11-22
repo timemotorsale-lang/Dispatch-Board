@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { INITIAL_MINNEAPOLIS_LOCATION as location } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
+import { prepareIsolatedRepairWorkday } from "./helpers/synthetic-workday";
 
 test("an advisor checks in a vehicle and resumes its existing order without replacing intake details", async ({ page }) => {
   test.setTimeout(180_000);
@@ -10,12 +11,21 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   if (!schema?.startsWith("dispatch_board_e2e_")) throw new Error("Customer check-in requires an isolated browser test schema.");
   const suffix = randomUUID().slice(0, 8);
   const advisor = await prisma.user.findUniqueOrThrow({ where: { email: "alex.advisor@local.test" } });
+  for (const code of ["VEHICLE_OPERATIONS_MASTER", "SHOP_OPERATIONS"]) {
+    const where = { organizationId: location.organizationId, locationId: location.id, code };
+    const flag = await prisma.vehicleOperationsFeatureFlag.findFirst({ where });
+    if (!flag) await prisma.vehicleOperationsFeatureFlag.create({ data: { ...where, mode: "GENERAL", rolloutPercent: 100, allowedUserIds: [] } });
+  }
   const customer = await prisma.customer.create({ data: {
     organizationId: location.organizationId, customerNumber: `CHECKIN-${suffix}`, displayName: `Check-in customer ${suffix}`,
   } });
   const vehicle = await prisma.vehicle.create({ data: {
     organizationId: location.organizationId, vehicleNumber: `CHECKIN-${suffix}`, year: 2021, make: "Kia", model: "Sorento",
     vinState: "NON_VIN_EXCEPTION", nonVinReason: "Isolated browser fixture", vinValidationSource: "SYNTHETIC_E2E",
+  } });
+  await prisma.vehicleRelationship.create({ data: {
+    organizationId: location.organizationId, vehicleId: vehicle.id, customerId: customer.id,
+    relationshipType: "CUSTOMER_OWNER", effectiveFrom: new Date(), sourceCode: "SYNTHETIC_E2E",
   } });
   const response = await page.request.post("/api/auth/login", { data: { email: advisor.email, password: "dispatch123!" } });
   expect(response.ok()).toBe(true);
@@ -25,28 +35,157 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
     intakeSource: "WALK_IN", customerId: customer.id, vehicleId: vehicle.id, concernSummary,
   })}`;
   const footer = page.locator("footer.sic-footer");
+  await prepareIsolatedRepairWorkday(page, intakeHref(concern));
 
   await page.goto(intakeHref(concern));
   await expect(page.getByRole("link", { name: "Open Shop Dispatch" })).toHaveCount(0);
   await footer.getByRole("button", { name: "Complete Check-In & Create Repair Order" }).click();
-  await expect(page.getByRole("heading", { name: /Check-in saved/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Check-in saved/ })).toBeVisible({ timeout: 25_000 });
   const order = await prisma.repairOrder.findFirstOrThrow({ where: { vehicleId: vehicle.id }, include: { serviceVisit: true } });
   expect(order.serviceVisit.concernSummary).toBe(concern);
   const estimateHref = await page.getByRole("link", { name: "Build estimate in Labor Guide" }).getAttribute("href");
   expect(new URL(estimateHref!, page.url()).searchParams.get("repairOrderId")).toBe(order.id);
   await page.getByRole("link", { name: "Inspect or plan diagnosis first" }).click();
-  await expect(page.getByRole("heading", { name: "Repair Workbench" })).toBeVisible();
-  await expect(page.getByLabel("Repair workflow").getByRole("link", { name: /^1\. Inspect/ })).toHaveAttribute("aria-current", "step");
-  await page.getByRole("link", { name: /Closeout \/ handoff/ }).click();
+  await expect(page.getByRole("heading", { name: "Repair Workbench" })).toBeVisible({ timeout: 25_000 });
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${order.id}`);
+  const stages = page.getByLabel("Repair workflow", { exact: true });
+  const shopStateBefore = await prisma.shopReconLifecycle.findUnique({ where: { repairOrderId: order.id }, select: { stage: true, version: true } });
+  const switcher = page.getByRole("navigation", { name: "Vehicle workflows" });
+  const chooseLifecycle = switcher.locator("summary");
+  const shopRecon = switcher.getByRole("link", { name: "Shop & Recon" });
+  const nextAction = page.getByRole("region", { name: "Next action" });
+  await expect(nextAction.getByRole("link", { name: "Open inspection checklist" })).toBeVisible();
+  await expect(switcher).toContainText("Inspect");
+  await expect(stages).toBeHidden();
+  await expect(shopRecon).toBeHidden();
+  await chooseLifecycle.focus();
+  await page.keyboard.press("Enter");
+  const inventory = switcher.getByRole("link", { name: "Inventory Lifecycle" });
+  await expect(inventory).toHaveCount(0);
+  const customerNotice = /Customer-owned vehicle.*update its status to dealership inventory/;
+  await expect(switcher.getByText(customerNotice)).toBeVisible();
+  await expect(shopRecon).toBeVisible();
+  await page.goto(`/vehicles/${vehicle.id}/inventory-planning?view=lifecycle&repairOrderId=${order.id}`);
+  await expect(page.getByRole("heading", { name: "Inventory Lifecycle unavailable" })).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText(customerNotice)).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Inventory lifecycle stages" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Continue in Shop & Recon" }).click();
+  await expect(page.getByRole("heading", { name: "Shop & Recon", exact: true })).toBeVisible({ timeout: 25_000 });
+  await expect(switcher.locator('[aria-current="page"]')).toHaveText("Shop & Recon");
+  await expect(switcher.getByText(customerNotice)).toBeVisible();
+  const shopStages = page.getByRole("navigation", { name: "Sixteen Shop and Recon stages" });
+  await expect(shopStages.getByRole("button")).toHaveCount(16);
+  const shopPanel = page.locator("#shop-recon-stage-panel");
+  await expect(shopPanel).toBeHidden();
+  const shopExit = shopStages.getByRole("button", { name: /Vehicle Handover & Shop Exit/ });
+  await shopExit.click();
+  await expect(shopPanel).toBeVisible();
+  await expect(shopExit).toHaveAttribute("aria-expanded", "true");
+  await expect(shopPanel.getByRole("button", { name: "Finalize RO" })).toHaveCount(0);
+  await shopExit.click();
+  await expect(shopPanel).toBeHidden();
+  expect(await prisma.shopReconLifecycle.findUnique({ where: { repairOrderId: order.id }, select: { stage: true, version: true } })).toEqual(shopStateBefore);
+  const repairStagesHref = `/vehicles/repair-workbench?repairOrderId=${order.id}&workflow=shop`;
+  await page.goto(repairStagesHref);
+  await expect(page.getByRole("heading", { name: "Repair stages", exact: true })).toBeVisible();
+  const inspectionStage = stages.getByRole("link", { name: /^1\. Inspect/ });
+  await expect(inspectionStage).toHaveAttribute("aria-current", "step");
+  await expect(page.locator("#shop-stage-panel")).toBeHidden();
+  await inspectionStage.click();
+  await expect(inspectionStage).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("region", { name: "Inspection clearance items" })).toBeVisible();
+  await inspectionStage.click();
+  await expect(page.locator("#shop-stage-panel")).toBeHidden();
+  await stages.getByRole("link", { name: /^2\. Diagnose/ }).click();
+  await expect(page.getByText("Complete the current repair step before recording work in this stage.")).toBeVisible();
+  const earlyDiagnosis = await page.request.post(`/api/repair-orders/${order.id}/planning`, { data: {
+    action: "RECORD_DIAGNOSIS", idempotencyKey: randomUUID(), concern,
+    cause: "Synthetic pending diagnosis", diagnosedAt: new Date().toISOString(), uncertainty: "HIGH",
+    evidence: ["Synthetic fixture"], symptoms: [concern], tests: [{ name: "Observe", result: "Further checks needed" }],
+    proposedCorrection: "Verify the concern", recommendation: "Inspect the vehicle first",
+    reason: "Verify the diagnosis gate on an isolated order.", technicianUserId: advisor.id,
+  } });
+  expect(earlyDiagnosis.status()).toBe(400);
+  expect((await earlyDiagnosis.json()).error).toContain("Save the customer vehicle inspection");
+  expect(await prisma.repairDiagnosisVersion.count({ where: { repairOrderId: order.id } })).toBe(0);
+  await stages.getByRole("link", { name: /Closeout \/ handoff/ }).click();
   await expect(page.getByText("Vehicle handoff opens after the release is recorded.", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Close repair & record handoff" })).toHaveCount(0);
 
-  const inspectedAt = new Date();
-  await prisma.vehicleInspectionVersion.create({ data: {
-    organizationId: location.organizationId, repairOrderId: order.id, version: 1, authorUserId: advisor.id,
-    templateCode: "SYNTHETIC", templateVersion: 1, templateSnapshot: {}, items: [],
-    summary: "Isolated inspection fixture for a returning repair order.", startedAt: inspectedAt, completedAt: inspectedAt,
-  } });
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${order.id}&step=qc&reconPath=OUTSIDE_VENDOR`);
+  await expect(page.getByRole("heading", { name: "Repair Workbench", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quality check", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Change recon path Outside vendor" })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("navigation", { name: "Repair record tools" }).getByRole("link", { name: "Full tools" })).toBeVisible();
+  await expect(stages).toBeHidden();
+  const documentInspection = nextAction.getByRole("link", { name: "Document inspection", exact: true });
+  await expect(documentInspection).toBeVisible();
+  await expect(page.getByLabel("Repair order actions").getByRole("link", { name: "Document inspection" })).toHaveAttribute("href", (await documentInspection.getAttribute("href"))!);
+  await documentInspection.click();
+  await expect(page.getByRole("region", { name: "Inspection clearance items" })).toBeVisible();
+
+  await page.goto(`/prototype/repair-workbench?repairOrderId=${order.id}&returnTo=%2Fvehicles%2Fadvisor`);
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${order.id}&returnTo=%2Fvehicles%2Fadvisor`);
+  await expect(page.getByRole("link", { name: "Back to source" })).toHaveAttribute("href", "/vehicles/advisor");
+  const pathOptions = page.locator("header + #recon-path-options");
+  const choosePath = async (label: string) => {
+    const picker = page.getByRole("button", { name: /^(Choose|Change) recon path/ });
+    if (await picker.getAttribute("aria-expanded") === "false") await picker.click();
+    await expect(pathOptions).toBeVisible();
+    await expect(pathOptions.getByRole("button")).toHaveCount(5);
+    await pathOptions.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+    await expect(page.getByRole("button", { name: `Change recon path ${label}`, exact: true })).toBeVisible();
+  };
+  await expect(pathOptions).toBeHidden();
+  await choosePath("Inspection only");
+  await expect(nextAction.getByRole("link", { name: "Document inspection" })).toBeVisible();
+  await expect(page.getByLabel("Repair order actions").getByRole("link", { name: "Document inspection" })).toHaveAttribute("href", "#repair-workflow-action");
+  expect(await prisma.vehicleInspectionVersion.count({ where: { repairOrderId: order.id } })).toBe(0);
+  const clearance = page.getByRole("region", { name: "Inspection clearance items" });
+  for (const label of ["General condition", "Inspection proof", "Safety / warning lights", "Repair path decision"]) {
+    const check = clearance.getByRole("button", { name: new RegExp(label) });
+    if (await check.getAttribute("aria-pressed") !== "true") await check.click();
+  }
+  await page.getByRole("button", { name: "Save checklist and unlock next stage", exact: true }).click();
+  await expect(nextAction.getByRole("link", { name: "Review inspection" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("region", { name: "Saved inspection" })).toBeVisible();
+  await page.goto(`${repairStagesHref}&reconPath=INSPECTION_ONLY&returnTo=%2Fvehicles%2Fadvisor`);
+  const currentStep = stages.getByRole("link", { name: /^2\. Diagnose/ });
+  await expect(currentStep).toHaveAttribute("aria-current", "step");
+  await page.getByRole("link", { name: "Repair Workbench", exact: false }).click();
+  const fullTools = page.getByRole("navigation", { name: "Repair record tools" }).getByRole("link", { name: "Full tools" });
+  await fullTools.click();
+  await expect(fullTools).toHaveAttribute("aria-current", "page");
+  await expect(pathOptions).toBeHidden();
+  await choosePath("Bodywork");
+  await expect(nextAction.getByRole("link", { name: "Open bodywork scope" })).toBeVisible();
+  await expect(fullTools).toHaveAttribute("aria-current", "page");
+  await nextAction.getByRole("link", { name: "Open bodywork scope" }).click();
+  await expect(page.getByRole("button", { name: "Confirm scope and unlock estimate" })).toBeVisible();
+  await page.getByText("Scope details for unusual bodywork cases", { exact: true }).click();
+  await expect(page.getByLabel("Direct repair summary (required)")).toBeVisible();
+  await choosePath("Outside vendor");
+  await expect(nextAction.getByRole("link", { name: "Open vendor intake" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Outside vendor", exact: true })).toBeVisible();
+  const transportMethod = page.getByRole("textbox", { name: "Transport method", exact: true });
+  await expect(transportMethod).toBeVisible();
+  await page.goto(`${repairStagesHref}&reconPath=OUTSIDE_VENDOR&returnTo=%2Fvehicles%2Fadvisor`);
+  await currentStep.click();
+  await expect(page.getByRole("textbox", { name: "Outside vendor", exact: true })).toBeVisible();
+  await expect(transportMethod).toBeHidden();
+  await page.locator("#repair-planning-step-2").getByText("Transport, evidence and follow-up", { exact: true }).click();
+  await expect(transportMethod).toBeVisible();
+  await page.getByRole("link", { name: "Return to Repair Workbench" }).click();
+  await expect(nextAction.getByRole("link", { name: "Open vendor intake" })).toBeVisible();
+  await choosePath("Detail / prep");
+  await expect(nextAction.getByRole("link", { name: "Open detail / prep planning" })).toHaveAttribute("href", new RegExp(`/vehicles/shop-recon/${order.id}\\?`));
+  await choosePath("Mechanical repair");
+  await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
+  await page.reload();
+  await expect(nextAction).toContainText("Mechanical repair");
+  expect(await prisma.repairDiagnosisVersion.count({ where: { repairOrderId: order.id } })).toBe(0);
+  expect(await prisma.vehicleInspectionVersion.count({ where: { repairOrderId: order.id } })).toBe(1);
+  const inspected = await prisma.repairOrder.findUniqueOrThrow({ where: { id: order.id } });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(intakeHref(newConcern));
@@ -61,11 +200,11 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await expect(page.getByRole("textbox", { name: /What is the customer experiencing/ })).toHaveValue(newConcern);
   await footer.getByRole("button", { name: "Continue existing repair order" }).click();
   await page.getByRole("link", { name: "Continue repair order", exact: true }).click();
-  const currentStep = page.getByLabel("Repair workflow").getByRole("link", { name: /^2\. Diagnose/ });
-  await expect(currentStep).toHaveAttribute("aria-current", "step");
+  await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
+  await expect(stages).toBeHidden();
   await page.reload();
-  await expect(currentStep).toHaveAttribute("aria-current", "step");
+  await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
   const saved = await prisma.repairOrder.findMany({ where: { vehicleId: vehicle.id }, include: { serviceVisit: true } });
   expect(saved).toHaveLength(1);
-  expect(saved[0]).toMatchObject({ id: order.id, ownerUserId: order.ownerUserId, version: order.version, serviceVisit: { concernSummary: concern } });
+  expect(saved[0]).toMatchObject({ id: order.id, ownerUserId: order.ownerUserId, version: inspected.version, serviceVisit: { concernSummary: concern } });
 });

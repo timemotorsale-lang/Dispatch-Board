@@ -173,7 +173,7 @@ describe("compact parts parent integration", () => {
     const clear = ServiceClosePartsWorkspace({ initial: receivedModel });
     const clearNext = nodes(clear).find(node => node.props["aria-label"] === "Next parts action")!;
     expect(nodes(clearNext).some(node => node.type === "button" && node.props.children === "Record installation")).toBe(true);
-    expect(nodes(clearNext).some(node => node.props.href === "/prototype/repair-workbench?repairOrderId=ro-1&step=repair")).toBe(true);
+    expect(nodes(clearNext).some(node => node.props.href === "/vehicles/repair-workbench?repairOrderId=ro-1&step=repair")).toBe(true);
   });
   it("unlocks a validation block with no started requests and removes only that empty journal", async () => {
     mocks.run.mockImplementation(async (_input, _model, options) => ({ status: "BLOCKED", progress: options.progress, message: "Choose one matching catalog part.", nextAction: "Review the entry" }));

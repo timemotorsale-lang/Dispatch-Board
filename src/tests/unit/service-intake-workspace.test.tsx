@@ -244,11 +244,11 @@ describe("enterprise service intake workspace", () => {
     expect(created).toContain("Build estimate in Labor Guide");
     expect(created).toContain("Inspect or plan diagnosis first");
     expect(created).toContain("/diagnostics/labor-guide?repairOrderId=ro-123");
-    expect(created).toContain("returnTo=%2Fprototype%2Frepair-workbench%3FrepairOrderId%3Dro-123");
+    expect(created).toContain("returnTo=%2Fvehicles%2Frepair-workbench%3FrepairOrderId%3Dro-123");
 
     expect(reused).toContain("The new concern and custody details are still in intake");
     expect(reused).toContain("Return to intake details");
-    expect(reused).toContain('href="/prototype/repair-workbench?repairOrderId=ro-123"');
+    expect(reused).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-123"');
     expect(reused).not.toContain("Build estimate in Labor Guide");
     expect(vendor).toContain("Outside vendor routing was recorded");
     expect(vendor).not.toContain("Build estimate in Labor Guide");

@@ -1347,7 +1347,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       <p>Open billing to check what this repair order still needs before you can issue the invoice. After recording payment, open the repair workflow to check readiness and record the handoff.</p>
       <nav className={compactStyles.receiptActions} aria-label="Repair closeout">
         {partsProcurementType(selectedOrder) === "CUSTOMER_REPAIR" && <Link href={`/vehicles/service-billing?${new URLSearchParams({ repairOrderId: selectedOrder.id })}`}>Invoice, payment &amp; receipts</Link>}
-        <Link href={`/prototype/repair-workbench?${new URLSearchParams({ repairOrderId: selectedOrder.id, step: "handoff" })}`}>Open vehicle handoff</Link>
+        <Link href={`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: selectedOrder.id, step: "handoff" })}`}>Open vehicle handoff</Link>
       </nav>
     </section>}
     {receivedParts.length > 0 && <section className={compactStyles.received} aria-label="Received parts">

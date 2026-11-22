@@ -2,6 +2,9 @@ import { Search, Wrench } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { RepairWorkflowWorkbench } from "@/features/prototype/repair-workflow/repair-workflow-workbench";
+import { RepairRecordedWork } from "@/features/prototype/repair-workflow/repair-recorded-work";
+import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 import { AdvisorRepairOrderStatusView } from "@/features/advisor/advisor-repair-order-status-view";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
@@ -26,6 +29,11 @@ import { listPendingServiceHandoffs } from "@/server/repair-order/task-handoff";
 type PageProps = {
   searchParams?: Promise<{
     contextError?: string;
+    step?: string;
+    reconPath?: string;
+    workflow?: string;
+    estimateId?: string;
+    tool?: string;
     compose?: string;
     query?: string;
     repairOrderId?: string;
@@ -113,10 +121,7 @@ async function diagnosticsBridge(
 export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
-  const returnTo =
-    params.returnTo?.startsWith("/") && !params.returnTo.startsWith("//")
-      ? params.returnTo
-      : undefined;
+  const returnTo = safeLaborGuideReturnTo(params.returnTo);
   const returnLabel = params.returnLabel?.slice(0, 120);
   const permittedWorkspaces = getPermittedWorkspaces(user);
   const managerContext = permittedWorkspaces.some((workspace) => workspace.key === "MANAGEMENT")
@@ -154,28 +159,16 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       if (managerContext) preserveManagerContext(mismatch, managerContext.mode);
       redirect(`/vehicles/repair-workbench?${mismatch}`);
     }
-    if (!params.vehicleId) {
-      const canonical = new URLSearchParams({
-        repairOrderId: params.repairOrderId,
-        vehicleId: order.vehicle.id,
-      });
-      if (params.compose === "customer" || params.compose === "management" || params.compose === "team") canonical.set("compose", params.compose);
-      if (params.fullDetails === "1") canonical.set("fullDetails", "1");
-      if (params.tab === "repair") canonical.set("tab", "repair");
-      if (params.workspace === "advisor") canonical.set("workspace", "advisor");
-      if (returnTo) canonical.set("returnTo", returnTo);
-      if (managerContext) preserveManagerContext(canonical, managerContext.mode);
-      redirect(`/vehicles/repair-workbench?${canonical}`);
-    }
-    const [options, diagnostics, sourceHandoffs] = await Promise.all([
-      getRepairOrderCreateOptions(user).catch(() => ({ users: [] })),
-      diagnosticsBridge(user, params.repairOrderId),
-      prisma.taskRepairHandoff.findMany({
-        where: { repairOrderId: order.id },
-        orderBy: { acceptedAt: "asc" },
-        select: { taskId: true, concern: true, task: { select: { title: true } } }
-      })
-    ]);
+    const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
+    const canOpenAdvisorTools = permittedWorkspaces.some(workspace => workspace.key === "ADVISOR");
+    const tool = params.tool ?? (params.fullDetails === "1" ? "details" : compose || params.tab === "repair" ? "advisor" : undefined);
+    const workbenchParams = { ...params, tool };
+    const context = { user, order, params: workbenchParams, returnTo, returnLabel, canCompose: canOpenAdvisorTools };
+    const sourceHandoffs = await prisma.taskRepairHandoff.findMany({
+      where: { repairOrderId: order.id },
+      orderBy: { acceptedAt: "asc" },
+      select: { taskId: true, concern: true, task: { select: { title: true } } }
+    });
     const handoffSources = sourceHandoffs.length ? <section className="panel-card" aria-label="Originating Service handoffs">
       <h2>Originating Service handoffs</h2>
       {sourceHandoffs.map(source => <article key={source.taskId}>
@@ -183,6 +176,19 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         <p style={{ whiteSpace: "pre-wrap" }}>{source.concern}</p>
       </article>)}
     </section> : null;
+    if (tool === "history") {
+      return <RepairWorkflowWorkbench {...context} supportingTool={<>{handoffSources}<RepairRecordedWork order={order} /></>} />;
+    }
+    if (tool === "advisor" && canOpenAdvisorTools) {
+      return <RepairWorkflowWorkbench {...context} supportingTool={<>{handoffSources}<AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} /></>} />;
+    }
+    if (tool !== "details" && tool !== "progress" && tool !== "subtasks" && tool !== "checklist" && tool !== "comments" && tool !== "recon" && tool !== "close" && tool !== "fullTools" && tool !== "repairDetails") {
+      return <RepairWorkflowWorkbench {...context} sourceContext={handoffSources} />;
+    }
+    const [options, diagnostics] = await Promise.all([
+      getRepairOrderCreateOptions(user).catch(() => ({ users: [] })),
+      diagnosticsBridge(user, order.id)
+    ]);
     const linkedTaskReference = await prisma.inventoryWorkPacket.findFirst({
       where: {
         organizationId: "organizationId" in order && typeof order.organizationId === "string"
@@ -209,28 +215,23 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       item.requisition?.demand?.repairOrder?.id === order.id,
     );
 
-    if (showAdvisorReturn) {
-      const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
-      return <>{handoffSources}<AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} /></>;
-    }
+    return <RepairWorkflowWorkbench {...context} supportingTool={<>{handoffSources}<RepairOrderEnterpriseWorkbench
+      actorIsManager={actorIsManager}
+      canUpdateLinkedTask={canUpdateLinkedTask}
+      diagnostics={JSON.parse(JSON.stringify(diagnostics))}
+      linkedTask={linkedTask ? JSON.parse(JSON.stringify(linkedTask)) : null}
+      linkedTaskReadiness={linkedTaskReadiness ? JSON.parse(JSON.stringify(linkedTaskReadiness)) : null}
+      options={{ users: JSON.parse(JSON.stringify(options.users)) }}
+      order={JSON.parse(JSON.stringify(order))}
+      relatedPurchaseOrders={JSON.parse(JSON.stringify(relatedPurchaseOrders))}
+      fullDetailMode={tool === "details"}
+      recordTool={tool}
+      returnLabel={returnLabel}
+      returnTo={returnTo}
+      showAdvisorReturn={showAdvisorReturn}
+      showWorkspaceReturn={showWorkspaceReturn}
+    /></>} />;
 
-    return (
-      <>{handoffSources}<RepairOrderEnterpriseWorkbench
-        actorIsManager={actorIsManager}
-        canUpdateLinkedTask={canUpdateLinkedTask}
-        diagnostics={JSON.parse(JSON.stringify(diagnostics))}
-        linkedTask={linkedTask ? JSON.parse(JSON.stringify(linkedTask)) : null}
-        linkedTaskReadiness={linkedTaskReadiness ? JSON.parse(JSON.stringify(linkedTaskReadiness)) : null}
-        options={{ users: JSON.parse(JSON.stringify(options.users)) }}
-        order={JSON.parse(JSON.stringify(order))}
-        relatedPurchaseOrders={JSON.parse(JSON.stringify(relatedPurchaseOrders))}
-        fullDetailMode={params.fullDetails === "1"}
-        returnLabel={returnLabel}
-        returnTo={returnTo}
-        showAdvisorReturn={showAdvisorReturn}
-        showWorkspaceReturn={showWorkspaceReturn}
-      /></>
-    );
   }
 
   const query = params.query?.trim().slice(0, 100) ?? "";

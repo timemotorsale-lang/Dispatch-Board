@@ -53,7 +53,7 @@ describe("graceful repair-order closure", () => {
   it("returns an actionable invoice hold before touching jobs, clocks or parts", async () => {
     const { db, tx } = fixture();
     tx.serviceInvoice.findFirst.mockResolvedValue({ id: "invoice-1" });
-    await expect(createRepairOrderRepository(db as never).closeNoWork(command, { actorUserId: "advisor", occurredAt: at, reason: input.reason })).rejects.toMatchObject({ code: "INVOICE_CLOSEOUT_REQUIRED", action: { label: "Open invoice closeout", href: "/prototype/repair-workbench?repairOrderId=ro-1&step=handoff" } });
+    await expect(createRepairOrderRepository(db as never).closeNoWork(command, { actorUserId: "advisor", occurredAt: at, reason: input.reason })).rejects.toMatchObject({ code: "INVOICE_CLOSEOUT_REQUIRED", action: { label: "Open invoice closeout", href: "/vehicles/repair-workbench?repairOrderId=ro-1&step=handoff" } });
     expect(tx.repairJob.findMany).not.toHaveBeenCalled();
     expect(tx.repairOrder.update).not.toHaveBeenCalled();
   });

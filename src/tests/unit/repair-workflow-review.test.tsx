@@ -87,7 +87,7 @@ describe("complete repair workflow review", () => {
     expect(scopedRepairOrders(model)).toBe(model);
   });
   it("preserves opt-in review while routing both guide entry points to the current guide", () => {
-    expect(repairReviewHref("RO & 1", "estimate")).toBe("/prototype/repair-workbench?repairOrderId=RO+%26+1&step=estimate");
+    expect(repairReviewHref("RO & 1", "estimate")).toBe("/vehicles/repair-workbench?repairOrderId=RO+%26+1&step=estimate");
     expect(repairExplorerHandoffHref("ro", true)).toContain("workflow=review");
     expect(laborGuideHref("new", "ro", true)).toContain("workflow=review");
     expect(laborGuideHref("legacy", "ro")).toBe("/prototype/repair-explorer?repairOrderId=ro");

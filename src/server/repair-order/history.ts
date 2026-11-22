@@ -119,7 +119,7 @@ export async function searchRepairHistory(actor: AuthenticatedUser | null, raw: 
   const entries = invoices.length ? await database.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) }, kind: { in: receiptKinds } }, orderBy: { occurredAt: "desc" } }) : [];
   const mapped = new Map<string, RepairHistoryItem>();
   for (const order of orders) {
-    const workbench = href("/prototype/repair-workbench", "repairOrderId", order.id);
+    const workbench = href("/vehicles/repair-workbench", "repairOrderId", order.id);
     const savedDocuments = documents.filter(document => document.repairOrderId === order.id);
     mapped.set(`REPAIR_ORDER:${order.id}`, { id: order.id, source: "REPAIR_ORDER", number: order.repairOrderNumber, title: order.serviceVisit.concernSummary, customer: order.customer?.displayName ?? "Internal work", vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber, vin: order.vehicle.vin, stockNumber: order.vehicle.stockNumber, status: order.closedAt ? "CLOSED" : order.operatingState, updatedAt: order.updatedAt.toISOString(), href: workbench,
       documents: [
