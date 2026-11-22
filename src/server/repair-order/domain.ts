@@ -1,3 +1,5 @@
+import { maxDiagnosticFeeCents } from "@/lib/diagnostic-authorization-form";
+
 export const REPAIR_ORDER_CORE_STAGE = "INTAKE" as const;
 export const REPAIR_ORDER_CORE_STATES = ["ACTIVE", "WAITING", "BLOCKED"] as const;
 export const REPAIR_ORDER_INTAKE_SOURCES = ["APPOINTMENT", "WALK_IN", "INVENTORY_RECON"] as const;
@@ -27,12 +29,12 @@ export function normalizeInspectionConsent(value: unknown, now = new Date()) {
   const expectedVersion = input.expectedVersion;
   if (typeof expectedVersion !== "number" || !Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Repair order version is required.");
   const diagnosticFeeCents = input.diagnosticFeeCents;
-  if (typeof diagnosticFeeCents !== "number" || !Number.isSafeInteger(diagnosticFeeCents) || diagnosticFeeCents < 0 || diagnosticFeeCents > 2_147_483_647) {
+  if (typeof diagnosticFeeCents !== "number" || !Number.isSafeInteger(diagnosticFeeCents) || diagnosticFeeCents < 0 || diagnosticFeeCents > maxDiagnosticFeeCents) {
     throw new Error("Enter the disclosed diagnostic fee, including zero for no charge.");
   }
   const consentedAt = timestamp(input.consentedAt, "Customer consent time")!;
   if (consentedAt.getTime() > now.getTime() + 60_000) throw new Error("Customer consent time cannot be in the future.");
-  const channel = oneOf(input.channel, ["IN_PERSON", "PHONE", "EMAIL", "SMS"] as const, "Consent method");
+  const channel = oneOf(input.channel, ["IN_PERSON", "SIGNED_PAPER", "PHONE", "EMAIL", "SMS"] as const, "Consent method");
   const consentReference = channel === "IN_PERSON"
     ? optional(input.consentReference, 200) ?? "Customer signed at check-in"
     : required(input.consentReference, "Consent evidence", 200);

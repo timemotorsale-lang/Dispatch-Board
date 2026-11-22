@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { repairReviewHref, repairWorkflowLabels, repairWorkflowSteps, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
+import { repairBillingHref } from "@/lib/service-billing-workflow";
 import { findReconRepairPath, reconRepairPathOptions, type ReconRepairPath } from "@/lib/recon-repair-paths";
 import { VehicleWorkflowSwitch } from "./vehicle-workflow-switch";
 import { customerInventoryLifecycleNotice, inventoryLifecycleHref, shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
@@ -44,6 +45,7 @@ type Props = {
   canChoosePath?: boolean;
   chosenPath?: ReconRepairPath;
   shopView?: boolean;
+  advisorRepairTab?: boolean;
   stageOpen?: boolean;
   custody?: string;
   target?: string;
@@ -59,7 +61,7 @@ type Props = {
 export function RepairWorkflowFrame({
   repairOrderId, vehicleId, number, vehicle, stock, location, owner, concern, inventoryRecon,
   current, selected, closed, returnTo, returnLabel, auxiliary, activeTool, canCompose,
-  inventoryStage, customerOwned, repairPath, canChoosePath, chosenPath, shopView, stageOpen = true, custody, target, vendorAmount, nextAction, inlineNextAction, suppressFooterAction, recordedWork, stepStatus, children,
+  inventoryStage, customerOwned, repairPath, canChoosePath, chosenPath, shopView, advisorRepairTab, stageOpen = true, custody, target, vendorAmount, nextAction, inlineNextAction, suppressFooterAction, recordedWork, stepStatus, children,
 }: Props) {
   const router = useRouter();
   const dirty = useRef(false);
@@ -75,6 +77,9 @@ export function RepairWorkflowFrame({
   const shopHref = repairReviewHref(repairOrderId, undefined, { ...context, workflow: "shop" });
   const currentStageHref = repairReviewHref(repairOrderId, current, { ...context, workflow: "shop" });
   const currentHref = shopView ? shopHref : workbenchHref;
+  const workOrderReturn = repairReviewHref(repairOrderId, stageOpen ? selected : undefined, {
+    ...context, tool: activeTool, workflow: shopView ? "shop" : undefined
+  }) + (advisorRepairTab ? "&tab=repair" : "");
   const inventoryHref = customerOwned ? undefined : inventoryLifecycleHref(vehicleId, repairOrderId, workbenchHref);
   const lifecycleHref = shopReconLifecycleHref(repairOrderId, workbenchHref);
   const toolHref = (tool: string) => repairReviewHref(repairOrderId, undefined, { ...context, tool });
@@ -151,10 +156,15 @@ export function RepairWorkflowFrame({
           <strong>Documents &amp; photos</strong>
           <Link href={`${toolHref("details")}#repair-order-document`}>View RO</Link>
           <a href={`/api/repair-orders/${encodeURIComponent(repairOrderId)}/print`} target="_blank" rel="noreferrer">Print RO</a>
+          <Link href={`/vehicles/repair-workbench/technician-work-order?${new URLSearchParams({ repairOrderId, returnTo: workOrderReturn })}`}>Technician work order</Link>
           <Link href={photosHref}>360 Photos</Link>
           <strong>Parts &amp; costs</strong>
           <Link href={repairReviewHref(repairOrderId, "parts", { ...context, workflow: shopView ? "shop" : undefined })}>Parts readiness</Link>
           <Link href={billingHref}>Billing &amp; receipts</Link>
+          {!inventoryRecon && <>
+            <Link href={repairBillingHref(repairOrderId, { mode: "invoice", returnTo: currentHref })}>Convert estimate to invoice</Link>
+            {!closed && <Link href={repairBillingHref(repairOrderId, { mode: "deposit", returnTo: currentHref })}>Record deposit</Link>}
+          </>}
           {inventoryRecon && <>
             <Link href={`/money-resources?${new URLSearchParams({ vehicleId, repairOrderId, returnTo: currentHref })}`}>Record spending</Link>
             <Link href={toolHref("recon")}>Recon Report</Link>

@@ -9,8 +9,8 @@ export type ExplorerEstimateSeed = {
   parts: Array<{ id: string; laborRowId: string; name: string; number: string; pricingStatus: "PRICE_PENDING" | "ESTIMATED"; quantity: number; source: "MANUAL"; unitPrice: number }>;
 };
 
-export function isExplorerPartsAllowance(part: { id: string; name: string }) {
-  return /^(explorer-allowance-|explorer-quote-)/.test(part.id) && /^(Unitemized allowance:|Parts for)/i.test(part.name);
+export function isExplorerPartsAllowance(part: { id: string }) {
+  return /^(?:part-)*explorer-(?:allowance|quote)-/.test(part.id);
 }
 
 export function replaceExplorerPartsAllowance<T extends { id: string; name: string; laborRowId: string }>(parts: T[], replacement: T) {
@@ -63,6 +63,7 @@ export function explorerEstimateSeed(raw: string, catalog: LaborRepairOperation[
     identities.add(operation.id);
     seed.labor.push({ ...operation, hours: line.hours, rowId: operation.id });
     if (line.partItems !== undefined) {
+      if (line.parts === null && !line.partItems.length) throw new Error(`Confirm the parts needed for ${line.label} before continuing.`);
       if (line.partItems.some(item => !item.name.trim())) throw new Error("Enter a description for each itemized part.");
       for (const item of line.partItems) seed.parts.push({ id: `explorer-item-${seed.parts.length}-${item.id}`, laborRowId: operation.id, name: item.name.trim(), number: item.number.trim(), pricingStatus: item.unitPrice === null ? "PRICE_PENDING" : "ESTIMATED", quantity: item.quantity, source: "MANUAL", unitPrice: item.unitPrice ?? 0 });
     } else if (line.parts === null || line.parts > 0) seed.parts.push({ id: `explorer-allowance-${seed.parts.length}`, laborRowId: operation.id, name: `Unitemized allowance: ${line.label}`, number: "", pricingStatus: "PRICE_PENDING", quantity: 1, source: "MANUAL", unitPrice: line.parts ?? 0 });

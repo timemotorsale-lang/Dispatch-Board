@@ -24,7 +24,9 @@ import { RepairRecordedWork } from "@/features/prototype/repair-workflow/repair-
 import { RepairWorkflowFrame } from "@/features/prototype/repair-workflow/repair-workflow-frame";
 import { canOpenRepairQc, RepairQcDiagnostics } from "@/features/prototype/repair-workflow/repair-qc-diagnostics";
 import { RepairExecutionTool } from "@/features/prototype/repair-workflow/repair-execution-tool";
-import { RepairHandoffTool } from "@/features/prototype/repair-workflow/repair-handoff-tool";
+import { getServiceBilling } from "@/server/service-billing/service";
+import { invoiceHoldLabel, repairBillingHref } from "@/lib/service-billing-workflow";
+import { RepairHandoffTool, type HandoffBilling } from "@/features/prototype/repair-workflow/repair-handoff-tool";
 import { EstimateWorkflowNextStep } from "@/features/inventory/estimate-workflow-next-step";
 import { ApprovedTechnicianWork } from "./approved-technician-work";
 import { allocateApprovedJobParts, catalogJobRequirements, unmatchedApprovedJobDemands } from "@/lib/catalog-job-readiness";
@@ -44,13 +46,13 @@ const stageActions: Record<RepairWorkflowStep, { label: string; detail: string }
   assignment: { label: "Open assignment", detail: "Review technician and shop availability for the released jobs." },
   repair: { label: "Open repair progress", detail: "Review instructions and record progress for the assigned work." },
   qc: { label: "Open quality check", detail: "Review the completed jobs and record the quality and release checks." },
-  handoff: { label: "Open closeout", detail: "Review billing and record the vehicle handoff." },
+  handoff: { label: "Record vehicle handoff", detail: "Verify the recipient, keys and final odometer, then close this repair order." },
 };
 
 export async function RepairWorkflowWorkbench({ user, order, params, returnTo, returnLabel, supportingTool, sourceContext, canCompose }: {
   user: AuthenticatedUser;
   order: Awaited<ReturnType<typeof getShopPlanningDetail>>;
-  params: { step?: string; estimateId?: string; tool?: string; reconPath?: string; workflow?: string };
+  params: { step?: string; estimateId?: string; tool?: string; reconPath?: string; workflow?: string; tab?: string };
   returnTo?: string;
   returnLabel?: string;
   supportingTool?: ReactNode;
@@ -86,6 +88,43 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     (diagnosisWork.request || !chosenPath || ["MECHANICAL", "OUTSIDE_VENDOR"].includes(chosenPath.value)));
   const context = { returnTo, returnLabel, reconPath: chosenPath?.value, workflow: shopView ? "shop" as const : undefined };
   const home = repairReviewHref(order.id, undefined, context);
+  const handoffHref = `${repairReviewHref(order.id, "handoff", context)}#repair-workflow-action`;
+  const handoffBillingHref = repairBillingHref(order.id, { mode: "invoice", returnTo: handoffHref });
+  const clearanceHref = `${repairReviewHref(order.id, "qc", context)}#repair-workflow-action`;
+  let handoffBilling: HandoffBilling = null;
+  let billingUnverified = false;
+  if (!closed && current === "handoff" && order.origin === "CUSTOMER_REPAIR") {
+    const billing = await getServiceBilling(user, order.id, order.organizationId).catch(() => null);
+    billingUnverified = !billing;
+    const latestPackage = billing?.packages[0];
+    const postedInvoice = billing?.invoices.find(item => item.status === "POSTED");
+    const invoice = postedInvoice?.packageId === latestPackage?.id ? postedInvoice : undefined;
+    const blockers = [...new Set([
+      ...(billing?.readiness.mismatchCodes ?? []),
+      ...(invoice ? latestPackage?.mismatchCodes ?? [] : [])
+    ])];
+    if (postedInvoice && !invoice) {
+      handoffBilling = {
+        label: "Review existing invoice", href: handoffBillingHref,
+        detail: "The posted invoice belongs to an earlier billing package. Ask Billing to reconcile it with the current package before handoff."
+      };
+    } else if (blockers.length) {
+      handoffBilling = { label: "Review billing requirements", href: handoffBillingHref, detail: blockers.map(invoiceHoldLabel).join(" ") };
+    } else if (billing && !invoice) {
+      handoffBilling = { label: "Create final invoice", href: handoffBillingHref, detail: "The vehicle is cleared. Issue the invoice for the approved repair work." };
+    } else if (invoice && invoice.balance.balanceCents !== 0) {
+      handoffBilling = {
+        label: "Resolve invoice balance", href: handoffBillingHref,
+        detail: `${invoice.invoiceNumber} has a remaining balance of ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(invoice.balance.balanceCents / 100)}.`
+      };
+    } else if (!order.releaseAuthorization) {
+      handoffBilling = {
+        label: "Clear for handoff",
+        href: clearanceHref,
+        detail: "Record the vehicle release in Final QC, then return to handoff."
+      };
+    }
+  }
   const shopReconHref = `/vehicles/shop-recon/${encodeURIComponent(order.id)}?${new URLSearchParams({ returnTo: home })}`;
   const vendor = activeVendor ?? order.vendorWorks[0];
   const vendorAmount = vendor?.approvedAmountCents ?? vendor?.estimateAmountCents;
@@ -95,7 +134,8 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
       ? "Bodywork"
       : order.diagnosisVersions.length ? "Diagnostic / mechanical" : undefined;
   let nextAction: { label: string; detail: string; href?: string } = stageActions[current];
-  if (closed) nextAction = { label: "Open closeout", detail: "Review the saved closeout record." };
+  if (closed) nextAction = { label: "View saved handoff", detail: "Review the saved handoff record.", href: handoffHref };
+  else if (handoffBilling) nextAction = handoffBilling;
   else if (needsWorkOrder) {
     nextAction = { label: pendingLabor.length === 1 ? "Create technician work order" : "Create technician work orders", detail: "Confirm the approved work and technician instructions." };
   } else if (current === "parts" && needsParts) {
@@ -179,7 +219,15 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
         <Link className="pill" href={`/vehicles/quality-control?${qcParams}`}>Return to Final QC</Link>
       </section>;
     } else if (closed || selected === "handoff") {
-      tool = <RepairHandoffTool repairOrderId={order.id} vehicleId={order.vehicle.id} internal={order.origin === "INVENTORY_RECON"} closed={closed} />;
+      const savedHandoff = closed ? await prisma.repairOrderClosureEvent.findFirst({
+        where: { organizationId: order.organizationId, repairOrderId: order.id, type: "CLOSED" },
+        orderBy: { version: "desc" },
+        select: { recipientName: true, occurredAt: true, finalOdometer: true }
+      }) : null;
+      tool = <RepairHandoffTool repairOrderId={order.id} vehicleId={order.vehicle.id} internal={order.origin === "INVENTORY_RECON"}
+        closed={closed} billing={handoffBilling} billingHref={handoffBillingHref} billingUnverified={billingUnverified}
+        savedHandoff={savedHandoff ? { ...savedHandoff, occurredAt: savedHandoff.occurredAt.toISOString() } : null}
+        timeZone={order.location.timezone} />;
     }
     else if (customerAuthorization) {
       const resume = authorizationResume ?? await getRepairResume(user, order.id, true);
@@ -263,6 +311,9 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
         const missing = (waitingVendor ? order.partDemands : waitingJobs.flatMap(job => job.partDemands))
           .filter(demand => !["CANCELLED", "RELEASED"].includes(demand.status) && demand.quantityReserved < demand.quantityRequired);
         tool = <>
+          {order.repairJobs.some(job => job.status !== "CANCELLED") && <p>
+            <Link href={`/vehicles/repair-workbench/technician-work-order?${new URLSearchParams({ repairOrderId: order.id, returnTo: repairReviewHref(order.id, "parts", context) })}`}>Review or print technician work order</Link>
+          </p>}
           {needsParts && <section className={styles.partsBlocker} aria-label="Parts blocking repair">
             <h3>Waiting on parts</h3>
             {waitingVendor && <p>{waitingVendor.vendorName} is waiting on parts.</p>}
@@ -308,6 +359,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     canChoosePath={canChoosePath}
     chosenPath={chosenPath?.value}
     shopView={shopView}
+    advisorRepairTab={params.tab === "repair"}
     stageOpen={stageOpen}
     custody={activeVendor?.currentLocation || custody?.positionLabel || custody?.location?.name}
     target={order.targetAt ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: order.location.timezone }).format(order.targetAt) : undefined}

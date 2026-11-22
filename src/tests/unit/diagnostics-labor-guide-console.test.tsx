@@ -65,7 +65,9 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("Diagnostic vehicle workspace");
     expect(markup).not.toContain("Sample estimate");
     expect(markup).not.toContain("Review ten-system expansion");
-    expect(markup).toContain('href="/vehicles/service-billing?repairOrderId=ro-saved">Billing &amp; receipts');
+    expect(markup).toContain('href="/vehicles/service-billing?repairOrderId=ro-saved&amp;returnTo=%2Fprototype%2Frepair-explorer%3FrepairOrderId%3Dro-saved">Billing &amp; receipts');
+    expect(markup).toContain(">Convert saved estimate to invoice</button>");
+    expect(markup).toContain(">Record deposit</button>");
   });
 
   it("opens the strongest exact-name group before loose front/left matches in another system", () => {

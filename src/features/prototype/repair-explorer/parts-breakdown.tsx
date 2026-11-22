@@ -4,7 +4,7 @@ import type { EstimatePartItem } from "./estimate";
 import { itemizedPartsTotal } from "./estimate";
 import styles from "./parts-breakdown.module.css";
 
-export function PartsBreakdown({ items, onChange, showErrors = false }: { items: EstimatePartItem[]; onChange: (items: EstimatePartItem[]) => void; showErrors?: boolean }) {
+export function PartsBreakdown({ items, onChange, showErrors = false, onNoPartsNeeded }: { items: EstimatePartItem[]; onChange: (items: EstimatePartItem[]) => void; showErrors?: boolean; onNoPartsNeeded?: () => void }) {
   const groupId = useId();
   const total = itemizedPartsTotal(items);
   function update(id: string, patch: Partial<EstimatePartItem>) { onChange(items.map(item => item.id === id ? { ...item, ...patch } : item)); }
@@ -32,6 +32,6 @@ export function PartsBreakdown({ items, onChange, showErrors = false }: { items:
       <button type="button" aria-label={`Remove part ${index + 1}`} onClick={() => onChange(items.filter(part => part.id !== item.id))}>Remove</button>
     </div>;
     })}
-    <footer><button type="button" disabled={items.length >= 100} onClick={() => onChange([...items, { id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Add part</button><strong>Parts total: {total === null ? "Enter prices" : `$${total.toFixed(2)}`}</strong></footer>
+    <footer><button type="button" disabled={items.length >= 100} onClick={() => onChange([...items, { id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Add part</button>{!items.length && onNoPartsNeeded && <button type="button" onClick={onNoPartsNeeded}>No parts needed</button>}<strong>Parts total: {total === null ? "Enter prices" : `$${total.toFixed(2)}`}</strong></footer>
   </section>;
 }

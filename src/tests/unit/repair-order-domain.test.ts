@@ -1,4 +1,5 @@
 import { normalizeInspectionConsent } from "@/server/repair-order/domain";
+import { parseDiagnosticFee } from "@/lib/diagnostic-authorization-form";
 import { describe, expect, it } from "vitest";
 import { normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, repairOrderAge } from "@/server/repair-order/domain";
 const now=new Date("2026-07-14T12:00:00Z");
@@ -51,4 +52,18 @@ describe("normalizeInspectionConsent", () => {
     expect(() => normalizeInspectionConsent({ ...data, channel: "PHONE", consentReference: " " }, now)).toThrow("Consent evidence");
     expect(() => normalizeInspectionConsent({ ...data, consentedAt: "2026-06-16T14:30:00Z" }, now)).toThrow("future");
   });
+
+  it("records a signed paper form only with its evidence reference", () => {
+    expect(normalizeInspectionConsent({ ...data, channel: "SIGNED_PAPER" }, now)).toMatchObject({
+      channel: "SIGNED_PAPER", consentReference: "Signed intake 001", diagnosticFeeCents: 12500
+    });
+    expect(() => normalizeInspectionConsent({ ...data, channel: "SIGNED_PAPER", consentReference: "" }, now)).toThrow("Consent evidence");
+  });
+});
+
+describe("parseDiagnosticFee", () => {
+  it.each([["0", 0], ["125.07", 12507], ["125.7", 12570], ["21474836.47", 2147483647], ["21474836.48", null], ["1.005", null], ["", null], ["-1", null]])(
+    "validates the same fee for printing and recording (%s)",
+    (amount, expected) => expect(parseDiagnosticFee(amount)).toBe(expected),
+  );
 });

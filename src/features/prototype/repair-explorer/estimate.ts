@@ -59,7 +59,7 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
           if (!item || typeof item.id !== "string" || !item.id || item.id.length > 200 || partIds.has(item.id) || typeof item.name !== "string" || item.name.length > 200 || typeof item.number !== "string" || item.number.length > 100 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10000 || (item.unitPrice !== null && !isValidAmount(item.unitPrice, 100000))) return null;
           partIds.add(item.id);
         }
-        if (line.parts !== itemizedPartsTotal(line.partItems)) return null;
+        if (line.parts !== itemizedPartsTotal(line.partItems) && !(line.parts === null && !line.partItems.length)) return null;
       }
       if (!line || typeof line.id !== "string" || !line.id || line.id.length > 200 || identifiers.has(line.id)
         || typeof line.label !== "string" || !line.label.trim() || line.label.length > 200

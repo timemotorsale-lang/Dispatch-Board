@@ -16,8 +16,11 @@ test("native invoice, payment, frozen document, PDF and financial report with re
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
   await explainSyntheticWorkdayDelay(page, "/vehicles/service-billing", "Isolated synthetic billing verification; not starting a real operational workday.");
   await page.goto(`/vehicles/repair-workbench?repairOrderId=${fixture.repairOrderId}&step=qc`);
-  await page.getByRole("link", { name: "Review and create invoice", exact: true }).click();
-  await expect(page).toHaveURL(`/vehicles/service-billing?repairOrderId=${fixture.repairOrderId}`);
+  await page.getByRole("region", { name: "Next action" }).getByRole("link", { name: "Create final invoice", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === "/vehicles/service-billing" &&
+    url.searchParams.get("repairOrderId") === fixture.repairOrderId &&
+    url.searchParams.get("mode") === "invoice" &&
+    new URL(url.searchParams.get("returnTo") ?? "/", url.origin).searchParams.get("step") === "handoff");
   await expect(page.getByRole("heading", { name: "Service Billing", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review final invoice", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Invoice package", exact: true })).toHaveCount(0);

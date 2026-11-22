@@ -64,7 +64,10 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   }
   catch (error) {
     if (!(error instanceof Error) || !error.message.startsWith("Invoice requires current exact-version authorization")) throw error;
-    readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"] };
+    const estimate = await prisma.repairEstimateVersion.findFirst({
+      where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, select: { id: true, version: true }
+    });
+    readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"], estimateId: estimate?.id, estimateVersion: estimate?.version };
   }
   const deposits = await getRepairDepositView(prisma, organizationId, repairOrderId);
   if (!mutationAvailability.allowed) deposits.collectionAvailability = { allowed: false, reason: mutationAvailability.reason, maxAmountCents: 0 };

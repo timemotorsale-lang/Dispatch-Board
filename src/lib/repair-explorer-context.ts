@@ -6,6 +6,7 @@ export type RepairExplorerContext = {
   vehicleId: string;
   vehicleLabel: string;
   vin: string | null;
+  origin?: "CUSTOMER_REPAIR" | "INVENTORY_RECON";
   inventoryUnitId: string | null;
   inventoryNumber: string | null;
   concern: string;

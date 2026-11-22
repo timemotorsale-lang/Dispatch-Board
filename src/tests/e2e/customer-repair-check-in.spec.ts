@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { PDFDocument } from "pdf-lib";
 import { INITIAL_MINNEAPOLIS_LOCATION as location } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
 import { prepareIsolatedRepairWorkday } from "./helpers/synthetic-workday";
@@ -67,13 +68,44 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
     const diagnostic = approvalPage.getByRole("region", { name: "Customer diagnostic authorization" });
     await expect(diagnostic).toContainText(concern);
     await expect(approvalPage.getByRole("region", { name: "Quoted repair authorization" })).toHaveCount(0);
-    await diagnostic.getByLabel("Flat diagnostic fee ($)", { exact: true }).fill("125.00");
-    await diagnostic.getByLabel("Customer signature (type full name)", { exact: true }).fill(customer.displayName);
+    const printButton = diagnostic.getByRole("button", { name: "Print for signature" });
+    await printButton.click();
+    await expect(diagnostic.getByRole("alert")).toContainText("Enter a valid flat diagnostic fee");
+    await diagnostic.getByLabel("Flat diagnostic fee ($)", { exact: true }).fill("125.07");
+    const [printPage] = await Promise.all([page.context().waitForEvent("page"), printButton.click()]);
+    await expect(printPage.getByRole("heading", { name: "Customer diagnostic authorization" })).toBeVisible();
+    await expect(printPage.getByText("Pending customer signature")).toBeVisible();
+    for (const value of [customer.displayName, order.repairOrderNumber, "2021 Kia Sorento", concern, "$125.07", "Customer or authorized representative signature"]) {
+      await expect(printPage.getByText(value, { exact: value !== "$125.07" })).toBeVisible();
+    }
+    await printPage.emulateMedia({ media: "print" });
+    await expect(printPage.getByRole("button", { name: "Print document" })).toBeHidden();
+    const pdf = await PDFDocument.load(await printPage.pdf({ preferCSSPageSize: true }));
+    expect(pdf.getPageCount()).toBe(1);
+    await printPage.close();
+    expect(await prisma.enterpriseCommandLedger.count({
+      where: { subjectId: order.id, commandType: "RECORD_INSPECTION_CONSENT" }
+    })).toBe(0);
+
+    await diagnostic.getByLabel("Permission method").selectOption("SIGNED_PAPER");
+    const signedAt = await approvalPage.evaluate(() => {
+      const now = new Date();
+      return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
+    });
+    await diagnostic.getByLabel("Signed date and time", { exact: true }).fill(signedAt);
+    await diagnostic.getByLabel("Signed form reference", { exact: true }).fill("Signed form scan 001");
     await diagnostic.getByRole("checkbox").check();
     await diagnostic.getByRole("button", { name: "Record diagnostic authorization", exact: true }).click();
-    await expect(diagnostic.getByRole("status")).toContainText("$125.00");
+    await expect(diagnostic.getByRole("status")).toContainText("$125.07");
     await approvalPage.reload();
-    await expect(diagnostic.getByRole("status")).toContainText("Customer signed at check-in");
+    await expect(diagnostic.getByRole("status")).toContainText("Signed form scan 001");
+    const [savedCopy] = await Promise.all([
+      page.context().waitForEvent("page"), diagnostic.getByRole("link", { name: "Print recorded authorization" }).click()
+    ]);
+    await expect(savedCopy.getByText("Recorded authorization summary")).toBeVisible();
+    await expect(savedCopy.getByText("Signed form scan 001")).toBeVisible();
+    await expect(savedCopy.getByText("$125.07", { exact: false })).toBeVisible();
+    await savedCopy.close();
     await expect(diagnostic.getByRole("link", { name: "Open inspection checklist" })).toBeVisible();
     const saved = await prisma.serviceVisit.findUniqueOrThrow({ where: { id: order.serviceVisit.id } });
     expect(saved.consentStatus).toBe(order.serviceVisit.consentStatus);
@@ -81,7 +113,8 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
       where: { subjectId: order.id, commandType: "RECORD_INSPECTION_CONSENT" }
     });
     expect(consent.resultSnapshot).toMatchObject({
-      consentStatus: "DOCUMENTED", concernSummary: concern, diagnosticFeeCents: 12500, customerName: customer.displayName
+      consentStatus: "DOCUMENTED", concernSummary: concern, diagnosticFeeCents: 12507, customerName: customer.displayName,
+      channel: "SIGNED_PAPER", consentReference: "Signed form scan 001"
     });
     expect(await prisma.repairAuthorization.count({ where: { repairOrderId: order.id } })).toBe(0);
   } finally {

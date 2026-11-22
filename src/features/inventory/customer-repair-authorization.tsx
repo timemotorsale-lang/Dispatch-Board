@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 
+import { diagnosticAuthorizationPrintHref, diagnosticAuthorizationScope, diagnosticFeeError, formatDiagnosticFee, parseDiagnosticFee } from "@/lib/diagnostic-authorization-form";
 import { DocumentApproval } from "./document-approval";
 import styles from "./customer-repair-authorization.module.css";
 
@@ -39,12 +40,15 @@ export function CustomerRepairAuthorization(props: Props) {
         {authorizedFee != null || props.consent.status === "DOCUMENTED" ? (
           <>
             <p role="status">{authorizedFee != null
-              ? `Diagnostic authorization recorded. Approved flat fee ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(authorizedFee / 100)}.`
+              ? `Diagnostic authorization recorded. Approved flat fee ${formatDiagnosticFee(authorizedFee)}.`
               : "Visit consent is documented."}
               {props.consent.customerName && <> Authorized by {props.consent.customerName}.</>}
               {props.consent.reference && <> Evidence reference {props.consent.reference}.</>}
             </p>
-            {props.diagnosticOnly && <Link className="pill pill-primary" prefetch={false} href={props.inspectionHref}>Open inspection checklist</Link>}
+            <div className={styles.links}>
+              {props.diagnosticOnly && <Link className="pill pill-primary" prefetch={false} href={props.inspectionHref}>Open inspection checklist</Link>}
+              {authorizedFee != null && <a className="pill" href={diagnosticAuthorizationPrintHref(props.repairOrderId)} target="_blank" rel="noopener">Print recorded authorization</a>}
+            </div>
           </>
         ) : props.canAct ? (
           <InspectionPermissionForm
@@ -93,6 +97,7 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
   const [name, setName] = useState("");
   const [channel, setChannel] = useState("IN_PERSON");
   const [reference, setReference] = useState("");
+  const [signedAt, setSignedAt] = useState("");
   const [fee, setFee] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -100,12 +105,25 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
   const [error, setError] = useState("");
   const pending = useRef<string | null>(null);
   const inFlight = useRef(false);
+  const feeInput = useRef<HTMLInputElement>(null);
+
+  function openPrintForm() {
+    if (parseDiagnosticFee(fee) == null) {
+      setError(diagnosticFeeError);
+      feeInput.current?.focus();
+      return;
+    }
+    setError("");
+    const query = new URLSearchParams({ fee: fee.trim(), version: String(version) });
+    window.open(`${diagnosticAuthorizationPrintHref(repairOrderId)}?${query}`, "_blank", "noopener");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if ((!confirmed && !pending.current) || inFlight.current) return;
-    if (!pending.current && !/^\d+(?:\.\d{1,2})?$/.test(fee.trim())) {
-      setError("Enter the flat diagnostic fee, including 0 for no charge.");
+    const feeCents = parseDiagnosticFee(fee);
+    if (feeCents == null) {
+      setError(diagnosticFeeError);
       return;
     }
     inFlight.current = true;
@@ -118,9 +136,9 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
         customerName: name.trim(),
         channel,
         consentReference: reference.trim(),
-        diagnosticFeeCents: Math.round(Number(fee) * 100),
+        diagnosticFeeCents: feeCents,
         confirmed,
-        consentedAt: new Date().toISOString(),
+        consentedAt: (channel === "SIGNED_PAPER" ? new Date(signedAt) : new Date()).toISOString(),
         idempotencyKey: crypto.randomUUID()
       });
       const response = await fetch(`/api/repair-orders/${encodeURIComponent(repairOrderId)}/planning`, {
@@ -150,10 +168,13 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
       <fieldset disabled={busy || retry}>
         <legend>Customer decision</legend>
         <label>Flat diagnostic fee ($)
-          <input required inputMode="decimal" maxLength={12} value={fee} onChange={event => { setFee(event.target.value); setConfirmed(false); }} placeholder="Enter 0 for no charge" />
+          <input ref={feeInput} required inputMode="decimal" maxLength={12} value={fee} onChange={event => { setFee(event.target.value); setConfirmed(false); }} placeholder="Enter 0 for no charge" />
         </label>
+        <div className={styles.printAction}>
+          <button className="pill" type="button" onClick={openPrintForm}>Print for signature</button>
+        </div>
         <label>{channel === "IN_PERSON" ? "Customer signature (type full name)" : "Customer / authorized representative"}
-          <input required autoComplete="off" maxLength={200} value={name} onChange={event => setName(event.target.value)} />
+          <input required autoComplete="off" maxLength={200} value={name} onChange={event => { setName(event.target.value); setConfirmed(false); }} />
         </label>
         <label>Permission method
           <select value={channel} onChange={event => {
@@ -162,18 +183,24 @@ function InspectionPermissionForm({ repairOrderId, version, customerName, onSave
             setReference("");
             setConfirmed(false);
           }}>
-            <option value="IN_PERSON">In person</option><option value="PHONE">Phone</option>
+            <option value="IN_PERSON">Sign at counter</option><option value="SIGNED_PAPER">Signed paper form</option>
+            <option value="PHONE">Phone</option>
             <option value="EMAIL">Email</option><option value="SMS">Text message</option>
           </select>
         </label>
-        {channel !== "IN_PERSON" && <label>{channel === "PHONE" ? "Phone number and call reference" : "Message or approval reference"}
-          <input required maxLength={200} value={reference} onChange={event => setReference(event.target.value)} />
+        {channel === "SIGNED_PAPER" && <label>Signed date and time
+          <input required type="datetime-local" step={1} value={signedAt} onChange={event => { setSignedAt(event.target.value); setConfirmed(false); }} />
+        </label>}
+        {channel !== "IN_PERSON" && <label>{channel === "SIGNED_PAPER" ? "Signed form reference" : channel === "PHONE" ? "Phone number and call reference" : "Message or approval reference"}
+          <input required maxLength={200} value={reference} onChange={event => { setReference(event.target.value); setConfirmed(false); }} />
         </label>}
         <label className={styles.confirm}>
           <input required type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
           {channel === "IN_PERSON"
-            ? "I authorize Time Motor Sales to inspect and diagnose the concern shown above and prepare a repair estimate. I agree to the flat diagnostic fee shown. Repairs require my separate approval."
-            : "I verified the named customer authorized inspection, diagnosis, and estimate preparation for the saved concern, and agreed to the disclosed flat diagnostic fee."}
+            ? diagnosticAuthorizationScope
+            : channel === "SIGNED_PAPER"
+              ? "I verified the signed form covers this repair order, the concern shown above, and the same diagnostic fee."
+              : "I verified the named customer authorized inspection, diagnosis, and estimate preparation for the saved concern, and agreed to the disclosed flat diagnostic fee."}
         </label>
       </fieldset>
       {error && <p role="alert">{error}</p>}

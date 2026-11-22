@@ -59,3 +59,7 @@
 .links:empty {
   display: none;
 }
+
+.printAction {
+  align-self: end;
+}

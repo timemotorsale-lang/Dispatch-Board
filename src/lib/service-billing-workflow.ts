@@ -1,3 +1,15 @@
+export function repairBillingHref(
+  repairOrderId: string,
+  options: { mode?: "invoice" | "deposit" | "payment"; returnTo?: string; estimateId?: string; invoiceId?: string } = {}
+) {
+  const query = new URLSearchParams({ repairOrderId });
+  if (options.mode) query.set("mode", options.mode);
+  if (options.returnTo) query.set("returnTo", options.returnTo);
+  if (options.estimateId) query.set("estimateId", options.estimateId);
+  if (options.invoiceId) query.set("invoiceId", options.invoiceId);
+  return `/vehicles/service-billing?${query}`;
+}
+
 type BillingContext = {
   readiness?: { mismatchCodes: readonly string[] };
   packages: readonly { id: string; billingMode: string; mismatchCodes: readonly string[]; preview?: { lines: readonly unknown[]; totalCents: number } | null }[];

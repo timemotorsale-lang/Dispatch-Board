@@ -5,11 +5,11 @@ import styles from "./guided-estimate.module.css";
 
 function PartFields({ line, busy, simplified, onPartChange, onItemize }: { line: Line; busy: boolean; simplified: boolean; onPartChange?: (line: Line, field: "name" | "number", value: string) => void; onItemize?: (line: Line) => void }) {
   if (simplified && line.kind === "Part" && !line.allowance && onPartChange) return <div className={styles.partFields}><label>Description<input aria-label={`${line.title} description`} disabled={busy} maxLength={200} value={line.title} onChange={event => onPartChange(line, "name", event.target.value)} /></label><label>Part number<input aria-label={`${line.title} part number`} disabled={busy} maxLength={100} value={line.number ?? ""} onChange={event => onPartChange(line, "number", event.target.value)} /></label></div>;
-  return <><strong>{line.title}</strong><small>{line.kind}{!line.editable ? " · Required by policy" : ""}</small>{line.allowance && onItemize ? <button type="button" disabled={busy} data-estimate-prerequisite="allowance" onClick={() => onItemize(line)}>Itemize parts</button> : line.kind === "Part" && onPartChange && <details open={line.pending || undefined}><summary>Part details{line.number ? ` · ${line.number}` : " · number needed"}</summary><label>Description<input aria-label={`${line.title} description`} disabled={busy} maxLength={200} value={line.title} onChange={event => onPartChange(line, "name", event.target.value)} /></label><label>Part number<input aria-label={`${line.title} part number`} disabled={busy} maxLength={100} value={line.number ?? ""} onChange={event => onPartChange(line, "number", event.target.value)} /></label></details>}</>;
+  return <><strong>{line.title}</strong><small>{line.kind}{!line.editable ? " · Required by policy" : ""}</small>{line.allowance && onItemize ? <button type="button" disabled={busy} data-estimate-prerequisite="allowance" onClick={() => onItemize(line)}>Replace allowance with itemized parts</button> : line.kind === "Part" && onPartChange && <details open={line.pending || undefined}><summary>Part details{line.number ? ` · ${line.number}` : " · number needed"}</summary><label>Description<input aria-label={`${line.title} description`} disabled={busy} maxLength={200} value={line.title} onChange={event => onPartChange(line, "name", event.target.value)} /></label><label>Part number<input aria-label={`${line.title} part number`} disabled={busy} maxLength={100} value={line.number ?? ""} onChange={event => onPartChange(line, "number", event.target.value)} /></label></details>}</>;
 }
 
-type Line = { id: string; title: string; kind: "Labor" | "Part"; quantity: number; price: number; amount?: number; pending: boolean; editable: boolean; number?: string; laborId?: string; canRelink?: boolean; removable?: boolean; allowance?: boolean };
-export function GuidedEstimate({ feedback, feedbackRef, saveNotice, savingDraft = false, presenting = false, preliminaryHref, onPreview, openingPreview = false, reviewLaborRequested, simplified = false, vehicle, vin, hasRO, lines, review, scope, total, summary, busy, checksReady, onReviewChecks, onReview, onEdit, onPartChange, onRemove, onAddPart, onItemizePart, onSave, revision = false, onLaborDescriptionChange, onPartLaborChange, onAddManualLabor, onPresent, onAddWork, onFindVehicle }: {
+type Line = { id: string; title: string; kind: "Labor" | "Part"; quantity: number; price: number; amount?: number; pending: boolean; editable: boolean; number?: string; laborId?: string; canRelink?: boolean; removable?: boolean; allowance?: boolean; noPartsNeeded?: boolean };
+export function GuidedEstimate({ feedback, feedbackRef, saveNotice, savingDraft = false, presenting = false, preliminaryHref, onPreview, openingPreview = false, reviewLaborRequested, simplified = false, vehicle, vin, hasRO, lines, review, scope, total, summary, busy, checksReady, onReviewChecks, onReview, onEdit, onPartChange, onRemove, onAddPart, onAddPartForLabor, onFindPartsForLabor, onNoPartsNeeded, onItemizePart, onSave, revision = false, onLaborDescriptionChange, onPartLaborChange, onAddManualLabor, onPresent, onAddWork, onFindVehicle }: {
   feedback?: string;
   feedbackRef?: Ref<HTMLParagraphElement>;
   saveNotice?: string;
@@ -20,6 +20,9 @@ export function GuidedEstimate({ feedback, feedbackRef, saveNotice, savingDraft 
   openingPreview?: boolean;
   reviewLaborRequested?: number;
   onAddPart?: () => void;
+  onAddPartForLabor?: (laborId: string) => void;
+  onFindPartsForLabor?: (laborId: string) => void;
+  onNoPartsNeeded?: (laborId: string) => void;
   onAddManualLabor?: () => void;
   onItemizePart?: (line: Line) => void;
   simplified?: boolean;
@@ -37,6 +40,13 @@ export function GuidedEstimate({ feedback, feedbackRef, saveNotice, savingDraft 
     target?.scrollIntoView({ block: "center" });
     target?.focus({ preventScroll: true });
   }, [reviewLaborRequested]);
+  const laborRows = lines.filter(line => line.kind === "Labor");
+  const parts = lines.filter(line => line.kind === "Part");
+  const partsByLabor = new Map(laborRows.map(line => [line.id, parts.filter(part => part.laborId === line.id)]));
+  const arrangedLines = [
+    ...laborRows.flatMap(line => [line, ...(partsByLabor.get(line.id) ?? [])]),
+    ...parts.filter(part => !part.laborId || !partsByLabor.has(part.laborId))
+  ];
   const reviewed = manualReviewComplete(review, scope);
   const missingPrice = lines.some(line => line.pending);
   const ready = hasRO && lines.length > 0 && (simplified || reviewed) && !missingPrice && checksReady === true;
@@ -52,7 +62,14 @@ export function GuidedEstimate({ feedback, feedbackRef, saveNotice, savingDraft 
       {onAddPart && <button type="button" disabled={busy} onClick={onAddPart}>Add manual part</button>}
     </details>}
     {!hasRO && <section className={styles.step}><p>{vehicle || "Select the customer vehicle and RO."}{vin ? ` · ${vin}` : ""}</p>{onFindVehicle && <button type="button" disabled={busy} onClick={onFindVehicle}>Find an open repair order</button>}</section>}
-    {lines.length ? <div className={styles.tableWrap}><table><thead><tr><th>Work / part</th><th>Hours / qty</th><th>Rate / price</th><th>Amount</th><th>Actions</th></tr></thead><tbody>{lines.map(line => <tr key={`${line.kind}-${line.id}`}><td>{line.kind === "Labor" && line.editable && onLaborDescriptionChange ? <label>Labor description<input maxLength={500} value={line.title} disabled={busy} onChange={event => onLaborDescriptionChange(line.id, event.target.value)} /></label> : <PartFields line={line} busy={busy} simplified={simplified} onPartChange={onPartChange} onItemize={onItemizePart} />}
+    {lines.length ? <div className={styles.tableWrap}><table><thead><tr><th>Work / part</th><th>Hours / qty</th><th>Rate / price</th><th>Amount</th><th>Actions</th></tr></thead><tbody>{arrangedLines.map(line => <tr key={`${line.kind}-${line.id}`}><td>{line.kind === "Labor" && line.editable && onLaborDescriptionChange ? <label>Labor description<input maxLength={500} value={line.title} disabled={busy} onChange={event => onLaborDescriptionChange(line.id, event.target.value)} /></label> : <PartFields line={line} busy={busy} simplified={simplified || Boolean(onAddPartForLabor)} onPartChange={onPartChange} onItemize={onItemizePart} />}
+    {line.kind === "Labor" && line.editable && onAddPartForLabor && <div className={styles.partActions}>
+      <button type="button" disabled={busy} data-itemize-labor={line.id} onClick={() => onAddPartForLabor(line.id)}>Add part</button>
+      {onFindPartsForLabor && <button type="button" disabled={busy} onClick={() => onFindPartsForLabor(line.id)}>Find parts</button>}
+      {onNoPartsNeeded && !partsByLabor.get(line.id)?.length && (line.noPartsNeeded
+        ? <small>No parts needed</small>
+        : <button type="button" disabled={busy} onClick={() => onNoPartsNeeded(line.id)}>No parts needed</button>)}
+    </div>}
     {line.kind === "Part" && line.canRelink && onPartLaborChange && lines.some(work => work.kind === "Labor") && <label>Link to labor
       <select aria-label={`${line.title} linked labor`} disabled={busy} value={line.laborId ?? ""} onChange={event => onPartLaborChange(line.id, event.target.value)}>
         <option value="">Unlinked</option>{lines.filter(work => work.kind === "Labor").map(work => <option value={work.id} key={work.id}>{work.title}</option>)}
