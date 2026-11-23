@@ -173,7 +173,36 @@ describe("compact parts parent integration", () => {
     const clear = ServiceClosePartsWorkspace({ initial: receivedModel });
     const clearNext = nodes(clear).find(node => node.props["aria-label"] === "Next parts action")!;
     expect(nodes(clearNext).some(node => node.type === "button" && node.props.children === "Record installation")).toBe(true);
-    expect(nodes(clearNext).some(node => node.props.href === "/prototype/repair-workbench?repairOrderId=ro-1&step=repair")).toBe(true);
+    expect(nodes(clearNext).some(node => node.props.href === "/vehicles/repair-workbench?repairOrderId=ro-1&step=repair")).toBe(false);
+  });
+  it("leads with reservation for an already received part and keeps assignment blocked until stock is reserved", async () => {
+    const demand = { id: "demand-1", repairJobId: "job-1", partId: "part-1", quantityRequired: 1, quantityReserved: 0, status: "OPEN", requiredAt: "2026-11-14", part: model.parts[0], repairOrder: order };
+    const job = { id: "job-1", jobNumber: "J001", status: "WAITING_PARTS", partsRequired: true, partDemands: [demand] };
+    const purchase = { ...po, status: "RECEIVED", requisition: { demand: { id: demand.id, repairOrder: order } } };
+    const initial = { ...model, repairOrders: [{ ...order, repairJobs: [job] }], demands: [demand], purchaseOrders: [purchase], receipts: [{ ...model.receipts[0], purchaseOrder: purchase, stockLocationId: "bin-1" }] };
+    mocks.states.set(3, true);
+    const props = { initial, compactStage: true, reviewOrderId: order.id };
+    const tree = nodes(ServiceClosePartsWorkspace(props));
+    const next = tree.find(node => node.props["aria-label"] === "Next parts action")!;
+    const reserve = nodes(next).find(node => node.type === "button" && Array.isArray(node.props.children) && node.props.children.join("") === "Reserve for J001")!;
+    expect(reserve.props.disabled).toBe(false);
+    expect(nodes(next).some(node => node.props.children === "Record installation")).toBe(false);
+    expect(tree.some(node => node.props.children === "Continue to assignment")).toBe(false);
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ error: "Insufficient available stock for this reservation." }, { status: 400 })).mockResolvedValueOnce(Response.json(initial));
+    await (reserve.props.onClick as () => Promise<void>)();
+    expect([...mocks.states.values()]).toContain("Reservation failed. The receiving bin no longer has enough available stock. Review stock and existing reservations for this part.");
+    mocks.stateIndex = 0;
+    const blocked = nodes(ServiceClosePartsWorkspace(props));
+    expect(blocked.some(node => node.props.children === "Continue to assignment")).toBe(false);
+    const reserved = { ...demand, quantityReserved: 1, status: "RESERVED" };
+    const refreshed = { ...initial, demands: [reserved], repairOrders: [{ ...order, repairJobs: [{ ...job, partDemands: [reserved] }] }] };
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("{}", { status: 201 })).mockResolvedValueOnce(Response.json(refreshed));
+    await (reserve.props.onClick as () => Promise<void>)();
+    const [url, request] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe("/api/repair-orders/ro-1/parts/reservations");
+    expect(JSON.parse(String(request?.body))).toMatchObject({ demandId: demand.id, stockLocationId: "bin-1", quantity: 1 });
+    mocks.stateIndex = 0;
+    expect(nodes(ServiceClosePartsWorkspace(props)).some(node => node.props.children === "Continue to assignment")).toBe(true);
   });
   it("unlocks a validation block with no started requests and removes only that empty journal", async () => {
     mocks.run.mockImplementation(async (_input, _model, options) => ({ status: "BLOCKED", progress: options.progress, message: "Choose one matching catalog part.", nextAction: "Review the entry" }));

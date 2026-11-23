@@ -1,3 +1,5 @@
+import { normalizeInspectionConsent } from "@/server/repair-order/domain";
+import { parseDiagnosticFee } from "@/lib/diagnostic-authorization-form";
 import { describe, expect, it } from "vitest";
 import { normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, repairOrderAge } from "@/server/repair-order/domain";
 const now=new Date("2026-07-14T12:00:00Z");
@@ -20,4 +22,48 @@ describe("repair-order core domain",()=>{
   it("rejects future arrivals and sources without their authoritative identifier",()=>{expect(()=>normalizeRepairOrderCreate({...base,arrivedAt:"2026-07-14T13:00:00Z"},now)).toThrow("future");expect(()=>normalizeRepairOrderCreate({...base,intakeSource:"APPOINTMENT",appointmentId:""},now)).toThrow("Appointment ID")});
   it("does not allow later workflow states through the core control",()=>expect(()=>normalizeRepairOrderControlUpdate({expectedVersion:1,idempotencyKey:"one",locationId:"loc",nextAction:"Start repairs",operatingState:"CLOSED",ownerUserId:"owner",reason:"Attempt a premature close.",stateReason:"Work is done",targetAt:"2026-07-14T14:00:00Z"})).toThrow("invalid"));
   it("measures intake age and overdue target",()=>expect(repairOrderAge({now,openedAt:new Date("2026-07-14T08:00:00Z"),stageStartedAt:new Date("2026-07-14T09:00:00Z"),targetAt:new Date("2026-07-14T10:00:00Z")})).toMatchObject({openAgeHours:4,stageAgeHours:3,overdue:true,targetVarianceHours:2}));
+});
+
+describe("normalizeInspectionConsent", () => {
+  const now = new Date("2026-06-15T14:30:00Z");
+  const data = {
+    expectedVersion: 1, diagnosticFeeCents: 12500, confirmed: true, consentedAt: now.toISOString(), channel: "IN_PERSON",
+    customerName: " Riley Customer ", consentReference: "Signed intake 001", idempotencyKey: "consent-001"
+  };
+
+  it("records permission against a reviewed repair order version", () => {
+    expect(normalizeInspectionConsent(data, now)).toEqual({
+      expectedVersion: 1, diagnosticFeeCents: 12500, consentedAt: now, customerName: "Riley Customer",
+      channel: "IN_PERSON", consentReference: "Signed intake 001", idempotencyKey: "consent-001"
+    });
+  });
+
+  it("records a no-charge signature and rejects missing or invalid fees", () => {
+    expect(normalizeInspectionConsent({ ...data, diagnosticFeeCents: 0, consentReference: "" }, now)).toMatchObject({
+      diagnosticFeeCents: 0, consentReference: "Customer signed at check-in"
+    });
+    for (const diagnosticFeeCents of [undefined, null, -1, "0", 0.5]) {
+      expect(() => normalizeInspectionConsent({ ...data, diagnosticFeeCents }, now)).toThrow("disclosed diagnostic fee");
+    }
+  });
+
+  it("requires customer confirmation and usable evidence", () => {
+    expect(() => normalizeInspectionConsent({ ...data, confirmed: false }, now)).toThrow("Confirm");
+    expect(() => normalizeInspectionConsent({ ...data, channel: "PHONE", consentReference: " " }, now)).toThrow("Consent evidence");
+    expect(() => normalizeInspectionConsent({ ...data, consentedAt: "2026-06-16T14:30:00Z" }, now)).toThrow("future");
+  });
+
+  it("records a signed paper form only with its evidence reference", () => {
+    expect(normalizeInspectionConsent({ ...data, channel: "SIGNED_PAPER" }, now)).toMatchObject({
+      channel: "SIGNED_PAPER", consentReference: "Signed intake 001", diagnosticFeeCents: 12500
+    });
+    expect(() => normalizeInspectionConsent({ ...data, channel: "SIGNED_PAPER", consentReference: "" }, now)).toThrow("Consent evidence");
+  });
+});
+
+describe("parseDiagnosticFee", () => {
+  it.each([["0", 0], ["125.07", 12507], ["125.7", 12570], ["21474836.47", 2147483647], ["21474836.48", null], ["1.005", null], ["", null], ["-1", null]])(
+    "validates the same fee for printing and recording (%s)",
+    (amount, expected) => expect(parseDiagnosticFee(amount)).toBe(expected),
+  );
 });

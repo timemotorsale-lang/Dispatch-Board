@@ -1,0 +1,65 @@
+.authorization {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 48rem;
+}
+
+.authorization > section {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--border, #ccd6e7);
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+}
+
+.authorization h2, .authorization h3, .authorization p {
+  margin-block: 0 0.35rem;
+}
+
+.authorization fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0 0 0.5rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border, #ccd6e7);
+  border-radius: 0.4rem;
+}
+
+.authorization label {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.authorization label:has(input[type="checkbox"]), .confirm {
+  display: flex;
+  align-items: center;
+  grid-column: 1 / -1;
+  gap: 0.5rem;
+}
+
+.authorization input:not([type="checkbox"]), .authorization select {
+  min-width: 0;
+  width: 100%;
+}
+
+.authorization input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1rem;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.links:empty {
+  display: none;
+}
+
+.printAction {
+  align-self: end;
+}

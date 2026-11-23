@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
-import { explorerEstimateIssues, explorerEstimateSeed, unresolvedExplorerAllowance, prepareExplorerQuote } from "@/lib/explorer-estimate-handoff";
+import { isExplorerPartsAllowance, explorerEstimateIssues, explorerEstimateSeed, unresolvedExplorerAllowance, prepareExplorerQuote } from "@/lib/explorer-estimate-handoff";
 import { EstimateHandoffReview } from "@/features/diagnostics/labor-guide-entry";
 import { EstimateWorkflowNextStep } from "@/features/inventory/estimate-workflow-next-step";
 import { LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
@@ -50,11 +50,14 @@ describe("Explorer to official estimate handoff", () => {
     expect(seed.labor[0]).toMatchObject({ id: "front-brake-pads-rotors", rowId: "front-brake-pads-rotors", hours: 2.1 });
     expect(seed.parts[0]).toMatchObject({ unitPrice: 120, pricingStatus: "PRICE_PENDING", number: "", laborRowId: "front-brake-pads-rotors" });
     expect(unresolvedExplorerAllowance(seed.parts[0])).toBe(true);
+    const editedAllowance = { ...seed.parts[0], id: "part-explorer-quote-2", name: "Renamed brake parts allowance" };
+    expect(isExplorerPartsAllowance(editedAllowance)).toBe(true);
+    expect(isExplorerPartsAllowance({ id: "part-explorer-item-2" })).toBe(false);
     expect(unresolvedExplorerAllowance({ ...seed.parts[0], name: "Actual pad set", number: "PART-1" })).toBe(false);
     expect(seed).not.toHaveProperty("vehicle");
     expect(seed).not.toHaveProperty("authorization");
     const html = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={[]} laborAddOns={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} initialExplorerSeed={seed} />);
-    expect(html).toContain("Explorer parts allowances need itemization");
+    expect(html).toContain("Replace the provisional allowance with itemized parts.");
     expect(html).toContain("Replace front brake pads and rotors");
     expect(html).not.toContain("2019 Ford F-150");
   });

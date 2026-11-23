@@ -339,3 +339,27 @@ export const lifecycleStages: LifecycleStage[] = [
 export function completionKey(stageIndex: number, actionIndex: number) {
   return `${stageIndex}:${actionIndex}`;
 }
+
+const guidedStageBySavedStage: Partial<Record<string, InventoryLifecycleStageKey>> = {
+  TRANSPORT_PLANNING: "TRANSPORTATION",
+  IN_TRANSIT: "TRANSPORTATION",
+  RECEIPT_AND_CUSTODY: "RECEIVING",
+  RECEIVED: "RECEIVING",
+  INSPECTION_AND_TRIAGE: "INSPECTION",
+  RECON_PLAN_AND_APPROVAL: "WORK_ORDER",
+  RECONDITIONING: "RECON_REPAIR",
+  PARTS_AND_REPAIR_EXECUTION: "RECON_REPAIR",
+  QUALITY_AND_SAFETY_VERIFICATION: "FINAL_QC",
+  TITLE_DOCUMENT_READINESS: "TITLE_READINESS",
+  MERCHANDISING_AND_PRICING: "PHOTOS_MARKETING",
+  PHOTOGRAPHY_MERCHANDISING: "PHOTOS_MARKETING",
+  FRONTLINE_RELEASE_REVIEW: "SELLING",
+  FRONTLINE_READY: "SELLING",
+  POST_RELEASE_VERIFICATION: "SELLING",
+  SOLD: "SALE_TITLING",
+  DELIVERED: "POST_SALE",
+};
+
+export function guidedStageIndex(stage: string) {
+  return Math.max(0, lifecycleStages.findIndex(item => item.key === (guidedStageBySavedStage[stage] ?? stage)));
+}

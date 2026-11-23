@@ -29,7 +29,7 @@ describe("single document workflow", () => {
     expect(html).not.toContain("Print / Save PDF");
     expect(html).toContain("Record customer approval");
     expect(html).toContain('href="/api/repair-orders/ro%2F1/documents/doc-1/pdf"');
-    expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
+    expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro%2F1&amp;step=qc"');
     expect(html).toContain(">Open QC</a>");
     expect(html).not.toContain("Continue recon / shop workflow");
     expect(html).not.toContain("/vehicles/shop-planning");
@@ -50,7 +50,7 @@ describe("single document workflow", () => {
     const approval: WorkflowDocument = { ...estimate, id: "decision-1", sourceId: "approval-1", kind: "AUTHORIZATION", content: { ...estimate.content, decision: { disposition: "ACCEPTED", actor: "Customer", channel: "IN_PERSON", approvedLineKeys: [], declinedLineKeys: [], undecidedLineKeys: [] }, notes: ["Source estimate estimate-1, version 1;"] } };
     const html = renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[approval, estimate]} selectedId={estimate.id} />);
     expect(html).toContain("Continue repair");
-    expect(html).toContain('href="/prototype/repair-workbench?repairOrderId=ro%2F1"');
+    expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro%2F1"');
     expect(html).toContain("Convert estimate to invoice");
     const unrelated = { ...approval, content: { ...approval.content, notes: ["Source estimate old-estimate, version 1;"] } };
     expect(renderToStaticMarkup(<ServiceDocumentWorkflow repairOrderId="ro/1" documents={[unrelated, estimate]} selectedId={estimate.id} />)).toContain("Record customer approval");

@@ -40,12 +40,13 @@ function database(vendorBasis: unknown, stage = "AUTHORIZATION", aggregateVersio
     enterpriseAggregateVersion: { create: vi.fn(), findUnique: vi.fn().mockResolvedValue({ id: "aggregate-1", version: aggregateVersion }), update: vi.fn() },
     enterpriseAuditEvent: { create: vi.fn() },
     enterpriseCommandLedger: { create: vi.fn().mockResolvedValue({ id: "command-1" }), findUnique: vi.fn().mockResolvedValue(null) },
-    enterpriseDomainEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
+    enterpriseDomainEvent: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({ id: "event-1" }) },
     enterpriseOutboxMessage: { create: vi.fn() },
     serviceDocument: { create: vi.fn().mockResolvedValue({ id: "document-1" }), findFirst: vi.fn().mockResolvedValue(null) },
     serviceInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
     repairDiagnosisVersion: { create: vi.fn().mockResolvedValue({ id: "diagnosis-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
     repairEstimateVersion: { create: vi.fn().mockResolvedValue({ ...estimateData, id: "estimate-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
+    repairJob: { findFirst: vi.fn().mockResolvedValue(null) },
     repairOrder: {
       findFirst: vi.fn().mockResolvedValue({ version: repairOrderVersion, repairOrderNumber: "RO-1", customer: null, vehicle: { year: 2020, make: "Synthetic", model: "Fixture", vehicleNumber: "V-1", odometerObservations: [] }, serviceVisit: { concernSummary: "Synthetic concern" }, location: { name: "Test site", timezone: "America/Chicago" }, organization: { name: "Synthetic organization" } }),
       findFirstOrThrow: vi.fn().mockResolvedValue({ closedAt: null, id: "ro-1", locationId: "location-1", nextAction: "Present estimate.", operatingState: "ACTIVE", organizationId: "org-1", ownerUserId: "manager-1", stage, stageStartedAt: new Date("2026-08-25T11:00:00Z"), targetAt: null }),
@@ -84,6 +85,15 @@ describe("shop planning vendor estimate gate", () => {
     tx.repairEstimateVersion.findFirst.mockResolvedValue({ id: "current-estimate" });
     tx.serviceInvoice.findFirst.mockResolvedValue({ id: "posted-invoice" });
     await expect(createShopPlanningRepository(db as never).estimate(command, { ...estimateData, estimateWorkflow: "STAFF_QUOTE", chargeRevisionFrom: "current-estimate" })).rejects.toThrow("issued invoice");
+    expect(tx.repairEstimateVersion.create).not.toHaveBeenCalled();
+  });
+  it("protects existing repair jobs when staff attempts to add scope", async () => {
+    const { db, tx } = database(null);
+    tx.repairEstimateVersion.findFirst.mockResolvedValue({ id: "current-estimate" });
+    tx.repairJob.findFirst.mockResolvedValue({ id: "existing-job" });
+    await expect(createShopPlanningRepository(db as never).estimate(command, {
+      ...estimateData, estimateWorkflow: "STAFF_QUOTE", chargeRevisionFrom: "current-estimate", additionalWork: true,
+    })).rejects.toThrow("Repair jobs already exist");
     expect(tx.repairEstimateVersion.create).not.toHaveBeenCalled();
   });
   it("generates a frozen staff quote from intake without a diagnosis or vendor workflow", async () => {

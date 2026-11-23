@@ -60,13 +60,14 @@ describe("Repair Explorer preview", () => {
     expect(html).toContain('href="/my-tasks"');
     expect(html).toContain("Preliminary work · no repair order selected");
     expect(html).not.toContain("2019 Ford F-150");
-    expect(html).not.toContain('aria-label="Saved documents and billing"');
+    expect(html).not.toContain('aria-label="Repair order documents"');
   });
 
   it("opens the exact simplified guide with authorized RO, inventory and vehicle identity", async () => {
     const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
-    getOrder.mockResolvedValueOnce({ id: "ro/1", repairOrderNumber: "RO-017", closedAt: null, vehicle: { id: "vehicle-1", year: 2017, make: "FORD", model: "Fusion", vin: "3FA6P0K91HR406095", vehicleNumber: "VEH-1" }, inventoryUnit: { id: "unit-1", inventoryNumber: "INV-017" }, serviceVisit: { concernSummary: "Right fender damage" } });
-    const page = await Page({ searchParams: Promise.resolve({ repairOrderId: "ro/1" }) });
+    getOrder.mockResolvedValueOnce({ id: "ro/1", repairOrderNumber: "RO-017", closedAt: null, estimateVersions: [], vehicle: { id: "vehicle-1", year: 2017, make: "FORD", model: "Fusion", vin: "3FA6P0K91HR406095", vehicleNumber: "VEH-1" }, inventoryUnit: { id: "unit-1", inventoryNumber: "INV-017" }, serviceVisit: { concernSummary: "Right fender damage" } });
+    const returnTo = "/vehicles/repair-workbench?repairOrderId=ro%2F1&step=parts";
+    const page = await Page({ searchParams: Promise.resolve({ repairOrderId: "ro/1", returnTo }) });
     expect(page.props.storageKey).toBe("dispatch-board.repair-explorer-preview.v1.reviewer.ro.ro%2F1");
     expect(page.props.context.inventoryUnitId).toBe("unit-1");
     const html = renderToStaticMarkup(page);
@@ -76,21 +77,47 @@ describe("Repair Explorer preview", () => {
     expect(html).toContain("2017 FORD Fusion");
     expect(html).toContain("INV-017");
     expect(html).toContain("RO-017");
-    expect(html).toContain('href="/service-documents?repairOrderId=ro%2F1&amp;workspace=1"');
+    const documentsHref = html.match(/href="(\/service-documents\?[^"]+)"/)?.[1].replaceAll("&amp;", "&");
+    const documents = new URL(documentsHref!, "http://localhost");
+    expect(documents.searchParams.get("repairOrderId")).toBe("ro/1");
+    expect(documents.searchParams.get("workspace")).toBe("1");
+    const guide = new URL(documents.searchParams.get("returnTo")!, documents);
+    expect(guide.pathname).toBe("/diagnostics/labor-guide");
+    expect(guide.searchParams.get("repairOrderId")).toBe("ro/1");
+    expect(guide.searchParams.get("returnTo")).toBe(returnTo);
     expect(html).not.toContain(">Create invoice / Record payment<");
     expect(html).toContain("Right fender damage");
     expect(html).not.toContain("Reference vehicle: 2019 Ford F-150");
     expect(html).toContain("Your estimate starts here");
   });
 
-  it.each(["denied", "missing", "closed"])("does not substitute a sample vehicle when the requested RO is %s", async failure => {
+  it.each(["denied", "missing"])("does not substitute a sample vehicle when the requested RO is %s", async failure => {
     const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
     if (failure === "denied") getOrder.mockRejectedValueOnce(new Error("Access denied"));
-    else getOrder.mockResolvedValueOnce(failure === "missing" ? null : { closedAt: new Date() });
+    else getOrder.mockResolvedValueOnce(null);
     const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ repairOrderId: "unavailable-ro" }) }));
     expect(html).toContain("Repair order could not open");
     expect(html).not.toContain("2019 Ford");
     expect(html).not.toContain("Generate / Print Estimate");
+  });
+
+  it.each([null, new Date()])("routes an existing estimate to the exact saved record (closedAt %s)", async closedAt => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    getOrder.mockResolvedValueOnce({ id: "ro/1", origin: "INVENTORY_RECON", closedAt, estimateVersions: [{ id: "saved-v2" }] });
+    const returnTo = "/vehicles/repair-workbench?repairOrderId=ro%2F1&step=parts";
+    const url = "/repair-estimate?" + new URLSearchParams({ repairOrderId: "ro/1", estimateId: "saved-v2", returnTo });
+    await expect(Page({ searchParams: Promise.resolve({ repairOrderId: "ro/1", returnTo }) }))
+      .rejects.toMatchObject({ digest: expect.stringContaining(url) });
+  });
+
+  it("opens document history for a closed repair order without a saved estimate", async () => {
+    const { default: Page } = await import("@/app/(repair-preview)/prototype/repair-explorer/page");
+    getOrder.mockResolvedValueOnce({ id: "closed-ro", repairOrderNumber: "RO-018", closedAt: new Date(), estimateVersions: [], vehicle: { year: 2019, make: "SUBARU", model: "Crosstrek" } });
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ repairOrderId: "closed-ro" }) }));
+    expect(html).toContain("This repair order is closed.");
+    expect(html).toContain("RO-018");
+    expect(html).toContain('href="/service-documents?repairOrderId=closed-ro&amp;workspace=1');
+    expect(html).not.toContain("Build the estimate");
   });
 
   it("finds work across systems by symptom, component and DTC", () => {

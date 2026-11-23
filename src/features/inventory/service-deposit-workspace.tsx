@@ -14,8 +14,8 @@ type Invoice = { id: string; invoiceNumber: string; status: string; version: num
 type Action = "DEPOSIT" | "REFUND_DEPOSIT" | "APPLY_DEPOSIT" | "UNAPPLY_DEPOSIT";
 const labels: Record<Action, string> = { DEPOSIT: "Record repair deposit", REFUND_DEPOSIT: "Record deposit refund", APPLY_DEPOSIT: "Apply deposit to invoice", UNAPPLY_DEPOSIT: "Reverse deposit application" };
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
-export function ServiceDepositWorkspace({ repairOrderId, deposits, invoices, canManage, blockReason, disabled, preferredInvoiceId, onRefresh, onLockChange }: {
-  repairOrderId: string; deposits: RepairDeposits; invoices: Invoice[]; canManage: boolean; blockReason?: string | null; disabled: boolean; preferredInvoiceId?: string;
+export function ServiceDepositWorkspace({ repairOrderId, deposits, invoices, returnTo, canManage, blockReason, disabled, preferredInvoiceId, onRefresh, onLockChange }: {
+  repairOrderId: string; returnTo?: string; deposits: RepairDeposits; invoices: Invoice[]; canManage: boolean; blockReason?: string | null; disabled: boolean; preferredInvoiceId?: string;
   onRefresh: () => Promise<unknown>; onLockChange: (locked: boolean) => void;
 }) {
   const [action, setAction] = useState<Action>("DEPOSIT");
@@ -50,7 +50,7 @@ export function ServiceDepositWorkspace({ repairOrderId, deposits, invoices, can
   const amountContext = movement ? (invoice ? [invoice] : []) : postedInvoices;
   const collectionBlocked = action === "DEPOSIT" && !deposits.collectionAvailability.allowed;
   const blocked = disabled || deposits.storageReady === false || !canManage || collectionBlocked || needsRefresh;
-  const receiptHref = (id: string) => `/service-documents?${new URLSearchParams({ repairOrderId, documentId: id, workspace: "1" })}`;
+  const receiptHref = (id: string) => `/service-documents?${new URLSearchParams({ repairOrderId, documentId: id, workspace: "1", ...(returnTo ? { returnTo } : {}) })}`;
   async function reload() {
     if (sending.current || disabled) return;
     setBusy(true); setError("");

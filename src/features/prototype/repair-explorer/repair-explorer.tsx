@@ -1,10 +1,12 @@
 "use client";
 
+import { laborGuideInvoiceHref, repairBillingHref } from "@/lib/service-billing-workflow";
 import { GuideRepairHistory } from "@/features/diagnostics/guide-repair-history";
 
-import { repairExplorerHandoffHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
+import { repairExplorerHandoffHref, repairOrderDocumentsHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
+import { repairLaborGuideHref } from "@/lib/repair-resume";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, CircleHelp, Search, Trash2, Wrench } from "lucide-react";
 
 import { CATALOG_COUNTS, REPAIR_SYSTEMS, searchRepairs, type RepairOperation } from "./catalog";
@@ -22,16 +24,24 @@ import { LightDutyOperationScope } from "@/features/diagnostics/light-duty-opera
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 
-export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, context }: { storageKey: string; initialSystemId?: string; initialGroupId?: string; context?: RepairExplorerContext }) {
+const subscribeToHydration = () => () => {};
+
+export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, context, initialQuery = "", sourceReturnTo, transferReturnTo = sourceReturnTo, courtesySearches = [], courtesySourceId, transferStorageKey = storageKey }: {
+  storageKey: string; initialSystemId?: string; initialGroupId?: string; context?: RepairExplorerContext;
+  initialQuery?: string; sourceReturnTo?: string; transferReturnTo?: string; transferStorageKey?: string;
+  courtesySourceId?: string;
+  courtesySearches?: { code: string; label: string; query: string }[];
+}) {
   const router = useRouter();
   const repairOrderId = context?.repairOrderId;
   const initialSystem = REPAIR_SYSTEMS.find(system => system.id === initialSystemId) ?? REPAIR_SYSTEMS.find(system => system.id === "brakes")!;
   const initialGroup = initialSystem.groups.find(group => group.id === initialGroupId) ?? initialSystem.groups[0];
+  const interactive = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [systemId, setSystemId] = useState(initialSystem.id);
   const [groupId, setGroupId] = useState(initialGroup.id);
   const [axle, setAxle] = useState("front");
   const [mode, setMode] = useState<"repair" | "diagnosis">("repair");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [selectedId, setSelectedId] = useState(initialGroup.operations.find(operation => operation.kind === "repair")?.id ?? "");
   const [lines, setLines] = useState<EstimateLine[]>([]);
   const [rate, setRate] = useState(context?.laborRate ?? 150);
@@ -39,14 +49,19 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   const [review, setReview] = useState(false);
   const [visualOpen, setVisualOpen] = useState(false);
   const [status, setStatus] = useState("Choose a repair to start your estimate.");
+  const [showPartErrors, setShowPartErrors] = useState(false);
+  const [transferError, setTransferError] = useState("");
   const contentHeading = useRef<HTMLHeadingElement>(null);
+  const contentPanel = useRef<HTMLElement>(null);
   const system = REPAIR_SYSTEMS.find((item) => item.id === systemId)!;
   const group = system.groups.find((item) => item.id === groupId);
   const selected = group?.operations.find((item) => item.id === selectedId);
   const visible = group?.operations.filter((item) => item.kind === mode && (group.id !== "friction" || mode === "diagnosis" || (brakeOperationForId(item.id)?.position.toLowerCase().startsWith(axle) ?? item.id.startsWith(axle)))) ?? [];
   const results = query.trim() ? searchRepairs(query) : [];
   const totals = estimateTotals(lines, rate);
+  const followUpRequired = Boolean(courtesySourceId && !repairOrderId);
   const scopeConflict = lines.some((line, index) => lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)));
+  const incompleteLine = lines.find(line => line.partItems?.some(item => !item.name.trim() || item.unitPrice === null));
 
   function focusContent() {
     requestAnimationFrame(() => contentHeading.current?.focus());
@@ -89,9 +104,11 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       return;
     }
     const reported = reportedOverrides[repair.id];
-    setLines([...lines, { id: repair.id, label: repair.label, hours: reported?.hours ?? repair.hours, parts: repair.parts, conflictGroup: repair.conflictGroup, laborBasis: reported ? "REPORTED_MEDIAN" : "PLANNING", laborConfiguration: reported?.configuration, reportedJobCount: reported?.count, catalogOperationId: repair.catalogOperationId, position: repair.position }]);
+    setLines([...lines, { id: repair.id, label: repair.label, hours: reported?.hours ?? repair.hours, parts: null, partItems: [], conflictGroup: repair.conflictGroup, laborBasis: reported ? "REPORTED_MEDIAN" : "PLANNING", laborConfiguration: reported?.configuration, reportedJobCount: reported?.count, catalogOperationId: repair.catalogOperationId, position: repair.position }]);
     setSelectedId(repair.catalogOperationId ?? repair.id);
-    setStatus(`${repair.label} added with ${reported ? "technician-reported median" : "provisional planning"} hours. Review scope, labor overlap and parts before quoting.`);
+    setReview(true);
+    focusContent();
+    setStatus(`${repair.label} added with ${reported ? "technician-reported median" : "provisional planning"} hours. Add the parts needed for this job.`);
   }
 
   function updateLine(id: string, field: "hours" | "parts", value: string) {
@@ -103,7 +120,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
 
   function saveDraft() {
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId, courtesySourceId }));
       setStatus("Draft saved in this browser. No repair order or customer record was changed.");
     } catch {
       setStatus("Browser storage is unavailable. Your estimate is still available until you leave this page.");
@@ -111,20 +128,32 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   }
 
   function updateParts(id: string, partItems: EstimatePartItem[]) {
-    setLines(current => current.map(line => line.id === id ? { ...line, partItems, parts: itemizedPartsTotal(partItems) } : line));
+    setTransferError("");
+    setLines(current => current.map(line => line.id === id ? { ...line, partItems, parts: partItems.length ? itemizedPartsTotal(partItems) : null } : line));
   }
 
   function generateEstimate() {
+    if (followUpRequired) { setTransferError("Open a follow-up repair order for this vehicle before continuing to official estimate review."); return; }
     if (!lines.length || scopeConflict) { setStatus("Add work and resolve scope conflicts before generating an estimate."); return; }
-    if (lines.some(line => line.partItems?.some(item => !item.name.trim() || item.unitPrice === null))) { setReview(true); setStatus("Enter a description and unit price for each part."); return; }
+    setTransferError("");
+    const partsUndecided = lines.find(line => line.partItems?.length === 0 && line.parts === null);
+    if (partsUndecided) {
+      setTransferError(`Add the parts for ${partsUndecided.label} or choose No parts needed.`);
+      return;
+    }
+    if (incompleteLine) {
+      setShowPartErrors(true);
+      requestAnimationFrame(() => contentPanel.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus());
+      return;
+    }
     try {
-      const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId });
+      const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId, courtesySourceId });
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
       window.localStorage.setItem(storageKey, raw);
-      window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
-      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow));
+      window.sessionStorage.setItem(`${transferStorageKey}.handoff`, raw);
+      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow, transferReturnTo ?? context?.returnTo));
     } catch {
-      setStatus("The estimate could not be transferred. Check draft values and browser storage; your current work was kept.");
+      setTransferError("The estimate could not open for review. Check the draft values and browser storage, then try again. Your work is still on this page.");
     }
   }
 
@@ -133,7 +162,8 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       const raw = window.localStorage.getItem(storageKey);
       const draft = raw ? parsePreviewDraft(raw) : null;
       if (!draft) { setStatus(raw ? "The saved draft cannot be loaded. Your current estimate was kept." : "No saved draft in this browser yet."); return; }
-      if ((draft.repairOrderId ?? null) !== (repairOrderId ?? null) || (draft.vehicleId ?? null) !== (context?.vehicleId ?? null)) {
+      const isCourtesyDraftForThisSource = !!courtesySourceId && courtesySourceId === draft.courtesySourceId && !draft.repairOrderId;
+      if (!isCourtesyDraftForThisSource && ((draft.repairOrderId ?? null) !== (repairOrderId ?? null) || (draft.vehicleId ?? null) !== (context?.vehicleId ?? null))) {
         setStatus("This saved draft belongs to another repair order or vehicle. Your current work was kept.");
         return;
       }
@@ -152,12 +182,13 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
     const data = new FormData(form);
     const label = String(data.get("label") ?? "").trim();
     const hours = Number(data.get("hours"));
-    const parts = Number(data.get("parts"));
-    if (!label || !isValidAmount(hours, 100) || !isValidAmount(parts, 100000) || lines.length >= 100) {
+    if (!label || !isValidAmount(hours, 100) || lines.length >= 100) {
       setStatus("Enter a repair name and valid amounts. An estimate supports up to 100 lines.");
       return;
     }
-    setLines([...lines, { id: `custom-${crypto.randomUUID()}`, label, hours, parts, laborBasis: "MANUAL" }]);
+    setLines([...lines, { id: `custom-${crypto.randomUUID()}`, label, hours, parts: null, partItems: [], laborBasis: "MANUAL" }]);
+    setReview(true);
+    focusContent();
     setStatus(`${label} added as custom work.`);
     form.reset();
   }
@@ -176,7 +207,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   return (
     <div className={styles.preview}>
       <header className={styles.topbar}>
-        <a href="/my-tasks"><ArrowLeft size={16} /> My work</a>
+        <a href={sourceReturnTo ?? context?.returnTo ?? "/my-tasks"}><ArrowLeft size={16} /> {sourceReturnTo ? "Back to repair order" : context?.returnTo ? "Back to repair order" : "My work"}</a>
         <strong>Dispatch Board <span>/ Labor Guide</span></strong>
       </header>
       <main className={styles.workspace}>
@@ -188,9 +219,15 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             <button type="button" aria-current={review ? "step" : undefined} disabled={!lines.length} onClick={() => { setReview(true); setQuery(""); focusContent(); }}><span>2</span> Review estimate</button>
           </nav>
         </div>
+        {context && <nav className={styles.draftActions} aria-label="Repair order documents"><a className={styles.secondary} href={repairOrderDocumentsHref(context.repairOrderId, repairLaborGuideHref(context.repairOrderId, context.returnTo))}>Estimates, invoices & receipts</a></nav>}
         <GuideRepairHistory initialVehicleId={context?.vehicleId} />
         <div className={styles.searchbar}>
           <Search size={21} aria-hidden="true" />
+          {courtesySearches.length > 0 && <div aria-label="Search by courtesy finding">
+            {courtesySearches.map(item => <button className="pill" key={item.code} type="button" onClick={() => {
+              setQuery(item.query); setReview(false); setVisualOpen(false); focusContent();
+            }}>{item.label}</button>)}
+          </div>}
           <input aria-label="Search all repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); setVisualOpen(false); }} />
           {query ? <button type="button" onClick={() => setQuery("")}>Clear</button> : <span>All systems</span>}
           <button type="button" className={styles.visualLaunch} aria-pressed={visualOpen} onClick={() => { setVisualOpen(!visualOpen); setQuery(""); setReview(false); }}>Find it visually</button>
@@ -212,7 +249,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             ))}
             <p className={styles.catalogNote}>{CATALOG_COUNTS.systems} systems · {CATALOG_COUNTS.groups} groups · {CATALOG_COUNTS.operations} operations. Broad preview catalog; confirm vehicle applicability before pricing.</p>
           </aside>
-          <section className={styles.content} aria-label={review ? "Review estimate" : "Repair selection"}>
+          <section ref={contentPanel} className={styles.content} aria-label={review ? "Review estimate" : "Repair selection"}>
             {review ? <>
               <p className={styles.breadcrumb}>Estimate / Review</p>
               <h2 ref={contentHeading} tabIndex={-1}>Review your estimate</h2>
@@ -222,7 +259,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
                 <div className={styles.row}><h3>{line.label}</h3><button type="button" className={styles.iconButton} aria-label={`Remove ${line.label}`} onClick={() => removeLine(line.id)}><Trash2 size={17} /></button></div>
                 <p className={styles.laborBasis}>{line.laborBasis === "PLANNING" ? "Provisional planning allowance · no measured job evidence" : line.laborBasis === "REPORTED_MEDIAN" ? `Technician-reported median · ${line.reportedJobCount} jobs · ${line.laborConfiguration}` : "Manually entered hours · not source-verified"}</p>
                 <div className={styles.lineFields}><label>Labor hours<input aria-label={`Labor hours for ${line.label}`} type="number" min="0" max="100" step="0.1" placeholder="Enter hours" value={line.hours ?? ""} onChange={(event) => updateLine(line.id, "hours", event.target.value)} /></label>{line.partItems === undefined && <label>Parts total ($)<input aria-label={`Parts total for ${line.label}`} type="number" min="0" max="100000" step="0.01" placeholder="Enter parts total" value={line.parts ?? ""} onChange={(event) => updateLine(line.id, "parts", event.target.value)} /></label>}<strong>{line.hours === null || line.parts === null ? "Needs pricing" : money(estimateTotals([line], rate).subtotal)}</strong></div>
-                {line.partItems === undefined ? <button type="button" className={styles.secondary} onClick={() => updateParts(line.id, [{ id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Itemize parts for {line.label}</button> : <PartsBreakdown items={line.partItems} onChange={items => updateParts(line.id, items)} />}
+                {line.partItems === undefined ? <button type="button" className={styles.secondary} onClick={() => updateParts(line.id, [{ id: crypto.randomUUID(), name: "", number: "", quantity: 1, unitPrice: null }])}>Replace allowance with itemized parts for {line.label}</button> : <PartsBreakdown items={line.partItems} onChange={items => updateParts(line.id, items)} showErrors={showPartErrors} onNoPartsNeeded={line.parts === null ? () => { updateLine(line.id, "parts", "0"); setTransferError(""); setStatus(`No parts needed for ${line.label}.`); } : undefined} />}
               </article>)}
               <div className={styles.note}><CircleHelp size={19} /><p>Ready for a customer estimate? Choose Generate / Print Estimate, select the actual repair order, then review labor, itemized parts and taxes. Printing is available after the official estimate is issued. Customer approval and final invoicing remain separate steps.</p></div>
               <button type="button" className={styles.secondary} onClick={() => { setReview(false); focusContent(); }}><ArrowLeft size={16} /> Keep adding work</button>
@@ -257,7 +294,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
                   const added = lines.some((line) => line.id === repair.id);
                   return <article key={repair.id} className={`${styles.operation} ${selectedId === repair.id ? styles.selected : ""}`}>
                     <button type="button" className={styles.operationTitle} aria-pressed={selectedId === repair.id} onClick={() => setSelectedId(repair.id)}><Wrench size={18} /><span><strong>{repair.label}</strong><small>{repair.hours === null ? "Needs pricing" : `${repair.hours.toFixed(1)} hrs · provisional ${repair.kind === "diagnosis" ? "initial assessment" : "planning allowance"}`}</small></span></button>
-                    <button type="button" className={styles.addButton} disabled={added} aria-label={added ? `${repair.label} added` : `Add ${repair.label}`} onClick={() => addRepair(repair)}>{added ? <><Check size={16} /> Added</> : "Add"}</button>
+                    <button type="button" className={styles.addButton} disabled={!interactive || added} aria-label={added ? `${repair.label} added` : `Add ${repair.label}`} onClick={() => addRepair(repair)}>{added ? <><Check size={16} /> Added</> : "Add"}</button>
                   </article>;
                 })}
               </div>
@@ -272,7 +309,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
                 <details><summary>Related checks & additional work</summary><p>Confirm findings before adding related work. Diagnostic checks and repairs are separate estimate lines. Shared labor must be reviewed for overlap.</p></details>
               </div>}
             </>}
-            {!review && !visualOpen && <details className={styles.custom}><summary>Can’t find the work? Add a custom line</summary><form onSubmit={addCustom}><label>Work description<input name="label" required maxLength={200} placeholder="Describe the work" /></label><div className={styles.lineFields}><label>Labor hours<input name="hours" type="number" min="0" max="100" step="0.1" defaultValue="1" required /></label><label>Parts total ($)<input name="parts" type="number" min="0" max="100000" step="0.01" defaultValue="0" required /></label></div><button className={styles.secondary} type="submit">Add custom work</button></form></details>}
+            {!review && !visualOpen && <details className={styles.custom}><summary>Can’t find the work? Add a custom line</summary><form onSubmit={addCustom}><label>Work description<input name="label" required maxLength={200} placeholder="Describe the work" /></label><div className={styles.lineFields}><label>Labor hours<input name="hours" type="number" min="0" max="100" step="0.1" defaultValue="1" required /></label></div><button className={styles.secondary} type="submit">Add custom work</button></form></details>}
           </section>
           <aside className={styles.estimate} aria-label="Estimate">
             <div className={styles.row}><h2>Estimate</h2><span className={styles.count}>{lines.length} {lines.length === 1 ? "line" : "lines"}</span></div>
@@ -282,10 +319,15 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             {totals.unpricedLines > 0 && <p className={styles.pricingNotice} data-testid="pricing-needed">{totals.unpricedLines} {totals.unpricedLines === 1 ? "line needs" : "lines need"} pricing. This subtotal is incomplete. Enter hours and parts in Review estimate.</p>}
             <p className={styles.priceNote}>Excludes taxes and fees.</p>
             <button type="button" className={review ? styles.secondary : styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
-            {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
-            {review && <p className={styles.priceNote}>{context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
+            {review && showPartErrors && incompleteLine && <p role="alert" className={styles.generateError}>Complete the highlighted part fields for {incompleteLine.label} to continue.</p>}
+            {review && transferError && <p role="alert" className={styles.generateError}>{transferError}</p>}
+            {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict || followUpRequired} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
+            {review && <p className={styles.priceNote}>{followUpRequired ? "Save this draft until a follow-up repair order for this vehicle is available." : context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>
-            {context && <nav className={styles.draftActions} aria-label="Saved documents and billing"><a href={`/service-documents?repairOrderId=${encodeURIComponent(context.repairOrderId)}&workspace=1`}>Open saved estimates, invoices & receipts</a></nav>}
+            {repairOrderId && context?.origin === "CUSTOMER_REPAIR" && <nav className={styles.draftActions} aria-label="Estimate billing tools">
+              <a className={styles.secondary} target="_blank" rel="noreferrer" href={laborGuideInvoiceHref(repairOrderId, { returnTo: context.returnTo ?? `/prototype/repair-explorer?${new URLSearchParams({ repairOrderId })}` })}>Review saved estimate for invoicing</a>
+              <a className={styles.secondary} target="_blank" rel="noreferrer" href={repairBillingHref(repairOrderId, { mode: "deposit", returnTo: context.returnTo })}>Record deposit</a>
+            </nav>}
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>
         </div>

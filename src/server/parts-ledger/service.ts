@@ -8,11 +8,22 @@ import { assertVehicleCapability, type VehicleCapability } from "@/server/enterp
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { normalizeDemandCancel,normalizeDemandCreate,normalizePartCreate,normalizeReservation,normalizeReservationRelease,normalizeStockLocationCreate,normalizeStockMovement } from "./domain";
 import { createPartsLedgerRepository,type PartsLedgerRepository } from "./repository";
-type Dependencies={enforceRollout?:boolean;foundationRepository?:EnterpriseCommandRepository;organizationId?:string;repository?:PartsLedgerRepository};
+type Dependencies={repairOrderId?:string;enforceRollout?:boolean;foundationRepository?:EnterpriseCommandRepository;organizationId?:string;repository?:PartsLedgerRepository};
 function deps(input:Dependencies){return{enforceRollout:input.enforceRollout??true,foundationRepository:input.foundationRepository??createEnterpriseCommandRepository(),organizationId:input.organizationId??INITIAL_ORGANIZATION.id,repository:input.repository??createPartsLedgerRepository()};}
 async function authorize(actor:AuthenticatedUser|null,capability:VehicleCapability,input:ReturnType<typeof deps>,mutation=false,locationId:string|null=null){const user=assertAuthenticatedUser(actor);const grants=await input.foundationRepository.listCapabilityGrants(user.id,input.organizationId);assertVehicleCapability({actor:user,capability,grants,locationId});if(mutation&&input.enforceRollout){const flags=await input.foundationRepository.listFeatureFlags(input.organizationId);const decision=evaluateVehicleOperationsFeature(flags,"PARTS_OPERATIONS",user.id,locationId);if(!decision.executable)throw new Error(`Parts Operations mutations are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`);}return user;}
 function command(input:{actorUserId:string;commandType:string;expectedVersion?:number;idempotencyKey:string;locationId?:string|null;organizationId:string;payload:Record<string,unknown>;reason:string;subjectId:string;subjectType:string}){return normalizeEnterpriseCommand({...input,domain:"PARTS_OPERATIONS",expectedVersion:input.expectedVersion??0,locationId:input.locationId??null});}
-export async function getPartsWorkspace(actor:AuthenticatedUser|null,query="",input:Dependencies={}){const context=deps(input);await authorize(actor,"PARTS_VIEW",context);return context.repository.overview(context.organizationId,query);}
+export async function getPartsWorkspace(actor: AuthenticatedUser | null, query = "", input: Dependencies = {}) {
+  const context = deps(input);
+  await authorize(actor, "PARTS_VIEW", context);
+  if (input.repairOrderId) {
+    const order = await context.repository.repairOrderSite(context.organizationId, input.repairOrderId);
+    if (!order || order.closedAt) throw new Error("Open repair order was not found.");
+    await authorize(actor, "PARTS_VIEW", context, false, order.locationId);
+  }
+  return input.repairOrderId
+    ? context.repository.overview(context.organizationId, query, input.repairOrderId)
+    : context.repository.overview(context.organizationId, query);
+}
 function stableCreationId(organizationId: string, action: string, key: string) {
   const hex = createHash("sha256").update(JSON.stringify(["parts-ledger", organizationId, action, key])).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${((parseInt(hex[16], 16) & 3) | 8).toString(16)}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;

@@ -17,7 +17,7 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Repair Planning");
     expect(markup).toContain("Vehicle released for diagnosis");
     expect(markup).toContain("Diagnostic mission");
-    expect(markup).toContain("Diagnostic / mechanical");
+    expect(markup).toContain("Mechanical Repair");
     expect(markup).toContain("Choose path");
     expect(markup).toContain("Build Labor Guide estimate");
     expect(markup).toContain("/diagnostics/labor-guide?query=Customer+reports+grinding+from+the+front+passenger+brake.");

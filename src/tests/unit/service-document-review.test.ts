@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
-import { getServiceDocumentReview, updateServiceDocumentCustomer, reviseServiceDocumentCharges } from "@/server/repair-order/document-review-service";
+import { getLaborGuideRevision, getServiceDocumentReview, updateServiceDocumentCustomer, reviseServiceDocumentCharges } from "@/server/repair-order/document-review-service";
 import { normalizeDocumentCustomer } from "@/lib/service-document-review";
 const mocks = vi.hoisted(() => ({
-  db: { repairOrder: { findFirst: vi.fn() }, serviceDocument: { findFirst: vi.fn(), create: vi.fn() }, repairEstimateVersion: { findFirst: vi.fn() }, serviceInvoice: { findFirst: vi.fn() }, enterpriseCommandLedger: { findUnique: vi.fn(), create: vi.fn() }, enterpriseAuditEvent: { create: vi.fn() }, $transaction: vi.fn() },
+  db: { repairJob: { findFirst: vi.fn() }, repairOrder: { findFirst: vi.fn() }, serviceDocument: { findFirst: vi.fn(), create: vi.fn() }, repairEstimateVersion: { findFirst: vi.fn() }, serviceInvoice: { findFirst: vi.fn() }, enterpriseCommandLedger: { findUnique: vi.fn(), create: vi.fn() }, enterpriseAuditEvent: { create: vi.fn() }, $transaction: vi.fn() },
   grants: vi.fn(), flags: vi.fn(), billing: vi.fn(), present: vi.fn(),
 }));
 vi.mock("@/server/db/client", () => ({ prisma: mocks.db }));
@@ -27,6 +27,7 @@ beforeEach(() => {
   mocks.db.enterpriseCommandLedger.create.mockResolvedValue({ id: "ledger-1" });
   mocks.db.enterpriseAuditEvent.create.mockResolvedValue({});
   mocks.db.serviceInvoice.findFirst.mockResolvedValue(null);
+  mocks.db.repairJob.findFirst.mockResolvedValue(null);
   mocks.db.repairEstimateVersion.findFirst.mockResolvedValue({ id: "estimate-1", lineItems: [{ ...content.lines[0], taxable: false, laborGuideMinutes: 120, workTypeCode: "LABOR", plannedCorrection: "Repair" }], discountCents: 0, optionGroups: { servicePricing: { taxRatePercent: 7 } }, taxBoundary: "Configured rate", presentationChannel: "INTERNAL", assumptions: null });
   mocks.present.mockResolvedValue({ result: { id: "estimate-2" } });
   mocks.db.$transaction.mockImplementation(async callback => callback(mocks.db));
@@ -75,6 +76,38 @@ describe("document customer and charge review", () => {
     expect(command.lineItems[0]).toMatchObject({ key: "work", description: "Repair", unitPriceCents: 25000, laborGuideMinutes: 120 });
     expect(command.lineItems.slice(1).map((line: { unitPriceCents: number }) => line.unitPriceCents)).toEqual([1250, 10000]);
     expect(command.taxCents).toBe(85);
+  });
+  it("appends labor and two linked parts while keeping the previous rates and exact source", async () => {
+    await reviseServiceDocumentCharges(actor, "ro-1", {
+      action: "ADD_WORK", documentId: source.id, estimateId: source.sourceId, documentHash: source.sha256,
+      expectedVersion: 4, laborRate: 125, taxRatePercent: 7, idempotencyKey: "add-work",
+      additionalWork: { laborDescription: "Replace both front sway bar links", laborMinutes: "60", parts: [{ description: "Front sway bar link", partNumber: "LINK-1", quantity: "2", unitPrice: "42.50" }], reason: "Additional wear observed" },
+    });
+    const [,, command,, preservedKeys] = mocks.present.mock.calls[0];
+    expect(command.chargeRevisionFrom).toBe(source.sourceId);
+    expect(command.lineItems).toMatchObject([
+      { key: "work", unitPriceCents: 25000 },
+      { key: "additional-work-1", type: "LABOR", unitPriceCents: 12500 },
+      { type: "PART", quantity: 2, unitPriceCents: 4250, laborLineKey: "additional-work-1", partNumber: "LINK-1" },
+      { key: "fee-shop-supplies", unitPriceCents: 1875 },
+    ]);
+    expect(command.taxCents).toBe(595);
+    expect(preservedKeys).toEqual(new Set(["work"]));
+    expect(mocks.db.serviceDocument.create).not.toHaveBeenCalled();
+  });
+  it("reopens the exact saved lines and submits Labor Guide changes against that version", async () => {
+    const revision = await getLaborGuideRevision(actor, "ro-1", source.id);
+    expect(revision).toMatchObject({ estimateId: source.sourceId, documentId: source.id, expectedVersion: 4, lines: [{ key: "work", unitPriceCents: 25000 }] });
+    await reviseServiceDocumentCharges(actor, "ro-1", {
+      action: "LABOR_GUIDE_REVISION", documentId: source.id, estimateId: source.sourceId, documentHash: source.sha256,
+      expectedVersion: 4, laborRate: 125, taxRatePercent: 7, revisionReason: "Adjust approved quote for additional scope",
+      lineItems: [...revision.lines, { key: "part-new", type: "PART", description: "Sway bar link", quantity: 2, unitPriceCents: 2500, taxable: true, laborLineKey: "work" }],
+    });
+    const [,, command,, preservedKeys] = mocks.present.mock.calls[0];
+    expect(command).toMatchObject({ chargeRevisionFrom: source.sourceId, documentReview: { documentId: source.id }, taxCents: 350, lineItems: [
+      { key: "work", unitPriceCents: 25000 }, { key: "part-new", quantity: 2, laborLineKey: "work" }, { key: "fee-shop-supplies" },
+    ] });
+    expect(preservedKeys).toEqual(new Set(["work"]));
   });
   it("keeps posted invoice charges immutable but allows authorized contact corrections", async () => {
     mocks.db.serviceInvoice.findFirst.mockResolvedValue({ id: "invoice-1" });

@@ -26,7 +26,7 @@ describe("enterprise repair-order workbench", () => {
       estimateVersions: [{ id: "estimate", version: 1, status: "PRESENTED", totalCents: 23683, authorizations }],
     }} options={{ users: [] }} />);
     expect(html).toContain(action);
-    expect(html).toContain(`/prototype/repair-workbench?repairOrderId=ro-1&amp;step=${step}`);
+    expect(html).toContain(`/vehicles/repair-workbench?repairOrderId=ro-1&amp;step=${step}`);
     expect(html).not.toContain("Labor Guide estimate is next");
   });
   it("renders the simplified vehicle summary card with always-visible detail panels and a full-detail link", () => {
@@ -41,7 +41,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Vehicle summary card");
     expect(html).toContain("Recon progress");
     expect(html).toContain("Choose recon path");
-    expect(html).toContain("Mechanical repair");
+    expect(html).toContain("Mechanical Repair");
     expect(html).toContain("Bodywork");
     expect(html).toContain("Outside vendor");
     expect(html).toContain("Detail / prep");
@@ -145,7 +145,7 @@ describe("enterprise repair-order workbench", () => {
     );
 
     expect(html).toContain("Repair path");
-    expect(html).toContain("Mechanical repair");
+    expect(html).toContain("Mechanical Repair");
     expect(html).toContain("Bodywork");
     expect(html).toContain("Outside vendor");
     expect(html).toContain("Detail / prep");

@@ -1,0 +1,99 @@
+.sheet {
+  max-width: 48rem;
+  margin: 1.5rem auto;
+  padding: 1.5rem;
+  background: white;
+  color: #17263b;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.sheet header {
+  border-bottom: 2px solid #405a80;
+  padding-bottom: 0.625rem;
+}
+
+.sheet h1 {
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+
+.sheet h1, .sheet h2, .sheet p {
+  margin: 0.35rem 0;
+}
+
+.sheet h2 {
+  font-size: 1rem;
+}
+
+.facts, .signature {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0.9rem 0;
+}
+
+.facts dt {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.scope {
+  border: 1px solid #a8b6cc;
+  padding: 0.45rem 0.75rem;
+}
+
+.sheet .fee {
+  margin: 0.9rem 0;
+}
+
+.signature {
+  grid-template-columns: 2fr 1fr;
+  margin-top: 2.4rem;
+  break-inside: avoid;
+}
+
+.signature span {
+  border-top: 1px solid currentColor;
+  padding-top: 0.25rem;
+  font-size: 0.85rem;
+}
+
+@page {
+  size: letter;
+  margin: 0.55in;
+}
+
+@media print {
+  :global(html):has(.sheet),
+  :global(body):has(.sheet) {
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    background: white;
+  }
+
+  .sheet {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    color: black;
+    font: 11pt/1.35 Arial, sans-serif;
+  }
+
+  .actions {
+    display: none;
+  }
+}

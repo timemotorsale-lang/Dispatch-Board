@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type FlgWorkflowProgress = {
@@ -239,9 +240,11 @@ export function FlgFilingTool({
         <span><FileArchive size={15} />TMS Filing</span>
         <h3>FLG authoritative file workspace</h3>
         <p>Guide the team through assembling the complete record, reconciling versions, verifying approvals, balancing money, classifying retention, and locking the final file.</p>
-        <div className={styles.wopHeaderActions}>
-          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>File state</small>
@@ -251,44 +254,39 @@ export function FlgFilingTool({
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Assemble the complete record</h4></div><em className={completedSteps.assembly ? styles.wopComplete : ""}>{completedSteps.assembly ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Assemble the complete record" status={<em className={completedSteps.assembly ? styles.wopComplete : ""}>{completedSteps.assembly ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.acquisitionTransportInventoryRecordsPresent} onChange={(event) => updateBoolean("acquisitionTransportInventoryRecordsPresent", event.target.checked, "assembly")} type="checkbox" /><span>Acquisition, transport, and inventory records are present</span></label>
             <label><input checked={input.dealAndTitleRecordsPresent} onChange={(event) => updateBoolean("dealAndTitleRecordsPresent", event.target.checked, "assembly")} type="checkbox" /><span>Deal, title, payment, and transfer records are present</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.fileAssemblyComplete || completedSteps.assembly} onClick={completeAssembly} type="button">Lock file assembly</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Reconcile authoritative versions</h4></div><em className={completedSteps.versions ? styles.wopComplete : ""}>{completedSteps.versions ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Reconcile authoritative versions" status={<em className={completedSteps.versions ? styles.wopComplete : ""}>{completedSteps.versions ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.finalAppraisalAndEstimateMatch} onChange={(event) => updateBoolean("finalAppraisalAndEstimateMatch", event.target.checked, "versions")} type="checkbox" /><span>Final appraisal and estimate versions agree</span></label>
             <label><input checked={input.finalContractAndTitleMatch} onChange={(event) => updateBoolean("finalContractAndTitleMatch", event.target.checked, "versions")} type="checkbox" /><span>Final contract and title versions agree</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.assembly || !result.versionComplete || completedSteps.versions} onClick={completeVersions} type="button">Lock version audit</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Verify signatures and approvals</h4></div><em className={completedSteps.signatures ? styles.wopComplete : ""}>{completedSteps.signatures ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Verify signatures and approvals" status={<em className={completedSteps.signatures ? styles.wopComplete : ""}>{completedSteps.signatures ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.requiredSignaturesVerified} onChange={(event) => updateBoolean("requiredSignaturesVerified", event.target.checked, "signatures")} type="checkbox" /><span>Required signatures are verified</span></label>
             <label><input checked={input.requiredApprovalsVerified} onChange={(event) => updateBoolean("requiredApprovalsVerified", event.target.checked, "signatures")} type="checkbox" /><span>Required approvals are verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.versions || !result.signaturesComplete || completedSteps.signatures} onClick={completeSignatures} type="button">Lock approval audit</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Reconcile money and inventory</h4></div><em className={completedSteps.financial ? styles.wopComplete : ""}>{completedSteps.financial ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Reconcile money and inventory" status={<em className={completedSteps.financial ? styles.wopComplete : ""}>{completedSteps.financial ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.fundingAndReceiptsReconciled} onChange={(event) => updateBoolean("fundingAndReceiptsReconciled", event.target.checked, "financial")} type="checkbox" /><span>Funding and receipts are reconciled</span></label>
             <label><input checked={input.inventoryDispositionBalanced} onChange={(event) => updateBoolean("inventoryDispositionBalanced", event.target.checked, "financial")} type="checkbox" /><span>Inventory disposition balances to the transaction</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.signatures || !result.financialComplete || completedSteps.financial} onClick={completeFinancial} type="button">Lock financial reconcile</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Classify and retain records</h4></div><em className={completedSteps.retention ? styles.wopComplete : ""}>{completedSteps.retention ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Classify and retain records" status={<em className={completedSteps.retention ? styles.wopComplete : ""}>{completedSteps.retention ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Retention state</span><select onChange={(event) => updateValue("retentionState", event.target.value as RetentionState, "retention")} value={input.retentionState}><option>Unclassified</option><option>Classified</option><option>Exception review</option></select></label>
           </div>
@@ -297,10 +295,9 @@ export function FlgFilingTool({
             <label><input checked={input.repairAndSafetyRetentionClassified} onChange={(event) => updateBoolean("repairAndSafetyRetentionClassified", event.target.checked, "retention")} type="checkbox" /><span>Repair and safety records are classified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.financial || !result.retentionComplete || completedSteps.retention} onClick={completeRetention} type="button">Lock retention record</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Lock the completed file</h4></div><em className={completedSteps.lock ? styles.wopComplete : ""}>{completedSteps.lock ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Lock the completed file" status={<em className={completedSteps.lock ? styles.wopComplete : ""}>{completedSteps.lock ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>File lock state</span><select onChange={(event) => updateValue("fileLockState", event.target.value as FileLockState, "lock")} value={input.fileLockState}><option>Open</option><option>Ready to lock</option><option>Locked</option></select></label>
           </div>
@@ -309,54 +306,58 @@ export function FlgFilingTool({
             <label><input checked={input.missingDocumentOwnerRecorded} onChange={(event) => updateBoolean("missingDocumentOwnerRecorded", event.target.checked, "lock")} type="checkbox" /><span>Missing-document owner and status were recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.retention || !result.filingLockComplete || completedSteps.lock} onClick={completeLock} type="button">Release file closure</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><Vault size={18} /><div><span>Filing recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Post-Sale" ? styles.wopComplete : result.recommendation === "Lock file" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Retention state</dt><dd>{input.retentionState}</dd></div>
-          <div><dt>File lock state</dt><dd>{input.fileLockState}</dd></div>
-          <div><dt>Completeness audit</dt><dd>{input.completenessAuditPassed ? "Passed" : "Pending"}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Post-Sale" ? "Filing is complete. The authoritative deal file is reconciled, retained, and locked for Post-Sale follow-through." : "Filing should remain controlled until the exact missing file, version, approval, financial, or retention issue is resolved."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed filing strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><Vault size={18} /><div><span>Filing recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Post-Sale" ? styles.wopComplete : result.recommendation === "Lock file" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Retention state</dt><dd>{input.retentionState}</dd></div>
+            <div><dt>File lock state</dt><dd>{input.fileLockState}</dd></div>
+            <div><dt>Completeness audit</dt><dd>{input.completenessAuditPassed ? "Passed" : "Pending"}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Post-Sale" ? "Filing is complete. The authoritative deal file is reconciled, retained, and locked for Post-Sale follow-through." : "Filing should remain controlled until the exact missing file, version, approval, financial, or retention issue is resolved."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed filing strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No filing action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No filing action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Authoritative record</span>
-        <strong>{completedSteps.versions ? "File versions reconciled" : "Assembly or versions still active"}</strong>
-        <small>All authoritative records and final versions should agree before money and retention controls are closed.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Audit and retention</span>
-        <strong>{completedSteps.retention ? "Retention classified" : "Retention still active"}</strong>
-        <small>Approvals, money, retention, and completeness audit should be explicit before the file is locked.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.lock ? "Ready for Post-Sale" : "Filing still active"}</strong>
-        <small>{completedSteps.lock ? "This deal can now hand off into the Post-Sale stage." : "Finish file closure and completeness audit before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Authoritative record</span>
+          <strong>{completedSteps.versions ? "File versions reconciled" : "Assembly or versions still active"}</strong>
+          <small>All authoritative records and final versions should agree before money and retention controls are closed.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Audit and retention</span>
+          <strong>{completedSteps.retention ? "Retention classified" : "Retention still active"}</strong>
+          <small>Approvals, money, retention, and completeness audit should be explicit before the file is locked.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.lock ? "Ready for Post-Sale" : "Filing still active"}</strong>
+          <small>{completedSteps.lock ? "This deal can now hand off into the Post-Sale stage." : "Finish file closure and completeness audit before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

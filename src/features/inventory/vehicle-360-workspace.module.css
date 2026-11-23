@@ -1,3 +1,8 @@
+.compactIdentity { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.6rem 1.25rem; padding:.8rem 1.15rem; }
+.compactIdentity p { margin:.15rem 0; overflow-wrap:anywhere; }
+.quickTools { display:flex; flex-wrap:wrap; gap:.5rem; }
+.extraDetails { margin-top:.85rem; }
+.extraDetails > summary { cursor:pointer; padding:.4rem 0; font-weight:650; }
 .workspace { display:grid; gap:18px; color:#122540; }
 .hero { overflow:hidden; border:1px solid #cfd9e8; border-radius:16px; background:linear-gradient(135deg,#edf3ff 0%,#fff 58%); box-shadow:0 14px 34px rgb(34 59 93 / 8%); }
 .breadcrumb { display:flex; gap:8px; align-items:center; padding:13px 22px; border-bottom:1px solid #dce4ef; color:#6b7b91; font-size:.75rem; }

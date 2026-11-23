@@ -46,20 +46,21 @@ const model = {
 };
 
 describe("QualityControlWorkspace", () => {
-  it("offers detailed QC for a brake job in the repair workbench", () => {
+  it("shows the road test and procedure checks in the focused checklist", () => {
     const html = renderToStaticMarkup(<QualityControlWorkspace initial={model} reviewOrderId="ro_1" />);
-    expect(html).toContain("Open detailed QC for road-test evidence");
-    expect(html).toContain("Road-test outcome");
-    expect(html).toContain("Road-test evidence");
-    expect(html).not.toContain("Record passed repair QC");
+    expect(html).toContain("Final QC checklist");
+    expect(html).toContain("Select outcome");
+    expect(html).toContain("Verify wheel torque");
+    expect(html).toContain("Save QC pass");
+    expect(html).not.toContain("Quick Repair QC");
   });
 
   it("keeps quick QC for an unrelated trim job on a brake visit", () => {
     const order = model.repairOrders[0];
     const trim = { ...order.repairJobs[0], description: "Driver door trim", plannedCorrection: "Replace the trim clip" };
     const html = renderToStaticMarkup(<QualityControlWorkspace initial={{ ...model, repairOrders: [{ ...order, repairJobs: [trim] }] }} reviewOrderId="ro_1" />);
-    expect(html).toContain("Record passed repair QC");
-    expect(html).not.toContain("Open detailed QC for road-test evidence");
+    expect(html).toContain("Save QC pass");
+    expect(html).not.toContain("Select outcome");
   });
 
   it("routes diagnostic-heavy jobs to detailed QC for peer verification", () => {
@@ -72,6 +73,11 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("Peer verification passed");
     expect(html).not.toContain("Save &amp; open Final QC");
     expect(html).not.toContain("QC failed — return for correction");
+
+    const focused = renderToStaticMarkup(<QualityControlWorkspace initial={{ ...model, repairOrders: [{ ...order, repairJobs: [job] }] }} reviewOrderId="ro_1" />);
+    expect(focused).toContain("Peer who verified the repair");
+    expect(focused).toContain("Save QC pass");
+    expect(focused).not.toContain("Open detailed QC to record peer verification");
   });
 
   it("renders a compact direct-to-work QC inspector workspace", () => {

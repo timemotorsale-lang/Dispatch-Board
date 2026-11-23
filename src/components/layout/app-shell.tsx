@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
+import type { VehiclePilotMode } from "@/lib/vehicle-pilot";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getPermittedWorkspaces, resolveWorkspaceForPath, type WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
@@ -16,7 +17,7 @@ import { rememberMobileScroll, restoreMobileScroll } from "./mobile-scroll";
 import { ConsoleSidebar } from "./console-sidebar";
 import { getConsoleNavigation, isAppointmentConsolePath, isInventoryConsolePath, isOperationsCoordinatorConsolePath, isSalesConsolePath } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
-import { isDispatchConsolePath } from "./navigation";
+import { isDispatchConsolePath, withVehiclePilotNavigation } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider, type WorkspaceMode } from "./workspace-mode";
 import { AppearanceProvider } from "./appearance";
 import { InventoryConsoleRouteTabs } from "./inventory-console-route-tabs";
@@ -34,6 +35,7 @@ type AppShellProps = {
   collectionsNavigation?: boolean;
   preferredWorkspace?: WorkspaceKey | null;
   user: AuthenticatedUser;
+  vehiclePilotMode?: VehiclePilotMode;
 };
 
 export function isTasksSidebarCompact(pathname: string, mode: WorkspaceMode) {
@@ -54,7 +56,7 @@ function getSidebarPreference() {
   return saved === "collapsed" ? true : saved === "expanded" ? false : null;
 }
 
-function AppShellContent({ children, collectionsNavigation = false, preferredWorkspace, user }: AppShellProps) {
+function AppShellContent({ children, collectionsNavigation = false, preferredWorkspace, user, vehiclePilotMode = "existing" }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [sessionSidebarCompact, setSessionSidebarCompact] = useState<boolean | null>(null);
   const router = useRouter();
@@ -71,6 +73,9 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
   const managerWorkspaceHome = pathname === "/manager-workspace";
   const tasksConsoleHome = pathname === "/tasks" || pathname === "/my-tasks";
   const diagnosticVehicleWorkspace = pathname === "/diagnostics/labor-guide";
+  const openRepairOrder = (pathname === "/vehicles/repair-workbench" && Boolean(searchParams.get("repairOrderId")))
+    || (/^\/vehicles\/shop-recon\/[^/]+$/.test(pathname) && searchParams.get("view") === "lifecycle")
+    || (/^\/vehicles\/[^/]+\/inventory-planning$/.test(pathname) && searchParams.get("view") === "lifecycle");
   const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
@@ -84,7 +89,10 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
           ? "SERVICE"
           : null
     : null;
-  const consoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
+  const baseConsoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace || openRepairOrder ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
+  const consoleNavigation = baseConsoleNavigation && dispatchConsole
+    ? { ...baseConsoleNavigation, items: withVehiclePilotNavigation(baseConsoleNavigation.items, vehiclePilotMode) }
+    : baseConsoleNavigation;
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarPreference = useSyncExternalStore(subscribeSidebarPreference, getSidebarPreference, () => null);
@@ -101,10 +109,10 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
     Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
     !salesConsoleReturnTo?.startsWith("//") &&
     !salesConsole;
-  const showInventoryRouteTabs = isInventoryConsolePath(pathname) && !managerContext;
+  const showInventoryRouteTabs = isInventoryConsolePath(pathname) && !managerContext && !openRepairOrder;
   const showFullInventoryNavigation = consoleNavigation?.title === "Inventory Console";
   const cooWorkbook = pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/");
-  const advisorWorkspace = !managerContext && (
+  const advisorWorkspace = !managerContext && !openRepairOrder && (
     !cooWorkbook && preferredWorkspace === "ADVISOR" ||
     pathname === "/vehicles/advisor" ||
     pathname === "/vehicles/recon-repair-advisor" ||
@@ -175,6 +183,7 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
 
   return (
     <div
+      data-open-repair-order={openRepairOrder || undefined}
       className={[
         "app-frame",
         tasksConsoleHome ? taskPageStyles.shell : "",
@@ -196,11 +205,12 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
       ) : null}
       <div className="app-workspace">
         {salesConsole ? <MobileToolsNavigation standalone /> : null}
-        <OperatingRhythmReminder />
+        {!openRepairOrder && <OperatingRhythmReminder />}
         {salesConsole ? null : (
           <AppTopbar collectionsNavigation={collectionsNavigation} commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}
-        {dispatchConsole && !tasksConsoleHome && !diagnosticVehicleWorkspace ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
+        {openRepairOrder && <OperatingRhythmReminder />}
+        {dispatchConsole && !tasksConsoleHome && !diagnosticVehicleWorkspace && !openRepairOrder ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
         {showSalesConsoleReturn ? (
           <nav className="app-return-banner" aria-label="Return navigation">
             <a href={salesConsoleReturnTo ?? "/sales"}>← Return to Sales Console</a>

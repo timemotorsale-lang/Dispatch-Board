@@ -1,0 +1,153 @@
+.form, .field, .fields > label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  min-width: 0;
+  border: 1px solid var(--border, #cad4e6);
+  border-radius: 0.5rem;
+}
+
+.check legend {
+  float: left;
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+}
+
+.options, .options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.options label {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+}
+
+.options input[type="radio"], .form input[type="checkbox"] {
+  width: 1rem;
+  min-width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.fields > label {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.heading, .jobPicker {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.headingRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.heading h1, .jobPicker h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.jobPicker ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.jobPicker button {
+  border: 1px solid #b9c9de;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.65rem;
+  color: #142842;
+  background: #fff;
+}
+
+.jobPicker button[aria-pressed="true"] {
+  border-color: #315aaa;
+  background: #eaf1ff;
+}
+
+.options label:has(input:checked) {
+  outline: 1px solid currentColor;
+  color: #1c693f;
+  background: #edf8f0;
+}
+
+.options label:last-child:has(input:checked) {
+  color: #9a3027;
+  background: #fff2ef;
+}
+
+.field input, .field textarea, .field select, .fields input, .fields select, .fields textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.4rem;
+  border: 1px solid #bfd2c5;
+  border-radius: 0.45rem;
+  padding: 0.4rem 0.6rem;
+  color: #163727;
+  background: #fff;
+  font: inherit;
+}
+
+.field textarea, .fields textarea {
+  resize: vertical;
+}
+
+.recommendationToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recommendation {
+  border: 1px solid #a67c1f;
+  color: #614500;
+  background: #fff3c4;
+}
+
+.actions button {
+  min-height: 2.5rem;
+  border-radius: 0.45rem;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  font-weight: 650;
+}
+
+.actions button:disabled {
+  opacity: 0.55;
+}

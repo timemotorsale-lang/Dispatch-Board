@@ -34,10 +34,54 @@ export async function getShopExecutionWorkspace(actor:AuthenticatedUser|null,inp
     jobs:overview.jobs.filter(job=>allowed.has(job.repairOrder.locationId)),
     repairOrders:overview.repairOrders.filter(order=>allowed.has(order.locationId)),
     resources:overview.resources.filter(resource=>allowed.has(resource.locationId)),
-    canPublishProcedure:isManager(user)};
+    canPublishProcedure:isManager(user), canAddTechnician:isManager(user)};
+}
+export async function addRepairOrderTechnician(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, input: Dependencies = {}) {
+  const manager = assertAuthenticatedUser(actor);
+  if (!isManager(manager)) throw new Error("Manager access required.");
+  const context = deps(input);
+  const data = normalizeTechnicianPreassignment(value);
+  const order = await repairOrderContext(context, repairOrderId);
+  const locationId = order.locationId;
+  const user = await authorize(manager, true, locationId, context);
+  if ((value as Record<string, unknown>).expectedLocationId !== locationId) {
+    throw new Error("The scheduling site changed. Reopen the assignment before adding a technician.");
+  }
+  const subjectType = "SHOP_SITE_TECHNICIAN";
+  const subjectId = `${locationId}:${data.technicianUserId}`;
+  const commandType = "ADD_SHOP_SITE_TECHNICIAN";
+  const prior = await context.repository.laborCommandVersion(context.organizationId, commandType, data.idempotencyKey);
+  const expectedVersion = prior?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, subjectType, subjectId);
+  return context.repository.addSiteTechnician(command({
+    actorUserId: user.id, commandType, expectedVersion, idempotencyKey: data.idempotencyKey, locationId,
+    organizationId: context.organizationId, payload: { repairOrderId, technicianUserId: data.technicianUserId },
+    reason: data.reason, subjectId, subjectType,
+  }), repairOrderId, data.technicianUserId, context.now());
 }
 export async function preassignRepairOrderTechnician(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeTechnicianPreassignment(value),repairOrder=await repairOrderContext(context,repairOrderId),user=await authorize(actor,true,repairOrder.locationId,context,false),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_ORDER_TECHNICIAN",repairOrderId);const result=await context.repository.preassignTechnician(command({actorUserId:user.id,commandType:"PREASSIGN_REPAIR_ORDER_TECHNICIAN",expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:repairOrder.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:repairOrderId,subjectType:"REPAIR_ORDER_TECHNICIAN"}),{...data,assignedByUserId:user.id});await context.taskBridge.reconcileOwner(context.organizationId,repairOrderId,user.id);return result;}
 export async function createWorkProcedure(actor:AuthenticatedUser|null,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeProcedure(value),user=await authorize(actor,true,null,context),id=randomUUID();return context.repository.createProcedure(command({actorUserId:user.id,commandType:"CREATE_WORK_PROCEDURE_VERSION",expectedVersion:0,idempotencyKey:data.idempotencyKey,locationId:null,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:id,subjectType:"WORK_PROCEDURE"}),{...data,createdByUserId:user.id});}
 export async function addTechnicianQualification(actor:AuthenticatedUser|null,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeQualification(value),user=await authorize(actor,true,null,context),id=randomUUID();return context.repository.createQualification(command({actorUserId:user.id,commandType:"VERIFY_TECHNICIAN_QUALIFICATION",expectedVersion:0,idempotencyKey:data.idempotencyKey,locationId:null,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:id,subjectType:"TECHNICIAN_QUALIFICATION"}),{...data,verifiedByUserId:user.id});}
 export async function dispatchRepairJob(actor:AuthenticatedUser|null,jobId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeDispatch(value),job=await jobContext(context,jobId),user=await authorize(actor,true,job.repairOrder.locationId,context),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_JOB",jobId);const result=await context.repository.dispatch(command({actorUserId:user.id,commandType:"DISPATCH_REPAIR_JOB",expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:job.repairOrder.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:jobId,subjectType:"REPAIR_JOB"}),{...data,assignedByUserId:user.id},context.now());await context.taskBridge.reconcileJob(context.organizationId,jobId,user.id);return result;}
-export async function recordRepairJobLabor(actor:AuthenticatedUser|null,jobId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeLaborCommand(value),job=await jobContext(context,jobId),user=await authorize(actor,false,job.repairOrder.locationId,context,true),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_JOB",jobId);if(user.id!==data.technicianUserId&&!isManager(user))throw new Error("Only the assigned technician or a manager may record this technician labor.");if(data.eventType==="CORRECTION"&&!isManager(user))throw new Error("Only a manager may correct actual labor.");if(data.occurredAt.getTime()>context.now().getTime()+60000)throw new Error("Labor event time cannot be in the future.");const result=await context.repository.labor(command({actorUserId:user.id,commandType:`${data.eventType}_REPAIR_JOB_LABOR`,expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:job.repairOrder.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:jobId,subjectType:"REPAIR_JOB"}),{...data,actorUserId:user.id});const status=data.eventType==="FINISH"?TaskStatus.READY_FOR_REVIEW:data.eventType==="PAUSE"?TaskStatus.BLOCKED:TaskStatus.IN_PROGRESS;if(data.eventType!=="CORRECTION")await context.taskBridge.syncJobStatus(context.organizationId,jobId,user.id,status,data.blockerReason);return result;}
+export async function recordRepairJobLabor(actor: AuthenticatedUser | null, jobId: string, value: unknown, input: Dependencies = {}) {
+  const context = deps(input), data = normalizeLaborCommand(value), job = await jobContext(context, jobId);
+  const user = await authorize(actor, false, job.repairOrder.locationId, context, true);
+  if (user.id !== data.technicianUserId && !isManager(user)) throw new Error("Only the assigned technician or a manager may record this technician labor.");
+  if (data.eventType === "CORRECTION" && !isManager(user)) throw new Error("Only a manager may correct actual labor.");
+  if (data.occurredAt.getTime() > context.now().getTime() + 60000) throw new Error("Labor event time cannot be in the future.");
+
+  const commandType = `${data.eventType}_REPAIR_JOB_LABOR`;
+  const [currentVersion, prior] = await Promise.all([
+    context.repository.aggregateVersion(context.organizationId, "REPAIR_JOB", jobId),
+    context.repository.laborCommandVersion(context.organizationId, commandType, data.idempotencyKey),
+  ]);
+  const result = await context.repository.labor(command({
+    actorUserId: user.id, commandType, expectedVersion: prior?.expectedVersion ?? currentVersion,
+    idempotencyKey: data.idempotencyKey, locationId: job.repairOrder.locationId, organizationId: context.organizationId,
+    payload: payload(data), reason: data.reason, subjectId: jobId, subjectType: "REPAIR_JOB",
+  }), { ...data, actorUserId: user.id });
+  if (data.eventType !== "CORRECTION" && (!result.duplicate || currentVersion === result.version)) {
+    const status = data.eventType === "FINISH" ? TaskStatus.READY_FOR_REVIEW : data.eventType === "PAUSE" ? TaskStatus.BLOCKED : TaskStatus.IN_PROGRESS;
+    await context.taskBridge.syncJobStatus(context.organizationId, jobId, user.id, status, data.blockerReason);
+  }
+  return result;
+}

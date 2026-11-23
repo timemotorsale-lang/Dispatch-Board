@@ -19,7 +19,7 @@ describe("direct advisor find work", () => {
     const input = fixture(); input.intake.mockResolvedValue({ unit: { id: "unit" } });
     expect((await findAdvisorWork(actor, vehicle.vin, { ...dependencies(input), reviewWorkflow: true })).matches[0].href).toBe("/prototype/inventory-intake?vehicleId=vehicle-1&advisor=1&reviewWorkbench=1");
     input.orders.mockResolvedValue({ items: [{ id: "ro", repairOrderNumber: "RO-1", closedAt: null, vehicle }] });
-    expect((await findAdvisorWork(actor, vehicle.vin, { ...dependencies(input), reviewWorkflow: true })).matches[0].href).toBe("/prototype/repair-workbench?repairOrderId=ro");
+    expect((await findAdvisorWork(actor, vehicle.vin, { ...dependencies(input), reviewWorkflow: true })).matches[0].href).toBe("/vehicles/repair-workbench?repairOrderId=ro");
   });
   it("opens existing inventory planning without creating records", async () => {
     const input = fixture(); input.intake.mockResolvedValue({ unit: { id: "unit" } });

@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails, LifecycleToolLink } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type DtgWorkflowProgress = {
@@ -248,10 +249,12 @@ export function DtgDetailingTool({ onProgressChange }: { onProgressChange: (prog
         <span><Sparkles size={15} />TMS Detailing</span>
         <h3>DTG presentation workspace</h3>
         <p>Guide the detail team through scope control, exterior and interior preparation, specialty work, detail QC, and photo staging.</p>
-        <div className={styles.wopHeaderActions}>
-          <Link className={styles.wopHeaderLink} href={qcHref}><ClipboardCheck size={14} />Final QC workspace</Link>
-          <Link className={styles.wopHeaderLink} href={lifecycleHref}><Camera size={14} />Lifecycle rail</Link>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={qcHref}><ClipboardCheck size={14} />Final QC workspace</LifecycleToolLink>
+            <Link className={styles.wopHeaderLink} href={lifecycleHref}><Camera size={14} />Lifecycle rail</Link>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Detail state</small>
@@ -261,18 +264,16 @@ export function DtgDetailingTool({ onProgressChange }: { onProgressChange: (prog
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Confirm detail scope and condition</h4></div><em className={completedSteps.scope ? styles.wopComplete : ""}>{completedSteps.scope ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Confirm detail scope and condition" status={<em className={completedSteps.scope ? styles.wopComplete : ""}>{completedSteps.scope ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.vehicleDisclosureReviewed} onChange={(event) => updateBoolean("vehicleDisclosureReviewed", event.target.checked, "scope")} type="checkbox" /><span>Vehicle disclosures and condition limits were reviewed</span></label>
             <label><input checked={input.detailMaterialsReady} onChange={(event) => updateBoolean("detailMaterialsReady", event.target.checked, "scope")} type="checkbox" /><span>Approved materials and supplies are ready</span></label>
             <label><input checked={input.dealershipLocationConfirmed} onChange={(event) => updateBoolean("dealershipLocationConfirmed", event.target.checked, "scope")} type="checkbox" /><span>Work location and custody are confirmed</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.scopeComplete || completedSteps.scope} onClick={completeScope} type="button">Lock detail scope</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Complete exterior preparation</h4></div><em className={completedSteps.exterior ? styles.wopComplete : ""}>{completedSteps.exterior ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Complete exterior preparation" status={<em className={completedSteps.exterior ? styles.wopComplete : ""}>{completedSteps.exterior ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.exteriorWashComplete} onChange={(event) => updateBoolean("exteriorWashComplete", event.target.checked, "exterior")} type="checkbox" /><span>Wash and decontamination complete</span></label>
             <label><input checked={input.exteriorFinishComplete} onChange={(event) => updateBoolean("exteriorFinishComplete", event.target.checked, "exterior")} type="checkbox" /><span>Finish and presentation complete</span></label>
@@ -281,19 +282,17 @@ export function DtgDetailingTool({ onProgressChange }: { onProgressChange: (prog
             <label><input checked={input.trimAndJambsComplete} onChange={(event) => updateBoolean("trimAndJambsComplete", event.target.checked, "exterior")} type="checkbox" /><span>Trim and jambs are complete</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.scope || !result.exteriorComplete || completedSteps.exterior} onClick={completeExterior} type="button">Lock exterior prep</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Complete interior preparation</h4></div><em className={completedSteps.interior ? styles.wopComplete : ""}>{completedSteps.interior ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Complete interior preparation" status={<em className={completedSteps.interior ? styles.wopComplete : ""}>{completedSteps.interior ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.interiorVacuumAndExtractionComplete} onChange={(event) => updateBoolean("interiorVacuumAndExtractionComplete", event.target.checked, "interior")} type="checkbox" /><span>Vacuum and extraction are complete</span></label>
             <label><input checked={input.interiorGlassAndSurfacesComplete} onChange={(event) => updateBoolean("interiorGlassAndSurfacesComplete", event.target.checked, "interior")} type="checkbox" /><span>Interior glass and surfaces are complete</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.exterior || !result.interiorComplete || completedSteps.interior} onClick={completeInterior} type="button">Lock interior prep</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Complete specialty work</h4></div><em className={completedSteps.specialty ? styles.wopComplete : ""}>{completedSteps.specialty ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Complete specialty work" status={<em className={completedSteps.specialty ? styles.wopComplete : ""}>{completedSteps.specialty ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Specialty work state</span><select onChange={(event) => updateValue("specialtyState", event.target.value as SpecialtyState, "specialty")} value={input.specialtyState}><option>Not needed</option><option>Required and completed</option><option>Pending</option></select></label>
           </div>
@@ -301,19 +300,17 @@ export function DtgDetailingTool({ onProgressChange }: { onProgressChange: (prog
             <label><input checked={input.odorOrSpecialConditionResolved} disabled={input.specialtyState !== "Required and completed"} onChange={(event) => updateBoolean("odorOrSpecialConditionResolved", event.target.checked, "specialty")} type="checkbox" /><span>Odor, stain, pet hair, engine bay, or specialty condition is resolved</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.interior || !result.specialtyComplete || completedSteps.specialty} onClick={completeSpecialty} type="button">Lock specialty work</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Perform detail quality check</h4></div><em className={completedSteps.qc ? styles.wopComplete : ""}>{completedSteps.qc ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Perform detail quality check" status={<em className={completedSteps.qc ? styles.wopComplete : ""}>{completedSteps.qc ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.noNewDamageObserved} onChange={(event) => updateBoolean("noNewDamageObserved", event.target.checked, "qc")} type="checkbox" /><span>No new damage or missed-area issue remains</span></label>
             <label><input checked={input.presentationDefectsCleared} onChange={(event) => updateBoolean("presentationDefectsCleared", event.target.checked, "qc")} type="checkbox" /><span>No residue, wet area, odor, or presentation defect remains</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.specialty || !result.qcComplete || completedSteps.qc} onClick={completeQc} type="button">Lock detail QC</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Stage for photography</h4></div><em className={completedSteps.stage ? styles.wopComplete : ""}>{completedSteps.stage ? "Ready" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Stage for photography" status={<em className={completedSteps.stage ? styles.wopComplete : ""}>{completedSteps.stage ? "Ready" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Fuel / charge state</span><select onChange={(event) => updateValue("fuelState", event.target.value as FuelState, "stage")} value={input.fuelState}><option>Ready</option><option>Needs fuel</option><option>Needs charge</option></select></label>
           </div>
@@ -324,54 +321,58 @@ export function DtgDetailingTool({ onProgressChange }: { onProgressChange: (prog
             <label><input checked={input.cargoAndAccessoriesVerified} onChange={(event) => updateBoolean("cargoAndAccessoriesVerified", event.target.checked, "stage")} type="checkbox" /><span>Cargo items, mats, and accessories are verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.qc || !result.stageComplete || completedSteps.stage} onClick={completeStage} type="button">Release to media</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><Sparkles size={18} /><div><span>Detail recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Photos & Marketing" ? styles.wopComplete : result.recommendation === "Pass detail QC" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Specialty state</dt><dd>{input.specialtyState}</dd></div>
-          <div><dt>Fuel / charge</dt><dd>{input.fuelState}</dd></div>
-          <div><dt>Media slot</dt><dd>{input.mediaAppointmentBooked ? "Booked" : "Pending"}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Photos & Marketing" ? "Detailing is complete and the vehicle is staged cleanly for merchandising." : "Detailing should remain controlled until every presentation and staging requirement is satisfied."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed detail strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><Sparkles size={18} /><div><span>Detail recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Photos & Marketing" ? styles.wopComplete : result.recommendation === "Pass detail QC" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Specialty state</dt><dd>{input.specialtyState}</dd></div>
+            <div><dt>Fuel / charge</dt><dd>{input.fuelState}</dd></div>
+            <div><dt>Media slot</dt><dd>{input.mediaAppointmentBooked ? "Booked" : "Pending"}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Photos & Marketing" ? "Detailing is complete and the vehicle is staged cleanly for merchandising." : "Detailing should remain controlled until every presentation and staging requirement is satisfied."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed detail strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No detailing action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No detailing action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Presentation scope</span>
-        <strong>{completedSteps.scope ? "Detail scope confirmed" : "Scope still active"}</strong>
-        <small>Disclosures, materials, and work location should be confirmed before cleaning begins.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Quality and staging</span>
-        <strong>{completedSteps.qc ? "Detail QC passed" : "Detail QC still active"}</strong>
-        <small>The vehicle should be presentation-clean and free of obvious defects before media staging.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.stage ? "Ready for Photos & Marketing" : "Detailing still active"}</strong>
-        <small>{completedSteps.stage ? "This unit can now hand off into the Photos & Marketing stage." : "Finish media staging before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Presentation scope</span>
+          <strong>{completedSteps.scope ? "Detail scope confirmed" : "Scope still active"}</strong>
+          <small>Disclosures, materials, and work location should be confirmed before cleaning begins.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Quality and staging</span>
+          <strong>{completedSteps.qc ? "Detail QC passed" : "Detail QC still active"}</strong>
+          <small>The vehicle should be presentation-clean and free of obvious defects before media staging.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.stage ? "Ready for Photos & Marketing" : "Detailing still active"}</strong>
+          <small>{completedSteps.stage ? "This unit can now hand off into the Photos & Marketing stage." : "Finish media staging before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

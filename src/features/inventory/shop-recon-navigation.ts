@@ -8,12 +8,14 @@ export function getShopReconStageHref(
   repairOrderId: string,
   stage: ShopReconStageCode | number,
   returnTo?: string,
+  focused = false,
 ) {
   const selectedStage =
     typeof stage === "number"
       ? SHOP_RECON_STAGES.find((candidate) => candidate.order === stage)
       : SHOP_RECON_STAGES.find((candidate) => candidate.code === stage);
   const params = new URLSearchParams();
+  if (focused) params.set("view", "lifecycle");
 
   if (selectedStage) {
     params.set("stage", String(selectedStage.order));

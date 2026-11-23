@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type TlrWorkflowProgress = {
@@ -241,9 +242,11 @@ export function TlrTitleReadinessTool({
         <span><FileBadge2 size={15} />TMS Title Readiness</span>
         <h3>TLR legal-readiness workspace</h3>
         <p>Guide the title team through identity, ownership chain, lien and brand status, odometer compliance, custody control, and final sale-readiness release.</p>
-        <div className={styles.wopHeaderActions}>
-          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Title state</small>
@@ -253,56 +256,50 @@ export function TlrTitleReadinessTool({
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Match title identity</h4></div><em className={completedSteps.identity ? styles.wopComplete : ""}>{completedSteps.identity ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Match title identity" status={<em className={completedSteps.identity ? styles.wopComplete : ""}>{completedSteps.identity ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.identityFieldsMatch} onChange={(event) => updateBoolean("identityFieldsMatch", event.target.checked, "identity")} type="checkbox" /><span>Title identity fields match the vehicle record</span></label>
             <label><input checked={input.vinOwnerJurisdictionMatch} onChange={(event) => updateBoolean("vinOwnerJurisdictionMatch", event.target.checked, "identity")} type="checkbox" /><span>VIN, owner, and jurisdiction records agree</span></label>
             <label><input checked={input.titlePackageReviewed} onChange={(event) => updateBoolean("titlePackageReviewed", event.target.checked, "identity")} type="checkbox" /><span>Title packet was reviewed for identity accuracy</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.identityComplete || completedSteps.identity} onClick={completeIdentity} type="button">Lock identity match</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Verify ownership chain</h4></div><em className={completedSteps.ownership ? styles.wopComplete : ""}>{completedSteps.ownership ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Verify ownership chain" status={<em className={completedSteps.ownership ? styles.wopComplete : ""}>{completedSteps.ownership ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.assignmentsAndPoaComplete} onChange={(event) => updateBoolean("assignmentsAndPoaComplete", event.target.checked, "ownership")} type="checkbox" /><span>Assignments and powers of attorney are complete</span></label>
             <label><input checked={input.billOfSaleAndSellerDocsComplete} onChange={(event) => updateBoolean("billOfSaleAndSellerDocsComplete", event.target.checked, "ownership")} type="checkbox" /><span>Bill of sale and seller documents are complete</span></label>
             <label><input checked={input.transferChainVerified} onChange={(event) => updateBoolean("transferChainVerified", event.target.checked, "ownership")} type="checkbox" /><span>Transfer chain was verified end to end</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.identity || !result.ownershipComplete || completedSteps.ownership} onClick={completeOwnership} type="button">Lock ownership chain</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Clear lien and brand status</h4></div><em className={completedSteps.brand ? styles.wopComplete : ""}>{completedSteps.brand ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Clear lien and brand status" status={<em className={completedSteps.brand ? styles.wopComplete : ""}>{completedSteps.brand ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Brand state</span><select onChange={(event) => updateValue("brandState", event.target.value as BrandState, "brand")} value={input.brandState}><option>Clear</option><option>Disclosure required</option><option>Open issue</option></select></label>
             <label><span>Lien state</span><select onChange={(event) => updateValue("lienState", event.target.value as LienState, "brand")} value={input.lienState}><option>Released</option><option>Electronic title pending</option><option>Open lien issue</option></select></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.ownership || !result.brandLienComplete || completedSteps.brand} onClick={completeBrand} type="button">Lock lien and brand status</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Verify odometer compliance</h4></div><em className={completedSteps.odometer ? styles.wopComplete : ""}>{completedSteps.odometer ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Verify odometer compliance" status={<em className={completedSteps.odometer ? styles.wopComplete : ""}>{completedSteps.odometer ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.mileageStatusAccurate} onChange={(event) => updateBoolean("mileageStatusAccurate", event.target.checked, "odometer")} type="checkbox" /><span>Mileage status is accurate</span></label>
             <label><input checked={input.odometerDisclosureRecorded} onChange={(event) => updateBoolean("odometerDisclosureRecorded", event.target.checked, "odometer")} type="checkbox" /><span>Required odometer disclosure is recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.brand || !result.odometerComplete || completedSteps.odometer} onClick={completeOdometer} type="button">Lock odometer compliance</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Confirm title location and control</h4></div><em className={completedSteps.custody ? styles.wopComplete : ""}>{completedSteps.custody ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Confirm title location and control" status={<em className={completedSteps.custody ? styles.wopComplete : ""}>{completedSteps.custody ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.titleLocationRecorded} onChange={(event) => updateBoolean("titleLocationRecorded", event.target.checked, "custody")} type="checkbox" /><span>Title location is recorded</span></label>
             <label><input checked={input.currentCustodianRecorded} onChange={(event) => updateBoolean("currentCustodianRecorded", event.target.checked, "custody")} type="checkbox" /><span>Current custodian is recorded</span></label>
             <label><input checked={input.titleReceivedOrExpectedDateKnown} onChange={(event) => updateBoolean("titleReceivedOrExpectedDateKnown", event.target.checked, "custody")} type="checkbox" /><span>Title received date or expected date is known</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.odometer || !result.custodyComplete || completedSteps.custody} onClick={completeCustody} type="button">Lock title control</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Issue the sale-readiness decision</h4></div><em className={completedSteps.decision ? styles.wopComplete : ""}>{completedSteps.decision ? "Issued" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Issue the sale-readiness decision" status={<em className={completedSteps.decision ? styles.wopComplete : ""}>{completedSteps.decision ? "Issued" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Readiness decision</span><select onChange={(event) => updateValue("readinessDecision", event.target.value as ReadinessDecision, "decision")} value={input.readinessDecision}><option>Title ready</option><option>Conditional disclosure</option><option>Hold</option></select></label>
           </div>
@@ -310,54 +307,58 @@ export function TlrTitleReadinessTool({
             <label><input checked={input.readinessNotesRecorded} onChange={(event) => updateBoolean("readinessNotesRecorded", event.target.checked, "decision")} type="checkbox" /><span>Decision notes and rationale were recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.custody || !result.decisionComplete || completedSteps.decision} onClick={completeDecision} type="button">Issue title decision</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><FileBadge2 size={18} /><div><span>Title recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Selling" ? styles.wopComplete : result.recommendation === "Issue readiness decision" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Brand state</dt><dd>{input.brandState}</dd></div>
-          <div><dt>Lien state</dt><dd>{input.lienState}</dd></div>
-          <div><dt>Readiness decision</dt><dd>{input.readinessDecision}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Selling" ? "Title Readiness is complete and the vehicle can now move into the Selling stage." : "Title readiness should remain fail-closed until the exact legal-readiness blocker is resolved."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed title-readiness strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><FileBadge2 size={18} /><div><span>Title recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Selling" ? styles.wopComplete : result.recommendation === "Issue readiness decision" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Brand state</dt><dd>{input.brandState}</dd></div>
+            <div><dt>Lien state</dt><dd>{input.lienState}</dd></div>
+            <div><dt>Readiness decision</dt><dd>{input.readinessDecision}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Selling" ? "Title Readiness is complete and the vehicle can now move into the Selling stage." : "Title readiness should remain fail-closed until the exact legal-readiness blocker is resolved."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed title-readiness strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No title-readiness action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No title-readiness action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Identity and chain</span>
-        <strong>{completedSteps.ownership ? "Ownership chain confirmed" : "Identity or chain still active"}</strong>
-        <small>VIN, ownership chain, and seller transfer package should be complete before sale-readiness is considered.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Legal control</span>
-        <strong>{completedSteps.custody ? "Title control confirmed" : "Title control still active"}</strong>
-        <small>Title location, custodian, lien/brand state, and odometer controls should be explicit.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.decision && input.readinessDecision === "Title ready" ? "Ready for Selling" : "Title Readiness still active"}</strong>
-        <small>{completedSteps.decision && input.readinessDecision === "Title ready" ? "This unit can now hand off into the Selling stage." : "Finish the legal-readiness decision before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Identity and chain</span>
+          <strong>{completedSteps.ownership ? "Ownership chain confirmed" : "Identity or chain still active"}</strong>
+          <small>VIN, ownership chain, and seller transfer package should be complete before sale-readiness is considered.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Legal control</span>
+          <strong>{completedSteps.custody ? "Title control confirmed" : "Title control still active"}</strong>
+          <small>Title location, custodian, lien/brand state, and odometer controls should be explicit.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.decision && input.readinessDecision === "Title ready" ? "Ready for Selling" : "Title Readiness still active"}</strong>
+          <small>{completedSteps.decision && input.readinessDecision === "Title ready" ? "This unit can now hand off into the Selling stage." : "Finish the legal-readiness decision before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

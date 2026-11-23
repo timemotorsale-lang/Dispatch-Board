@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 // A minimal hook driver exposes event handlers without a browser or live billing endpoint.
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], cursor: 0, effects: [] as (() => unknown)[] }));
 vi.mock("react", async original => {
@@ -19,11 +20,12 @@ function nodes(value: unknown): Node[] {
   const node = value as Node; return [node, ...nodes(node.props.children)];
 }
 const billing = { canManage: true, mutationAvailability: { allowed: true, reason: null }, order: { id: "ro-1", repairOrderNumber: "RO-1" }, readiness: { mismatchCodes: [] }, packages: [], invoices: [] };
-let inner: (props: { repairOrderId: string; invoiceId?: string; estimateId?: string; onDocumentReady?: (id: string) => void }) => React.ReactNode;
-function render(extra: { invoiceId?: string; estimateId?: string; onDocumentReady?: (id: string) => void } = {}) { hooks.cursor = 0; return inner({ repairOrderId: "ro-1", ...extra }); }
+let inner: (props: React.ComponentProps<typeof ServiceBillingWorkspace>) => React.ReactNode;
+function render(extra: Partial<React.ComponentProps<typeof ServiceBillingWorkspace>> = {}) { hooks.cursor = 0; return inner({ repairOrderId: "ro-1", ...extra }); }
 async function settle() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
 function submit(tree: unknown) { const forms = nodes(tree).filter(node => node.type === "form"); (forms[forms.length - 1].props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault() {} }); }
 beforeEach(() => {
+  vi.clearAllMocks();
   hooks.values = []; hooks.cursor = 0; hooks.effects = [];
   const tree = ServiceBillingWorkspace({ repairOrderId: "ro-1" });
   inner = nodes(tree).find(node => typeof node.type === "function")!.type as typeof inner;
@@ -34,6 +36,98 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("billing UI request boundaries", () => {
+  const handoff = "/vehicles/repair-workbench?repairOrderId=ro-1&step=handoff";
+  const estimateDocument = { documentId: "document-1", documentHash: "a".repeat(64) };
+  const readyBilling = { ...billing, readiness: { mismatchCodes: [], estimateId: "estimate-1", estimateVersion: 1, estimateDocument },
+    packages: [{ id: "package-1", billingMode: "NATIVE", mismatchCodes: [], preview: { lines: [{ key: "labor", description: "Authorized labor", quantity: 1, totalCents: 2500 }], subtotalCents: 2500, discountCents: 0, taxCents: 0, totalCents: 2500 } }] };
+
+  it("issues the reviewed estimate and opens its exact frozen document before payment", async () => {
+    hooks.values[4] = readyBilling;
+    hooks.values[8] = "POST_INVOICE";
+    hooks.values[9] = "package-1";
+    const context = { invoiceOnly: true, estimateId: "estimate-1", estimateDocument, returnTo: handoff };
+    const tree = render(context);
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain("Authorized labor");
+    expect(html).toContain("Issue invoice");
+    expect(html).not.toContain("Receive payment");
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ result: { id: "invoice-1", documentId: "frozen-1" } }) } as Response);
+    submit(tree);
+    await settle();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toMatchObject({ action: "POST_INVOICE", expectedEstimateId: "estimate-1", expectedEstimateDocument: estimateDocument, packageId: "package-1" });
+    expect(navigation.push).toHaveBeenCalledOnce();
+    const destination = new URL(navigation.push.mock.calls[0][0], "https://workspace.invalid");
+    expect(destination.pathname).toBe("/service-documents");
+    expect(Object.fromEntries(destination.searchParams)).toMatchObject({ documentId: "frozen-1", repairOrderId: "ro-1", returnTo: handoff });
+    expect(renderToStaticMarkup(render(context))).not.toContain(">Issue invoice</button>");
+  });
+
+  it("retains the Workbench document snapshot on refresh and requires a fresh review after correction", async () => {
+    const revised = { documentId: "document-2", documentHash: "b".repeat(64) };
+    const context = { invoiceOnly: true, estimateId: "estimate-1", returnTo: handoff };
+    hooks.values = [];
+    hooks.effects = [];
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ...readyBilling, packages: [] }) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ error: "The saved estimate document changed." }) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ...readyBilling, readiness: { ...readyBilling.readiness, estimateDocument: revised } }) } as Response);
+    render(context);
+    for (const effect of hooks.effects.splice(0)) effect();
+    await settle();
+    submit(render(context));
+    await settle();
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body))).toMatchObject({ action: "PREPARE_INVOICE", expectedEstimateId: "estimate-1", expectedEstimateDocument: estimateDocument });
+    const html = renderToStaticMarkup(render(context));
+    expect(html).toContain("Review latest estimate document");
+    expect(html).toContain("documentId=document-2");
+    expect(html).not.toContain("Issue invoice");
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("reopens an issued invoice with a matching estimate document and view access", () => {
+    hooks.values[4] = { ...readyBilling, canManage: false, mutationAvailability: { allowed: false }, invoices: [{ id: "invoice-1", status: "POSTED", invoiceNumber: "INV-1", ledger: { estimateId: "estimate-1", estimateDocument } }] };
+    hooks.values[8] = "PAYMENT";
+    const tree = render({ invoiceOnly: true, estimateId: "estimate-1", estimateDocument, returnTo: handoff });
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain("Open / Print Final Invoice");
+    expect(html).not.toContain("Receive payment");
+    expect(nodes(tree).filter(node => node.type === "form")).toHaveLength(0);
+    hooks.effects.at(-1)?.();
+    expect(navigation.replace).toHaveBeenCalledWith(expect.stringContaining("sourceKind=INVOICE"));
+    expect(navigation.replace).toHaveBeenCalledWith(expect.stringContaining("sourceId=invoice-1"));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ...estimateDocument, documentId: "document-2" },
+    { ...estimateDocument, documentHash: "b".repeat(64) },
+    undefined,
+  ])("leaves an explicit print link when the issued invoice cannot match the requested document (%j)", issuedEstimateDocument => {
+    hooks.values[4] = { ...readyBilling, invoices: [{ id: "invoice-1", status: "POSTED", invoiceNumber: "INV-1", ledger: { estimateId: "estimate-1", estimateDocument: issuedEstimateDocument } }] };
+    hooks.values[8] = "PAYMENT";
+    const html = renderToStaticMarkup(render({ invoiceOnly: true, estimateId: "estimate-1", estimateDocument }));
+    hooks.effects.at(-1)?.();
+    expect(html).toContain("Review saved estimate for invoicing");
+    expect(html).toContain("Open / Print Final Invoice");
+    expect(html).toContain("sourceId=invoice-1");
+    expect(html).not.toContain("Receive payment");
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a readiness hold visible with the deposit option and no issuance form", () => {
+    hooks.values[4] = { ...readyBilling, readiness: { ...readyBilling.readiness, mismatchCodes: ["INVOICE_JOB_QC_INCOMPLETE"] },
+      deposits: { version: 0, balance: { collectedCents: 0, refundedCents: 0, appliedCents: 0, availableCents: 0 }, entries: [],
+        collectionAvailability: { allowed: true, maxAmountCents: 2500 } } };
+    const tree = render({ invoiceOnly: true, estimateId: "estimate-1" });
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain("Refresh after completing requirements");
+    expect(html).toContain("Receive money before invoicing (deposit)");
+    expect(html).not.toContain("Issue invoice");
+    expect(html).not.toContain("Review approved invoice lines");
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("blocks conversion from an older saved estimate and links to the current estimate", () => {
     hooks.values[4] = { ...billing, readiness: { ...billing.readiness, estimateId: "estimate-2", estimateVersion: 2 } };
     const html = renderToStaticMarkup(render({ estimateId: "estimate-1", onDocumentReady: vi.fn() }));

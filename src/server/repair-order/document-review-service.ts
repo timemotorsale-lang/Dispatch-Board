@@ -14,6 +14,8 @@ import { normalizeDocumentCustomer } from "@/lib/service-document-review";
 import { normalizeEstimateCorrection } from "@/lib/estimate-details";
 import { normalizeServiceCharges, serviceChargeLines, serviceQuoteTax, SERVICE_CHARGES_POLICY, SHOP_SUPPLIES_KEY } from "@/lib/service-charges";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
+import { additionalWorkLines, emptyAdditionalWork, revisedWorkLines, revisedWorkTotals } from "@/lib/estimate-additional-work";
+import { retainedLaborKeys, type SavedEstimateRevision } from "@/lib/labor-guide-estimate-revision";
 import { commercialLines } from "@/lib/service-commercial-ledger";
 import { recordServiceDocument, type ServiceDocumentContent } from "./service-documents";
 
@@ -34,18 +36,23 @@ async function context(actor: AuthenticatedUser | null, repairOrderId: string, d
 }
 export async function getServiceDocumentReview(actor: AuthenticatedUser | null, repairOrderId: string, documentId: string) {
   const current = await context(actor, repairOrderId, documentId, false);
-  const [estimate, invoice, latestDocument] = await Promise.all([
+  const [estimate, invoice, latestDocument, job] = await Promise.all([
     prisma.repairEstimateVersion.findFirst({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" } }),
     prisma.serviceInvoice.findFirst({ where: { organizationId, repairOrderId, status: "POSTED" }, select: { id: true } }),
     prisma.serviceDocument.findFirst({ where: { organizationId, repairOrderId, kind: current.document.kind, sourceId: current.document.sourceId }, orderBy: { sourceVersion: "desc" }, select: { id: true } }),
+    prisma.repairJob.findFirst({ where: { repairOrderId, status: { not: "CANCELLED" } }, select: { id: true } }),
   ]);
+  const canEditCharges = current.canManage && latestDocument?.id === current.document.id && !invoice && !current.order.closedAt && current.document.kind === "ESTIMATE" && current.document.sourceId === estimate?.id;
+  const canAddWork = canEditCharges && !job && !(Array.isArray(estimate?.optionGroups) && estimate.optionGroups.length) && evaluateVehicleOperationsFeature(await createEnterpriseCommandRepository().listFeatureFlags(organizationId), "SHOP_OPERATIONS", current.user.id, current.order.locationId).executable;
   const identity = current.content.identity;
   const lines = current.document.kind === "INVOICE" ? current.content.lines : estimate ? commercialLines(estimate.lineItems) : [];
   const options = estimate?.optionGroups as { servicePricing?: { taxRatePercent?: number } } | null;
   return { customer: { name: identity.customer, phone: identity.customerContact?.phone ?? "", email: identity.customerContact?.email ?? "", address: identity.customerContact?.address ?? "" }, documentHash: current.document.sha256,
     canEditCustomer: current.canManage && latestDocument?.id === current.document.id,
     canCorrectEstimate: current.canManage && latestDocument?.id === current.document.id && current.document.kind === "ESTIMATE",
-    canEditCharges: current.canManage && latestDocument?.id === current.document.id && !invoice && !current.order.closedAt && current.document.kind === "ESTIMATE" && current.document.sourceId === estimate?.id,
+    canEditCharges, canAddWork,
+    workEditReason: job ? "Repair jobs already exist. Ask the service advisor to review the additional work." : Array.isArray(estimate?.optionGroups) && estimate.optionGroups.length ? "Use the original estimating workflow to revise this estimate’s structured scope." : canEditCharges ? "Estimate changes are unavailable for this store." : null,
+    laborRate: canAddWork ? (await getActiveLaborRate(current.user)).laborRate : null,
     chargeEditReason: !current.canManage ? "Your account has read-only access to these charges." : invoice ? "Charges on an issued invoice stay fixed. Use billing adjustments for corrections." : current.order.closedAt ? "Reopen this repair order before changing charges." : "Open the latest estimate to change charges.",
     estimateId: estimate?.id, expectedVersion: current.order.version, discountCents: current.document.kind === "INVOICE" ? current.content.totals?.discountCents ?? 0 : estimate?.discountCents ?? 0,
     workTaxableCents: lines.filter(line => line.type !== "FEE" && line.taxable === true).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0),
@@ -57,6 +64,20 @@ export async function getServiceDocumentReview(actor: AuthenticatedUser | null, 
     taxRatePercent: options?.servicePricing?.taxRatePercent ?? null,
   };
 }
+export async function getLaborGuideRevision(actor: AuthenticatedUser | null, repairOrderId: string, documentId: string): Promise<SavedEstimateRevision> {
+  const review = await getServiceDocumentReview(actor, repairOrderId, documentId);
+  if (!review.canAddWork || !review.estimateId) throw new Error(review.workEditReason ?? review.chargeEditReason);
+  const estimate = await prisma.repairEstimateVersion.findFirst({
+    where: { id: review.estimateId, organizationId, repairOrderId },
+    select: { version: true, lineItems: true },
+  });
+  if (!estimate) throw new Error("Open the latest saved estimate to revise the work.");
+  const lines = commercialLines(estimate.lineItems);
+  if (lines.some(line => line.type === "LABOR" && line.quantity !== 1)) throw new Error("This estimate has multi-quantity labor. Use the original estimating workflow to revise it.");
+  return { documentId, documentHash: review.documentHash, estimateId: review.estimateId, version: estimate.version,
+    expectedVersion: review.expectedVersion, discountCents: review.discountCents, taxRatePercent: review.taxRatePercent, lines };
+}
+
 export async function updateServiceDocumentCustomer(actor: AuthenticatedUser | null, repairOrderId: string, raw: Record<string, unknown>, correctEstimate = false) {
   const documentId = String(raw.documentId ?? ""), current = await context(actor, repairOrderId, documentId, true);
   if (!["ESTIMATE", "INVOICE"].includes(current.document.kind)) throw new Error("Customer details can be edited on an estimate or invoice.");
@@ -96,14 +117,36 @@ export async function reviseServiceDocumentCharges(actor: AuthenticatedUser | nu
   if (await prisma.serviceInvoice.findFirst({ where: { organizationId, repairOrderId, status: "POSTED" }, select: { id: true } })) throw new Error("An issued invoice cannot be repriced. Use the billing adjustment workflow.");
   const estimate = await prisma.repairEstimateVersion.findFirst({ where: { id: String(raw.estimateId ?? ""), organizationId, repairOrderId } });
   if (!estimate || estimate.id !== current.document.sourceId) throw new Error("Open the current estimate to change charges.");
-  const charges = normalizeServiceCharges(raw.charges), taxRatePercent = Number(raw.taxRatePercent);
+  const guideRevision = raw.action === "LABOR_GUIDE_REVISION";
+  const additions = raw.action === "ADD_WORK" ? raw.additionalWork as typeof emptyAdditionalWork : undefined;
+  if (raw.action === "ADD_WORK" && (!additions || typeof additions !== "object")) throw new Error("Enter the additional repair work.");
+  const scopeRevision = Boolean(additions) || guideRevision;
+  if (scopeRevision && Array.isArray(estimate.optionGroups) && estimate.optionGroups.length) throw new Error("Use the original estimating workflow to revise this estimate’s structured scope.");
+  const revisionReason = guideRevision && typeof raw.revisionReason === "string" ? raw.revisionReason.trim() : "";
+  if (guideRevision && (!revisionReason || revisionReason.length > 350 || !Number.isInteger(raw.expectedVersion))) throw new Error("Enter a reason for revising this estimate.");
+  const taxRatePercent = Number(raw.taxRatePercent);
   if (raw.taxRatePercent == null || raw.taxRatePercent === "" || !Number.isFinite(taxRatePercent) || taxRatePercent < 0 || taxRatePercent > 30) throw new Error("Enter the applicable tax rate.");
-  const source = commercialLines(estimate.lineItems), work = source.filter(line => line.type !== "FEE");
-  const laborCents = work.filter(line => line.type === "LABOR").reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
-  const lineItems = [...work, ...serviceChargeLines(laborCents, charges, raw.suppliesTaxable === true)];
-  const discountCents = raw.discountCents === undefined ? estimate.discountCents : Number(raw.discountCents);
-  const taxCents = serviceQuoteTax(lineItems.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0), lineItems.filter(line => line.taxable === true).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0), taxRatePercent, discountCents);
+  const source = commercialLines(estimate.lineItems);
   const activeRate = await getActiveLaborRate(current.user);
-  const result = await presentRepairEstimate(current.user, repairOrderId, { estimateWorkflow: "STAFF_QUOTE", chargesPolicy: SERVICE_CHARGES_POLICY, chargeRevisionFrom: estimate.id, documentReview: { documentId: current.document.id, documentHash: raw.documentHash, ...(raw.customer === undefined ? {} : { customer: normalizeDocumentCustomer(raw.customer) }) }, lineItems, taxCents, discountCents, expectedVersion: raw.expectedVersion, presentedAt: raw.presentedAt, expiresAt: raw.expiresAt, presentationChannel: estimate.presentationChannel, taxBoundary: `Staff-configured ${taxRatePercent}% tax on taxable parts and charges after proportional discount allocation.`, assumptions: estimate.assumptions, optionGroups: { ...(estimate.optionGroups && typeof estimate.optionGroups === "object" && !Array.isArray(estimate.optionGroups) ? estimate.optionGroups : {}), servicePricing: { taxRatePercent } }, reason: "Revise shop supplies, additional charges and discount during document review; obtain approval for the revised total.", idempotencyKey: raw.idempotencyKey, estimateControls: { version: 1, pricing: { ...initialEstimatePricing, laborRate: activeRate.laborRate, taxRatePercent }, fitment: {}, overlapResolution: "", reviewedScope: "" } });
+  if (scopeRevision && raw.laborRate !== activeRate.laborRate) throw new Error("The shop labor rate changed. Reopen the estimate before saving.");
+  const work = source.filter(line => line.type !== "FEE");
+  const laborCents = work.filter(line => line.type === "LABOR").reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
+  const revisedScope = guideRevision ? commercialLines(raw.lineItems) : [];
+  if (revisedScope.some(line => line.type === "FEE") || (guideRevision && work.some(line => line.type === "LABOR" && line.quantity !== 1))) throw new Error("This editor accepts labor and parts. Use the original workflow for this estimate’s charges or multi-quantity labor.");
+  if (guideRevision && revisedScope.some(line => line.type === "LABOR" && !source.some(existing => existing.type === "LABOR" && existing.key === line.key) && !(Number(line.laborGuideMinutes) > 0))) {
+    throw new Error("Enter planned labor hours for each new work line.");
+  }
+  const lineItems = guideRevision
+    ? revisedWorkLines(source.filter(line => line.type === "FEE"), revisedScope)
+    : additions
+    ? revisedWorkLines(source, additionalWorkLines(additions, source, activeRate.laborRate))
+    : [...work, ...serviceChargeLines(laborCents, normalizeServiceCharges(raw.charges), raw.suppliesTaxable === true)];
+  const discountCents = additions || raw.discountCents === undefined ? estimate.discountCents : Number(raw.discountCents);
+  const taxCents = scopeRevision ? revisedWorkTotals(lineItems, taxRatePercent, discountCents).taxCents : serviceQuoteTax(lineItems.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0), lineItems.filter(line => line.taxable === true).reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0), taxRatePercent, discountCents);
+  const identity = current.content.identity;
+  const customer = scopeRevision && current.content.customerDetailsEdited
+    ? { name: identity.customer, phone: identity.customerContact?.phone ?? "", email: identity.customerContact?.email ?? "", address: identity.customerContact?.address ?? "" }
+    : !scopeRevision && raw.customer !== undefined ? normalizeDocumentCustomer(raw.customer) : undefined;
+  const result = await presentRepairEstimate(current.user, repairOrderId, { estimateWorkflow: "STAFF_QUOTE", chargesPolicy: SERVICE_CHARGES_POLICY, chargeRevisionFrom: estimate.id, documentReview: { documentId: current.document.id, documentHash: raw.documentHash, ...(customer ? { customer } : {}) }, lineItems, taxCents, discountCents, expectedVersion: raw.expectedVersion, presentedAt: raw.presentedAt, expiresAt: raw.expiresAt, presentationChannel: estimate.presentationChannel, taxBoundary: `Staff-configured ${taxRatePercent}% tax on taxable parts and charges after proportional discount allocation.`, assumptions: estimate.assumptions, optionGroups: { ...(estimate.optionGroups && typeof estimate.optionGroups === "object" && !Array.isArray(estimate.optionGroups) ? estimate.optionGroups : {}), servicePricing: { taxRatePercent } }, reason: guideRevision ? `Revise labor or parts in Labor Guide: ${revisionReason}` : additions ? `Add labor or parts: ${additions.reason.trim()}` : "Revise shop supplies, additional charges and discount during document review; obtain approval for the revised total.", idempotencyKey: raw.idempotencyKey, estimateControls: { version: 1, pricing: { ...initialEstimatePricing, laborRate: activeRate.laborRate, taxRatePercent }, fitment: {}, overlapResolution: "", reviewedScope: "" } }, {}, scopeRevision ? retainedLaborKeys(source, lineItems) : undefined);
   return result;
 }

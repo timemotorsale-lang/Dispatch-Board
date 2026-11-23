@@ -34,3 +34,14 @@
 }
 
 .guide footer .previewAction { background: #fff; color: #243b60; }
+
+.manualEntry { margin-bottom: 10px; }
+.manualEntry button { margin: 0 8px 8px 0; }
+
+.partActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}

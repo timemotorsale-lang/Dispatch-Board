@@ -1,0 +1,14 @@
+.tool { max-width: 56rem; padding: .9rem; }
+.tool form, .tool label { display: grid; gap: .45rem; }
+.tool form { gap: .7rem; }
+.tool p, .tool h3 { margin: 0; }
+.tool label { min-width: 0; font-weight: 600; }
+.tool input, .tool select, .tool textarea { width: 100%; min-width: 0; }
+.tool textarea { resize: vertical; }
+.tool summary { cursor: pointer; padding-block: .3rem; }
+.concern, .request { padding: .65rem; border: 1px solid var(--line, #cfd8e6); border-radius: .5rem; }
+.request { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.request p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; align-items: end; }
+.actions { display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; padding-top: .3rem; }
+@media (max-width: 600px) { .row { grid-template-columns: minmax(0, 1fr); } }

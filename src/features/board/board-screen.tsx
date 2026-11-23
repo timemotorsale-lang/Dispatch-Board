@@ -34,6 +34,7 @@ import {
   type BoardGroupMode
 } from "./board-grouping";
 import { BoardToolbar } from "./board-toolbar";
+import type { VehiclePilotMode } from "@/lib/vehicle-pilot";
 
 type BoardScreenProps = {
   assignableUsers: ActiveUserSummary[];
@@ -42,6 +43,7 @@ type BoardScreenProps = {
   isManager: boolean;
   initialDateError: string | null;
   initialView: DispatchBoardView;
+  vehiclePilotMode?: VehiclePilotMode;
 };
 
 type BoardApiPayload = BoardReadLookupResult & { error?: string };
@@ -163,7 +165,8 @@ export function BoardScreen({
   todayBoardDate,
   isManager,
   initialDateError,
-  initialView
+  initialView,
+  vehiclePilotMode = "existing"
 }: BoardScreenProps) {
   const now = useBoardClock();
   const [workFreshness, setWorkFreshness] = useState<{ date: string; at: string | null; error: string }>({ date: initialBoardDate, at: null, error: "" });
@@ -421,6 +424,7 @@ export function BoardScreen({
         informational={initialView === "live"}
         toolbar={
           <>
+            {vehiclePilotMode !== "existing" && <Link className="pill pill-secondary" href="/vehicles/registry">Find Vehicle</Link>}
             <Link className="pill pill-secondary" href={`/board/repair-priorities?date=${selectedBoardDate}`}>Daily Priorities</Link>
             <span className={getLiveStatusTone(isRefreshing, updatesDelayed)}>
               {updatesDelayed ? "Updates delayed" : isRefreshing ? "Updating..." : "Live"}

@@ -1,3 +1,4 @@
+import { assertDiagnosticAuthorization } from "@/server/repair-order/diagnostic-authorization";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson } from "@/server/enterprise-command/aggregate-mutation";
@@ -80,6 +81,7 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         if (stageOrder > 16) throw new Error("The Shop stage is outside the governed 16-stage lifecycle.");
         const authority = canCompleteShopReconStage(actor, lifecycle.stage, workLane(order.origin));
         if (!authority.allowed) throw new Error(`${authority.authority} is required to publish this stage's operational evidence.`);
+        if (stageOrder >= 6) await assertDiagnosticAuthorization(tx, order);
         const draft = await tx.shopReconStageDraft.findFirst({ where: { lifecycleId: lifecycle.id, stage: lifecycle.stage, scopeVersion: lifecycle.scopeVersion }, orderBy: { revision: "desc" } });
         if (!draft) throw new Error("Save the current stage before publishing operational evidence.");
         const completion = evaluateDraftCompletion(lifecycle.stage, draft, workLane(order.origin));

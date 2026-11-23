@@ -1,8 +1,23 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/layout/appearance", () => ({
   useAppearance: () => ({ appearance: "light", setAppearance: vi.fn() })
+}));
+
+vi.mock("@/server/auth/current-user", () => ({
+  requireCurrentUser: async () => ({
+    id: "sales-test-user",
+    name: "Sales Test User",
+    email: "sales-test@example.test",
+    isActive: true,
+    roles: ["Sales"],
+    duties: { all: [], direct: [], roleDefaults: [] }
+  })
+}));
+
+vi.mock("@/server/dealercenter-reporting/service", () => ({
+  getDealerCenterReport: async () => null
 }));
 
 import SalesConsoleError from "@/app/(app)/sales/error";
@@ -88,9 +103,14 @@ import { salesConsoleRoleViews } from "@/features/sales/sales-console-mvp-role-v
 import { SalesConsoleEliteOperatingConsole } from "@/features/sales/sales-console-elite-operating-console";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
+async function renderSalesPage() {
+  const stream = await renderToReadableStream(await SalesPage());
+  return new Response(stream).text();
+}
+
 describe("Sales Console", () => {
-  it("renders the /sales route shell from the elite enterprise source of truth", () => {
-    const markup = renderToStaticMarkup(<SalesPage />);
+  it("renders the /sales route shell from the elite enterprise source of truth", async () => {
+    const markup = await renderSalesPage();
 
     expect(markup).toContain("Elite enterprise Sales Console operational MVP");
     expect(markup).toContain("Sales Intent Home");
@@ -100,8 +120,8 @@ describe("Sales Console", () => {
     expect(markup).toContain("What are you trying to do?");
   });
 
-  it("keeps the M38 staff shell lean, role-aware, and free of prototype review language", () => {
-    const markup = renderToStaticMarkup(<SalesPage />);
+  it("keeps the M38 staff shell lean, role-aware, and free of prototype review language", async () => {
+    const markup = await renderSalesPage();
 
     expect(markup).toContain("Operational MVP");
     expect(markup).toContain("Role context");
@@ -115,8 +135,8 @@ describe("Sales Console", () => {
     expect(markup).not.toContain("Prototype");
   });
 
-  it("renders M41 salesperson today as an intent-led work start", () => {
-    const markup = renderToStaticMarkup(<SalesPage />);
+  it("renders M41 salesperson today as an intent-led work start", async () => {
+    const markup = await renderSalesPage();
 
     expect(markup).toContain("Revenue Work Queue");
     expect(markup).toContain("Work today&#x27;s leads");
@@ -125,8 +145,8 @@ describe("Sales Console", () => {
     expect(markup).toContain("Controlled Action");
   });
 
-  it("renders M42 lead operations states and guarded assignment behavior", () => {
-    const markup = renderToStaticMarkup(<SalesPage />);
+  it("renders M42 lead operations states and guarded assignment behavior", async () => {
+    const markup = await renderSalesPage();
 
     expect(markup).toContain("Revenue Work Queue");
   });

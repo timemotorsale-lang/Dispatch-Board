@@ -10,9 +10,9 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails, LifecycleToolLink } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type FqcWorkflowProgress = {
@@ -323,11 +323,13 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
         <span><BadgeCheck size={15} />TMS Final Quality Control</span>
         <h3>FQC release workspace</h3>
         <p>Independently validate repair quality, safety, and release readiness before the vehicle moves into detailing.</p>
-        <div className={styles.wopHeaderActions}>
-          <Link className={styles.wopHeaderLink} href={qcHref}><ClipboardCheck size={14} />Live QC workspace</Link>
-          <Link className={styles.wopHeaderLink} href={repairWorkbenchHref}><Wrench size={14} />Repair Workbench</Link>
-          <Link className={styles.wopHeaderLink} href={shopReconHref}><ShieldCheck size={14} />Shop &amp; Recon board</Link>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={qcHref}><ClipboardCheck size={14} />Live QC workspace</LifecycleToolLink>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={repairWorkbenchHref}><Wrench size={14} />Repair Workbench</LifecycleToolLink>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={shopReconHref}><ShieldCheck size={14} />Shop &amp; Recon board</LifecycleToolLink>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>QC state</small>
@@ -337,8 +339,7 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Verify every completed job</h4></div><em className={completedSteps.jobs ? styles.wopComplete : ""}>{completedSteps.jobs ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Verify every completed job" status={<em className={completedSteps.jobs ? styles.wopComplete : ""}>{completedSteps.jobs ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.fqcChecklistIntro}>
             <strong>Final QC inspection checklist form</strong>
             <small>Staff should walk this checklist item by item and record a result for each release-critical control.</small>
@@ -373,10 +374,9 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
             <label><input checked={checklistSummary.failed === 0 && checklistSummary.passed >= 6} onChange={() => undefined} readOnly type="checkbox" /><span>Checklist form was completed and shows no failed release-critical item</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.jobsVerifiedComplete || completedSteps.jobs} onClick={completeJobs} type="button">Lock job verification</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Complete the final diagnostic scan</h4></div><em className={completedSteps.scan ? styles.wopComplete : ""}>{completedSteps.scan ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Complete the final diagnostic scan" status={<em className={completedSteps.scan ? styles.wopComplete : ""}>{completedSteps.scan ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.scanCompleted} onChange={(event) => updateBoolean("scanCompleted", event.target.checked, "scan")} type="checkbox" /><span>Final diagnostic scan completed</span></label>
             <label><input checked={input.codesClearedOrExplained} onChange={(event) => updateBoolean("codesClearedOrExplained", event.target.checked, "scan")} type="checkbox" /><span>Codes and monitors were cleared or explained</span></label>
@@ -384,10 +384,9 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
             <label><input checked={input.calibrationVerified} onChange={(event) => updateBoolean("calibrationVerified", event.target.checked, "scan")} type="checkbox" /><span>Calibration or reset proof was verified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.jobs || !result.diagnosisScanComplete || completedSteps.scan} onClick={completeScan} type="button"><ScanLine size={14} />Lock final scan</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Perform the final road test</h4></div><em className={completedSteps.road ? styles.wopComplete : ""}>{completedSteps.road ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Perform the final road test" status={<em className={completedSteps.road ? styles.wopComplete : ""}>{completedSteps.road ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Road-test state</span><select onChange={(event) => updateValue("roadTestState", event.target.value as RoadTestState, "road")} value={input.roadTestState}><option>Not required</option><option>Required and passed</option><option>Required and failed</option><option>Pending</option></select></label>
           </div>
@@ -396,10 +395,9 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
           </div>
           <p className={styles.wopExplanation}>{input.roadTestState === "Not required" ? "This repair cycle does not require a final road test." : input.roadTestState === "Required and passed" ? "Final road-test proof should support braking, drivability, steering, and outcome confirmation." : "Final QC cannot release the vehicle while the road-test requirement is pending or failed."}</p>
           <button className={styles.wopAction} disabled={!completedSteps.scan || !result.roadTestComplete || completedSteps.road} onClick={completeRoad} type="button">Lock road-test control</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Inspect leaks and workmanship</h4></div><em className={completedSteps.workmanship ? styles.wopComplete : ""}>{completedSteps.workmanship ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Inspect leaks and workmanship" status={<em className={completedSteps.workmanship ? styles.wopComplete : ""}>{completedSteps.workmanship ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.fluidAndLeakCheckPassed} onChange={(event) => updateBoolean("fluidAndLeakCheckPassed", event.target.checked, "workmanship")} type="checkbox" /><span>Fluid, leak, and routing check passed</span></label>
             <label><input checked={input.torqueAndFastenersVerified} onChange={(event) => updateBoolean("torqueAndFastenersVerified", event.target.checked, "workmanship")} type="checkbox" /><span>Fasteners, torque, and assembly checks passed</span></label>
@@ -407,10 +405,9 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
             <label><input checked={input.noComebackRiskObserved} onChange={(event) => updateBoolean("noComebackRiskObserved", event.target.checked, "workmanship")} type="checkbox" /><span>No obvious comeback risk remains</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.road || !result.leaksAndWorkmanshipComplete || completedSteps.workmanship} onClick={completeWorkmanship} type="button">Lock workmanship check</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Resolve safety and recall controls</h4></div><em className={completedSteps.safety ? styles.wopComplete : ""}>{completedSteps.safety ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Resolve safety and recall controls" status={<em className={completedSteps.safety ? styles.wopComplete : ""}>{completedSteps.safety ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Safety state</span><select onChange={(event) => updateValue("safetyState", event.target.value as SafetyState, "safety")} value={input.safetyState}><option>No open safety hold</option><option>Disclosure recorded</option><option>Open safety issue</option></select></label>
           </div>
@@ -418,10 +415,9 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
             <label><input checked={input.recallOrDisclosureHandled} onChange={(event) => updateBoolean("recallOrDisclosureHandled", event.target.checked, "safety")} type="checkbox" /><span>Recall, disclosure, or release control was handled</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.workmanship || !result.safetyComplete || completedSteps.safety} onClick={completeSafety} type="button">Lock safety release</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Issue the independent QC decision</h4></div><em className={completedSteps.decision ? styles.wopComplete : ""}>{completedSteps.decision ? "Issued" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Issue the independent QC decision" status={<em className={completedSteps.decision ? styles.wopComplete : ""}>{completedSteps.decision ? "Issued" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>QC decision</span><select onChange={(event) => updateValue("decisionState", event.target.value as FinalDecision, "decision")} value={input.decisionState}><option>Pass</option><option>Rework</option><option>Disclose</option><option>Hold</option></select></label>
           </div>
@@ -430,54 +426,58 @@ export function FqcFinalQcTool({ onProgressChange }: { onProgressChange: (progre
           </div>
           <p className={styles.wopExplanation}>{input.decisionState === "Pass" ? "A pass should only be issued once every critical quality and safety gate has been completed." : "A non-pass decision keeps the vehicle governed and routes the exact reason into the next controlled loop."}</p>
           <button className={styles.wopAction} disabled={!completedSteps.safety || !result.decisionComplete || completedSteps.decision} onClick={completeDecision} type="button">Issue Final QC decision</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><BadgeCheck size={18} /><div><span>Final QC recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for detailing" ? styles.wopComplete : result.recommendation === "Resolve safety controls" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Road test</dt><dd>{input.roadTestState}</dd></div>
-          <div><dt>Safety state</dt><dd>{input.safetyState}</dd></div>
-          <div><dt>Final decision</dt><dd>{input.decisionState}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for detailing" ? "Final QC has independently confirmed the repair, safety, and release package. The vehicle can move into detailing." : "Final QC should remain fail-closed until the exact blocker is resolved and the independent decision can be supported."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed Final QC strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><BadgeCheck size={18} /><div><span>Final QC recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for detailing" ? styles.wopComplete : result.recommendation === "Resolve safety controls" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Road test</dt><dd>{input.roadTestState}</dd></div>
+            <div><dt>Safety state</dt><dd>{input.safetyState}</dd></div>
+            <div><dt>Final decision</dt><dd>{input.decisionState}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for detailing" ? "Final QC has independently confirmed the repair, safety, and release package. The vehicle can move into detailing." : "Final QC should remain fail-closed until the exact blocker is resolved and the independent decision can be supported."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed Final QC strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No Final QC action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No Final QC action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Independent verification</span>
-        <strong>{completedSteps.jobs ? "Jobs independently verified" : "Job verification still active"}</strong>
-        <small>Final QC should confirm the repair matches the approved scope and evidence package.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Safety and release</span>
-        <strong>{completedSteps.safety ? "Safety controls resolved" : "Safety controls still active"}</strong>
-        <small>No unresolved safety hold should remain before a final release decision is issued.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.decision && input.decisionState === "Pass" ? "Ready for detailing" : "Final QC still active"}</strong>
-        <small>{completedSteps.decision && input.decisionState === "Pass" ? "This unit can now hand off into the detailing stage." : "Finish the independent QC decision before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Independent verification</span>
+          <strong>{completedSteps.jobs ? "Jobs independently verified" : "Job verification still active"}</strong>
+          <small>Final QC should confirm the repair matches the approved scope and evidence package.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Safety and release</span>
+          <strong>{completedSteps.safety ? "Safety controls resolved" : "Safety controls still active"}</strong>
+          <small>No unresolved safety hold should remain before a final release decision is issued.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.decision && input.decisionState === "Pass" ? "Ready for detailing" : "Final QC still active"}</strong>
+          <small>{completedSteps.decision && input.decisionState === "Pass" ? "This unit can now hand off into the detailing stage." : "Finish the independent QC decision before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

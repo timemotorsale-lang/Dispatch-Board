@@ -10,6 +10,7 @@ import { catalogScopeDigest } from "@/server/diagnostics/catalog-approval";
 import { LIGHT_DUTY_CATALOG_VERSION } from "@/lib/light-duty-baseline";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { disconnectDailyWorkflowDatabase, resetDailyWorkflowState } from "./daily-workflow.setup";
+import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 // Run alone, with the app and tests pointed at the same NEW disposable schema.
 // Synthetic identity/catalog prerequisites; workflow transitions use browser controls.
@@ -30,6 +31,7 @@ const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(va
 const guideHref = (draftId: string) => `/prototype/labor-guide?experience=explorer&draftId=${draftId}`;
 
 async function seedReadiness() {
+  await configureSyntheticVehiclePilot("GENERAL");
   const tag = `readiness-${randomUUID().slice(0, 8)}`;
   const organization = await prisma.organization.findUniqueOrThrow({ where: { code: "TIME_MOTOR_SALES" } });
   const location = await prisma.location.findUniqueOrThrow({ where: { organizationId_code: { organizationId: organization.id, code: "TMS-MSP-01" } } });
@@ -167,7 +169,7 @@ async function completeLaborThroughBrowser(page: Page) {
   await page.goto(`/vehicles/shop-planning?repairOrderId=${roId}`);
   const create = page.getByRole("button", { name: "Create repair job", exact: true });
   if (!await create.isVisible()) await page.locator("summary").filter({ hasText: /Release|repair job/i }).last().click();
-  await page.getByLabel("What should be done", { exact: true }).fill("Synthetic training operation; no physical vehicle work performed");
+  await page.getByLabel("Technician instructions", { exact: true }).fill("Synthetic training operation; no physical vehicle work performed");
   await create.click();
   await expect.poll(() => prisma.repairJob.count({ where: { repairOrderId: roId } })).toBe(1);
   const job = await prisma.repairJob.findFirstOrThrow({ where: { repairOrderId: roId } });
@@ -209,13 +211,16 @@ async function completeLaborThroughBrowser(page: Page) {
   expect(await prisma.repairJobLaborEvent.findMany({ where: { repairJobId: job.id }, orderBy: { occurredAt: "asc" }, select: { eventType: true } })).toEqual([{ eventType: "START" }, { eventType: "PAUSE" }, { eventType: "RESUME" }, { eventType: "FINISH" }]);
   await login(page.request);
   await page.goto(`/vehicles/quality-control?repairOrderId=${roId}`);
-  await page.getByRole("button", { name: "Show queue and detailed QC tools", exact: true }).click();
-  const qcForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Record immutable QC result", exact: true }) });
-  await qcForm.getByLabel("Evidence references", { exact: true }).fill("synthetic:independent-peer-verification");
-  await qcForm.getByRole("checkbox", { name: "Peer verification passed", exact: true }).check();
-  await qcForm.getByRole("combobox", { name: /^Peer verifier/ }).selectOption(fixture.manager.id);
+  const qcForm = page.getByRole("region", { name: "Final QC checklist" });
+  for (const pass of await qcForm.getByRole("radio", { name: "Pass", exact: true }).all()) await pass.check();
+  await qcForm.getByLabel("Peer who verified the repair").selectOption(fixture.manager.id);
+  const roadTest = qcForm.getByLabel("Road test", { exact: true });
+  if (await roadTest.count()) {
+    await roadTest.selectOption("PASSED");
+    await qcForm.getByLabel("Road-test observations").fill("Synthetic road test confirmed the repair.");
+  }
   const qcResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/api/repair-jobs/${job.id}/quality-inspection`));
-  await qcForm.getByRole("button", { name: "Record immutable QC result", exact: true }).click();
+  await qcForm.getByRole("button", { name: "Save QC pass" }).click();
   const qcResult = await qcResponse;
   expect(qcResult.ok(), await qcResult.text()).toBe(true);
   await expect.poll(async () => (await prisma.repairJob.findUniqueOrThrow({ where: { id: job.id } })).status).toBe("QC_PASSED");
@@ -226,14 +231,13 @@ async function completeLaborThroughBrowser(page: Page) {
 async function completeHandoffThroughBrowser(page: Page) {
   const repairOrderId = fixture.tested.ro.id;
   await page.goto(`/vehicles/quality-control?repairOrderId=${repairOrderId}`);
-  const finalQc = page.getByRole("region", { name: "Final Frontline QC", exact: true });
+  const finalQc = page.getByRole("region", { name: "Handoff clearance" });
   await expect(finalQc).toBeVisible();
-  const checks = finalQc.getByRole("group");
-  await expect(checks).toHaveCount(19);
-  for (let index = 0; index < 19; index++) await checks.nth(index).getByRole("button", { name: /Pass$/ }).click();
-  await finalQc.getByRole("button", { name: "Mark Frontline Ready", exact: true }).click();
+  await finalQc.getByLabel("Vehicle keys verified").check();
+  await finalQc.getByLabel("Final vehicle condition").fill("Synthetic final vehicle inspection complete.");
+  await finalQc.getByRole("button", { name: "Clear for handoff", exact: true }).click();
   await expect.poll(() => prisma.repairOrderReleaseAuthorization.count({ where: { repairOrderId: repairOrderId } })).toBe(1);
-  await page.goto(`/prototype/repair-workbench?repairOrderId=${repairOrderId}&step=handoff`);
+  await page.goto(`/vehicles/repair-workbench?repairOrderId=${repairOrderId}&step=handoff`);
   await page.getByLabel("Receiving person / department", { exact: true }).fill("Synthetic training customer");
   await page.getByLabel("Final odometer", { exact: true }).fill("123456");
   await page.getByLabel("Handoff evidence (one reference per line)", { exact: true }).fill("synthetic:training-handoff-no-real-vehicle");

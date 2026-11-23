@@ -14,7 +14,7 @@ describe("one-step RO close route", () => {
     expect(mocks.close).toHaveBeenCalledWith({ id: "advisor" }, "ro-1", expect.objectContaining({ idempotencyKey: "close", action: "CLOSE_RO" }));
   });
   it("returns a direct link when financial closeout is required", async () => {
-    const action = { label: "Open invoice closeout", href: "/prototype/repair-workbench?repairOrderId=ro-1&step=handoff" };
+    const action = { label: "Open invoice closeout", href: "/vehicles/repair-workbench?repairOrderId=ro-1&step=handoff" };
     mocks.close.mockRejectedValue(new RepairOrderCloseBlockedError("Invoice closeout is required.", action, "INVOICE_CLOSEOUT_REQUIRED"));
     const response = await POST(request(), context);
     expect(response.status).toBe(400);

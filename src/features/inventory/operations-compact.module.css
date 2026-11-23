@@ -36,3 +36,43 @@
 @media screen and (max-width: 420px) {
   .parts :global(.parts-control-strip) { grid-template-columns: minmax(0, 1fr); }
 }
+
+.checkInResult {
+  align-content: start;
+  justify-items: start;
+  gap: 10px;
+  padding-block: 24px;
+}
+.checkInResult h1, .checkInResult p { margin: 0; }
+.checkInResult h1 { font-size: clamp(20px, 3vw, 26px); }
+.checkInResult :global(.sic-success-actions) { justify-content: flex-start; }
+.checkInResult button {
+  min-height: 38px;
+  padding: 4px 10px;
+  border: 1px solid var(--sic-line);
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+}
+
+.customerCheckIn :global(.sic-card) { padding: 12px; }
+.customerCheckIn :global(.sic-card) :global(.sic-concern-field) textarea { height: auto; min-height: 68px; }
+.customerCheckIn :global(.sic-technician-assignment-row) { grid-template-columns: minmax(0, 360px); }
+.customerCheckIn :global(.sic-execution-path) { margin-block: 0 8px; }
+.customerCheckIn :global(.sic-execution-path) > button { padding: 7px 10px; }
+
+@media screen and (max-width: 760px) {
+  .customerCheckIn :global(.sic-footer) { flex-wrap: wrap; gap: 6px; }
+  .customerCheckIn :global(.sic-footer) > button { max-width: 100%; white-space: normal; }
+}
+.intakeFooterWithError { flex-wrap: wrap; row-gap: 6px; }
+.intakeFooterError {
+  flex: 0 0 100%;
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid #df9d99;
+  border-radius: 5px;
+  color: #842d28;
+  background: #fff3f2;
+  font-size: .84rem;
+}

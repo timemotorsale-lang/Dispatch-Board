@@ -30,7 +30,7 @@ describe("repair close guidance", () => {
     const repairOrderId = "ro /?&other=secret#ü";
     const [item] = repairCloseGuidance(repairOrderId, [`INVOICE_${code}`]);
     const url = new URL(item.href, "https://local.test");
-    expect(url.pathname).toBe(step ? "/prototype/repair-workbench" : "/vehicles/service-billing");
+    expect(url.pathname).toBe(step ? "/vehicles/repair-workbench" : "/vehicles/service-billing");
     expect(url.searchParams.get("repairOrderId")).toBe(repairOrderId);
     expect(url.searchParams.get("step")).toBe(step);
     expect([...url.searchParams.keys()].sort()).toEqual(step ? ["repairOrderId", "step"] : ["repairOrderId"]);

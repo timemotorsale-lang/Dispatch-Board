@@ -1,5 +1,6 @@
+import { repairChecklistItems } from "@/lib/final-repair-qc";
 import { describe,expect,it } from "vitest";
-import { evaluateInspection,normalizeQualityInspection,normalizeReleaseAuthorization } from "@/server/quality-control/domain";
+import { evaluateInspection,normalizeQualityInspection,normalizeReleaseAuthorization,validateFinalRepairChecklist } from "@/server/quality-control/domain";
 const base={checks:[{category:"COMPLETION",code:"DONE",label:"Correction complete",result:"PASS",evidence:["photo"]},{category:"SAFETY",code:"SAFE",label:"Safety checks",result:"PASS",evidence:["scan"]}],completionEvidence:["photo"],idempotencyKey:"one",inspectedAt:"2026-07-14T14:00:00Z",reason:"Record final quality inspection.",roadTestRequired:false,roadTestOutcome:"NOT_REQUIRED",templateCode:"FINAL_QC",templateVersion:1};
 describe("quality control and release domain",()=>{
   it("requires an applicable safety check",()=>expect(()=>normalizeQualityInspection({...base,checks:[base.checks[0]]})).toThrow("safety check"));
@@ -8,4 +9,29 @@ describe("quality control and release domain",()=>{
   it("requires independent peer verification for heavy repairs",()=>{const data=normalizeQualityInspection(base);expect(evaluateInspection({...data,heavyRepair:true})).toMatchObject({allowed:false,failureReasonCodes:expect.arrayContaining(["SHOP_QC_PEER_VERIFICATION_REQUIRED"])});});
   it("does not average away failed or non-applicable completion checks",()=>{const data=normalizeQualityInspection({...base,checks:[{...base.checks[0],result:"NOT_APPLICABLE"},base.checks[1]]});expect(evaluateInspection({...data,heavyRepair:false})).toMatchObject({allowed:false,failureReasonCodes:expect.arrayContaining(["SHOP_QC_COMPLETION_CHECK_REQUIRED"])});});
   it("blocks release with exceptions or unverified keys",()=>{expect(()=>normalizeReleaseAuthorization({authorizedAt:"2026-07-14T15:00:00Z",idempotencyKey:"one",keysVerified:false,openExceptions:[],reason:"Authorize evidence backed release.",releaseEvidence:["photo"]})).toThrow("keys");expect(()=>normalizeReleaseAuthorization({authorizedAt:"2026-07-14T15:00:00Z",idempotencyKey:"one",keysVerified:true,openExceptions:["warning light"],reason:"Authorize evidence backed release.",releaseEvidence:["photo"]})).toThrow("open exceptions");});
+});
+
+describe("Final QC checklist", () => {
+  const job = { description: "Replace lower control arm", plannedCorrection: "Replace left lower control arm" };
+  const procedure = ["Verify fastener torque"];
+  const checks = repairChecklistItems(procedure).map(check => ({ ...check, result: "PASS" }));
+  const normalized = normalizeQualityInspection({
+    ...base, checks, roadTestRequired: true, roadTestOutcome: "PASSED", roadTestEvidence: ["No pull after repair"]
+  });
+
+  it("requires all standard and procedure items and a passing road test", () => {
+    expect(() => validateFinalRepairChecklist(job, { ...normalized, checks: normalized.checks.slice(1) }, procedure)).toThrow("Every Final QC");
+    expect(() => validateFinalRepairChecklist(job, { ...normalized, checks: normalized.checks.slice(0, -1) }, procedure)).toThrow("Every Final QC");
+    expect(() => validateFinalRepairChecklist(job, { ...normalized, roadTestOutcome: "NOT_REQUIRED" }, procedure)).toThrow("passing road test");
+    expect(validateFinalRepairChecklist(job, normalized, procedure)).toBe(false);
+  });
+
+  it("accepts an explicit failure before the rest of the checklist can be completed", () => {
+    const failed = normalizeQualityInspection({ ...base, checks: [{ ...checks[2], result: "FAIL" }] });
+    expect(validateFinalRepairChecklist(job, failed, procedure)).toBe(true);
+    expect(evaluateInspection({ ...failed, heavyRepair: true })).toMatchObject({
+      allowed: false,
+      failureReasonCodes: expect.arrayContaining(["SHOP_QC_CHECK_FAILED_FINAL_SAFETY_CHECK"])
+    });
+  });
 });

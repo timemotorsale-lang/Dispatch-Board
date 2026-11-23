@@ -10,9 +10,9 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails, LifecycleToolLink } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type RnrWorkflowProgress = {
@@ -137,7 +137,10 @@ function evaluateRecon(input: ReconInput) {
   };
 }
 
-export function RnrReconTool({ onProgressChange }: { onProgressChange: (progress: RnrWorkflowProgress) => void }) {
+export function RnrReconTool({ onProgressChange, onEvidenceChange }: {
+  onProgressChange: (progress: RnrWorkflowProgress) => void;
+  onEvidenceChange?: () => void;
+}) {
   const [input, setInput] = useState(initialInput);
   const [completedSteps, setCompletedSteps] = useState<Record<StepKey, boolean>>({
     accept: false,
@@ -166,10 +169,12 @@ export function RnrReconTool({ onProgressChange }: { onProgressChange: (progress
   }, [completedSteps, onProgressChange, result, trail.length]);
 
   function appendTrail(step: StepKey, actor: string, resultText: string, evidence: string) {
+    onEvidenceChange?.();
     setTrail((current) => [{ actor, evidence, result: resultText, step, timestamp: timeStamp() }, ...current]);
   }
 
   function invalidateFrom(step: StepKey, message: string) {
+    onEvidenceChange?.();
     let reopened = false;
     setCompletedSteps((current) => {
       const next = { ...current };
@@ -251,12 +256,14 @@ export function RnrReconTool({ onProgressChange }: { onProgressChange: (progress
         <span><Wrench size={15} />TMS Recon &amp; Repair</span>
         <h3>RNR execution workspace</h3>
         <p>Guide the technician and recon lead through job acceptance, diagnosis, approval, execution, proof, and reconciliation before Final QC.</p>
-        <div className={styles.wopHeaderActions}>
-          <Link className={styles.wopHeaderLink} href={shopReconHref}><ClipboardList size={14} />Shop &amp; Recon board</Link>
-          <Link className={styles.wopHeaderLink} href={repairWorkbenchHref}><Wrench size={14} />Repair Workbench</Link>
-          <Link className={styles.wopHeaderLink} href={partsOrderingHref}><ShieldCheck size={14} />Parts ordering</Link>
-          <Link className={styles.wopHeaderLink} href={qcHref}><BadgeCheck size={14} />Final QC queue</Link>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={shopReconHref}><ClipboardList size={14} />Shop &amp; Recon board</LifecycleToolLink>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={repairWorkbenchHref}><Wrench size={14} />Repair Workbench</LifecycleToolLink>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={partsOrderingHref}><ShieldCheck size={14} />Parts ordering</LifecycleToolLink>
+            <LifecycleToolLink forRepairOrder className={styles.wopHeaderLink} href={qcHref}><BadgeCheck size={14} />Final QC queue</LifecycleToolLink>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Execution state</small>
@@ -266,8 +273,7 @@ export function RnrReconTool({ onProgressChange }: { onProgressChange: (progress
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Acknowledge the next ready job</h4></div><em className={completedSteps.accept ? styles.wopComplete : ""}>{completedSteps.accept ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Acknowledge the next ready job" status={<em className={completedSteps.accept ? styles.wopComplete : ""}>{completedSteps.accept ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.jobAccepted} onChange={(event) => updateBoolean("jobAccepted", event.target.checked, "accept")} type="checkbox" /><span>Technician or vendor accepted the ready job</span></label>
             <label><input checked={input.technicianAssigned} onChange={(event) => updateBoolean("technicianAssigned", event.target.checked, "accept")} type="checkbox" /><span>Accountable technician or vendor is assigned</span></label>
@@ -275,10 +281,9 @@ export function RnrReconTool({ onProgressChange }: { onProgressChange: (progress
             <label><input checked={input.expectedFinishConfirmed} onChange={(event) => updateBoolean("expectedFinishConfirmed", event.target.checked, "accept")} type="checkbox" /><span>Completion target is confirmed with the team</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.acceptanceComplete || completedSteps.accept} onClick={completeAccept} type="button">Lock job acceptance</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Complete required diagnosis</h4></div><em className={completedSteps.diagnosis ? styles.wopComplete : ""}>{completedSteps.diagnosis ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Complete required diagnosis" status={<em className={completedSteps.diagnosis ? styles.wopComplete : ""}>{completedSteps.diagnosis ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Diagnosis state</span><select onChange={(event) => updateValue("diagnosisState", event.target.value as DiagnosisState, "diagnosis")} value={input.diagnosisState}><option>Not needed</option><option>Required and completed</option><option>Still open</option></select></label>
           </div>
@@ -288,92 +293,92 @@ export function RnrReconTool({ onProgressChange }: { onProgressChange: (progress
             <label><input checked={input.safetyImpactReviewed} disabled={input.diagnosisState === "Not needed"} onChange={(event) => updateBoolean("safetyImpactReviewed", event.target.checked, "diagnosis")} type="checkbox" /><span>Safety impact was reviewed and classified</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.accept || !result.diagnosisComplete || completedSteps.diagnosis} onClick={completeDiagnosis} type="button">Lock diagnosis</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Obtain change authorization</h4></div><em className={completedSteps.change ? styles.wopComplete : ""}>{completedSteps.change ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Obtain change authorization" status={<em className={completedSteps.change ? styles.wopComplete : ""}>{completedSteps.change ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Scope / cost change</span><select onChange={(event) => updateValue("changeState", event.target.value as ChangeState, "change")} value={input.changeState}><option>No scope change</option><option>Approved change</option><option>Approval pending</option></select></label>
           </div>
           <p className={styles.wopExplanation}>{input.changeState === "Approval pending" ? "Execution should not continue past diagnosis until the exact change is approved." : input.changeState === "Approved change" ? "A controlled scope or cost change was approved and can be executed." : "No extra authorization was needed for this repair cycle."}</p>
           <button className={styles.wopAction} disabled={!completedSteps.diagnosis || !result.changeApprovalComplete || completedSteps.change} onClick={completeChange} type="button"><LockKeyhole size={14} />Lock change control</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Perform repair or recon work</h4></div><em className={completedSteps.execute ? styles.wopComplete : ""}>{completedSteps.execute ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Perform repair or recon work" status={<em className={completedSteps.execute ? styles.wopComplete : ""}>{completedSteps.execute ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.repairOrVendorWorkPerformed} onChange={(event) => updateBoolean("repairOrVendorWorkPerformed", event.target.checked, "execute")} type="checkbox" /><span>Approved repair or vendor work was performed</span></label>
             <label><input checked={input.vendorOrCalibrationClosed} onChange={(event) => updateBoolean("vendorOrCalibrationClosed", event.target.checked, "execute")} type="checkbox" /><span>Outside service, calibration, or vendor dependency is closed</span></label>
             <label><input checked={input.technicianNotesPublished} onChange={(event) => updateBoolean("technicianNotesPublished", event.target.checked, "execute")} type="checkbox" /><span>Technician notes were published for the work performed</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.change || !result.executionComplete || completedSteps.execute} onClick={completeExecute} type="button">Lock execution record</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Prove job completion</h4></div><em className={completedSteps.proof ? styles.wopComplete : ""}>{completedSteps.proof ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Prove job completion" status={<em className={completedSteps.proof ? styles.wopComplete : ""}>{completedSteps.proof ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.beforeAfterEvidenceLogged} onChange={(event) => updateBoolean("beforeAfterEvidenceLogged", event.target.checked, "proof")} type="checkbox" /><span>Before and after evidence is attached</span></label>
             <label><input checked={input.scanRoadTestOrMeasurementLogged} onChange={(event) => updateBoolean("scanRoadTestOrMeasurementLogged", event.target.checked, "proof")} type="checkbox" /><span>Scan, road test, or measurement proof is logged</span></label>
             <label><input checked={input.qcReadySignoffCaptured} onChange={(event) => updateBoolean("qcReadySignoffCaptured", event.target.checked, "proof")} type="checkbox" /><span>QC-ready signoff was captured</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.execute || !result.completionProofComplete || completedSteps.proof} onClick={completeProof} type="button">Lock completion proof</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Reconcile execution dependencies</h4></div><em className={completedSteps.reconcile ? styles.wopComplete : ""}>{completedSteps.reconcile ? "Released" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Reconcile execution dependencies" status={<em className={completedSteps.reconcile ? styles.wopComplete : ""}>{completedSteps.reconcile ? "Released" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.partsAndSubletReconciled} onChange={(event) => updateBoolean("partsAndSubletReconciled", event.target.checked, "reconcile")} type="checkbox" /><span>Parts, sublet, and returns are reconciled</span></label>
             <label><input checked={input.totalCostAndLaborReconciled} onChange={(event) => updateBoolean("totalCostAndLaborReconciled", event.target.checked, "reconcile")} type="checkbox" /><span>Actual labor and total cost are reconciled</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.proof || !result.reconciliationComplete || completedSteps.reconcile} onClick={completeReconcile} type="button">Release to Final QC</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><Wrench size={18} /><div><span>Recon recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Final QC" ? styles.wopComplete : result.recommendation === "Authorize change" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Next action</dt><dd>{result.recommendation}</dd></div>
-          <div><dt>Technician assignment</dt><dd>{input.technicianAssigned ? "Assigned" : "Pending"}</dd></div>
-          <div><dt>Change control</dt><dd>{input.changeState}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Final QC" ? "Execution is complete, evidence is attached, and reconciliation is current. The vehicle can now move into Final QC." : "Work in this stage should stay visible until the exact blocker is resolved and the next controlled action is confirmed."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed recon strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><Wrench size={18} /><div><span>Recon recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Final QC" ? styles.wopComplete : result.recommendation === "Authorize change" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Next action</dt><dd>{result.recommendation}</dd></div>
+            <div><dt>Technician assignment</dt><dd>{input.technicianAssigned ? "Assigned" : "Pending"}</dd></div>
+            <div><dt>Change control</dt><dd>{input.changeState}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Final QC" ? "Execution is complete, evidence is attached, and reconciliation is current. The vehicle can now move into Final QC." : "Work in this stage should stay visible until the exact blocker is resolved and the next controlled action is confirmed."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed recon strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No recon execution action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No recon execution action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardList size={14} />Execution intake</span>
-        <strong>{completedSteps.accept ? "Ready job acknowledged" : "Waiting for job acceptance"}</strong>
-        <small>The next executable job should be accepted with a real technician, bay, and target.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Proof and control</span>
-        <strong>{completedSteps.proof ? "Completion proof attached" : "Completion proof still active"}</strong>
-        <small>Before/after evidence and test proof should exist before Final QC begins.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.reconcile ? "Ready for Final QC" : "Recon & Repair still active"}</strong>
-        <small>{completedSteps.reconcile ? "This unit can now hand off into the Final QC stage." : "Finish reconciliation before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardList size={14} />Execution intake</span>
+          <strong>{completedSteps.accept ? "Ready job acknowledged" : "Waiting for job acceptance"}</strong>
+          <small>The next executable job should be accepted with a real technician, bay, and target.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Proof and control</span>
+          <strong>{completedSteps.proof ? "Completion proof attached" : "Completion proof still active"}</strong>
+          <small>Before/after evidence and test proof should exist before Final QC begins.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.reconcile ? "Ready for Final QC" : "Recon & Repair still active"}</strong>
+          <small>{completedSteps.reconcile ? "This unit can now hand off into the Final QC stage." : "Finish reconciliation before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

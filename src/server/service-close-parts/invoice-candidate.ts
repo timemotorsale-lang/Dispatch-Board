@@ -1,7 +1,8 @@
 import { acceptedVendorReturns } from "@/server/quality-control/vendor-acceptance";
 import type { Prisma } from "@prisma/client";
 import { authorizedCommercialLedger, commercialLines } from "@/lib/service-commercial-ledger";
-import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
+import { EnterpriseCommandConflictError, hashEnterpriseCommand } from "@/server/enterprise-command/domain";
+import { matchesEstimateDocument, type EstimateDocumentReference } from "@/lib/service-billing-workflow";
 import type { ServiceDocumentContent } from "@/server/repair-order/service-documents";
 
 export async function serviceInvoiceCandidate(database: Prisma.TransactionClient, organizationId: string, repairOrderId: string) {
@@ -55,18 +56,28 @@ export async function serviceInvoiceCandidate(database: Prisma.TransactionClient
     );
     if (customerInvoice && job.partsRequired && !descriptionOnly && !job.partCustodyEvents.some(event => event.type === "INSTALL")) mismatchCodes.push("INVOICE_INSTALL_EVIDENCE_MISSING");
   }
-  const sourceDocument = await database.serviceDocument.findFirst({ where: { organizationId, kind: "ESTIMATE", sourceId: estimate.id }, orderBy: { sourceVersion: "desc" } });
+  const sourceDocument = await database.serviceDocument.findFirst({ where: { organizationId, repairOrderId, kind: "ESTIMATE", sourceId: estimate.id }, orderBy: { sourceVersion: "desc" } });
   if (customerInvoice && !sourceDocument) mismatchCodes.push("INVOICE_FROZEN_ESTIMATE_DOCUMENT_MISSING");
   const identity = sourceDocument ? (sourceDocument.content as unknown as ServiceDocumentContent).identity : null;
   const clockedLaborMinutes = jobs.flatMap(job => job.laborClocks).reduce((total, clock) => total + clock.accumulatedMinutes, 0);
   const installedPartsCostCents = jobs.flatMap(job => job.partCustodyEvents).filter(event => event.type === "INSTALL").reduce((total, event) => total + event.quantity * event.unitCostCents, 0);
   const fingerprint = hashEnterpriseCommand(JSON.parse(JSON.stringify({ estimateId: estimate.id, authorizationId: authorization.id, ledger, ...(vendorKeys.length ? { vendorReturns } : {}), documentHash: sourceDocument?.sha256, jobs: jobs.map(job => ({ id: job.id, status: job.status, quality: job.qualityInspections.map(inspection => [inspection.id, inspection.version, inspection.disposition, inspection.safetyChecksPassed, inspection.peerVerificationPassed, inspection.roadTestOutcome, inspection.inspectedAt]), clocks: job.laborClocks.map(clock => [clock.id, clock.state, clock.accumulatedMinutes, clock.finishedAt]), installations: job.partCustodyEvents.map(event => [event.id, event.type, event.quantity, event.unitCostCents]) })) })));
-  return { order, estimate, authorization, ledger, identity, vendorReturns, clockedLaborMinutes, installedPartsCostCents, mismatchCodes: [...new Set(mismatchCodes)], missingRepairJobLines, fingerprint, allLineKeys: commercialLines(estimate.lineItems).map(line => line.key) };
+  const estimateDocument = sourceDocument ? { documentId: sourceDocument.id, documentHash: sourceDocument.sha256 } : undefined;
+  return { order, estimate, authorization, ledger, identity, estimateDocument, vendorReturns, clockedLaborMinutes, installedPartsCostCents, mismatchCodes: [...new Set(mismatchCodes)], missingRepairJobLines, fingerprint, allLineKeys: commercialLines(estimate.lineItems).map(line => line.key) };
 }
-export async function assertCurrentInvoicePackage(database: Prisma.TransactionClient, organizationId: string, invoicePackage: { repairOrderId: string; mismatchCodes: unknown; sourceSnapshot: unknown }) {
+
+export function assertReviewedEstimateDocument(expected: EstimateDocumentReference | undefined, current: EstimateDocumentReference | undefined) {
+  if (expected && !matchesEstimateDocument(expected, current)) {
+    throw new EnterpriseCommandConflictError("The saved estimate document changed. Review the latest estimate document before invoicing.", "VERSION_CONFLICT");
+  }
+}
+
+export async function assertCurrentInvoicePackage(database: Prisma.TransactionClient, organizationId: string, invoicePackage: { repairOrderId: string; mismatchCodes: unknown; sourceSnapshot: unknown }, expectedEstimateDocument?: EstimateDocumentReference) {
   if (!Array.isArray(invoicePackage.mismatchCodes) || invoicePackage.mismatchCodes.length) throw new Error("Resolve all operational and financial invoice mismatches before finalization.");
-  const snapshot = invoicePackage.sourceSnapshot as { fingerprint?: string };
+  const snapshot = invoicePackage.sourceSnapshot as { fingerprint?: string; estimateDocument?: EstimateDocumentReference } | null;
   const current = await serviceInvoiceCandidate(database, organizationId, invoicePackage.repairOrderId);
+  assertReviewedEstimateDocument(expectedEstimateDocument, current.estimateDocument);
+  assertReviewedEstimateDocument(snapshot?.estimateDocument, current.estimateDocument);
   if (current.mismatchCodes.length || snapshot?.fingerprint !== current.fingerprint) throw new Error("Invoice source changed or is incomplete. Resolve readiness and generate a new package.");
   return current;
 }

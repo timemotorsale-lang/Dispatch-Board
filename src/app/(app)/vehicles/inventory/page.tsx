@@ -1,3 +1,4 @@
+import { DealerCenterSummary } from "@/features/dealercenter-reporting/summary";
 import { InventoryLifecycleLanding } from "@/features/inventory/inventory-lifecycle-landing";
 import { buildLifecycleUnitContext } from "@/features/inventory/lifecycle/shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
@@ -37,5 +38,5 @@ export default async function InventoryLifecyclePage({ searchParams }: PageProps
   const returnTo = `/vehicles/inventory${returnQuery.size ? `?${returnQuery.toString()}` : ""}`;
   const towerQuery = new URLSearchParams({ returnTo });
   if (query.locationId) towerQuery.set("locationId", query.locationId);
-  return <InventoryLifecycleLanding activeWorkView={activeWorkView} controlTowerHref={`/vehicles/control-tower?${towerQuery.toString()}`} currentUserId={user.id} guidedLifecycleStage={guidedLifecycleStage} guidedLifecycleUnitContext={guidedLifecycleUnitContext} projection={JSON.parse(JSON.stringify(projection))} />;
+  return <><DealerCenterSummary user={user} kind="INVENTORY" locationId={query.locationId} /><InventoryLifecycleLanding activeWorkView={activeWorkView} controlTowerHref={`/vehicles/control-tower?${towerQuery.toString()}`} currentUserId={user.id} guidedLifecycleStage={guidedLifecycleStage} guidedLifecycleUnitContext={guidedLifecycleUnitContext} projection={JSON.parse(JSON.stringify(projection))} /></>;
 }

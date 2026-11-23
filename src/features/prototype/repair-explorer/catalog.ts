@@ -26,7 +26,8 @@ export const REPAIR_SYSTEMS: RepairSystem[] = EXPANDED_REPAIR_SYSTEMS.map((syste
   if (system.id === "steering") return {
     ...system,
     groups: STEERING_GROUPS.map(group => ({ id: group.id, label: group.label, operations: STEERING_OPERATIONS.filter(item => item.groupId === group.id).map(item => {
-      const repair: RepairOperation = { id: item.previewId, label: item.label, kind: item.diagnosis ? "diagnosis" : "repair", hours: item.hours, parts: item.parts.length ? null : 0, keywords: `${item.label} ${item.family} ${item.position} ${item.aliases.join(" ")} steering suspension`, includes: item.included };
+      const searchTerms = /stabilizer link/i.test(item.label) ? "sway bar end link" : "";
+      const repair: RepairOperation = { id: item.previewId, label: item.label, kind: item.diagnosis ? "diagnosis" : "repair", hours: item.hours, parts: item.parts.length ? null : 0, keywords: `${item.label} ${item.family} ${item.position} ${item.aliases.join(" ")} ${searchTerms} steering suspension`, includes: item.included };
       const plan = buildLaborPlan(repair, group.id);
       return { ...repair, laborPlan: { ...plan, basis: "WORK_BREAKDOWN" as const, scope: `${item.position}. Internal unvalidated planning allowance; confirm access, alignment and calibration requirements.` } };
     }) }))

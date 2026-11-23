@@ -6,7 +6,7 @@ import { describeVehicleOperationsBlock, evaluateVehicleOperationsFeature } from
 import { authorizeInventoryRecon } from "@/server/inventory-execution/access";
 import { canCompleteShopReconStage } from "@/server/shop-recon/policy";
 import { getInventoryWorkflowLauncher } from "@/server/inventory-workflow-launcher/service";
-import { runFrontlineCommand } from "@/server/inventory-frontline/service";
+import { getFrontlineWorkflowForInventoryUnit, runFrontlineCommand } from "@/server/inventory-frontline/service";
 
 const now = new Date("2026-10-10T12:00:00Z");
 const staff: AuthenticatedUser = { id: "staff", name: "Staff", email: "staff@example.test", isActive: true, roles: ["Staff"], duties: { all: [], direct: [], roleDefaults: [] } };
@@ -14,6 +14,19 @@ const actor = (names: string[], defaults = false): AuthenticatedUser => ({ ...st
 const allowed = (user: AuthenticatedUser, capability: VehicleCapability) => evaluateVehicleCapability({ actor: user, capability, locationId: null, now }).allowed;
 
 describe("inventory lifecycle functions in existing team management", () => {
+  it("checks the linked stock location before looking up its workflow", async () => {
+    const user: AuthenticatedUser = { ...staff, roles: ["General Manager"] };
+    const unit = { id: "linked-stock", locationId: "restricted-lot" };
+    const getByInventoryUnit = vi.fn(async () => null);
+    const listCapabilityGrants = vi.fn().mockResolvedValueOnce([
+      { capability: "INVENTORY_UNIT_VIEW", effect: "DENY", locationId: unit.locationId, validFrom: new Date(0), validTo: null, constraints: {} },
+    ]).mockResolvedValue([]);
+    const deps = { repository: { getByInventoryUnit } as never, foundationRepository: { listCapabilityGrants } as never, organizationId: "org", now: () => now };
+    await expect(getFrontlineWorkflowForInventoryUnit(user, unit, deps)).rejects.toThrow("EXPLICIT_DENY");
+    expect(getByInventoryUnit).not.toHaveBeenCalled();
+    await expect(getFrontlineWorkflowForInventoryUnit(user, unit, deps)).resolves.toBeNull();
+    expect(getByInventoryUnit).toHaveBeenCalledWith("org", "linked-stock");
+  });
   it("enforces action functions at the service before mutation", async () => {
     const transition = vi.fn(async () => ({ version: 2 }));
     const deps = { repository: { get: vi.fn(async () => ({ locationId: "lot", ownerUserId: "owner", stage: "FRONTLINE_READY" })), transition } as never, foundationRepository: { listCapabilityGrants: vi.fn(async () => []), listFeatureFlags: vi.fn(async () => []) } as never, enforceRollout: false, now: () => now };

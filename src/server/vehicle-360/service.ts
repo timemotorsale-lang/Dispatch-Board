@@ -1,11 +1,14 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { repairEvidenceNeedsPhoto, repairProcedureEvidenceRequirements } from "@/lib/repair-procedure-evidence";
+import { repairProcedurePhotoSubject, repairProcedurePhotoSubjectType } from "@/server/shop-execution/procedure-photo";
+import { isManager } from "@/server/policies/access";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, evaluateVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
-import { normalizeEvidenceGovernance, normalizeEvidenceUpload, stableEvidenceId } from "./domain";
+import { normalizeEvidenceGovernance, normalizeEvidenceUpload, stableEvidenceId, VEHICLE_EVIDENCE_MAX_BYTES } from "./domain";
 import { createVehicle360Repository, type Vehicle360Repository } from "./repository";
 
 type Dependencies = { now?: () => Date; organizationId?: string; repository?: Vehicle360Repository; foundationRepository?: EnterpriseCommandRepository; enforceRollout?: boolean };
@@ -45,10 +48,59 @@ function command(input: { actorUserId: string; commandType: string; expectedVers
 }
 
 export async function uploadVehicleEvidence(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
-  const context = deps(input), data = normalizeEvidenceUpload(value, context.now()), { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true), id = stableEvidenceId(context.organizationId, data.idempotencyKey);
+  const context = deps(input);
+  const { user } = await auth(actor, "VEHICLE_EVIDENCE_MANAGE", context, true);
+  if (String(record(value).subjectType ?? "").trim().toUpperCase() === repairProcedurePhotoSubjectType) {
+    throw new Error("Attach procedure photos from the technician work order.");
+  }
+  return saveEvidenceUpload(context, user, value);
+}
+
+function saveEvidenceUpload(context: ReturnType<typeof deps>, user: AuthenticatedUser, value: unknown) {
+  const data = normalizeEvidenceUpload(value, context.now()), id = stableEvidenceId(context.organizationId, data.idempotencyKey);
   const subjectId = data.subjectId ?? data.vehicleId;
   const payload = { accessLevel: data.accessLevel, byteSize: data.content.length, category: data.category, checksumSha256: data.checksumSha256, contentType: data.contentType, fileName: data.fileName, malwareStatus: data.scan.malwareStatus, relationship: data.relationship, retentionUntil: data.retentionUntil.toISOString(), subjectId, subjectType: data.subjectType, vehicleId: data.vehicleId };
   return context.repository.createEvidence(command({ actorUserId: user.id, commandType: "UPLOAD_VEHICLE_EVIDENCE", expectedVersion: 0, idempotencyKey: data.idempotencyKey, organizationId: context.organizationId, payload, reason: data.reason, subjectId: id }), { ...payload, actorUserId: user.id, content: data.content, malwareScanner: data.scan.malwareScanner, reasonCode: data.scan.reasonCode, retentionUntil: data.retentionUntil });
+}
+
+export async function uploadRepairProcedurePhoto(actor: AuthenticatedUser | null, jobId: string, form: FormData) {
+  const context = deps({});
+  const user = assertAuthenticatedUser(actor);
+  const { prisma } = await import("@/server/db/client");
+  const job = await prisma.repairJob.findFirst({
+    where: { id: jobId, organizationId: context.organizationId, status: { in: ["IN_PROGRESS", "PAUSED"] }, repairOrder: { closedAt: null } },
+    select: {
+      repairOrder: { select: { locationId: true, vehicleId: true } },
+      dispatches: { where: { technicianUserId: user.id, position: "CURRENT", status: "ACTIVE" }, take: 1, select: { id: true } },
+      procedureVersion: { select: { requiredEvidence: true } },
+    },
+  });
+  if (!job) throw new Error("An active repair job is required to attach a procedure photo.");
+  const { locationId, vehicleId } = job.repairOrder;
+  const grants = await context.foundationRepository.listCapabilityGrants(user.id, context.organizationId);
+  assertVehicleCapability({ actor: user, capability: "REPAIR_ORDER_VIEW", grants, locationId, now: context.now() });
+  if (!job.dispatches.length && !isManager(user)) throw new Error("Only the assigned technician or a manager may attach this procedure photo.");
+  const flags = await context.foundationRepository.listFeatureFlags(context.organizationId);
+  const decision = evaluateVehicleOperationsFeature(flags, "SHOP_OPERATIONS", user.id, locationId);
+  if (!decision.executable) throw new Error(`Shop Operations mutations are not enabled (${decision.reason}).`);
+  const requirement = form.get("requirement");
+  const requirements = repairProcedureEvidenceRequirements(job.procedureVersion?.requiredEvidence);
+  if (typeof requirement !== "string" || !requirements.includes(requirement) || !repairEvidenceNeedsPhoto(requirement)) {
+    throw new Error("Choose a photo required by this repair procedure.");
+  }
+  const file = form.get("photo");
+  if (!(file instanceof File) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > VEHICLE_EVIDENCE_MAX_BYTES) {
+    throw new Error("Choose a JPEG, PNG, or WebP photo up to 10 MB.");
+  }
+  const retention = context.now();
+  retention.setUTCFullYear(retention.getUTCFullYear() + 3);
+  retention.setUTCHours(23, 59, 59, 999);
+  return saveEvidenceUpload(context, user, {
+    vehicleId, ...repairProcedurePhotoSubject(jobId, requirement), category: "PHOTO", accessLevel: "INTERNAL", relationship: "SUPPORTS",
+    fileName: file.name, contentType: file.type, contentBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+    retentionUntil: retention.toISOString(), idempotencyKey: form.get("idempotencyKey"),
+    reason: "Attach required procedure photo to the assigned repair job.",
+  });
 }
 
 export async function getVehicleSalesMedia(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies = {}) {

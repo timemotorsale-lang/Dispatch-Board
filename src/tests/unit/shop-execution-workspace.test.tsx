@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ShopExecutionWorkspace } from "@/features/inventory/shop-execution-workspace";
+import { catalogLaborLineKey } from "@/lib/catalog-job-readiness";
+import { LIGHT_DUTY_OPERATIONS } from "@/lib/light-duty-baseline";
 
 describe("shop execution workspace", () => {
   const users = [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }];
@@ -11,11 +13,15 @@ describe("shop execution workspace", () => {
     { status: "READY_FOR_REPAIR", reserved: 0, bookable: true },
     { status: "WAITING_PARTS", reserved: 2, bookable: true },
     { status: "WAITING_PARTS", reserved: 1, bookable: false },
+    { status: "READY_FOR_QC", reserved: 2, bookable: false },
     { status: "READY_FOR_REPAIR", reserved: 0, bookable: true, missingProcedure: true },
-  ])("uses the intake technician and shows booking only when allowed ($status, $reserved reserved, procedure missing $missingProcedure)", ({ status, reserved, bookable, missingProcedure }) => {
+    { status: "WAITING_PARTS", reserved: 2, bookable: true, wrongSite: true },
+    { status: "READY_FOR_REPAIR", reserved: 0, bookable: true, requiresBay: true },
+  ])("shows the booking form and its applicable restrictions ($status, $reserved reserved, procedure missing $missingProcedure, wrong site $wrongSite, requires bay $requiresBay)", ({ status, reserved, bookable, missingProcedure, wrongSite, requiresBay }) => {
     const html = renderToStaticMarkup(<ShopExecutionWorkspace initial={{
       jobs: [{
         description: "Inspect warning lights", dispatches: [], id: "job-1", jobNumber: "JOB-1", laborClocks: [], plannedCorrection: "Diagnose warning indicators", status,
+        ...(requiresBay ? { authorizedLineKey: catalogLaborLineKey(LIGHT_DUTY_OPERATIONS[0].id), bayRequirements: ["REQUIRED_BAY"] } : {}),
         partsRequired: status === "WAITING_PARTS", workTypeCode: "TIRE_SERVICE",
         partDemands: [{ status: reserved === 2 ? "RESERVED" : "PARTIALLY_RESERVED", quantityRequired: 2, quantityReserved: reserved }],
         repairOrder: {
@@ -24,7 +30,8 @@ describe("shop execution workspace", () => {
           serviceVisit: { concernSummary: "Warning lights are illuminated.", promisedAt: null }, vehicle: { make: "Honda", model: "Accord", vehicleNumber: "VEH-100", year: 2019 },
         },
       }],
-      resources, users, procedures: missingProcedure ? [] : undefined, canPublishProcedure: true,
+      resources: wrongSite ? resources.map(resource => ({ ...resource, locationId: "other-site" })) : resources,
+      users, procedures: missingProcedure ? [] : undefined, canPublishProcedure: true,
     }} initialRepairOrderId="ro-100" />);
 
     expect(html).toContain("Repair job assignment");
@@ -34,9 +41,23 @@ describe("shop execution workspace", () => {
     expect(html).toContain("2019 Honda Accord");
     expect(html).toContain("VEH-100");
     expect(html).toContain("Warning lights are illuminated.");
-    expect(html).toContain('<option value="tech-1" selected="">Walter Mechanic</option>');
+    if (wrongSite) {
+      expect(html).toContain("Technician setup needed");
+      expect(html).toContain("No technician at this site");
+      expect(html).toContain("Booking requires an active technician at <strong>Minneapolis</strong>");
+      expect(html).toContain('disabled="" aria-describedby="booking-technician-required">Book work');
+      expect(html).not.toContain("Ready to book");
+    } else {
+      expect(html).toContain('<option value="tech-1" selected="">Walter Mechanic</option>');
+    }
     expect(html).toContain("Save technician");
     expect(html.includes("Book work")).toBe(bookable);
+    if (bookable && !requiresBay) expect(html).toContain("No dedicated bay needed");
+    if (bookable && !wrongSite && !requiresBay) expect(html).toContain('<button class="button button-primary">Book work</button>');
+    if (requiresBay) {
+      expect(html).toContain("No suitable service bay at this site");
+      expect(html).toContain('disabled="" aria-describedby="booking-bay-required">Book work');
+    }
     if (missingProcedure) {
       expect(html).toContain("Optional work procedure");
       expect(html).toContain("Publish work procedure");

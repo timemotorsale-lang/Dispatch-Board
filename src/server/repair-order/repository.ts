@@ -1,6 +1,7 @@
 import { acceptRepairHandoff, RepairHandoffError, type HandoffClaim } from "./task-handoff-record";
 import { reconcileRepairOrderOwnerTaskInTransaction } from "./task-bridge";
 import { closeOutstandingRepairWork, RepairOrderCloseBlockedError } from "./close-outstanding-work";
+import { readDiagnosticConsent, requiresDiagnosticAuthorization } from "./diagnostic-authorization";
 import { serviceIdentity, recordServiceDocument } from "./service-documents";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
@@ -13,6 +14,7 @@ async function execute(database: PrismaClient, input: EnterpriseCommandCommitInp
 export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
 export type RepairOrderConcernCandidate = { id:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
+type InspectionConsentRecord = { diagnosticFeeCents: number; customerName: string; channel: string; consentReference: string; consentedAt: Date };
 export type RepairOrderDuplicateCloseRecord = { actorUserId: string; duplicateOfRepairOrderId: string | null; occurredAt: Date; reason: string };
 export type RepairOrderNoWorkCloseRecord = { actorUserId: string; occurredAt: Date; reason: string };
 const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, specificationSnapshot: true, version: true, registryRelationships: { where: { effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, select: { relationshipType: true } } };
@@ -98,9 +100,26 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         },
       }),
     ]);
-    return { items, page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
+    const latestAdvisorDecisions = await Promise.all(items.map(item => {
+      const latest = item.advisorUpdates.find(update => !["TECHNICIAN_FINDING", "TECHNICIAN_PROGRESS"].includes(update.statusCode));
+      if (latest || item.advisorUpdates.length < 8) return latest ?? null;
+      return database.repairAdvisorUpdate.findFirst({
+        where: { organizationId, repairOrderId: item.id, statusCode: { notIn: ["TECHNICIAN_FINDING", "TECHNICIAN_PROGRESS"] } },
+        orderBy: { version: "desc" },
+        include: { authorUser: { select: { id: true, name: true } } },
+      });
+    }));
+    return { items: items.map((item, index) => ({ ...item, latestAdvisorDecision: latestAdvisorDecisions[index] })), page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
   },
-  getDetail(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, include: detailInclude }); },
+  getDetail(organizationId: string, id: string) {
+    return database.repairOrder.findFirst({
+      where: { id, organizationId },
+      include: {
+        ...detailInclude,
+        estimateVersions: { where: { organizationId }, orderBy: { version: "desc" }, take: 1, select: { id: true } },
+      },
+    });
+  },
   getCloseReceipt(organizationId: string, idempotencyKey: string) { return database.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType: "CLOSE_REPAIR_ORDER_NO_FURTHER_WORK", idempotencyKey } } }); },
   getCloseContext(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, select: { closedAt: true, id: true, locationId: true, stage: true, vehicleId: true, version: true } }); },
   async getCreateOptions(organizationId: string) {
@@ -224,6 +243,12 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         }, select: { id: true }
       })) throw new RepairHandoffError("The readiness check no longer matches the confirmed customer, vehicle, or visit. Refresh it before accepting.");
       const origin = data.intakeSource === "INVENTORY_RECON" ? "INVENTORY_RECON" : "CUSTOMER_REPAIR";
+      if (origin === "CUSTOMER_REPAIR") {
+        sourceSnapshot = {
+          ...(sourceSnapshot && typeof sourceSnapshot === "object" && !Array.isArray(sourceSnapshot) ? sourceSnapshot : {}),
+          diagnosticAuthorizationRequired: true
+        };
+      }
       const visit = await tx.serviceVisit.create({ data: {
         organizationId: command.organizationId, locationId: data.locationId, vehicleId: vehicle.id, customerId,
         appointmentId: data.appointmentId, inventoryUnitId, origin, intakeSource: data.intakeSource, arrivedAt: data.arrivedAt,
@@ -235,7 +260,9 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         id: command.subjectId, organizationId: command.organizationId, locationId: data.locationId, serviceVisitId: visit.id,
         repairOrderNumber: data.repairOrderNumber, vehicleId: vehicle.id, customerId, inventoryUnitId, origin, intakeSource: data.intakeSource,
         stage: "INTAKE", operatingState: data.operatingState, openedAt: data.arrivedAt, stageStartedAt: data.arrivedAt,
-        ownerUserId: data.ownerUserId, targetAt: data.targetAt, nextAction: data.nextAction, stateReason: data.stateReason, version
+        ownerUserId: data.ownerUserId, targetAt: data.targetAt,
+        nextAction: origin === "CUSTOMER_REPAIR" ? "Record customer diagnostic authorization" : data.nextAction,
+        stateReason: data.stateReason, version
       } });
       await tx.repairOrderStateEvent.create({ data: {
         organizationId: command.organizationId, repairOrderId: ro.id, version, fromStage: null, toStage: "INTAKE",
@@ -256,12 +283,45 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       return { result: { id: ro.id, repairOrderNumber: ro.repairOrderNumber, stage: ro.stage, operatingState: ro.operatingState, version } };
     });
   },
+  recordInspectionConsent(command: EnterpriseCommandCommitInput, data: InspectionConsentRecord) {
+    const locationId = command.locationId;
+    if (!locationId) throw new Error("A repair-order location is required.");
+    return execute(database, command, async (tx, version) => {
+      const order = await tx.repairOrder.findFirst({
+        where: {
+          id: command.subjectId,
+          organizationId: command.organizationId,
+          locationId,
+          origin: "CUSTOMER_REPAIR",
+          customerId: { not: null },
+          closedAt: null,
+          stage: { notIn: ["HANDOFF", "CLOSED"] },
+          releaseAuthorization: null
+        },
+        include: { serviceVisit: true }
+      });
+      if (!order) throw new Error("An active customer repair order is required to record inspection consent.");
+      if (order.version !== command.expectedVersion) throw new EnterpriseCommandConflictError("The repair order changed. Reload and review the saved concerns.", "VERSION_CONFLICT");
+      const visit = order.serviceVisit;
+      if (data.consentedAt < visit.arrivedAt) throw new Error("Record a consent time on or after the vehicle's arrival.");
+      const recorded = await readDiagnosticConsent(tx, order.organizationId, order.id);
+      if (recorded?.feeCents != null) throw new Error("Diagnostic authorization is already recorded for this visit.");
+      const nextAction = requiresDiagnosticAuthorization(visit.sourceSnapshot) && order.stage === "INTAKE"
+        ? "Inspect and verify the authorized customer concerns"
+        : order.nextAction;
+      await tx.repairOrder.update({ where: { id: order.id }, data: { version, nextAction } });
+      return {
+        previous: { consentStatus: visit.consentStatus },
+        result: { id: order.id, consentStatus: "DOCUMENTED", concernSummary: visit.concernSummary, ...data }
+      };
+    }, true);
+  },
   updateControl(command: EnterpriseCommandCommitInput,data:RepairOrderControlRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null,stage:"INTAKE"}}); if(data.targetAt<previous.openedAt) throw new Error("Intake target cannot be before repair-order opening."); const [location,owner]=await Promise.all([tx.location.findFirst({where:{id:data.locationId,organizationId:command.organizationId},select:{id:true}}),tx.user.findFirst({where:{id:data.ownerUserId,isActive:true},select:{id:true}})]); if(!location) throw new Error("Repair-order location does not belong to the organization."); if(!owner) throw new Error("Repair-order owner must be an active user."); const ro=await tx.repairOrder.update({where:{id:previous.id},data:{locationId:data.locationId,nextAction:data.nextAction,operatingState:data.operatingState,ownerUserId:data.ownerUserId,stateReason:data.stateReason,targetAt:data.targetAt,version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:command.reason,actorUserId:data.actorUserId,correlationId:command.correlationId}}); return {previous,result:{id:ro.id,stage:ro.stage,operatingState:ro.operatingState,version}};});},
   closeDuplicate(command: EnterpriseCommandCommitInput,data:RepairOrderDuplicateCloseRecord){return execute(database,command,async(tx,version)=>{const previous=await tx.repairOrder.findFirstOrThrow({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},include:{shopReconLifecycle:true}}); if(data.duplicateOfRepairOrderId){const keeper=await tx.repairOrder.findFirst({where:{id:data.duplicateOfRepairOrderId,organizationId:command.organizationId,vehicleId:previous.vehicleId,closedAt:null},select:{id:true,repairOrderNumber:true}}); if(!keeper) throw new Error("The RO to keep must be open and belong to the same vehicle.");} const ro=await tx.repairOrder.update({where:{id:previous.id},data:{closedAt:data.occurredAt,stage:"CANCELLED",operatingState:"CLOSED",stateReason:"Closed as duplicate repair order.",nextAction:data.duplicateOfRepairOrderId?`Use existing repair order ${data.duplicateOfRepairOrderId}.`:"Duplicate repair order closed; use the remaining open RO for this vehicle.",version}}); if(previous.shopReconLifecycle) await tx.shopReconLifecycle.update({where:{id:previous.shopReconLifecycle.id},data:{operatingState:"CANCELLED",nextAction:"Duplicate repair order closed. Use the remaining open RO for this vehicle.",version}}); await tx.repairOrderStateEvent.create({data:{organizationId:command.organizationId,repairOrderId:ro.id,version,fromStage:previous.stage,toStage:ro.stage,fromOperatingState:previous.operatingState,toOperatingState:ro.operatingState,ownerUserId:ro.ownerUserId,locationId:ro.locationId,targetAt:ro.targetAt,nextAction:ro.nextAction,reason:data.reason,actorUserId:data.actorUserId,correlationId:command.correlationId,occurredAt:data.occurredAt}}); return {previous,result:{closedAt:ro.closedAt,id:ro.id,operatingState:ro.operatingState,stage:ro.stage,version}};});},
   closeNoWork(command: EnterpriseCommandCommitInput, data: RepairOrderNoWorkCloseRecord) {
     return execute(database, command, async (tx, version) => {
       const previous = await tx.repairOrder.findFirstOrThrow({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: { repairJobs: { select: { id: true, jobNumber: true, status: true } }, shopReconLifecycle: true, vendorWorks: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, select: { vendorName: true, status: true } } } });
-      if (await tx.serviceInvoice.findFirst({ where: { organizationId: command.organizationId, repairOrderId: previous.id, status: "POSTED" }, select: { id: true } })) throw new RepairOrderCloseBlockedError("This RO has an issued invoice. Use invoice closeout to retain its payment and handoff records.", { label: "Open invoice closeout", href: `/prototype/repair-workbench?repairOrderId=${encodeURIComponent(previous.id)}&step=handoff` }, "INVOICE_CLOSEOUT_REQUIRED");
+      if (await tx.serviceInvoice.findFirst({ where: { organizationId: command.organizationId, repairOrderId: previous.id, status: "POSTED" }, select: { id: true } })) throw new RepairOrderCloseBlockedError("This RO has an issued invoice. Use invoice closeout to retain its payment and handoff records.", { label: "Open invoice closeout", href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(previous.id)}&step=handoff` }, "INVOICE_CLOSEOUT_REQUIRED");
       if (previous.vendorWorks.length) throw new RepairOrderCloseBlockedError(`Outside-vendor work is still open: ${previous.vendorWorks.map(work => work.vendorName || work.status).join(", ")}. Review its return and cost records before closing.`, { label: "Review outside-vendor work", href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(previous.id)}&fullDetails=1#vendor-repair-progress` }, "VENDOR_CLOSEOUT_REQUIRED");
       const work = await closeOutstandingRepairWork(tx, { organizationId: command.organizationId, repairOrderId: previous.id, actorUserId: data.actorUserId, reason: data.reason, correlationId: command.correlationId, occurredAt: data.occurredAt });
       const ro = await tx.repairOrder.update({ where: { id: previous.id }, data: { closedAt: data.occurredAt, stage: "CANCELLED", operatingState: "CLOSED", stageStartedAt: data.occurredAt, stateReason: data.reason, nextAction: "Repair order closed; no further work planned.", version } });

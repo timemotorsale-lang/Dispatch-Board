@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { courtesyCheckCommandType, courtesyCheckSubjectType } from "@/lib/courtesy-vehicle-check";
+import { vehiclePilotFeatureCode, type VehiclePilotMode } from "@/lib/vehicle-pilot";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
@@ -26,11 +28,14 @@ export async function executeEnterpriseVehicleCommand(actor: AuthenticatedUser |
     resourceOwnerUserId: typeof payload.ownerUserId === "string" ? payload.ownerUserId : null
   });
   const command = normalizeEnterpriseCommand({ ...value, actorUserId: user.id, organizationId: deps.organizationId });
+  if (command.subjectType === courtesyCheckSubjectType || command.commandType === courtesyCheckCommandType) {
+    throw new Error("Use the customer repair courtesy check to record this command.");
+  }
   const result = await deps.repository.commit(command);
   return { commandId: result.command.id, correlationId: result.command.correlationId, duplicate: result.duplicate, version: result.version, result: result.command.resultSnapshot };
 }
 
-export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "INVENTORY_INTAKE", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE"] as const;
+export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "INVENTORY_INTAKE", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE", vehiclePilotFeatureCode] as const;
 export type VehicleOperationsFeatureCode = (typeof VEHICLE_OPERATIONS_FEATURES)[number];
 
 export const DIAGNOSTICS_FEATURES = ["DIAGNOSTICS_MASTER", "DIAGNOSTIC_CASES", "DIAGNOSTIC_EVIDENCE", "DIAGNOSTIC_REASONING", "DIAGNOSTIC_PUBLISHING", "DIAGNOSTIC_KNOWLEDGE", "DIAGNOSTIC_AI"] as const;
@@ -63,6 +68,20 @@ function evaluateRolloutFeature(flags: VehicleFeatureFlagRecord[], masterCode: s
 
 export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord[], code: VehicleOperationsFeatureCode, userId: string, locationId: string | null) {
   return evaluateRolloutFeature(flags, "VEHICLE_OPERATIONS_MASTER", code, userId, locationId);
+}
+
+export async function getVehiclePilotMode(user: AuthenticatedUser, input: Dependencies = {}): Promise<VehiclePilotMode> {
+  const { organizationId, repository } = dependencies(input);
+  try {
+    const flags = await repository.listFeatureFlags(organizationId);
+    const flag = flags.find(item => item.code === vehiclePilotFeatureCode && item.locationId === null);
+    // This flag selects a workspace. Each workspace still uses the operation's own permission and rollout checks.
+    if (flag?.mode === "GENERAL") return "new";
+    return flag?.mode === "PILOT" && users(flag.allowedUserIds).includes(user.id) ? "side-by-side" : "existing";
+  } catch {
+    // Rollout storage failure must leave the established vehicle workspace reachable.
+    return "existing";
+  }
 }
 
 export function describeVehicleOperationsBlock(reason: string) {
@@ -108,6 +127,9 @@ export async function updateVehicleOperationsFeature(actor: AuthenticatedUser | 
   if (reason.length < 10) throw new Error("Rollout changes require a reason of at least 10 characters.");
   if (targetAt && Number.isNaN(targetAt.getTime())) throw new Error("Rollout target date is invalid.");
   if (mode !== "PILOT" && rolloutPercent !== 0 && mode !== "GENERAL") throw new Error("Only PILOT or GENERAL mode can use a rollout percentage.");
+  if (code === vehiclePilotFeatureCode && (locationId || mode === "SHADOW" || (mode === "PILOT" && (rolloutPercent !== 0 || !users(raw.allowedUserIds).length)))) {
+    throw new Error("Vehicle Pilot requires an organization-wide setting and named staff in side-by-side mode.");
+  }
   const flag = await deps.repository.updateFeatureFlag({ actorUserId: user.id, allowedUserIds: users(raw.allowedUserIds), code, correlationId: randomUUID(), expectedVersion, locationId, mode, organizationId: deps.organizationId, reason, rolloutPercent: mode === "GENERAL" ? 100 : rolloutPercent, targetAt });
   return { ...flag, allowedUserIds: users(flag.allowedUserIds), targetAt: flag.targetAt?.toISOString() ?? null, updatedAt: flag.updatedAt.toISOString() };
 }

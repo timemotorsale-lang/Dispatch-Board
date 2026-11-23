@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { catalogJobRequirements } from "@/lib/catalog-job-readiness";
+import { missingCatalogResourceCapabilities } from "@/lib/catalog-resource-readiness";
 import { waitingJobPartsReady } from "@/lib/repair-job-parts-readiness";
 import { notifyRepairReviewSaved } from "@/lib/repair-workflow-review";
 import { FormEvent, useMemo, useState } from "react";
 
 type User = { id: string; name: string; roles?: string[] };
-type Resource = { id: string; code: string; name: string; locationId: string; userId: string | null; resourceType: { kind: string; name: string } };
+type Resource = { id: string; code: string; name: string; locationId: string; userId: string | null; attributes?: unknown; resourceType: { kind: string; name: string } };
 type Dispatch = { id: string; technicianUserId: string; position: string; status: string; scheduledStartAt: string; scheduledEndAt: string; technicianUser: User; bayResource: { id: string; code: string; name: string } | null };
 type Clock = { technicianUserId: string; state: string; accumulatedMinutes: number; lastResumedAt: string | null };
 type RepairOrderSummary = {
@@ -29,6 +30,7 @@ type Job = {
   workTypeCode?: string;
   authorizedLineKey?: string;
   laborGuideMinutes?: number;
+  bayRequirements?: unknown;
   id: string;
   jobNumber: string;
   description: string;
@@ -53,6 +55,7 @@ type Job = {
   };
 };
 type Model = {
+  canAddTechnician?: boolean;
   canPublishProcedure?: boolean;
   procedures?: { workTypeCode: string; effectiveFrom: string; effectiveTo: string | null }[];
   jobs: Job[];
@@ -63,7 +66,7 @@ type Model = {
 type SourceVehicle = { id: string; vehicleNumber: string; vin: string | null; stockNumber: string | null; year: number | null; make: string | null; model: string | null };
 
 const local = (value: Date) => new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-const executableJob = (job: Job) => ["READY_FOR_REPAIR", "DISPATCHED", "IN_PROGRESS", "PAUSED", "READY_FOR_QC"].includes(job.status) ||
+const executableJob = (job: Job) => ["READY_FOR_REPAIR", "DISPATCHED"].includes(job.status) ||
   (job.status === "WAITING_PARTS" && waitingJobPartsReady(job));
 const vehicleName = (vehicle: { year: number | null; make: string | null; model: string | null }) => [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle";
 const shortConcern = (value: string, length = 70) => value.length > length ? `${value.slice(0, length - 1)}…` : value;
@@ -134,7 +137,9 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
   const selectedOrder = repairOrders.find((order) => order.id === repairOrderId);
   const orderJobs = model.jobs.filter((job) => job.repairOrder.id === repairOrderId);
   const selectedJob = orderJobs.find((job) => job.id === jobId);
-  const catalogRequirements = catalogJobRequirements(selectedJob?.authorizedLineKey ?? "");
+  const catalogRequirements = catalogJobRequirements(selectedJob?.authorizedLineKey ?? "", {
+    bayRequirements: Array.isArray(selectedJob?.bayRequirements) ? selectedJob.bayRequirements.filter((value): value is string => typeof value === "string") : [],
+  });
   const workTypeCode = selectedJob && (catalogRequirements.workTypeCode ?? selectedJob.workTypeCode);
   const bookingStart = Date.parse(assignment.scheduledStartAt);
   const bookingEnd = Date.parse(assignment.scheduledEndAt);
@@ -165,11 +170,25 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     return repairTechnicians.length ? repairTechnicians : staff;
   }, [model]);
   const locationResources = model.resources.filter((resource) => !selectedOrder || resource.locationId === selectedOrder.locationId);
+  const requiresServiceBay = Boolean(catalogRequirements.systemId && catalogRequirements.bayRequirements.length);
+  const serviceBays = locationResources.filter(resource => resource.resourceType.kind === "SERVICE_BAY"
+    && (!requiresServiceBay || !missingCatalogResourceCapabilities(catalogRequirements.bayRequirements, [resource]).length));
+  const bayResourceId = serviceBays.some(bay => bay.id === assignment.bayResourceId) ? assignment.bayResourceId : "";
+  const bayRequired = requiresServiceBay && !bayResourceId;
   const locationStaff = model.users.filter(user => locationResources.some(resource => resource.resourceType.kind === "STAFF" && resource.userId === user.id));
   const preferredTechnicians = locationStaff.filter(user => user.roles?.some(role => ["Mechanic", "Technician"].includes(role)));
   const locationTechnicians = preferredTechnicians.length ? preferredTechnicians : locationStaff;
+  const technicianCandidates = model.users.filter(user => user.roles?.some(role => ["Mechanic", "Technician"].includes(role))
+    && !locationResources.some(resource => resource.userId === user.id));
   const technicianUserId = locationTechnicians.some(user => user.id === assignment.technicianUserId)
     ? assignment.technicianUserId : locationTechnicians[0]?.id ?? "";
+  const canBookJob = Boolean(selectedJob && executableJob(selectedJob));
+  const bookingStatus = !canBookJob ? "Planning assignment"
+    : !technicianUserId ? "Technician setup needed"
+    : !validBookingTime ? "Booking time needed"
+    : procedureBlocksBooking ? "Procedure required"
+    : bayRequired ? "Service bay required"
+    : "Ready to book";
   const openDispatches = model.jobs.flatMap((job) => job.dispatches.filter((dispatch) => ["ACTIVE", "STAGED"].includes(dispatch.status)).map((dispatch) => ({ job, ...dispatch })));
 
   async function request(url: string, init?: RequestInit) {
@@ -179,7 +198,7 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     return body;
   }
 
-  async function submit(url: string, value: Record<string, unknown>, success: string, afterSave?: () => void) {
+  async function submit(url: string, value: Record<string, unknown>, success: string, afterSave?: () => void, stayOnAssignment = false) {
     setBusy(true);
     setNotice("");
     try {
@@ -188,7 +207,7 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
       setNotice(success);
       const next = await request("/api/shop-execution") as Model;
       setModel(reviewOrderId ? { ...next, jobs: next.jobs.filter(job => job.repairOrder.id === reviewOrderId), repairOrders: derivedRepairOrders(next).filter(order => order.id === reviewOrderId) } : next);
-      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId);
+      if (reviewOrderId) notifyRepairReviewSaved(reviewOrderId, stayOnAssignment ? "assignment" : undefined);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Shop dispatch request failed.");
     } finally {
@@ -223,14 +242,14 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
     {notice ? <div className={/required|must|conflict|not |already|only/i.test(notice) ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
 
     <section className="shop-dispatch-metrics">
-      <article><strong>{model.jobs.filter((job) => job.status === "READY_FOR_REPAIR").length}</strong><span>Ready</span></article>
+      <article><strong>{model.jobs.filter((job) => job.status !== "DISPATCHED" && executableJob(job)).length}</strong><span>Ready</span></article>
       <article><strong>{openDispatches.length}</strong><span>Assigned</span></article>
       <article><strong>{model.jobs.filter((job) => job.status === "IN_PROGRESS").length}</strong><span>Working</span></article>
       <article><strong>{model.jobs.filter((job) => job.status === "PAUSED").length}</strong><span>Blocked</span></article>
     </section>
 
     <section className="panel-card page-stack shop-dispatch-desk">
-      <header><div><span className="eyebrow">One-step assignment</span><h2>Repair job assignment</h2></div><span className={selectedJob && executableJob(selectedJob) && !procedureBlocksBooking ? "shop-dispatch-ready" : "shop-dispatch-waiting"}>{selectedJob && executableJob(selectedJob) && !procedureBlocksBooking ? "Ready to book" : procedureBlocksBooking ? "Procedure required" : "Planning assignment"}</span></header>
+      <header><div><span className="eyebrow">One-step assignment</span><h2>Repair job assignment</h2></div><span className={bookingStatus === "Ready to book" ? "shop-dispatch-ready" : "shop-dispatch-waiting"}>{bookingStatus}</span></header>
 
       <section className="shop-dispatch-picker" aria-label="Choose vehicle for dispatch">
         <header><strong>Choose the vehicle first</strong><span>Pick by vehicle, stock/inventory, concern, and current stage — not by internal RO codes.</span></header>
@@ -258,14 +277,35 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
       </div>
 
       {selectedOrder ? <>
-        <section className="shop-dispatch-vehicle-summary"><div><small>Selected vehicle</small><strong>{vehicleName(selectedOrder.vehicle)}</strong><span>{selectedOrder.vehicle.vehicleNumber} · {selectedOrder.inventoryUnit?.inventoryNumber ? `Stock ${selectedOrder.inventoryUnit.inventoryNumber} · ` : ""}{selectedOrder.repairOrderNumber} · {selectedOrder.location.name}</span></div><div><small>Concern</small><strong>{selectedOrder.serviceVisit.concernSummary}</strong><span>Next: {selectedOrder.nextAction || "Complete repair planning"}</span></div></section>
+        <section className="shop-dispatch-vehicle-summary"><div><small>Selected vehicle</small><strong>{vehicleName(selectedOrder.vehicle)}</strong><span>{selectedOrder.vehicle.vehicleNumber} · {selectedOrder.inventoryUnit?.inventoryNumber ? `Stock ${selectedOrder.inventoryUnit.inventoryNumber} · ` : ""}{selectedOrder.repairOrderNumber} · {selectedOrder.location.name}</span></div><div><small>Concern</small><strong>{selectedOrder.serviceVisit.concernSummary}</strong>{!reviewOrderId && <span>Next: {selectedOrder.nextAction || "Complete repair planning"}</span>}</div></section>
 
-        {!locationTechnicians.length && <p role="status">No technician is set up at {selectedOrder.location.name}. Ask a manager to add an active staff resource at this location in <Link href="/settings/appointments">Appointment settings</Link>.</p>}
         <form className="shop-dispatch-preassign" onSubmit={(event: FormEvent) => { event.preventDefault(); if (technicianUserId) submit(`/api/repair-orders/${selectedOrder.id}/technician-assignment`, { technicianUserId, reason: "Preassign the accountable technician from the Shop Dispatch assignment desk." }, "Technician assignment saved."); }}>
-          <label className="form-field"><span>Technician</span><select aria-label="Technician" disabled={!locationTechnicians.length} value={technicianUserId} onChange={(event) => setAssignment((current) => ({ ...current, technicianUserId: event.target.value }))}>{locationTechnicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></label>
+          <label className="form-field"><span>Technician</span><select aria-label="Technician" disabled={!locationTechnicians.length} value={technicianUserId} onChange={(event) => setAssignment((current) => ({ ...current, technicianUserId: event.target.value }))}>{!locationTechnicians.length && <option value="">No technician at this site</option>}{locationTechnicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></label>
           {!reviewOrderId && <button className="button button-secondary" disabled={busy || !technicianUserId}>Save technician</button>}
           {!reviewOrderId && <small>This selection carries forward. Final booking stays protected until an authorized repair job is ready.</small>}
         </form>
+        {model.canAddTechnician && technicianCandidates.length > 0 ? <details key={selectedOrder.id}>
+          <summary>Add technician at this site</summary>
+          <form className="shop-dispatch-preassign" onSubmit={event => {
+            event.preventDefault();
+            const technicianUserId = String(new FormData(event.currentTarget).get("siteTechnician") ?? "");
+            if (busy || !technicianCandidates.some(user => user.id === technicianUserId)) return;
+            void submit(`/api/repair-orders/${encodeURIComponent(selectedOrder.id)}/technicians`,
+              { technicianUserId, expectedLocationId: selectedOrder.locationId, reason: "Set up a technician for scheduling at this repair order’s site." },
+              "Technician added to this site. Review the booking details and select Book work.",
+              () => setAssignment(current => ({ ...current, technicianUserId })), true);
+          }}>
+            <label className="form-field"><span>Technician to add at {selectedOrder.location.name}</span>
+              <select name="siteTechnician" defaultValue="" required disabled={busy}>
+                <option value="">Choose an existing technician</option>
+                {technicianCandidates.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+            </label>
+            <button type="submit" className="button button-secondary" disabled={busy}>Add technician</button>
+          </form>
+        </details> : !locationTechnicians.length && <p role="status">{model.canAddTechnician
+          ? "No active mechanic or technician account is available to add."
+          : "Ask a manager to add a technician at this scheduling site."}</p>}
 
         {procedureMissing && selectedJob && executableJob(selectedJob) && <section className="notice notice-info" id="booking-procedure-required" tabIndex={-1} aria-label="Work procedure required">
           <p><strong>{procedureBlocksBooking ? "Work procedure required" : "Optional work procedure"} for {selectedJob.description}</strong></p>
@@ -321,14 +361,22 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialV
             setNotice(`Booking requires an active ${workTypeCode} procedure covering the selected time. ${model.canPublishProcedure ? "Publish the reviewed procedure above or choose a covered time." : "Ask a shop manager to publish the reviewed procedure, then reopen this assignment."}`);
             return;
           }
-          if (technicianUserId && validBookingTime) submit(`/api/repair-jobs/${selectedJob.id}/dispatch`, { ...assignment, scheduledStartAt: new Date(bookingStart).toISOString(), scheduledEndAt: new Date(bookingEnd).toISOString(), technicianUserId, reason: "Assign qualified technician and protected resources to repair work." }, "Repair job dispatched."); }}>
+          if (technicianUserId && validBookingTime && !bayRequired) submit(`/api/repair-jobs/${selectedJob.id}/dispatch`, { ...assignment, bayResourceId, scheduledStartAt: new Date(bookingStart).toISOString(), scheduledEndAt: new Date(bookingEnd).toISOString(), technicianUserId, reason: "Assign qualified technician and protected resources to repair work." }, "Repair job dispatched."); }}>
           <label className="form-field"><span>Queue position</span><select value={assignment.position} onChange={(event) => setAssignment((current) => ({ ...current, position: event.target.value }))}><option value="CURRENT">Current</option><option value="NEXT">Next</option></select></label>
-          <label className="form-field"><span>Service bay</span><select value={assignment.bayResourceId} onChange={(event) => setAssignment((current) => ({ ...current, bayResourceId: event.target.value }))}><option value="">No dedicated bay</option>{locationResources.filter((resource) => resource.resourceType.kind === "SERVICE_BAY").map((resource) => <option key={resource.id} value={resource.id}>{resource.code} · {resource.name}</option>)}</select></label>
+          {serviceBays.length > 0 ? <label className="form-field"><span>{requiresServiceBay ? "Service bay" : "Service bay (optional)"}</span><select value={bayResourceId} onChange={(event) => setAssignment((current) => ({ ...current, bayResourceId: event.target.value }))}><option value="">{requiresServiceBay ? "Choose a service bay" : "No dedicated bay"}</option>{serviceBays.map(bay => <option key={bay.id} value={bay.id}>{bay.code} · {bay.name}</option>)}</select></label>
+            : <div className="form-field"><span>Service bay</span><span>{requiresServiceBay ? "No suitable service bay at this site" : "No dedicated bay needed"}</span></div>}
           <label className="form-field"><span>Start</span><input type="datetime-local" value={assignment.scheduledStartAt} onChange={(event) => setAssignment((current) => ({ ...current, scheduledStartAt: event.target.value }))} /></label>
           <label className="form-field"><span>End</span><input type="datetime-local" value={assignment.scheduledEndAt} onChange={(event) => setAssignment((current) => ({ ...current, scheduledEndAt: event.target.value }))} /></label>
           <label className="form-field shop-dispatch-override"><span>Conflict note (only if needed)</span><input value={assignment.overrideReason} onChange={(event) => setAssignment((current) => ({ ...current, overrideReason: event.target.value }))} /></label>
-          {!validBookingTime && <p role="status">Enter a start time and an end time after it.</p>}
-          <button className="button button-primary" disabled={busy || !technicianUserId || !validBookingTime} aria-describedby={procedureBlocksBooking ? "booking-procedure-required" : undefined}>Book work</button>
+          {!technicianUserId && <p id="booking-technician-required" role="status">Booking requires an active technician at <strong>{selectedOrder.location.name}</strong>, the repair order’s scheduling site.</p>}
+          {!validBookingTime && <p id="booking-time-required" role="status">Enter a start time and an end time after it.</p>}
+          {bayRequired && <p id="booking-bay-required" role="status">{serviceBays.length ? "Choose a service bay that meets this job’s requirements." : "Ask a manager to set up a suitable service bay at this site before booking this job."}</p>}
+          <button className="button button-primary" disabled={busy || !technicianUserId || !validBookingTime || bayRequired} aria-describedby={[
+            !technicianUserId && "booking-technician-required",
+            !validBookingTime && "booking-time-required",
+            procedureBlocksBooking && "booking-procedure-required",
+            bayRequired && "booking-bay-required",
+          ].filter(Boolean).join(" ") || undefined}>Book work</button>
         </form> : <section className="shop-dispatch-gate"><div><strong>{orderJobs.length ? "Repair job is not ready to book" : "Repair job has not been created"}</strong><span>Your technician choice can be saved now. Finish the repair plan, authorization, and parts readiness; then booking unlocks here.</span></div><Link className="button button-primary" href={`/vehicles/repair-workbench?repairOrderId=${selectedOrder.id}`}>Prepare repair job</Link></section>}
       </> : <div className="shop-dispatch-empty"><strong>Select a vehicle or repair order</strong><span>The technician assignment appears immediately—even before the repair job is ready.</span></div>}
     </section>

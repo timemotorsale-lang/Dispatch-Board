@@ -10,6 +10,38 @@ test.beforeAll(() => {
   assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
 });
 
+test("estimate generation identifies missing itemized part fields and keeps entered pricing", async ({ page }) => {
+  expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
+  const { repairOrderId } = JSON.parse(readFileSync("test-results/labor-staging/billing-browser-fixture.json", "utf8")) as { repairOrderId: string };
+  await page.goto(`/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(repairOrderId)}`);
+  await page.getByRole("button", { name: "Add Replace front pads & rotors", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Review your estimate" })).toBeVisible();
+  const generate = page.getByRole("button", { name: "Generate / Print Estimate", exact: true });
+  await generate.click();
+  await expect(page.getByRole("alert").filter({ hasText: "or choose No parts needed" })).toBeVisible();
+  await page.getByRole("region", { name: "Itemized parts" }).getByRole("button", { name: "Add part", exact: true }).click();
+  const description = page.getByLabel("Part 1 description", { exact: true });
+  const price = page.getByLabel("Part 1 unit price", { exact: true });
+  const message = page.getByRole("alert").filter({ hasText: "Complete the highlighted part fields" });
+  await price.fill("109");
+  await generate.click();
+  await expect(description).toBeFocused();
+  await expect(description).toHaveAttribute("aria-invalid", "true");
+  await expect(message).toBeVisible();
+  await expect(price).toHaveValue("109");
+  await description.fill("Test brake hardware");
+  await price.fill("");
+  await generate.click();
+  await expect(price).toBeFocused();
+  await expect(price).toHaveAttribute("aria-invalid", "true");
+  await price.fill("109");
+  await expect(message).toHaveCount(0);
+  await generate.click();
+  await expect(page).toHaveURL(url => url.searchParams.get("importExplorer") === "1" && url.searchParams.get("repairOrderId") === repairOrderId, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Estimate worksheet", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Test brake hardware unit price", { exact: true })).toHaveValue("109");
+});
+
 test("one authenticated guide opens a quote without labor-basis paperwork and retains issued documents", async ({ page, request }) => {
   expect((await request.get("/api/settings/labor-catalog")).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
@@ -25,13 +57,16 @@ test("one authenticated guide opens a quote without labor-basis paperwork and re
   await expect(page.getByRole("link", { name: "Legacy guide", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "New guide · Prototype", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Add Replace front pads & rotors", exact: true }).click();
-  await page.getByRole("button", { name: "Review estimate", exact: true }).click();
-  await page.getByLabel("Parts total for Replace front pads & rotors", { exact: true }).fill("120");
+  const itemized = page.getByRole("region", { name: "Itemized parts" });
+  await expect(itemized).toBeVisible();
+  await itemized.getByRole("button", { name: "Add part", exact: true }).click();
+  await itemized.getByLabel("Part 1 description", { exact: true }).fill("Front brake kit");
+  await itemized.getByLabel("Part 1 unit price", { exact: true }).fill("120");
   await page.getByRole("button", { name: "Generate / Print Estimate", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Estimate worksheet", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Confirm the labor basis", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Mark manually reviewed", exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Parts for Replace front pads & rotors unit price", { exact: true })).toHaveValue("120");
+  await expect(page.getByLabel("Front brake kit unit price", { exact: true })).toHaveValue("120");
   const worksheet = page.getByRole("region", { name: "Guided estimate", exact: true });
   for (const price of await worksheet.locator('input[aria-label$="unit price"]').all()) await price.fill("20");
   await expect(page.getByRole("button", { name: "Generate / Print Estimate", exact: true })).toHaveAttribute("data-ready", "true");

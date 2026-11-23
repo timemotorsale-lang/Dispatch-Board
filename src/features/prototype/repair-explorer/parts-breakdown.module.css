@@ -5,3 +5,5 @@
 .row span { align-self: center; font-size: 12px; }
 .breakdown footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; }
 @media(max-width: 1000px) { .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.row input[aria-invalid="true"] { border-color: #a62a22; }
+.fieldError { color: #92241d; font-size: .8rem; }

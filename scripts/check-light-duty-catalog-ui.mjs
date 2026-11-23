@@ -38,6 +38,8 @@ try {
   await page.getByRole("link", { name: "Engine assembly & mounts", exact: true }).click();
   await expect(page.getByRole("button", { name: "Add Replace engine assembly", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Add Replace engine assembly", exact: true }).click();
+  await expect(page.getByRole("button", { name: "No parts needed", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Keep adding work", exact: true }).click();
   await page.getByRole("button", { name: "Add Replace engine long block", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("incompatible alternative");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();

@@ -16,7 +16,7 @@ export type EstimateLine = {
   position?: "front-left" | "front-right";
 };
 
-export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[]; repairOrderId?: string; vehicleId?: string };
+export type PreviewDraft = { version: 1; rate: number; lines: EstimateLine[]; repairOrderId?: string; vehicleId?: string; courtesySourceId?: string };
 
 export function isValidAmount(value: unknown, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= maximum;
@@ -43,6 +43,7 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
   try {
     const draft = JSON.parse(raw) as PreviewDraft;
     if (!draft || draft.version !== 1 || !isValidAmount(draft.rate, 1000) || !Array.isArray(draft.lines) || draft.lines.length > 100) return null;
+    if (draft.courtesySourceId !== undefined && (typeof draft.courtesySourceId !== "string" || !draft.courtesySourceId || draft.courtesySourceId.length > 200)) return null;
     if (draft.repairOrderId !== undefined || draft.vehicleId !== undefined) {
       if (typeof draft.repairOrderId !== "string" || !draft.repairOrderId || draft.repairOrderId.length > 200 || typeof draft.vehicleId !== "string" || !draft.vehicleId || draft.vehicleId.length > 200) return null;
     }
@@ -59,7 +60,7 @@ export function parsePreviewDraft(raw: string): PreviewDraft | null {
           if (!item || typeof item.id !== "string" || !item.id || item.id.length > 200 || partIds.has(item.id) || typeof item.name !== "string" || item.name.length > 200 || typeof item.number !== "string" || item.number.length > 100 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10000 || (item.unitPrice !== null && !isValidAmount(item.unitPrice, 100000))) return null;
           partIds.add(item.id);
         }
-        if (line.parts !== itemizedPartsTotal(line.partItems)) return null;
+        if (line.parts !== itemizedPartsTotal(line.partItems) && !(line.parts === null && !line.partItems.length)) return null;
       }
       if (!line || typeof line.id !== "string" || !line.id || line.id.length > 200 || identifiers.has(line.id)
         || typeof line.label !== "string" || !line.label.trim() || line.label.length > 200

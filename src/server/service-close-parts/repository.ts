@@ -1,7 +1,8 @@
 import { assertCurrentRepairAuthorization } from "@/lib/repair-authorization-current";
 import { checkReconPurchaseApproval } from "./procurement-budget";
 import { serviceInvoiceBalance } from "@/lib/service-billing";
-import { serviceInvoiceCandidate, assertCurrentInvoicePackage } from "./invoice-candidate";
+import { serviceInvoiceCandidate, assertCurrentInvoicePackage, assertReviewedEstimateDocument } from "./invoice-candidate";
+import { matchesEstimateDocument, type EstimateDocumentReference } from "@/lib/service-billing-workflow";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
@@ -119,7 +120,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               }
             },
             invoicePackages: { orderBy: { version: "desc" }, take: 3 },
-            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true, status: true, partsRequired: true, executionBlockerReason: true, partCustodyEvents: { select: { partId: true, type: true, quantity: true } }, partDemands: { select: { partId: true, status: true, quantityRequired: true, quantityReserved: true } } } },
+            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true, description: true, status: true, partsRequired: true, executionBlockerReason: true, partCustodyEvents: { select: { partId: true, type: true, quantity: true } }, partDemands: { select: { partId: true, status: true, quantityRequired: true, quantityReserved: true } } } },
             vendorWorks: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { updatedAt: "desc" }, take: 3 },
             closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
             deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },
@@ -196,16 +197,34 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return { custodyEvents, demands, discrepancies, interchanges, locations, offers, parts, purchaseOrders, receipts, recoveries, repairOrders, requisitions, stockLocations, transfers, vendors };
     },
 
-    generateInvoice(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; generatedAt: Date; reason: string; expectedEstimateId?: string }) {
+    generateInvoice(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; generatedAt: Date; reason: string; expectedEstimateId?: string; expectedEstimateDocument?: EstimateDocumentReference }) {
       return executeAggregateMutation(database, command, "vehicle-operations.shop", async (tx, aggregateVersion) => {
         const candidate = await serviceInvoiceCandidate(tx, command.organizationId, command.subjectId);
         if (data.expectedEstimateId && candidate.estimate.id !== data.expectedEstimateId) throw new Error("The selected estimate is no longer current. Open the repair order to review the current estimate before invoicing.");
+        assertReviewedEstimateDocument(data.expectedEstimateDocument, candidate.estimateDocument);
         const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: { invoicePackages: { orderBy: { version: "desc" }, take: 1 } } });
         if (!order) throw new Error("Open repair order was not found.");
         const lineItems = candidate.ledger.lines, authorizedTotalCents = candidate.ledger.totalCents;
         const { installedPartsCostCents, clockedLaborMinutes, mismatchCodes } = candidate;
-        const packageVersion = (order.invoicePackages[0]?.version ?? 0) + 1;
-        const record = await tx.serviceInvoicePackage.create({ data: { authorizedTotalCents, clockedLaborMinutes: Math.max(0, clockedLaborMinutes), createdByUserId: data.createdByUserId, generatedAt: data.generatedAt, installedPartsCostCents, lineItems: toJson(lineItems), mismatchCodes: toJson(mismatchCodes), organizationId: command.organizationId, reason: data.reason, repairOrderId: order.id, sourceSnapshot: toJson({ aggregateVersion, fingerprint: candidate.fingerprint, commercial: candidate.ledger, identity: candidate.identity, estimateId: candidate.estimate.id, authorizationId: candidate.authorization.id, generatedAt: data.generatedAt, billingMode: order.origin === "CUSTOMER_REPAIR" ? "NATIVE" : "INTERNAL_COST" }), status: "READY", version: packageVersion } });
+        const latest = order.invoicePackages[0];
+        let reusablePackage: typeof latest | undefined;
+        if (data.expectedEstimateId && order.origin === "CUSTOMER_REPAIR") {
+          if (mismatchCodes.length) throw new Error("Resolve the invoice requirements before preparing the final invoice.");
+          const invoice = await tx.serviceInvoice.findFirst({
+            where: { organizationId: command.organizationId, repairOrderId: order.id, status: "POSTED" },
+            select: { id: true },
+          });
+          if (invoice) throw new Error("This repair order already has an issued invoice. Open the saved invoice to print.");
+          const snapshot = latest?.sourceSnapshot as { fingerprint?: string; billingMode?: string; estimateDocument?: EstimateDocumentReference } | null;
+          if (latest?.status === "READY" && Array.isArray(latest.mismatchCodes) && !latest.mismatchCodes.length &&
+              snapshot?.billingMode === "NATIVE" && snapshot.fingerprint === candidate.fingerprint &&
+              (!snapshot.estimateDocument || matchesEstimateDocument(snapshot.estimateDocument, candidate.estimateDocument)) &&
+              !await tx.serviceInvoice.findUnique({ where: { packageId: latest.id }, select: { id: true } })) {
+            reusablePackage = latest;
+          }
+        }
+        const packageVersion = (latest?.version ?? 0) + 1;
+        const record = reusablePackage ?? await tx.serviceInvoicePackage.create({ data: { authorizedTotalCents, clockedLaborMinutes: Math.max(0, clockedLaborMinutes), createdByUserId: data.createdByUserId, generatedAt: data.generatedAt, installedPartsCostCents, lineItems: toJson(lineItems), mismatchCodes: toJson(mismatchCodes), organizationId: command.organizationId, reason: data.reason, repairOrderId: order.id, sourceSnapshot: toJson({ aggregateVersion, fingerprint: candidate.fingerprint, commercial: candidate.ledger, identity: candidate.identity, estimateId: candidate.estimate.id, estimateDocument: candidate.estimateDocument, authorizationId: candidate.authorization.id, generatedAt: data.generatedAt, billingMode: order.origin === "CUSTOMER_REPAIR" ? "NATIVE" : "INTERNAL_COST" }), status: "READY", version: packageVersion } });
         await tx.repairOrder.update({
           where: { id: order.id },
           data: {

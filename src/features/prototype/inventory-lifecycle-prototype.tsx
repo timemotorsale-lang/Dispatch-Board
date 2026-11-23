@@ -26,6 +26,8 @@ import type {
   InventoryLifecycleUnitContext,
 } from "@/features/inventory/lifecycle/types";
 
+import { PreviewFinalQc, type PreviewRepairQcResult } from "./preview-final-qc";
+import { CompactLifecycleTools } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import { DtgDetailingTool, type DtgWorkflowProgress } from "./dtg-detailing-tool";
 import { FlgFilingTool, type FlgWorkflowProgress } from "./flg-filing-tool";
@@ -58,15 +60,32 @@ function buildHandoffLabel(stageIndex: number) {
 
 export function InventoryLifecyclePrototype({
   embedded = false,
+  review = false,
   initialStage = 0,
+  reviewHref,
+  reviewRepairOrderId,
+  reviewRoadTestNeeded = false,
   initialUnitContext,
 }: {
   embedded?: boolean;
+  review?: boolean;
   initialStage?: number;
+  reviewHref?: string;
+  reviewRepairOrderId?: string;
+  reviewRoadTestNeeded?: boolean;
   initialUnitContext?: InventoryLifecycleUnitContext | null;
 }) {
   const currentUnit = useMemo(() => buildLifecycleUnitContext(initialUnitContext), [initialUnitContext]);
-  const [selectedStage, setSelectedStage] = useState(() => Math.max(0, Math.min(lifecycleStages.length - 1, initialStage)));
+  const [selectedStage, setSelectedStageIndex] = useState(() => Math.max(0, Math.min(lifecycleStages.length - 1, initialStage)));
+  const [previewQcResult, setPreviewQcResult] = useState<PreviewRepairQcResult | null>(null);
+  const invalidatePreviewQcPass = useCallback(() => {
+    setPreviewQcResult((result) => result?.outcome === "PASSED" ? null : result);
+  }, []);
+  const [visitedStages, setVisitedStages] = useState(() => [selectedStage]);
+  const setSelectedStage = useCallback((stageIndex: number) => {
+    setSelectedStageIndex(stageIndex);
+    if (review) setVisitedStages((visited) => visited.includes(stageIndex) ? visited : [...visited, stageIndex]);
+  }, [review]);
   const [completed, setCompleted] = useState<Set<string>>(() => new Set());
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const [iiiProgress, setIiiProgress] = useState<IiiWorkflowProgress>({ blockerCount: 0, canonicalComplete: false, custodyComplete: false, decodedComplete: false, objectiveComplete: false, readinessGateComplete: false, recommendation: "Hold", safetyComplete: false, trailCount: 0 });
@@ -85,7 +104,7 @@ export function InventoryLifecyclePrototype({
   const [stlProgress, setStlProgress] = useState<StlWorkflowProgress>({ blockerCount: 0, buyerComplete: false, figuresComplete: false, packetComplete: false, qcComplete: false, recommendation: "Verify buyer", signaturesComplete: false, submissionComplete: false, trailCount: 0 });
   const [flgProgress, setFlgProgress] = useState<FlgWorkflowProgress>({ blockerCount: 0, fileAssemblyComplete: false, filingLockComplete: false, financialComplete: false, recommendation: "Assemble file", retentionComplete: false, signaturesComplete: false, trailCount: 0, versionComplete: false });
   const [pslProgress, setPslProgress] = useState<PslWorkflowProgress>({ blockerCount: 0, closureComplete: false, deliveryComplete: false, fundingComplete: false, recommendation: "Confirm delivery", titleComplete: false, trailCount: 0, warrantyComplete: false, weOweComplete: false });
-  const [notice, setNotice] = useState("Use this governed workspace to complete stage work, evidence, and handoffs.");
+  const [notice, setNotice] = useState(review ? "" : "Use this governed workspace to complete stage work, evidence, and handoffs.");
   const stage = lifecycleStages[selectedStage];
   const lifecycleReturnHref = useMemo(() => buildInventoryLifecycleHref(currentUnit.inventoryUnitId, selectedStage), [currentUnit.inventoryUnitId, selectedStage]);
   const completedCount = useMemo(
@@ -122,7 +141,7 @@ export function InventoryLifecyclePrototype({
     syncTaiProgress(completeProgress);
     setSelectedStage(1);
     setNotice(`Acquisition completed for ${currentUnit.vehicleLabel}. Transportation is now open.`);
-  }, [currentUnit.vehicleLabel, syncTaiProgress]);
+  }, [currentUnit.vehicleLabel, setSelectedStage, syncTaiProgress]);
 
   const syncTciProgress = useCallback((progress: TciWorkflowProgress) => {
     setTciProgress(progress);
@@ -513,6 +532,12 @@ export function InventoryLifecyclePrototype({
 
   const lifecycleHistory = useMemo(() => summarizeLifecycleHistory(stageSnapshots), [stageSnapshots]);
   const currentSnapshot = stageSnapshots[selectedStage];
+  const reviewingFinalQc = review && stage.key === "FINAL_QC";
+  const completedPreviewStages = review ? stageSnapshots.map((snapshot, index) =>
+    snapshot.key === "FINAL_QC" ? previewQcResult?.outcome === "PASSED"
+      : snapshot.readyForHandoff && snapshot.blockerCount === 0 && lifecycleStages[index].tasks.every((_, taskIndex) => completed.has(completionKey(index, taskIndex)))
+  ) : [];
+  const canHandoff = review ? completedPreviewStages[selectedStage] : ready;
   const rollups = useMemo(() => ({
     blockedUnits: stageSnapshots.filter((snapshot) => snapshot.blockerCount > 0).length,
     handoffReady: stageSnapshots.filter((snapshot) => snapshot.readyForHandoff).length,
@@ -573,19 +598,24 @@ export function InventoryLifecyclePrototype({
   }
 
   function completeHandoff() {
-    if (!ready) return;
+    if (!canHandoff) return;
     if (selectedStage === lifecycleStages.length - 1) {
       setNotice(embedded ? "Lifecycle closure is ready for final review." : "Lifecycle closure is ready for final review.");
       return;
     }
     const nextStage = selectedStage + 1;
     setSelectedStage(nextStage);
-    setNotice(embedded ? `Handoff completed. Vehicle is now in ${lifecycleStages[nextStage].label}.` : `Handoff completed. Vehicle is now in ${lifecycleStages[nextStage].label}.`);
+    if (review) document.getElementById("preview-stage-title")?.focus();
+    setNotice(review ? `Simulated handoff to ${lifecycleStages[nextStage].label}.` : `Handoff completed. Vehicle is now in ${lifecycleStages[nextStage].label}.`);
   }
 
   function resetGuidedLifecycle() {
     setCompleted(new Set());
     setSelectedStage(0);
+    if (review) {
+      setVisitedStages([0]);
+      setPreviewQcResult(null);
+    }
     setWorkspaceVersion((current) => current + 1);
     setIgiProgress({ blockerCount: 0, findingsComplete: false, identityAndSafetyComplete: false, mechanicalComplete: false, readinessGateComplete: false, recommendation: "Hold", roadTestComplete: false, trailCount: 0 });
     setIiiProgress({ blockerCount: 0, canonicalComplete: false, custodyComplete: false, decodedComplete: false, objectiveComplete: false, readinessGateComplete: false, recommendation: "Hold", safetyComplete: false, trailCount: 0 });
@@ -606,16 +636,168 @@ export function InventoryLifecyclePrototype({
     setNotice("Guided lifecycle reset to Acquisition.");
   }
 
+  function renderStageTool(stageIndex: number) {
+    return <>
+      {stageIndex === 11 ? <TlrTitleReadinessTool key={`tlr-${workspaceVersion}`} onProgressChange={syncTlrProgress} onReturnToLifecycle={() => {
+        document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setNotice("Returned to the lifecycle overview.");
+      }} /> : null}
+      {stageIndex === 12 ? <SlgSellingTool key={`slg-${workspaceVersion}`} onProgressChange={syncSlgProgress} onReturnToLifecycle={() => {
+        document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setNotice("Returned to the lifecycle overview.");
+      }} /> : null}
+      {stageIndex === 13 ? <StlSaleTitlingTool key={`stl-${workspaceVersion}`} onProgressChange={syncStlProgress} onReturnToLifecycle={() => {
+        document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setNotice("Returned to the lifecycle overview.");
+      }} /> : null}
+      {stageIndex === 14 ? <FlgFilingTool key={`flg-${workspaceVersion}`} onProgressChange={syncFlgProgress} onReturnToLifecycle={() => {
+        document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setNotice("Returned to the lifecycle overview.");
+      }} /> : null}
+      {stageIndex === 15 ? <PslPostSaleTool key={`psl-${workspaceVersion}`} onProgressChange={syncPslProgress} onReturnToLifecycle={() => {
+        document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setNotice("Returned to the lifecycle overview.");
+      }} /> : null}
+      {stageIndex === 10 ? <PmmPhotosMarketingTool key={`pmm-${workspaceVersion}`} onProgressChange={syncPmmProgress} onReturnToLifecycle={() => {
+        document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setNotice("Returned to the lifecycle overview.");
+      }} /> : null}
+      {stageIndex === 9 ? <DtgDetailingTool key={`dtg-${workspaceVersion}`} onProgressChange={syncDtgProgress} /> : null}
+      {stageIndex === 8 ? review
+        ? <PreviewFinalQc result={previewQcResult} onResult={setPreviewQcResult} roadTestNeeded={reviewRoadTestNeeded} onOpenShop={() => {
+          setSelectedStage(7);
+          setNotice("Repair QC returned the vehicle to Recon & Repair in this preview.");
+        }} />
+        : <FqcFinalQcTool key={`fqc-${workspaceVersion}`} onProgressChange={syncFqcProgress} /> : null}
+      {stageIndex === 7 ? <RnrReconTool key={`rnr-${workspaceVersion}`} onProgressChange={syncRnrProgress} onEvidenceChange={review ? invalidatePreviewQcPass : undefined} /> : null}
+      {stageIndex === 6 ? <WopWorkOrderTool key={`wop-${workspaceVersion}`} onProgressChange={syncWopProgress} /> : null}
+      {stageIndex === 5 ? <IqiQualityTool key={`iqi-${workspaceVersion}`} onProgressChange={syncIqiProgress} /> : null}
+      {stageIndex === 4 ? <IgiInspectionTool key={`igi-${workspaceVersion}`} onOpenInitialQc={() => { setSelectedStage(5); setNotice("Opening Initial QC."); }} onProgressChange={syncIgiProgress} /> : null}
+      {stageIndex === 3 ? <IiiIntakeTool key={`iii-${workspaceVersion}`} onProgressChange={syncIiiProgress} /> : null}
+      {stageIndex === 2 ? <RbiReceivingTool expectedVin={currentUnit.vin} key={`rbi-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncRbiProgress} /> : null}
+      {stageIndex === 0 ? <TaiAcquisitionTool key={`tai-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncTaiProgress} onQuickComplete={completeQuickAcquisition} selectedVehicle={{ label: currentUnit.vehicleLabel, vin: currentUnit.vin }} /> : null}
+      {!review && stageIndex === 1 ? <div className={styles.stageQuickLinkWrap}><a className={styles.stageQuickLink} href="#transportation-custody-builder">Open Transportation Custody Builder</a></div> : null}
+      {stageIndex === 1 ? <TciTransportTool key={`tci-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncTciProgress} owner={currentUnit.accountableOwner} vehicleLabel={currentUnit.vehicleLabel} /> : null}
+    </>;
+  }
+
+  const stageNavigation = (
+    <nav className={review ? styles.previewStageNav : styles.lifecycleRail} aria-label="Inventory lifecycle stages">
+      {lifecycleStages.map((item, index) => (
+        <button
+          aria-pressed={selectedStage === index}
+          className={selectedStage === index ? styles.activeStage : ""}
+          data-complete={completedPreviewStages[index] || undefined}
+          key={item.label}
+          onClick={() => { setSelectedStage(index); setNotice(review ? "" : `Viewing ${item.label}. Complete its required actions before handoff.`); }}
+          type="button"
+        >
+          <small>{String(index + 1).padStart(2, "0")}</small>
+          <strong>{item.label}</strong>
+          {completedPreviewStages[index] && <>
+            <Check aria-hidden="true" size={14} className={styles.previewStageCheck} />
+            <span className="sr-only">Completed</span>
+          </>}
+        </button>
+      ))}
+    </nav>
+  );
+
+  if (review) {
+    const nextTask = stage.tasks.find((_, index) => !completed.has(completionKey(selectedStage, index)));
+    const finalStage = selectedStage === lifecycleStages.length - 1;
+    return <section className={styles.preview} aria-label="Inventory Lifecycle workspace">
+      <header className={styles.previewHeader}>
+        <div>
+          <h1>Inventory Lifecycle <small>Preview</small></h1>
+          <p>{currentUnit.vehicleLabel} · Stock {currentUnit.inventoryNumber}</p>
+        </div>
+        <p>Checklist changes and handoffs apply to this session only.</p>
+      </header>
+
+      <div id="prototype-lifecycle-rail" className={styles.previewNavigation}>
+        {stageNavigation}
+        <label className={styles.previewStagePicker}>Stage<select value={selectedStage} onChange={(event) => { setSelectedStage(Number(event.target.value)); setNotice(""); }}>
+          {lifecycleStages.map((item, index) => <option key={item.key} value={index}>{index + 1}. {item.label}{completedPreviewStages[index] ? " · Completed" : ""}</option>)}
+        </select></label>
+      </div>
+
+      <section className={styles.previewStage} aria-labelledby="preview-stage-title">
+        <header className={styles.previewStageHeader}>
+          <div>
+            <h2 id="preview-stage-title" tabIndex={-1}>{stage.label}</h2>
+            <p><strong>{stage.title}</strong> · {stage.owner}</p>
+          </div>
+          {!reviewingFinalQc && <span>{completedCount}/{stage.tasks.length} required checks complete</span>}
+        </header>
+
+        {!reviewingFinalQc && <div className={styles.previewNext}>
+          <div>
+            <strong>{canHandoff ? currentSnapshot.handoff.readinessLabel : nextTask?.title ?? "Resolve remaining blockers"}</strong>
+            <p>{canHandoff ? currentSnapshot.handoff.summary : nextTask?.completion ?? currentSnapshot.handoff.blockerSummary}</p>
+          </div>
+        </div>}
+
+        {visitedStages.map((index) => (
+          <CompactLifecycleTools.Provider key={index} value={{ repairOrderId: reviewRepairOrderId, returnTo: reviewHref ? reviewHref + "&guidedStage=" + index : undefined }}>
+            <div className={styles.previewTool} hidden={selectedStage !== index}>{renderStageTool(index)}</div>
+          </CompactLifecycleTools.Provider>
+        ))}
+
+        {canHandoff && <div className={styles.previewHandoff}>
+          <button className="button button-primary" onClick={completeHandoff} type="button">
+            {finalStage ? "Review lifecycle closure" : "Simulate handoff to " + currentSnapshot.handoff.nextStageLabel}<ArrowRight size={16} />
+          </button>
+        </div>}
+
+        {!reviewingFinalQc && <details className={styles.previewDetails} key={stage.key}>
+          <summary>Handoff requirements · {currentSnapshot.handoff.nextStageLabel}</summary>
+          <p className={styles.previewStatus}><strong>{stage.gate}</strong> · {stage.blockerPolicy}</p>
+          <ol>
+            {stage.tasks.map((task, index) => (
+              <li key={task.title}>
+                <strong>{task.title}</strong>
+                <span>{completed.has(completionKey(selectedStage, index)) ? "Complete" : "Pending"}</span>
+                <p>{task.completion}</p>
+                <small>{task.owner} · {task.evidence}</small>
+              </li>
+            ))}
+          </ol>
+        </details>}
+      </section>
+
+      {notice && <p role="status" className={styles.previewStatus}>{notice}</p>}
+
+      <details className={styles.previewDetails}>
+        <summary>Vehicle details &amp; preview history</summary>
+        <dl>
+          <div><dt>VIN</dt><dd>{currentUnit.vin}</dd></div>
+          <div><dt>Location</dt><dd>{currentUnit.location}</dd></div>
+          <div><dt>Accountable owner</dt><dd>{currentUnit.accountableOwner}</dd></div>
+          <div><dt>Target frontline</dt><dd>{currentUnit.targetFrontlineDate}</dd></div>
+          <div><dt>Custody</dt><dd>{currentUnit.custody}</dd></div>
+          <div><dt>Safety</dt><dd>{currentUnit.safetyState}</dd></div>
+          <div><dt>Title</dt><dd>{currentUnit.titleState}</dd></div>
+        </dl>
+        {previewQcResult && <p>Final QC · {previewQcResult.outcome === "PASSED" ? "Passed" : "Returned to shop"}</p>}
+        {lifecycleHistory.length ? <ul>
+          {lifecycleHistory.map((entry) => <li key={entry.stageIndex}><strong>{entry.stageLabel}</strong><p>{entry.description}</p><small>{entry.evidenceLabels.join(" · ")}</small></li>)}
+        </ul> : <p>No preview evidence recorded.</p>}
+        <button className="button button-secondary" onClick={resetGuidedLifecycle} type="button"><RotateCcw size={15} />Reset preview</button>
+      </details>
+    </section>;
+  }
+
   return (
     <section className={styles.prototype} aria-label="Inventory Lifecycle workspace">
       <header className={styles.prototypeBanner}>
         <div>
-          <span><ShieldCheck size={16} />Integrated lifecycle workspace</span>
-          <strong>One Inventory Console lifecycle</strong>
-          <p>Guided stage operations, evidence, handoffs, and history now live inside the Inventory Console.</p>
+          <span><ShieldCheck size={16} />{review ? "Inventory Lifecycle preview" : "Integrated lifecycle workspace"}</span>
+          <strong>{review ? "Complete Inventory Lifecycle" : "One Inventory Console lifecycle"}</strong>
+          <p>{review ? "Review all 16 stages. Checklist changes and simulated handoffs apply to this preview session only." : "Guided stage operations, evidence, handoffs, and history now live inside the Inventory Console."}</p>
         </div>
         <div className={styles.bannerActions}>
-          <Link href={currentUnit.returnHref}>Refresh Inventory Console</Link>
+          {!review && <Link href={currentUnit.returnHref}>Refresh Inventory Console</Link>}
           <button type="button" onClick={resetGuidedLifecycle}><RotateCcw size={15} />Reset guided lifecycle</button>
         </div>
       </header>
@@ -635,9 +817,9 @@ export function InventoryLifecyclePrototype({
           <span>{completedCount} of {stage.tasks.length} actions complete · {currentSnapshot.handoff.readinessLabel}</span>
         </div>
         <div className={styles.authoritativeState}>
-          <span>Guided lifecycle state</span>
+          <span>{review ? "Preview stage" : "Guided lifecycle state"}</span>
           <strong><i />{stage.label} | {selectedStageStatusLabel}</strong>
-          <small>Vehicle is in stage {selectedStage + 1} of {lifecycleStages.length}</small>
+          <small>{review ? "Reviewing stage" : "Vehicle is in stage"} {selectedStage + 1} of {lifecycleStages.length}</small>
         </div>
       </section>
 
@@ -652,20 +834,7 @@ export function InventoryLifecyclePrototype({
 
       <section className={styles.lifecycleRailSection} id="prototype-lifecycle-rail">
         <header><div><h2>Complete inventory lifecycle</h2><p>Select a stage to review its mandatory workflow.</p></div><strong>16 governed stages</strong></header>
-        <nav className={styles.lifecycleRail} aria-label="Inventory lifecycle stages">
-          {lifecycleStages.map((item, index) => (
-            <button
-              aria-pressed={selectedStage === index}
-              className={selectedStage === index ? styles.activeStage : ""}
-              key={item.label}
-              onClick={() => { setSelectedStage(index); setNotice(`Viewing ${item.label}. Complete its required actions before handoff.`); }}
-              type="button"
-            >
-              <small>{String(index + 1).padStart(2, "0")}</small>
-              <strong>{item.label}</strong>
-            </button>
-          ))}
-        </nav>
+        {stageNavigation}
       </section>
 
       <div className={styles.workspaceGrid}>
@@ -674,41 +843,7 @@ export function InventoryLifecyclePrototype({
             <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
             <strong>{stage.gate}</strong>
           </header>
-          {selectedStage === 11 ? <TlrTitleReadinessTool key={`tlr-${workspaceVersion}`} onProgressChange={syncTlrProgress} onReturnToLifecycle={() => {
-            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setNotice("Returned to the lifecycle overview.");
-          }} /> : null}
-          {selectedStage === 12 ? <SlgSellingTool key={`slg-${workspaceVersion}`} onProgressChange={syncSlgProgress} onReturnToLifecycle={() => {
-            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setNotice("Returned to the lifecycle overview.");
-          }} /> : null}
-          {selectedStage === 13 ? <StlSaleTitlingTool key={`stl-${workspaceVersion}`} onProgressChange={syncStlProgress} onReturnToLifecycle={() => {
-            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setNotice("Returned to the lifecycle overview.");
-          }} /> : null}
-          {selectedStage === 14 ? <FlgFilingTool key={`flg-${workspaceVersion}`} onProgressChange={syncFlgProgress} onReturnToLifecycle={() => {
-            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setNotice("Returned to the lifecycle overview.");
-          }} /> : null}
-          {selectedStage === 15 ? <PslPostSaleTool key={`psl-${workspaceVersion}`} onProgressChange={syncPslProgress} onReturnToLifecycle={() => {
-            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setNotice("Returned to the lifecycle overview.");
-          }} /> : null}
-          {selectedStage === 10 ? <PmmPhotosMarketingTool key={`pmm-${workspaceVersion}`} onProgressChange={syncPmmProgress} onReturnToLifecycle={() => {
-            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setNotice("Returned to the lifecycle overview.");
-          }} /> : null}
-          {selectedStage === 9 ? <DtgDetailingTool key={`dtg-${workspaceVersion}`} onProgressChange={syncDtgProgress} /> : null}
-          {selectedStage === 8 ? <FqcFinalQcTool key={`fqc-${workspaceVersion}`} onProgressChange={syncFqcProgress} /> : null}
-          {selectedStage === 7 ? <RnrReconTool key={`rnr-${workspaceVersion}`} onProgressChange={syncRnrProgress} /> : null}
-          {selectedStage === 6 ? <WopWorkOrderTool key={`wop-${workspaceVersion}`} onProgressChange={syncWopProgress} /> : null}
-          {selectedStage === 5 ? <IqiQualityTool key={`iqi-${workspaceVersion}`} onProgressChange={syncIqiProgress} /> : null}
-          {selectedStage === 4 ? <IgiInspectionTool key={`igi-${workspaceVersion}`} onOpenInitialQc={() => { setSelectedStage(5); setNotice("Opening Initial QC."); }} onProgressChange={syncIgiProgress} /> : null}
-          {selectedStage === 3 ? <IiiIntakeTool key={`iii-${workspaceVersion}`} onProgressChange={syncIiiProgress} /> : null}
-          {selectedStage === 2 ? <RbiReceivingTool expectedVin={currentUnit.vin} key={`rbi-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncRbiProgress} /> : null}
-          {selectedStage === 0 ? <TaiAcquisitionTool key={`tai-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncTaiProgress} onQuickComplete={completeQuickAcquisition} selectedVehicle={{ label: currentUnit.vehicleLabel, vin: currentUnit.vin }} /> : null}
-          {selectedStage === 1 ? <div className={styles.stageQuickLinkWrap}><a className={styles.stageQuickLink} href="#transportation-custody-builder">Open Transportation Custody Builder</a></div> : null}
-          {selectedStage === 1 ? <TciTransportTool key={`tci-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncTciProgress} owner={currentUnit.accountableOwner} vehicleLabel={currentUnit.vehicleLabel} /> : null}
+          {renderStageTool(selectedStage)}
           <div className={styles.progressRow}>
             <strong>{completedCount} of {stage.tasks.length} required actions complete</strong>
             <div className={styles.progressTrack} aria-label={`${completedCount} of ${stage.tasks.length} actions complete`} role="progressbar" aria-valuemin={0} aria-valuemax={stage.tasks.length} aria-valuenow={completedCount}><i style={{ width: `${completedCount / stage.tasks.length * 100}%` }} /></div>
@@ -789,7 +924,7 @@ export function InventoryLifecyclePrototype({
             <li><span>Ready for next stage</span><strong>{ready ? "Yes" : "No"}</strong></li>
           </ul>
           <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href={lifecycleReturnHref}>Open exact lifecycle link</Link></div>
-          <button disabled={!ready} onClick={completeHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>
+          <button disabled={!ready} onClick={completeHandoff} type="button">{review ? "Simulate handoff" : stage.actionLabel}<ArrowRight /></button>
           <p className={ready ? styles.readyNote : ""}>{ready ? selectedStage === lifecycleStages.length - 1 ? "All lifecycle controls passed. Lifecycle closure is ready for review." : `All ${stage.label} controls passed. Vehicle is ready for ${buildHandoffLabel(selectedStage)}.` : selectedStage === 0 && nextAcquisitionRequirement ? `${stage.tasks.length - completedCount} acquisition requirement${stage.tasks.length - completedCount === 1 ? "" : "s"} remain. Next: ${nextAcquisitionRequirement.label}.` : "Complete every required action before handoff becomes available."}</p>
           <header><CircleAlert /><h2>Vehicle lifecycle history</h2></header>
           <ul>

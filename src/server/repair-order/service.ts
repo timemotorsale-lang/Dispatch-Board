@@ -9,7 +9,7 @@ import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } f
 import { describeVehicleOperationsBlock, evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
-import { isSameRepairOrderConcern, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, normalizeRepairOrderDuplicateClose, normalizeRepairOrderNoWorkClose, repairOrderAge } from "./domain";
+import { isSameRepairOrderConcern, normalizeInspectionConsent, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, normalizeRepairOrderDuplicateClose, normalizeRepairOrderNoWorkClose, repairOrderAge } from "./domain";
 import { createRepairOrderRepository, type RepairOrderRepository } from "./repository";
 import { closeRepairOrderTasks, reconcileRepairOrderOwnerTask } from "./task-bridge";
 import { RepairHandoffError, type HandoffClaim } from "./task-handoff-record";
@@ -51,6 +51,20 @@ export async function createRepairOrder(actor:AuthenticatedUser|null,value:unkno
   if (!claim) await context.taskBridge.reconcileOwner(context.organizationId,id,user.id);
   return result;
 }
+export async function recordInspectionConsent(actor: AuthenticatedUser | null, id: string, value: unknown, input: Dependencies = {}) {
+  const context = deps(input);
+  const { expectedVersion, idempotencyKey, ...data } = normalizeInspectionConsent(value, context.now());
+  const order = await context.repository.getCloseContext(context.organizationId, id);
+  if (!order) throw new Error("Repair order was not found.");
+  const user = await authorize(actor, "REPAIR_ORDER_MANAGE", order.locationId, context, true);
+  return context.repository.recordInspectionConsent(command({
+    actorUserId: user.id, commandType: "RECORD_INSPECTION_CONSENT", expectedVersion, idempotencyKey,
+    locationId: order.locationId, organizationId: context.organizationId, subjectId: id,
+    payload: { ...data, consentedAt: data.consentedAt.toISOString() },
+    reason: "Record customer authorization to inspect, diagnose, and prepare an estimate for the saved concerns at the disclosed diagnostic fee."
+  }), data);
+}
+
 export async function updateRepairOrderControl(actor:AuthenticatedUser|null,id:string,value:unknown,input:Dependencies={}){const context=deps(input);const normalized=normalizeRepairOrderControlUpdate(value);const user=await authorize(actor,"REPAIR_ORDER_MANAGE",normalized.locationId,context,true);const payload={locationId:normalized.locationId,nextAction:normalized.nextAction,operatingState:normalized.operatingState,ownerUserId:normalized.ownerUserId,stateReason:normalized.stateReason,targetAt:normalized.targetAt.toISOString()};const result=await context.repository.updateControl(command({actorUserId:user.id,commandType:"UPDATE_REPAIR_ORDER_CONTROL",expectedVersion:normalized.expectedVersion,idempotencyKey:normalized.idempotencyKey,locationId:normalized.locationId,organizationId:context.organizationId,payload,reason:normalized.reason,subjectId:id}),{...normalized,actorUserId:user.id});await context.taskBridge.reconcileOwner(context.organizationId,id,user.id);return result;}
 
 export async function closeDuplicateRepairOrder(actor:AuthenticatedUser|null,id:string,value:unknown,input:Dependencies={}) {

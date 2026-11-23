@@ -1,0 +1,27 @@
+.panel {
+  color: var(--text, #14223a);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 0.65rem;
+  padding: 0.85rem;
+  margin-block: 0.65rem;
+}
+
+.panel summary { cursor: pointer; font-weight: 650; }
+.panel h3, .panel p { margin-block: 0 0.45rem; }
+.sections, .notes { display: grid; gap: 0.5rem; }
+.sections > details { padding-block: 0.5rem; border-top: 1px solid var(--border, #cbd5e1); }
+.item { min-width: 0; border: 0; border-bottom: 1px solid var(--border, #cbd5e1); margin: 0.5rem 0; padding: 0.35rem 0 0.6rem; }
+.item legend { font-weight: 600; }
+.choices, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-block: 0.35rem; }
+.choices button { border: 1px solid var(--border, #9aa9bf); border-radius: 0.3rem; padding: 0.25rem 0.6rem; }
+.choices button[aria-pressed="true"] { font-weight: 700; outline: 2px solid currentColor; outline-offset: -2px; }
+.PASS { background: #e8f5ec; color: #205c37; }
+.REVIEW { background: #fff4cf; color: #704a03; }
+.FAIL, .urgent { background: #fce9e8; color: #882126; }
+.urgent { padding: 0.5rem; border-radius: 0.35rem; }
+.notes { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); align-items: end; }
+.notes label { display: grid; gap: 0.25rem; min-width: 0; }
+.notes input:not([type="checkbox"]), .notes select { width: 100%; }
+.notes .pick { display: flex; gap: 0.35rem; align-items: center; }
+.finding { padding-block: 0.55rem; border-block-start: 1px solid var(--border, #cbd5e1); }

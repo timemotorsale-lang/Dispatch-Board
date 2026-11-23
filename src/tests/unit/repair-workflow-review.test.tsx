@@ -1,20 +1,46 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
-import { currentRepairWorkflowStep, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
+import { currentRepairAdvisorReason, currentRepairWorkflowStep, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { repairExplorerHandoffHref } from "@/lib/repair-explorer-context";
 import { laborGuideHref } from "@/features/diagnostics/labor-guide-view-switch";
 import { RepairHandoffTool } from "@/features/prototype/repair-workflow/repair-handoff-tool";
 import { RepairExecutionTool } from "@/features/prototype/repair-workflow/repair-execution-tool";
+import { repairExecutionNextStep } from "@/features/prototype/repair-workflow/technician-execution-state";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { canOpenRepairQc, RepairQcDiagnostics } from "@/features/prototype/repair-workflow/repair-qc-diagnostics";
 
 const empty = { stage: "INTAKE", inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [] };
+it("keeps a started job on Repair and opens QC when the last unfinished job is completed", () => {
+  const jobs = [{ id: "J001", status: "QC_PASSED" }, { id: "J002", status: "DISPATCHED" }];
+  expect(repairExecutionNextStep("START", "J002", jobs)).toBe("repair");
+  expect(repairExecutionNextStep("FINISH", "J002", jobs)).toBe("qc");
+  expect(repairExecutionNextStep("FINISH", "J002", [...jobs, { id: "J003", status: "IN_PROGRESS" }])).toBe("repair");
+});
+
+it("opens a progress note for the exact assigned job", () => {
+  const job = { id: "bumper", jobNumber: "J002", description: "Replace bumper", status: "DISPATCHED",
+    dispatches: [{ technicianUserId: "tech", status: "ACTIVE" }], laborClocks: [] };
+  const jobs = [{ ...job, id: "lamp", jobNumber: "J001" }, job];
+  const html = renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={jobs} actorId="tech" manager={false} initialJobId="bumper" openProgress />);
+  expect(html).toContain('aria-label="Execution for J002"');
+  expect(html).toContain("Repair progress note");
+  const unassigned = renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={jobs} actorId="other" manager={false} initialJobId="bumper" openProgress />);
+  expect(unassigned).toContain("The assigned technician or a manager can record progress");
+  expect(unassigned).not.toContain("Repair progress note");
+});
 const approvedOrder = {
   id: "ro-escape",
   estimateVersions: [{ version: 2, lineItems: [{ key: "labor", type: "LABOR" }], authorizations: [{ disposition: "ACCEPTED", authorizedLineKeys: ["labor"] }] }],
   repairJobs: [],
   vendorWorks: [],
 };
+
+it("removes only resolved parts exceptions from the live next action", () => {
+  const parts = "Advisor exceptions: PARTS_PENDING_REPAIR_CONTINUES";
+  expect(currentRepairAdvisorReason(parts, false)).toBe(parts);
+  expect(currentRepairAdvisorReason(parts, true)).toBeNull();
+  expect(currentRepairAdvisorReason(`${parts}, CUSTOMER_CONTACT_PENDING`, true)).toBe("Advisor exceptions: CUSTOMER_CONTACT_PENDING");
+});
 
 describe("repair QC prerequisites", () => {
   it("routes approved labor to release when no job exists", () => {
@@ -60,6 +86,10 @@ describe("repair QC prerequisites", () => {
 });
 describe("complete repair workflow review", () => {
   it("derives tasks from saved evidence without advancing records", () => {
+    expect(currentRepairWorkflowStep({ ...empty, repairJobs: [{ authorizationId: "current", authorizedLineKey: "first", status: "READY_FOR_REPAIR" }],
+      estimateVersions: [{ authorizations: [{ id: "current", disposition: "ACCEPTED", authorizedLineKeys: ["first", "second"] }],
+        lineItems: [{ key: "first", type: "LABOR" }, { key: "second", type: "LABOR" }] }],
+    })).toBe("parts");
     expect(currentRepairWorkflowStep(empty)).toBe("inspection");
     expect(currentRepairWorkflowStep({ ...empty, inspectionVersions: [{}] })).toBe("diagnosis");
     expect(currentRepairWorkflowStep({ ...empty, diagnosisVersions: [{}] })).toBe("estimate");
@@ -87,7 +117,7 @@ describe("complete repair workflow review", () => {
     expect(scopedRepairOrders(model)).toBe(model);
   });
   it("preserves opt-in review while routing both guide entry points to the current guide", () => {
-    expect(repairReviewHref("RO & 1", "estimate")).toBe("/prototype/repair-workbench?repairOrderId=RO+%26+1&step=estimate");
+    expect(repairReviewHref("RO & 1", "estimate")).toBe("/vehicles/repair-workbench?repairOrderId=RO+%26+1&step=estimate");
     expect(repairExplorerHandoffHref("ro", true)).toContain("workflow=review");
     expect(laborGuideHref("new", "ro", true)).toContain("workflow=review");
     expect(laborGuideHref("legacy", "ro")).toBe("/prototype/repair-explorer?repairOrderId=ro");

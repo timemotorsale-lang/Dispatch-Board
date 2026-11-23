@@ -263,7 +263,7 @@ test("old closed repairs remain searchable by customer, VIN and frozen document 
     const item = result.items[0];
     expect(item.status).toBe("CLOSED");
     expect(item.updatedAt).toBe(closed.toISOString());
-    expect(item.href).toBe(`/prototype/repair-workbench?repairOrderId=${fixture.order.id}`);
+    expect(item.href).toBe(`/vehicles/repair-workbench?repairOrderId=${fixture.order.id}`);
     expect(item.documents).toHaveLength(4);
     for (const document of fixture.documents) {
       expect(item.documents).toContainEqual(expect.objectContaining({ id: document.id, kind: document.kind, version: document.sourceVersion, href: exactDocumentHref(document.id) }));
@@ -388,7 +388,7 @@ for (const route of ["/prototype/repair-explorer", "/prototype/autobody-estimate
     await directory.getByRole("button", { name: "Search", exact: true }).click();
     expect((await loaded).status()).toBe(200);
     await expect(directory.getByRole("link", { name: `Open original record ${fixture.order.repairOrderNumber}`, exact: true }))
-      .toHaveAttribute("href", `/prototype/repair-workbench?repairOrderId=${fixture.order.id}`);
+      .toHaveAttribute("href", `/vehicles/repair-workbench?repairOrderId=${fixture.order.id}`);
     for (const document of fixture.documents) {
       await expect(directory.locator(`a[href="${exactDocumentHref(document.id)}"]`)).toBeVisible();
     }

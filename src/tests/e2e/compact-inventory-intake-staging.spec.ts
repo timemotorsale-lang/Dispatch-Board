@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
+import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 test.setTimeout(120_000);
 test.beforeAll(() => {
@@ -10,6 +11,7 @@ test.beforeAll(() => {
 });
 
 test("compact intake saves real linked records on one page, recovers retries and keeps adoption optional", async ({ page, request }) => {
+  await configureSyntheticVehiclePilot("GENERAL");
   const fixture = JSON.parse(readFileSync("test-results/labor-staging/compact-intake-browser-fixture.json", "utf8")) as { vehicleId: string; vin: string; locationId: string; ownerUserId: string };
   expect((await request.get(`/api/inventory-units/compact-intake?vehicleId=${fixture.vehicleId}`)).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);
@@ -147,7 +149,7 @@ test("compact intake saves real linked records on one page, recovers retries and
   await page.goto("/prototype/repair-workflow");
   await page.getByRole("searchbox").fill(fixture.vin);
   await page.getByRole("button", { name: "Find work", exact: true }).click();
-  await expect(page).toHaveURL(`/prototype/repair-workbench?repairOrderId=${saved.result.repairOrderId}`);
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${saved.result.repairOrderId}`);
   await expect(page.getByRole("heading", { name: "Repair Workbench", exact: true })).toBeVisible();
   await expect(page.locator('nav[aria-label="Repair workflow"] a')).toHaveCount(9);
   await expect(page.locator('[data-repair-workflow-tool] details[id^="repair-planning-step-"]')).toHaveCount(1);
@@ -162,7 +164,7 @@ test("compact intake saves real linked records on one page, recovers retries and
   const prerequisites = page.getByRole("region", { name: "QC prerequisites" });
   await expect(prerequisites).toContainText("Estimate missing");
   await prerequisites.getByRole("link", { name: "Open estimate" }).click();
-  await expect(page).toHaveURL(`/prototype/repair-workbench?repairOrderId=${saved.result.repairOrderId}&step=estimate`);
+  await expect(page).toHaveURL(`/vehicles/repair-workbench?repairOrderId=${saved.result.repairOrderId}&step=estimate`);
   await page.getByRole("link", { name: /^9\. Closeout/ }).click();
   await expect(page.getByRole("button", { name: "Close repair & record handoff", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Keys verified", exact: true })).not.toBeChecked();

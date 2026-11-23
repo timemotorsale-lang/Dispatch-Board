@@ -31,6 +31,15 @@ export function catalogJobRequirements(key: string, supplied?: Partial<CatalogRe
 type PartLine = { key: string; type: string; description: string; laborLineKey?: string; partNumber?: string };
 type Demand = { id: string; repairJobId?: string | null; repairJobReference?: string | null; status?: string };
 
+export function unmatchedApprovedJobDemands(lines: PartLine[], authorizedKeys: string[], demands: Demand[]) {
+  const labor = lines.filter(line => line.type === "LABOR" && authorizedKeys.includes(line.key));
+  return demands.filter(demand => {
+    if (demand.repairJobId || ["CANCELLED", "RELEASED"].includes(demand.status ?? "")) return false;
+    if (!demand.repairJobReference) return labor.length !== 1;
+    return labor.filter(line => [line.key, line.description].includes(demand.repairJobReference!)).length !== 1;
+  }).map(demand => demand.id);
+}
+
 export function allocateApprovedJobParts(lines: PartLine[], authorizedKeys: string[], demands: Demand[], existingLaborKeys: string[] = [], allowDescriptionOnly = false) {
   const labor = lines.filter(line => line.type === "LABOR" && authorizedKeys.includes(line.key));
   const parts = lines.filter(line => line.type === "PART" && authorizedKeys.includes(line.key) && (!allowDescriptionOnly || line.partNumber?.trim()));

@@ -1,13 +1,53 @@
+export function repairBillingHref(
+  repairOrderId: string,
+  options: { mode?: "invoice" | "deposit" | "payment"; returnTo?: string; estimateId?: string; invoiceId?: string } = {}
+) {
+  const query = new URLSearchParams({ repairOrderId });
+  if (options.mode) query.set("mode", options.mode);
+  if (options.returnTo) query.set("returnTo", options.returnTo);
+  if (options.estimateId) query.set("estimateId", options.estimateId);
+  if (options.invoiceId) query.set("invoiceId", options.invoiceId);
+  return `/vehicles/service-billing?${query}`;
+}
+
+export type EstimateDocumentReference = { documentId: string; documentHash: string };
+
+export function matchesEstimateDocument(expected: EstimateDocumentReference, current?: EstimateDocumentReference | null) {
+  return Boolean(current && expected.documentId === current.documentId && expected.documentHash === current.documentHash);
+}
+
+export function laborGuideInvoiceHref(repairOrderId: string, options: { returnTo?: string; estimateId?: string; estimateDocument?: EstimateDocumentReference } = {}) {
+  const query = new URLSearchParams({ repairOrderId, mode: "invoice" });
+  if (options.returnTo) query.set("returnTo", options.returnTo);
+  if (options.estimateId !== undefined) query.set("estimateId", options.estimateId);
+  if (options.estimateDocument) {
+    query.set("documentId", options.estimateDocument.documentId);
+    query.set("documentHash", options.estimateDocument.documentHash);
+  }
+  return `/diagnostics/labor-guide?${query}`;
+}
+
+export function issuedInvoiceDocumentHref(repairOrderId: string, sourceId: string, options: { documentId?: string; returnTo?: string } = {}) {
+  const query = new URLSearchParams({
+    repairOrderId, workspace: "1", sourceKind: "INVOICE",
+    ...(options.documentId ? { documentId: options.documentId } : { sourceId }),
+    ...(options.returnTo ? { returnTo: options.returnTo } : {}),
+  });
+  return `/service-documents?${query}`;
+}
+
 type BillingContext = {
   readiness?: { mismatchCodes: readonly string[] };
   packages: readonly { id: string; billingMode: string; mismatchCodes: readonly string[]; preview?: { lines: readonly unknown[]; totalCents: number } | null }[];
   invoices: readonly { id: string; status: string }[];
 };
 
-export function invoicePackageMismatchCodes(codes: unknown, snapshot: unknown, currentFingerprint?: string) {
+export function invoicePackageMismatchCodes(codes: unknown, snapshot: unknown, currentFingerprint?: string, currentDocument?: EstimateDocumentReference) {
   const result = Array.isArray(codes) ? codes.filter((code): code is string => typeof code === "string") : [];
-  const prior = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? (snapshot as { fingerprint?: unknown }).fingerprint : undefined;
-  return currentFingerprint && prior !== currentFingerprint ? [...new Set([...result, "INVOICE_SOURCE_CHANGED"])] : result;
+  const prior = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot as { fingerprint?: unknown; estimateDocument?: EstimateDocumentReference } : undefined;
+  const sourceChanged = currentFingerprint && (prior?.fingerprint !== currentFingerprint ||
+    (prior?.estimateDocument && !matchesEstimateDocument(prior.estimateDocument, currentDocument)));
+  return sourceChanged ? [...new Set([...result, "INVOICE_SOURCE_CHANGED"])] : result;
 }
 
 export function nextBillingTask(billing: BillingContext) {

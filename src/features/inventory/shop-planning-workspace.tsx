@@ -234,7 +234,7 @@ const inspectionClearanceSeed: ClearanceItem[] = [
   { detail: "Extra customer concern, cosmetic note, or optional shop observation.", key: "OPTIONAL_NOTE", label: "Optional note", proof: "", required: false, result: "NOT_APPLICABLE", status: "OPTIONAL" },
 ];
 
-export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false, defaultLaborRate = 125, canOverrideLaborRate = false, reviewOrderId, focusStep, repairOnly = false }: { initial: Model; reviewOrderId?: string; focusStep?: number; repairOnly?: boolean; returnTo?: string; vendorFollowUp?: boolean; defaultLaborRate?: number; canOverrideLaborRate?: boolean }) {
+export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false, defaultLaborRate = 125, canOverrideLaborRate = false, reviewOrderId, focusStep, repairOnly = false, guidedPath, compactStage = false }: { initial: Model; reviewOrderId?: string; focusStep?: number; repairOnly?: boolean; returnTo?: string; vendorFollowUp?: boolean; defaultLaborRate?: number; canOverrideLaborRate?: boolean; guidedPath?: RepairPath; compactStage?: boolean }) {
   const router = useRouter();
   const [model, setModel] = useState(initial);
   const [selectedId, setSelectedId] = useState(initial.repairOrders[0]?.id ?? "");
@@ -248,7 +248,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const firstExistingKeys = new Set((first?.repairJobs ?? []).map((item) => item.authorizedLineKey));
   const firstAuthorizedLaborLines = (firstEstimate?.lineItems ?? []).filter((line) => line.type === "LABOR" && Boolean(firstAccepted?.authorizedLineKeys.includes(line.key)));
   const firstReleaseLine = firstAuthorizedLaborLines.find((line) => !firstExistingKeys.has(line.key)) ?? firstAuthorizedLaborLines[0];
-  const [repairPath, setRepairPath] = useState<RepairPath>(vendorFollowUp && activeVendorWork(first) ? "DIRECT_BODY" : defaultRepairPath(first));
+  const [repairPath, setRepairPath] = useState<RepairPath>(guidedPath ?? (vendorFollowUp && activeVendorWork(first) ? "DIRECT_BODY" : defaultRepairPath(first)));
   const [inspection, setInspection] = useState({ templateCode: "GENERAL_DVI", templateVersion: 1, startedAt: defaultTime ? local(defaultTime) : "", completedAt: defaultTime ? local(defaultTime) : "", summary: "", itemKey: "GENERAL_CONDITION", itemLabel: "General condition", itemResult: "PASS", measurement: "", itemNotes: "", evidence: "" });
   const [clearanceItems, setClearanceItems] = useState<ClearanceItem[]>(() => inspectionClearanceSeed.map((item) => reviewOrderId && item.key === "GENERAL_CONDITION" ? { ...item, status: "NOT_CHECKED", proof: "" } : { ...item }));
   const [activeClearanceKey, setActiveClearanceKey] = useState("INSPECTION_PROOF");
@@ -1082,32 +1082,46 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     }
   }
 
+  const vendorDispatchFields = <>
+    <Field label="Sent from"><input value={vendorWork.sentFrom} onChange={(event) => setVendorWork((value) => ({ ...value, sentFrom: event.target.value }))} /></Field>
+    <Field label="Dispatch time"><input type="datetime-local" value={vendorWork.sentAt} onChange={(event) => setVendorWork((value) => ({ ...value, sentAt: event.target.value }))} /></Field>
+  </>;
+  const vendorExpectedReturn = <Field label="Expected return"><input type="datetime-local" value={vendorWork.expectedReturnAt} onChange={(event) => setVendorWork((value) => ({ ...value, expectedReturnAt: event.target.value }))} /></Field>;
+  const vendorTransportMethod = <Field label="Transport method"><input placeholder="Internal transport, carrier, driven there" value={vendorWork.transportMethod} onChange={(event) => setVendorWork((value) => ({ ...value, transportMethod: event.target.value }))} /></Field>;
+  const vendorApproval = <Field label="Approval status"><select value={vendorWork.approvalStatus} onChange={(event) => setVendorWork((value) => ({ ...value, approvalStatus: event.target.value }))}>{["NEEDS_DOCUMENTATION", "PENDING", "APPROVED", "NOT_REQUIRED"].map((value) => <option key={value} value={value}>{format(value)}</option>)}</select></Field>;
+  const vendorFollowUpFields = <>
+    <label className={styles.check}><input checked={vendorWork.directFromSource} type="checkbox" onChange={(event) => setVendorWork((value) => ({ ...value, directFromSource: event.target.checked, sentFrom: event.target.checked ? "Auction/source" : "Dealership" }))} />Direct from auction/source to vendor</label>
+    <Field label="Evidence references" wide><input placeholder="auction note, dispatch text, vendor estimate, photos" value={vendorWork.evidence} onChange={(event) => setVendorWork((value) => ({ ...value, evidence: event.target.value }))} /></Field>
+    <Field label="Next vendor follow-up"><input type="datetime-local" value={vendorWork.nextFollowUpAt} onChange={(event) => setVendorWork((value) => ({ ...value, nextFollowUpAt: event.target.value }))} /></Field>
+    <Field label="Vendor update"><input value={vendorWork.lastUpdateSummary} onChange={(event) => setVendorWork((value) => ({ ...value, lastUpdateSummary: event.target.value }))} /></Field>
+    <Field label="Next action" wide><input value={vendorWork.nextAction} onChange={(event) => setVendorWork((value) => ({ ...value, nextAction: event.target.value }))} /></Field>
+    <Field label="Internal notes" wide><textarea value={vendorWork.internalNotes} onChange={(event) => setVendorWork((value) => ({ ...value, internalNotes: event.target.value }))} /></Field>
+  </>;
+
   const vendorWorkflowForm = selected ? <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitVendorWork(); }}>
-      <div className={styles.pathInfo}><strong>Outside vendor path</strong><p>Use this when the next accountable work belongs to a body shop, glass shop, calibration vendor, mechanic, detailer, or other third party. Saving this deploys the vendor workflow: custody, scope, parts needs, completion, return transportation, QC, and handoff.</p></div>
+      {!compactStage && <><div className={styles.pathInfo}><strong>Outside vendor path</strong><p>Use this when the next accountable work belongs to a body shop, glass shop, calibration vendor, mechanic, detailer, or other third party. Saving this deploys the vendor workflow: custody, scope, parts needs, completion, return transportation, QC, and handoff.</p></div>
       <div className={styles.vendorAlgorithmGrid}>
         <span><strong>Receive</strong>Confirm whether the vendor has the car.</span>
         <span><strong>Scope</strong>Record what they are fixing and how much is known.</span>
         <span><strong>Parts</strong>Flag dealership-supplied parts or vendor blockers.</span>
         <span><strong>Return</strong>When fixed, start pickup or transport planning.</span>
         <span><strong>QC &amp; handoff</strong>After return, move through quality control and inventory lifecycle.</span>
-      </div>
+      </div></>}
       <FormGrid>
         <Field label="Outside vendor"><input placeholder="Northside Garage" required value={vendorWork.vendorName} onChange={(event) => setVendorWork((value) => ({ ...value, vendorName: event.target.value }))} /></Field>
         <Field label="Vendor work type"><select value={vendorWork.workType} onChange={(event) => setVendorWork((value) => ({ ...value, workType: event.target.value }))}>{["BODY_SHOP", "MECHANICAL", "GLASS", "CALIBRATION", "DETAIL", "AUCTION_ARBITRATION", "OTHER"].map((value) => <option key={value} value={value}>{format(value)}</option>)}</select></Field>
         <Field label="Vendor status"><select value={vendorWork.status} onChange={(event) => setVendorWork((value) => ({ ...value, status: event.target.value }))}>{["SCHEDULED", "AT_VENDOR", "ESTIMATE_NEEDED", "APPROVAL_NEEDED"].map((value) => <option key={value} value={value}>{format(value)}</option>)}</select></Field>
         <Field label="What are they fixing?" wide><textarea required value={vendorWork.scope} onChange={(event) => setVendorWork((value) => ({ ...value, scope: event.target.value }))} /></Field>
-        <Field label="Sent from"><input value={vendorWork.sentFrom} onChange={(event) => setVendorWork((value) => ({ ...value, sentFrom: event.target.value }))} /></Field>
-        <Field label="Dispatch time"><input type="datetime-local" value={vendorWork.sentAt} onChange={(event) => setVendorWork((value) => ({ ...value, sentAt: event.target.value }))} /></Field>
-        <Field label="Expected return"><input type="datetime-local" value={vendorWork.expectedReturnAt} onChange={(event) => setVendorWork((value) => ({ ...value, expectedReturnAt: event.target.value }))} /></Field>
-        <Field label="Transport method"><input placeholder="Internal transport, carrier, driven there" value={vendorWork.transportMethod} onChange={(event) => setVendorWork((value) => ({ ...value, transportMethod: event.target.value }))} /></Field>
-        <Field label="Approval status"><select value={vendorWork.approvalStatus} onChange={(event) => setVendorWork((value) => ({ ...value, approvalStatus: event.target.value }))}>{["NEEDS_DOCUMENTATION", "PENDING", "APPROVED", "NOT_REQUIRED"].map((value) => <option key={value} value={value}>{format(value)}</option>)}</select></Field>
-        <label className={styles.check}><input checked={vendorWork.directFromSource} type="checkbox" onChange={(event) => setVendorWork((value) => ({ ...value, directFromSource: event.target.checked, sentFrom: event.target.checked ? "Auction/source" : "Dealership" }))} />Direct from auction/source to vendor</label>
-        <Field label="Evidence references" wide><input placeholder="auction note, dispatch text, vendor estimate, photos" value={vendorWork.evidence} onChange={(event) => setVendorWork((value) => ({ ...value, evidence: event.target.value }))} /></Field>
-        <Field label="Next vendor follow-up"><input type="datetime-local" value={vendorWork.nextFollowUpAt} onChange={(event) => setVendorWork((value) => ({ ...value, nextFollowUpAt: event.target.value }))} /></Field>
-        <Field label="Vendor update"><input value={vendorWork.lastUpdateSummary} onChange={(event) => setVendorWork((value) => ({ ...value, lastUpdateSummary: event.target.value }))} /></Field>
-        <Field label="Next action" wide><input value={vendorWork.nextAction} onChange={(event) => setVendorWork((value) => ({ ...value, nextAction: event.target.value }))} /></Field>
-        <Field label="Internal notes" wide><textarea value={vendorWork.internalNotes} onChange={(event) => setVendorWork((value) => ({ ...value, internalNotes: event.target.value }))} /></Field>
+        {!compactStage && vendorDispatchFields}
+        {vendorExpectedReturn}
+        {!compactStage && vendorTransportMethod}
+        {vendorApproval}
+        {!compactStage && vendorFollowUpFields}
       </FormGrid>
+      {compactStage && <details className={styles.advancedDetails}>
+        <summary>Transport, evidence and follow-up</summary>
+        <FormGrid>{vendorDispatchFields}{vendorTransportMethod}{vendorFollowUpFields}</FormGrid>
+      </details>}
       <Submit busy={busy}>Deploy vendor workflow</Submit>
     </form> : null;
 
@@ -1131,7 +1145,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     </section>
 
     {selected ? <>
-      {!stageTwoComplete && (!focusStep || focusStep === 2) ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair path</span><h2>Choose path</h2><p>Pick how this RO should be estimated. Details stay available inside each step.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Diagnostic / mechanical</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
+      {!stageTwoComplete && !focusStep ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair path</span><h2>Choose path</h2><p>Pick how this RO should be estimated. Details stay available inside each step.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Mechanical Repair</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
       <section className={styles.toolStrip} aria-label="Quick repair actions">
         <div><span>Quick action flow</span><h2>Intake &rarr; diagnosis &rarr; Labor Guide estimate &rarr; authorization</h2></div>
         <nav>
@@ -1152,7 +1166,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               <div className={styles.clearanceReview}>
                 <header className={styles.clearanceHeader}>
                   <div>
-                    <span className={styles.simpleEyebrow}>{reviewOrderId ? "Inspection checklist · review" : "Adopted checklist flow"}</span>
+                    <span className={styles.simpleEyebrow}>{reviewOrderId ? "Inspection checklist" : "Adopted checklist flow"}</span>
                     <h3>{reviewOrderId ? "Check the vehicle and record findings." : "Check what is cleared. The app locks what is not ready."}</h3>
                     <p>{reviewOrderId ? "Confirm each actual check. Add a note or evidence where needed, then save." : "This replaces the long inspection-entry form for the normal Stage 1 and Stage 2 workflow. Staff only open details when proof or a note is needed."}</p>
                   </div>
@@ -1161,13 +1175,13 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                     <span>required cleared</span>
                   </aside>
                 </header>
-                <div className={styles.clearanceTimeline} aria-label="Stage clearance overview">
+                {!reviewOrderId && <div className={styles.clearanceTimeline} aria-label="Stage clearance overview">
                   {clearanceStages.map((stage) => <article className={`${styles.clearanceStage} ${stage.tone === "done" ? styles.clearanceStageDone : stage.tone === "current" ? styles.clearanceStageCurrent : styles.clearanceStageLocked}`} key={stage.label}>
                     <span>{stage.state}</span>
                     <h4>{stage.label}</h4>
                     <p>{stage.detail}</p>
                   </article>)}
-                </div>
+                </div>}
                 <div className={styles.clearanceGrid}>
                   <section className={styles.clearanceList} aria-label="Inspection clearance items">
                     <header>
@@ -1184,7 +1198,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                     <span>{stageClearanceReady ? "Next step open" : "Next step locked"}</span>
                     <h4>{stageClearanceReady ? "Diagnosis can begin" : "Finish the required clearance items"}</h4>
                     <p>{stageClearanceReady ? "All required inspection blockers are cleared. Saving this review records the current inspection version for the repair order." : `${clearanceBlockers.map((item) => item.label).join(", ")} still need attention before staff should advance.`}</p>
-                    <button disabled={!stageClearanceReady || busy} type="submit">{stageClearanceReady ? "Save and unlock diagnosis" : "Unlock diagnosis"}</button>
+                    {!reviewOrderId && <button disabled={!stageClearanceReady || busy} type="submit">{stageClearanceReady ? "Save and unlock diagnosis" : "Unlock diagnosis"}</button>}
                   </aside>
                 </div>
                 {activeClearanceItem ? <details className={styles.clearanceEditor}>
@@ -1233,11 +1247,11 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
           </WorkflowStep>}
 
           {(!focusStep || (focusStep === 2 && !repairOnly)) && <WorkflowStep editing={editingStep === 2} editDisabled={busy || (editingStep !== null && editingStep !== 2)} onEdit={() => beginDraftEdit(2)} onCancel={cancelEditing} complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={Boolean(focusStep) || currentStep === 1 || staffNext?.step === 2} showEditControls={false} subtitle="Choose the path, confirm the scope, and move on. Open details only when the case needs extra explanation." title={stageTwoTitle}>
-            <div className={styles.pathPicker} role="tablist" aria-label="Repair path">
-              <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} type="button">Diagnostic / mechanical</button>
+            {!guidedPath && <div className={styles.pathPicker} role="group" aria-label="Repair path">
+              <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} type="button">Mechanical Repair</button>
               <button aria-pressed={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} type="button">Bodywork repair</button>
               <button aria-pressed={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} type="button"><Building2 /> Outside vendor</button>
-            </div>
+            </div>}
             <div className={styles.concern}><span>Carried forward from intake</span><p>{selected.serviceVisit.concernSummary}</p></div>
             {vendorNeedsInternalCompletion ? (
               <div className={styles.simpleCard}>
@@ -1436,7 +1450,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 <div className={styles.simpleCard}>
                   <span className={styles.simpleEyebrow}>Same-RO completion work</span>
                   <h3>Create the internal follow-up job here, not a separate unrelated RO</h3>
-                  <p>Dealership QC failed the outside-vendor return. Keep {selected.repairOrderNumber} as the parent record, switch to Bodywork repair or Diagnostic / mechanical, then create the estimate and repair job for the unfinished items.</p>
+                  <p>Dealership QC failed the outside-vendor return. Keep {selected.repairOrderNumber} as the parent record, switch to Bodywork repair or Mechanical Repair, then create the estimate and repair job for the unfinished items.</p>
                   <div className={styles.simpleInstructions}>
                     <strong>Recommended for this case</strong>
                     <p>Use the missing vendor scope as the new internal completion scope, for example: complete the outer door handle and replace the upper/lower steering column covers.</p>
@@ -1539,7 +1553,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                     <FormGrid>
                       <Field label="Approved work"><select value={selectedAuthorizedLineKey} onChange={(event) => applyReleaseLineDefaults(event.target.value)}>{creatableAuthorizedLineKeys.map((value) => { const line = releaseLineByKey(value); return <option key={value} value={value}>{line?.description ?? value} · {line ? money(line.quantity * line.unitPriceCents) : ""}</option>; })}</select></Field>
                       <Field label="Job description"><input placeholder="Example: Bodywork repair and paint front bumper cover" value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field>
-                      <Field label="What should be done" wide><input placeholder="Example: Repair and paint front bumper cover" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
+                      <Field label="Technician instructions" wide><textarea rows={2} maxLength={500} placeholder="Describe the work and what to verify when finished" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
                       <Field label="Labor time"><input min="0" type="number" value={job.laborGuideMinutes} onChange={(event) => setJob((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field>
                       <label className={styles.check}><input checked={job.partsRequired} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partsRequired: event.target.checked }))} />This job needs parts before repair can continue</label>
                       {job.partsRequired ? <fieldset className={styles.parts}><legend>Select part records only if they already exist</legend>{selected.partDemands.filter((item) => !item.repairJobId).map((item) => <label key={item.id}><input checked={job.partDemandIds.includes(item.id)} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partDemandIds: event.target.checked ? [...value.partDemandIds, item.id] : value.partDemandIds.filter((id) => id !== item.id) }))} />{item.part.partNumber} · {item.quantityReserved}/{item.quantityRequired} reserved</label>)}</fieldset> : null}

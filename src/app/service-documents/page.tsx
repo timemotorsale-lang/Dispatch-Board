@@ -3,9 +3,10 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { getRepairDocuments, searchServiceDocuments, type ServiceDocumentSearchKind } from "@/server/repair-order/document-service";
 import { ServiceDocument } from "@/features/inventory/service-document";
 import { ServiceDocumentWorkflow } from "@/features/inventory/service-document-workflow";
+import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 import { notFound } from "next/navigation";
 
-export default async function ServiceDocumentsPage({ searchParams }: { searchParams: Promise<{ repairOrderId?: string; documentId?: string; sourceId?: string; workspace?: string; kind?: string; query?: string; page?: string }> }) {
+export default async function ServiceDocumentsPage({ searchParams }: { searchParams: Promise<{ repairOrderId?: string; documentId?: string; sourceId?: string; sourceKind?: string; workspace?: string; returnTo?: string; kind?: string; query?: string; page?: string }> }) {
   const user = await requireCurrentUser(), params = await searchParams;
   if (!params.repairOrderId) {
     const kind: ServiceDocumentSearchKind = params.kind === "estimates" || params.kind === "invoices" ? params.kind : "all";
@@ -42,10 +43,20 @@ export default async function ServiceDocumentsPage({ searchParams }: { searchPar
     if (error instanceof Error && error.message === "Repair order was not found.") notFound();
     throw error;
   });
-  const selected = params.documentId ? documents.find(document => document.id === params.documentId) : params.sourceId ? documents.find(document => document.sourceId === params.sourceId) : null;
+  const returnTo = safeLaborGuideReturnTo(typeof params.returnTo === "string" ? params.returnTo : undefined);
+  const candidates = params.sourceKind === "INVOICE" ? documents.filter(document => document.kind === "INVOICE") : documents;
+  const selected = params.documentId ? candidates.find(document => document.id === params.documentId) : params.sourceId ? candidates.find(document => document.sourceId === params.sourceId) : null;
   if ((params.documentId || params.sourceId) && !selected) notFound();
   const workspaceDocument = selected ?? documents.find(document => document.kind === "ESTIMATE" || document.kind === "INVOICE" || document.kind === "PAYMENT");
-  if ((params.workspace === "1" || selected?.kind === "ESTIMATE" || selected?.kind === "INVOICE") && workspaceDocument) return <ServiceDocumentWorkflow readOnlyReason={order.closedAt ? "This repair order is closed. This exact saved document remains available to view, print, or save as PDF." : undefined} key={workspaceDocument.id} repairOrderId={order.id} selectedId={workspaceDocument.id} documents={documents.map(({ id, sourceId, kind, content, sha256, templateVersion, createdAt, createdByName }) => ({ id, sourceId, kind, content, sha256, templateVersion, createdAt: createdAt.toISOString(), createdByName }))} />;
+  if ((params.workspace === "1" || selected?.kind === "ESTIMATE" || selected?.kind === "INVOICE") && workspaceDocument) return <ServiceDocumentWorkflow returnTo={returnTo} readOnlyReason={order.closedAt ? "This repair order is closed. This exact saved document remains available to view, print, or save as PDF." : undefined} key={workspaceDocument.id} repairOrderId={order.id} selectedId={workspaceDocument.id} documents={documents.map(({ id, sourceId, kind, content, sha256, templateVersion, createdAt, createdByName }) => ({ id, sourceId, kind, content, sha256, templateVersion, createdAt: createdAt.toISOString(), createdByName }))} />;
   if (selected) return <ServiceDocument repairOrderId={order.id} documentId={selected.id} content={selected.content} sha256={selected.sha256} templateVersion={selected.templateVersion} />;
+  const returnPath = returnTo?.split(/[?#]/, 1)[0];
+  if (returnTo && params.workspace === "1" && (returnPath === "/diagnostics/labor-guide" || returnPath === "/prototype/repair-explorer")) {
+    return <main style={{ maxWidth: 1000, margin: "32px auto", padding: 24 }}>
+      <Link href={returnTo}>Return to Labor Guide</Link>
+      <h1>{order.repairOrderNumber} — documents</h1>
+      <p>No saved estimates, invoices or receipts for this repair order yet.</p>
+    </main>;
+  }
   return <main style={{ maxWidth: 1000, margin: "32px auto", padding: 24 }}><h1>{order.repairOrderNumber} — documents</h1><Link href="/service-documents">Search all estimates and invoices</Link><p>Historical records preserve the customer, vehicle, store, scope, and amounts as issued. Legacy records require a newly reviewed version; no historical authorization is fabricated.</p><Link href={`/prototype/repair-explorer?repairOrderId=${encodeURIComponent(order.id)}`}>Build estimate in Labor Guide</Link>{" · "}<Link href={`/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}`}>Review / record customer authorization</Link>{" · "}<Link href={`/vehicles/service-billing?repairOrderId=${encodeURIComponent(order.id)}`}>Create / Print Final Invoice and receipts</Link><ul>{documents.map(document => <li key={document.id}><Link href={`/service-documents?repairOrderId=${encodeURIComponent(order.id)}&documentId=${encodeURIComponent(document.id)}`}>{document.content.title} — {document.content.number}</Link> · {document.createdAt.toISOString()}</li>)}</ul>{!documents.length && <p>No frozen documents have been issued for this legacy RO.</p>}</main>;
 }

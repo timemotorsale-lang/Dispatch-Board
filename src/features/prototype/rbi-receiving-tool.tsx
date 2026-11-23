@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import { PrototypeVinScanCard, type PrototypeVinScanEvidence } from "./prototype-vin-scan-card";
 import {
@@ -238,11 +239,7 @@ export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgress
 
     <div className={styles.rbiBody}>
       <div className={styles.rbiSteps}>
-        <section className={styles.rbiStepCard}>
-          <header>
-            <div><span>Step 1</span><h4>Scan and match the VIN</h4></div>
-            <em className={completedSteps.vin ? styles.rbiComplete : ""}>{completedSteps.vin ? "Locked" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.rbiStepCard} step="Step 1" title="Scan and match the VIN" status={<em className={completedSteps.vin ? styles.rbiComplete : ""}>{completedSteps.vin ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.rbiEvidenceBlock}>
             <PrototypeVinScanCard
               expectedVin={expectedVin}
@@ -256,13 +253,9 @@ export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgress
             <label><input checked={input.vinMatched} onChange={(event) => updateBoolean("vinMatched", event.target.checked as RbiReceivingInput["vinMatched"], "vin")} type="checkbox" /><span>VIN matches transport and acquisition record</span></label>
           </div>
           <button className={styles.rbiAction} disabled={!result.vinComplete || completedSteps.vin} onClick={completeVin} type="button"><ScanLine size={14} />Lock VIN identity</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.rbiStepCard}>
-          <header>
-            <div><span>Step 2</span><h4>Record arrival facts</h4></div>
-            <em className={completedSteps.arrival ? styles.rbiComplete : ""}>{completedSteps.arrival ? "Recorded" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.rbiStepCard} step="Step 2" title="Record arrival facts" status={<em className={completedSteps.arrival ? styles.rbiComplete : ""}>{completedSteps.arrival ? "Recorded" : "Required"}</em>}>
           <div className={styles.rbiFieldGrid}>
             <label>
               <span>Arrival odometer</span>
@@ -298,13 +291,9 @@ export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgress
             <label><input checked={input.keysCountMatchesTransport} onChange={(event) => updateBoolean("keysCountMatchesTransport", event.target.checked as RbiReceivingInput["keysCountMatchesTransport"], "arrival")} type="checkbox" /><span>Key count matches transport handoff</span></label>
           </div>
           <button className={styles.rbiAction} disabled={!completedSteps.vin || !result.arrivalFactsComplete || completedSteps.arrival} onClick={completeArrival} type="button">Record arrival facts</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.rbiStepCard}>
-          <header>
-            <div><span>Step 3</span><h4>Capture the receiving baseline photo set</h4></div>
-            <em className={completedSteps.photos ? styles.rbiComplete : ""}>{completedSteps.photos ? "Captured" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.rbiStepCard} step="Step 3" title="Capture the receiving baseline photo set" status={<em className={completedSteps.photos ? styles.rbiComplete : ""}>{completedSteps.photos ? "Captured" : "Required"}</em>}>
           <div className={styles.rbiChecks}>
             <label><input checked={input.vinDashPhotoCaptured} onChange={(event) => updateBoolean("vinDashPhotoCaptured", event.target.checked as RbiReceivingInput["vinDashPhotoCaptured"], "photos")} type="checkbox" /><span>VIN and dash photos captured</span></label>
             <label><input checked={input.exteriorPhotosCaptured} onChange={(event) => updateBoolean("exteriorPhotosCaptured", event.target.checked as RbiReceivingInput["exteriorPhotosCaptured"], "photos")} type="checkbox" /><span>Exterior baseline photos captured</span></label>
@@ -312,13 +301,9 @@ export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgress
             <label><input checked={input.enginePhotoCaptured} onChange={(event) => updateBoolean("enginePhotoCaptured", event.target.checked as RbiReceivingInput["enginePhotoCaptured"], "photos")} type="checkbox" /><span>Engine / under-hood photo captured</span></label>
           </div>
           <button className={styles.rbiAction} disabled={!completedSteps.arrival || !result.baselinePhotosComplete || completedSteps.photos} onClick={completePhotos} type="button"><Camera size={14} />Complete baseline photo set</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.rbiStepCard}>
-          <header>
-            <div><span>Step 4</span><h4>Compare pickup and arrival condition</h4></div>
-            <em className={completedSteps.variance ? styles.rbiComplete : ""}>{completedSteps.variance ? "Controlled" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.rbiStepCard} step="Step 4" title="Compare pickup and arrival condition" status={<em className={completedSteps.variance ? styles.rbiComplete : ""}>{completedSteps.variance ? "Controlled" : "Required"}</em>}>
           <div className={styles.rbiFieldGrid}>
             <label>
               <span>Variance severity</span>
@@ -335,13 +320,9 @@ export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgress
             <label><input checked={input.varianceAssigned} disabled={!input.conditionVarianceFound} onChange={(event) => updateBoolean("varianceAssigned", event.target.checked as RbiReceivingInput["varianceAssigned"], "variance")} type="checkbox" /><span>Variance owner assigned</span></label>
           </div>
           <button className={styles.rbiAction} disabled={!completedSteps.photos || !result.varianceControlled || completedSteps.variance} onClick={completeVariance} type="button">Control variance and exceptions</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.rbiStepCard}>
-          <header>
-            <div><span>Step 5</span><h4>Accept accountable custody</h4></div>
-            <em className={completedSteps.custody ? styles.rbiComplete : ""}>{completedSteps.custody ? "Accepted" : "Required"}</em>
-          </header>
+        <LifecycleStep className={styles.rbiStepCard} step="Step 5" title="Accept accountable custody" status={<em className={completedSteps.custody ? styles.rbiComplete : ""}>{completedSteps.custody ? "Accepted" : "Required"}</em>}>
           <div className={styles.rbiFieldGrid}>
             <label>
               <span>Custody decision</span>
@@ -351,67 +332,71 @@ export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgress
             </label>
           </div>
           <button className={styles.rbiAction} disabled={!completedSteps.variance || !result.custodyAccepted || completedSteps.custody} onClick={completeCustody} type="button"><ShieldCheck size={14} />Record custody decision</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.rbiDecision}>
-        <header>
-          <LockKeyhole />
-          <div>
-            <span>RBI recommendation</span>
-            <strong>{result.recommendation}</strong>
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.rbiDecision}>
+          <header>
+            <LockKeyhole />
+            <div>
+              <span>RBI recommendation</span>
+              <strong>{result.recommendation}</strong>
+            </div>
+            <em className={result.blockers.length ? styles.rbiHold : styles.rbiComplete}>{scoreSummary}</em>
+          </header>
+          <dl>
+            <div><dt>Baseline score</dt><dd>{scoreSummary}</dd></div>
+            <div><dt>Controls complete</dt><dd>{stepCount}/5</dd></div>
+            <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
+            <div><dt>Placed location</dt><dd>{input.locationPlaced}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+          </dl>
+          <p className={styles.rbiExplanation}>{result.explanation}</p>
+          <div className={styles.rbiDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed receiving strength yet.</span>}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
+            </div>
           </div>
-          <em className={result.blockers.length ? styles.rbiHold : styles.rbiComplete}>{scoreSummary}</em>
-        </header>
-        <dl>
-          <div><dt>Baseline score</dt><dd>{scoreSummary}</dd></div>
-          <div><dt>Controls complete</dt><dd>{stepCount}/5</dd></div>
-          <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
-          <div><dt>Placed location</dt><dd>{input.locationPlaced}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-        </dl>
-        <p className={styles.rbiExplanation}>{result.explanation}</p>
-        <div className={styles.rbiDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed receiving strength yet.</span>}
-          </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
-          </div>
-        </div>
-        <section className={styles.rbiTrail}>
-          <header><Clock3 /><h4>Operational work trail</h4></header>
-          {trail.length ? <ol>
-            {trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}>
-              <div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div>
-              <p>{entry.result}</p>
-              <em>{entry.evidence}</em>
-            </li>)}
-          </ol> : <p>No receiving action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.rbiTrail}>
+            <header><Clock3 /><h4>Operational work trail</h4></header>
+            {trail.length ? <ol>
+              {trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}>
+                <div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div>
+                <p>{entry.result}</p>
+                <em>{entry.evidence}</em>
+              </li>)}
+            </ol> : <p>No receiving action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.rbiApproval}>
-      <div>
-        <span><LockKeyhole />Control state</span>
-        <strong>{result.vinComplete && result.arrivalFactsComplete ? "Identity and arrival locked" : "Receiving baseline still open"}</strong>
-        <small>RBI preserves the exact receiving baseline before inspection or recon changes the unit.</small>
-      </div>
-      <div>
-        <span><Camera />Photo baseline</span>
-        <strong>{result.baselinePhotosComplete ? "Photo baseline complete" : "Baseline photos still required"}</strong>
-        <small>Receiving is the authoritative stage for VIN/dash, exterior, interior, and engine baseline images.</small>
-      </div>
-      <div>
-        <span><BadgeCheck />Stage readiness</span>
-        <strong>{completedSteps.custody ? "Ready for intake" : "Receiving still active"}</strong>
-        <small>{completedSteps.custody ? "The unit can move into governed intake next." : "Complete variance control and custody decision before the handoff."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.rbiApproval}>
+        <div>
+          <span><LockKeyhole />Control state</span>
+          <strong>{result.vinComplete && result.arrivalFactsComplete ? "Identity and arrival locked" : "Receiving baseline still open"}</strong>
+          <small>RBI preserves the exact receiving baseline before inspection or recon changes the unit.</small>
+        </div>
+        <div>
+          <span><Camera />Photo baseline</span>
+          <strong>{result.baselinePhotosComplete ? "Photo baseline complete" : "Baseline photos still required"}</strong>
+          <small>Receiving is the authoritative stage for VIN/dash, exterior, interior, and engine baseline images.</small>
+        </div>
+        <div>
+          <span><BadgeCheck />Stage readiness</span>
+          <strong>{completedSteps.custody ? "Ready for intake" : "Receiving still active"}</strong>
+          <small>{completedSteps.custody ? "The unit can move into governed intake next." : "Complete variance control and custody decision before the handoff."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.rbiNotice} aria-live="polite"><CircleAlert />{notice}</footer>
   </section>;

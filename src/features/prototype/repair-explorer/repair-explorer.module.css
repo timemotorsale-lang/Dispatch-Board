@@ -135,6 +135,7 @@
 .totals .subtotal { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 18px; font-weight: 700; color: #17263d; }
 .subtotal dd { font-size: 23px; letter-spacing: -.7px; }
 .priceNote { font-size: 11px; color: #61728b; margin: 4px 0 23px !important; }
+.generateError { padding: 10px; margin: 0 0 8px !important; border-radius: 6px; background: #fff1ef; color: #92241d; font-size: .85rem; }
 .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 10px 15px; font-size: 13px !important; font-weight: 700; }
 .primary { border: 1px solid #155bd7; background: #155bd7; color: white; width: 100%; }
 .primary:hover:not(:disabled) { background: #104bb5; }

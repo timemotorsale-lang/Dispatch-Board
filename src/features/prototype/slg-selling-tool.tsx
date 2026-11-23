@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 
 export type SlgWorkflowProgress = {
@@ -255,9 +256,11 @@ export function SlgSellingTool({
         <span><Handshake size={15} />TMS Selling</span>
         <h3>SLG governed sales workspace</h3>
         <p>Guide the staff through frontline availability, customer engagement, test-drive custody, offer versioning, approvals, and exact reservation control.</p>
-        <div className={styles.wopHeaderActions}>
-          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.wopHeaderActions}>
+            <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.wopVersion}>
         <small>Sale state</small>
@@ -267,8 +270,7 @@ export function SlgSellingTool({
 
     <div className={styles.wopBody}>
       <div className={styles.wopSteps}>
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 1</span><h4>Confirm frontline availability</h4></div><em className={completedSteps.availability ? styles.wopComplete : ""}>{completedSteps.availability ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 1" title="Confirm frontline availability" status={<em className={completedSteps.availability ? styles.wopComplete : ""}>{completedSteps.availability ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.wopChecks}>
             <label><input checked={input.keysAndLocationReady} onChange={(event) => updateBoolean("keysAndLocationReady", event.target.checked, "availability")} type="checkbox" /><span>Vehicle, keys, and exact location are ready</span></label>
             <label><input checked={input.priceCurrent} onChange={(event) => updateBoolean("priceCurrent", event.target.checked, "availability")} type="checkbox" /><span>Frontline price is current</span></label>
@@ -277,10 +279,9 @@ export function SlgSellingTool({
             <label><input checked={input.testDriveReady} onChange={(event) => updateBoolean("testDriveReady", event.target.checked, "availability")} type="checkbox" /><span>Vehicle is ready for test drive</span></label>
           </div>
           <button className={styles.wopAction} disabled={!result.availabilityComplete || completedSteps.availability} onClick={completeAvailability} type="button">Lock availability</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 2</span><h4>Manage customer engagement</h4></div><em className={completedSteps.engagement ? styles.wopComplete : ""}>{completedSteps.engagement ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 2" title="Manage customer engagement" status={<em className={completedSteps.engagement ? styles.wopComplete : ""}>{completedSteps.engagement ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.customerInquiryLinked} onChange={(event) => updateBoolean("customerInquiryLinked", event.target.checked, "engagement")} type="checkbox" /><span>Customer inquiry is linked to this vehicle</span></label>
             <label><input checked={input.appointmentOrDemoRecorded} onChange={(event) => updateBoolean("appointmentOrDemoRecorded", event.target.checked, "engagement")} type="checkbox" /><span>Appointment or demo was recorded</span></label>
@@ -288,20 +289,18 @@ export function SlgSellingTool({
             <label><input checked={input.followUpRecorded} onChange={(event) => updateBoolean("followUpRecorded", event.target.checked, "engagement")} type="checkbox" /><span>Follow-up activity was recorded</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.availability || !result.engagementComplete || completedSteps.engagement} onClick={completeEngagement} type="button">Lock engagement trail</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 3</span><h4>Control test-drive custody</h4></div><em className={completedSteps.testDrive ? styles.wopComplete : ""}>{completedSteps.testDrive ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 3" title="Control test-drive custody" status={<em className={completedSteps.testDrive ? styles.wopComplete : ""}>{completedSteps.testDrive ? "Locked" : "Required"}</em>}>
           <div className={styles.wopChecks}>
             <label><input checked={input.buyerIdentityForTestDriveVerified} onChange={(event) => updateBoolean("buyerIdentityForTestDriveVerified", event.target.checked, "testDrive")} type="checkbox" /><span>Buyer identity and insurance were verified</span></label>
             <label><input checked={input.testDriveOutAndBackRecorded} onChange={(event) => updateBoolean("testDriveOutAndBackRecorded", event.target.checked, "testDrive")} type="checkbox" /><span>Test-drive route, time out, and return were recorded</span></label>
             <label><input checked={input.returnConditionRecorded} onChange={(event) => updateBoolean("returnConditionRecorded", event.target.checked, "testDrive")} type="checkbox" /><span>Return condition was recorded on vehicle return</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.engagement || !result.testDriveComplete || completedSteps.testDrive} onClick={completeTestDrive} type="button">Lock test-drive custody</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 4</span><h4>Version the offer</h4></div><em className={completedSteps.offer ? styles.wopComplete : ""}>{completedSteps.offer ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 4" title="Version the offer" status={<em className={completedSteps.offer ? styles.wopComplete : ""}>{completedSteps.offer ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Offer state</span><select onChange={(event) => updateValue("offerState", event.target.value as OfferState, "offer")} value={input.offerState}><option>No active offer</option><option>Negotiating</option><option>Accepted</option></select></label>
           </div>
@@ -311,10 +310,9 @@ export function SlgSellingTool({
             <label><input checked={input.financeAndProductsCaptured} onChange={(event) => updateBoolean("financeAndProductsCaptured", event.target.checked, "offer")} type="checkbox" /><span>Finance and product structure were captured</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.testDrive || !result.offerComplete || completedSteps.offer} onClick={completeOffer} type="button"><Tags size={14} />Lock offer version</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 5</span><h4>Complete disclosures and approvals</h4></div><em className={completedSteps.approvals ? styles.wopComplete : ""}>{completedSteps.approvals ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 5" title="Complete disclosures and approvals" status={<em className={completedSteps.approvals ? styles.wopComplete : ""}>{completedSteps.approvals ? "Locked" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Approval state</span><select onChange={(event) => updateValue("managerApprovalState", event.target.value as ApprovalState, "approvals")} value={input.managerApprovalState}><option>Pending manager review</option><option>Approved</option><option>Exception review</option></select></label>
           </div>
@@ -322,10 +320,9 @@ export function SlgSellingTool({
             <label><input checked={input.disclosuresCurrent} onChange={(event) => updateBoolean("disclosuresCurrent", event.target.checked, "approvals")} type="checkbox" /><span>Vehicle, condition, warranty, and recall disclosures are acknowledged</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.offer || !result.approvalsComplete || completedSteps.approvals} onClick={completeApprovals} type="button">Lock approvals</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.wopStepCard}>
-          <header><div><span>Step 6</span><h4>Accept and reserve the vehicle</h4></div><em className={completedSteps.reservation ? styles.wopComplete : ""}>{completedSteps.reservation ? "Accepted" : "Required"}</em></header>
+        <LifecycleStep className={styles.wopStepCard} step="Step 6" title="Accept and reserve the vehicle" status={<em className={completedSteps.reservation ? styles.wopComplete : ""}>{completedSteps.reservation ? "Accepted" : "Required"}</em>}>
           <div className={styles.wopFieldGrid}>
             <label><span>Reservation state</span><select onChange={(event) => updateValue("reservationState", event.target.value as ReservationState, "reservation")} value={input.reservationState}><option>Not reserved</option><option>Deposit received</option><option>Reserved for contracting</option></select></label>
           </div>
@@ -335,54 +332,58 @@ export function SlgSellingTool({
             <label><input checked={input.contractingHandoffPrepared} onChange={(event) => updateBoolean("contractingHandoffPrepared", event.target.checked, "reservation")} type="checkbox" /><span>Contracting handoff package is prepared</span></label>
           </div>
           <button className={styles.wopAction} disabled={!completedSteps.approvals || !result.reservationComplete || completedSteps.reservation} onClick={completeReservation} type="button"><UserRoundCheck size={14} />Lock accepted terms</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.wopDecision}>
-        <header><Handshake size={18} /><div><span>Selling recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Sale Titling" ? styles.wopComplete : result.recommendation === "Complete approvals" ? styles.wopHold : ""}>{stepCount}/6</em></header>
-        <dl>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-          <div><dt>Offer state</dt><dd>{input.offerState}</dd></div>
-          <div><dt>Approval state</dt><dd>{input.managerApprovalState}</dd></div>
-          <div><dt>Reservation state</dt><dd>{input.reservationState}</dd></div>
-        </dl>
-        <p className={styles.wopExplanation}>{result.recommendation === "Ready for Sale Titling" ? "Selling is complete. Accepted terms, approvals, and reservation controls are ready to hand off into Sale Titling." : "Selling should remain governed until the exact commercial blocker is cleared and the accepted terms are fully controlled."}</p>
-        <div className={styles.wopDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed selling strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.wopDecision}>
+          <header><Handshake size={18} /><div><span>Selling recommendation</span><strong>{result.recommendation}</strong></div><em className={result.recommendation === "Ready for Sale Titling" ? styles.wopComplete : result.recommendation === "Complete approvals" ? styles.wopHold : ""}>{stepCount}/6</em></header>
+          <dl>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+            <div><dt>Offer state</dt><dd>{input.offerState}</dd></div>
+            <div><dt>Approval state</dt><dd>{input.managerApprovalState}</dd></div>
+            <div><dt>Reservation state</dt><dd>{input.reservationState}</dd></div>
+          </dl>
+          <p className={styles.wopExplanation}>{result.recommendation === "Ready for Sale Titling" ? "Selling is complete. Accepted terms, approvals, and reservation controls are ready to hand off into Sale Titling." : "Selling should remain governed until the exact commercial blocker is cleared and the accepted terms are fully controlled."}</p>
+          <div className={styles.wopDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {(result.positiveDrivers.length ? result.positiveDrivers : ["No confirmed selling strength yet."]).map((item) => <span key={item}>{result.positiveDrivers.length ? <Check size={14} /> : <CircleAlert size={14} />}{item}</span>)}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.blockers.map((item) => <span key={item}><CircleAlert size={14} />{item}</span>)}
-          </div>
-        </div>
-        <section className={styles.wopTrail}>
-          <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
-          {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No selling action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.wopTrail}>
+            <header><Clock3 size={18} /><h4>Operational work trail</h4></header>
+            {trail.length ? <ul>{trail.map((item, index) => <li key={`${item.step}-${item.timestamp}-${index}`}><strong>{item.timestamp}</strong><span>{item.actor}</span><div>{item.result}</div><small>{item.evidence}</small></li>)}</ul> : <p>No selling action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.wopApproval}>
-      <div>
-        <span><ClipboardCheck size={14} />Customer activity</span>
-        <strong>{completedSteps.engagement ? "Buyer engagement controlled" : "Engagement still active"}</strong>
-        <small>Inquiry, appointment, demonstration, and test-drive custody should all be explicit before negotiation advances.</small>
-      </div>
-      <div>
-        <span><ShieldCheck size={14} />Commercial authority</span>
-        <strong>{completedSteps.approvals ? "Approvals complete" : "Approvals still active"}</strong>
-        <small>Offer version, disclosures, and manager approval should be locked before reservation opens.</small>
-      </div>
-      <div>
-        <span><BadgeCheck size={14} />Stage readiness</span>
-        <strong>{completedSteps.reservation ? "Ready for Sale Titling" : "Selling still active"}</strong>
-        <small>{completedSteps.reservation ? "This unit can now hand off into the Sale Titling stage." : "Finish accepted terms and reservation control before the lifecycle handoff opens."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.wopApproval}>
+        <div>
+          <span><ClipboardCheck size={14} />Customer activity</span>
+          <strong>{completedSteps.engagement ? "Buyer engagement controlled" : "Engagement still active"}</strong>
+          <small>Inquiry, appointment, demonstration, and test-drive custody should all be explicit before negotiation advances.</small>
+        </div>
+        <div>
+          <span><ShieldCheck size={14} />Commercial authority</span>
+          <strong>{completedSteps.approvals ? "Approvals complete" : "Approvals still active"}</strong>
+          <small>Offer version, disclosures, and manager approval should be locked before reservation opens.</small>
+        </div>
+        <div>
+          <span><BadgeCheck size={14} />Stage readiness</span>
+          <strong>{completedSteps.reservation ? "Ready for Sale Titling" : "Selling still active"}</strong>
+          <small>{completedSteps.reservation ? "This unit can now hand off into the Sale Titling stage." : "Finish accepted terms and reservation control before the lifecycle handoff opens."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.wopNotice} aria-live="polite"><CircleAlert size={14} />{notice}</footer>
   </section>;

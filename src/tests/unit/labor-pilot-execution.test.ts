@@ -11,7 +11,7 @@ const manager: AuthenticatedUser = { ...mechanic, id: "manager-1", roles: ["Gene
 function fixture() {
   const labor = vi.fn().mockResolvedValue({ duplicate: false, result: { id: "clock-1" }, version: 2 });
   const syncJobStatus = vi.fn();
-  const repository = { overview: vi.fn().mockResolvedValue({ jobs: [{ id: "job-1", repairOrder: { locationId: "location-1" } }] }), aggregateVersion: vi.fn().mockResolvedValue(1), labor } as unknown as ShopExecutionRepository;
+  const repository = { overview: vi.fn().mockResolvedValue({ jobs: [{ id: "job-1", repairOrder: { locationId: "location-1" } }] }), aggregateVersion: vi.fn().mockResolvedValue(1), laborCommandVersion: vi.fn().mockResolvedValue(null), labor } as unknown as ShopExecutionRepository;
   const foundationRepository = { listCapabilityGrants: vi.fn().mockResolvedValue([]) } as unknown as EnterpriseCommandRepository;
   return { labor, syncJobStatus, input: { repository, foundationRepository, enforceRollout: false, organizationId: "org-1", now: () => now, taskBridge: { reconcileOwner: vi.fn(), reconcileJob: vi.fn(), syncJobStatus } } };
 }

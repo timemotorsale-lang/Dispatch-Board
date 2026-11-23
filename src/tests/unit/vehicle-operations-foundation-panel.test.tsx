@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { VehicleOperationsFoundationPanel } from "@/features/settings/vehicle-operations-foundation-panel";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 describe("vehicle operations rollout settings", () => {
   it("shows the persisted rollout target alongside the active Diagnostics mode", () => {

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LifecycleStep, LifecycleToolDetails } from "./lifecycle-step";
 import styles from "./inventory-lifecycle-prototype.module.css";
 import {
   evaluateIgiInspection,
@@ -194,9 +195,11 @@ export function IgiInspectionTool({
         <span><ClipboardCheck size={15} />TMS Governed Inspection</span>
         <h3>IGI inspection workspace</h3>
         <p>Turn the intake baseline into safety, mechanical, bodywork, road-test, cosmetic, and findings evidence before Initial QC begins.</p>
-        <div className={styles.igiHeaderActions}>
-          <button className={styles.igiHeaderButton} onClick={() => onOpenInitialQc?.()} type="button">Open Initial QC form</button>
-        </div>
+        <LifecycleToolDetails label="Stage tools">
+          <div className={styles.igiHeaderActions}>
+            <button className={styles.igiHeaderButton} onClick={() => onOpenInitialQc?.()} type="button">Open Initial QC form</button>
+          </div>
+        </LifecycleToolDetails>
       </div>
       <div className={styles.igiVersion}>
         <small>Inspection state</small>
@@ -206,8 +209,7 @@ export function IgiInspectionTool({
 
     <div className={styles.igiBody}>
       <div className={styles.igiSteps}>
-        <section className={styles.igiStepCard}>
-          <header><div><span>Step 1</span><h4>Perform identity and safety pre-check</h4></div><em className={completedSteps.identity ? styles.igiComplete : ""}>{completedSteps.identity ? "Locked" : "Required"}</em></header>
+        <LifecycleStep className={styles.igiStepCard} step="Step 1" title="Perform identity and safety pre-check" status={<em className={completedSteps.identity ? styles.igiComplete : ""}>{completedSteps.identity ? "Locked" : "Required"}</em>} defaultOpen>
           <div className={styles.igiChecks}>
             <label><input checked={input.identityMatchedToIntake} onChange={(event) => updateBoolean("identityMatchedToIntake", event.target.checked as IgiInspectionInput["identityMatchedToIntake"], "identity")} type="checkbox" /><span>VIN and intake-linked identity match</span></label>
             <label><input checked={input.safetyCheckComplete} onChange={(event) => updateBoolean("safetyCheckComplete", event.target.checked as IgiInspectionInput["safetyCheckComplete"], "identity")} type="checkbox" /><span>Safety pre-check completed</span></label>
@@ -216,28 +218,25 @@ export function IgiInspectionTool({
             <label><input checked={input.mobilitySafe} onChange={(event) => updateBoolean("mobilitySafe", event.target.checked as IgiInspectionInput["mobilitySafe"], "identity")} type="checkbox" /><span>Vehicle is safe to move</span></label>
           </div>
           <button className={styles.igiAction} disabled={!result.identityAndSafetyComplete || completedSteps.identity} onClick={completeIdentity} type="button"><ShieldCheck size={14} />Lock identity and safety</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.igiStepCard}>
-          <header><div><span>Step 2</span><h4>Complete mechanical and bodywork inspection</h4></div><em className={completedSteps.mechanical ? styles.igiComplete : ""}>{completedSteps.mechanical ? "Complete" : "Required"}</em></header>
+        <LifecycleStep className={styles.igiStepCard} step="Step 2" title="Complete mechanical and bodywork inspection" status={<em className={completedSteps.mechanical ? styles.igiComplete : ""}>{completedSteps.mechanical ? "Complete" : "Required"}</em>}>
           <div className={styles.igiChecks}>
             <label><input checked={input.mechanicalChecklistComplete} onChange={(event) => updateBoolean("mechanicalChecklistComplete", event.target.checked as IgiInspectionInput["mechanicalChecklistComplete"], "mechanical")} type="checkbox" /><span>Mechanical checklist completed</span></label>
             <label><input checked={input.bodyworkChecklistComplete} onChange={(event) => updateBoolean("bodyworkChecklistComplete", event.target.checked as IgiInspectionInput["bodyworkChecklistComplete"], "mechanical")} type="checkbox" /><span>Bodywork checklist completed</span></label>
           </div>
           <button className={styles.igiAction} disabled={!completedSteps.identity || !(input.mechanicalChecklistComplete && input.bodyworkChecklistComplete) || completedSteps.mechanical} onClick={completeMechanical} type="button">Record mechanical and bodywork inspection</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.igiStepCard}>
-          <header><div><span>Step 3</span><h4>Complete diagnostic scan</h4></div><em className={completedSteps.scan ? styles.igiComplete : ""}>{completedSteps.scan ? "Captured" : "Required"}</em></header>
+        <LifecycleStep className={styles.igiStepCard} step="Step 3" title="Complete diagnostic scan" status={<em className={completedSteps.scan ? styles.igiComplete : ""}>{completedSteps.scan ? "Captured" : "Required"}</em>}>
           <div className={styles.igiChecks}>
             <label><input checked={input.diagnosticScanCaptured} onChange={(event) => updateBoolean("diagnosticScanCaptured", event.target.checked as IgiInspectionInput["diagnosticScanCaptured"], "scan")} type="checkbox" /><span>Diagnostic scan attached</span></label>
             <label><input checked={input.warningLightsRecorded} onChange={(event) => updateBoolean("warningLightsRecorded", event.target.checked as IgiInspectionInput["warningLightsRecorded"], "scan")} type="checkbox" /><span>Warning lights recorded</span></label>
           </div>
           <button className={styles.igiAction} disabled={!completedSteps.mechanical || !result.mechanicalComplete || completedSteps.scan} onClick={completeScan} type="button"><ScanLine size={14} />Attach scan evidence</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.igiStepCard}>
-          <header><div><span>Step 4</span><h4>Perform a qualified road test</h4></div><em className={completedSteps.road ? styles.igiComplete : ""}>{completedSteps.road ? "Recorded" : "Required"}</em></header>
+        <LifecycleStep className={styles.igiStepCard} step="Step 4" title="Perform a qualified road test" status={<em className={completedSteps.road ? styles.igiComplete : ""}>{completedSteps.road ? "Recorded" : "Required"}</em>}>
           <div className={styles.igiFieldGrid}>
             <label>
               <span>Road-test decision</span>
@@ -251,10 +250,9 @@ export function IgiInspectionTool({
             <label><input checked={input.roadTestNotesRecorded} disabled={input.roadTestDecision !== "Required"} onChange={(event) => updateBoolean("roadTestNotesRecorded", event.target.checked as IgiInspectionInput["roadTestNotesRecorded"], "road")} type="checkbox" /><span>Road-test notes recorded</span></label>
           </div>
           <button className={styles.igiAction} disabled={!completedSteps.scan || !result.roadTestComplete || completedSteps.road} onClick={completeRoad} type="button">Record road-test decision</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.igiStepCard}>
-          <header><div><span>Step 5</span><h4>Inspect cosmetic, bodywork, and equipment condition</h4></div><em className={completedSteps.condition ? styles.igiComplete : ""}>{completedSteps.condition ? "Reviewed" : "Required"}</em></header>
+        <LifecycleStep className={styles.igiStepCard} step="Step 5" title="Inspect cosmetic, bodywork, and equipment condition" status={<em className={completedSteps.condition ? styles.igiComplete : ""}>{completedSteps.condition ? "Reviewed" : "Required"}</em>}>
           <div className={styles.igiChecks}>
             <label><input checked={input.cosmeticConditionReviewed} onChange={(event) => updateBoolean("cosmeticConditionReviewed", event.target.checked as IgiInspectionInput["cosmeticConditionReviewed"], "condition")} type="checkbox" /><span>Cosmetic condition reviewed</span></label>
             <label><input checked={input.bodyworkConditionReviewed} onChange={(event) => updateBoolean("bodyworkConditionReviewed", event.target.checked as IgiInspectionInput["bodyworkConditionReviewed"], "condition")} type="checkbox" /><span>Body panels, prior repairs, dents, scratches, rust, and paint reviewed</span></label>
@@ -262,10 +260,9 @@ export function IgiInspectionTool({
             <label><input checked={input.merchandisingConditionReviewed} onChange={(event) => updateBoolean("merchandisingConditionReviewed", event.target.checked as IgiInspectionInput["merchandisingConditionReviewed"], "condition")} type="checkbox" /><span>Merchandising readiness reviewed</span></label>
           </div>
           <button className={styles.igiAction} disabled={!completedSteps.road || !(input.cosmeticConditionReviewed && input.bodyworkConditionReviewed && input.equipmentReviewed && input.merchandisingConditionReviewed) || completedSteps.condition} onClick={completeCondition} type="button">Record condition review</button>
-        </section>
+        </LifecycleStep>
 
-        <section className={styles.igiStepCard}>
-          <header><div><span>Step 6</span><h4>Publish structured findings</h4></div><em className={completedSteps.findings ? styles.igiComplete : ""}>{completedSteps.findings ? "Released" : "Required"}</em></header>
+        <LifecycleStep className={styles.igiStepCard} step="Step 6" title="Publish structured findings" status={<em className={completedSteps.findings ? styles.igiComplete : ""}>{completedSteps.findings ? "Released" : "Required"}</em>}>
           <div className={styles.igiFieldGrid}>
             <label>
               <span>Findings decision</span>
@@ -281,58 +278,62 @@ export function IgiInspectionTool({
             <label><input checked={input.findingsVersionLocked} onChange={(event) => updateBoolean("findingsVersionLocked", event.target.checked as IgiInspectionInput["findingsVersionLocked"], "findings")} type="checkbox" /><span>Inspection version locked</span></label>
           </div>
           <button className={styles.igiAction} disabled={!completedSteps.condition || !result.findingsComplete || findingsDecision !== "Published" || completedSteps.findings} onClick={completeFindings} type="button"><LockKeyhole size={14} />Release to Initial QC</button>
-        </section>
+        </LifecycleStep>
       </div>
 
-      <aside className={styles.igiDecision}>
-        <header>
-          <LockKeyhole />
-          <div><span>IGI recommendation</span><strong>{result.recommendation}</strong></div>
-          <em className={result.blockerCount ? styles.igiHold : styles.igiComplete}>{scoreSummary}</em>
-        </header>
-        <dl>
-          <div><dt>Inspection score</dt><dd>{scoreSummary}</dd></div>
-          <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
-          <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
-          <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
-          <div><dt>Road-test state</dt><dd>{input.roadTestDecision}</dd></div>
-          <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
-        </dl>
-        <p className={styles.igiExplanation}>{result.explanation}</p>
-        <div className={styles.igiDrivers}>
-          <div>
-            <strong>What is working</strong>
-            {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed inspection strength yet.</span>}
+      <LifecycleToolDetails label="Blockers &amp; work trail">
+        <aside className={styles.igiDecision}>
+          <header>
+            <LockKeyhole />
+            <div><span>IGI recommendation</span><strong>{result.recommendation}</strong></div>
+            <em className={result.blockerCount ? styles.igiHold : styles.igiComplete}>{scoreSummary}</em>
+          </header>
+          <dl>
+            <div><dt>Inspection score</dt><dd>{scoreSummary}</dd></div>
+            <div><dt>Controls complete</dt><dd>{stepCount}/6</dd></div>
+            <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
+            <div><dt>Open blockers</dt><dd>{result.blockerCount}</dd></div>
+            <div><dt>Road-test state</dt><dd>{input.roadTestDecision}</dd></div>
+            <div><dt>Work trail entries</dt><dd>{trail.length}</dd></div>
+          </dl>
+          <p className={styles.igiExplanation}>{result.explanation}</p>
+          <div className={styles.igiDrivers}>
+            <div>
+              <strong>What is working</strong>
+              {result.positiveDrivers.length ? result.positiveDrivers.map((item) => <span key={item}><Check />{item}</span>) : <span><CircleAlert />No confirmed inspection strength yet.</span>}
+            </div>
+            <div>
+              <strong>What still needs attention</strong>
+              {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
+            </div>
           </div>
-          <div>
-            <strong>What still needs attention</strong>
-            {result.negativeDrivers.length ? result.negativeDrivers.map((item) => <span key={item}><CircleAlert />{item}</span>) : <span><Check />No active concern recorded.</span>}
-          </div>
-        </div>
-        <section className={styles.igiTrail}>
-          <header><Clock3 /><h4>Operational work trail</h4></header>
-          {trail.length ? <ol>{trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}><div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div><p>{entry.result}</p><em>{entry.evidence}</em></li>)}</ol> : <p>No inspection action has been recorded yet.</p>}
-        </section>
-      </aside>
+          <section className={styles.igiTrail}>
+            <header><Clock3 /><h4>Operational work trail</h4></header>
+            {trail.length ? <ol>{trail.map((entry, index) => <li key={`${entry.step}-${entry.timestamp}-${index}`}><div><strong>{entry.timestamp}</strong><span>{entry.actor}</span></div><p>{entry.result}</p><em>{entry.evidence}</em></li>)}</ol> : <p>No inspection action has been recorded yet.</p>}
+          </section>
+        </aside>
+      </LifecycleToolDetails>
     </div>
 
-    <section className={styles.igiApproval}>
-      <div>
-        <span><ShieldCheck />Identity and safety</span>
-        <strong>{result.identityAndSafetyComplete ? "Pre-check released" : "Pre-check still active"}</strong>
-        <small>Inspection begins only after the intake-linked unit is confirmed safe to evaluate.</small>
-      </div>
-      <div>
-        <span><ScanLine />Evidence and findings</span>
-        <strong>{result.mechanicalComplete && result.findingsComplete ? "Findings package complete" : "Inspection evidence still open"}</strong>
-        <small>Mechanical, bodywork, scan, road-test, condition, and findings controls should support the exact Initial QC review.</small>
-      </div>
-      <div>
-        <span><BadgeCheck />Stage readiness</span>
-        <strong>{completedSteps.findings ? "Ready for Initial QC" : "Inspection still active"}</strong>
-        <small>{completedSteps.findings ? "The unit can move into governed Initial QC next." : "Complete structured findings and release them before handoff."}</small>
-      </div>
-    </section>
+    <LifecycleToolDetails label="Stage readiness details">
+      <section className={styles.igiApproval}>
+        <div>
+          <span><ShieldCheck />Identity and safety</span>
+          <strong>{result.identityAndSafetyComplete ? "Pre-check released" : "Pre-check still active"}</strong>
+          <small>Inspection begins only after the intake-linked unit is confirmed safe to evaluate.</small>
+        </div>
+        <div>
+          <span><ScanLine />Evidence and findings</span>
+          <strong>{result.mechanicalComplete && result.findingsComplete ? "Findings package complete" : "Inspection evidence still open"}</strong>
+          <small>Mechanical, bodywork, scan, road-test, condition, and findings controls should support the exact Initial QC review.</small>
+        </div>
+        <div>
+          <span><BadgeCheck />Stage readiness</span>
+          <strong>{completedSteps.findings ? "Ready for Initial QC" : "Inspection still active"}</strong>
+          <small>{completedSteps.findings ? "The unit can move into governed Initial QC next." : "Complete structured findings and release them before handoff."}</small>
+        </div>
+      </section>
+    </LifecycleToolDetails>
 
     <footer className={styles.igiNotice} aria-live="polite"><CircleAlert />{notice}</footer>
   </section>;
