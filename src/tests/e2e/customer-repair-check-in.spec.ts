@@ -4,6 +4,7 @@ import { PDFDocument } from "pdf-lib";
 import { INITIAL_MINNEAPOLIS_LOCATION as location } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
 import { prepareIsolatedRepairWorkday } from "./helpers/synthetic-workday";
+import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 test("an advisor checks in a vehicle and resumes its existing order without replacing intake details", async ({ page }) => {
   test.setTimeout(240_000);
@@ -11,6 +12,7 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   page.setDefaultNavigationTimeout(60_000);
   const schema = new URL(process.env.DATABASE_URL ?? "").searchParams.get("schema");
   if (!schema?.startsWith("dispatch_board_e2e_")) throw new Error("Customer check-in requires an isolated browser test schema.");
+  await configureSyntheticVehiclePilot("GENERAL");
   const suffix = randomUUID().slice(0, 8);
   const advisor = await prisma.user.findUniqueOrThrow({ where: { email: "alex.advisor@local.test" } });
   for (const code of ["VEHICLE_OPERATIONS_MASTER", "SHOP_OPERATIONS"]) {

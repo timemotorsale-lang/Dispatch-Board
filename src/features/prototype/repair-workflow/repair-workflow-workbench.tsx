@@ -15,7 +15,7 @@ import { getShopExecutionWorkspace } from "@/server/shop-execution/service";
 import { getServiceClosePartsWorkspace } from "@/server/service-close-parts/service";
 import { getActiveLaborRate } from "@/server/services/labor-rate-settings";
 import { canManageSettings, isManager } from "@/server/policies/access";
-import { currentRepairAdvisorReason, currentRepairWorkflowStep, pendingApprovedLabor, repairReviewHref, repairWorkflowSteps, scopedRepairOrders, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
+import { currentRepairAdvisorReason, currentRepairWorkflowStep, pendingApprovedLabor, repairReviewHref, repairWorkflowLabels, repairWorkflowSteps, scopedRepairOrders, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
 import { ShopPlanningWorkspace } from "@/features/inventory/shop-planning-workspace";
 import { ShopExecutionWorkspace } from "@/features/inventory/shop-execution-workspace";
 import { ServiceClosePartsWorkspace } from "@/features/inventory/service-close-parts-workspace";
@@ -51,7 +51,7 @@ const stageActions: Record<RepairWorkflowStep, { label: string; detail: string }
   handoff: { label: "Record vehicle handoff", detail: "Verify the recipient, keys and final odometer, then close this repair order." },
 };
 
-export async function RepairWorkflowWorkbench({ user, order, params, returnTo, returnLabel, supportingTool, sourceContext, canCompose }: {
+export async function RepairWorkflowWorkbench({ user, order, params, returnTo, returnLabel, supportingTool, sourceContext, canCompose, sharedStepOnly }: {
   user: AuthenticatedUser;
   order: Awaited<ReturnType<typeof getShopPlanningDetail>>;
   params: { step?: string; repairJobId?: string; repairAction?: string; estimateId?: string; tool?: string; reconPath?: string; workflow?: string; tab?: string };
@@ -60,6 +60,7 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
   supportingTool?: ReactNode;
   sourceContext?: ReactNode;
   canCompose?: boolean;
+  sharedStepOnly?: boolean;
 }) {
   const current = currentRepairWorkflowStep(order);
   const closed = Boolean(order.closedAt);
@@ -362,10 +363,14 @@ export async function RepairWorkflowWorkbench({ user, order, params, returnTo, r
     }
     return tool;
   }
-  const [tool, customerOwned] = await Promise.all([
-    stageOpen ? renderTool().catch(() => <p role="alert">This tool could not load for the selected RO. Check your role, location access and application setup, then retry. No other vehicle was substituted.</p>) : null,
-    isCustomerOwnedForInventoryLifecycle(order.vehicle.id, order.organizationId),
-  ]);
+  const tool = stageOpen ? await renderTool().catch(() => <p role="alert">This tool could not load for the selected RO. Check your role, location access and application setup, then retry. No other vehicle was substituted.</p>) : null;
+  if (sharedStepOnly) return <section className="panel-card page-stack" id="repair-workflow-action">
+    <Link href={home}>Back to repair workspace</Link>
+    <h1>{repairWorkflowLabels[selected]} · {order.repairOrderNumber}</h1>
+    {tool}
+    {sourceContext}
+  </section>;
+  const customerOwned = await isCustomerOwnedForInventoryLifecycle(order.vehicle.id, order.organizationId);
   return <RepairWorkflowFrame
     recordedWork={<RepairRecordedWork order={order} awaitingDiagnosis={Boolean(diagnosisWork?.request)} />}
     stepStatus={repairWorkflowEvidence(order)}

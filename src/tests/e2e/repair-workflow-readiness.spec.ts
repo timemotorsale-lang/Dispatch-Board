@@ -10,6 +10,7 @@ import { catalogScopeDigest } from "@/server/diagnostics/catalog-approval";
 import { LIGHT_DUTY_CATALOG_VERSION } from "@/lib/light-duty-baseline";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { disconnectDailyWorkflowDatabase, resetDailyWorkflowState } from "./daily-workflow.setup";
+import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 // Run alone, with the app and tests pointed at the same NEW disposable schema.
 // Synthetic identity/catalog prerequisites; workflow transitions use browser controls.
@@ -30,6 +31,7 @@ const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(va
 const guideHref = (draftId: string) => `/prototype/labor-guide?experience=explorer&draftId=${draftId}`;
 
 async function seedReadiness() {
+  await configureSyntheticVehiclePilot("GENERAL");
   const tag = `readiness-${randomUUID().slice(0, 8)}`;
   const organization = await prisma.organization.findUniqueOrThrow({ where: { code: "TIME_MOTOR_SALES" } });
   const location = await prisma.location.findUniqueOrThrow({ where: { organizationId_code: { organizationId: organization.id, code: "TMS-MSP-01" } } });

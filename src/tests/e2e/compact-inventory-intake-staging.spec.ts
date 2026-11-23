@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
+import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 test.setTimeout(120_000);
 test.beforeAll(() => {
@@ -10,6 +11,7 @@ test.beforeAll(() => {
 });
 
 test("compact intake saves real linked records on one page, recovers retries and keeps adoption optional", async ({ page, request }) => {
+  await configureSyntheticVehiclePilot("GENERAL");
   const fixture = JSON.parse(readFileSync("test-results/labor-staging/compact-intake-browser-fixture.json", "utf8")) as { vehicleId: string; vin: string; locationId: string; ownerUserId: string };
   expect((await request.get(`/api/inventory-units/compact-intake?vehicleId=${fixture.vehicleId}`)).status()).toBe(401);
   expect((await page.request.post("/api/auth/login", { data: { email: "morgan.manager@local.test", password: "dispatch123!" } })).ok()).toBe(true);

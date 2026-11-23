@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   getDispatchNavigationItems,
   getNavigationGroups,
-  isDispatchConsolePath
+  isDispatchConsolePath,
+  withVehiclePilotNavigation
 } from "@/components/layout/navigation";
 import { getConsoleNavigation } from "@/components/layout/console-navigation";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -142,6 +143,19 @@ describe("enterprise shell navigation", () => {
       "Team",
       "Activity"
     ]);
+  });
+
+  it("puts Vehicle Pilot directly below Vehicles during the side-by-side rollout", () => {
+    const items = getDispatchNavigationItems(user({ roles: ["General Manager"] }));
+    const vehiclesIndex = items.findIndex(item => item.href === "/vehicles");
+    expect(withVehiclePilotNavigation(items, "side-by-side").slice(vehiclesIndex, vehiclesIndex + 2)
+      .map(item => [item.title, item.href])).toEqual([
+      ["Vehicles", "/vehicles"],
+      ["Vehicle Pilot", "/vehicles/registry?pilot=1"],
+    ]);
+    expect(withVehiclePilotNavigation(items, "existing")).toBe(items);
+    expect(withVehiclePilotNavigation(items, "new")).toBe(items);
+    expect(withVehiclePilotNavigation([], "side-by-side")).toEqual([]);
   });
 
   it("includes the shared repair plan in technician navigation", () => {

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import type { VehiclePilotMode } from "@/lib/vehicle-pilot";
 import { CRM_CUSTOMER_LANDING_HREF, CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_HOME_HREF } from "@/features/crm/crm-route-authority";
 import {
   canOpenDispatchBoard,
@@ -622,6 +623,23 @@ export function getNavigationItemsForPath(
     user,
     resolveWorkspaceForPath(user, pathname, preferredWorkspace)
   );
+}
+
+export function withVehiclePilotNavigation(items: NavigationItem[], mode: VehiclePilotMode): NavigationItem[] {
+  if (mode !== "side-by-side") return items;
+  const vehicles = items.findIndex(item => item.href === "/vehicles");
+  if (vehicles === -1) return items;
+  return [
+    ...items.slice(0, vehicles + 1),
+    {
+      href: "/vehicles/registry?pilot=1",
+      title: "Vehicle Pilot",
+      description: "Open the new vehicle workspace for your pilot.",
+      icon: CarFront,
+      parentHref: items[vehicles].parentHref,
+    },
+    ...items.slice(vehicles + 1),
+  ];
 }
 
 export function isDispatchConsolePath(pathname: string) {

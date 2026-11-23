@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { vehiclePilotHref, type VehiclePilotMode } from "@/lib/vehicle-pilot";
 import { FormEvent, useState } from "react";
 import { VehicleWorkToolkit } from "./vehicle-work-actions";
 import type { VehicleWorkActions } from "@/lib/repair-resume";
@@ -235,10 +236,14 @@ function isMutationDisabled(message: string) {
 export function VehicleRegistryWorkspace({
   initial,
   initialQuery = "",
-  initialSelected = null
+  initialSelected = null,
+  pilotMode = "existing",
+  pilotEntry = false,
 }: {
   initial: RegistryList;
   initialQuery?: string;
+  pilotMode?: VehiclePilotMode;
+  pilotEntry?: boolean;
   initialSelected?: Detail | null;
 }) {
   const [list, setList] = useState(initial);
@@ -457,6 +462,7 @@ export function VehicleRegistryWorkspace({
     <section className={`page-stack ${styles.workspace}`}>
       <header className="page-copy">
         <h1>Find Work / Vehicle</h1>
+        {pilotEntry && <p>Choose Open Vehicle Pilot beside the vehicle you want to work on. Changes save to live records.</p>}
       </header>
 
       {notice ? (
@@ -497,7 +503,7 @@ export function VehicleRegistryWorkspace({
                   {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary > 0 && <small>Duplicate review required</small>}
                   <button className={styles.previewLink} disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Registry record for ${vehicleTitle(item)}`}>Registry record</button>
                 </td>
-                <td><VehicleWorkToolkit work={item.work} vehicleId={item.id} returnTo={activeQuery ? `/vehicles/registry?${new URLSearchParams({ query: activeQuery })}` : "/vehicles/registry"} returnLabel="Back to vehicle search" /></td>
+                <td><VehicleWorkToolkit work={item.work} vehicleId={item.id} returnTo={activeQuery ? `/vehicles/registry?${new URLSearchParams({ query: activeQuery })}` : "/vehicles/registry"} returnLabel="Back to vehicle search" pilotMode={pilotMode} /></td>
               </tr>
             ))}</tbody></table> : <div className="vehicle-map-empty"><h3>{activeQuery ? "No matching vehicle found" : "No vehicle found here yet"}</h3><p>{activeQuery ? `No canonical vehicle matched "${activeQuery}". Try VIN, stock number, plate, or a shorter year make model search before adding a vehicle.` : "If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one."}</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
           </div>
@@ -519,7 +525,8 @@ export function VehicleRegistryWorkspace({
                 <div><dt>Latest odometer</dt><dd>{selected.odometerObservations[0] ? `${selected.odometerObservations[0].reading.toLocaleString()} ${selected.odometerObservations[0].unit}` : "No observation"}</dd></div>
               </dl>
               <div className="form-actions">
-                <Link className="button button-primary" href={vehicleDetailsHref(selected.id)}>Open Vehicle Details</Link>
+                <Link className="button button-primary" href={pilotMode === "new" ? vehiclePilotHref(selected.id) : vehicleDetailsHref(selected.id)} prefetch={false}>{pilotMode === "new" ? "Open Vehicle" : "Open Vehicle Details"}</Link>
+                {pilotMode === "side-by-side" && <Link className="button button-secondary" href={vehiclePilotHref(selected.id)} prefetch={false}>Open Vehicle Pilot</Link>}
                 <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
                 {registryLocked ? null : (
                   <>

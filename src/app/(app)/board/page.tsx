@@ -6,6 +6,7 @@ import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
+import { getVehiclePilotMode } from "@/server/enterprise-command/service";
 
 type BoardPageProps = {
   searchParams?: Promise<{
@@ -54,7 +55,10 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
     : resolvedSearchParams?.view;
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage } = resolveSelectedBoardDate(requestedBoardDate, todayBoardDate);
-  const assignableUsers = manager ? await listActiveUserSummaries() : [];
+  const [assignableUsers, vehiclePilotMode] = await Promise.all([
+    manager ? listActiveUserSummaries() : [],
+    getVehiclePilotMode(user)
+  ]);
 
   return (
     <BoardScreen
@@ -65,6 +69,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
       isManager={manager}
       key={boardDate}
       todayBoardDate={todayBoardDate}
+      vehiclePilotMode={vehiclePilotMode}
     />
   );
 }

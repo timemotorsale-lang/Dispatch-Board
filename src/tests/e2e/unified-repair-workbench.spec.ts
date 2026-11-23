@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { INITIAL_MINNEAPOLIS_LOCATION as location } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
+import { pilotRepairOrderHref, vehiclePilotHref } from "@/lib/vehicle-pilot";
 import { prepareIsolatedRepairWorkday } from "./helpers/synthetic-workday";
+import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
-test("an existing recon order shows its parts blocker and resumes assignment after stock is reserved", async ({ page }) => {
-  test.setTimeout(150_000);
+test.use({ actionTimeout: 25_000 });
+
+async function seedBlockedRecon() {
   const schema = new URL(process.env.DATABASE_URL ?? "").searchParams.get("schema");
   if (!schema?.startsWith("dispatch_board_e2e_")) throw new Error("Use a disposable browser test schema.");
   const tag = `UNIFIED-${randomUUID().slice(0, 8)}`;
@@ -58,7 +61,73 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   const demand = await prisma.repairPartDemand.create({ data: { ...related, repairJobId: job.id, partId: part.id, quantityRequired: 1, requiredAt: new Date(), createdByUserId: manager.id } });
   const bin = await prisma.partStockLocation.create({ data: { ...site, code: tag, name: "Synthetic recon stock", type: "BIN" } });
   await prisma.partStockBalance.create({ data: { organizationId: site.organizationId, partId: part.id, stockLocationId: bin.id, onHandQuantity: 1, availableQuantity: 1 } });
+  return { tag, manager, vehicle, order, lifecycle, demand, bin };
+}
 
+async function reserveReconStock(page: Page, { order, demand, bin }: Awaited<ReturnType<typeof seedBlockedRecon>>) {
+  const blocker = page.getByRole("region", { name: "Parts blocking repair" });
+  await blocker.getByRole("link", { name: "Review stock and reservations" }).click();
+  const reservation = page.locator("form").filter({ has: page.getByRole("heading", { name: "Reserve stock" }) });
+  await expect(reservation.getByLabel("Repair order")).toHaveValue(order.id, { timeout: 25_000 });
+  await reservation.getByLabel("Demand").selectOption(demand.id);
+  await reservation.getByLabel("Same-location stock").selectOption(bin.id);
+  const response = page.waitForResponse(result => result.url().endsWith(`/${order.id}/parts/reservations`) && result.request().method() === "POST");
+  await reservation.getByRole("button", { name: "Reserve stock" }).click();
+  expect((await response).ok()).toBe(true);
+  await expect.poll(async () => (await prisma.repairPartDemand.findUniqueOrThrow({ where: { id: demand.id } })).quantityReserved).toBe(1);
+  await page.getByRole("link", { name: "Return to Repair Workbench" }).click();
+}
+
+test("Vehicle Pilot switches the same repair order, preserves a stock reservation, and can be paused", async ({ page }) => {
+  test.setTimeout(150_000);
+  const fixture = await seedBlockedRecon();
+  const { tag, manager, vehicle, order, demand } = fixture;
+  await configureSyntheticVehiclePilot("PILOT", [manager.id]);
+  expect((await page.request.post("/api/auth/login", { data: { email: manager.email, password: "dispatch123!" } })).ok()).toBe(true);
+  const workbench = pilotRepairOrderHref(order.id, vehicle.id, true);
+  await prepareIsolatedRepairWorkday(page, workbench);
+  await page.goto("/board");
+  const sidebar = page.getByRole("navigation", { name: "Dispatch Board navigation" });
+  const pilotLink = sidebar.getByRole("link", { name: "Vehicle Pilot", exact: true });
+  await expect(pilotLink.locator("xpath=preceding-sibling::*[1]")).toHaveText("Vehicles");
+  await pilotLink.click();
+  const search = page.getByRole("textbox", { name: /Search VIN, partial VIN/ });
+  await search.fill(tag);
+  const searchResponse = page.waitForResponse(response => response.url().includes(`/api/vehicles?includeWork=1&query=${tag}`) && response.ok());
+  await search.press("Enter");
+  await searchResponse;
+  const vehicleRow = page.getByRole("row").filter({ hasText: tag });
+  await expect(vehicleRow.getByRole("link", { name: "Open Vehicle", exact: true })).toBeVisible();
+  await vehicleRow.getByRole("link", { name: "Open Vehicle Pilot", exact: true }).click();
+  await expect(page).toHaveURL(vehiclePilotHref(vehicle.id), { timeout: 25_000 });
+  await expect(page.getByRole("navigation", { name: "Vehicle Pilot navigation" })).toContainText("Changes save to live records.");
+  await page.goto(pilotRepairOrderHref(order.id, vehicle.id, false));
+  await page.getByRole("link", { name: "Open Vehicle Pilot", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Repair workspace selection" })).toContainText("Vehicle Pilot", { timeout: 25_000 });
+  await reserveReconStock(page, fixture);
+  const nextAction = page.getByRole("region", { name: "Next action" });
+  await expect(nextAction.getByRole("link", { name: "Open assignment" })).toBeVisible({ timeout: 25_000 });
+  await page.getByRole("link", { name: "Open existing repair workspace" }).click();
+  await expect(page).toHaveURL(pilotRepairOrderHref(order.id, vehicle.id, false));
+  const savedAssignment = page.getByRole("link", { name: "Assign repair", exact: true }).first();
+  await expect(savedAssignment).toHaveAttribute("href", `/vehicles/repair-workbench?repairOrderId=${order.id}&step=assignment`);
+  await page.getByRole("link", { name: "Open Vehicle Pilot", exact: true }).click();
+  await expect(nextAction.getByRole("link", { name: "Open assignment" })).toBeVisible();
+  expect(await prisma.partReservation.count({ where: { demandId: demand.id } })).toBe(1);
+  await page.goto("/settings/vehicle-operations");
+  const rollout = page.getByRole("region", { name: "Vehicle Pilot rollout" });
+  await rollout.getByRole("button", { name: "Existing only", exact: true }).click();
+  await expect(rollout).toContainText("Current mode · Existing only");
+  await page.goto(workbench);
+  await expect(page).toHaveURL(pilotRepairOrderHref(order.id, vehicle.id, false));
+  await expect(page.getByRole("link", { name: "Open Vehicle Pilot", exact: true })).toHaveCount(0);
+});
+
+test("an existing recon order shows its parts blocker and resumes assignment after stock is reserved", async ({ page }) => {
+  test.setTimeout(150_000);
+  const fixture = await seedBlockedRecon();
+  const { manager, vehicle, order, lifecycle } = fixture;
+  await configureSyntheticVehiclePilot("GENERAL");
   expect((await page.request.post("/api/auth/login", { data: { email: manager.email, password: "dispatch123!" } })).ok()).toBe(true);
   const workbench = `/vehicles/repair-workbench?repairOrderId=${order.id}`;
   await prepareIsolatedRepairWorkday(page, workbench);
@@ -142,19 +211,10 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   await expect(tools.getByRole("link", { name: "RO statistics" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("Vehicle information", { exact: true })).toBeVisible();
   await page.goto(workbench);
-  await blocker.getByRole("link", { name: "Review stock and reservations" }).click();
-
-  const reservation = page.locator("form").filter({ has: page.getByRole("heading", { name: "Reserve stock" }) });
-  await expect(reservation.getByLabel("Repair order")).toHaveValue(order.id, { timeout: 25_000 });
-  await reservation.getByLabel("Demand").selectOption(demand.id);
-  await reservation.getByLabel("Same-location stock").selectOption(bin.id);
-  const response = page.waitForResponse(result => result.url().endsWith(`/${order.id}/parts/reservations`) && result.request().method() === "POST");
-  await reservation.getByRole("button", { name: "Reserve stock" }).click();
-  expect((await response).ok()).toBe(true);
-  await expect.poll(async () => (await prisma.repairPartDemand.findUniqueOrThrow({ where: { id: demand.id } })).quantityReserved).toBe(1);
-  await page.getByRole("link", { name: "Return to Repair Workbench" }).click();
+  await reserveReconStock(page, fixture);
   await expect(nextAction.getByRole("link", { name: "Open assignment" })).toBeVisible();
   await page.reload();
   await expect(nextAction.getByRole("link", { name: "Open assignment" })).toBeVisible();
   await expect(blocker).toHaveCount(0);
+  await configureSyntheticVehiclePilot("OFF");
 });
