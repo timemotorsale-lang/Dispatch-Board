@@ -5,7 +5,6 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { readBrowserPreference, writeBrowserPreference } from "@/lib/browser-preferences";
-import type { VehiclePilotMode } from "@/lib/vehicle-pilot";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getPermittedWorkspaces, resolveWorkspaceForPath, type WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
@@ -17,7 +16,7 @@ import { rememberMobileScroll, restoreMobileScroll } from "./mobile-scroll";
 import { ConsoleSidebar } from "./console-sidebar";
 import { getConsoleNavigation, isAppointmentConsolePath, isInventoryConsolePath, isOperationsCoordinatorConsolePath, isSalesConsolePath } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
-import { isDispatchConsolePath, withVehiclePilotNavigation } from "./navigation";
+import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider, type WorkspaceMode } from "./workspace-mode";
 import { AppearanceProvider } from "./appearance";
 import { InventoryConsoleRouteTabs } from "./inventory-console-route-tabs";
@@ -35,7 +34,6 @@ type AppShellProps = {
   collectionsNavigation?: boolean;
   preferredWorkspace?: WorkspaceKey | null;
   user: AuthenticatedUser;
-  vehiclePilotMode?: VehiclePilotMode;
 };
 
 export function isTasksSidebarCompact(pathname: string, mode: WorkspaceMode) {
@@ -56,7 +54,7 @@ function getSidebarPreference() {
   return saved === "collapsed" ? true : saved === "expanded" ? false : null;
 }
 
-function AppShellContent({ children, collectionsNavigation = false, preferredWorkspace, user, vehiclePilotMode = "existing" }: AppShellProps) {
+function AppShellContent({ children, collectionsNavigation = false, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [sessionSidebarCompact, setSessionSidebarCompact] = useState<boolean | null>(null);
   const router = useRouter();
@@ -89,10 +87,7 @@ function AppShellContent({ children, collectionsNavigation = false, preferredWor
           ? "SERVICE"
           : null
     : null;
-  const baseConsoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace || openRepairOrder ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
-  const consoleNavigation = baseConsoleNavigation && dispatchConsole
-    ? { ...baseConsoleNavigation, items: withVehiclePilotNavigation(baseConsoleNavigation.items, vehiclePilotMode) }
-    : baseConsoleNavigation;
+  const consoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace || openRepairOrder ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarPreference = useSyncExternalStore(subscribeSidebarPreference, getSidebarPreference, () => null);

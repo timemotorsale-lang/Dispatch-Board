@@ -17,8 +17,7 @@ import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 import { prisma } from "@/server/db/client";
 import { isManager } from "@/server/policies/access";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
-import { repairReviewHref, repairWorkflowSteps, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
-import { shopReconLifecycleHref } from "@/lib/vehicle-lifecycle-links";
+import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { getRepairResume, resumedLaborGuideHref } from "@/server/repair-order/resume-service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
@@ -28,8 +27,6 @@ import { getTaskReadModelById } from "@/server/services/task-read";
 
 import styles from "./repair-workbench.module.css";
 import { listPendingServiceHandoffs } from "@/server/repair-order/task-handoff";
-import { getVehiclePilotMode } from "@/server/enterprise-command/service";
-import { isVehiclePilotReturn, pilotRepairOrderHref, vehiclePilotHref } from "@/lib/vehicle-pilot";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -54,7 +51,6 @@ type PageProps = {
     workspace?: string;
     workspaceContext?: string;
     managerMode?: string;
-    pilot?: string;
   }>;
 };
 
@@ -130,10 +126,7 @@ async function diagnosticsBridge(
 export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
-  const sourceReturnTo = safeLaborGuideReturnTo(params.returnTo);
-  const pilotMode = await getVehiclePilotMode(user);
-  const returnTo = pilotMode === "existing" && params.vehicleId && isVehiclePilotReturn(sourceReturnTo, params.vehicleId)
-    ? undefined : sourceReturnTo;
+  const returnTo = safeLaborGuideReturnTo(params.returnTo);
   const returnLabel = params.returnLabel?.slice(0, 120);
   const permittedWorkspaces = getPermittedWorkspaces(user);
   const managerContext = permittedWorkspaces.some((workspace) => workspace.key === "MANAGEMENT")
@@ -171,34 +164,17 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       if (managerContext) preserveManagerContext(mismatch, managerContext.mode);
       redirect(`/vehicles/repair-workbench?${mismatch}`);
     }
-    const requestedPilot = params.pilot === "1" || isVehiclePilotReturn(sourceReturnTo, order.vehicle.id);
-    const usePilot = pilotMode === "new" || pilotMode === "side-by-side" && requestedPilot;
-    if (requestedPilot && !usePilot) redirect(pilotRepairOrderHref(order.id, order.vehicle.id, false));
-    const keepPilotContext = usePilot && pilotMode === "side-by-side";
-    const orderReturnTo = keepPilotContext ? vehiclePilotHref(order.vehicle.id) : returnTo;
-    const orderReturnLabel = keepPilotContext ? "Back to Vehicle Workbench" : returnLabel;
-    const existingWorkspaceHref = pilotRepairOrderHref(order.id, order.vehicle.id, false);
-    if (!usePilot && params.workflow === "shop") {
-      redirect(shopReconLifecycleHref(order.id, existingWorkspaceHref));
-    }
-    const switchWorkspace = pilotMode === "side-by-side" ? <nav className="form-actions" aria-label="Repair workspace selection">
-      {usePilot && <><strong>Vehicle Pilot</strong><span>Changes save to live records.</span></>}
-      <Link className="button button-secondary" href={pilotRepairOrderHref(order.id, order.vehicle.id, !usePilot)} prefetch={false}>
-        {usePilot ? "Open existing repair workspace" : "Open Vehicle Pilot"}
-      </Link>
-    </nav> : null;
     if (params.resume === "1" && !params.step && !params.tool) {
       const resume = await getRepairResume(user, order.id);
       if (resume?.useLaborGuide) {
-        redirect(resumedLaborGuideHref(resume, repairReviewHref(order.id, undefined, { returnTo: orderReturnTo, returnLabel: orderReturnLabel })));
+        redirect(resumedLaborGuideHref(resume, repairReviewHref(order.id, undefined, { returnTo, returnLabel })));
       }
     }
     const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
     const canOpenAdvisorTools = permittedWorkspaces.some(workspace => workspace.key === "ADVISOR");
-    const tool = params.tool ?? (usePilot && params.fullDetails === "1" ? "details" : compose || params.tab === "repair" ? "advisor" : undefined);
-    const recordTool = tool === "details" || tool === "progress" || tool === "subtasks" || tool === "checklist" || tool === "comments" || tool === "recon" || tool === "close" || tool === "fullTools" || tool === "repairDetails" ? tool : undefined;
+    const tool = params.tool ?? (params.fullDetails === "1" ? "details" : compose || params.tab === "repair" ? "advisor" : undefined);
     const workbenchParams = { ...params, tool };
-    const context = { user, order, params: workbenchParams, returnTo: orderReturnTo, returnLabel: orderReturnLabel, canCompose: canOpenAdvisorTools };
+    const context = { user, order, params: workbenchParams, returnTo, returnLabel, canCompose: canOpenAdvisorTools };
     const sourceHandoffs = await prisma.taskRepairHandoff.findMany({
       where: { repairOrderId: order.id },
       orderBy: { acceptedAt: "asc" },
@@ -212,15 +188,13 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       </article>)}
     </section> : null;
     if (tool === "history") {
-      const history = <>{!usePilot && <Link href={existingWorkspaceHref}>Back to repair workspace</Link>}{handoffSources}<RepairRecordedWork order={order} /></>;
-      return usePilot ? <>{switchWorkspace}<RepairWorkflowWorkbench {...context} supportingTool={history} /></> : <>{switchWorkspace}{history}</>;
+      return <RepairWorkflowWorkbench {...context} supportingTool={<>{handoffSources}<RepairRecordedWork order={order} /></>} />;
     }
     if (tool === "advisor" && canOpenAdvisorTools) {
-      const advisorTool = <>{handoffSources}<AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={orderReturnTo} /></>;
-      return usePilot ? <>{switchWorkspace}<RepairWorkflowWorkbench {...context} supportingTool={advisorTool} /></> : <>{switchWorkspace}{advisorTool}</>;
+      return <RepairWorkflowWorkbench {...context} supportingTool={<>{handoffSources}<AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} /></>} />;
     }
-    if (!recordTool && (usePilot || params.fullDetails !== "1" && repairWorkflowSteps.includes(params.step as RepairWorkflowStep))) {
-      return <>{switchWorkspace}<RepairWorkflowWorkbench {...context} sourceContext={handoffSources} sharedStepOnly={!usePilot} /></>;
+    if (tool !== "details" && tool !== "progress" && tool !== "subtasks" && tool !== "checklist" && tool !== "comments" && tool !== "recon" && tool !== "close" && tool !== "fullTools" && tool !== "repairDetails") {
+      return <RepairWorkflowWorkbench {...context} sourceContext={handoffSources} />;
     }
     const [options, diagnostics] = await Promise.all([
       getRepairOrderCreateOptions(user).catch(() => ({ users: [] })),
@@ -252,7 +226,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       item.requisition?.demand?.repairOrder?.id === order.id,
     );
 
-    const existingTools = <>{handoffSources}<RepairOrderEnterpriseWorkbench
+    return <RepairWorkflowWorkbench {...context} supportingTool={<>{handoffSources}<RepairOrderEnterpriseWorkbench
       actorIsManager={actorIsManager}
       canUpdateLinkedTask={canUpdateLinkedTask}
       diagnostics={JSON.parse(JSON.stringify(diagnostics))}
@@ -261,14 +235,13 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       options={{ users: JSON.parse(JSON.stringify(options.users)) }}
       order={JSON.parse(JSON.stringify(order))}
       relatedPurchaseOrders={JSON.parse(JSON.stringify(relatedPurchaseOrders))}
-      fullDetailMode={tool === "details" || params.fullDetails === "1"}
-      recordTool={recordTool}
-      returnLabel={orderReturnLabel}
-      returnTo={orderReturnTo}
+      fullDetailMode={tool === "details"}
+      recordTool={tool}
+      returnLabel={returnLabel}
+      returnTo={returnTo}
       showAdvisorReturn={showAdvisorReturn}
       showWorkspaceReturn={showWorkspaceReturn}
-    /></>;
-    return <>{switchWorkspace}{usePilot ? <RepairWorkflowWorkbench {...context} supportingTool={existingTools} /> : existingTools}</>;
+    /></>} />;
 
   }
 

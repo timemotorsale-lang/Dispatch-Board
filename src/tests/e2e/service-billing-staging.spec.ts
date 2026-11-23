@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
-import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 test.setTimeout(120_000);
 test.use({ actionTimeout: 15_000 });
@@ -11,7 +10,6 @@ test.beforeAll(() => {
   assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
 });
 test("native invoice, payment, frozen document, PDF and financial report with real authentication", async ({ page, request }) => {
-  await configureSyntheticVehiclePilot("GENERAL");
   const fixture = JSON.parse(readFileSync("test-results/labor-staging/billing-browser-fixture.json", "utf8")) as { repairOrderId: string; packageId: string; estimateId: string };
   const billingUrl = `/api/repair-orders/${fixture.repairOrderId}/billing`;
   expect((await request.get(billingUrl)).status()).toBe(401);

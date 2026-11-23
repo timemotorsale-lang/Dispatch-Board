@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { EnterpriseCommandConflictError, hashEnterpriseCommand, normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandRepository, VehicleFeatureFlagRecord } from "@/server/enterprise-command/repository";
-import { evaluateVehicleOperationsFeature, executeEnterpriseVehicleCommand, getVehicleOperationsFoundation, getVehiclePilotMode, updateVehicleOperationsFeature } from "@/server/enterprise-command/service";
-import { vehiclePilotFeatureCode } from "@/lib/vehicle-pilot";
+import { evaluateVehicleOperationsFeature, executeEnterpriseVehicleCommand, getVehicleOperationsFoundation, updateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -23,29 +22,6 @@ function repository(overrides: Partial<EnterpriseCommandRepository> = {}): Enter
 }
 
 describe("enterprise command foundation", () => {
-  it("limits the side-by-side vehicle pilot to named staff and restores the existing workspace when paused", async () => {
-    const master = flag("VEHICLE_OPERATIONS_MASTER", "GENERAL");
-    const pilot = { ...flag(vehiclePilotFeatureCode, "PILOT"), allowedUserIds: [staff.id] };
-    let saved = [master, pilot];
-    const deps = { repository: repository({ listFeatureFlags: async () => saved }) };
-    await expect(getVehiclePilotMode(staff, deps)).resolves.toBe("side-by-side");
-    await expect(getVehiclePilotMode(manager, deps)).resolves.toBe("existing");
-    saved = [master, flag(vehiclePilotFeatureCode, "GENERAL")];
-    await expect(getVehiclePilotMode(staff, deps)).resolves.toBe("new");
-    saved = [master, flag(vehiclePilotFeatureCode, "OFF")];
-    await expect(getVehiclePilotMode(staff, deps)).resolves.toBe("existing");
-    saved = [flag("VEHICLE_OPERATIONS_MASTER", "OFF"), pilot];
-    await expect(getVehiclePilotMode(staff, deps)).resolves.toBe("side-by-side");
-    expect(evaluateVehicleOperationsFeature(saved, "SHOP_OPERATIONS", staff.id, null).executable).toBe(false);
-  });
-
-  it("rejects random rollout for the live side-by-side vehicle pilot", async () => {
-    const update = { code: vehiclePilotFeatureCode, mode: "PILOT", rolloutPercent: 10, allowedUserIds: [staff.id], expectedVersion: 0, reason: "Select the first pilot staff member." };
-    const deps = { repository: repository() };
-    await expect(updateVehicleOperationsFeature(manager, update, deps)).rejects.toThrow("named staff");
-    await expect(updateVehicleOperationsFeature(manager, { ...update, rolloutPercent: 0 }, deps)).resolves.toMatchObject({ mode: "PILOT", allowedUserIds: [staff.id] });
-    await expect(updateVehicleOperationsFeature(staff, { ...update, rolloutPercent: 0 }, deps)).rejects.toThrow();
-  });
   it("creates stable request hashes and validates command identity", () => {
     expect(hashEnterpriseCommand({ b: 2, a: 1 })).toBe(hashEnterpriseCommand({ a: 1, b: 2 }));
     expect(() => normalizeEnterpriseCommand({ actorUserId: "user", commandType: "verify", domain: "vehicle", expectedVersion: -1, idempotencyKey: "key", locationId: null, organizationId: "org", payload: {}, reason: "valid reason text", subjectId: "one", subjectType: "control" })).toThrow("Expected version");

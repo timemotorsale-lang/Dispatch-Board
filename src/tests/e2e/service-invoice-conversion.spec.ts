@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { assertLaborStagingTarget } from "../../../scripts/lib/labor-staging-target.mjs";
 import { explainSyntheticWorkdayDelay } from "./helpers/synthetic-workday";
-import { configureSyntheticVehiclePilot } from "./helpers/vehicle-pilot";
 
 test.use({ actionTimeout: 15_000 });
 
@@ -11,7 +10,6 @@ test("Labor Guide reviews and issues the approved estimate once before payment",
   test.setTimeout(150_000);
   if (process.env.LABOR_STAGING_CONFIRM !== "isolated") throw new Error("Use the isolated labor staging database.");
   assertLaborStagingTarget(process.env.DATABASE_URL ?? "");
-  await configureSyntheticVehiclePilot("GENERAL");
   const fixture = JSON.parse(readFileSync("test-results/labor-staging/invoice-conversion-fixture.json", "utf-8"));
   const billingUrl = `/api/repair-orders/${fixture.repairOrderId}/billing`;
   const readBilling = async () => (await page.request.get(billingUrl)).json();
