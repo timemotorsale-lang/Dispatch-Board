@@ -27,6 +27,19 @@ export function readFinalRepairQcRecommendation(
     ? { finding, note } : null;
 }
 
+export function hasCurrentRepairQcPass(job: {
+  status: string;
+  qualityInspections: { disposition: string; safetyChecksPassed: boolean; peerVerificationRequired: boolean;
+    peerVerificationPassed: boolean; roadTestRequired: boolean; roadTestOutcome: string; inspectedAt: Date | string }[];
+  laborClocks: { finishedAt?: Date | string | null }[];
+}) {
+  const latest = job.qualityInspections[0];
+  return job.status === "QC_PASSED" && latest?.disposition === "PASSED" && latest.safetyChecksPassed &&
+    (!latest.peerVerificationRequired || latest.peerVerificationPassed) &&
+    (!latest.roadTestRequired || latest.roadTestOutcome === "PASSED") &&
+    !job.laborClocks.some(clock => clock.finishedAt && new Date(clock.finishedAt) > new Date(latest.inspectedAt));
+}
+
 export const finalRepairChecks = [
   { code: "REPAIR_COMPLETE", category: "COMPLETION", label: "Approved work is complete" },
   { code: "CONCERN_RESOLVED", category: "COMPLETION", label: "Concern covered by this job was addressed" },

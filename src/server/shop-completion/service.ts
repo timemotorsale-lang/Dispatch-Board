@@ -41,33 +41,43 @@ export async function getShopReconLanding(actor: AuthenticatedUser | null, input
 }
 async function model(context:ReturnType<typeof deps>){return context.repository.overview(context.organizationId);}
 export async function reportTechnicianFinding(actor: AuthenticatedUser | null, repairOrderId: string, value: Record<string, unknown>, input: Dependencies = {}) {
+  return recordTechnicianNote(actor, repairOrderId, value, "finding", input);
+}
+
+export async function recordTechnicianProgress(actor: AuthenticatedUser | null, repairOrderId: string, value: Record<string, unknown>, input: Dependencies = {}) {
+  return recordTechnicianNote(actor, repairOrderId, value, "progress", input);
+}
+
+async function recordTechnicianNote(actor: AuthenticatedUser | null, repairOrderId: string, value: Record<string, unknown>, kind: "finding" | "progress", input: Dependencies) {
   const context = deps(input);
   await assertRepairReadEntry(actor, context.organizationId, context.foundationRepository, context.now());
   const order = await context.repository.findRepairOrderLocation(context.organizationId, repairOrderId);
   if (!order) throw new Error("Repair order was not found.");
   const user = await authorize(actor, false, order.locationId, context, true);
   const jobId = typeof value.jobId === "string" ? value.jobId.trim() : "";
-  const finding = typeof value.finding === "string" ? value.finding.trim() : "";
-  if (!jobId || jobId.length > 100 || !finding || finding.length > 1000) {
-    throw new Error("Choose a repair job and enter a finding of up to 1,000 characters.");
+  const rawNote = value[kind];
+  const note = typeof rawNote === "string" ? rawNote.trim() : "";
+  const progress = kind === "progress";
+  if (!jobId || jobId.length > 100 || !note || note.length > 1000) {
+    throw new Error(progress ? "Choose a repair job and enter a progress note of up to 1,000 characters." : "Choose a repair job and enter a finding of up to 1,000 characters.");
   }
   const data = normalizeAdvisorUpdate({
-    contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome: "Technician finding for advisor review",
-    customerVisibleSummary: "The repair team recorded a finding for advisor review.",
-    statusCode: "TECHNICIAN_FINDING", exceptionCodes: [],
+    contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome: progress ? "Technician progress note" : "Technician finding for advisor review",
+    customerVisibleSummary: progress ? "The repair team recorded a progress update." : "The repair team recorded a finding for advisor review.",
+    statusCode: progress ? "TECHNICIAN_PROGRESS" : "TECHNICIAN_FINDING", exceptionCodes: [],
     occurredAt: value.occurredAt, idempotencyKey: value.idempotencyKey,
-    reason: "Report a technician finding for advisor review.",
+    reason: progress ? "Record technician progress on the assigned repair job." : "Report a technician finding for advisor review.",
   });
-  const subjectType = "REPAIR_ORDER_TECHNICIAN_FINDING";
+  const subjectType = progress ? "REPAIR_ORDER_TECHNICIAN_PROGRESS" : "REPAIR_ORDER_TECHNICIAN_FINDING";
   const version = await context.repository.aggregateVersion(context.organizationId, subjectType, repairOrderId);
   // A retry must keep the same request identity after the first save advances the aggregate version.
   const entry = command({
-    actorUserId: user.id, commandType: "REPORT_TECHNICIAN_FINDING", expectedVersion: 0,
+    actorUserId: user.id, commandType: progress ? "RECORD_TECHNICIAN_PROGRESS" : "REPORT_TECHNICIAN_FINDING", expectedVersion: 0,
     idempotencyKey: data.idempotencyKey, locationId: order.locationId, organizationId: context.organizationId,
-    payload: payload({ ...data, jobId, finding }), reason: data.reason, subjectId: repairOrderId, subjectType,
+    payload: payload({ ...data, jobId, [kind]: note }), reason: data.reason, subjectId: repairOrderId, subjectType,
   });
   return context.repository.advisor({ ...entry, expectedVersion: version }, { ...data, authorUserId: user.id },
-    { jobId, manager: isManager(user), text: finding });
+    { jobId, manager: isManager(user), text: note });
 }
 export async function recordAdvisorUpdate(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeAdvisorUpdate(value),view=await model(context),order=view.repairOrders.find(x=>x.id===repairOrderId);if(!order)throw new Error("Repair order was not found.");const user=await authorize(actor,true,order.locationId,context),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_ORDER",order.id);return context.repository.advisor(command({actorUserId:user.id,commandType:"RECORD_ADVISOR_SERVICE_UPDATE",expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:order.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:order.id,subjectType:"REPAIR_ORDER"}),{...data,authorUserId:user.id});}
 export async function listRepairVendors(actor:AuthenticatedUser|null,input:Dependencies={}){const context=deps(input);await authorize(actor,false,null,context);return context.repository.listRepairVendors(context.organizationId);}

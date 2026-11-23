@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { repairReviewHref, repairWorkflowLabels, repairWorkflowSteps, type RepairWorkflowStep } from "@/lib/repair-workflow-review";
-import { repairBillingHref } from "@/lib/service-billing-workflow";
+import { laborGuideInvoiceHref, repairBillingHref } from "@/lib/service-billing-workflow";
 import { repairLaborGuideHref } from "@/lib/repair-resume";
 import { findReconRepairPath, reconRepairPathOptions, type ReconRepairPath } from "@/lib/recon-repair-paths";
 import { VehicleWorkflowSwitch } from "./vehicle-workflow-switch";
@@ -66,13 +66,15 @@ export function RepairWorkflowFrame({
 }: Props) {
   const router = useRouter();
   const dirty = useRef(false);
+  const workspace = useRef<HTMLElement>(null);
+  const hasUnsavedChanges = useCallback(() => dirty.current || Boolean(workspace.current?.querySelector('[data-repair-form-dirty="true"]')), []);
   const menu = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
   const [pathOpen, setPathOpen] = useState(false);
   const [pathPending, startPathTransition] = useTransition();
   const pathPanel = useRef<HTMLElement>(null);
   const pathToggle = useRef<HTMLButtonElement>(null);
-  const mayLeave = () => !dirty.current || window.confirm("Leave this task without saving your entered changes?");
+  const mayLeave = () => !hasUnsavedChanges() || window.confirm("Leave this task without saving your entered changes?");
   const context = { returnTo, returnLabel, reconPath: chosenPath };
   const workbenchHref = repairReviewHref(repairOrderId, undefined, context);
   const shopHref = repairReviewHref(repairOrderId, undefined, { ...context, workflow: "shop" });
@@ -113,7 +115,7 @@ export function RepairWorkflowFrame({
       router.refresh();
     };
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (dirty.current) { event.preventDefault(); event.returnValue = ""; }
+      if (hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ""; }
     };
     window.addEventListener("beforeunload", beforeUnload);
     window.addEventListener("repair-workflow-saved", saved);
@@ -121,12 +123,14 @@ export function RepairWorkflowFrame({
       window.removeEventListener("beforeunload", beforeUnload);
       window.removeEventListener("repair-workflow-saved", saved);
     };
-  }, [chosenPath, repairOrderId, returnLabel, returnTo, router, selected, shopView]);
+  }, [chosenPath, hasUnsavedChanges, repairOrderId, returnLabel, returnTo, router, selected, shopView]);
 
   const photosHref = `/vehicles/360/${encodeURIComponent(vehicleId)}?${new URLSearchParams({ section: "photos", returnTo: currentHref })}`;
   const billingHref = `/vehicles/service-billing?${new URLSearchParams({ repairOrderId, returnTo: currentHref })}`;
 
-  return <section className={styles.workspace} aria-label="Repair workbench" onChangeCapture={() => { dirty.current = true; }} onClickCapture={event => {
+  return <section ref={workspace} className={styles.workspace} aria-label="Repair workbench" onChangeCapture={event => {
+    if (!(event.target as HTMLElement).closest("[data-repair-draft-owner]")) dirty.current = true;
+  }} onClickCapture={event => {
     const link = (event.target as HTMLElement).closest("a");
     if (link && !link.getAttribute("href")?.startsWith("#") && !mayLeave()) {
       event.preventDefault();
@@ -164,7 +168,7 @@ export function RepairWorkflowFrame({
           <Link href={repairReviewHref(repairOrderId, "parts", { ...context, workflow: shopView ? "shop" : undefined })}>Parts readiness</Link>
           <Link href={billingHref}>Billing &amp; receipts</Link>
           {!inventoryRecon && <>
-            <Link href={repairBillingHref(repairOrderId, { mode: "invoice", returnTo: currentHref })}>Convert estimate to invoice</Link>
+            <Link href={laborGuideInvoiceHref(repairOrderId, { returnTo: workOrderReturn })}>Review / print invoice</Link>
             {!closed && <Link href={repairBillingHref(repairOrderId, { mode: "deposit", returnTo: currentHref })}>Record deposit</Link>}
           </>}
           {inventoryRecon && <>

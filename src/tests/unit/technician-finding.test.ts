@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { createShopCompletionRepository } from "@/server/shop-completion/repository";
-import { reportTechnicianFinding } from "@/server/shop-completion/service";
+import { recordTechnicianProgress, reportTechnicianFinding } from "@/server/shop-completion/service";
 
 vi.mock("@/server/db/client", () => ({ prisma: {} }));
 vi.mock("@/server/enterprise-command/aggregate-mutation", async importOriginal => ({
@@ -36,6 +36,23 @@ function setup() {
 }
 
 describe("Technician finding workflow", () => {
+  it("saves the assigned technician's progress separately from labor, QC and advisor decisions", async () => {
+    const { db, input } = setup();
+    const note = { ...valid, progress: "Bumper fitted. Checking panel gaps." };
+    await recordTechnicianProgress(tech, "ro", note, input);
+    expect(db.repairJob.findFirst).toHaveBeenCalledWith({ where: expect.objectContaining({
+      id: "job", repairOrderId: "ro",
+      dispatches: { some: { status: "ACTIVE", position: "CURRENT", technicianUserId: "tech" } },
+    }) });
+    expect(db.repairAdvisorUpdate.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      statusCode: "TECHNICIAN_PROGRESS", internalNotes: "J1 · Bumper fitted. Checking panel gaps.",
+    }) });
+    expect(db.repairOrder.update).not.toHaveBeenCalled();
+    expect(db.repairJob.updateMany).not.toHaveBeenCalled();
+    db.repairJob.findFirst.mockResolvedValueOnce(null);
+    await expect(recordTechnicianProgress(tech, "ro", note, input)).rejects.toThrow("assigned technician");
+    expect(db.repairAdvisorUpdate.create).toHaveBeenCalledTimes(1);
+  });
   it("saves the active technician's job-numbered finding in the advisor inbox and leaves workflow state alone", async () => {
     const { db, input } = setup();
     await reportTechnicianFinding(tech, "ro", { ...valid, statusCode: "READY_FOR_QC", contactDirection: "OUTBOUND" }, input);

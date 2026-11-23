@@ -6,7 +6,7 @@ import { ServiceDocumentWorkflow } from "@/features/inventory/service-document-w
 import { safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 import { notFound } from "next/navigation";
 
-export default async function ServiceDocumentsPage({ searchParams }: { searchParams: Promise<{ repairOrderId?: string; documentId?: string; sourceId?: string; workspace?: string; returnTo?: string; kind?: string; query?: string; page?: string }> }) {
+export default async function ServiceDocumentsPage({ searchParams }: { searchParams: Promise<{ repairOrderId?: string; documentId?: string; sourceId?: string; sourceKind?: string; workspace?: string; returnTo?: string; kind?: string; query?: string; page?: string }> }) {
   const user = await requireCurrentUser(), params = await searchParams;
   if (!params.repairOrderId) {
     const kind: ServiceDocumentSearchKind = params.kind === "estimates" || params.kind === "invoices" ? params.kind : "all";
@@ -44,7 +44,8 @@ export default async function ServiceDocumentsPage({ searchParams }: { searchPar
     throw error;
   });
   const returnTo = safeLaborGuideReturnTo(typeof params.returnTo === "string" ? params.returnTo : undefined);
-  const selected = params.documentId ? documents.find(document => document.id === params.documentId) : params.sourceId ? documents.find(document => document.sourceId === params.sourceId) : null;
+  const candidates = params.sourceKind === "INVOICE" ? documents.filter(document => document.kind === "INVOICE") : documents;
+  const selected = params.documentId ? candidates.find(document => document.id === params.documentId) : params.sourceId ? candidates.find(document => document.sourceId === params.sourceId) : null;
   if ((params.documentId || params.sourceId) && !selected) notFound();
   const workspaceDocument = selected ?? documents.find(document => document.kind === "ESTIMATE" || document.kind === "INVOICE" || document.kind === "PAYMENT");
   if ((params.workspace === "1" || selected?.kind === "ESTIMATE" || selected?.kind === "INVOICE") && workspaceDocument) return <ServiceDocumentWorkflow returnTo={returnTo} readOnlyReason={order.closedAt ? "This repair order is closed. This exact saved document remains available to view, print, or save as PDF." : undefined} key={workspaceDocument.id} repairOrderId={order.id} selectedId={workspaceDocument.id} documents={documents.map(({ id, sourceId, kind, content, sha256, templateVersion, createdAt, createdByName }) => ({ id, sourceId, kind, content, sha256, templateVersion, createdAt: createdAt.toISOString(), createdByName }))} />;

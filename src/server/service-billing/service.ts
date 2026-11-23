@@ -1,5 +1,5 @@
 import { validateCreditComponents, type CreditComponents } from "@/lib/service-credit";
-import { invoicePackageMismatchCodes } from "@/lib/service-billing-workflow";
+import { invoicePackageMismatchCodes, type EstimateDocumentReference } from "@/lib/service-billing-workflow";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -49,7 +49,7 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   const invoices = await prisma.serviceInvoice.findMany({ where: { organizationId, repairOrderId }, orderBy: { issuedAt: "desc" } });
   const entries = await prisma.serviceInvoiceEntry.findMany({ where: { organizationId, invoiceId: { in: invoices.map(invoice => invoice.id) } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
   const packages = await prisma.serviceInvoicePackage.findMany({ where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, take: 20 });
-  let readiness: { mismatchCodes: string[]; repairJobsMissing?: boolean; missingRepairJobLines?: string[]; estimateId?: string; estimateVersion?: number };
+  let readiness: { mismatchCodes: string[]; repairJobsMissing?: boolean; missingRepairJobLines?: string[]; estimateId?: string; estimateVersion?: number; estimateDocument?: EstimateDocumentReference };
   let currentFingerprint: string | undefined;
   try {
     const candidate = await serviceInvoiceCandidate(prisma, organizationId, repairOrderId);
@@ -57,6 +57,7 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
       mismatchCodes: candidate.mismatchCodes,
       estimateId: candidate.estimate?.id,
       estimateVersion: candidate.estimate?.version,
+      estimateDocument: candidate.estimateDocument,
       repairJobsMissing: Boolean(candidate.missingRepairJobLines?.length),
       missingRepairJobLines: candidate.missingRepairJobLines
     };
@@ -67,7 +68,13 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
     const estimate = await prisma.repairEstimateVersion.findFirst({
       where: { organizationId, repairOrderId }, orderBy: { version: "desc" }, select: { id: true, version: true }
     });
-    readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"], estimateId: estimate?.id, estimateVersion: estimate?.version };
+    const document = estimate && await prisma.serviceDocument.findFirst({
+      where: { organizationId, repairOrderId, kind: "ESTIMATE", sourceId: estimate.id },
+      orderBy: { sourceVersion: "desc" },
+      select: { id: true, sha256: true },
+    });
+    readiness = { mismatchCodes: ["INVOICE_AUTHORIZATION_REQUIRED"], estimateId: estimate?.id, estimateVersion: estimate?.version,
+      estimateDocument: document ? { documentId: document.id, documentHash: document.sha256 } : undefined };
   }
   const deposits = await getRepairDepositView(prisma, organizationId, repairOrderId);
   if (!mutationAvailability.allowed) deposits.collectionAvailability = { allowed: false, reason: mutationAvailability.reason, maxAmountCents: 0 };
@@ -75,7 +82,7 @@ export async function getServiceBilling(actor: AuthenticatedUser | null, repairO
   const orderSummary = { id: order.id, locationId: order.locationId, repairOrderNumber: order.repairOrderNumber, closedAt: order.closedAt };
   return { order: orderSummary, invoiceEligibility, canManage, mutationAvailability, readiness, deposits, packages: packages.map(item => {
     const snapshot = item.sourceSnapshot && typeof item.sourceSnapshot === "object" && !Array.isArray(item.sourceSnapshot) ? item.sourceSnapshot as Record<string, unknown> : {};
-    return { id: item.id, version: item.version, mismatchCodes: invoicePackageMismatchCodes(item.mismatchCodes, snapshot, currentFingerprint), billingMode: typeof snapshot.billingMode === "string" ? snapshot.billingMode : "LEGACY_REVIEW_REQUIRED", preview: snapshot.commercial ?? null, identity: snapshot.identity ?? null };
+    return { id: item.id, version: item.version, mismatchCodes: invoicePackageMismatchCodes(item.mismatchCodes, snapshot, currentFingerprint, readiness.estimateDocument), billingMode: typeof snapshot.billingMode === "string" ? snapshot.billingMode : "LEGACY_REVIEW_REQUIRED", preview: snapshot.commercial ?? null, identity: snapshot.identity ?? null };
   }), invoices: invoices.map(invoice => ({ ...invoice, appliedDepositCents: deposits.entries.filter(entry => entry.invoiceId === invoice.id).reduce((sum, entry) => sum + (entry.kind === "APPLY" ? entry.amountCents : entry.kind === "UNAPPLY" ? -entry.amountCents : 0), 0), entries: entries.filter(entry => entry.invoiceId === invoice.id), balance: serviceInvoiceBalance(invoice, entries.filter(entry => entry.invoiceId === invoice.id)) })) };
 }
 export async function executeServiceBilling(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, options: { organizationId?: string; enforceRollout?: boolean } = {}) {
@@ -85,6 +92,15 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
   const raw = value as Record<string, unknown>, action = String(raw.action);
   const expectedEstimateId = ["PREPARE_INVOICE", "POST_INVOICE"].includes(action) && raw.expectedEstimateId !== undefined
     ? required(raw.expectedEstimateId, "Expected estimate ID", 120) : undefined;
+  let expectedEstimateDocument: EstimateDocumentReference | undefined;
+  if (["PREPARE_INVOICE", "POST_INVOICE"].includes(action) && raw.expectedEstimateDocument !== undefined) {
+    const document = raw.expectedEstimateDocument as Partial<EstimateDocumentReference> | null;
+    if (!expectedEstimateId || typeof document?.documentHash !== "string" || !/^[a-f0-9]{64}$/.test(document.documentHash)) {
+      throw new Error("The reviewed estimate ID, document ID and hash are required. Open the saved estimate and review it again.");
+    }
+    expectedEstimateDocument = { documentId: required(document.documentId, "Reviewed estimate document ID", 120), documentHash: document.documentHash };
+  }
+  const estimateSource = { ...(expectedEstimateId ? { expectedEstimateId } : {}), ...(expectedEstimateDocument ? { expectedEstimateDocument } : {}) };
   if (DEPOSIT_ACTIONS.includes(action)) return executeRepairDeposit(actor, repairOrderId, raw, organizationId, options.enforceRollout ?? true);
   if (!["PREPARE_INVOICE", "POST_INVOICE", "PAYMENT", "REFUND", "CREDIT", "VOID"].includes(action)) throw new Error("Unsupported billing action.");
   const idempotencyKey = required(raw.idempotencyKey, "Idempotency key"), reason = required(raw.reason, "Reason", 500);
@@ -99,8 +115,8 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
     if (!Number.isFinite(generatedAt.getTime()) || generatedAt.getTime() > Date.now() + 60_000) throw new Error("Valid nonfuture preparation time is required.");
     const repository = createServiceClosePartsRepository(), receipt = await repository.commandReceipt(organizationId, "GENERATE_INVOICE_PACKAGE", idempotencyKey);
     const expectedVersion = receipt?.expectedVersion ?? await repository.aggregateVersion(organizationId, "SHOP_OPERATIONS", "REPAIR_ORDER", repairOrderId);
-    const data = { generatedAt: generatedAt.toISOString(), ...(expectedEstimateId ? { expectedEstimateId } : {}) };
-    return repository.generateInvoice(normalizeEnterpriseCommand({ actorUserId: user.id, organizationId, domain: "SHOP_OPERATIONS", subjectType: "REPAIR_ORDER", subjectId: repairOrderId, commandType: "GENERATE_INVOICE_PACKAGE", expectedVersion, idempotencyKey, locationId: order.locationId, payload: data, reason }), { generatedAt, createdByUserId: user.id, reason, expectedEstimateId });
+    const data = { generatedAt: generatedAt.toISOString(), ...estimateSource };
+    return repository.generateInvoice(normalizeEnterpriseCommand({ actorUserId: user.id, organizationId, domain: "SHOP_OPERATIONS", subjectType: "REPAIR_ORDER", subjectId: repairOrderId, commandType: "GENERATE_INVOICE_PACKAGE", expectedVersion, idempotencyKey, locationId: order.locationId, payload: data, reason }), { generatedAt, createdByUserId: user.id, reason, ...estimateSource });
   }
   const subjectId = required(action === "POST_INVOICE" ? raw.packageId : raw.invoiceId, "Invoice/package ID", 100), expectedVersion = action === "POST_INVOICE" ? 0 : Number(raw.expectedVersion);
   if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 0) throw new Error("Exact invoice version is required.");
@@ -117,13 +133,13 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
   if (!order) throw new Error("Repair order was not found.");
   if (order.closedAt) throw new Error("Reopen the repair order before changing its financial ledger.");
   const user = await billingAccess(actor, order.locationId, true, organizationId, options.enforceRollout ?? true, amountCents);
-  const data = { action, repairOrderId, subjectId, occurredAt: occurredAt.toISOString(), amountCents, method, reference, evidence, relatedEntryId, creditComponents: action === "CREDIT" ? raw.creditComponents : null, ...(expectedEstimateId ? { expectedEstimateId } : {}) };
+  const data = { action, repairOrderId, subjectId, occurredAt: occurredAt.toISOString(), amountCents, method, reference, evidence, relatedEntryId, creditComponents: action === "CREDIT" ? raw.creditComponents : null, ...estimateSource };
   const command = normalizeEnterpriseCommand({ actorUserId: user.id, organizationId, domain: "SHOP_OPERATIONS", subjectType: "SERVICE_NATIVE_INVOICE", subjectId, commandType: action, expectedVersion, idempotencyKey, locationId: order.locationId, payload: data, reason });
   return executeAggregateMutation(prisma, command, "vehicle-operations.service-billing", async (tx, version) => {
     if (action === "POST_INVOICE") {
       const invoicePackage = await tx.serviceInvoicePackage.findFirst({ where: { id: subjectId, organizationId, repairOrderId } });
       if (!invoicePackage) throw new Error("Invoice package was not found.");
-      const candidate = await assertCurrentInvoicePackage(tx, organizationId, invoicePackage);
+      const candidate = await assertCurrentInvoicePackage(tx, organizationId, invoicePackage, expectedEstimateDocument);
       if (expectedEstimateId && candidate.estimate.id !== expectedEstimateId) throw new Error("The selected estimate is no longer current. Open the repair order to review the current estimate before invoicing.");
       if (candidate.order.origin !== "CUSTOMER_REPAIR" || !candidate.order.customerId) throw new Error("Native customer invoices require a customer-linked customer-repair RO. Internal recon uses an internal cost package, not a customer receivable.");
       if (!candidate.identity || candidate.order.closedAt) throw new Error("Frozen estimate identity and an open repair order are required.");
@@ -133,7 +149,7 @@ export async function executeServiceBilling(actor: AuthenticatedUser | null, rep
       const invoiceNumber = `INV-${occurredAt.getUTCFullYear()}-${String(sequence.nextNumber - 1).padStart(6, "0")}`;
       const ledger = candidate.ledger;
       await billingAccess(actor, order.locationId, true, organizationId, options.enforceRollout ?? true, ledger.totalCents);
-      const invoice = await tx.serviceInvoice.create({ data: { id: subjectId, organizationId, repairOrderId, packageId: subjectId, invoiceNumber, subtotalCents: ledger.subtotalCents, discountCents: ledger.discountCents, taxCents: ledger.taxCents, totalCents: ledger.totalCents, ledger: toJson({ ...ledger, identity: candidate.identity, authorizationId: candidate.authorization.id, estimateId: candidate.estimate.id, proposedMinutes: ledger.proposedMinutes, measuredTechnicianMinutes: candidate.clockedLaborMinutes }), sourceFingerprint: candidate.fingerprint, issuedAt: occurredAt, createdByUserId: user.id, reason, version } });
+      const invoice = await tx.serviceInvoice.create({ data: { id: subjectId, organizationId, repairOrderId, packageId: subjectId, invoiceNumber, subtotalCents: ledger.subtotalCents, discountCents: ledger.discountCents, taxCents: ledger.taxCents, totalCents: ledger.totalCents, ledger: toJson({ ...ledger, identity: candidate.identity, authorizationId: candidate.authorization.id, estimateId: candidate.estimate.id, estimateDocument: candidate.estimateDocument, proposedMinutes: ledger.proposedMinutes, measuredTechnicianMinutes: candidate.clockedLaborMinutes }), sourceFingerprint: candidate.fingerprint, issuedAt: occurredAt, createdByUserId: user.id, reason, version } });
       const content: ServiceDocumentContent = { title: "Final service invoice", number: invoiceNumber, issuedAt: occurredAt.toISOString(), identity: candidate.identity, lines: ledger.lines.map(line => ({...line,...(line.type === "LABOR" && line.laborGuideMinutes ? {hours:line.laborGuideMinutes/60,planningHourlyRateCents:Math.round(line.unitPriceCents*60/line.laborGuideMinutes)} : {})})), totals: ledger, notes: ["Thank you for your business. Please retain this invoice for your records."] };
       const document = await recordServiceDocument(tx, { organizationId, repairOrderId, kind: "INVOICE", sourceId: invoice.id, sourceVersion: version, createdByUserId: user.id, content });
       return { result: { id: invoice.id, documentId: document.id, invoiceNumber, version, totalCents: invoice.totalCents } };

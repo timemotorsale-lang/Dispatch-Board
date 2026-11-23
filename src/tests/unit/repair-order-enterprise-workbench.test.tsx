@@ -41,7 +41,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Vehicle summary card");
     expect(html).toContain("Recon progress");
     expect(html).toContain("Choose recon path");
-    expect(html).toContain("Mechanical repair");
+    expect(html).toContain("Mechanical Repair");
     expect(html).toContain("Bodywork");
     expect(html).toContain("Outside vendor");
     expect(html).toContain("Detail / prep");
@@ -145,7 +145,7 @@ describe("enterprise repair-order workbench", () => {
     );
 
     expect(html).toContain("Repair path");
-    expect(html).toContain("Mechanical repair");
+    expect(html).toContain("Mechanical Repair");
     expect(html).toContain("Bodywork");
     expect(html).toContain("Outside vendor");
     expect(html).toContain("Detail / prep");

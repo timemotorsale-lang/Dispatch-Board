@@ -13,6 +13,40 @@ import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/r
 import { evaluateDispatchPriority,evaluateTechnicianEligibility } from "./domain";
 const vendorWorkSelect={id:true,vendorName:true,status:true,currentLocation:true,expectedReturnAt:true,nextAction:true,lastUpdateSummary:true};
 export function createShopExecutionRepository(database:PrismaClient=prisma){return{
+  addSiteTechnician(command: EnterpriseCommandCommitInput, repairOrderId: string, technicianUserId: string, at: Date) {
+    return executeAggregateMutation(database, command, "vehicle-operations.shop", async tx => {
+      const organizationId = command.organizationId;
+      if (!command.locationId) throw new Error("A scheduling site is required.");
+      const order = await tx.repairOrder.findFirst({
+        where: { id: repairOrderId, organizationId, closedAt: null, locationId: command.locationId },
+        select: { locationId: true },
+      });
+      if (!order) throw new Error("The repair order is closed or its scheduling site changed. Reopen assignment.");
+      const { locationId } = order;
+      const [technician, staffType, existing] = await Promise.all([
+        tx.user.findFirst({ where: { id: technicianUserId, isActive: true, userRoles: {
+          some: { role: { name: { in: ["Mechanic", "Technician"] } } },
+        } }, select: { name: true } }),
+        tx.schedulableResourceType.findFirst({ where: { organizationId, code: "STAFF", kind: "STAFF", isActive: true } }),
+        tx.schedulableResource.findUnique({ where: { locationId_userId: { locationId, userId: technicianUserId } }, include: { resourceType: { select: { kind: true } } } }),
+      ]);
+      if (!technician) throw new Error("Choose an active mechanic or technician.");
+      if (existing && (existing.organizationId !== organizationId || existing.resourceType.kind !== "STAFF")) {
+        throw new Error("This employee already has a different resource at this site. Review the resource in Appointment settings.");
+      }
+      if (existing?.status === "ACTIVE" && existing.effectiveFrom <= at && (!existing.effectiveTo || existing.effectiveTo >= at)) {
+        return { result: { id: existing.id, technicianUserId, locationId } };
+      }
+      if (existing) throw new Error("This technician already has a resource at this site. Review its status and effective dates in Appointment settings.");
+      if (!staffType) throw new Error("An active Staff resource type is required in Appointment settings.");
+      const resource = await tx.schedulableResource.create({ data: {
+        organizationId, locationId, resourceTypeId: staffType.id, userId: technicianUserId,
+        code: `SHOP-TECH-${technicianUserId}`, name: technician.name, effectiveFrom: at,
+        capacityMode: staffType.defaultCapacityMode, capacity: staffType.defaultCapacity, conflictPolicy: staffType.defaultConflictPolicy,
+      } });
+      return { result: { id: resource.id, technicianUserId, locationId } };
+    });
+  },
   laborCommandVersion(organizationId: string, commandType: string, idempotencyKey: string) {
     return database.enterpriseCommandLedger.findUnique({
       where: { organizationId_domain_commandType_idempotencyKey: { organizationId, domain: "SHOP_OPERATIONS", commandType, idempotencyKey } },

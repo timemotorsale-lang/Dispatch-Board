@@ -251,10 +251,10 @@ test("an advisor checks in a vehicle and resumes its existing order without repl
   await expect(nextAction.getByRole("link", { name: "Open vendor diagnosis request" })).toBeVisible();
   await choosePath("Detail / prep");
   await expect(nextAction.getByRole("link", { name: "Open detail / prep planning" })).toHaveAttribute("href", new RegExp(`/vehicles/shop-recon/${order.id}\\?`));
-  await choosePath("Mechanical repair");
+  await choosePath("Mechanical Repair");
   await expect(nextAction.getByRole("link", { name: "Open diagnosis" })).toBeVisible();
   await page.reload();
-  await expect(nextAction).toContainText("Mechanical repair");
+  await expect(nextAction).toContainText("Mechanical Repair");
   expect(await prisma.repairDiagnosisVersion.count({ where: { repairOrderId: order.id } })).toBe(0);
   expect(await prisma.vehicleInspectionVersion.count({ where: { repairOrderId: order.id } })).toBe(1);
   const inspected = await prisma.repairOrder.findUniqueOrThrow({ where: { id: order.id } });

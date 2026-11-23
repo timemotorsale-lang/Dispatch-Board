@@ -34,7 +34,29 @@ export async function getShopExecutionWorkspace(actor:AuthenticatedUser|null,inp
     jobs:overview.jobs.filter(job=>allowed.has(job.repairOrder.locationId)),
     repairOrders:overview.repairOrders.filter(order=>allowed.has(order.locationId)),
     resources:overview.resources.filter(resource=>allowed.has(resource.locationId)),
-    canPublishProcedure:isManager(user)};
+    canPublishProcedure:isManager(user), canAddTechnician:isManager(user)};
+}
+export async function addRepairOrderTechnician(actor: AuthenticatedUser | null, repairOrderId: string, value: unknown, input: Dependencies = {}) {
+  const manager = assertAuthenticatedUser(actor);
+  if (!isManager(manager)) throw new Error("Manager access required.");
+  const context = deps(input);
+  const data = normalizeTechnicianPreassignment(value);
+  const order = await repairOrderContext(context, repairOrderId);
+  const locationId = order.locationId;
+  const user = await authorize(manager, true, locationId, context);
+  if ((value as Record<string, unknown>).expectedLocationId !== locationId) {
+    throw new Error("The scheduling site changed. Reopen the assignment before adding a technician.");
+  }
+  const subjectType = "SHOP_SITE_TECHNICIAN";
+  const subjectId = `${locationId}:${data.technicianUserId}`;
+  const commandType = "ADD_SHOP_SITE_TECHNICIAN";
+  const prior = await context.repository.laborCommandVersion(context.organizationId, commandType, data.idempotencyKey);
+  const expectedVersion = prior?.expectedVersion ?? await context.repository.aggregateVersion(context.organizationId, subjectType, subjectId);
+  return context.repository.addSiteTechnician(command({
+    actorUserId: user.id, commandType, expectedVersion, idempotencyKey: data.idempotencyKey, locationId,
+    organizationId: context.organizationId, payload: { repairOrderId, technicianUserId: data.technicianUserId },
+    reason: data.reason, subjectId, subjectType,
+  }), repairOrderId, data.technicianUserId, context.now());
 }
 export async function preassignRepairOrderTechnician(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeTechnicianPreassignment(value),repairOrder=await repairOrderContext(context,repairOrderId),user=await authorize(actor,true,repairOrder.locationId,context,false),version=await context.repository.aggregateVersion(context.organizationId,"REPAIR_ORDER_TECHNICIAN",repairOrderId);const result=await context.repository.preassignTechnician(command({actorUserId:user.id,commandType:"PREASSIGN_REPAIR_ORDER_TECHNICIAN",expectedVersion:version,idempotencyKey:data.idempotencyKey,locationId:repairOrder.locationId,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:repairOrderId,subjectType:"REPAIR_ORDER_TECHNICIAN"}),{...data,assignedByUserId:user.id});await context.taskBridge.reconcileOwner(context.organizationId,repairOrderId,user.id);return result;}
 export async function createWorkProcedure(actor:AuthenticatedUser|null,value:unknown,input:Dependencies={}){const context=deps(input),data=normalizeProcedure(value),user=await authorize(actor,true,null,context),id=randomUUID();return context.repository.createProcedure(command({actorUserId:user.id,commandType:"CREATE_WORK_PROCEDURE_VERSION",expectedVersion:0,idempotencyKey:data.idempotencyKey,locationId:null,organizationId:context.organizationId,payload:payload(data),reason:data.reason,subjectId:id,subjectType:"WORK_PROCEDURE"}),{...data,createdByUserId:user.id});}

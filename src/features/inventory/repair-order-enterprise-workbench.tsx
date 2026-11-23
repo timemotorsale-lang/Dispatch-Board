@@ -373,7 +373,7 @@ function inferReconRepairPath(order: RepairOrderWorkbenchOrder): ReconRepairPath
 }
 
 function reconPathLabel(path: ReconRepairPath) {
-  return reconRepairPathOptions.find((option) => option.value === path)?.label ?? "Mechanical repair";
+  return reconRepairPathOptions.find((option) => option.value === path)?.label ?? "Mechanical Repair";
 }
 
 function nextStepPlan(input: {

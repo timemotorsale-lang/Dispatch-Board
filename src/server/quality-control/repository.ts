@@ -6,7 +6,7 @@ import { prisma } from "@/server/db/client";
 import { executeAggregateMutation,toJson } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { determineShopHandoff } from "@/server/inventory/shop-operations";
-import { evaluateInspection, validateFinalRepairChecklist, type QualityCheck } from "./domain";
+import { evaluateInspection, validateFinalRepairChecklist, type normalizeQualityInspection } from "./domain";
 
 const latestEstimateForQc = {
   orderBy: { version: "desc" },
@@ -66,7 +66,8 @@ export function createQualityControlRepository(database:PrismaClient=prisma){ret
     ]);
     return{repairOrders,users};
   },
-  inspect(command:EnterpriseCommandCommitInput,data:{checks:QualityCheck[];completionEvidence:string[];inspectedAt:Date;inspectorUserId:string;peerVerificationPassed:boolean;peerVerifierUserId:string|null;reason:string;reworkInstructions:string|null;roadTestEvidence:string[];roadTestOutcome:"NOT_REQUIRED"|"PASSED"|"FAILED";roadTestRequired:boolean;templateCode:string;templateVersion:number}){return executeAggregateMutation(database,command,"vehicle-operations.shop",async tx=>{
+  inspect(command: EnterpriseCommandCommitInput, data: Omit<ReturnType<typeof normalizeQualityInspection>, "idempotencyKey"> & { inspectorUserId: string }) {
+    return executeAggregateMutation(database,command,"vehicle-operations.shop",async tx=>{
     const job=await tx.repairJob.findFirst({where:{id:command.subjectId,organizationId:command.organizationId,status:"READY_FOR_QC"},include:{repairOrder:true,procedureVersion:true,dispatches:{where:{status:"COMPLETED"},orderBy:{createdAt:"desc"},take:1},qualityInspections:{orderBy:{version:"desc"},take:1}}});
     if(!job)throw new Error("Only a repair job ready for QC can be inspected.");
     if(!(job.executionEvidence as string[]|null)?.length)throw new Error("Repair completion evidence is required before QC.");
@@ -81,17 +82,27 @@ export function createQualityControlRepository(database:PrismaClient=prisma){ret
       if(peer.id===job.dispatches[0]?.technicianUserId)throw new Error("Peer verifier must be different from the executing technician.");
     }
     if(data.peerVerificationPassed&&!data.peerVerifierUserId)throw new Error("Passed peer verification requires a verifier.");
+    if (data.recommendation && !decision.allowed) {
+      throw new Error("A recommendation requires a passed Final QC inspection. Record failures with rework instructions.");
+    }
     if(!decision.allowed&&(!data.reworkInstructions||data.reworkInstructions.length<10))throw new Error("Failed QC requires rework instructions of at least 10 characters.");
     if(decision.allowed&&data.reworkInstructions)throw new Error("Passed QC cannot include rework instructions.");
     const latest=job.qualityInspections[0];
     const procedureSnapshot=job.procedureVersion?{procedureId:job.procedureVersion.id,procedureVersion:job.procedureVersion.version,qcRules:job.procedureVersion.qcRules}:{procedureId:null,procedureVersion:null,qcRules:[],source:"MANAGER_REPAIR_RESULT"};
-    const inspection=await tx.repairQualityInspection.create({data:{organizationId:command.organizationId,repairOrderId:job.repairOrderId,repairJobId:job.id,version:(latest?.version??0)+1,disposition:decision.allowed?"PASSED":"FAILED",templateCode:data.templateCode,templateVersion:data.templateVersion,templateSnapshot:toJson({...procedureSnapshot,templateCode:data.templateCode,templateVersion:data.templateVersion}),checkResults:toJson(data.checks),completionEvidence:toJson(data.completionEvidence),safetyChecksPassed:decision.safetyChecksPassed,peerVerificationRequired:decision.peerVerificationRequired,peerVerificationPassed:data.peerVerificationPassed,peerVerifierUserId:data.peerVerifierUserId,roadTestRequired:data.roadTestRequired,roadTestOutcome:data.roadTestOutcome,roadTestEvidence:toJson(data.roadTestEvidence),failureReasonCodes:toJson(decision.failureReasonCodes),reworkInstructions:data.reworkInstructions,inspectorUserId:data.inspectorUserId,inspectedAt:data.inspectedAt,supersedesId:latest?.id}});
+    const recommendation = data.recommendation ? { recommendation: data.recommendation } : {};
+    const templateSnapshot = toJson({
+      ...procedureSnapshot,
+      templateCode: data.templateCode,
+      templateVersion: data.templateVersion,
+      ...recommendation
+    });
+    const inspection=await tx.repairQualityInspection.create({data:{organizationId:command.organizationId,repairOrderId:job.repairOrderId,repairJobId:job.id,version:(latest?.version??0)+1,disposition:decision.allowed?"PASSED":"FAILED",templateCode:data.templateCode,templateVersion:data.templateVersion,templateSnapshot,checkResults:toJson(data.checks),completionEvidence:toJson(data.completionEvidence),safetyChecksPassed:decision.safetyChecksPassed,peerVerificationRequired:decision.peerVerificationRequired,peerVerificationPassed:data.peerVerificationPassed,peerVerifierUserId:data.peerVerifierUserId,roadTestRequired:data.roadTestRequired,roadTestOutcome:data.roadTestOutcome,roadTestEvidence:toJson(data.roadTestEvidence),failureReasonCodes:toJson(decision.failureReasonCodes),reworkInstructions:data.reworkInstructions,inspectorUserId:data.inspectorUserId,inspectedAt:data.inspectedAt,supersedesId:latest?.id}});
     if(decision.allowed)await tx.repairJob.update({where:{id:job.id},data:{status:"QC_PASSED",qcPassedAt:data.inspectedAt,qcFailedAt:null,readinessReasonCodes:toJson(["SHOP_QC_RELEASE_GATES_PASSED"]),version:{increment:1}}});
     else{
       await tx.repairJob.update({where:{id:job.id},data:{status:"READY_FOR_REPAIR",qcFailedAt:data.inspectedAt,qcPassedAt:null,readinessReasonCodes:toJson(["SHOP_QC_REWORK_REQUIRED",...decision.failureReasonCodes]),executionBlockerReason:data.reworkInstructions,version:{increment:1}}});
       await tx.repairJobLaborClock.updateMany({where:{repairJobId:job.id,state:"FINISHED"},data:{state:"NOT_STARTED",startedAt:null,lastResumedAt:null,finishedAt:null,version:{increment:1}}});
     }
-    return{previous:job,result:{disposition:inspection.disposition,failureReasonCodes:decision.failureReasonCodes,id:inspection.id,jobId:job.id,jobStatus:decision.allowed?"QC_PASSED":"READY_FOR_REPAIR",version:inspection.version}};
+    return{previous:job,result:{disposition:inspection.disposition,failureReasonCodes:decision.failureReasonCodes,id:inspection.id,jobId:job.id,jobStatus:decision.allowed?"QC_PASSED":"READY_FOR_REPAIR",version:inspection.version,...recommendation}};
   });},
   release(command:EnterpriseCommandCommitInput,data:{authorizedAt:Date;authorizedByUserId:string;keysVerified:true;openExceptions:string[];reason:string;releaseEvidence:string[]}){return executeAggregateMutation(database,command,"vehicle-operations.shop",async(tx,version)=>{const order=await tx.repairOrder.findFirst({where:{id:command.subjectId,organizationId:command.organizationId,closedAt:null},include:{estimateVersions:latestEstimateForQc,repairJobs:{where:{status:{not:"CANCELLED"}},include:{qualityInspections:{orderBy:{version:"desc"},take:1},laborClocks:true}},releaseAuthorization:true}});if(!order)throw new Error("Repair order was not found.");if(order.releaseAuthorization)throw new Error("Repair order already has a release authorization.");
     if (pendingApprovedLabor(order.estimateVersions?.[0], order.repairJobs).length) {

@@ -32,6 +32,8 @@ type PageProps = {
   searchParams?: Promise<{
     contextError?: string;
     step?: string;
+    repairJobId?: string;
+    repairAction?: string;
     reconPath?: string;
     resume?: string;
     workflow?: string;

@@ -42,6 +42,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Revising estimate v1");
     expect(markup).toContain("Saved labor line");
     expect(markup).toContain("Saved part line");
+    expect(markup).toContain('href="/diagnostics/labor-guide?repairOrderId=ro&amp;mode=invoice&amp;returnTo=');
+    expect(markup).toContain('&amp;estimateId=estimate&amp;documentId=document&amp;documentHash=hash">Review saved estimate for invoicing</a>');
     expect(markup).not.toContain("Add manual labor");
     expect(searchRepairs("front sway bar link").some(match => match.repair.label === "Replace front stabilizer link")).toBe(true);
   });
@@ -66,7 +68,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("Sample estimate");
     expect(markup).not.toContain("Review ten-system expansion");
     expect(markup).toContain('href="/vehicles/service-billing?repairOrderId=ro-saved&amp;returnTo=%2Fprototype%2Frepair-explorer%3FrepairOrderId%3Dro-saved">Billing &amp; receipts');
-    expect(markup).toContain(">Convert saved estimate to invoice</button>");
+    expect(markup).toContain('target="_blank" rel="noreferrer" href="/diagnostics/labor-guide?repairOrderId=ro-saved&amp;mode=invoice&amp;returnTo=%2Fprototype%2Frepair-explorer%3FrepairOrderId%3Dro-saved">Review saved estimate for invoicing</a>');
     expect(markup).toContain(">Record deposit</button>");
   });
 

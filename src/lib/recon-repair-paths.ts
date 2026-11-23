@@ -1,5 +1,5 @@
 export const reconRepairPathOptions = [
-  { value: "MECHANICAL", label: "Mechanical repair", detail: "Diagnose the concern, then estimate, repair, and check the work." },
+  { value: "MECHANICAL", label: "Mechanical Repair", detail: "Diagnose the concern, then estimate, repair, and check the work." },
   { value: "BODYWORK", label: "Bodywork", detail: "Document visible damage and prepare the bodywork scope." },
   { value: "OUTSIDE_VENDOR", label: "Outside vendor", detail: "Plan the vendor handoff, estimate, approval, and return." },
   { value: "DETAIL_PREP", label: "Detail / prep", detail: "Plan cleaning, detailing, and frontline preparation." },

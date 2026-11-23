@@ -16,14 +16,16 @@ const actions = {
 };
 type RepairAction = LaborAction | "PROGRESS" | "FINDING";
 
-export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
+export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager, initialJobId, openProgress }: {
   repairOrderId: string;
   jobs: TechnicianExecutionJob[];
   actorId: string;
   manager: boolean;
+  initialJobId?: string;
+  openProgress?: boolean;
 }) {
-  const [selected, setSelected] = useState(jobs.find(job => ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status))?.id);
-  const [chosenAction, setChosenAction] = useState<RepairAction | null>(null);
+  const [selected, setSelected] = useState(jobs.find(job => job.id === initialJobId)?.id ?? jobs.find(job => ["DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status))?.id);
+  const [chosenAction, setChosenAction] = useState<RepairAction | null>(openProgress ? "PROGRESS" : null);
   const [evidence, setEvidence] = useState(""), [notes, setNotes] = useState(""), [blocker, setBlocker] = useState("");
   const [procedureEvidence, setProcedureEvidence] = useState<Record<string, string>>({});
   const [verification, setVerification] = useState(""), [finding, setFinding] = useState("");
@@ -41,7 +43,7 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
   const refreshingLabor = awaitingRefresh !== null && awaitingRefresh.jobId === job?.id
     && awaitingRefresh.previousStatus === job.status;
   const canRecordLabor = Boolean(technician && (manager || technician === actorId));
-  const canRecordProgress = Boolean(technician && state?.executable && !state.waitingForParts);
+  const canRecordProgress = canRecordLabor && Boolean(state?.executable && !state.waitingForParts);
   const available: RepairAction[] = canRecordLabor && state ? [...state.actions] : [];
   if (canRecordProgress) available.push("PROGRESS");
   if (canRecordLabor && state?.executable) available.push("FINDING");
@@ -78,11 +80,7 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
       if (eventType === "FINDING") {
         values = { action: "REPORT_TECHNICIAN_FINDING", jobId: job.id, finding: finding.trim() };
       } else if (eventType === "PROGRESS") {
-        values = {
-          action: "RECORD_REPAIR_PROGRESS", contactChannel: "INTERNAL", contactDirection: "INTERNAL",
-          contactOutcome: "Repair progress updated", customerVisibleSummary: progress.trim(),
-          exceptionCodes: [], reason: "Record a repair progress update.", statusCode: "REPAIR_IN_PROGRESS",
-        };
+        values = { action: "RECORD_TECHNICIAN_PROGRESS", jobId: job.id, progress: progress.trim() };
       } else {
         url = `/api/repair-jobs/${encodeURIComponent(job.id)}/labor`;
         values = {
@@ -122,7 +120,8 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
       setNotice(eventType === "FINDING" ? "Update saved to the advisor’s team inbox."
         : eventType === "FINISH" ? (nextStep === "qc" ? "Repair saved. Opening Quality Check." : "This job is ready for QC. Review the remaining repair jobs.")
         : eventType === "START" || eventType === "RESUME" ? "Repair is in progress. Record the completed work and verification when finished."
-        : eventType === "PAUSE" ? "Update saved. This job is paused." : "Repair update saved.");
+        : eventType === "PAUSE" ? "Update saved. This job is paused."
+        : eventType === "PROGRESS" ? "Progress note saved. Use the repair actions to start or complete the job." : "Repair update saved.");
       notifyRepairReviewSaved(repairOrderId, nextStep);
     } catch (error) {
       setFailed(true);
@@ -144,9 +143,10 @@ export function RepairExecutionTool({ repairOrderId, jobs, actorId, manager }: {
         : state.waitingForParts ? <p>Reserve the required parts for this job before assigning it. <Link href={repairReviewHref(repairOrderId, "parts")}>Open parts for this repair</Link></p>
         : !technician ? <p>Book this job as the technician’s current assignment. <Link href={repairReviewHref(repairOrderId, "assignment")}>Open assignment</Link></p>
         : !eventType ? <p>Review the assignment and saved labor before continuing. <Link href={repairReviewHref(repairOrderId, "assignment")}>Review assignment</Link></p> : null}
-      {canRecordProgress && !canRecordLabor && <p>The assigned technician or a manager can complete this job and send it to QC.</p>}
+      {state.executable && technician && !canRecordLabor && <p>The assigned technician or a manager can record progress and complete this job.</p>}
+    {canRecordProgress && eventType !== "PROGRESS" && <button type="button" disabled={busy || refreshingLabor} onClick={() => { setChosenAction("PROGRESS"); setNotice(""); setFailed(false); }}>Add progress note</button>}
     {available.length > 1 && <label>Repair action<select disabled={busy} value={eventType} onChange={event => setChosenAction(event.target.value as RepairAction)}>{available.map(action => <option key={action} value={action}>{actions[action]}</option>)}</select></label>}
-    {eventType === "PROGRESS" && <label>Progress summary (customer-visible)<textarea rows={2} required value={progress} onChange={event => setProgress(event.target.value)} /></label>}
+    {eventType === "PROGRESS" && <label>Repair progress note<textarea rows={2} required maxLength={1000} value={progress} onChange={event => setProgress(event.target.value)} /></label>}
     {eventType === "FINDING" && <>
       <label>Finding or additional work requested<textarea rows={3} required maxLength={1000} value={finding} onChange={event => setFinding(event.target.value)} /></label>
       <p>The advisor reviews the finding and obtains approval for any additional work.</p>

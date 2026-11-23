@@ -1,5 +1,8 @@
 "use client";
 
+import { FINAL_REPAIR_QC_RECOMMENDATION_LABEL, hasCurrentRepairQcPass, readFinalRepairQcRecommendation } from "@/lib/final-repair-qc";
+import { frontlineQcSections, frontlineQcItems, type FrontlineResult } from "@/lib/courtesy-vehicle-check";
+
 import {
   AlertTriangle,
   ArrowRight,
@@ -17,6 +20,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
+import { CourtesyVehicleCheck } from "./courtesy-vehicle-check";
 import { FinalRepairQcChecklist } from "./final-repair-qc-checklist";
 import finalQcStyles from "./final-repair-qc-checklist.module.css";
 import { needsRepairRoadTest as needsRoadTest } from "@/lib/final-repair-qc";
@@ -29,6 +33,7 @@ type Inspection = {
   id: string;
   version: number;
   disposition: string;
+  templateSnapshot?: unknown;
   inspectedAt: string;
   safetyChecksPassed: boolean;
   peerVerificationRequired: boolean;
@@ -96,43 +101,6 @@ type Order = {
   repairJobs: Job[];
 };
 type Model = { repairOrders: Order[]; users: User[] };
-type FrontlineResult = "FAIL" | "REVIEW" | "PASS";
-type FrontlineQcItem = { code: string; label: string; hint: string };
-type FrontlineQcSection = { title: string; items: FrontlineQcItem[] };
-
-const frontlineQcSections: FrontlineQcSection[] = [
-  { title: "Exterior & Body", items: [
-    { code: "REPAIR_AREA_ALIGNMENT", label: "Repair area / panel alignment", hint: "Panels even and gaps consistent" },
-    { code: "PAINT_FINISH", label: "Paint and finish", hint: "Color match and surface quality" },
-    { code: "BUMPER_TRIM", label: "Bumpers, trim and moldings", hint: "Secure and undamaged" },
-    { code: "BODY_OPENINGS", label: "Doors, hood and liftgate", hint: "Open, close and latch properly" },
-    { code: "GLASS_MIRRORS_WIPERS", label: "Glass, mirrors and wipers", hint: "Clear, secure and operating" }
-  ] },
-  { title: "Tires, Wheels & Brakes", items: [
-    { code: "TIRES", label: "Tire condition and tread", hint: "Adequate tread and even wear" },
-    { code: "WHEELS_LUGS", label: "Wheel condition and lug security", hint: "No damage and lugs secured" },
-    { code: "BRAKES", label: "Brake operation / warning lights", hint: "Firm pedal and no warning lights" }
-  ] },
-  { title: "Lights & Safety", items: [
-    { code: "HEADLIGHTS_SIGNALS", label: "Headlights and signals", hint: "All exterior lights function" },
-    { code: "BRAKE_REVERSE_LIGHTS", label: "Brake and reverse lights", hint: "All operate correctly" },
-    { code: "SAFETY_EQUIPMENT", label: "Seat belts, horn and safety equipment", hint: "Present and functional" }
-  ] },
-  { title: "Interior & Controls", items: [
-    { code: "DASH_WARNINGS", label: "Dash warning lights", hint: "No warning lights illuminated" },
-    { code: "HVAC_ACCESSORIES", label: "HVAC and accessories", hint: "Heat, A/C, radio, windows and locks" },
-    { code: "INTERIOR_CONDITION", label: "Seats, trim and cleanliness", hint: "Clean with no damage or stains" }
-  ] },
-  { title: "Mechanical & Road Check", items: [
-    { code: "UNDERHOOD_LEAKS", label: "Fluid leaks / underhood check", hint: "No leaks and levels within range" },
-    { code: "STEERING_SUSPENSION", label: "Steering and suspension", hint: "No noises; stable and centered" },
-    { code: "ROAD_TEST", label: "Road-test operation", hint: "Shifts, brakes and acceleration operate properly" }
-  ] },
-  { title: "Frontline Presentation", items: [
-    { code: "DETAIL_QUALITY", label: "Detail quality", hint: "Clean inside and out" },
-    { code: "KEYS_DOCUMENTS", label: "Keys, manuals and documents", hint: "All keys, books and records accounted for" }
-  ] }
-];
 export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: string }) {
   const storageKey = "repair-qc-draft:" + repairOrderId;
   const [saveStatus, setSaveStatus] = useState("");
@@ -194,7 +162,6 @@ export function InventoryQcChecklistPreview({ repairOrderId }: { repairOrderId: 
     </section>
   </details>;
 }
-const frontlineQcItems = frontlineQcSections.flatMap((section) => section.items);
 
 const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 const isFailed = (job: Job) => job.qualityInspections[0]?.disposition === "FAILED" || job.readinessReasonCodes.some((code) => code.includes("REWORK"));
@@ -215,13 +182,10 @@ const hasOpenLabor = (job: Job) => job.laborClocks.some((clock) => clock.state =
 function inspectionStatus(job: Job) {
   if (job.status === "READY_FOR_QC") return "Ready for inspection";
   if (job.status !== "QC_PASSED") return "Repair work pending";
-  const latest = job.qualityInspections[0];
-  const current = latest?.disposition === "PASSED" && latest.safetyChecksPassed &&
-    (!latest.peerVerificationRequired || latest.peerVerificationPassed) &&
-    (!latest.roadTestRequired || latest.roadTestOutcome === "PASSED") &&
-    !job.laborClocks.some(clock => clock.finishedAt && new Date(clock.finishedAt) > new Date(latest.inspectedAt));
-  return current ? "Pass recorded" : "Inspection evidence needs review";
+  return hasCurrentRepairQcPass(job) ? "Pass recorded" : "Inspection evidence needs review";
 }
+const savedInspectionLabel = (job: Job) => inspectionStatus(job) === "Pass recorded" && readFinalRepairQcRecommendation(job.qualityInspections[0])
+  ? FINAL_REPAIR_QC_RECOMMENDATION_LABEL : inspectionStatus(job);
 const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => demand.quantityReserved < demand.quantityRequired || ["OPEN", "PARTIALLY_RESERVED", "REQUESTED"].includes(demand.status));
 const hasPartsActivity = (job: Job) => Boolean(job.partDemands?.length);
 const needsPeer = (job: Job) => job.lane === "DIAGNOSTIC_HEAVY" || /airbag|brake|steer|safety|engine|transmission|electrical/i.test(`${job.description} ${job.plannedCorrection}`);
@@ -383,7 +347,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const showVendorReturnQc = Boolean(order && vendorQcWork && !order.releaseAuthorization && (!job || order.stage === "QUALITY_CONTROL"));
   const hasUnreleasedLabor = pendingApprovedLabor(order?.estimateVersions?.[0], activeJobs).length > 0;
   const showCustomerClearance = Boolean(reviewOrderId && order?.origin === "CUSTOMER_REPAIR" && allPassed && !showVendorReturnQc && !order.releaseAuthorization);
-  const showFrontlineQc = Boolean(order && job && !showCustomerClearance && !showVendorReturnQc && !order.releaseAuthorization && allPassed);
+  const showFrontlineQc = Boolean(order && order.origin !== "CUSTOMER_REPAIR" && job && !showVendorReturnQc && !order.releaseAuthorization && allPassed);
 
   useEffect(() => {
     if (!orderId) return;
@@ -798,7 +762,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         <h2>Repair job inspections</h2>
         <ul>{activeJobs.map(item => <li key={item.id}>
           <button type="button" aria-pressed={job?.id === item.id} disabled={busy} onClick={() => chooseJob(order, item)}>
-            {item.jobNumber} · {item.description} · {isFailed(item) && item.status !== "READY_FOR_QC" ? "Returned to shop" : inspectionStatus(item)}
+            {item.jobNumber} · {item.description} · {isFailed(item) && item.status !== "READY_FOR_QC" ? "Returned to shop" : savedInspectionLabel(item)}
           </button>
         </li>)}</ul>
       </section>}
@@ -808,12 +772,13 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           <header>
             <div>
               <h2>{job.description}</h2>
-              <p>{job.jobNumber} · {job.status !== "READY_FOR_QC" && isFailed(job) ? "Returned to shop" : inspectionStatus(job)}</p>
+              <p>{job.jobNumber} · {job.status !== "READY_FOR_QC" && isFailed(job) ? "Returned to shop" : savedInspectionLabel(job)}</p>
               {job.status === "READY_FOR_QC" && <p>{job.qcHandoffNotes || order.serviceVisit.concernSummary}</p>}
             </div>
           </header>
           {job.status === "READY_FOR_QC" ? (
             <FinalRepairQcChecklist
+              allowRecommendation
               key={job.id}
               evidence={job.executionEvidence ?? []}
               roadTestNeeded={roadTestNeeded}
@@ -831,14 +796,20 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           ) : inspectionStatus(job) === "Inspection evidence needs review" ? (
             <p>Ask a manager to review this job’s saved inspection and labor history.</p>
           ) : job.status !== "QC_PASSED" ? (
-            <Link className="pill" href={workbenchHref(order)}>Resume repair work</Link>
+            <Link className="pill" href={`${repairReviewHref(order.id, "repair", { repairJobId: job.id, repairAction: "progress" })}#repair-workflow-action`}>Resume repair work</Link>
           ) : null}
         </section>
       )}
 
+      {order?.origin === "CUSTOMER_REPAIR" && order.customer && !showVendorReturnQc && (order.releaseAuthorization || allPassed && !hasUnreleasedLabor) &&
+        <CourtesyVehicleCheck key={order.id} repairOrderId={order.id} mode="inspection" />}
       {showCustomerClearance && order && (
         <section className="qc-quick" aria-label="Handoff clearance">
           <header><h2>Clear for handoff</h2></header>
+          {activeJobs.map(item => {
+            const recommendation = readFinalRepairQcRecommendation(item.qualityInspections[0]);
+            return recommendation && <p key={item.id}><strong>{item.jobNumber} · {FINAL_REPAIR_QC_RECOMMENDATION_LABEL}</strong> {recommendation.finding} · {recommendation.note}</p>;
+          })}
           {hasUnreleasedLabor ? (
             <div>
               <p>Approved work still needs technician work orders and Final QC.</p>

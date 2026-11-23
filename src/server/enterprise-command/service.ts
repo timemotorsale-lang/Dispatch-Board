@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { courtesyCheckCommandType, courtesyCheckSubjectType } from "@/lib/courtesy-vehicle-check";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { assertAuthenticatedUser } from "@/server/policies/access";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
@@ -26,6 +27,9 @@ export async function executeEnterpriseVehicleCommand(actor: AuthenticatedUser |
     resourceOwnerUserId: typeof payload.ownerUserId === "string" ? payload.ownerUserId : null
   });
   const command = normalizeEnterpriseCommand({ ...value, actorUserId: user.id, organizationId: deps.organizationId });
+  if (command.subjectType === courtesyCheckSubjectType || command.commandType === courtesyCheckCommandType) {
+    throw new Error("Use the customer repair courtesy check to record this command.");
+  }
   const result = await deps.repository.commit(command);
   return { commandId: result.command.id, correlationId: result.command.correlationId, duplicate: result.duplicate, version: result.version, result: result.command.resultSnapshot };
 }

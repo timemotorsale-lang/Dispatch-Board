@@ -41,6 +41,13 @@ describe("service document history opening", () => {
     const page = await Page({ searchParams: Promise.resolve({ repairOrderId: "ro-1", sourceId: "estimate-1" }) });
     expect(page.props.selectedId).toBe("new-doc");
   });
+  it("restricts invoice print destinations to the saved invoice kind", async () => {
+    const invoice = { ...oldDocument, kind: "INVOICE", id: "frozen-invoice" };
+    mocks.documents.mockResolvedValue({ order: { id: "ro-1" }, documents: [newDocument, invoice] });
+    const page = await Page({ searchParams: Promise.resolve({ repairOrderId: "ro-1", sourceId: "estimate-1", sourceKind: "INVOICE" }) });
+    expect(page.props.selectedId).toBe("frozen-invoice");
+    await expect(Page({ searchParams: Promise.resolve({ repairOrderId: "ro-1", documentId: "new-doc", sourceKind: "INVOICE" }) })).rejects.toThrow("NEXT_NOT_FOUND");
+  });
   it("retains the empty legacy history instead of inventing a document", async () => {
     mocks.documents.mockResolvedValue({ order: { id: "ro-1", repairOrderNumber: "RO-1" }, documents: [] });
     const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ repairOrderId: "ro-1" }) }));

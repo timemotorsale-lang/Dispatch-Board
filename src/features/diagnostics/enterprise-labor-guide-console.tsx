@@ -1,7 +1,7 @@
 "use client";
 
 import { GuideRepairHistory } from "@/features/diagnostics/guide-repair-history";
-import { repairBillingHref } from "@/lib/service-billing-workflow";
+import { laborGuideInvoiceHref, repairBillingHref } from "@/lib/service-billing-workflow";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 
 import { BookOpen, Brain, Check, ChevronLeft, ClipboardCheck, Edit3, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
@@ -484,27 +484,28 @@ export function EnterpriseLaborGuideConsole({ presentation = "workspace", attach
   });
   const laborGuideReturnTo = guideHref(draft.savedId);
   const billingHref = selectedRepairOrder ? repairBillingHref(selectedRepairOrder.id, { returnTo: laborGuideReturnTo }) : undefined;
-  function billingShortcut(mode: "invoice" | "deposit", savedId?: string) {
-    return repairBillingHref(selectedRepairOrder!.id, {
-      mode, returnTo: estimateRevision
+  function billingReturn(savedId?: string) {
+    return estimateRevision
         ? `/prototype/repair-explorer?${new URLSearchParams({ repairOrderId: selectedRepairOrder!.id, reviseDocument: estimateRevision.documentId })}`
-        : guideHref(savedId), estimateId: mode === "invoice" ? estimateRevision?.estimateId : undefined
-    });
+        : guideHref(savedId);
   }
-  async function openBillingShortcut(mode: "invoice" | "deposit") {
+  async function openDepositShortcut() {
     if (!selectedRepairOrder || openingBilling || draft.saving) return;
     setOpeningBilling(true);
     try {
       const savedId = await draft.saveAndGetId();
-      if (savedId) window.location.assign(billingShortcut(mode, savedId));
+      if (savedId) window.location.assign(repairBillingHref(selectedRepairOrder.id, { mode: "deposit", returnTo: billingReturn(savedId) }));
       else setNotice("Save the worksheet before leaving for billing. Your work is still open.");
     } finally { setOpeningBilling(false); }
   }
-  const billingShortcuts = selectedRepairOrder && ([
-    ["invoice", "Convert saved estimate to invoice"], ["deposit", "Record deposit"]
-  ] as const).map(([mode, label]) => estimateRevision
-    ? <Link key={mode} target="_blank" rel="noreferrer" href={billingShortcut(mode, draft.savedId)}>{label}</Link>
-    : <button key={mode} type="button" disabled={openingBilling || draft.saving || busy} onClick={() => void openBillingShortcut(mode)}>{label}</button>);
+  const billingShortcuts = selectedRepairOrder && <>
+    <Link target="_blank" rel="noreferrer" href={laborGuideInvoiceHref(selectedRepairOrder.id, {
+      estimateId: estimateRevision?.estimateId, estimateDocument: estimateRevision, returnTo: billingReturn(draft.savedId),
+    })}>Review saved estimate for invoicing</Link>
+    {estimateRevision
+      ? <Link target="_blank" rel="noreferrer" href={repairBillingHref(selectedRepairOrder.id, { mode: "deposit", returnTo: billingReturn(draft.savedId) })}>Record deposit</Link>
+      : <button type="button" disabled={openingBilling || draft.saving || busy} onClick={() => void openDepositShortcut()}>Record deposit</button>}
+  </>;
   const assignTechnicianHref = selectedRepairOrder
     ? `/vehicles/repair-workbench?${new URLSearchParams({
       repairOrderId: selectedRepairOrder.id,

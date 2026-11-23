@@ -64,11 +64,8 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   await prepareIsolatedRepairWorkday(page, workbench);
   await page.goto(`${workbench}&reconPath=INSPECTION_ONLY`);
   const nextAction = page.getByRole("region", { name: "Next action" });
-  const footer = page.getByLabel("Repair order actions", { exact: true });
-  const missingPartsAction = nextAction.getByRole("link", { name: "Review missing parts" });
-  await expect(missingPartsAction).toBeVisible();
+  await expect(nextAction.getByRole("heading", { name: "Review parts readiness" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Choose recon path", exact: true })).toHaveCount(0);
-  await expect(footer.getByRole("link", { name: "Review missing parts" })).toHaveAttribute("href", (await missingPartsAction.getAttribute("href"))!);
   await expect(page.getByLabel("Repair workflow", { exact: true })).toBeHidden();
   const switcher = page.getByRole("navigation", { name: "Vehicle workflows" });
   const chooseLifecycle = switcher.locator("summary");
@@ -109,7 +106,10 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   const stageTool = page.locator("#inventory-stage-tool");
   await expect(stageTool).toBeHidden();
   const futureQc = inventoryStages.getByRole("button", { name: /Final QC/ });
-  await futureQc.click();
+  await expect(async () => {
+    if (await futureQc.getAttribute("aria-expanded") === "false") await futureQc.click();
+    await expect(futureQc).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(stageTool.getByRole("heading", { name: "Final QC" })).toBeVisible();
   await expect(stageTool.getByRole("button", { name: "Pass all critical gates" })).toHaveCount(0);
   await futureQc.click();
@@ -122,14 +122,15 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   await page.reload();
   await expect(stageTool).toBeHidden();
   await inventoryStages.getByRole("button", { name: /Receipt/ }).click();
-  await expect(stageTool.getByRole("heading", { name: "Confirm identity and custody" })).toBeVisible();
+  await expect(stageTool.getByRole("heading", { name: "Receipt", exact: true })).toBeVisible();
+  await expect(stageTool.getByRole("heading", { name: "Receiving checklist" })).toBeVisible();
   await switcher.getByRole("link", { name: "Shop & Recon" }).click();
   await expect(switcher.locator('[aria-current="page"]')).toHaveText("Shop & Recon", { timeout: 25_000 });
   await expect(page.getByRole("navigation", { name: "Sixteen Shop and Recon stages" }).getByRole("button")).toHaveCount(16);
   await page.getByRole("link", { name: "Return to Repair Workbench" }).click();
   const blocker = page.getByRole("region", { name: "Parts blocking repair" });
-  await expect(blocker).toContainText(job.jobNumber);
   await expect(blocker).toContainText("Synthetic bracket");
+  await expect(blocker).toContainText("0/1 reserved");
   await page.locator("summary").filter({ hasText: "Tools ⋮" }).click();
   const menu = page.getByRole("navigation", { name: "Repair order tools" });
   await expect(menu.getByRole("link", { name: "360 Photos" })).toBeVisible();
@@ -140,8 +141,8 @@ test("an existing recon order shows its parts blocker and resumes assignment aft
   await tools.getByRole("link", { name: "RO statistics" }).click();
   await expect(tools.getByRole("link", { name: "RO statistics" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("Vehicle information", { exact: true })).toBeVisible();
-  await nextAction.getByRole("link", { name: "Review missing parts" }).click();
-  await blocker.getByRole("link", { name: "Reserve stock for this repair order" }).click();
+  await page.goto(workbench);
+  await blocker.getByRole("link", { name: "Review stock and reservations" }).click();
 
   const reservation = page.locator("form").filter({ has: page.getByRole("heading", { name: "Reserve stock" }) });
   await expect(reservation.getByLabel("Repair order")).toHaveValue(order.id, { timeout: 25_000 });

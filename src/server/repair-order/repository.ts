@@ -101,10 +101,10 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       }),
     ]);
     const latestAdvisorDecisions = await Promise.all(items.map(item => {
-      const latest = item.advisorUpdates.find(update => update.statusCode !== "TECHNICIAN_FINDING");
+      const latest = item.advisorUpdates.find(update => !["TECHNICIAN_FINDING", "TECHNICIAN_PROGRESS"].includes(update.statusCode));
       if (latest || item.advisorUpdates.length < 8) return latest ?? null;
       return database.repairAdvisorUpdate.findFirst({
-        where: { organizationId, repairOrderId: item.id, statusCode: { not: "TECHNICIAN_FINDING" } },
+        where: { organizationId, repairOrderId: item.id, statusCode: { notIn: ["TECHNICIAN_FINDING", "TECHNICIAN_PROGRESS"] } },
         orderBy: { version: "desc" },
         include: { authorUser: { select: { id: true, name: true } } },
       });

@@ -1,6 +1,6 @@
 "use client";
 
-import { repairBillingHref } from "@/lib/service-billing-workflow";
+import { laborGuideInvoiceHref, repairBillingHref } from "@/lib/service-billing-workflow";
 import { GuideRepairHistory } from "@/features/diagnostics/guide-repair-history";
 
 import { repairExplorerHandoffHref, repairOrderDocumentsHref, type RepairExplorerContext } from "@/lib/repair-explorer-context";
@@ -26,7 +26,12 @@ const money = (value: number) => new Intl.NumberFormat("en-US", { style: "curren
 
 const subscribeToHydration = () => () => {};
 
-export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, context }: { storageKey: string; initialSystemId?: string; initialGroupId?: string; context?: RepairExplorerContext }) {
+export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, context, initialQuery = "", sourceReturnTo, transferReturnTo = sourceReturnTo, courtesySearches = [], courtesySourceId, transferStorageKey = storageKey }: {
+  storageKey: string; initialSystemId?: string; initialGroupId?: string; context?: RepairExplorerContext;
+  initialQuery?: string; sourceReturnTo?: string; transferReturnTo?: string; transferStorageKey?: string;
+  courtesySourceId?: string;
+  courtesySearches?: { code: string; label: string; query: string }[];
+}) {
   const router = useRouter();
   const repairOrderId = context?.repairOrderId;
   const initialSystem = REPAIR_SYSTEMS.find(system => system.id === initialSystemId) ?? REPAIR_SYSTEMS.find(system => system.id === "brakes")!;
@@ -36,7 +41,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   const [groupId, setGroupId] = useState(initialGroup.id);
   const [axle, setAxle] = useState("front");
   const [mode, setMode] = useState<"repair" | "diagnosis">("repair");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [selectedId, setSelectedId] = useState(initialGroup.operations.find(operation => operation.kind === "repair")?.id ?? "");
   const [lines, setLines] = useState<EstimateLine[]>([]);
   const [rate, setRate] = useState(context?.laborRate ?? 150);
@@ -54,6 +59,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   const visible = group?.operations.filter((item) => item.kind === mode && (group.id !== "friction" || mode === "diagnosis" || (brakeOperationForId(item.id)?.position.toLowerCase().startsWith(axle) ?? item.id.startsWith(axle)))) ?? [];
   const results = query.trim() ? searchRepairs(query) : [];
   const totals = estimateTotals(lines, rate);
+  const followUpRequired = Boolean(courtesySourceId && !repairOrderId);
   const scopeConflict = lines.some((line, index) => lines.slice(index + 1).some(other => repairScopeConflict(line.id, other.id)));
   const incompleteLine = lines.find(line => line.partItems?.some(item => !item.name.trim() || item.unitPrice === null));
 
@@ -114,7 +120,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
 
   function saveDraft() {
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId, courtesySourceId }));
       setStatus("Draft saved in this browser. No repair order or customer record was changed.");
     } catch {
       setStatus("Browser storage is unavailable. Your estimate is still available until you leave this page.");
@@ -127,6 +133,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   }
 
   function generateEstimate() {
+    if (followUpRequired) { setTransferError("Open a follow-up repair order for this vehicle before continuing to official estimate review."); return; }
     if (!lines.length || scopeConflict) { setStatus("Add work and resolve scope conflicts before generating an estimate."); return; }
     setTransferError("");
     const partsUndecided = lines.find(line => line.partItems?.length === 0 && line.parts === null);
@@ -140,11 +147,11 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       return;
     }
     try {
-      const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId });
+      const raw = JSON.stringify({ version: 1, rate, lines, repairOrderId, vehicleId: context?.vehicleId, courtesySourceId });
       if (!parsePreviewDraft(raw)) throw new Error("invalid");
       window.localStorage.setItem(storageKey, raw);
-      window.sessionStorage.setItem(`${storageKey}.handoff`, raw);
-      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow, context?.returnTo));
+      window.sessionStorage.setItem(`${transferStorageKey}.handoff`, raw);
+      router.push(repairExplorerHandoffHref(repairOrderId, context?.reviewWorkflow, transferReturnTo ?? context?.returnTo));
     } catch {
       setTransferError("The estimate could not open for review. Check the draft values and browser storage, then try again. Your work is still on this page.");
     }
@@ -155,7 +162,8 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
       const raw = window.localStorage.getItem(storageKey);
       const draft = raw ? parsePreviewDraft(raw) : null;
       if (!draft) { setStatus(raw ? "The saved draft cannot be loaded. Your current estimate was kept." : "No saved draft in this browser yet."); return; }
-      if ((draft.repairOrderId ?? null) !== (repairOrderId ?? null) || (draft.vehicleId ?? null) !== (context?.vehicleId ?? null)) {
+      const isCourtesyDraftForThisSource = !!courtesySourceId && courtesySourceId === draft.courtesySourceId && !draft.repairOrderId;
+      if (!isCourtesyDraftForThisSource && ((draft.repairOrderId ?? null) !== (repairOrderId ?? null) || (draft.vehicleId ?? null) !== (context?.vehicleId ?? null))) {
         setStatus("This saved draft belongs to another repair order or vehicle. Your current work was kept.");
         return;
       }
@@ -199,7 +207,7 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
   return (
     <div className={styles.preview}>
       <header className={styles.topbar}>
-        <a href={context?.returnTo ?? "/my-tasks"}><ArrowLeft size={16} /> {context?.returnTo ? "Back to repair order" : "My work"}</a>
+        <a href={sourceReturnTo ?? context?.returnTo ?? "/my-tasks"}><ArrowLeft size={16} /> {sourceReturnTo ? "Back to repair order" : context?.returnTo ? "Back to repair order" : "My work"}</a>
         <strong>Dispatch Board <span>/ Labor Guide</span></strong>
       </header>
       <main className={styles.workspace}>
@@ -215,6 +223,11 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
         <GuideRepairHistory initialVehicleId={context?.vehicleId} />
         <div className={styles.searchbar}>
           <Search size={21} aria-hidden="true" />
+          {courtesySearches.length > 0 && <div aria-label="Search by courtesy finding">
+            {courtesySearches.map(item => <button className="pill" key={item.code} type="button" onClick={() => {
+              setQuery(item.query); setReview(false); setVisualOpen(false); focusContent();
+            }}>{item.label}</button>)}
+          </div>}
           <input aria-label="Search all repairs" placeholder="Search a symptom, repair, part or trouble code" value={query} onChange={(event) => { setQuery(event.target.value); setReview(false); setVisualOpen(false); }} />
           {query ? <button type="button" onClick={() => setQuery("")}>Clear</button> : <span>All systems</span>}
           <button type="button" className={styles.visualLaunch} aria-pressed={visualOpen} onClick={() => { setVisualOpen(!visualOpen); setQuery(""); setReview(false); }}>Find it visually</button>
@@ -308,12 +321,12 @@ export function RepairExplorer({ storageKey, initialSystemId, initialGroupId, co
             <button type="button" className={review ? styles.secondary : styles.primary} disabled={!lines.length} onClick={() => { if (review) saveDraft(); else { setReview(true); setQuery(""); focusContent(); } }}>{review ? "Save draft" : "Review estimate"}<ArrowRight size={17} /></button>
             {review && showPartErrors && incompleteLine && <p role="alert" className={styles.generateError}>Complete the highlighted part fields for {incompleteLine.label} to continue.</p>}
             {review && transferError && <p role="alert" className={styles.generateError}>{transferError}</p>}
-            {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
-            {review && <p className={styles.priceNote}>{context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
+            {review && <button type="button" className={styles.primary} disabled={!lines.length || scopeConflict || followUpRequired} onClick={generateEstimate}>Generate / Print Estimate<ArrowRight size={17} /></button>}
+            {review && <p className={styles.priceNote}>{followUpRequired ? "Save this draft until a follow-up repair order for this vehicle is available." : context ? "Next: review and generate the estimate for this repair order. Fitment, labor, parts, tax and authorization safeguards still apply." : "Next: select a real customer / vehicle and RO. Documents, approvals and final invoice printing are available from that RO; a browser draft is not an invoice."}</p>}
             <div className={styles.draftActions}>{!review && <button type="button" onClick={saveDraft}>Save draft</button>}<button type="button" onClick={loadDraft}>Load saved draft</button></div>
             {repairOrderId && context?.origin === "CUSTOMER_REPAIR" && <nav className={styles.draftActions} aria-label="Estimate billing tools">
-              <a className={styles.secondary} target="_blank" rel="noreferrer" href={repairBillingHref(repairOrderId, { mode: "invoice" })}>Convert saved estimate to invoice</a>
-              <a className={styles.secondary} target="_blank" rel="noreferrer" href={repairBillingHref(repairOrderId, { mode: "deposit" })}>Record deposit</a>
+              <a className={styles.secondary} target="_blank" rel="noreferrer" href={laborGuideInvoiceHref(repairOrderId, { returnTo: context.returnTo ?? `/prototype/repair-explorer?${new URLSearchParams({ repairOrderId })}` })}>Review saved estimate for invoicing</a>
+              <a className={styles.secondary} target="_blank" rel="noreferrer" href={repairBillingHref(repairOrderId, { mode: "deposit", returnTo: context.returnTo })}>Record deposit</a>
             </nav>}
             <p className={styles.status} role="status" aria-live="polite">{status}</p>
           </aside>

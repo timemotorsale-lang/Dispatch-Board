@@ -4,12 +4,22 @@ import type { ReconRepairPath } from "./recon-repair-paths";
 export const repairWorkflowSteps = ["inspection", "diagnosis", "estimate", "authorization", "parts", "assignment", "repair", "qc", "handoff"] as const;
 export type RepairWorkflowStep = typeof repairWorkflowSteps[number];
 export const repairWorkflowLabels: Record<RepairWorkflowStep, string> = { inspection: "Inspect", diagnosis: "Diagnose / scope", estimate: "Estimate", authorization: "Authorize", parts: "Parts & release", assignment: "Assign", repair: "Repair", qc: "Quality check", handoff: "Closeout / handoff" };
+
+export function currentRepairAdvisorReason(reason: string | null, partsResolved: boolean) {
+  const prefix = "Advisor exceptions: ";
+  if (!partsResolved || !reason?.startsWith(prefix)) return reason;
+  const remaining = reason.slice(prefix.length).split(",").map(code => code.trim())
+    .filter(code => code !== "PARTS_PENDING_REPAIR_CONTINUES" && code !== "PARTS_DELAY");
+  return remaining.length ? prefix + remaining.join(", ") : null;
+}
 export function repairReviewHref(repairOrderId: string, step?: RepairWorkflowStep, context: {
   returnTo?: string;
   returnLabel?: string;
   tool?: string;
   reconPath?: ReconRepairPath;
   workflow?: "shop";
+  repairJobId?: string;
+  repairAction?: "progress";
 } = {}) {
   const query = new URLSearchParams({ repairOrderId });
   if (step) query.set("step", step);
@@ -18,6 +28,8 @@ export function repairReviewHref(repairOrderId: string, step?: RepairWorkflowSte
   if (context.tool) query.set("tool", context.tool);
   if (context.reconPath) query.set("reconPath", context.reconPath);
   if (context.workflow) query.set("workflow", context.workflow);
+  if (step === "repair" && context.repairJobId) query.set("repairJobId", context.repairJobId);
+  if (step === "repair" && context.repairAction) query.set("repairAction", context.repairAction);
   return `/vehicles/repair-workbench?${query}`;
 }
 export function pendingApprovedLabor(estimate: { lineItems?: unknown; authorizations: { id?: string; disposition: string; authorizedLineKeys?: unknown }[] } | undefined,

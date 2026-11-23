@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "@/tests/helpers/render-with-app-router";
-import { currentRepairWorkflowStep, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
+import { currentRepairAdvisorReason, currentRepairWorkflowStep, repairReviewHref, scopedRepairOrders } from "@/lib/repair-workflow-review";
 import { repairExplorerHandoffHref } from "@/lib/repair-explorer-context";
 import { laborGuideHref } from "@/features/diagnostics/labor-guide-view-switch";
 import { RepairHandoffTool } from "@/features/prototype/repair-workflow/repair-handoff-tool";
@@ -16,12 +16,31 @@ it("keeps a started job on Repair and opens QC when the last unfinished job is c
   expect(repairExecutionNextStep("FINISH", "J002", jobs)).toBe("qc");
   expect(repairExecutionNextStep("FINISH", "J002", [...jobs, { id: "J003", status: "IN_PROGRESS" }])).toBe("repair");
 });
+
+it("opens a progress note for the exact assigned job", () => {
+  const job = { id: "bumper", jobNumber: "J002", description: "Replace bumper", status: "DISPATCHED",
+    dispatches: [{ technicianUserId: "tech", status: "ACTIVE" }], laborClocks: [] };
+  const jobs = [{ ...job, id: "lamp", jobNumber: "J001" }, job];
+  const html = renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={jobs} actorId="tech" manager={false} initialJobId="bumper" openProgress />);
+  expect(html).toContain('aria-label="Execution for J002"');
+  expect(html).toContain("Repair progress note");
+  const unassigned = renderToStaticMarkup(<RepairExecutionTool repairOrderId="ro" jobs={jobs} actorId="other" manager={false} initialJobId="bumper" openProgress />);
+  expect(unassigned).toContain("The assigned technician or a manager can record progress");
+  expect(unassigned).not.toContain("Repair progress note");
+});
 const approvedOrder = {
   id: "ro-escape",
   estimateVersions: [{ version: 2, lineItems: [{ key: "labor", type: "LABOR" }], authorizations: [{ disposition: "ACCEPTED", authorizedLineKeys: ["labor"] }] }],
   repairJobs: [],
   vendorWorks: [],
 };
+
+it("removes only resolved parts exceptions from the live next action", () => {
+  const parts = "Advisor exceptions: PARTS_PENDING_REPAIR_CONTINUES";
+  expect(currentRepairAdvisorReason(parts, false)).toBe(parts);
+  expect(currentRepairAdvisorReason(parts, true)).toBeNull();
+  expect(currentRepairAdvisorReason(`${parts}, CUSTOMER_CONTACT_PENDING`, true)).toBe("Advisor exceptions: CUSTOMER_CONTACT_PENDING");
+});
 
 describe("repair QC prerequisites", () => {
   it("routes approved labor to release when no job exists", () => {

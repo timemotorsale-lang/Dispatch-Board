@@ -15,7 +15,7 @@ import { canManageSettings } from "@/server/policies/access";
 import { initialEstimatePricing } from "@/lib/labor-guide-controls";
 import { repairExplorerStorageKey, safeLaborGuideReturnTo } from "@/lib/repair-explorer-context";
 
-export type PageProps = { searchParams?: Promise<{ attachRepairOrder?: string | string[]; draftId?: string | string[]; reviseDocument?: string | string[]; workflow?: string | string[]; guide?: string | string[]; importExplorer?: string | string[]; experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
+export type PageProps = { searchParams?: Promise<{ attachRepairOrder?: string | string[]; draftId?: string | string[]; reviseDocument?: string | string[]; workflow?: string | string[]; guide?: string | string[]; importExplorer?: string | string[]; experience?: string | string[]; mode?: string | string[]; repairOrderId?: string | string[]; estimateId?: string | string[]; documentId?: string | string[]; documentHash?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
 
 

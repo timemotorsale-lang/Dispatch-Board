@@ -1145,7 +1145,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     </section>
 
     {selected ? <>
-      {!stageTwoComplete && !focusStep ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair path</span><h2>Choose path</h2><p>Pick how this RO should be estimated. Details stay available inside each step.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Diagnostic / mechanical</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
+      {!stageTwoComplete && !focusStep ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair path</span><h2>Choose path</h2><p>Pick how this RO should be estimated. Details stay available inside each step.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Mechanical Repair</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
       <section className={styles.toolStrip} aria-label="Quick repair actions">
         <div><span>Quick action flow</span><h2>Intake &rarr; diagnosis &rarr; Labor Guide estimate &rarr; authorization</h2></div>
         <nav>
@@ -1248,7 +1248,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 
           {(!focusStep || (focusStep === 2 && !repairOnly)) && <WorkflowStep editing={editingStep === 2} editDisabled={busy || (editingStep !== null && editingStep !== 2)} onEdit={() => beginDraftEdit(2)} onCancel={cancelEditing} complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={Boolean(focusStep) || currentStep === 1 || staffNext?.step === 2} showEditControls={false} subtitle="Choose the path, confirm the scope, and move on. Open details only when the case needs extra explanation." title={stageTwoTitle}>
             {!guidedPath && <div className={styles.pathPicker} role="group" aria-label="Repair path">
-              <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} type="button">Diagnostic / mechanical</button>
+              <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} type="button">Mechanical Repair</button>
               <button aria-pressed={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} type="button">Bodywork repair</button>
               <button aria-pressed={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} type="button"><Building2 /> Outside vendor</button>
             </div>}
@@ -1450,7 +1450,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 <div className={styles.simpleCard}>
                   <span className={styles.simpleEyebrow}>Same-RO completion work</span>
                   <h3>Create the internal follow-up job here, not a separate unrelated RO</h3>
-                  <p>Dealership QC failed the outside-vendor return. Keep {selected.repairOrderNumber} as the parent record, switch to Bodywork repair or Diagnostic / mechanical, then create the estimate and repair job for the unfinished items.</p>
+                  <p>Dealership QC failed the outside-vendor return. Keep {selected.repairOrderNumber} as the parent record, switch to Bodywork repair or Mechanical Repair, then create the estimate and repair job for the unfinished items.</p>
                   <div className={styles.simpleInstructions}>
                     <strong>Recommended for this case</strong>
                     <p>Use the missing vendor scope as the new internal completion scope, for example: complete the outer door handle and replace the upper/lower steering column covers.</p>
