@@ -20,13 +20,13 @@ const date = (value: unknown) => {
 const object = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const array = (value: unknown) => Array.isArray(value) ? value : [];
 
-export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview", work, pilotReturnTo }: { initial: VehicleExecutionWorkbenchProjection; initialRoleLens?: RoleLens; work?: VehicleWorkActions; pilotReturnTo?: string }) {
+export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview", work }: { initial: VehicleExecutionWorkbenchProjection; initialRoleLens?: RoleLens; work?: VehicleWorkActions }) {
   const roleLenses = (initial.roleLenses ?? ["Overview"]).filter((lens): lens is RoleLens => ["Overview", "Inventory Manager", "Technician", "Parts", "Sales / Marketing", "Service Advisor", "General Manager"].includes(lens));
   const authorizedInitialLens = roleLenses.includes(initialRoleLens) ? initialRoleLens : "Overview";
   const [active, setActive] = useState<Tab>(authorizedInitialLens === "Technician" ? "work" : authorizedInitialLens === "Parts" ? "parts" : "overview"), vehicle = initial.identity, current = initial.work.current, overview = object(initial.overview), staged = initial.work.staged, task = object(current?.task);
   const [roleLens, setRoleLens] = useState<RoleLens>(authorizedInitialLens);
   const vehicleId = text(vehicle.id, text(vehicle.vehicleNumber, "vehicle"));
-  const workbenchHref = pilotReturnTo ?? `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
+  const workbenchHref = `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
   const hasActiveRepair = Boolean(work?.orders.length);
   const rapidUpdateHref = `/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning?focus=recon-update&returnTo=${encodeURIComponent(`/vehicles/${vehicleId}/workbench`)}`;
   const [partsRequests, setPartsRequests] = useState<VehiclePartsRequest[]>([]);
