@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
-const mocks = vi.hoisted(() => ({ query: vi.fn(), jackets: vi.fn(), tasks: vi.fn(), bookings: vi.fn(), access: vi.fn(), taxes: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ prisma: { $queryRaw: mocks.query, salesDocumentJacket: { findMany: mocks.jackets }, task: { findMany: mocks.tasks }, vehicleUseBooking: { findMany: mocks.bookings }, complianceTaxRecord: { findMany: mocks.taxes } } }));
+const mocks = vi.hoisted(() => ({ query: vi.fn(), jackets: vi.fn(), draftLedgers: vi.fn(), tasks: vi.fn(), bookings: vi.fn(), access: vi.fn(), taxes: vi.fn() }));
+vi.mock("@/server/db/client", () => ({ prisma: {
+  $queryRaw: mocks.query,
+  salesDocumentJacket: { findMany: mocks.jackets },
+  documentLibraryAuditEvent: { findMany: mocks.draftLedgers },
+  task: { findMany: mocks.tasks },
+  vehicleUseBooking: { findMany: mocks.bookings },
+  complianceTaxRecord: { findMany: mocks.taxes },
+} }));
 vi.mock("@/server/compliance/service", () => ({ complianceAccess: mocks.access }));
 import { buildDealDashboard } from "@/server/sales-documents/dashboard";
 import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
@@ -58,7 +65,15 @@ describe("scoped deal dashboard", () => {
     expect(closed.items[0]).toMatchObject({ id: "complete", completedDate: "2026-11-02" });
     await expect(buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("rentalStage=__proto__"))).rejects.toMatchObject({ status: 400 });
   });
-  beforeEach(() => { vi.resetAllMocks(); mocks.query.mockResolvedValue([]); mocks.jackets.mockResolvedValue([]); mocks.tasks.mockResolvedValue([]); mocks.bookings.mockResolvedValue([]); mocks.access.mockRejectedValue({ status: 403 }); });
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.query.mockResolvedValue([]);
+    mocks.jackets.mockResolvedValue([]);
+    mocks.draftLedgers.mockResolvedValue([]);
+    mocks.tasks.mockResolvedValue([]);
+    mocks.bookings.mockResolvedValue([]);
+    mocks.access.mockRejectedValue({ status: 403 });
+  });
   it("does not use the last edit as a completion date and keeps undated records out of period totals", async () => {
     mocks.query.mockResolvedValue([{ ...row("sold", "SOLD"), packetState: "CLOSED", statusHistory: [{ to: "SOLD", at: "2026-10-31T18:00:00Z" }] }, row("old", "COMPLETED"), { ...row("rental", "COMPLETED"), pathway: "daily-rental", statusHistory: [{ to: "COMPLETED", at: "2026-10-31T18:00:00Z" }] }]);
     const result = await buildDealDashboard(actor, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day&bucket=completed"));
@@ -148,5 +163,17 @@ describe("scoped deal dashboard", () => {
     const result = await buildDealDashboard(manager, Prisma.sql`SELECT 1`, new URLSearchParams("status=CURRENT&date=2026-10-31&period=day"));
     expect(result.items).toHaveLength(0);
     expect(result.dashboard.financials).toMatchObject({ recordedDeals: 1, paymentsCents: 50000, netCents: 50000 });
+  });
+  it("includes a daily rental payment recorded before the deal has a document packet", async () => {
+    mocks.query.mockResolvedValue([{ ...row("rental"), pathway: "daily-rental" }, row("sale")]);
+    mocks.draftLedgers.mockResolvedValue([{ id: "rental-payment", subjectId: "rental", action: "DEAL_FINANCIAL_RECORDED",
+      occurredAt: new Date("2026-10-31T18:00:00Z"), metadata: { kind: "PAYMENT", amountCents: 5000, businessDate: "2026-10-31", reference: "CASH-RENTAL" } }]);
+    const manager = { ...actor, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
+    const result = await buildDealDashboard(manager, Prisma.sql`SELECT 1`, new URLSearchParams("date=2026-10-31&period=day"));
+    expect(mocks.draftLedgers).toHaveBeenCalledWith(expect.objectContaining({ where: {
+      organizationId: resolveDocumentStorageRuntimeFromEnv().organizationId,
+      subjectType: "DEAL", subjectId: { in: ["rental"] }, packetId: null, action: "DEAL_FINANCIAL_RECORDED",
+    } }));
+    expect(result.dashboard.financials).toMatchObject({ recordedDeals: 1, paymentsCents: 5000, netCents: 5000 });
   });
 });

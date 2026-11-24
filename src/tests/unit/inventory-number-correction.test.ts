@@ -46,10 +46,16 @@ describe("authorized inventory number correction (isolated database mocks)", () 
     }
   });
 
-  it.each([{ reason: " short " }, { expectedVersion: "3" }, { expectedVersion: 1.2 }, { expectedVersion: -1 }, { idempotencyKey: " " }])("rejects invalid command fields before writes: %j", async invalid => {
+  it.each([{ reason: " " }, { expectedVersion: "3" }, { expectedVersion: 1.2 }, { expectedVersion: -1 }, { idempotencyKey: " " }])("rejects invalid command fields before writes: %j", async invalid => {
     const setup = fixture();
     await expect(setup.save({ ...request, ...invalid })).rejects.toThrow();
     expect(setup.database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("accepts a short nonblank reason and records it in the audit trail", async () => {
+    const setup = fixture();
+    await expect(setup.save({ ...request, reason: " Typo " })).resolves.toMatchObject({ inventoryNumber: "NEW-123" });
+    expect(setup.tx.enterpriseAuditEvent.create).toHaveBeenCalledWith({ data: expect.objectContaining({ reason: "Typo" }) });
   });
 
   it("requires authentication and both capabilities at the selected location", async () => {
