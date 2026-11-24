@@ -93,7 +93,7 @@ test("opens the saved rental action from Deals and shows cancellation after relo
   expect(await reloaded.json()).toMatchObject({ status: "CANCELLED", statusHistory: expect.arrayContaining([expect.objectContaining({ action: "RENTAL_DRAFT_CANCELLED" })]) });
 });
 
-test("explains blocked checkout, then saves routine handoff without manual audit entries", async ({ page }) => {
+test("confirms rental readiness without recon, then saves routine handoff", async ({ page }) => {
   test.skip(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1", "Requires a disposable migrated and seeded database.");
   const database = new URL(process.env.DATABASE_URL!);
   if (!["localhost", "127.0.0.1", "[::1]"].includes(database.hostname) || !/^deal_staging_\d+$/.test(database.searchParams.get("schema") ?? "")) {
@@ -114,8 +114,15 @@ test("explains blocked checkout, then saves routine handoff without manual audit
     const customer = await prisma.customer.create({ data: { organizationId, customerNumber: id, displayName: name } });
     const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: id, vin: `1${id.replaceAll("-", "").slice(0, 16).toUpperCase()}`, vinState: "VALID", vinValidationSource: "ISOLATED_FIXTURE" } });
     const unit = await prisma.inventoryUnit.create({ data: {
-      organizationId, locationId: location.id, vehicleId: vehicle.id, inventoryNumber: id, ownerUserId: user.id, lifecycleStage: "FRONTLINE_READY",
+      organizationId, locationId: location.id, vehicleId: vehicle.id, inventoryNumber: id, ownerUserId: user.id, lifecycleStage: "PURCHASED_OR_TRADE_IN",
       stageStartedAt: occurredAt, financialAcquiredAt: occurredAt, targetAt: due, nextAction: "Isolated checkout review"
+    } });
+    await prisma.vehicleRelationship.create({ data: {
+      organizationId, vehicleId: vehicle.id, relationshipType: "DEALERSHIP_OWNED", effectiveFrom: occurredAt, sourceCode: "ISOLATED_FIXTURE"
+    } });
+    await prisma.inventoryIntakeRevision.create({ data: {
+      organizationId, vehicleId: vehicle.id, inventoryUnitId: unit.id, version: 1, status: "CONFIRMED", details: { condition: "Good" },
+      pendingItems: [], costRecordIds: [], actorUserId: user.id, reason: "Test fixture"
     } });
     const snapshot = { "desk:identity": { customerId: customer.id, vehicleId: vehicle.id, inventoryUnitId: unit.id } };
     const saved = await page.request.post("/api/crm/v1/deal-drafts", { data: {
@@ -135,7 +142,26 @@ test("explains blocked checkout, then saves routine handoff without manual audit
     await expect(checkout.getByLabel("Dated handoff record")).toHaveCount(0);
     await confirm.click();
     await expect(checkout.getByRole("alert")).toContainText("Finalize the linked checkout packet");
+    await expect(checkout.getByRole("alert")).toContainText("Confirm the vehicle is ready to rent");
     expect(await prisma.vehicleUseBooking.count({ where: { contextId: id } })).toBe(0);
+    const readinessButton = checkout.getByRole("button", { name: "Confirm ready to rent" });
+    await expect(readinessButton).toBeDisabled();
+    const continuity = `/api/crm/v1/deal-continuity/${id}`;
+    const { vehicleReadiness } = await (await page.request.get(continuity)).json();
+    const staleConfirmation = await page.request.post(continuity, { data: {
+      action: "CONFIRM_RENTAL_READINESS", ...vehicleReadiness.review, unitVersion: unit.version - 1, confirmed: true, operationKey: randomUUID()
+    } });
+    expect(staleConfirmation.status()).toBe(409);
+    await checkout.getByLabel("The vehicle is on site, safe to rent, and needs no repairs.").check();
+    const confirmation = page.waitForRequest(request => request.url().endsWith(`/deal-continuity/${id}`) && request.method() === "POST");
+    await readinessButton.click();
+    const readinessPayload = (await confirmation).postDataJSON();
+    await expect(checkout.getByRole("status").filter({ hasText: "Rental readiness confirmed for this deal." })).toBeVisible();
+    const duplicate = await page.request.post(continuity, { data: readinessPayload });
+    expect(await duplicate.json()).toMatchObject({ duplicate: true });
+    expect(await prisma.dealContinuityEvent.count({ where: { contextId: id, action: "CONFIRM_RENTAL_READINESS" } })).toBe(1);
+    expect(await prisma.vehicleUseBooking.count({ where: { contextId: id } })).toBe(0);
+    expect(await prisma.inventoryUnit.findUnique({ where: { id: unit.id } })).toMatchObject({ lifecycleStage: "PURCHASED_OR_TRADE_IN", version: unit.version });
 
     const packet = await prisma.documentLibraryPacket.create({ data: {
       organizationId, ownerType: "DEAL", ownerId: id, ownerLabel: name, packetType: "TEST_FIXTURE", workflow: "daily-rental", title: name
@@ -183,6 +209,7 @@ test("explains blocked checkout, then saves routine handoff without manual audit
     expect(bookings).toHaveLength(1);
     expect(bookings[0]).toMatchObject({ status: "CHECKED_OUT", departureSnapshot: { evidence: [`document:${documents[0].id}`, `document:${documents[2].id}`] } });
     expect(await prisma.dealContinuityEvent.count({ where: { contextId: id, action: "HANDOFF" } })).toBe(1);
+    expect(await prisma.repairOrder.count({ where: { vehicleId: vehicle.id } })).toBe(0);
   } finally {
     await prisma.$disconnect();
   }

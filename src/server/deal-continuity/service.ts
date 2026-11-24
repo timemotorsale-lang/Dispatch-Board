@@ -8,13 +8,14 @@ import { isManager } from "@/server/policies/access";
 import { dealCustomer, dealDocumentOrganization, dealOrganization, dealVehicle } from "./identities";
 import { normalizeVehicleUseCommand, vehicleUseOverlaps } from "@/lib/deal-continuity";
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
-import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { validateRentalHandover } from "@/lib/rental-lifecycle";
 import { rentalOperationsSummary } from "@/lib/rental-operations";
 import { legacyRentalReturnWithoutCompletion } from "./custody-selection";
 import { createManualTask } from "@/server/services/task-create-service";
 import { createTaskCreateRepository } from "@/server/repositories/task-create-repository";
 import { chicagoDate } from "@/lib/deal-dashboard";
+import { isRentalPathway, readRentalReadiness, rentalReadinessAction } from "./rental-readiness";
 
 type Tx = Prisma.TransactionClient;
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -125,7 +126,52 @@ export async function readDealContinuity(actor: AuthenticatedUser | null, id: st
   const latest = rentalOperationsSummary(context.bookings, { pathway: context.draft.pathway }).booking;
   const returnPacket = latest?.agreementJacketId ? await readReturnPacket(prisma, latest.agreementJacketId) : null;
   const linkedJacketId = latest?.agreementJacketId ?? agreementId;
-  return { agreements, insuranceProofs, agreementHref: linkedJacketId ? `/sales-documents?jacketId=${encodeURIComponent(linkedJacketId)}` : null, id: context.id, customerId: context.customerId, vehicleId: context.vehicleId, vehicleReadiness: vehicle && { eligible: vehicle.eligibleForUse, detail: vehicle.availability, inventoryUnitId: vehicle.inventoryUnitId }, source, bookings: context.bookings, packetClosed: Boolean(returnPacket), settlementReceiptOnFile: hasSettlementReceipt(returnPacket?.snapshot), canManageExceptions: isManager(actor), draftStatus: context.draft.status, events: await prisma.dealContinuityEvent.findMany({ where: { contextId: id, organizationId: context.organizationId }, orderBy: { occurredAt: "desc" }, take: 30 }) };
+  const readiness = vehicle && isRentalPathway(context.draft.pathway) ? await readRentalReadiness(prisma, context, vehicle) : null;
+  const canConfirmReadiness = readiness?.review && (evaluateVehicleCapability({
+    actor: user, capability: "INVENTORY_READINESS_VERIFY", locationId: vehicle!.locationId, now: new Date(),
+    grants: await createEnterpriseCommandRepository().listCapabilityGrants(user.id, context.organizationId)
+  }).allowed);
+  const isActiveDraft = !["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status);
+  const vehicleReadiness = readiness ? {
+    ...readiness,
+    detail: readiness.review && !canConfirmReadiness ? "Ask someone with inventory readiness permission to confirm the vehicle is ready to rent" : readiness.detail,
+    review: canConfirmReadiness && isActiveDraft ? readiness.review : null
+  } :
+    vehicle && { eligible: vehicle.eligibleForUse, detail: vehicle.availability, inventoryUnitId: vehicle.inventoryUnitId, review: null };
+  return { agreements, insuranceProofs, agreementHref: linkedJacketId ? `/sales-documents?jacketId=${encodeURIComponent(linkedJacketId)}` : null, id: context.id, customerId: context.customerId, vehicleId: context.vehicleId, vehicleReadiness, source, bookings: context.bookings, packetClosed: Boolean(returnPacket), settlementReceiptOnFile: hasSettlementReceipt(returnPacket?.snapshot), canManageExceptions: isManager(actor), draftStatus: context.draft.status, events: await prisma.dealContinuityEvent.findMany({ where: { contextId: id, organizationId: context.organizationId }, orderBy: { occurredAt: "desc" }, take: 30 }) };
+}
+
+async function confirmRentalReadiness(user: AuthenticatedUser, id: string, raw: Record<string, unknown>) {
+  const operationKey = text(raw.operationKey);
+  const review = { vehicleId: text(raw.vehicleId), inventoryUnitId: text(raw.inventoryUnitId), unitVersion: raw.unitVersion, intakeRevisionId: text(raw.intakeRevisionId) };
+  if (!/^[a-zA-Z0-9-]{8,100}$/.test(operationKey) || !review.vehicleId || !review.inventoryUnitId || !Number.isInteger(review.unitVersion) || !review.intakeRevisionId || raw.confirmed !== true) {
+    throw new SalesDocumentsError("Confirm the vehicle is on site, safe to rent, and needs no repairs.");
+  }
+  const organizationId = dealOrganization();
+  const requestHash = createHash("sha256").update(JSON.stringify({ id, actorId: user.id, action: rentalReadinessAction, ...review })).digest("hex");
+  return prisma.$transaction(async db => {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":operation:" + operationKey}, 0))`;
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":deal-context:" + id}, 0))`;
+    const context = await contextFor(user, id, db);
+    const prior = await db.dealContinuityEvent.findUnique({ where: { organizationId_operationKey: { organizationId, operationKey } } });
+    if (prior) {
+      if (prior.requestHash !== requestHash || prior.contextId !== id) throw new SalesDocumentsError("This request reference belongs to different work.", 409);
+      return { duplicate: true, result: prior.result };
+    }
+    if (!isRentalPathway(context.draft.pathway) || ["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status) || context.vehicleId !== review.vehicleId) {
+      throw new SalesDocumentsError("Open the active rental or loaner for this vehicle before confirming readiness.", 409);
+    }
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + review.vehicleId}, 0))`;
+    await db.$queryRaw`SELECT id FROM "InventoryUnit" WHERE id = ${review.inventoryUnitId} AND "organizationId" = ${organizationId} FOR SHARE`;
+    const vehicle = await dealVehicle(user, review.vehicleId, db);
+    const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
+    assertVehicleCapability({ actor: user, capability: "INVENTORY_READINESS_VERIFY", grants, locationId: vehicle.locationId, now: new Date() });
+    const readiness = await readRentalReadiness(db, context, vehicle);
+    if (!readiness.review || JSON.stringify(readiness.review) !== JSON.stringify(review)) throw new SalesDocumentsError(readiness.eligible ? "Rental readiness is already confirmed." : `Refresh and review the vehicle before confirming readiness. ${readiness.detail}.`, 409);
+    const result = { ...readiness.review, condition: "ON_SITE_SAFE_TO_RENT_NO_REPAIRS_REQUIRED" };
+    await db.dealContinuityEvent.create({ data: { id: randomUUID(), organizationId, contextId: id, operationKey, requestHash, action: rentalReadinessAction, actorUserId: user.id, result } });
+    return { duplicate: false, result };
+  });
 }
 
 async function cancelUnassignedRental(db: Tx, user: AuthenticatedUser, id: string, data: ReturnType<typeof normalizeVehicleUseCommand>, requestHash: string) {
@@ -155,7 +201,9 @@ async function cancelUnassignedRental(db: Tx, user: AuthenticatedUser, id: strin
 }
 
 export async function executeVehicleUse(actor: AuthenticatedUser | null, id: string, raw: Record<string, unknown>) {
-  const user = requireOwnDealUser(actor), data = normalizeVehicleUseCommand(raw), organizationId = dealOrganization();
+  const user = requireOwnDealUser(actor);
+  if (raw.action === rentalReadinessAction) return confirmRentalReadiness(user, id, raw);
+  const data = normalizeVehicleUseCommand(raw), organizationId = dealOrganization();
   const requestHash = createHash("sha256").update(JSON.stringify({ id, actorId: user.id, ...data, ...(data.action === "CANCEL" && raw.noHandoffConfirmed === true ? { noHandoffConfirmed: true } : {}), ...(data.action === "HANDOFF" ? { handover: { physicalHandover: raw.physicalHandover === true, insuranceVerified: raw.insuranceVerified === true, insuranceValidUntil: String(raw.insuranceValidUntil ?? ""), timezone: String(raw.timezone ?? ""), ...(typeof raw.insuranceDocumentId === "string" && raw.insuranceDocumentId.trim() ? { insuranceDocumentId: raw.insuranceDocumentId.trim() } : {}) } } : {}) })).digest("hex");
   return prisma.$transaction(async db => {
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":operation:" + data.operationKey}, 0))`;
@@ -165,14 +213,20 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
     const workflowPathway = ["RETURN", "EXTEND", "CANCEL", "COMPLETE"].includes(data.action) ? String(object(context.draft.snapshot)["desk:assignmentPathway"] ?? context.draft.pathway) : context.draft.pathway;
     const prior = await db.dealContinuityEvent.findUnique({ where: { organizationId_operationKey: { organizationId, operationKey: data.operationKey } } });
     if (prior) { if (prior.requestHash !== requestHash || prior.contextId !== id) throw new SalesDocumentsError("This request reference belongs to different work.", 409); return { duplicate: true, result: prior.result }; }
-    const rental = ["daily-rental", "vehicle-loaner"].includes(workflowPathway);
+    const rental = isRentalPathway(workflowPathway);
     const managerRecovery = rental && isManager(user) && ["RETURN", "COMPLETE"].includes(data.action);
     if (["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status) && !managerRecovery) throw new SalesDocumentsError("Ask a manager to reconcile the vehicle custody on this inactive deal.", 409);
     if (!["vehicle-loaner", "daily-rental", "test-drive"].includes(workflowPathway)) throw new SalesDocumentsError("Reserve temporary use from a loaner, rental or test-drive path.");
     if (workflowPathway === "test-drive" && data.action === "HANDOFF") throw new SalesDocumentsError("Use the guided Test Drive release checklist to verify the current agreement and evidence.");
     if (!context.vehicleId) throw new SalesDocumentsError("Select the actual temporary vehicle first.");
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + context.vehicleId}, 0))`;
-    const vehicle = await dealVehicle(actor, context.vehicleId, db);
+    let vehicle = await dealVehicle(actor, context.vehicleId, db);
+    if (rental && ["RESERVE", "HANDOFF"].includes(data.action) && vehicle.inventoryUnitId) {
+      await db.$queryRaw`SELECT id FROM "InventoryUnit" WHERE id = ${vehicle.inventoryUnitId} AND "organizationId" = ${organizationId} FOR SHARE`;
+      vehicle = await dealVehicle(actor, context.vehicleId, db);
+    }
+    const readiness = rental && ["RESERVE", "HANDOFF"].includes(data.action) ? await readRentalReadiness(db, context, vehicle) :
+      { eligible: vehicle.eligibleForUse, detail: vehicle.availability };
     const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
     assertVehicleCapability({ actor: user, capability: "COMMERCIAL_HANDOFF_MANAGE", grants, locationId: vehicle.locationId, now: new Date() });
     if (rental && data.action === "HANDOFF") {
@@ -184,7 +238,7 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
     const previousDueBack = booking?.expectedReturnAt;
     if (data.activate) {
       if (!rental) throw new SalesDocumentsError("Combined activation is available only for rentals and loaners.");
-      if (!vehicle.eligibleForUse) throw new SalesDocumentsError("The vehicle is not ready for checkout. Review its frontline readiness.", 409);
+      if (!readiness.eligible) throw new SalesDocumentsError(`The vehicle is not ready for checkout. ${readiness.detail}.`, 409);
       if (context.bookings.length) throw new SalesDocumentsError("This deal already has vehicle-use history. Open the saved assignment or start a new deal.", 409);
       if (workflowPathway === "vehicle-loaner" && (context.sourceDraftId || context.sourceJacketId) && !context.sourceVehicleId) throw new SalesDocumentsError("Link the original leased vehicle before checking out the related loaner.");
       const others = await db.vehicleUseBooking.findMany({ where: { organizationId, vehicleId: context.vehicleId, status: { in: ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"] } } });
@@ -192,7 +246,7 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
       booking = await db.vehicleUseBooking.create({ data: { id: randomUUID(), organizationId, contextId: id, vehicleId: context.vehicleId, startsAt: data.startsAt!, expectedReturnAt: data.expectedReturnAt!, reason: data.reason, createdByUserId: user.id } });
     }
     if (data.action === "RESERVE") {
-      if (!vehicle.eligibleForUse) throw new SalesDocumentsError("The vehicle is not frontline-ready for temporary use.", 409);
+      if (!readiness.eligible) throw new SalesDocumentsError(`The vehicle is not ready for reservation. ${readiness.detail}.`, 409);
       if (rental && context.bookings.length) throw new SalesDocumentsError("Start a new deal for another rental or loaner assignment.", 409);
       if (workflowPathway === "vehicle-loaner" && (context.sourceDraftId || context.sourceJacketId) && !context.sourceVehicleId) throw new SalesDocumentsError("Link the original leased vehicle before reserving the related loaner.");
       if (context.bookings.some(row => ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"].includes(row.status))) throw new SalesDocumentsError("This deal already has an active vehicle assignment.", 409);
@@ -223,7 +277,7 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
         const dueBack = data.expectedReturnAt ?? booking.expectedReturnAt;
         const conflict = await db.vehicleUseBooking.findFirst({ where: { organizationId, vehicleId: context.vehicleId, id: { not: booking.id }, status: { in: ["CHECKED_OUT", "RETURNED_REVIEW"] } } });
         if (conflict) throw new SalesDocumentsError("This vehicle is already out. Record its actual return first.", 409);
-        if (booking.status !== "RESERVED" || booking.checkedOutAt || booking.returnedAt || !vehicle.eligibleForUse) throw new SalesDocumentsError("Recheck the reservation and any existing custody evidence before handoff.");
+        if (booking.status !== "RESERVED" || booking.checkedOutAt || booking.returnedAt || !readiness.eligible) throw new SalesDocumentsError("Recheck the reservation and vehicle readiness before handoff.", 409);
         if (text(object(object(context.draft.snapshot).jackets)[workflowPathway]) !== data.agreementJacketId) throw new SalesDocumentsError("Generate and finalize the agreement linked to this deal, then reload the assignment.");
         const jacket = await db.salesDocumentJacket.findFirst({ where: { id: data.agreementJacketId, organizationId: dealDocumentOrganization(), customerId: context.customerId, vin: vehicle.vin, pathway: workflowPathway, state: "CHECKED_OUT" } });
         if (!jacket || !await db.salesDocumentPacketVersion.count({ where: { jacketId: jacket.id, phase: "CHECKOUT" } })) throw new SalesDocumentsError("Review and finalize this customer's exact vehicle agreement in Sales Documents before recording handoff.");

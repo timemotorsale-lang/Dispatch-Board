@@ -15,7 +15,7 @@ type Model = {
   agreementHref: string | null;
   insuranceProofs?: Array<{ id: string; fileName: string }>;
   vehicleId: string | null;
-  vehicleReadiness?: { eligible: boolean; detail: string; inventoryUnitId: string | null } | null;
+  vehicleReadiness?: { eligible: boolean; detail: string; inventoryUnitId: string | null; noRepairsConfirmed?: boolean; review?: { vehicleId: string; inventoryUnitId: string; unitVersion: number; intakeRevisionId: string } | null } | null;
   bookings: RentalBooking[];
   packetClosed: boolean;
   settlementReceiptOnFile: boolean;
@@ -89,6 +89,8 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
   const form = useRef<HTMLFormElement>(null);
   const pending = useRef<{ signature: string; payload: Record<string, unknown> } | null>(null);
   const readSequence = useRef(0);
+  const readinessRequest = useRef<{ key: string; operationKey: string } | null>(null);
+  const [readinessConfirmation, setReadinessConfirmation] = useState("");
   const deepLinkConsumed = useRef(false);
   const booking = selectedBooking(model);
   const loaner = pathway === "vehicle-loaner";
@@ -152,10 +154,13 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
     !model?.vehicleId ? "Save the shared customer and vehicle before checkout."
       : model.vehicleReadiness?.eligible === false ? model.vehicleReadiness.inventoryUnitId
         ? `The vehicle is unavailable for checkout. ${model.vehicleReadiness.detail}.`
-        : "This VIN is registered, but it has no open inventory unit. Confirm dealership control in Inventory Intake, then finish the Frontline Ready checks."
+        : "This VIN is registered. Complete Inventory Intake before reviewing rental readiness."
         : "",
     model?.vehicleId && !model.agreements.length ? "Finalize the linked checkout packet in Documents before handing over the vehicle." : ""
   ].filter(Boolean);
+  const readinessReview = model?.vehicleReadiness?.review;
+  const readinessKey = readinessReview ? JSON.stringify([draftId, readinessReview.vehicleId, readinessReview.inventoryUnitId, readinessReview.unitVersion, readinessReview.intakeRevisionId]) : "";
+  const blockedNotice = checkoutBlockers.length > 0 && notice === checkoutBlockers.join(" ");
   const timeField = (key: "startsAt" | "expectedReturnAt" | "occurredAt" | "insuranceValidUntil", fieldLabel: string, value = values[key] ?? "") =>
     <RentalTimeField label={fieldLabel} value={value} onChange={value => update(key, value)} onOccurrence={value => setOccurrences(current => ({ ...current, [key]: value }))} />;
   const displayTime = (value: string) => new Intl.DateTimeFormat("en-US", { timeZone: RENTAL_TIMEZONE, dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -172,6 +177,29 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
       setNotice("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to load the assignment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmReadiness() {
+    if (!draftId || busy || !readinessReview || readinessConfirmation !== readinessKey) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      if (saveState.dirty && !await draft?.save()) throw new Error(draft?.saveError() || "Save the deal before confirming readiness.");
+      if (readinessRequest.current?.key !== readinessKey) readinessRequest.current = { key: readinessKey, operationKey: crypto.randomUUID() };
+      const response = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(draftId)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "CONFIRM_RENTAL_READINESS", ...readinessReview, confirmed: true, operationKey: readinessRequest.current.operationKey })
+      });
+      if (!response.ok) throw new Error((await response.json()).error || "Rental readiness could not be saved.");
+      const sequence = ++readSequence.current;
+      const updated = await loadAssignment(draftId);
+      if (sequence === readSequence.current) setModel(updated);
+      setReadinessConfirmation("");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Rental readiness could not be saved. Retry to recover the confirmation.");
     } finally {
       setBusy(false);
     }
@@ -262,6 +290,7 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
   return <section id="rental-checkout" className={styles.useTool} aria-label={`${kind} checkout and return`}>
     <h2>{kind} checkout &amp; return</h2>
     <div className={styles.rentalHeading}><strong role="status">{loaded || !draftId || cancelled ? status : "Loading checkout status"}</strong></div>
+    {!isCancelled && !booking?.checkedOutAt && model?.vehicleReadiness?.noRepairsConfirmed && <p role="status">Rental readiness confirmed for this deal.</p>}
     {!booking && Boolean(model?.agreements.length) && !isCancelled && <p>Checkout paperwork is ready. Confirm whether the vehicle was handed over before recording checkout.</p>}
     {booking && <p>
       Due back {displayTime(booking.expectedReturnAt)}
@@ -322,11 +351,16 @@ export function VehicleUseTool({ pathway, onNavigate, returnOnly = false }: {
         {action === "CANCEL" && <label><input type="checkbox" checked={values.noHandoffConfirmed} onChange={event => update("noHandoffConfirmed", event.target.checked)} />I confirmed the vehicle was never handed over</label>}
         {(action !== "HANDOFF" || historicalHandoff) && <label>{historicalHandoff ? "Why checkout is being recorded late" : values.settlementException ? "Exception reason" : "Reason"}<input required maxLength={500} value={values.reason} onChange={event => update("reason", event.target.value)} /></label>}
       </fieldset>
-      {action === "HANDOFF" && checkoutBlockers.length > 0 && <div><ul>{checkoutBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
-        {model?.vehicleId && model.vehicleReadiness?.eligible === false && <p><a className={styles.rentalPrimary} target="_blank" rel="noopener noreferrer" href={model.vehicleReadiness.inventoryUnitId ? `/vehicles/inventory/units?inventoryUnitId=${encodeURIComponent(model.vehicleReadiness.inventoryUnitId)}` : `/prototype/inventory-intake?vehicleId=${encodeURIComponent(model.vehicleId)}`}>{model.vehicleReadiness.inventoryUnitId ? "Review vehicle in Inventory" : "Open Inventory Intake for this vehicle"}</a></p>}
+      {action === "HANDOFF" && checkoutBlockers.length > 0 && <div><ul role={blockedNotice ? "alert" : undefined}>{checkoutBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
+        {model?.vehicleId && model.vehicleReadiness?.eligible === false && !readinessReview && <p><a className={styles.rentalPrimary} target="_blank" rel="noopener noreferrer" href={model.vehicleReadiness.inventoryUnitId ? `/vehicles/inventory/units?inventoryUnitId=${encodeURIComponent(model.vehicleReadiness.inventoryUnitId)}` : `/prototype/inventory-intake?vehicleId=${encodeURIComponent(model.vehicleId)}`}>{model.vehicleReadiness.inventoryUnitId ? "Review vehicle in Inventory" : "Open Inventory Intake for this vehicle"}</a></p>}
         {!model?.agreements.length && (model?.agreementHref ? <a target="_blank" rel="noopener noreferrer" href={model.agreementHref}>Open checkout paperwork</a> : onNavigate ? <button type="button" onClick={() => onNavigate("documents")}>Open checkout paperwork</button> : null)}
       </div>}
-      {notice && <p role="alert">{notice}</p>}
+      {(action === "HANDOFF" || action === "RESERVE") && readinessReview && <fieldset>
+        <legend>Ready to rent without repairs</legend>
+        <label><input type="checkbox" disabled={busy} checked={readinessConfirmation === readinessKey} onChange={event => setReadinessConfirmation(event.target.checked ? readinessKey : "")} />The vehicle is on site, safe to rent, and needs no repairs.</label>
+        <button className={styles.rentalPrimary} type="button" disabled={busy || readinessConfirmation !== readinessKey} onClick={() => void confirmReadiness()}>Confirm ready to rent</button>
+      </fieldset>}
+      {notice && !blockedNotice && <p role="alert">{notice}</p>}
       <button type="submit" className={styles.rentalPrimary} disabled={busy || !actions.includes(action) || stale || action === "COMPLETE" && (!model?.packetClosed || !model.settlementReceiptOnFile && !values.settlementException)}>
         {busy ? "Saving…" : action === "HANDOFF" ? `Confirm checkout · ${loaner ? "Loaner Active" : "Rented Out"}` : action === "EXTEND" ? "Save new due-back time" : action === "CANCEL" ? "Confirm cancellation" : label(action)}
       </button>
