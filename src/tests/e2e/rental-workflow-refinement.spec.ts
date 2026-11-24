@@ -75,10 +75,11 @@ test("opens the saved rental action from Deals and shows cancellation after relo
   expect(saved.ok()).toBe(true);
   await page.goto("/crm-next/deals?area=rentals");
   const row = page.getByRole("row").filter({ hasText: customerName });
-  await expect(row.getByRole("link", { name: "Prepare Checkout", exact: true })).toBeVisible();
+  await expect(row.getByRole("link", { name: "Activate Rental", exact: true })).toBeVisible();
   await row.getByRole("button", { name: `Actions for ${customerName}` }).click();
   await row.getByRole("menuitem", { name: `Deal details for ${customerName}` }).click();
   const drawer = page.getByRole("dialog", { name: `Deal details · ${customerName}` });
+  await expect(drawer.getByRole("link", { name: "Activate Rental", exact: true })).toBeVisible();
   await expect(drawer.getByRole("link", { name: "Cancel Rental", exact: true })).toBeVisible();
   await drawer.getByRole("link", { name: "Cancel Rental", exact: true }).click();
   const checkout = page.getByRole("region", { name: "Rental checkout and return" });
@@ -89,7 +90,7 @@ test("opens the saved rental action from Deals and shows cancellation after relo
   await expect(checkout).toContainText("Saved. Rental Cancelled.");
   await page.goto("/crm-next/deals?area=rentals&rentalStage=CANCELLED");
   await expect(row).toContainText("Rental Cancelled");
-  await expect(row.getByRole("link", { name: "Prepare Checkout", exact: true })).toHaveCount(0);
+  await expect(row.getByRole("link", { name: "Activate Rental", exact: true })).toHaveCount(0);
   const reloaded = await page.request.get(`/api/crm/v1/deal-drafts?id=${id}`);
   expect(await reloaded.json()).toMatchObject({ status: "CANCELLED", statusHistory: expect.arrayContaining([expect.objectContaining({ action: "RENTAL_DRAFT_CANCELLED" })]) });
 });
@@ -137,7 +138,7 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     const draft = await saved.json();
     await page.goto(`/crm-next/deals/start?draftId=${id}&rentalAction=HANDOFF#rental-checkout`);
     const checkout = page.getByRole("region", { name: "Rental checkout and return" });
-    const confirm = checkout.getByRole("button", { name: "Confirm checkout · Rented Out" });
+    const confirm = checkout.getByRole("button", { name: "Activate Rental", exact: true });
     await expect(checkout.getByLabel("Reason", { exact: true })).toHaveCount(0);
     await expect(checkout.getByLabel("Dated handoff record")).toHaveCount(0);
     await checkout.getByLabel("Actual checkout (Chicago)", { exact: true }).fill(rentalLocalTime(new Date(Date.now() - 2 * 86400000)));
@@ -145,6 +146,17 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     await expect(checkout.getByLabel("Dated handoff record")).toBeVisible();
     await checkout.getByLabel("Actual checkout (Chicago)", { exact: true }).fill(rentalLocalTime(occurredAt));
     await expect(checkout.getByLabel("Dated handoff record")).toHaveCount(0);
+    await checkout.getByLabel("Due back (Chicago)", { exact: true }).fill(rentalLocalTime(due));
+    await checkout.getByLabel("Odometer").fill("1200");
+    await checkout.getByLabel("Vehicle physically handed over").check();
+    await checkout.getByRole("button", { name: "Save checkout draft", exact: true }).click();
+    await expect(checkout.getByRole("status").filter({ hasText: "Checkout draft saved" })).toBeVisible();
+    await page.reload();
+    await expect(checkout.getByLabel("Actual checkout (Chicago)", { exact: true })).toHaveValue(rentalLocalTime(occurredAt));
+    await expect(checkout.getByLabel("Due back (Chicago)", { exact: true })).toHaveValue(rentalLocalTime(due));
+    await expect(checkout.getByLabel("Odometer")).toHaveValue("1200");
+    await expect(checkout.getByLabel("Vehicle physically handed over")).not.toBeChecked();
+    await expect(checkout).toContainText("Rental Draft");
     await expect(confirm).toHaveCount(0);
     const pendingCheckout = checkout.getByRole("status").filter({ hasText: "Checkout pending" });
     await expect(pendingCheckout).toContainText("Prepare and finalize the checkout packet");
@@ -203,16 +215,19 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
       expect(review.ok(), await review.text()).toBe(true);
       documentIds.set(fileName, doc.id);
     }
-    await prisma.dealDeskDraft.update({ where: { id }, data: { snapshot: { ...snapshot, jackets: { "daily-rental": jacket.id } } } });
-    await checkout.getByRole("button", { name: "Refresh checkout status" }).click();
+    const savedDraft = await prisma.dealDeskDraft.findUniqueOrThrow({ where: { id }, select: { snapshot: true } });
+    await prisma.dealDeskDraft.update({ where: { id }, data: { snapshot: { ...(savedDraft.snapshot as typeof snapshot), jackets: { "daily-rental": jacket.id } } } });
+    await page.reload();
     const reviewPacket = checkout.getByRole("link", { name: "Review & finalize checkout packet" });
     await expect(reviewPacket).toHaveAttribute("href", `/sales-documents?jacketId=${jacket.id}`);
     await expect(reviewPacket).toHaveCSS("background-color", "rgb(49, 84, 174)");
     await expect(confirm).toHaveCount(0);
     const [paperwork] = await Promise.all([page.waitForEvent("popup"), reviewPacket.click()]);
+    await expect(paperwork.getByText("Paperwork in progress", { exact: true })).toBeVisible();
     await paperwork.getByRole("button", { name: "Finalize checkout packet", exact: true }).click();
     await paperwork.getByRole("button", { name: "Finalize packet", exact: true }).click();
     await expect(paperwork.getByRole("button", { name: "Final Packets (1)", exact: true })).toBeVisible();
+    await expect(paperwork.getByText("Checkout packet finalized", { exact: true })).toBeVisible();
     await paperwork.close();
     await page.bringToFront();
     await expect(confirm).toBeEnabled({ timeout: 15000 });
@@ -245,6 +260,8 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     expect(bookings[0]).toMatchObject({ status: "CHECKED_OUT", departureSnapshot: { evidence } });
     expect(await prisma.dealContinuityEvent.count({ where: { contextId: id, action: "HANDOFF" } })).toBe(1);
     expect(await prisma.repairOrder.count({ where: { vehicleId: vehicle.id } })).toBe(0);
+    await page.goto(`/crm-next/deals?area=rentals&search=${encodeURIComponent(name)}`);
+    await expect(page.getByRole("row").filter({ hasText: name })).toContainText("Rented Out");
   } finally {
     await prisma.$disconnect();
   }

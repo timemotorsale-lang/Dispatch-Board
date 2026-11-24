@@ -41,7 +41,7 @@ export function rentalActionHref(draftId: string, action: RentalAction) {
   return `/crm-next/deals/start?${new URLSearchParams({ draftId, rentalAction: action })}#rental-checkout`;
 }
 export function rentalActionLabel(action: RentalAction, work: RentalWork, pathway: string) {
-  if (action === "HANDOFF" && work.stage === "DRAFT") return "Prepare Checkout";
+  if (action === "HANDOFF") return pathway === "vehicle-loaner" ? "Activate Loaner" : "Activate Rental";
   if (action === "CANCEL" && work.stage === "DRAFT") return pathway === "vehicle-loaner" ? "Cancel Loaner" : "Cancel Rental";
   if (action === "COMPLETE" && pathway === "vehicle-loaner") return "Complete Loaner";
   return RENTAL_ACTIONS[action];

@@ -9,7 +9,7 @@ import { ClosingReviewPanel } from "./closing-review-panel";
 import { DealDocumentWorkspace } from "./deal-document-workspace";
 import styles from "./sales-documents-workspace.module.css";
 
-const stateLabel = (state: string) => ({ WORKING: "Working", CHECKED_OUT: "Checked out", CLOSED: "Closed", DELIVERED_FUNDING_PENDING: "Funding pending", UNWIND_PENDING: "Unwind review pending" }[state] ?? state);
+const stateLabel = (state: string) => ({ WORKING: "Paperwork in progress", CHECKED_OUT: "Checkout packet finalized", CLOSED: "Packet closed", DELIVERED_FUNDING_PENDING: "Funding pending", UNWIND_PENDING: "Unwind review pending" }[state] ?? state);
 
 export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initialError, canWaive, initialQuery = "", customerId = "", initialRequirementId = "", initialScan = false, phoneOrigin = "" }: { initialJackets: SalesDocumentJacketView[]; initialSelected: SalesDocumentJacketView | null; initialError: string; canWaive: boolean; initialQuery?: string; customerId?: string; initialRequirementId?: string; initialScan?: boolean; phoneOrigin?: string }) {
   const [jackets, setJackets] = useState(initialJackets), [selected, setSelected] = useState(initialSelected);

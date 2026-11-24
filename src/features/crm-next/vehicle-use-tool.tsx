@@ -7,7 +7,7 @@ import { RENTAL_TIMEZONE, rentalCheckoutDefaults, rentalLocalTime, rentalTimeCho
 import { RENTAL_OPERATIONS_CHANGED, rentalOperationsSummary, type RentalBooking } from "@/lib/rental-operations";
 import { validateRentalCoverage } from "@/lib/rental-lifecycle";
 import { SALES_DOCUMENT_CHECKOUT_FINALIZED } from "@/lib/sales-document-pathways";
-import { useDealDraft, useDealSaveState } from "./deal-draft-workspace";
+import { useDealDraft, useDealDraftState, useDealSaveState } from "./deal-draft-workspace";
 import styles from "./shared-deal-identities.module.css";
 
 type RentalAction = "RESERVE" | "HANDOFF" | "RETURN" | "EXTEND" | "COMPLETE" | "CANCEL";
@@ -30,6 +30,12 @@ const emptyFields = {
   startsAt: null as string | null, expectedReturnAt: null as string | null, occurredAt: "", reason: "", odometer: "", fuel: "", condition: "", recipient: "",
   evidence: "", keysVerified: false, driverVerified: false, physicalHandover: false, insuranceVerified: false,
   insuranceValidUntil: "", insuranceDocumentId: "", historicalHandoff: false, inspected: false, settlementReference: "", settlementException: false, noHandoffConfirmed: false
+};
+const emptyCheckoutDraft = {
+  scope: "",
+  hasDueBackOverride: false,
+  fields: { expectedReturnAt: "", occurredAt: "", odometer: "", fuel: "", condition: "", recipient: "", insuranceValidUntil: "", insuranceDocumentId: "", reason: "", evidence: "" },
+  occurrences: {} as Record<string, string>
 };
 const actionLabels: Record<RentalAction, string> = {
   RESERVE: "Reserve Vehicle", HANDOFF: "Prepare / Checkout", RETURN: "Record Return", EXTEND: "Extend",
@@ -57,8 +63,8 @@ async function loadAssignment(id: string, signal?: AbortSignal): Promise<Model |
   return result as Model;
 }
 
-function RentalTimeField({ label, value, onChange, onOccurrence }: {
-  label: string; value: string; onChange: (value: string) => void; onOccurrence: (value: string) => void;
+function RentalTimeField({ label, value, occurrence, onChange, onOccurrence }: {
+  label: string; value: string; occurrence: string; onChange: (value: string) => void; onOccurrence: (value: string) => void;
 }) {
   const repeated = rentalTimeChoices(value).length > 1;
   return <>
@@ -66,7 +72,7 @@ function RentalTimeField({ label, value, onChange, onOccurrence }: {
       onChange(event.target.value);
       onOccurrence("");
     }} /></label>
-    {repeated && <label>{label} repeated hour<select defaultValue="" key={value} onChange={event => onOccurrence(event.target.value)}>
+    {repeated && <label>{label} repeated hour<select value={occurrence} onChange={event => onOccurrence(event.target.value)}>
       <option value="">Choose the actual occurrence</option><option value="first">First (CDT)</option><option value="second">Second (CST)</option>
     </select></label>}
   </>;
@@ -83,8 +89,10 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, r
   const [action, setAction] = useState<RentalAction | null>(null);
   const [intent, setIntent] = useState<{ id?: string; version?: number } | null>(null);
   const [retryAvailable, setRetryAvailable] = useState(false);
-  const [values, setValues] = useState(emptyFields);
-  const [occurrences, setOccurrences] = useState<Record<string, string>>({});
+  const [operationValues, setValues] = useState(emptyFields);
+  const [operationOccurrences, setOccurrences] = useState<Record<string, string>>({});
+  const [checkoutDraft, setCheckoutDraft] = useDealDraftState("rentalCheckoutDraft", emptyCheckoutDraft);
+  const [checkoutSaveMessage, setCheckoutSaveMessage] = useState("");
   const [cancelled, setCancelled] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const form = useRef<HTMLFormElement>(null);
@@ -94,6 +102,11 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, r
   const [readinessConfirmation, setReadinessConfirmation] = useState("");
   const deepLinkConsumed = useRef(false);
   const booking = selectedBooking(model);
+  const checkoutScope = model?.vehicleId ? JSON.stringify([pathway, model.vehicleId, booking?.id, booking?.version]) : "";
+  const handoffForm = action === "HANDOFF" && Boolean(checkoutScope);
+  const prepared = checkoutDraft.scope === checkoutScope ? checkoutDraft : emptyCheckoutDraft;
+  const values = handoffForm ? { ...operationValues, ...prepared.fields } : operationValues;
+  const occurrences = handoffForm ? prepared.occurrences : operationOccurrences;
   const agreementHref = model?.agreementHref;
   const loaner = pathway === "vehicle-loaner";
   const kind = loaner ? "Loaner" : "Rental";
@@ -148,9 +161,30 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, r
 
   const defaults = rentalCheckoutDefaults(key => draft?.read(key), pathway);
   const pickupTime = values.startsAt ?? defaults.startsAt;
-  const dueTime = values.expectedReturnAt ?? (booking ? rentalLocalTime(booking.expectedReturnAt) : defaults.expectedReturnAt);
-  const update = <Key extends keyof typeof emptyFields>(key: Key, value: typeof emptyFields[Key]) =>
-    setValues(current => ({ ...current, [key]: value }));
+  const dueBackOverride = handoffForm && !prepared.hasDueBackOverride ? null : values.expectedReturnAt;
+  const dueTime = dueBackOverride ?? (booking ? rentalLocalTime(booking.expectedReturnAt) : defaults.expectedReturnAt);
+  const update = <Key extends keyof typeof emptyFields>(key: Key, value: typeof emptyFields[Key]) => {
+    if (handoffForm && Object.hasOwn(emptyCheckoutDraft.fields, key)) {
+      setCheckoutSaveMessage("");
+      setCheckoutDraft(current => {
+        const previous = current.scope === checkoutScope ? current : emptyCheckoutDraft;
+        return { ...previous, scope: checkoutScope, hasDueBackOverride: key === "expectedReturnAt" || previous.hasDueBackOverride, fields: { ...previous.fields, [key]: value } };
+      });
+    } else {
+      setValues(current => ({ ...current, [key]: value }));
+    }
+  };
+  function updateOccurrence(key: string, value: string) {
+    if (!handoffForm) {
+      setOccurrences(current => ({ ...current, [key]: value }));
+      return;
+    }
+    setCheckoutSaveMessage("");
+    setCheckoutDraft(current => {
+      const previous = current.scope === checkoutScope ? current : emptyCheckoutDraft;
+      return { ...previous, scope: checkoutScope, occurrences: { ...previous.occurrences, [key]: value } };
+    });
+  }
   const label = (choice: RentalAction) => choice === "COMPLETE" ? `Complete ${kind}` : actionLabels[choice];
   const status = rentalOperationsSummary(model?.bookings ?? [], { pathway, cancelled: isCancelled, now: new Date(clock) }).status;
   const stale = Boolean(action && intent && (intent.id !== booking?.id || intent.version !== booking?.version));
@@ -174,7 +208,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, r
   const readinessReview = model?.vehicleReadiness?.review;
   const readinessKey = readinessReview ? JSON.stringify([draftId, readinessReview.vehicleId, readinessReview.inventoryUnitId, readinessReview.unitVersion, readinessReview.intakeRevisionId]) : "";
   const timeField = (key: "startsAt" | "expectedReturnAt" | "occurredAt" | "insuranceValidUntil", fieldLabel: string, value = values[key] ?? "") =>
-    <RentalTimeField label={fieldLabel} value={value} onChange={value => update(key, value)} onOccurrence={value => setOccurrences(current => ({ ...current, [key]: value }))} />;
+    <RentalTimeField label={fieldLabel} value={value} occurrence={occurrences[key] ?? ""} onChange={value => update(key, value)} onOccurrence={value => updateOccurrence(key, value)} />;
   const displayTime = (value: string) => new Intl.DateTimeFormat("en-US", { timeZone: RENTAL_TIMEZONE, dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
   async function refresh() {
@@ -212,6 +246,19 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, r
       setReadinessConfirmation("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Rental readiness could not be saved. Retry to recover the confirmation.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCheckoutDraft() {
+    if (!draft || !handoffForm || busy) return;
+    setBusy(true);
+    setNotice("");
+    setCheckoutSaveMessage("");
+    try {
+      if (await draft.save()) setCheckoutSaveMessage(`Checkout draft saved. Verify handoff when you activate the ${kind.toLowerCase()}.`);
+      else setNotice(draft.saveError() || "The checkout draft could not be saved. Your entries are still here.");
     } finally {
       setBusy(false);
     }
@@ -377,10 +424,12 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, r
       </fieldset>}
       {notice && <p role="alert">{notice}</p>}
       {!checkoutBlocked && <button type="submit" className={styles.rentalPrimary} disabled={busy || !actions.includes(action) || stale || action === "COMPLETE" && (!model?.packetClosed || !model.settlementReceiptOnFile && !values.settlementException)}>
-        {busy ? "Saving…" : action === "HANDOFF" ? `Confirm checkout · ${loaner ? "Loaner Active" : "Rented Out"}` : action === "EXTEND" ? "Save new due-back time" : action === "CANCEL" ? "Confirm cancellation" : label(action)}
+        {busy ? "Saving…" : action === "HANDOFF" ? `Activate ${kind}` : action === "EXTEND" ? "Save new due-back time" : action === "CANCEL" ? "Confirm cancellation" : label(action)}
       </button>}
+      {handoffForm && <button type="button" disabled={busy || saveState.busy || stale} onClick={() => void saveCheckoutDraft()}>Save checkout draft</button>}
       {retryAvailable && <button type="button" disabled={busy} onClick={() => void save(true)}>Retry previous submission</button>}
       <button type="button" disabled={busy} onClick={() => setAction(null)}>Close form</button>
+      {handoffForm && checkoutSaveMessage && <p role="status">{checkoutSaveMessage}</p>}
     </form>}
     {notice && (!action || !canShowActions) && <p role="status">{notice}</p>}
     {original && <a href={original}>Open original deal or agreement</a>}
