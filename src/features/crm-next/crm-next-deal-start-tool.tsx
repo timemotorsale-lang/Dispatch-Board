@@ -2075,7 +2075,7 @@ function DailyRentalExecutionDesk({
         <div className={styles.retailPacketLauncher}>
           <div>
             <span>Packet readiness</span>
-            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} forms prepared`}</strong>
             <small>{isLoaner ? "Open the drawer to prepare the official courtesy loaner agreement, condition/return record, and Minnesota insurance notice." : "Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions."}</small>
           </div>
           <button type="button" data-deal-packet-open onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
@@ -2096,7 +2096,7 @@ function DailyRentalExecutionDesk({
                 <div>
                   <span>Required forms ready</span>
                   <strong>{preparedRequiredCount}/{requiredRentalForms.length}</strong>
-                  <small>{isLoaner ? "Prepare the official courtesy loaner packet before release." : "Prepare the baseline packet first, then add the additional driver addendum only when it applies."}</small>
+                  <small>{isLoaner ? "Generate forms for signing. Upload the signed agreement and checkout evidence in the checkout checklist." : "Prepare the baseline packet first, then add the additional driver addendum only when it applies."}</small>
                 </div>
                 <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateRentalPacket()}>

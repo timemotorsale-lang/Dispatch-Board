@@ -527,7 +527,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
             {model?.insuranceProofs?.map(proof => <option key={proof.id} value={proof.id}>{proof.fileName}</option>)}
           </select></label>}
           {timeField("insuranceValidUntil", "Coverage ends (Chicago)")}
-          <p>Use the end time on the accepted insurance proof. It must cover the full rental through the due-back time.</p>
+          <p>Use the end time on the accepted insurance proof. It must cover the {kind.toLowerCase()} through the due-back time.</p>
           <label><input id={inputId("insurance-verified")} type="checkbox" checked={values.insuranceVerified} onChange={event => update("insuranceVerified", event.target.checked)} />Insurance verified for this customer and vehicle</label>
           <label><input id={inputId("driver")} type="checkbox" checked={values.driverVerified} onChange={event => update("driverVerified", event.target.checked)} />Driver verified</label>
           {needsHistoricalHandoff && (model?.canManageExceptions

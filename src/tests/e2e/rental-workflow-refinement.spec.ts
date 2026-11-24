@@ -355,6 +355,59 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     await picker.getByRole("list").getByRole("button", { name: new RegExp(replacementVin) }).click();
     await expect.poll(async () => (await prisma.dealWorkflowContext.findUnique({ where: { draftId: loanerId } }))?.vehicleId).toBe(replacement.id);
     expect(await prisma.vehicleUseBooking.count({ where: { contextId: id, status: "CHECKED_OUT" } })).toBe(1);
+    await page.goto("/crm-next/deals?area=rentals");
+
+    const loanerUnit = await prisma.inventoryUnit.create({ data: {
+      organizationId, locationId: location.id, vehicleId: replacement.id, inventoryNumber: replacementId, ownerUserId: user.id,
+      lifecycleStage: "PURCHASED_OR_TRADE_IN", stageStartedAt: occurredAt, financialAcquiredAt: occurredAt, targetAt: due, nextAction: "Synthetic loaner checkout"
+    } });
+    await prisma.vehicleRelationship.create({ data: { organizationId, vehicleId: replacement.id, relationshipType: "DEALERSHIP_OWNED", effectiveFrom: occurredAt, sourceCode: "ISOLATED_FIXTURE" } });
+    await prisma.inventoryIntakeRevision.create({ data: { organizationId, vehicleId: replacement.id, inventoryUnitId: loanerUnit.id, version: 1, status: "CONFIRMED", details: { condition: "Good" }, pendingItems: [], costRecordIds: [], actorUserId: user.id, reason: "Test fixture" } });
+    const loanerContinuity = `/api/crm/v1/deal-continuity/${loanerId}`;
+    const { vehicleReadiness: loanerReadiness } = await (await page.request.get(loanerContinuity)).json();
+    const ready = await page.request.post(loanerContinuity, { data: { action: "CONFIRM_RENTAL_READINESS", ...loanerReadiness.review, confirmed: true, operationKey: randomUUID() } });
+    expect(ready.ok(), await ready.text()).toBe(true);
+    const loanerPacket = await prisma.documentLibraryPacket.create({ data: { organizationId, ownerType: "DEAL", ownerId: loanerId, ownerLabel: name, packetType: "TEST_FIXTURE", workflow: "vehicle-loaner", title: "Loaner checkout" } });
+    const latestLoaner = await prisma.dealDeskDraft.findUniqueOrThrow({ where: { id: loanerId } });
+    const loanerJacket = await prisma.salesDocumentJacket.create({ data: { organizationId, packetId: loanerPacket.id, dealReference: loanerId, dealNumber: String(latestLoaner.dealNumber), pathway: "vehicle-loaner", customerId: customer.id, customerName: name, vehicleReference: replacementVin, vin: replacementVin, requirements: salesDocumentRequirements("vehicle-loaner"), createdByUserId: user.id } });
+    await prisma.documentLibraryPacketDocument.create({ data: { organizationId, packet: { connect: { id: loanerPacket.id } }, document: { create: {
+      organizationId, ownerType: "DEAL", ownerId: loanerId, ownerLabel: name, documentType: "signed-agreement", fileName: "unsigned-loaner.pdf",
+      status: "PENDING_REVIEW", source: "GENERATED", retentionCategory: "TEST_FIXTURE", storageProvider: "INTERNAL", storageReference: "test-fixture:unsigned-loaner"
+    } } } });
+    await prisma.dealDeskDraft.update({ where: { id: loanerId }, data: { snapshot: { ...(latestLoaner.snapshot as typeof snapshot), jackets: { "vehicle-loaner": loanerJacket.id } } } });
+    expect(await (await page.request.get(loanerContinuity)).json()).toMatchObject({ agreementHref: `/sales-documents?jacketId=${loanerJacket.id}` });
+    await page.goto(`/crm-next/deals/start?draftId=${loanerId}&rentalAction=HANDOFF#rental-checkout`);
+    await loanerCheckout.getByRole("button", { name: "Review & finalize checkout packet" }).click({ timeout: 10000 });
+    const loanerChecklist = loanerCheckout.getByRole("group", { name: "Checkout checklist" });
+    const missing = loanerChecklist.getByRole("status").filter({ hasText: "Missing checkout evidence" });
+    await expect(missing).toContainText("Signed loaner agreement · Driver license · Coverage / insurance proof · Checkout condition record");
+    await expect(loanerChecklist.getByRole("link", { name: "Open unsigned form for signing" })).toBeVisible();
+    await expect(loanerChecklist.getByRole("button", { name: "Save reviewed paperwork" })).toBeDisabled();
+    for (const { id: documentType, label } of salesDocumentRequirements("vehicle-loaner").filter(item => item.phase === "CHECKOUT" && item.required)) {
+      await loanerChecklist.locator(`input[type=file][name="${documentType}"]`).setInputFiles({ name: `${documentType}.pdf`, mimeType: "application/pdf", buffer: proofBytes }, { timeout: 10000 });
+      await expect(loanerChecklist.getByRole("status").filter({ hasText: `${label} uploaded` })).toBeVisible();
+      await loanerChecklist.getByRole("checkbox", { name: label === "Signed loaner agreement" ? /Signed loaner agreement/ : label, exact: label !== "Signed loaner agreement" }).check();
+    }
+    await expect(missing).toHaveCount(0);
+    await loanerChecklist.getByRole("button", { name: "Save reviewed paperwork" }).click();
+    await expect(loanerCheckout.getByRole("group", { name: "Physical handoff" })).toBeVisible();
+    expect(await prisma.vehicleUseBooking.count({ where: { contextId: loanerId } })).toBe(0);
+    await loanerCheckout.getByLabel("Due back (Chicago)", { exact: true }).fill(rentalLocalTime(due));
+    await loanerCheckout.getByLabel("Actual checkout (Chicago)", { exact: true }).fill(rentalLocalTime(occurredAt));
+    await loanerCheckout.getByLabel("Odometer").fill("1200");
+    await loanerCheckout.getByLabel("Fuel", { exact: true }).fill("Full");
+    await loanerCheckout.getByLabel("Condition", { exact: true }).fill("Good");
+    await loanerCheckout.getByLabel("Driver receiving the vehicle").fill(name);
+    await loanerCheckout.getByLabel("Coverage ends (Chicago)", { exact: true }).fill(rentalLocalTime(new Date(due.getTime() + 3600000)));
+    await loanerCheckout.getByLabel("Keys verified").check();
+    await loanerCheckout.getByLabel("Driver verified").check();
+    await loanerCheckout.getByLabel("Insurance verified for this customer and vehicle").check();
+    await loanerCheckout.getByLabel("Vehicle physically handed over").check();
+    await loanerCheckout.getByRole("button", { name: "Activate Loaner", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Deal documents" }).getByRole("status")).toHaveText("Loaner activated. Loaner Active.");
+    await page.reload();
+    await expect(loanerCheckout.getByRole("status").filter({ hasText: "Loaner Active" })).toBeVisible();
+    expect(await prisma.vehicleUseBooking.count({ where: { contextId: loanerId, status: "CHECKED_OUT" } })).toBe(1);
   } finally {
     await prisma.$disconnect();
   }
