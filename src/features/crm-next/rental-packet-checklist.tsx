@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import styles from "./shared-deal-identities.module.css";
 
@@ -28,8 +28,9 @@ export async function finalizeCheckoutReview({ packet, reviews }: CheckoutPacket
   });
 }
 
-export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onClose, refreshKey }: {
+export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onClose, refreshKey, activationFeedback, activationFeedbackId }: {
   href: string; busy: boolean; canActivate: boolean; onActivate: (review: CheckoutPacketReview) => void; onClose: () => void; refreshKey: number;
+  activationFeedback: ReactNode; activationFeedbackId: string;
 }) {
   const [state, setState] = useState<{ packet?: SalesDocumentJacketView; error?: string }>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
@@ -63,7 +64,7 @@ export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onC
   const complete = Boolean(agreement && insurance && rows.every(row => row.checked));
   return <fieldset disabled={busy} className={styles.checkoutChecklist}>
     <legend>Checkout checklist</legend>
-    <p>Open each file before confirming it. Verify the driver, keys, coverage and actual handoff above.</p>
+    <p>Open each file before confirming it. Complete the physical handoff above before saving activation.</p>
     {state.error && <p role="alert">{state.error}</p>}
     {!packet && !state.error && <p role="status">Loading the checkout packet…</p>}
     {packet?.phase === "CHECKOUT" && !rows.length && <p>Open Sales Documents to review this packet’s requirements.</p>}
@@ -72,7 +73,8 @@ export function RentalPacketChecklist({ href, busy, canActivate, onActivate, onC
       {files.length > 1 && !item.waiver && <label>{item.label} file<select value={doc?.id ?? ""} onChange={event => setChoices(current => ({ ...current, [item.id]: event.target.value }))}>{files.map(file => <option key={file.id} value={file.id}>{file.fileName}</option>)}</select></label>}
       {doc ? <a target="_blank" rel="noopener noreferrer" href={`/api/sales-documents/${encodeURIComponent(packet.id)}/documents/${encodeURIComponent(doc.id)}`}>{doc.fileName}</a> : !item.ready && <span> · Upload in Sales Documents</span>}
     </li>)}</ul>}
-    {packet?.phase === "CHECKOUT" && <button className={styles.rentalPrimary} type="button" disabled={!complete || !canActivate} onClick={() => onActivate({
+    {activationFeedback}
+    {packet?.phase === "CHECKOUT" && <button className={styles.rentalPrimary} type="button" aria-describedby={activationFeedbackId} disabled={!complete || !canActivate} onClick={() => onActivate({
       packet, insuranceId: insurance?.id ?? "", reviews: rows.flatMap(({ item, doc, accepted }) => !accepted && doc ? [{ documentId: doc.id, documentType: item.id, signed: item.signed }] : [])
     })}>{busy ? "Saving checkout…" : "Finalize & activate"}</button>}
     {packet?.phase === "RETURN" && <p>Checkout packet finalized. Use Activate Rental to record handoff.</p>}

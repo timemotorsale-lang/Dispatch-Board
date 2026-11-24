@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { dealGroup } from "@/lib/deal-dashboard";
 import { cents, moneyLabel, moneyToday } from "@/lib/money-resources";
 import { FINANCIAL_KINDS } from "@/lib/deal-dashboard-enterprise";
+import { RENTAL_PAYMENT_METHODS, rentalReceiptHref, type RentalPaymentMethod } from "@/lib/rental-payment";
 import { isRentalPathway, RENTAL_OPERATIONS_CHANGED, rentalTime, type RentalWork } from "@/lib/rental-operations";
 import type { DealOperationsView } from "@/server/sales-documents/dashboard-operations";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
@@ -15,6 +16,41 @@ import { DealRepairHistory } from "./deal-repair-history";
 import styles from "./deal-draft-workspace.module.css";
 
 type RentalActivity = NonNullable<DealOperationsView["rentalActivity"]>;
+
+function RentalPaymentForm({ busy, save, showError }: {
+  busy: boolean; save: (fields: Record<string, unknown>) => Promise<boolean>; showError: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<RentalPaymentMethod>("CASH");
+  const today = moneyToday();
+  return <section aria-label="Collect rental payment">
+    {!open ? <button className={styles.rentalPaymentPrimary} type="button" disabled={busy} onClick={() => setOpen(true)}>Collect payment</button> :
+      <form aria-label="Rental payment" onSubmit={async event => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        try {
+          if (await save({ action: "DEAL_RENTAL_PAYMENT", amountCents: cents(form.get("rentalAmount")), businessDate: form.get("paymentDate"),
+            method, reference: String(form.get("paymentReference") ?? "").trim(), confirmed: form.get("paymentReceived") === "on" })) setOpen(false);
+        } catch (error) { showError(error instanceof Error ? error.message : "Enter a valid payment amount."); }
+      }}>
+        <h3>Collect rental payment</h3>
+        <p>Receive cash at the counter or confirm the payment through your terminal or bank. Record rental charges here. Security holds are handled separately.</p>
+        <label>Amount received (USD)<input name="rentalAmount" inputMode="decimal" placeholder="0.00" required autoFocus /></label>
+        <label>Payment method<select value={method} onChange={event => setMethod(event.target.value as RentalPaymentMethod)}>
+          {Object.entries(RENTAL_PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
+        <label>Received date (Chicago)<input name="paymentDate" type="date" required defaultValue={today} max={today} /></label>
+        <label>{method === "CASH" ? "Register reference (optional)" : method === "CARD_TERMINAL" ? "Terminal approval reference" : "Payment reference"}
+          <input name="paymentReference" maxLength={64} required={method !== "CASH"} autoComplete="off" />
+        </label>
+        <label><input name="paymentReceived" type="checkbox" required /> I confirmed this payment was received.</label>
+        <div className={styles.rentalPaymentActions}>
+          <button className={styles.rentalPaymentPrimary} disabled={busy}>{busy ? "Saving payment…" : "Record payment & issue receipt"}</button>
+          <button type="button" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+        </div>
+      </form>}
+  </section>;
+}
 
 function RentalActivitySection({ activity, canEdit, busy, save }: {
   activity: RentalActivity; canEdit: boolean; busy: boolean; save: (fields: Record<string, unknown>) => Promise<boolean>;
@@ -78,6 +114,7 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
   const [data, setData] = useState<DealOperationsView | null>(null), [packet, setPacket] = useState<SalesDocumentJacketView | null>(null);
   const [tab, setTab] = useState(isRentalPathway(deal.pathway) && initialTab === "Documents" ? "Rental" : initialTab), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [message, setMessage] = useState("");
   const [financialKind, setFinancialKind] = useState("PAYMENT");
+  const [issuedReceipt, setIssuedReceipt] = useState<{ draftId: string; paymentId: string } | null>(null);
   const [updatedDraft, setUpdatedDraft] = useState<DealPathwayChangeResult | null>(null);
   const load = useCallback(async (signal?: AbortSignal, background = false) => {
     if (!background) { setLoading(true); setError(""); }
@@ -101,7 +138,8 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
       const response = await fetch(rentalActivity ? "/api/claims-workspace/rental-activity" : "/api/crm/v1/deal-drafts", { method: rentalActivity ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current.body) }), body = await response.json();
       if (!response.ok) { if (response.status !== 503) pending.current = null; throw new Error(body.error || "The change could not be saved."); }
       pending.current = null;
-      const activityMessages: Record<string, string> = { RENTAL_PROGRESS_NOTE: "Progress note saved.", RENTAL_INCIDENT: "Incident saved and follow-up assigned to you in Tasks.", RENTAL_INCIDENT_CLAIM: "Internal claim linked." };
+      if (fields.action === "DEAL_RENTAL_PAYMENT" && data.draftId && typeof body.receiptId === "string") setIssuedReceipt({ draftId: data.draftId, paymentId: body.receiptId });
+      const activityMessages: Record<string, string> = { RENTAL_PROGRESS_NOTE: "Progress note saved.", RENTAL_INCIDENT: "Incident saved and follow-up assigned to you in Tasks.", RENTAL_INCIDENT_CLAIM: "Internal claim linked.", DEAL_RENTAL_PAYMENT: "Payment recorded. The receipt is ready to open or print." };
       setMessage(activityMessages[String(fields.action)] ?? (fields.action === "DEAL_REASSIGN" ? "Owner changed. Existing reminders keep their assignees; create a follow-up for the new owner here." : fields.action === "DEAL_REMINDER" ? "Reminder saved on this exact deal and in Tasks." : "Verified record saved. No bank, card, custody or DMV action was initiated."));
       onChanged(); await load();
       return true;
@@ -123,6 +161,8 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
     ? `/crm-next/deals/start?${new URLSearchParams({ draftId: data.draftId, section: "terms" })}`
     : null;
   const rental = isRentalPathway(data?.pathway ?? deal.pathway);
+  const dailyRental = (data?.pathway ?? deal.pathway) === "daily-rental";
+  const selectedFinancialKind = dailyRental && financialKind === "PAYMENT" ? "AGREED_AMOUNT" : financialKind;
   const closedReturn = packet?.versions.findLast(version => version.phase === "RETURN" && version.disposition === "CLOSED");
   useEffect(() => {
     if (!rental || busy || tab !== "Rental") return;
@@ -188,16 +228,25 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
         <button type="button" onClick={focusDocuments}>Find invoices and receipts</button>
       </>}
       {tab === "Money" && (!repair || data.financialEntries.length > 0) && <>
-        <h3>{repair ? "Existing deal financial records" : "Recorded financial activity"}</h3>{data.inactive && <p>This deal remains inactive. Managers may record verified financial corrections without reopening it.</p>}<p>Verified records only. This does not process payments or initiate refunds. An unwind request does not reverse money.</p>
+        <h3>{dailyRental ? "Rental payments" : repair ? "Existing deal financial records" : "Recorded financial activity"}</h3>
+        {dailyRental && data.draftId && !data.inactive && (data.canManage ? <RentalPaymentForm busy={busy} save={save} showError={setError} /> : <p>A manager can record a received payment and issue its receipt.</p>)}
+        {issuedReceipt && issuedReceipt.draftId === data.draftId && <p><a className={styles.rentalPaymentPrimary} target="_blank" rel="noopener" href={rentalReceiptHref(issuedReceipt.draftId, issuedReceipt.paymentId)}>Open latest receipt</a></p>}
+        {data.inactive && <p>Managers can record verified financial corrections for this inactive deal.</p>}
         <dl className={styles.reportTotals}><div><dt>Recorded agreed amount</dt><dd>{data.financials.agreedCents === null ? "Not recorded" : moneyLabel(data.financials.agreedCents)}</dd></div><div><dt>Current net collected</dt><dd>{moneyLabel(data.financials.netCents)}</dd></div><div><dt>Current outstanding</dt><dd>{data.financials.outstandingCents === null ? "Agreed amount needed" : moneyLabel(data.financials.outstandingCents)}</dd></div>{data.financials.creditCents > 0 && <div><dt>Customer credit · review required</dt><dd>{moneyLabel(data.financials.creditCents)}</dd></div>}</dl>
-        {data.financialEntries.length ? <ul className={styles.documentChecklist}>{data.financialEntries.map(entry => <li key={entry.id}><strong>{FINANCIAL_KINDS[entry.kind]} · {moneyLabel(entry.amountCents)}</strong><span>{entry.businessDate} · {entry.reference} · {entry.actorName}</span>{entry.originalId && <span>Original: {data.financialEntries.find(original => original.id === entry.originalId)?.reference || entry.originalId}</span>}<span>Evidence: {entry.evidence}</span><span>Reason: {entry.reason}</span></li>)}</ul> : <p>No verified financial activity has been recorded for this packet. Draft values are not treated as receipts.</p>}
-        {!repair && data.canManage && data.jacketId && <form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); try { void save({ action: "DEAL_FINANCIAL", kind: field(form, "kind"), amountCents: cents(field(form, "amount"), field(form, "kind") === "AGREED_AMOUNT"), businessDate: field(form, "businessDate"), originalId: field(form, "originalId") || null, reference: field(form, "reference"), evidence: field(form, "evidence"), reason: field(form, "reason"), confirmed: form.get("confirmed") === "on" }); } catch (caught) { setError(caught instanceof Error ? caught.message : "Enter a valid dollar amount."); } }}>
-          <h3>Record verified activity</h3><p>For an agreed amount, record the verified total obligation. A documented cancellation may reduce it to zero; prior records remain in history.</p><label>Activity type<select name="kind" value={financialKind} onChange={event => setFinancialKind(event.target.value)}>{Object.entries(FINANCIAL_KINDS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        {data.financialEntries.length ? <ul className={styles.documentChecklist}>{data.financialEntries.map(entry => <li key={entry.id}><strong>{FINANCIAL_KINDS[entry.kind]} · {moneyLabel(entry.amountCents)}</strong><span>{entry.businessDate} · {entry.reference} · {entry.actorName}</span>{entry.originalId && <span>Original: {data.financialEntries.find(original => original.id === entry.originalId)?.reference || entry.originalId}</span>}<span>Evidence: {entry.evidence}</span><span>Reason: {entry.reason}</span></li>)}</ul> : <p>No verified financial activity has been recorded.</p>}
+        {!repair && data.canManage && (data.jacketId || dailyRental && data.draftId) && <form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); try { void save({ action: "DEAL_FINANCIAL", kind: field(form, "kind"), amountCents: cents(field(form, "amount"), field(form, "kind") === "AGREED_AMOUNT"), businessDate: field(form, "businessDate"), originalId: field(form, "originalId") || null, reference: field(form, "reference"), evidence: field(form, "evidence"), reason: field(form, "reason"), confirmed: form.get("confirmed") === "on" }); } catch (caught) { setError(caught instanceof Error ? caught.message : "Enter a valid dollar amount."); } }}>
+          <h3>Record verified activity</h3><p>Record the agreed total or a correction verified against its supporting record. Process any refund through the original payment channel before recording it here.</p><label>Activity type<select name="kind" value={selectedFinancialKind} onChange={event => setFinancialKind(event.target.value)}>{Object.entries(FINANCIAL_KINDS).filter(([key]) => !dailyRental || key !== "PAYMENT").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           <label>Amount · USD<input name="amount" inputMode="decimal" required placeholder="500.00" /></label><label>Business date<input name="businessDate" type="date" required defaultValue={moneyToday()} max={moneyToday()} /></label>
           {["REFUND", "REVERSAL"].includes(financialKind) && <label>Original transaction<select name="originalId" required><option value="">Choose the original record</option>{data.financialEntries.filter(entry => entry.kind === "PAYMENT" || financialKind === "REVERSAL" && entry.kind === "REFUND").map(entry => <option key={entry.id} value={entry.id}>{entry.reference} · {FINANCIAL_KINDS[entry.kind]} · {moneyLabel(entry.amountCents)}</option>)}</select></label>}
           <label>Receipt / bank / contract reference<input name="reference" required maxLength={240} /></label><label>Supporting evidence reference<textarea name="evidence" required maxLength={1000} /></label><label>Reason<textarea name="reason" required maxLength={1000} /></label><label><input name="confirmed" type="checkbox" required /> I verified this record against its original supporting evidence.</label><button disabled={busy}>Record verified activity</button>
         </form>}
       </>}
+      {tab === "Money" && data.draftId && data.rentalReceipts?.length > 0 && <section aria-label="Rental receipts">
+        <h3>Rental receipts</h3>
+        <ul className={styles.documentChecklist}>{data.rentalReceipts.map(receipt => <li key={receipt.id}>
+          <a target="_blank" rel="noopener" href={rentalReceiptHref(data.draftId!, receipt.id)}>Open receipt · {moneyLabel(receipt.amountCents)} · {receipt.businessDate}</a>
+        </li>)}</ul>
+      </section>}
       {repair && tab === "Completion" && <>
         <h3>Repair handoff</h3><p>Open the repair order to review authorization, work progress, quality checks and closeout.</p>
         {repairIntakeHref && <p><Link href={repairIntakeHref}>Continue repair intake</Link></p>}

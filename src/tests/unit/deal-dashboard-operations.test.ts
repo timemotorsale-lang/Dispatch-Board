@@ -32,6 +32,7 @@ describe("deal dashboard operations", () => {
   it("denies unauthenticated access and staff financial or ownership commands", async () => {
     await expect(manageDealOperations(null, operation())).rejects.toMatchObject({ status: 401 });
     await expect(manageDealOperations(staff, operation())).rejects.toMatchObject({ status: 403 });
+    await expect(manageDealOperations(staff, operation("DEAL_RENTAL_PAYMENT"))).rejects.toMatchObject({ status: 403 });
     await expect(manageDealOperations(staff, operation("DEAL_REASSIGN"))).rejects.toMatchObject({ status: 403 });
     expect(mocks.db.$transaction).not.toHaveBeenCalled();
   });

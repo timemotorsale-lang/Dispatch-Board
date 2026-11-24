@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { toAuthenticatedUser, type AuthenticatedUser } from "@/server/auth/store";
@@ -11,7 +11,8 @@ import { createTaskCreateRepository } from "@/server/repositories/task-create-re
 import { businessDate, moneyToday } from "@/lib/money-resources";
 import { isRentalPathway } from "@/lib/rental-operations";
 import { canWorkRentalIncidentClaims, connectRentalIncidentClaim } from "@/server/claims-workspace/rental-incident";
-import { financialEntry, financialEntryError, record, summarizeDealFinancials, taskDealLink, type DealFinancialEntry, type DealFinancialKind, type DealMilestone } from "@/lib/deal-dashboard-enterprise";
+import { financialEntry, financialEntryError, record, summarizeDealFinancials, taskDealLink, type DealFinancialKind, type DealMilestone } from "@/lib/deal-dashboard-enterprise";
+import { getRentalReceipt, RENTAL_PAYMENT_METHODS, rentalReceiptAdjustment, validRentalPaymentReference, type RentalPaymentMethod, type RentalReceipt } from "@/lib/rental-payment";
 import { requireSalesDocumentsUser } from "./service";
 import { SalesDocumentsError } from "./domain";
 
@@ -22,6 +23,14 @@ const rentalActions = ["RENTAL_PROGRESS_NOTE", "RENTAL_INCIDENT", "RENTAL_INCIDE
 const rentalIncidentAction = "RENTAL_INCIDENT_RECORDED";
 const rentalClaimAction = "RENTAL_INCIDENT_CLAIM_RECORDED";
 const rentalNoteAction = "RENTAL_PROGRESS_NOTE_RECORDED";
+const financialAction = "DEAL_FINANCIAL_RECORDED";
+
+function readFinancialEntries(events: { id: string; metadata: unknown; occurredAt: Date }[]) {
+  return events.flatMap(event => {
+    const entry = financialEntry(event.id, event.metadata, event.occurredAt.toISOString());
+    return entry ? [entry] : [];
+  });
+}
 const rentalBookingScope = (draftId: string) => ({
   organizationId: dealOrganization(), context: { draftId, organizationId: dealOrganization() },
   checkedOutAt: { not: null }, status: { in: ["CHECKED_OUT", "RETURNED_REVIEW", "RETURNED"] }
@@ -100,11 +109,31 @@ export async function readDealOperations(actor: AuthenticatedUser | null, input:
     })
   } : null;
   const staffChoices = staff.flatMap(person => { try { const candidate = toAuthenticatedUser(person); requireSalesDocumentsUser(candidate); const scope = evaluateUnifiedCrmCustomerReadPolicy(candidate).recordScope; return [{ id: candidate.id, name: candidate.name, canOwnDeal: !customerId || scope?.kind === "ORGANIZATION" || scope?.kind === "OWNER" && customer?.ownerUserId === candidate.id }]; } catch { return []; } });
-  const financialEntries = events.filter(event => event.action === "DEAL_FINANCIAL_RECORDED").flatMap(event => { const entry = financialEntry(event.id, event.metadata, event.occurredAt.toISOString()); return entry ? [entry] : []; });
-  const history = [...events.filter(event => !["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_MILESTONE", ...rentalActions, rentalNoteAction, rentalIncidentAction, rentalClaimAction].includes(event.action)).map(event => ({ id: event.id, action: event.action, note: event.note, actorName: text(record(event.metadata).actorName) || actorNames.get(event.actorUserId) || "Former staff member", at: event.occurredAt.toISOString() })), ...draftHistory.map((value, index) => ({ id: `draft-${index}`, action: text(value.action) || `${text(value.from) || "New"} → ${text(value.to)}`, note: text(value.reason, 1000), actorName: text(value.actorName) || actorNames.get(text(value.actorId)) || "Former staff member", at: text(value.at) }))].sort((a, b) => b.at.localeCompare(a.at));
-  return { rentalActivity, pathway: draft?.pathway || jacket?.pathway || "", draftId: draft?.id ?? null, jacketId: jacket?.id ?? null, draftRevision: draft?.revision ?? null, draftStatus: draft?.status ?? null, jacketRevision: jacket?.revision ?? null, customerName: draft?.customerName || jacket?.customerName || "Customer", vehicleReference: draft?.vehicleReference || jacket?.vehicleReference || "", ownerId: draft?.ownerUserId || jacket?.createdByUserId, canManage: canManageDeals(user), canEdit: !draft || draft.ownerUserId === user.id, inactive: Boolean(draft && ["ARCHIVED", "LOST", "CANCELLED"].includes(draft.status)), history, tasks: tasks.filter(task => taskDealLink(task.templateSnapshot)?.organizationId === organizationId).map(task => ({ id: task.id, title: task.title, dueAt: task.dueAt.toISOString(), status: task.status, assignedUserId: task.assignedUserId, ownerName: task.assignedUser.name })), staff: staffChoices.filter((person): person is NonNullable<typeof person> => person !== null), financialEntries, financials: summarizeDealFinancials(financialEntries), milestones: Object.fromEntries(events.filter(event => event.action === "DEAL_MILESTONE_RECORDED").map(event => [text(record(event.metadata).dimension), { ...record(event.metadata), at: event.occurredAt.toISOString() } as DealMilestone])) };
+  const financialEntries = readFinancialEntries(events.filter(event => event.action === financialAction &&
+    (event.packetId ? event.packetId === jacket?.packetId : rentalDraft?.pathway === "daily-rental")));
+  const rentalReceipts = draft ? events.flatMap(event => {
+    const receipt = event.action === financialAction && event.subjectId === draft.id ? getRentalReceipt(event.metadata) : null;
+    return receipt ? [{ id: event.id, receiptNumber: receipt.receiptNumber, amountCents: receipt.amountCents, businessDate: receipt.businessDate }] : [];
+  }).reverse() : [];
+  const history = [...events.filter(event => !["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_RENTAL_PAYMENT", "DEAL_MILESTONE", ...rentalActions, rentalNoteAction, rentalIncidentAction, rentalClaimAction].includes(event.action)).map(event => ({ id: event.id, action: event.action, note: event.note, actorName: text(record(event.metadata).actorName) || actorNames.get(event.actorUserId) || "Former staff member", at: event.occurredAt.toISOString() })), ...draftHistory.map((value, index) => ({ id: `draft-${index}`, action: text(value.action) || `${text(value.from) || "New"} → ${text(value.to)}`, note: text(value.reason, 1000), actorName: text(value.actorName) || actorNames.get(text(value.actorId)) || "Former staff member", at: text(value.at) }))].sort((a, b) => b.at.localeCompare(a.at));
+  return { rentalActivity, rentalReceipts, pathway: draft?.pathway || jacket?.pathway || "", draftId: draft?.id ?? null, jacketId: jacket?.id ?? null, draftRevision: draft?.revision ?? null, draftStatus: draft?.status ?? null, jacketRevision: jacket?.revision ?? null, customerName: draft?.customerName || jacket?.customerName || "Customer", vehicleReference: draft?.vehicleReference || jacket?.vehicleReference || "", ownerId: draft?.ownerUserId || jacket?.createdByUserId, canManage: canManageDeals(user), canEdit: !draft || draft.ownerUserId === user.id, inactive: Boolean(draft && ["ARCHIVED", "LOST", "CANCELLED"].includes(draft.status)), history, tasks: tasks.filter(task => taskDealLink(task.templateSnapshot)?.organizationId === organizationId).map(task => ({ id: task.id, title: task.title, dueAt: task.dueAt.toISOString(), status: task.status, assignedUserId: task.assignedUserId, ownerName: task.assignedUser.name })), staff: staffChoices.filter((person): person is NonNullable<typeof person> => person !== null), financialEntries, financials: summarizeDealFinancials(financialEntries), milestones: Object.fromEntries(events.filter(event => event.action === "DEAL_MILESTONE_RECORDED").map(event => [text(record(event.metadata).dimension), { ...record(event.metadata), at: event.occurredAt.toISOString() } as DealMilestone])) };
 }
 export type DealOperationsView = Awaited<ReturnType<typeof readDealOperations>>;
+
+export async function readRentalPaymentReceipt(actor: AuthenticatedUser | null, input: { draftId: string; paymentId: string }) {
+  const user = requireSalesDocumentsUser(actor);
+  if (!input.draftId || !input.paymentId) throw new SalesDocumentsError("Choose a saved rental receipt.", 404);
+  const { organizationId, subjectId } = await resolveDeal(user, { draftId: input.draftId }, prisma);
+  const event = await prisma.documentLibraryAuditEvent.findFirst({
+    where: { organizationId, id: input.paymentId, subjectType: "DEAL", subjectId, action: financialAction }
+  });
+  const receipt = event && getRentalReceipt(event.metadata);
+  if (!event || !receipt) throw new SalesDocumentsError("This receipt is unavailable on the selected deal.", 404);
+  const entries = readFinancialEntries(await prisma.documentLibraryAuditEvent.findMany({
+    where: { organizationId, OR: [{ subjectType: "DEAL", subjectId }, ...(event.packetId ? [{ packetId: event.packetId }] : [])], action: financialAction }
+  }));
+  return rentalReceiptAdjustment(receipt, event.id, entries);
+}
 
 export async function manageRentalDealActivity(actor: AuthenticatedUser | null, input: Record<string, unknown>) {
   if (!rentalActions.includes(text(input.action))) throw new SalesDocumentsError("Choose a rental activity.");
@@ -114,7 +143,8 @@ export async function manageRentalDealActivity(actor: AuthenticatedUser | null, 
 export async function manageDealOperations(actor: AuthenticatedUser | null, input: Record<string, unknown>, transaction?: Prisma.TransactionClient) {
   const user = requireSalesDocumentsUser(actor), action = text(input.action), operationKey = text(input.operationKey, 100);
   const rentalAction = rentalActions.includes(action);
-  if (!["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_MILESTONE"].includes(action) && !rentalAction) throw new SalesDocumentsError("Choose a supported deal operation.");
+  const collectRentalPayment = action === "DEAL_RENTAL_PAYMENT";
+  if (!["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_MILESTONE"].includes(action) && !rentalAction && !collectRentalPayment) throw new SalesDocumentsError("Choose a supported deal operation.");
   if (!/^[a-zA-Z0-9-]{8,100}$/.test(operationKey)) throw new SalesDocumentsError("Refresh this panel before saving.");
   if (action !== "DEAL_REMINDER" && !rentalAction && !canManageDeals(user)) throw new SalesDocumentsError("A manager must record ownership, verified financial activity, or completion evidence.", 403);
   const requestHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
@@ -138,7 +168,7 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
     if (concurrent) { if (record(concurrent.metadata).requestHash !== requestHash || concurrent.actorUserId !== user.id) throw new SalesDocumentsError("This operation reference was already used. Refresh before retrying.", 409); return record(concurrent.metadata).result; }
     let reason = text(input.reason, 1000);
     let result: Record<string, unknown> = { saved: true };
-    let auditAction = `${action}_RECORDED`, details: Record<string, unknown> = {};
+    let auditAction = `${action}_RECORDED`, details: Record<string, unknown> = {}, receiptId: string | undefined;
     if (action === "RENTAL_PROGRESS_NOTE") {
       if (!reason || typeof input.reason !== "string" || input.reason.trim().length > 1000) throw new SalesDocumentsError("Enter a progress note of up to 1000 characters.");
     } else if (action === "RENTAL_INCIDENT" || action === "RENTAL_INCIDENT_CLAIM") {
@@ -200,19 +230,62 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
       if (!await canOwnCustomer(target, draft!.customerId, db)) throw new SalesDocumentsError("This staff member does not have access to the linked customer. Assign the customer through Customer 360 first, then transfer this deal. No ownership was changed.", 409);
       await db.dealDeskDraft.update({ where: { id: draft!.id }, data: { ownerUserId: target.id, revision: { increment: 1 }, statusHistory: json([...(Array.isArray(draft!.statusHistory) ? draft!.statusHistory : []), { action: "REASSIGNED", from: draft!.status, to: draft!.status, actorId: user.id, actorName: user.name, at: new Date().toISOString(), reason, previousOwnerId: draft!.ownerUserId, ownerUserId: target.id }]) } });
       details = { previousOwnerId: draft!.ownerUserId, ownerUserId: target.id, ownerName: target.name };
-    } else if (action === "DEAL_FINANCIAL") {
-      if (!jacket) throw new SalesDocumentsError("Prepare the existing deal's packet before recording financial activity.");
-      if (input.confirmed !== true || !text(input.reference) || !text(input.evidence, 1000) || !reason) throw new SalesDocumentsError("Confirm the activity was verified, and enter its reference, supporting evidence and reason.");
-      const date = text(input.businessDate); try { businessDate(date); } catch { throw new SalesDocumentsError("Choose a valid business date."); }
+    } else if (action === "DEAL_FINANCIAL" || collectRentalPayment) {
+      const dailyRental = draft?.pathway === "daily-rental";
+      if (collectRentalPayment && !dailyRental) throw new SalesDocumentsError("Open the saved daily rental to record a payment.", 409);
+      if (!jacket && !dailyRental) throw new SalesDocumentsError("Prepare the existing deal's packet before recording financial activity.");
+      if (collectRentalPayment ? input.confirmed !== true : input.confirmed !== true || !text(input.reference) || !text(input.evidence, 1000) || !reason) {
+        throw new SalesDocumentsError(collectRentalPayment ? "Confirm the payment was received before issuing a receipt." : "Confirm the activity was verified, and enter its reference, supporting evidence and reason.");
+      }
+      let date: string;
+      try { date = businessDate(collectRentalPayment ? input.businessDate : text(input.businessDate)); }
+      catch { throw new SalesDocumentsError("Choose a valid business date."); }
       if (date > moneyToday()) throw new SalesDocumentsError("Verified activity cannot be dated in the future.");
-      const events = await db.documentLibraryAuditEvent.findMany({ where: { organizationId, packetId: jacket.packetId, action: "DEAL_FINANCIAL_RECORDED" }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
-      const entries: DealFinancialEntry[] = events.flatMap(event => { const entry = financialEntry(event.id, event.metadata, event.occurredAt.toISOString()); return entry ? [entry] : []; });
-      const proposed = { kind: text(input.kind) as DealFinancialKind, amountCents: Number(input.amountCents), originalId: text(input.originalId) || null };
+      const events = await db.documentLibraryAuditEvent.findMany({ where: { organizationId, action: financialAction, OR: [
+        ...(jacket ? [{ packetId: jacket.packetId }] : []),
+        ...(dailyRental ? [{ subjectType: "DEAL", subjectId, packetId: null }] : [])
+      ] } });
+      const entries = readFinancialEntries(events);
+      const amountCents = collectRentalPayment && typeof input.amountCents !== "number" ? NaN : Number(input.amountCents);
+      const proposed = { kind: (collectRentalPayment ? "PAYMENT" : text(input.kind)) as DealFinancialKind, amountCents, originalId: collectRentalPayment ? null : text(input.originalId) || null };
       const error = financialEntryError(entries, proposed); if (error) throw new SalesDocumentsError(error);
       const original = entries.find(entry => entry.id === proposed.originalId);
       if (original && date < original.businessDate) throw new SalesDocumentsError("A refund or reversal cannot be dated before its original transaction.");
-      details = { ...proposed, businessDate: date, reference: text(input.reference), evidence: text(input.evidence, 1000), reason, actorName: user.name };
-      auditAction = "DEAL_FINANCIAL_RECORDED";
+      let reference = text(input.reference), evidence = text(input.evidence, 1000);
+      if (collectRentalPayment) {
+        const method = text(input.method) as RentalPaymentMethod;
+        if (!Object.hasOwn(RENTAL_PAYMENT_METHODS, method)) throw new SalesDocumentsError("Choose how the payment was received.");
+        reference = typeof input.reference === "string" ? input.reference.trim() : "";
+        if ((method !== "CASH" || reference) && !validRentalPaymentReference(reference)) {
+          throw new SalesDocumentsError("Enter a check, approval, or transfer reference of up to 64 characters. Use the transaction reference from your terminal for card payments.");
+        }
+        const customerId = draft!.customerId || jacket?.customerId;
+        const [customer, context] = await Promise.all([
+          customerId ? db.customer.findFirst({ where: { id: customerId, organizationId: dealOrganization(), status: "ACTIVE", mergedIntoCustomerId: null }, select: { displayName: true } }) : null,
+          db.dealWorkflowContext.findFirst({ where: { draftId: draft!.id, organizationId: dealOrganization() }, select: { vehicle: { select: { year: true, make: true, model: true, vin: true } } } })
+        ]);
+        if (!customer?.displayName) throw new SalesDocumentsError("Link the rental to the saved customer before recording the payment.", 409);
+        receiptId = randomUUID();
+        const receiptNumber = `RR-${receiptId.toUpperCase()}`;
+        const vehicle = context?.vehicle;
+        const totals = summarizeDealFinancials(entries);
+        const netPaidCents = totals.netCents + proposed.amountCents;
+        const receipt: RentalReceipt = {
+          receiptNumber, receivedAt: new Date().toISOString(), businessDate: date, amountCents: proposed.amountCents,
+          method, reference: reference || null, customerName: customer.displayName, dealNumber: String(draft!.dealNumber),
+          vehicle: [vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(" ") || draft!.vehicleReference || null,
+          vin: vehicle?.vin || jacket?.vin || null, receivedBy: user.name, purpose: "RENTAL_CHARGE", agreedCents: totals.agreedCents,
+          netPaidCents, balanceCents: totals.agreedCents === null ? null : Math.max(0, totals.agreedCents - netPaidCents),
+          creditCents: totals.agreedCents === null ? 0 : Math.max(0, netPaidCents - totals.agreedCents)
+        };
+        reason = "Rental charge payment received.";
+        evidence = `${RENTAL_PAYMENT_METHODS[method]} received and confirmed by ${user.name}.`;
+        reference = reference || receiptNumber;
+        details = { rentalReceipt: receipt };
+        result = { saved: true, receiptId, receiptNumber };
+      }
+      details = { ...details, ...proposed, businessDate: date, reference, evidence, reason, actorName: user.name };
+      auditAction = financialAction;
       // Provider references may only identify one original payment/refund per deal.
       if (["PAYMENT", "REFUND"].includes(proposed.kind) && entries.some(entry => entry.kind === proposed.kind && entry.reference.toLowerCase() === String(details.reference).toLowerCase())) throw new SalesDocumentsError("This payment or refund reference is already recorded on this deal.", 409);
     } else {
@@ -222,7 +295,7 @@ export async function manageDealOperations(actor: AuthenticatedUser | null, inpu
       auditAction = "DEAL_MILESTONE_RECORDED";
     }
     const data = { organizationId, ...(jacket && !rentalAction ? { packetId: jacket.packetId } : {}), subjectType: "DEAL", subjectId, actorUserId: user.id, note: reason || `Created deal-specific reminder: ${text(input.title)}`, metadata: json({ ...details, actorName: user.name }), action: auditAction, idempotencyKey: operationKey, occurredAt: new Date() };
-    const saved = await db.documentLibraryAuditEvent.create({ data });
+    const saved = await db.documentLibraryAuditEvent.create({ data: { ...data, ...(receiptId ? { id: receiptId } : {}) } });
     if (action === "RENTAL_INCIDENT") result = { ...result, incidentId: saved.id };
     await db.documentLibraryAuditEvent.create({ data: { ...data, action, ...(rentalAction && { note: "Rental activity saved." }), metadata: json({ requestHash, result, actorName: user.name }) } });
     return result;

@@ -42,6 +42,17 @@ export async function buildDealDashboard(user: AuthenticatedUser, source: Prisma
   const organizationId = resolveDocumentStorageRuntimeFromEnv().organizationId;
   const jackets = await prisma.salesDocumentJacket.findMany({ where: { organizationId, id: { in: all.flatMap(row => row.jacketId ? [row.jacketId] : []) } }, select: { id: true, requirements: true, versions: { select: { phase: true, disposition: true, finalizedAt: true }, orderBy: { finalizedAt: "desc" } }, packet: { select: { auditEvents: { where: { action: { in: ["DEAL_FINANCIAL_RECORDED", "DEAL_MILESTONE_RECORDED"] } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }], select: { id: true, action: true, metadata: true, occurredAt: true } }, documents: { select: { document: { select: { id: true, documentType: true, status: true, classificationSnapshot: true, source: true, createdAt: true } } } } } } } });
   const jacketMap = new Map(jackets.map(jacket => [jacket.id, jacket]));
+  const draftLedgers = await prisma.documentLibraryAuditEvent.findMany({
+    where: { organizationId, subjectType: "DEAL", subjectId: { in: all.flatMap(row => row.pathway === "daily-rental" && row.draftId ? [row.draftId] : []) },
+      packetId: null, action: "DEAL_FINANCIAL_RECORDED" },
+    select: { id: true, action: true, subjectId: true, metadata: true, occurredAt: true }
+  });
+  const draftLedgerMap = new Map<string, typeof draftLedgers>();
+  for (const event of draftLedgers) {
+    const ledger = draftLedgerMap.get(event.subjectId);
+    if (ledger) ledger.push(event);
+    else draftLedgerMap.set(event.subjectId, [event]);
+  }
   const tasks = await prisma.task.findMany({ where: { ...(!team ? { assignedUserId: user.id } : {}), status: { not: "COMPLETED" }, templateSnapshot: { path: ["dealDashboard", "organizationId"], equals: organizationId } }, select: { id: true, assignedUserId: true, templateSnapshot: true, title: true, dueAt: true }, orderBy: { dueAt: "asc" } });
   const linkedTasks = tasks.filter(task => taskDealLink(task.templateSnapshot)?.organizationId === organizationId);
   const bookings = await prisma.vehicleUseBooking.findMany({ where: { organizationId: dealOrganization(), status: { in: ["CHECKED_OUT", "RETURNED", "RETURNED_REVIEW", "RESERVED", "CANCELLED"] }, OR: [{ contextId: { in: all.flatMap(row => row.draftId ? [row.draftId] : []) } }, { agreementJacketId: { in: all.flatMap(row => row.jacketId ? [row.jacketId] : []) } }] }, select: { contextId: true, agreementJacketId: true, startsAt: true, expectedReturnAt: true, checkedOutAt: true, returnedAt: true, departureSnapshot: true, returnSnapshot: true, status: true }, orderBy: { createdAt: "desc" } });
@@ -79,7 +90,8 @@ export async function buildDealDashboard(user: AuthenticatedUser, source: Prisma
     const missing = checklist.find(item => item.blocker);
     const overdue = Boolean(task && task.dueAt.getTime() < Date.now());
     const auditEvents = jacket?.packet.auditEvents || [];
-    const financialEntries = auditEvents.filter(event => event.action === "DEAL_FINANCIAL_RECORDED").flatMap(event => { const entry = financialEntry(event.id, event.metadata, event.occurredAt.toISOString()); return entry ? [entry] : []; });
+    const rentalLedger = row.pathway === "daily-rental" && row.draftId ? draftLedgerMap.get(row.draftId) || [] : [];
+    const financialEntries = [...auditEvents, ...rentalLedger].filter(event => event.action === "DEAL_FINANCIAL_RECORDED").flatMap(event => { const entry = financialEntry(event.id, event.metadata, event.occurredAt.toISOString()); return entry ? [entry] : []; });
     const milestone = (dimension: string): DealMilestone | null => { const event = auditEvents.filter(event => event.action === "DEAL_MILESTONE_RECORDED" && record(event.metadata).dimension === dimension).at(-1); return event ? { ...record(event.metadata), at: event.occurredAt.toISOString() } as DealMilestone : null; };
     const recordedSale = isRecordedSale({ ...row, stage, soldDate });
     const outstandingItems = recordedSale && !inactive ? [
@@ -101,7 +113,7 @@ export async function buildDealDashboard(user: AuthenticatedUser, source: Prisma
       customerId: row.customerId, customerName: row.customerName, vehicleReference: row.vehicleReference, pathway: row.pathway, status: row.status, packetState: row.packetState, updatedAt: row.updatedAt.toISOString(),
       ownerId: row.ownerId, ownerName: row.ownerName, stage, rental: rental?.work, outstandingItems, dealStage: rental?.delivered ? "Delivered" : null, completedDate, soldDate, documentChecklist, createdDate: chicagoDate(row.createdAt), documentsReady: checklist.filter(item => item.ready).length, documentsTotal: checklist.length,
       nextAction: rental?.nextAction ?? (stage === "Unwind review pending" ? "Manager: reconcile payments, funding, vehicle, title and taxes" : task?.title || (stage === "Completed" && outstandingItems.length ? `Verify ${outstandingItems[0].toLowerCase()}` : returnOverdue ? "Record vehicle return" : stage === "Completed" ? "Review completed packet" : stage === "Awaiting funding" ? "Confirm funding" : row.status === "SOLD" && !row.jacketId ? "Start paperwork checklist" : row.status === "SOLD" && !missing ? "Finalize paperwork" : stage === "Ready to finalize" ? "Finalize packet" : missing ? missing.label : row.pathway === "repairs" ? "Continue repair check-in" : row.jacketId ? "Review packet" : "Prepare packet")),
-      indicators: { canEdit: !row.draftId || row.ownerId === user.id, ageDays, soldAgeDays, unattended, overdue, returnDueAt: booking?.status === "CHECKED_OUT" ? booking.expectedReturnAt.toISOString() : null, alerts, funding: milestone("FUNDING"), delivery: milestone("DELIVERY"), title: milestone("TITLE"), financials: row.jacketId ? summarizeDealFinancials(financialEntries, range) : null },
+      indicators: { canEdit: !row.draftId || row.ownerId === user.id, ageDays, soldAgeDays, unattended, overdue, returnDueAt: booking?.status === "CHECKED_OUT" ? booking.expectedReturnAt.toISOString() : null, alerts, funding: milestone("FUNDING"), delivery: milestone("DELIVERY"), title: milestone("TITLE"), financials: row.jacketId || financialEntries.length ? summarizeDealFinancials(financialEntries, range) : null },
       dueAt: rental ? rental.active || rental.stage === "RESERVED" ? rental.dueBack : null : task?.dueAt.toISOString() || (booking && ["RESERVED", "CHECKED_OUT"].includes(booking.status) ? booking.expectedReturnAt.toISOString() : null), taskHref: task && stage !== "Unwind review pending" ? `/tasks/${encodeURIComponent(task.id)}` : null, needsAttention: rental ? rentalNeedsAttention : !inactive && (outstandingItems.length > 0 || overdue || returnOverdue || expiredInsurance || stage !== "Completed" && (row.status === "SOLD" || stage === "Unwind review pending" || Boolean(corrections) || Boolean(missing) || unattended || !row.jacketId)) };
   });
   const owners = [...new Map(rows.map(row => [row.ownerId, { id: row.ownerId, name: row.ownerName }])).values()];
