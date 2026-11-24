@@ -13,6 +13,8 @@ In **Terms & Payments**, tab out of a complete VIN to decode blank vehicle field
 
 Apply the cross-workflow custody and return-review migrations together on an isolated database before release. Neither migration backfills facts or changes historical documents. A legacy return without explicit completion remains held for review. A legacy sale needs a canonical vehicle link, exact VIN, or exact stock, vehicle, or inventory number for automatic conflict matching.
 
+Pause rental and loaner returns during the production cutover until the health endpoint reports the new revision. The previous app writes returns directly to `RETURNED`, which the upgraded database rejects for rentals and loaners. If the release needs recovery, keep returns paused and prefer a corrected image that supports `RETURNED_REVIEW`. Use the verified pre-migration database snapshot only after reconciling writes made since it was taken. Before resuming returns, verify an actual return enters `RETURNED_REVIEW` and only a completed review releases the vehicle.
+
 ## Prior daily-rental implementation
 
 Branch: `codex/enterprise-general-refinement`. Base: `e7124bd272da8c2fc2cd2a5711eeb098f0a90eca`.

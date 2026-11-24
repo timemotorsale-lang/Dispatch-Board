@@ -106,9 +106,11 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("cross-work
     await prisma.salesDocumentPacketVersion.create({ data: { ...version, version: 1, phase: "CHECKOUT", disposition: "CHECKED_OUT" } });
     await prisma.vehicleUseBooking.update({ where: { id: booking.id }, data: { status: "CHECKED_OUT", version: 2, agreementJacketId: jacket.id, checkedOutAt: booking.startsAt, departureSnapshot: { observed: true } } });
     await expect(sell()).rejects.toMatchObject({ status: 409, message: expect.stringContaining("Record the actual vehicle return") });
+    const legacyReturn = { status: "RETURNED", version: 3, returnedAt: new Date(), returnSnapshot: { observed: true } };
+    await expect(prisma.vehicleUseBooking.update({ where: { id: booking.id }, data: legacyReturn })).rejects.toThrow("Invalid vehicle use transition or version");
     const returned = await prisma.$transaction(async transaction => {
       await transaction.$executeRaw`SET LOCAL session_replication_role = replica`;
-      return transaction.vehicleUseBooking.update({ where: { id: booking.id }, data: { status: "RETURNED", version: 3, returnedAt: new Date(), returnSnapshot: { observed: true } } });
+      return transaction.vehicleUseBooking.update({ where: { id: booking.id }, data: legacyReturn });
     });
     await expect(sell()).rejects.toMatchObject({ status: 409, message: expect.stringContaining("Complete the vehicle return review") });
     await expect(reserve()).rejects.toThrow("prior vehicle return review");

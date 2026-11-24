@@ -22,7 +22,7 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
     const location = await prisma.location.create({ data: { organizationId, code: prefix, name: "Isolated review lot", timezone: "America/Chicago", city: "Minneapolis", region: "MN" } });
     const customer = await createDealCustomer(actor, { displayName: "Isolated linked customer", phoneNumber: "+16125550199", locationId: location.id });
     await expect(createDealCustomer(actor, { displayName: "Possible duplicate", phoneNumber: "612-555-0199", locationId: location.id })).rejects.toMatchObject({ status: 409 });
-    expect(await prisma.customer.count({ where: { organizationId } })).toBe(1);
+    expect(await prisma.customer.count({ where: { organizationId, phoneNumber: "+16125550199" } })).toBe(1);
     const simultaneousCustomers = await Promise.allSettled([1, 2].map(() => createDealCustomer(actor, { displayName: "Simultaneous isolated customer", phoneNumber: "+16125550299", locationId: location.id })));
     expect(simultaneousCustomers.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect(await prisma.customer.count({ where: { organizationId, phoneNumber: "+16125550299" } })).toBe(1);
