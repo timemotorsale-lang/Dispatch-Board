@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { repairReviewHref } from "@/lib/repair-workflow-review";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { INTAKE_SOURCES, intakeConfirmationIssue, intakePending, type IntakeDetails } from "@/server/inventory-unit/intake-domain";
 import styles from "./compact-inventory-intake.module.css";
 
@@ -15,6 +15,7 @@ export type CompactInventoryIntakeContext = {
 type Options = { locations: { id: string; name: string }[]; users: { id: string; name: string }[] };
 type Receipt = { vehicleId: string; inventoryUnitId: string; inventoryNumber: string; intakeVersion: number; unitVersion: number; repairOrderId?: string };
 type WorkType = "sale" | "recon" | "customer";
+const subscribeToHydration = () => () => {};
 
 function initialFields(context: CompactInventoryIntakeContext | undefined, options: Options) {
   const details = context?.details;
@@ -41,6 +42,7 @@ async function requestJson(url: string, options?: RequestInit) {
 export function CompactInventoryIntake({ context: initialContext, options = { locations: [], users: [] }, advisor = false, initialVin = "", reviewWorkbench = false }: { context?: CompactInventoryIntakeContext; options?: Options; advisor?: boolean; initialVin?: string; reviewWorkbench?: boolean }) {
   const prefix = useId();
   const router = useRouter();
+  const interactive = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [context, setContext] = useState(initialContext);
   const [fields, setFields] = useState(() => ({ ...initialFields(initialContext, options), vin: initialContext?.vin ?? initialVin }));
   const [workType, setWorkType] = useState<WorkType>("recon");
@@ -134,7 +136,7 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (workType === "customer" || busy) return;
+    if (!interactive || workType === "customer" || busy || checking) return;
     const next = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "continue";
     setError(""); setMessage(""); setInvalidReceivingField(undefined);
     try {
@@ -187,9 +189,9 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
     <header className={styles.header}><div><p className={styles.eyebrow}>Vehicle / Acquisition / Work</p><h1>{advisor ? "Vehicle intake · start work" : "Inventory intake"}</h1></div><span className={styles.badge}>{advisor ? "Advisor intake · review" : "New form · Review before adoption"}</span></header>
     {advisor && <Link href={reviewWorkbench ? "/prototype/repair-workflow" : "/vehicles/recon-repair-advisor"}>← Return to advisor</Link>}
     <div className={styles.context}><strong>{context ? `${context.vehicleNumber} · ${context.inventoryNumber ?? "Inventory will be linked on save"}` : "Add inventory · VIN lookup prevents duplicate records"}</strong><span>Save writes real records. Current intake remains available.</span></div>
-    <fieldset className={styles.workTypes} disabled={busy || checking}><legend>Work type</legend>{([["sale", "Prepare for Sale"], ["recon", "Dealership Repair / Recon"], ["customer", "Customer Repair"]] as const).map(([value, label]) => <label key={value}><input type="radio" name="workType" value={value} checked={workType === value} onChange={() => setWorkType(value)} />{label}</label>)}</fieldset>
-    {workType === "customer" ? <div className={styles.feedback}><h2>Customer repair</h2><p>Customer-owned vehicles do not create dealership inventory. Continue with the existing customer check-in using this same vehicle.</p><Link onClick={event => { if (dirty.current && !window.confirm("Leave this intake without saving the entered inventory details?")) event.preventDefault(); }} href={`/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "WALK_IN", ...(reviewWorkbench ? { reviewWorkbench: "1", returnTo: "/prototype/repair-workflow" } : {}), ...(context?.vehicleId ? { vehicleId: context.vehicleId } : {}) })}`}>Open customer check-in</Link></div> : <form noValidate onSubmit={save}>
-      <fieldset className={styles.columns} disabled={busy || checking}>
+    <fieldset className={styles.workTypes} disabled={!interactive || busy || checking}><legend>Work type</legend>{([["sale", "Prepare for Sale"], ["recon", "Dealership Repair / Recon"], ["customer", "Customer Repair"]] as const).map(([value, label]) => <label key={value}><input type="radio" name="workType" value={value} checked={workType === value} onChange={() => setWorkType(value)} />{label}</label>)}</fieldset>
+    {workType === "customer" ? <div className={styles.feedback}><h2>Customer repair</h2><p>Customer-owned vehicles do not create dealership inventory. Continue with the existing customer check-in using this same vehicle.</p><Link onClick={event => { if (dirty.current && !window.confirm("Leave this intake without saving the entered inventory details?")) event.preventDefault(); }} href={`/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "WALK_IN", ...(reviewWorkbench ? { reviewWorkbench: "1", returnTo: "/prototype/repair-workflow" } : {}), ...(context?.vehicleId ? { vehicleId: context.vehicleId } : {}) })}`}>Open customer check-in</Link></div> : <form method="post" noValidate onSubmit={save}>
+      <fieldset className={styles.columns} disabled={!interactive || busy || checking}>
         <section className={styles.column}><h2>Vehicle identification</h2><div className={styles.vinRow}><div className={styles.field}><label htmlFor={`${prefix}-vin`}>VIN</label><input id={`${prefix}-vin`} name="vin" value={fields.vin} readOnly={Boolean(context?.vehicleId)} onChange={event => update("vin", event.target.value.toUpperCase())} /></div>{context ? <button type="button" onClick={changeVehicle}>Change vehicle</button> : <button type="button" onClick={lookup}>VIN Lookup</button>}</div>
           <div className={styles.pair}>{input("year", "Year", "number", !context)}{input("odometer", "Odometer", "number")}</div>{input("make", "Make", "text", !context)}{input("model", "Model", "text", !context)}
           {select("odometerUnit", "Mileage unit", [{ id: "MILES", name: "Miles" }, { id: "KILOMETERS", name: "Kilometers" }])}
@@ -211,9 +213,9 @@ export function CompactInventoryIntake({ context: initialContext, options = { lo
       {receipt && <div className={styles.feedback}><nav aria-label="Continue saved vehicle" onClickCapture={event => { if (event.target instanceof Element && event.target.closest("a") && dirty.current && !window.confirm("Leave this intake without saving your changes?")) event.preventDefault(); }}><Link href={`/vehicles/${encodeURIComponent(receipt.vehicleId)}/frontline`}>Open selling workbench</Link>{receipt.repairOrderId && <><span> · </span><Link href={`/prototype/repair-explorer?repairOrderId=${encodeURIComponent(receipt.repairOrderId)}`}>Build estimate in Labor Guide</Link></>}</nav></div>}
       <footer className={styles.footer}>
         {error && <p className={styles.saveError} role="alert">{error}</p>}
-        {(message || checking || busy) && <p className={styles.saveStatus} role="status">{busy ? "Saving…" : checking ? "Checking VIN…" : message}</p>}
+        {(!interactive || message || checking || busy) && <p className={styles.saveStatus} role="status">{!interactive ? "Loading intake…" : busy ? "Saving…" : checking ? "Checking VIN…" : message}</p>}
         <span>{workType === "sale" ? "Preparing for sale does not approve retail release." : "Intake does not authorize repairs or customer charges."}</span>
-        <div className={styles.actions}><button disabled={busy || checking} type="submit" value="inventory">{busy ? "Saving…" : "Save Inventory"}</button><button className={styles.primary} disabled={busy || checking} type="submit" value="continue">{workType === "sale" ? "Save & Open Selling Workbench" : reviewWorkbench ? "Save & Open Repair Workbench" : advisor ? "Save & Open Planning" : "Save & Start Repair Order"}</button></div>
+        <div className={styles.actions}><button disabled={!interactive || busy || checking} type="submit" value="inventory">{busy ? "Saving…" : "Save Inventory"}</button><button className={styles.primary} disabled={!interactive || busy || checking} type="submit" value="continue">{workType === "sale" ? "Save & Open Selling Workbench" : reviewWorkbench ? "Save & Open Repair Workbench" : advisor ? "Save & Open Planning" : "Save & Start Repair Order"}</button></div>
       </footer>
     </form>}
   </section>;

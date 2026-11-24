@@ -413,7 +413,7 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
   }
 });
 
-test("Inventory Intake shows why save is blocked next to the buttons and saves after correction", async ({ page }) => {
+test("Inventory Intake shows why save is blocked next to the buttons and saves after correction", async ({ page, browser }) => {
   test.setTimeout(120_000);
   test.skip(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1", "Requires a disposable migrated and seeded database.");
   const database = new URL(process.env.DATABASE_URL!);
@@ -443,6 +443,16 @@ test("Inventory Intake shows why save is blocked next to the buttons and saves a
     const link = page.getByRole("link", { name: "Open Inventory Intake for this vehicle" });
     await expect(link).toHaveAttribute("href", `/prototype/inventory-intake?vehicleId=${vehicle.id}`);
     await expect(link).toHaveCSS("background-color", "rgb(49, 84, 174)");
+    const initialPageContext = await browser.newContext({ javaScriptEnabled: false, storageState: await page.context().storageState() });
+    try {
+      const initialPage = await initialPageContext.newPage();
+      await initialPage.goto(new URL((await link.getAttribute("href"))!, page.url()).href);
+      await expect(initialPage.getByRole("button", { name: "Save Inventory", exact: true })).toBeDisabled();
+      await expect(initialPage.getByLabel("Condition / damage")).toBeDisabled();
+      await expect(initialPage.locator("form")).toHaveAttribute("method", "post");
+    } finally {
+      await initialPageContext.close();
+    }
     const [intake] = await Promise.all([page.waitForEvent("popup"), link.click()]);
     await intake.setViewportSize({ width: 1280, height: 640 });
     await intake.getByRole("radio", { name: "Prepare for Sale" }).check();

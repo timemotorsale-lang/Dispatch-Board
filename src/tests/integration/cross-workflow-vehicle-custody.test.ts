@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
@@ -71,6 +72,36 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("cross-work
     await prisma.vehicleUseBooking.update({ where: { id: booking.id }, data: { status: "CANCELLED", version: 2 } });
     await expect(retailReserve()).resolves.toMatchObject({ lifecycleStage: "RESERVED_DEAL_PENDING" });
     await expect(reserve()).rejects.toThrow("sale or retail reservation");
+  }, 30_000);
+
+  it("lets a retail reservation finish while a rental waits for the same inventory row", async () => {
+    const { prisma, rental, vehicle, actor } = await fixture();
+    const { executeVehicleUse } = await import("@/server/deal-continuity/service");
+    const organizationId = vehicle.organizationId;
+    const startsAt = new Date(), expectedReturnAt = new Date(startsAt.getTime() + 3_600_000);
+    const location = await prisma.location.create({ data: { organizationId, code: vehicle.vehicleNumber, name: "Isolated inventory lot", city: "Minneapolis", region: "MN", timezone: "America/Chicago" } });
+    const unit = await prisma.inventoryUnit.create({ data: { organizationId, locationId: location.id, vehicleId: vehicle.id, inventoryNumber: vehicle.vehicleNumber, ownerUserId: actor.id, lifecycleStage: "FRONTLINE_READY", stageStartedAt: startsAt, financialAcquiredAt: startsAt, targetAt: expectedReturnAt, nextAction: "Review custody" } });
+    const retailLocked = Promise.withResolvers<void>();
+    const retailReservation = prisma.$transaction(async tx => {
+      const [session] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid FROM "InventoryUnit" WHERE id = ${unit.id} FOR UPDATE`;
+      retailLocked.resolve();
+      for (let attempt = 0; attempt < 150; attempt += 1) {
+        const [waiter] = await prisma.$queryRaw<{ waiting: boolean }[]>`SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity WHERE ${session.pid} = ANY(pg_blocking_pids(pid)) AND query LIKE '%FOR SHARE%'
+        ) AS waiting`;
+        if (waiter.waiting) return tx.inventoryUnit.update({ where: { id: unit.id }, data: { lifecycleStage: "RESERVED_DEAL_PENDING" } });
+        await delay(20);
+      }
+      throw new Error("The rental did not wait for the retail inventory row lock.");
+    }, { timeout: 10_000 });
+    void retailReservation.catch(retailLocked.reject);
+    const rentalReservation = retailLocked.promise.then(() => executeVehicleUse(actor, rental.id, {
+      action: "RESERVE", operationKey: randomUUID(), reason: "Conflicting rental attempt", startsAt: startsAt.toISOString(), expectedReturnAt: expectedReturnAt.toISOString(),
+    }));
+    const [retail, rentalResult] = await Promise.allSettled([retailReservation, rentalReservation]);
+    expect(retail).toMatchObject({ status: "fulfilled", value: { lifecycleStage: "RESERVED_DEAL_PENDING" } });
+    expect(rentalResult).toMatchObject({ status: "rejected", reason: { status: 409, message: expect.stringContaining("Reserved for sale") } });
+    expect(await prisma.vehicleUseBooking.count({ where: { contextId: rental.id } })).toBe(0);
   }, 30_000);
 
   it("serializes pre-handoff cancellation against checkout paperwork finalization", async () => {

@@ -272,8 +272,8 @@ async function confirmRentalReadiness(user: AuthenticatedUser, id: string, raw: 
     if (!isRentalPathway(context.draft.pathway) || ["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status) || context.vehicleId !== review.vehicleId) {
       throw new SalesDocumentsError("Open the active rental or loaner for this vehicle before confirming readiness.", 409);
     }
-    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + review.vehicleId}, 0))`;
     await db.$queryRaw`SELECT id FROM "InventoryUnit" WHERE id = ${review.inventoryUnitId} AND "organizationId" = ${organizationId} FOR SHARE`;
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + review.vehicleId}, 0))`;
     const vehicle = await dealVehicle(user, review.vehicleId, db);
     const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
     assertVehicleCapability({ actor: user, capability: "INVENTORY_READINESS_VERIFY", grants, locationId: vehicle.locationId, now: new Date() });
@@ -330,12 +330,12 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
     if (!["vehicle-loaner", "daily-rental", "test-drive"].includes(workflowPathway)) throw new SalesDocumentsError("Reserve temporary use from a loaner, rental or test-drive path.");
     if (workflowPathway === "test-drive" && data.action === "HANDOFF") throw new SalesDocumentsError("Use the guided Test Drive release checklist to verify the current agreement and evidence.");
     if (!context.vehicleId) throw new SalesDocumentsError("Select the actual temporary vehicle first.");
-    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + context.vehicleId}, 0))`;
-    let vehicle = await dealVehicle(actor, context.vehicleId, db);
-    if (rental && ["RESERVE", "HANDOFF"].includes(data.action) && vehicle.inventoryUnitId) {
-      await db.$queryRaw`SELECT id FROM "InventoryUnit" WHERE id = ${vehicle.inventoryUnitId} AND "organizationId" = ${organizationId} FOR SHARE`;
-      vehicle = await dealVehicle(actor, context.vehicleId, db);
+    if (rental && ["RESERVE", "HANDOFF"].includes(data.action)) {
+      // Retail transitions lock the inventory row before the custody trigger takes the vehicle lock.
+      await db.$queryRaw`SELECT id FROM "InventoryUnit" WHERE "vehicleId" = ${context.vehicleId} AND "organizationId" = ${organizationId} AND "closedAt" IS NULL FOR SHARE`;
     }
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ":" + context.vehicleId}, 0))`;
+    const vehicle = await dealVehicle(actor, context.vehicleId, db);
     const readiness = rental && ["RESERVE", "HANDOFF"].includes(data.action) ? await readRentalReadiness(db, context, vehicle) :
       { eligible: vehicle.eligibleForUse, detail: vehicle.availability };
     const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);

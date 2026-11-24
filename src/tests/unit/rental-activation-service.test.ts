@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 type MockTable = Record<string, ReturnType<typeof vi.fn>>;
-type MockDatabase = { $executeRaw: ReturnType<typeof vi.fn>; dealWorkflowContext: MockTable; dealContinuityEvent: MockTable; vehicleUseBooking: MockTable; salesDocumentJacket: MockTable; salesDocumentPacketVersion: MockTable; documentLibraryDocument: MockTable; vehicleOdometerObservation: MockTable; vehicleCustodyEvent: MockTable; task: MockTable };
+type MockDatabase = { $executeRaw: ReturnType<typeof vi.fn>; $queryRaw: ReturnType<typeof vi.fn>; dealWorkflowContext: MockTable; dealContinuityEvent: MockTable; vehicleUseBooking: MockTable; salesDocumentJacket: MockTable; salesDocumentPacketVersion: MockTable; documentLibraryDocument: MockTable; vehicleOdometerObservation: MockTable; vehicleCustodyEvent: MockTable; task: MockTable };
 const state = vi.hoisted(() => ({ db: {} as MockDatabase, capability: vi.fn(), createTask: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ prisma: { $transaction: (execute: (db: unknown) => unknown) => execute(state.db) } }));
 vi.mock("@/server/policies/access", async (importOriginal) => ({
@@ -25,6 +25,7 @@ describe("rental activation transaction", () => {
     const booking = { id: "booking", contextId: "draft", vehicleId: "vehicle", status: "RESERVED", version: 1, startsAt: new Date(Date.now() - 3600000), expectedReturnAt: due };
     state.db = {
       $executeRaw: vi.fn(),
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "inventory-unit" }]),
       dealWorkflowContext: { findFirst: vi.fn().mockResolvedValue({ id: "draft", draftId: "draft", vehicleId: "vehicle", customerId: "customer", draft: { ownerUserId: "staff", pathway: "daily-rental", dealNumber: 1063, snapshot: { jackets: { "daily-rental": "jacket" } } }, bookings: [booking] }) },
       dealContinuityEvent: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
       vehicleUseBooking: { findFirst: vi.fn().mockResolvedValueOnce(booking).mockResolvedValue(null), update: vi.fn().mockImplementation(async ({ data }) => ({ ...booking, ...data, version: 2 })) },
