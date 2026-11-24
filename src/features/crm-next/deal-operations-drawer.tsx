@@ -14,6 +14,65 @@ import { RentalOperationsPanel } from "./rental-operations-panel";
 import { DealRepairHistory } from "./deal-repair-history";
 import styles from "./deal-draft-workspace.module.css";
 
+type RentalActivity = NonNullable<DealOperationsView["rentalActivity"]>;
+
+function RentalActivitySection({ activity, canEdit, busy, save }: {
+  activity: RentalActivity; canEdit: boolean; busy: boolean; save: (fields: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const canRecord = canEdit && activity.canRecord;
+  return <section aria-label="Rental activity">
+    <h3>Progress notes</h3>
+    {canRecord && <form onSubmit={async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      if (await save({ action: "RENTAL_PROGRESS_NOTE", reason: String(new FormData(form).get("note") ?? "").trim() })) form.reset();
+    }}>
+      <label>Rental progress note<textarea name="note" required maxLength={1000} disabled={busy} /></label>
+      <button disabled={busy}>Save progress note</button>
+    </form>}
+    {activity.notes.length ? <ul>{activity.notes.map(note => <li key={note.id}>
+      <p style={{ whiteSpace: "pre-wrap" }}>{note.text}</p><small>{note.author} · {rentalTime(note.at)}</small>
+    </li>)}</ul> : <p>No progress notes.</p>}
+
+    <h3>Return incidents</h3>
+    {canRecord && (activity.bookingId ? <details>
+      <summary>Record damage or theft</summary>
+      <form onSubmit={async event => {
+        event.preventDefault();
+        const form = event.currentTarget, fields = new FormData(form);
+        if (await save({ action: "RENTAL_INCIDENT", bookingId: activity.bookingId, kind: fields.get("kind"), reason: String(fields.get("incident") ?? "").trim() })) form.reset();
+      }}>
+        <label>Incident type<select name="kind" required disabled={busy}><option value="">Choose incident type</option><option value="DAMAGE">Damage</option><option value="THEFT">Theft / missing parts or vehicle</option></select></label>
+        <label>What happened?<textarea name="incident" required maxLength={1000} disabled={busy} /></label>
+        <p>A high-priority follow-up will be assigned to you in Tasks.</p>
+        <button disabled={busy}>Save incident</button>
+      </form>
+    </details> : <p>Record actual checkout before adding a vehicle incident.</p>)}
+    {activity.incidents.length ? <ul>{activity.incidents.map(incident => <li key={incident.id}>
+      <strong>{incident.kind === "THEFT" ? "Theft / missing parts or vehicle" : "Damage"}</strong> · <small>{incident.author} · {rentalTime(incident.at)}</small>
+      <p style={{ whiteSpace: "pre-wrap" }}>{incident.text}</p>
+      {incident.followUp ? <p>
+        {incident.followUp.href ? <Link href={incident.followUp.href}>Follow-up task</Link> : "Follow-up task"} · {incident.followUp.owner} · {incident.followUp.status.replaceAll("_", " ")}
+        {incident.followUp.completedAt ? ` · Completed ${rentalTime(incident.followUp.completedAt)}` : ` · Due ${rentalTime(incident.followUp.dueAt)}`}
+      </p> : <p>Follow-up task unavailable.</p>}
+      {incident.claimLinked ? <p>{incident.claimId ? <Link href={`/vehicles/claims-workspace?claimId=${encodeURIComponent(incident.claimId)}`}>Open linked claim</Link> : "Internal claim linked"}</p>
+        : activity.canWorkClaims && canEdit ? <details>
+          <summary>Connect to Claims Desk</summary>
+          <p><Link href="/vehicles/claims-desk" target="_blank" rel="noopener noreferrer">Review existing claims</Link> before starting intake. Claim intake is internal.</p>
+          <button type="button" disabled={busy} onClick={() => void save({ action: "RENTAL_INCIDENT_CLAIM", incidentId: incident.id, claimAction: "START" })}>Start internal claim intake</button>
+          <form onSubmit={event => {
+            event.preventDefault();
+            void save({ action: "RENTAL_INCIDENT_CLAIM", incidentId: incident.id, claimAction: "LINK", claimId: String(new FormData(event.currentTarget).get("claimId") ?? "").trim() });
+          }}>
+            <label>Claims Desk record ID<input name="claimId" required maxLength={240} disabled={busy} /></label>
+            <small>From the open claim’s address, copy the record ID after <code>claimId=</code>.</small>
+            <button disabled={busy}>Link existing claim</button>
+          </form>
+        </details> : <p>Ask authorized Claims Desk staff to review this incident if a claim is needed.</p>}
+    </li>)}</ul> : <p>No return incidents.</p>}
+  </section>;
+}
+
 export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = [], onClose, onChanged, onPathwayChanged, onFindEditableDeal }: { deal: { draftId?: string | null; jacketId?: string | null; pathway?: string; customerName: string; customerId?: string | null; rental?: RentalWork | null }; initialTab?: string; alerts?: string[]; onClose: () => void; onChanged: () => void; onPathwayChanged?: (result: DealPathwayChangeResult) => void; onFindEditableDeal?: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null), pending = useRef<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [data, setData] = useState<DealOperationsView | null>(null), [packet, setPacket] = useState<SalesDocumentJacketView | null>(null);
@@ -33,17 +92,20 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
   }, [deal.draftId, deal.jacketId]);
   useEffect(() => { dialog.current?.showModal(); const controller = new AbortController(); const timer = setTimeout(() => void load(controller.signal), 0); return () => { clearTimeout(timer); controller.abort(); }; }, [load]);
   async function save(fields: Record<string, unknown>) {
-    if (!data || busy || loading) return;
+    if (!data || busy || loading) return false;
     setBusy(true); setError(""); setMessage("");
     try {
       const fingerprint = JSON.stringify(fields);
       if (pending.current?.fingerprint !== fingerprint) pending.current = { fingerprint, body: { ...fields, draftId: data.draftId, jacketId: data.jacketId, draftRevision: data.draftRevision, jacketRevision: data.jacketRevision, operationKey: crypto.randomUUID() } };
-      const response = await fetch("/api/crm/v1/deal-drafts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current.body) }), body = await response.json();
+      const rentalActivity = typeof fields.action === "string" && fields.action.startsWith("RENTAL_");
+      const response = await fetch(rentalActivity ? "/api/claims-workspace/rental-activity" : "/api/crm/v1/deal-drafts", { method: rentalActivity ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current.body) }), body = await response.json();
       if (!response.ok) { if (response.status !== 503) pending.current = null; throw new Error(body.error || "The change could not be saved."); }
       pending.current = null;
-      setMessage(fields.action === "DEAL_REASSIGN" ? "Owner changed. Existing reminders keep their assignees; create a follow-up for the new owner here." : fields.action === "DEAL_REMINDER" ? "Reminder saved on this exact deal and in Tasks." : "Verified record saved. No bank, card, custody or DMV action was initiated.");
+      const activityMessages: Record<string, string> = { RENTAL_PROGRESS_NOTE: "Progress note saved.", RENTAL_INCIDENT: "Incident saved and follow-up assigned to you in Tasks.", RENTAL_INCIDENT_CLAIM: "Internal claim linked." };
+      setMessage(activityMessages[String(fields.action)] ?? (fields.action === "DEAL_REASSIGN" ? "Owner changed. Existing reminders keep their assignees; create a follow-up for the new owner here." : fields.action === "DEAL_REMINDER" ? "Reminder saved on this exact deal and in Tasks." : "Verified record saved. No bank, card, custody or DMV action was initiated."));
       onChanged(); await load();
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Connection interrupted. Retry the same entry; its operation reference prevents duplicates."); }
+      return true;
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Connection interrupted. Retry the same entry; its operation reference prevents duplicates."); return false; }
     finally { setBusy(false); }
   }
   async function prepareDocuments() {
@@ -90,7 +152,7 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
   return <dialog ref={dialog} className={`${styles.archiveDialog} ${styles.dealDrawer}`} aria-label={`Deal details · ${deal.customerName}`} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }}>
     <header><div><h2>{deal.customerName}</h2><p>{data?.vehicleReference}</p></div><button disabled={busy} onClick={onClose}>Close</button></header>
     {alerts.length > 0 && <ul className={styles.dealFlags} aria-label="Deal follow-up flags">{alerts.map(alert => <li key={alert}>{alert}</li>)}</ul>}
-    <div className={styles.tabs} role="tablist" aria-label="Deal detail sections" onKeyDown={event => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')); const current = buttons.findIndex(button => button.getAttribute("aria-selected") === "true"); const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length; setTab(buttons[next].textContent || "Documents"); buttons[next].focus(); }}>{[...(rental ? ["Rental"] : []), "Documents", "Completion", "Pathway", "Follow-ups", "Money", "History", ...(data?.canManage ? ["Manager"] : [])].map(label => <button key={label} id={`deal-detail-${label}`} role="tab" aria-controls="deal-details-panel" tabIndex={tab === label ? 0 : -1} aria-selected={tab === label} onClick={() => setTab(label)}>{label}</button>)}</div>
+    <div className={styles.tabs} role="tablist" aria-label="Deal detail sections" onKeyDown={event => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')); const current = buttons.findIndex(button => button.getAttribute("aria-selected") === "true"); const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length; setTab(buttons[next].textContent || "Documents"); buttons[next].focus(); }}>{[...(rental || data?.rentalActivity ? ["Rental"] : []), "Documents", "Completion", "Pathway", "Follow-ups", "Money", "History", ...(data?.canManage ? ["Manager"] : [])].map(label => <button key={label} id={`deal-detail-${label}`} role="tab" aria-controls="deal-details-panel" tabIndex={tab === label ? 0 : -1} aria-selected={tab === label} onClick={() => setTab(label)}>{label}</button>)}</div>
     <p><button disabled={busy || loading} onClick={() => { pending.current = null; void load(); }}>Refresh details</button></p>
     {loading && <p role="status">Loading this deal…</p>}{error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
     {updatedDraft && <p><Link href={`/crm-next/deals/start?draftId=${encodeURIComponent(updatedDraft.id)}`}>Open updated deal</Link></p>}
@@ -105,7 +167,7 @@ export function DealOperationsDrawer({ deal, initialTab = "Documents", alerts = 
         if (onPathwayChanged) onPathwayChanged(result); else onChanged();
         void load();
       }} /> : <><p>This row is a saved paperwork packet. Open the editable deal to change its pathway.</p>{onFindEditableDeal && <button type="button" onClick={onFindEditableDeal}>Find editable deal</button>}</>)}
-      {tab === "Rental" && <><RentalOperationsPanel key={data.draftId} draftId={data.draftId} pathway={data.pathway} packetClosed={packet?.state === "CLOSED"} closedReturns={packet && closedReturn ? [{ jacketId: packet.id, finalizedAt: closedReturn.finalizedAt }] : []} cancelled={data.draftStatus === "CANCELLED"} inactive={data.inactive} canAct={data.canEdit || data.canManage} fallback={deal.rental} /><h3>Return follow-ups</h3>{data.tasks.length ? <ul>{data.tasks.map(task => <li key={task.id}><Link href={`/tasks/${encodeURIComponent(task.id)}`}>{task.title}</Link> · {task.status.replaceAll("_", " ")} · {rentalTime(task.dueAt)}</li>)}</ul> : <p>No return follow-up is recorded.</p>}</>}
+      {tab === "Rental" && <>{rental && <><RentalOperationsPanel key={data.draftId} draftId={data.draftId} pathway={data.pathway} packetClosed={packet?.state === "CLOSED"} closedReturns={packet && closedReturn ? [{ jacketId: packet.id, finalizedAt: closedReturn.finalizedAt }] : []} cancelled={data.draftStatus === "CANCELLED"} inactive={data.inactive} canAct={data.canEdit || data.canManage} fallback={deal.rental} /><h3>Return follow-ups</h3>{data.tasks.length ? <ul>{data.tasks.map(task => <li key={task.id}><Link href={`/tasks/${encodeURIComponent(task.id)}`}>{task.title}</Link> · {task.status.replaceAll("_", " ")} · {rentalTime(task.dueAt)}</li>)}</ul> : <p>No return follow-up is recorded.</p>}</>}{data.rentalActivity && <RentalActivitySection activity={data.rentalActivity} canEdit={data.canEdit || data.canManage} busy={busy} save={save} />}</>}
       {!repair && tab === "Documents" && <>
         <div className={styles.progressBadges}><span>Paperwork: {packet?.state === "CLOSED" ? "Finalized" : "Pending"}</span>{!rental && <><span>Funding: {badge("FUNDING")}</span><span>Delivery: {badge("DELIVERY")}</span><span>Title: {badge("TITLE")}</span></>}{rental && <span>Actual checkout and return: see Rental Operations</span>}</div>
         {!packet ? <div><p>Prepare the paperwork checklist on this existing deal to begin adding documents.</p>{data.draftId && !data.inactive && (data.canEdit || data.canManage) && ["SALES", "LEASING"].includes(dealGroup(data.pathway)) && <button type="button" disabled={busy} onClick={() => void prepareDocuments()}>Prepare required document checklist</button>}</div> : <DealDocumentWorkspace key={packet.id} jacket={packet} canManage={data.canManage} disabled={busy} onBusyChange={setBusy} onSaved={next => { setPacket(next); setData(current => current ? { ...current, jacketRevision: next.revision } : current); onChanged(); }} />}
