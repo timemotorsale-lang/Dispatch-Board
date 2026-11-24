@@ -51,7 +51,7 @@ const fakeAdapters = () => (fakes ??= createFakeAdapters());
 async function guard(db: Db, key: IntegrationKey, operation: string, ctx: CallContext, input: Record<string, unknown>) {
   if (NEEDS_PERSON[key]?.includes(operation) && !ctx.initiatedByUserId) throw new CollectionsError("This needs a person's decision; automations and AI can't do it.", 403);
   if (key === "PAYMENTS" && NEEDS_PERSON.PAYMENTS!.includes(operation) && !String(input.approvalId ?? "").trim()) throw new CollectionsError("Moving money needs a recorded approval.", 403);
-  if (key === "SKIP_TRACE" && String(input.permissiblePurpose ?? "").trim().length < 10) throw new CollectionsError("Record the permissible purpose for this search (for example: collecting on this account).", 400);
+  if (key === "SKIP_TRACE" && String(input.permissiblePurpose ?? "").trim().length === 0) throw new CollectionsError("Record the permissible purpose for this search (for example: collecting on this account).", 400);
   if (key === "GPS" && (operation === "disable" || operation === "enable")) {
     const action = await db.starterDisableAction.findFirst({ where: { id: String(input.approvedActionId ?? ""), organizationId: ctx.organizationId, status: "APPROVED", action: operation === "disable" ? "DISABLE" : "ENABLE" }, select: { accountId: true } });
     if (!action) throw new CollectionsError("A starter disable or enable must be approved by the owner first.", 403);

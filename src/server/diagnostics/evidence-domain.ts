@@ -79,7 +79,7 @@ function commandFields(raw: Record<string, unknown>) {
   return {
     expectedVersion,
     idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200),
-    reason: text(raw.reason, "Evidence reason", 500, 10)
+    reason: text(raw.reason, "Evidence reason", 500)
   };
 }
 

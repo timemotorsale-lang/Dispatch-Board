@@ -13,7 +13,8 @@ describe("canonical vehicle registry domain", () => {
 
   it("requires a documented non-VIN exception", () => {
     expect(normalizeCanonicalVin({ nonVinReason: "Legacy asset without an assigned VIN." })).toMatchObject({ normalized: null, state: "NON_VIN_EXCEPTION" });
-    expect(() => normalizeCanonicalVin({ nonVinReason: "missing" })).toThrow("at least 10");
+    expect(normalizeCanonicalVin({ nonVinReason: " Pre-VIN " }).nonVinReason).toBe("Pre-VIN");
+    expect(() => normalizeCanonicalVin({ nonVinReason: " " })).toThrow("Non-VIN exception reason is required");
   });
 
   it("normalizes stock identity and validates vehicle fields", () => {

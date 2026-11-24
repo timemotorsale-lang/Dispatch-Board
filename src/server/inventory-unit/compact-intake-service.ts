@@ -145,7 +145,7 @@ export async function saveCompactIntake(actor: AuthenticatedUser | null, value: 
           OR: [{ effectiveTo: null }, { effectiveTo: { gte: acquiredAt } }] }, select: { id: true } });
         if (!relationship && !data.ownershipConfirmed) throw new Error("Confirm ownership explicitly before opening inventory.");
         const draft = await saveVehicleIntake(user, vehicleId, { details: data.details, status: "DRAFT", expectedVersion: intakeVersion,
-          expectedUnitVersion: null, reason: data.reason, idempotencyKey: `ci:${identity}:draft` }, scope);
+          expectedUnitVersion: null, reason: data.reason, idempotencyKey: `ci:${identity}:draft` }, { ...scope, initialReceivingLocationId: data.locationId });
         intakeVersion = draft.version;
         await createInventoryUnit(user, { workflow: "ACQUISITION_INTAKE", vehicleId,
           acquisitionSource: data.details.source, financialAcquiredAt: acquiredAt.toISOString(), locationId: data.locationId,

@@ -353,7 +353,7 @@ export async function accountAction(actor: AuthenticatedUser | null, accountId: 
       case "CLEAR_FLAG": {
         const flag = await tx.collectionFlag.findFirst({ where: { id: text(input.flagId, 100), accountId, clearedAt: null } });
         if (!flag) throw new CollectionsError("This flag isn't active.", 404);
-        const reason = requireReason(input.reason, 10);
+        const reason = requireReason(input.reason, 1);
         let clearDocumentId: string | null = null;
         if (flag.type === "BANKRUPTCY") {
           const documentId = text(input.documentId, 100);

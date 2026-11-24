@@ -159,7 +159,7 @@ export function normalizeStaffTimeOffRequest(
   if (windows && (requestType === "PTO" || requestType === "ESST") && getLocationLocalDate(endsAt, timezone).slice(0, 4) !== String(balanceYear)) {
     throw new Error("Submit a separate paid time-off request for each balance year.");
   }
-  if (requestType === "ESST" && raw.esstQualified !== true && restrictedReason.length < 10) {
+  if (requestType === "ESST" && raw.esstQualified !== true && !restrictedReason) {
     throw new Error("Confirm that the request is for a qualifying sick or safe time purpose.");
   }
   if (requestType !== "ESST" && operationalNote && operationalNote.length < 8) {

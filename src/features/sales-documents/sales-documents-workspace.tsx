@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Search, Plus, X, Download, Check, RefreshCw, FileText, FolderOpen } from "lucide-react";
-import { SALES_DOCUMENT_PATHWAYS, type SalesDocumentPathway } from "@/lib/sales-document-pathways";
+import { SALES_DOCUMENT_CHECKOUT_FINALIZED, SALES_DOCUMENT_PATHWAYS, type SalesDocumentPathway } from "@/lib/sales-document-pathways";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import { ClosingReviewPanel } from "./closing-review-panel";
 import { DealDocumentWorkspace } from "./deal-document-workspace";
 import styles from "./sales-documents-workspace.module.css";
 
-const stateLabel = (state: string) => ({ WORKING: "Working", CHECKED_OUT: "Checked out", CLOSED: "Closed", DELIVERED_FUNDING_PENDING: "Funding pending", UNWIND_PENDING: "Unwind review pending" }[state] ?? state);
+const stateLabel = (state: string) => ({ WORKING: "Paperwork in progress", CHECKED_OUT: "Checkout packet finalized", CLOSED: "Packet closed", DELIVERED_FUNDING_PENDING: "Funding pending", UNWIND_PENDING: "Unwind review pending" }[state] ?? state);
 
 export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initialError, canWaive, initialQuery = "", customerId = "", initialRequirementId = "", initialScan = false, phoneOrigin = "" }: { initialJackets: SalesDocumentJacketView[]; initialSelected: SalesDocumentJacketView | null; initialError: string; canWaive: boolean; initialQuery?: string; customerId?: string; initialRequirementId?: string; initialScan?: boolean; phoneOrigin?: string }) {
   const [jackets, setJackets] = useState(initialJackets), [selected, setSelected] = useState(initialSelected);
@@ -46,7 +46,13 @@ export function SalesDocumentsWorkspace({ initialJackets, initialSelected, initi
   async function update(body: Record<string, unknown>) {
     if (!selected) return;
     await run(async () => {
-      accept(await request(`/api/sales-documents/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, revision: selected.revision }) }));
+      const updated = await request<SalesDocumentJacketView>(`/api/sales-documents/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, revision: selected.revision }) });
+      accept(updated);
+      if (body.action === "FINALIZE" && selected.phase === "CHECKOUT" && updated.state === "CHECKED_OUT" && typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel(SALES_DOCUMENT_CHECKOUT_FINALIZED);
+        channel.postMessage(updated.id);
+        channel.close();
+      }
       setWaiving(null); setFinalizing(false); setAdding(false); setMessage("Saved.");
     });
   }

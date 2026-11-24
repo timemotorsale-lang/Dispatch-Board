@@ -196,26 +196,11 @@ function workflowAreaCanUseProgressNoteCompletionEvidence(workflowArea?: string 
 }
 
 function progressNoteLooksLikeCompletionEvidence(progressNote: string | null | undefined) {
-  const normalizedNote = progressNote?.trim().toLowerCase() ?? "";
-
-  if (normalizedNote.length < 10) {
-    return false;
-  }
-
-  return [
-    "complete",
-    "completed",
-    "close",
-    "closed",
-    "done",
-    "fixed",
-    "installed",
-    "no further work",
-    "repaired",
-    "replaced",
-    "resolved",
-    "successfully"
-  ].some((term) => normalizedNote.includes(term));
+  const note = progressNote?.trim() ?? "";
+  const affirmative = /\b(?:complete(?:d)?|closed|done|fixed|installed|repaired|replaced|resolved|no further work)\b/i;
+  const qualified = /\b(?:not|never|partly|partially|almost|to be|will be|should be|can be)\s+(?:(?:yet|fully|completely|been|successfully)\s+)*(?:complete(?:d)?|closed|done|fixed|installed|repaired|replaced|resolved)\b/i;
+  const partial = /\b(?:complete(?:d)?|closed|done|fixed|installed|repaired|replaced|resolved)\s+(?:in part|partly|partially)\b/i;
+  return affirmative.test(note) && !qualified.test(note) && !partial.test(note);
 }
 
 function shouldUseConvertedProgressNoteAsCompletionEvidence(

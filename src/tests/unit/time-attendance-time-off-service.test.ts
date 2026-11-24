@@ -67,7 +67,7 @@ describe("staff time-off requests", () => {
   it("requires ESST qualification confirmation for new requests without private details", () => {
     expect(() => normalizeStaffTimeOffRequest(staff, request({
       requestType: "ESST",
-      restrictedReason: "short"
+      restrictedReason: " "
     }), {
       locationId: "loc-1",
       organizationId: "org-1"

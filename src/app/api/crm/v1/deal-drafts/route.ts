@@ -7,9 +7,12 @@ import { listDealWorkbench } from "@/server/sales-documents/deal-workbench";
 import { manageDealLifecycle } from "@/server/sales-documents/deal-lifecycle";
 import { manageDealOperations, readDealOperations } from "@/server/sales-documents/dashboard-operations";
 import { changeDealPathway } from "@/server/sales-documents/deal-pathway";
+import { vehicleCustodyBlocker } from "@/server/deal-continuity/custody-error";
 
 function failure(error: unknown) {
   if (error instanceof SalesDocumentsError) return NextResponse.json({ error: error.message }, { status: error.status });
+  const custodyBlocker = vehicleCustodyBlocker(error);
+  if (custodyBlocker) return NextResponse.json({ error: custodyBlocker }, { status: 409 });
   const reference = crypto.randomUUID().slice(0, 8);
   const details = error && typeof error === "object" ? error as { code?: string; name?: string; meta?: { table?: string; column?: string; modelName?: string; error?: string } } : {};
   const code = typeof details.code === "string" ? details.code : "DRAFT_SAVE_FAILED";
@@ -27,7 +30,7 @@ export async function GET(request: Request) {
     if (params.get("view") === "operations") return NextResponse.json(await readDealOperations(actor, Object.fromEntries(params)));
     if (params.get("view") === "workbench") return NextResponse.json(await listDealWorkbench(actor, params));
     if (params.get("view") === "library") return NextResponse.json(await listSavedDealLibrary(actor, params));
-    return NextResponse.json(params.get("id") ? await readDealDeskDraft(actor, params.get("id")!) : await listDealDrafts(actor, params.get("customerId") ?? ""));
+    return NextResponse.json(params.get("id") ? await readDealDeskDraft(actor, params.get("id")!, params.get("view") === "rental-actions") : await listDealDrafts(actor, params.get("customerId") ?? ""));
   } catch (error) { return failure(error); }
 }
 export async function POST(request: Request) {
@@ -41,7 +44,7 @@ export async function PATCH(request: Request) {
     const body = await request.json().catch(() => null);
     if (!body) throw new SalesDocumentsError("Choose a deal action.");
     if (body.action === "CHANGE_PATHWAY") return NextResponse.json(await changeDealPathway(await getCurrentUser(), body));
-    if (["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_MILESTONE"].includes(body.action)) return NextResponse.json(await manageDealOperations(await getCurrentUser(), body));
+    if (["DEAL_REMINDER", "DEAL_REASSIGN", "DEAL_FINANCIAL", "DEAL_RENTAL_PAYMENT", "DEAL_MILESTONE"].includes(body.action)) return NextResponse.json(await manageDealOperations(await getCurrentUser(), body));
     if (["MARK_SOLD", "PREPARE_PAPERWORK", "FINISH", "REOPEN", "REQUEST_UNWIND"].includes(body.action)) return NextResponse.json(await manageDealLifecycle(await getCurrentUser(), body));
     if (body.action !== "ARCHIVE_DUPLICATE") throw new SalesDocumentsError("Choose the archive duplicate action.");
     return NextResponse.json(await archiveDuplicateDealDraft(await getCurrentUser(), body));

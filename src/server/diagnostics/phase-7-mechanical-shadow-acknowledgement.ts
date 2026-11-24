@@ -42,7 +42,7 @@ export function createPhase7MechanicalShadowAcknowledgement(input: Phase7Mechani
   const acknowledgedAt = new Date(input.acknowledgedAt);
   if (!input.diagnosticCaseId.trim()) throw new Error("Phase 7 shadow acknowledgement requires a diagnostic case.");
   if (!actorUserId) throw new Error("Phase 7 shadow acknowledgement requires a technician.");
-  if (reason.length < 10 || reason.length > 500) throw new Error("Phase 7 shadow acknowledgement reason must be 10 through 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Phase 7 shadow acknowledgement reason is required and must be at most 500 characters.");
   if (Number.isNaN(acknowledgedAt.getTime())) throw new Error("Phase 7 shadow acknowledgement requires a valid timestamp.");
   if (!validChecksum(input.readiness.resultChecksum)) throw new Error("Phase 7 shadow acknowledgement requires the readiness result checksum.");
   if (!input.readiness.shadowOnly || input.readiness.liveExecutionAuthorized) throw new Error("Phase 7 shadow acknowledgement can only bind to non-executable shadow readiness.");

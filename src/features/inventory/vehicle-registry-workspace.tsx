@@ -22,6 +22,7 @@ type VehicleListItem = {
   version: number;
   updatedAt: string;
   work?: VehicleWorkActions;
+  custodyLabel?: string | null;
   _count: { duplicateCasesAsCandidate: number; duplicateCasesAsPrimary: number };
 };
 
@@ -494,6 +495,7 @@ export function VehicleRegistryWorkspace({
                   <strong>{vehicleTitle(item)}</strong>
                   <small>{[item.vehicleNumber, stockNumberForDisplay(item), item.licensePlate].filter(Boolean).join(" · ")}</small>
                   {item.vin && <small>{item.vin}</small>}
+                  {item.custodyLabel && <small>{item.custodyLabel}</small>}
                   {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary > 0 && <small>Duplicate review required</small>}
                   <button className={styles.previewLink} disabled={busy} onClick={() => void load(item.id)} type="button" aria-label={`Registry record for ${vehicleTitle(item)}`}>Registry record</button>
                 </td>
@@ -512,6 +514,7 @@ export function VehicleRegistryWorkspace({
                 <p>{[selected.year, selected.make, selected.model, selected.color].filter(Boolean).join(" · ")}</p>
               </div>
               <dl className="etw-facts compact">
+                {selected.custodyLabel && <div><dt>Temporary use</dt><dd>{selected.custodyLabel}</dd></div>}
                 <div><dt>VIN</dt><dd>{selected.vin ?? selected.vinRaw ?? selected.nonVinReason ?? "Not recorded"}</dd></div>
                 <div><dt>Stock</dt><dd>{selected.stockNumber ?? (deriveStockNumberFromVin(selected.vin) ? `${deriveStockNumberFromVin(selected.vin)} · derived from VIN` : "Not recorded")}</dd></div>
                 <div><dt>Plate</dt><dd>{selected.licensePlate ?? "Not recorded"}</dd></div>

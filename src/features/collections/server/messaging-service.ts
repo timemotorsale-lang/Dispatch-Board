@@ -196,7 +196,7 @@ export async function messageAction(actor: AuthenticatedUser | null, accountId: 
         const to = channel === "SMS" ? toE164(account.primaryPhone) : account.primaryEmail?.trim();
         if (!to) throw new CollectionsError("Add the customer's contact details first.");
         const evidence = text(input.evidence, 500);
-        if (evidence.length < 10) throw new CollectionsError("Describe how the customer gave consent (who, when, how).");
+        if (evidence.trim().length === 0) throw new CollectionsError("Describe how the customer gave consent (who, when, how).");
         const source = input.source === "WRITTEN" ? "WRITTEN" : "VERBAL";
         await tx.contactConsent.create({ data: { organizationId: access.organizationId, accountId, channel, address: to, status: "GRANTED", source, evidence, recordedByUserId: access.actor.id } });
         await recordAccountEvent(tx, { organizationId: access.organizationId, accountId, type: "CONSENT_GRANTED", userId: access.actor.id, after: { channel, source }, reason: evidence });

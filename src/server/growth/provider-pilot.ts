@@ -50,7 +50,7 @@ export function createGrowthProviderPilotAdapter(health: GrowthProviderHealth = 
 
     launch(input: PilotInput): GrowthProviderPilotResult {
       if (!input.idempotencyKey.trim()) throw new Error("Idempotency key is required.");
-      if (input.reason.trim().length < 10) throw new Error("Reason must explain the pilot purpose.");
+      if (!input.reason.trim()) throw new Error("Reason must explain the pilot purpose.");
 
       const hash = hashInput(input);
       const prior = idempotency.get(input.idempotencyKey);

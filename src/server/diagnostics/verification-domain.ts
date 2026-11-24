@@ -94,7 +94,7 @@ export function normalizeDiagnosticVerificationCommand(value: unknown) {
     action,
     expectedVersion: positiveVersion(raw.expectedVersion),
     idempotencyKey: text(raw.idempotencyKey, "Verification idempotency key", 200),
-    reason: text(raw.reason, "Verification reason", 500, 10),
+    reason: text(raw.reason, "Verification reason", 500),
     conclusionId: optionalText(raw.conclusionId, 200),
     repairHandoffId: optionalText(raw.repairHandoffId, 200),
     originalConcern: text(raw.originalConcern, "Original concern", 2000),

@@ -876,7 +876,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     const note = vendorDeliveryProgress.note.trim();
     const receivedBy = vendorDeliveryProgress.receivedBy.trim();
     const nextAction = vendorNextActionValue.trim();
-    if (note.length < 10) throw new Error("Add the vendor repair progress or handoff note before saving.");
+    if (note.trim().length === 0) throw new Error("Add the vendor repair progress or handoff note before saving.");
     if (!nextAction) throw new Error("Add the vendor's next action before saving.");
     const supplier = (nextPurchaseOrder?.vendor?.name ?? "the parts handoff").split(/\s+(?:request[\s_-]*quote|quote|phone|contact)\b/i)[0].trim();
     const destination = activeVendorWork.vendorName;
@@ -919,7 +919,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     if (!selectedOrder) throw new Error("Repair order is required.");
     const progressNote = repairProgress.note.trim();
     const nextAction = repairProgress.nextAction.trim();
-    if (progressNote.length < 10) throw new Error("Add a short repair progress note before saving.");
+    if (progressNote.trim().length === 0) throw new Error("Add a short repair progress note before saving.");
     if (!nextAction) throw new Error("Add the next action so the handoff is clear.");
     const followUpAt = repairProgress.nextCheckAt ? new Date(repairProgress.nextCheckAt).toISOString() : null;
     const statusLabel = repairProgress.status === "CONTINUING_WITH_PENDING_PARTS"
@@ -1598,7 +1598,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
             <strong>{openPurchaseOrders.length ? `${openPurchaseOrders.length} open purchase order${openPurchaseOrders.length === 1 ? "" : "s"} stay active.` : "No ordered parts are linked to this repair order."}</strong>
             <span>This update does not receive, install, or close parts. It only records that repair work is continuing or paused while parts are pending.</span>
           </div>
-          <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !selectedOrder || repairProgress.note.trim().length < 10} type="submit">{busy ? "Saving progress..." : "Save repair progress"}<ArrowRight size={16} /></button><span className="scp-save-help">The next person will see this on the repair order timeline.</span></div>
+          <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !selectedOrder || repairProgress.note.trim().length === 0} type="submit">{busy ? "Saving progress..." : "Save repair progress"}<ArrowRight size={16} /></button><span className="scp-save-help">The next person will see this on the repair order timeline.</span></div>
         </form> : mode === "vendor" ? <section className="scp-vendor-delivery-workflow" aria-label="Vendor delivery and repair progress">
           {showPickupPlanner ? <form aria-busy={busy} className="scp-pickup-plan" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(savePickupPlan, `Pickup and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"} scheduled.`); }}>
             <header><span>Repair-advancing action</span><h2>Coordinate pickup and delivery</h2><small>Move the bought part from its supplier to the shop that already has the vehicle.</small></header>
@@ -1629,7 +1629,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
                 <textarea onChange={(event) => setVendorDeliveryProgress({ ...vendorDeliveryProgress, note: event.target.value })} placeholder={activeVendorWork?.status === "QC_REQUIRED" ? "Example: QC passed. No rework found. Ready for inventory handoff." : activeVendorWork?.status === "READY_FOR_PICKUP" ? "Example: Gil Tires says repair is complete. Eli will pick it up and bring it back for QC." : "Example: Vehicle is back from Gil Tires. Start QC now."} value={vendorDeliveryProgress.note} />
               </label>
             </div>
-            <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !activeVendorWork || !vendorDeliveryProgress.deliveredAt || vendorDeliveryProgress.note.trim().length < 10} type="submit">{busy ? "Saving..." : "Save next move"}<ArrowRight size={16} /></button><span className="scp-save-help">{activeVendorWork?.status === "QC_REQUIRED" ? "Pass moves to handoff. Fail returns to a repair decision." : "Keep it moving with one clear next step."}</span></div>
+            <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !activeVendorWork || !vendorDeliveryProgress.deliveredAt || vendorDeliveryProgress.note.trim().length === 0} type="submit">{busy ? "Saving..." : "Save next move"}<ArrowRight size={16} /></button><span className="scp-save-help">{activeVendorWork?.status === "QC_REQUIRED" ? "Pass moves to handoff. Fail returns to a repair decision." : "Keep it moving with one clear next step."}</span></div>
           </form>
         </section> : <form aria-busy={busy} className="scp-comment-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(() => recordModeNote(mode), `${activeConfig.label} saved. The parts board has been updated.`); }}>
           <header><span>{activeConfig.label}</span><h2>{activeConfig.title}</h2><small>Write the note the way you received the information. The system will structure the parts record after you save.</small></header>

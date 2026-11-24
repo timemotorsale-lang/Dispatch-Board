@@ -35,7 +35,7 @@ export function evaluateDiagnosticConclusionControls(input: DiagnosticConclusion
   const blockers: string[] = []; const warnings: string[] = []; const selected = input.selectedCandidate;
   const decisive = ["PROPOSE", "CONFIRM", "SUPERSEDE"].includes(input.action); const confirming = ["CONFIRM", "SUPERSEDE"].includes(input.action);
   if (decisive && !selected) blockers.push("CONCLUSION_HYPOTHESIS_REQUIRED");
-  if (decisive && (!input.causeStatement || input.causeStatement.trim().length < 10)) blockers.push("CONCLUSION_CAUSE_STATEMENT_REQUIRED");
+  if (decisive && !input.causeStatement?.trim()) blockers.push("CONCLUSION_CAUSE_STATEMENT_REQUIRED");
   if (decisive && !input.reasoningComplete) blockers.push("CONCLUSION_REASONING_INCOMPLETE");
   if (decisive && input.reasoningAbstentionRequired) blockers.push("CONCLUSION_REASONING_REQUIRES_ABSTENTION");
   if (decisive && input.reasoningHardBlockers.length) blockers.push(...input.reasoningHardBlockers.map((item) => `CONCLUSION_REASONING_BLOCKER:${canonical(item)}`));
@@ -79,7 +79,7 @@ export function normalizeDiagnosticConclusionCommand(value: unknown) {
   if (!DIAGNOSTIC_CONCLUSION_ACTIONS.includes(action)) throw new Error("Diagnostic conclusion action is invalid.");
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected diagnostic-case version must be a positive integer.");
   if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("Conclusion idempotency key is required and cannot exceed 200 characters.");
-  if (reason.length < 10 || reason.length > 500) throw new Error("Conclusion command requires a reason of 10 through 500 characters.");
+  if (!reason || reason.length > 500) throw new Error("Conclusion command requires a reason of up to 500 characters.");
   const text = (name: string, maximum = 2000) => { const result = typeof raw[name] === "string" ? raw[name].trim() : ""; if (result.length > maximum) throw new Error(`${name} exceeds ${maximum} characters.`); return result || null; };
   const list = (name: string) => Array.isArray(raw[name]) ? unique((raw[name] as unknown[]).map(String)) : [];
   const uncertainty = typeof raw.uncertainty === "string" ? canonical(raw.uncertainty) : "UNKNOWN"; if (!["LOW", "MEDIUM", "HIGH", "UNKNOWN"].includes(uncertainty)) throw new Error("Conclusion uncertainty is invalid.");

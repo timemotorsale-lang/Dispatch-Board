@@ -15,8 +15,8 @@ export async function PATCH(request: Request) {
   const reason = typeof input?.reason === "string" ? input.reason.trim() : "";
   if (typeof input?.userId !== "string" || !input.userId || input.userId === actor.id ||
       typeof input.dealsRestricted !== "boolean" || typeof input.calendarRestricted !== "boolean" ||
-      reason.length < 10 || reason.length > 500) {
-    return NextResponse.json({ error: "Choose another staff account, set both permissions, and enter a reason (10–500 characters)." }, { status: 400 });
+      !reason || reason.length > 500) {
+    return NextResponse.json({ error: "Choose another staff account, set both permissions, and enter a reason (up to 500 characters)." }, { status: 400 });
   }
   const { userId, dealsRestricted, calendarRestricted } = input;
   const updated = await prisma.$transaction(async database => {

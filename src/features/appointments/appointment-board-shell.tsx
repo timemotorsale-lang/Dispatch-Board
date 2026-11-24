@@ -16229,7 +16229,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                 <label>Manager approval reason
                   <textarea maxLength={500} value={customerOverlapReason} onChange={(event) => setCustomerOverlapReason(event.target.value)} />
                 </label>
-                <button disabled={isCommandPending || customerOverlapReason.trim().length < 10} type="button" onClick={() => {
+                <button disabled={isCommandPending || customerOverlapReason.trim().length === 0} type="button" onClick={() => {
                   const approval = { warningKey: customerOverlap.warningKey, reason: customerOverlapReason.trim() };
                   if (selectedAppointmentIsUnscheduledDraft) void submitUnscheduledDraftSchedule(approval);
                   else void submitOperationalCommand("SCHEDULE", approval);

@@ -20,7 +20,6 @@ export function normalizeCandidateCreate(value: unknown) {
   if (!reasonCodes.length) throw new Error("At least one candidate reason is required.");
   if (raw.saleCondition != null && raw.saleCondition !== "AS_IS") throw new Error("Sale condition is invalid.");
   const asIsReview = raw.saleCondition === "AS_IS" ? { saleCondition: "AS_IS" as const, reconDecisionReason: text(raw.reconDecisionReason, "Recon decision reason", 2000), knownDefects: text(raw.knownDefects, "Known defects and condition disclosure", 4000) } : null;
-  if (asIsReview && (asIsReview.reconDecisionReason.length < 10 || asIsReview.knownDefects.length < 10)) throw new Error("As-is decision and disclosure must each contain at least 10 characters.");
   return { ...base(raw), asIsReview, inventoryUnitId: text(raw.inventoryUnitId, "Inventory unit ID", 100), ownerUserId: text(raw.ownerUserId, "Owner user ID", 100), reasonCodes, targetAt };
 }
 

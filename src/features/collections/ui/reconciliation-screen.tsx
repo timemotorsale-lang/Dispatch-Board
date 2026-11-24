@@ -67,7 +67,7 @@ export function ReconciliationScreen({ data }: { data: Data }) {
                     {data.canAct && r.status === "DIFFERENT" ? (
                       <form className={styles.actions} onSubmit={event => { event.preventDefault(); const f = event.currentTarget; void post({ action: "NOTE", accountId: r.accountId, note: new FormData(f).get("note") }).then(ok => { if (ok) f.reset(); }); }}>
                         <label className={styles.srOnly} htmlFor={`note-${r.accountId}`}>Explain this difference</label>
-                        <input id={`note-${r.accountId}`} name="note" placeholder="Explain this difference" minLength={10} required />
+                        <input id={`note-${r.accountId}`} name="note" placeholder="Explain this difference" required />
                         <button disabled={busy}>Save note</button>
                       </form>
                     ) : null}

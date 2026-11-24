@@ -34,7 +34,7 @@ export function normalizeEnterpriseCommand(input: EnterpriseCommandInput) {
   const required = [input.organizationId, input.actorUserId, input.domain, input.subjectType, input.subjectId, input.commandType, input.idempotencyKey];
   if (required.some((value) => !value.trim())) throw new Error("Enterprise command identity fields are required.");
   if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new Error("Expected version must be a non-negative integer.");
-  if (input.reason.trim().length < 10) throw new Error("Enterprise commands require a reason of at least 10 characters.");
+  if (!input.reason.trim()) throw new Error("Enterprise commands require a reason.");
   const normalized = { ...input, commandType: input.commandType.trim().toUpperCase(), domain: input.domain.trim().toUpperCase(), idempotencyKey: input.idempotencyKey.trim(), reason: input.reason.trim(), subjectId: input.subjectId.trim(), subjectType: input.subjectType.trim().toUpperCase() };
   return { ...normalized, correlationId: randomUUID(), requestHash: hashEnterpriseCommand(normalized) };
 }

@@ -30,7 +30,7 @@ describe.skipIf(!RUN_COLLECTIONS_DB)("collections starter disable, repo and lett
   it("disable: request (with warning), approve, done in portal; review task closes", async () => {
     expect(await openReasons("FAKE-1013")).toEqual(["DISABLE_REVIEW"]);
     await expect(act("FAKE-1013", { action: "REQUEST_STARTER", kind: "DISABLE" })).rejects.toThrow(/warned/);
-    await expect(act("FAKE-1013", { action: "REQUEST_STARTER", kind: "DISABLE", warningMethod: "NONE", reason: "short" })).rejects.toThrow(/reason/);
+    await expect(act("FAKE-1013", { action: "REQUEST_STARTER", kind: "DISABLE", warningMethod: "NONE", reason: " " })).rejects.toThrow(/reason/);
     const requested = await act("FAKE-1013", { action: "REQUEST_STARTER", kind: "DISABLE", warningMethod: "CALL", warningDate: today });
     expect(requested.warnings?.join(" ")).toMatch(/GPS starter interrupt/); // not marked as disclosed in the contract
     const request = await latestStarter("FAKE-1013");

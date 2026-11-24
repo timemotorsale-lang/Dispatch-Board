@@ -102,8 +102,8 @@ export function normalizeTimeAttendanceCaptureCommand(
   requireTimestamp(input.occurredAt);
   requireNonnegativeInteger(input.expectedVersion, "Expected version");
 
-  if (input.reason.trim().length < 10) {
-    throw new Error("Time attendance commands require a reason of at least 10 characters.");
+  if (!input.reason.trim()) {
+    throw new Error("Time attendance commands require a reason.");
   }
   if (!captureCommandTypes.has(commandType)) {
     throw new Error("Time attendance capture command type is invalid.");

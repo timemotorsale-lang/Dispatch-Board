@@ -51,10 +51,12 @@ export function normalizeVehicleUseCommand(raw: Record<string, unknown>) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Enter a valid vehicle-use request.");
   const activate = raw.action === "ACTIVATE";
   const action = activate ? "HANDOFF" : String(raw.action ?? "");
-  if (!["RESERVE", "HANDOFF", "RETURN", "EXTEND", "CANCEL"].includes(action)) throw new Error("Choose a supported vehicle-use action.");
+  if (!["RESERVE", "HANDOFF", "RETURN", "EXTEND", "CANCEL", "COMPLETE"].includes(action)) throw new Error("Choose a supported vehicle-use action.");
   const operationKey = String(raw.operationKey ?? "").trim();
   if (!/^[a-zA-Z0-9-]{8,100}$/.test(operationKey)) throw new Error("A stable request reference is required.");
-  const reason = String(raw.reason ?? "").trim();
+  const historicalHandoff = action === "HANDOFF" && raw.historicalHandoff === true;
+  const routineHandoff = action === "HANDOFF" && !historicalHandoff;
+  const reason = String(raw.reason ?? "").trim() || (routineHandoff ? "Recorded actual vehicle checkout" : "");
   if (!reason || reason.length > 500) throw new Error("Enter a brief reason, up to 500 characters.");
   const parse = (value: unknown, label: string) => { const source = String(value ?? ""); const result = new Date(source); if (!/T.*(Z|[+-]\d{2}:\d{2})$/.test(source) || Number.isNaN(result.getTime())) throw new Error(`Enter a valid ${label} with a timezone offset.`); return result; };
   const startsAt = activate ? parse(raw.occurredAt, "actual checkout time") : action === "RESERVE" ? parse(raw.startsAt, "pickup time") : null;
@@ -64,9 +66,19 @@ export function normalizeVehicleUseCommand(raw: Record<string, unknown>) {
   if (occurredAt && occurredAt.getTime() > Date.now() + 60000) throw new Error("Actual handoff / return cannot be in the future.");
   const evidence = Array.isArray(raw.evidence) ? raw.evidence.filter((value): value is string => typeof value === "string").map(value => value.trim()).filter(Boolean).slice(0, 20) : [];
   const odometer = raw.odometer === "" || raw.odometer == null ? null : Number(raw.odometer);
-  if (occurredAt && (raw.keysVerified !== true || !evidence.length || odometer == null || !Number.isSafeInteger(odometer) || odometer < 0 || !String(raw.condition ?? "").trim() || !String(raw.fuel ?? "").trim() || !String(raw.recipient ?? "").trim())) throw new Error("Record actual mileage, fuel, condition, recipient, verified keys and evidence.");
+  if (occurredAt && (odometer == null || !Number.isSafeInteger(odometer) || odometer < 0)) throw new Error("Enter the actual odometer reading.");
+  if (occurredAt && (!String(raw.condition ?? "").trim() || !String(raw.fuel ?? "").trim() || !String(raw.recipient ?? "").trim())) throw new Error("Enter the fuel level, vehicle condition, and who received the vehicle.");
+  if (occurredAt && raw.keysVerified !== true) throw new Error("Confirm that you verified the keys.");
+  if (occurredAt && !routineHandoff && !evidence.length) throw new Error(historicalHandoff ? "Enter a dated handoff record, such as the signed pickup record or inspection report." : "Enter the return inspection or receiving record reference.");
   if (action === "HANDOFF" && raw.driverVerified !== true) throw new Error("Verify the current driver and applicable coverage before handoff.");
-  if (!activate && action !== "RESERVE" && (!String(raw.bookingId ?? "").trim() || !Number.isSafeInteger(Number(raw.expectedVersion)) || Number(raw.expectedVersion) < 1)) throw new Error("Reload the assignment before recording this action.");
+  const cancelDraft = action === "CANCEL" && !raw.bookingId;
+  if (cancelDraft && raw.noHandoffConfirmed !== true) throw new Error("Confirm the vehicle was never handed over before cancelling this draft.");
+  if (!activate && !cancelDraft && action !== "RESERVE" && (!String(raw.bookingId ?? "").trim() || !Number.isSafeInteger(Number(raw.expectedVersion)) || Number(raw.expectedVersion) < 1)) throw new Error("Reload the assignment before recording this action.");
   if (activate && raw.bookingId) throw new Error("Use the existing reserved checkout instead of creating another rental.");
-  return { activate, action, operationKey, reason, startsAt, expectedReturnAt, occurredAt, bookingId: String(raw.bookingId ?? ""), expectedVersion: activate ? 1 : action === "RESERVE" ? 0 : Number(raw.expectedVersion), agreementJacketId: String(raw.agreementJacketId ?? ""), evidence, odometer, fuel: String(raw.fuel ?? "").trim().slice(0, 100), condition: String(raw.condition ?? "").trim().slice(0, 1000), recipient: String(raw.recipient ?? "").trim().slice(0, 200), keysVerified: raw.keysVerified === true, driverVerified: raw.driverVerified === true };
+  const completion = action === "COMPLETE" ? {
+    inspected: raw.inspected === true,
+    settlementReference: String(raw.settlementReference ?? "").trim().slice(0, 500),
+    settlementException: raw.settlementException === true
+  } : null;
+  return { activate, action, operationKey, reason, startsAt, expectedReturnAt, occurredAt, bookingId: String(raw.bookingId ?? ""), expectedVersion: activate ? 1 : action === "RESERVE" || cancelDraft ? 0 : Number(raw.expectedVersion), agreementJacketId: String(raw.agreementJacketId ?? ""), evidence, odometer, fuel: String(raw.fuel ?? "").trim().slice(0, 100), condition: String(raw.condition ?? "").trim().slice(0, 1000), recipient: String(raw.recipient ?? "").trim().slice(0, 200), keysVerified: raw.keysVerified === true, driverVerified: raw.driverVerified === true, ...(completion ? { completion } : {}), ...(historicalHandoff ? { historicalHandoff } : {}), ...(cancelDraft && Number.isInteger(raw.draftRevision) ? { draftRevision: Number(raw.draftRevision) } : {}) };
 }

@@ -13,7 +13,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await readJson(request) as { reason?: string };
     const reason = body.reason?.trim() || "Dismiss Growth opportunity after manager review.";
-    if (reason.length < 10) throw new Error("Reason is required.");
     const opportunity = await prisma.growthOpportunity.findFirst({
       select: { id: true },
       where: { id, organizationId: INITIAL_ORGANIZATION.id }

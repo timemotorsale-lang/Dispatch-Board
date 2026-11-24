@@ -95,7 +95,7 @@ export async function executeTestDrive(actor: AuthenticatedUser | null, id: stri
       if (["ARCHIVED", "LOST", "CANCELLED"].includes(context.draft.status)) fail("Reopen the inactive deal before release.");
       if (context.bookings.some(row => ["CHECKED_OUT", "RETURNED", "RETURNED_REVIEW"].includes(row.status))) fail("Departure is already recorded. Refresh the drive status.");
       const legacyNote = String(raw.legacyNote ?? "").trim();
-      if (snapshot["test-drive:testDriveStarted"] === true && !context.bookings.length && (raw.legacyNotReleased !== true || legacyNote.length < 10 || legacyNote.length > 1000)) fail("This legacy draft says started without a custody record. Confirm no actual departure occurred and record the reconciliation reason before a new release.");
+      if (snapshot["test-drive:testDriveStarted"] === true && !context.bookings.length && (raw.legacyNotReleased !== true || !legacyNote || legacyNote.length > 1000)) fail("This legacy draft says started without a custody record. Confirm no actual departure occurred and record the reconciliation reason before a new release.");
       if (!readiness.verified) fail(readiness.issue?.message ?? "Complete driver and vehicle checks.");
       if (!vehicle.eligibleForUse) fail("This vehicle is not available for release. Review its readiness.");
       if (raw.physicalHandover !== true || raw.keysVerified !== true) fail("Confirm physical vehicle and key handover.");
@@ -136,7 +136,7 @@ export async function executeTestDrive(actor: AuthenticatedUser | null, id: stri
       if (action === "RESOLVE_EXCEPTION") {
         if (booking!.status !== "RETURNED_REVIEW") fail("This drive has no unresolved return hold.");
         const note = String(raw.note ?? "").trim();
-        if (note.length < 10 || note.length > 1000 || raw.keysVerified !== true) fail("Confirm all keys accounted for and describe the completed resolution in 10–1000 characters.");
+        if (!note || note.length > 1000 || raw.keysVerified !== true) fail("Confirm all keys are accounted for and describe the completed resolution in up to 1000 characters.");
         booking = await db.vehicleUseBooking.update({ where: { id: booking!.id }, data: { status: "RETURNED", version: { increment: 1 }, returnSnapshot: json({ ...object(booking!.returnSnapshot), resolution: { note, actorUserId: user.id, at: new Date().toISOString(), keysVerified: true } }) } });
       } else {
         if (booking!.status !== "CHECKED_OUT" || !booking!.checkedOutAt) fail("Record return only for an active drive.");

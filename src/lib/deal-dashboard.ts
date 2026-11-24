@@ -23,6 +23,7 @@ export function chicagoDate(value: Date | string | null | undefined) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
 }
 export type DashboardDeal = {
+  rental?: import("./rental-operations").RentalWork | null;
   id: string; draftId: string | null; draftRevision: number | null; jacketId: string | null; dealNumber: string | null;
   customerId: string | null; customerName: string; vehicleReference: string; pathway: string; status: string; packetState: string | null; updatedAt: string;
   ownerId: string; ownerName: string; dealStage?: string | null; stage: string; nextAction: string; dueAt: string | null; taskHref: string | null;
@@ -34,15 +35,15 @@ export type DashboardDeal = {
 };
 export function summarizeDeals(rows: DashboardDeal[], range: { start: string; end: string }) {
   const current = rows.filter(row => row.status !== "ARCHIVED");
-  const completed = current.filter(row => row.stage === "Completed" && row.completedDate && row.completedDate >= range.start && row.completedDate <= range.end);
+  const completed = current.filter(row => (row.rental ? row.rental.stage === "COMPLETE" : row.stage === "Completed") && row.completedDate && row.completedDate >= range.start && row.completedDate <= range.end);
   const sold = current.filter(row => dealGroup(row.pathway) === "SALES" && row.soldDate && row.soldDate >= range.start && row.soldDate <= range.end);
   return { current: current.length, attention: current.filter(row => row.needsAttention).length,
     working: current.filter(row => row.stage === "Working").length, ready: current.filter(row => row.stage === "Ready to finalize").length,
-    paperwork: current.filter(row => row.status === "SOLD" && row.stage !== "Completed").length,
+    paperwork: current.filter(row => !row.rental && row.status === "SOLD" && row.stage !== "Completed").length,
     funding: current.filter(row => row.stage === "Awaiting funding").length, completed: completed.length, sold: sold.length,
-    undatedCompleted: current.filter(row => row.stage === "Completed" && !row.completedDate).length,
+    undatedCompleted: current.filter(row => (row.rental ? row.rental.stage === "COMPLETE" : row.stage === "Completed") && !row.completedDate).length,
     groups: Object.entries(DEAL_GROUPS).filter(([key]) => key !== "ALL").map(([key, label]) => ({ key, label,
-      current: current.filter(row => dealGroup(row.pathway) === key && row.stage !== "Completed" && row.stage !== "Closed without completion").length,
+      current: current.filter(row => dealGroup(row.pathway) === key && (row.rental ? !["COMPLETE", "CANCELLED"].includes(row.rental.stage) : row.stage !== "Completed" && row.stage !== "Closed without completion")).length,
       opened: current.filter(row => dealGroup(row.pathway) === key && row.createdDate && row.createdDate >= range.start && row.createdDate <= range.end).length,
       completed: completed.filter(row => dealGroup(row.pathway) === key).length, sold: sold.filter(row => dealGroup(row.pathway) === key).length })) };
 }

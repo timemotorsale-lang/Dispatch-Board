@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { SalesDocumentsError } from "./domain";
+import { vehicleCustodyBlocker } from "@/server/deal-continuity/custody-error";
 
 export function salesDocumentsFailure(error: unknown) {
+  const blocker = vehicleCustodyBlocker(error);
+  if (blocker) return NextResponse.json({ error: blocker }, { status: 409 });
   return NextResponse.json({ error: error instanceof SalesDocumentsError ? error.message : "Sales Documents could not complete this action. Check database and document storage availability." }, { status: error instanceof SalesDocumentsError ? error.status : 503 });
 }
 

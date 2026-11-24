@@ -64,7 +64,7 @@ export function MessagesPanel({ d }: { d: AccountDetail }) {
           <form className={styles.form} onSubmit={event => { const form = event.currentTarget; void run("RECORD_CONSENT", formValues(event), () => form.reset()); }}>
             <label>For<select name="channel"><option value="SMS">Texts</option><option value="EMAIL">Email</option></select></label>
             <label>How<select name="source"><option value="VERBAL">Verbal (phone or in person)</option><option value="WRITTEN">Written</option></select></label>
-            <label className={styles.wide}>Details (who, when, how)<input name="evidence" required minLength={10} placeholder="Customer asked by phone on 11/16 to start texts again" /></label>
+            <label className={styles.wide}>Details (who, when, how)<input name="evidence" required placeholder="Customer asked by phone on 11/16 to start texts again" /></label>
             <div className={`${styles.actions} ${styles.wide}`}><button disabled={busy}>Record consent</button></div>
           </form>
         </>

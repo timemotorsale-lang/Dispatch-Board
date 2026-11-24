@@ -5,6 +5,7 @@ import type { SavedDealStatus } from "./saved-deal-status";
 export type SavedDealReviewRecord = {
   id: string; dealNumber?: number; revision: number; updatedAt: string; customerName: string; vehicleReference: string;
   pathway: string; status?: SavedDealStatus; snapshot: Record<string, unknown>;
+  rentalActionOnly?: boolean;
 };
 export type DealSummaryLine = { label: string; value: string; emphasis?: boolean };
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

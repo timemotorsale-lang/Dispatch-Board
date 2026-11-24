@@ -38,8 +38,8 @@ export function FinalRepairQcChecklist({ allowRecommendation = false, evidence, 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (failed && note.trim().length < 10) {
-      setError("Describe what needs correction or give the shop a next step (at least 10 characters).");
+    if (failed && note.trim().length === 0) {
+      setError("Describe what needs correction or give the shop a next step.");
       return;
     }
     if (!failed && checklist.some(item => results[item.code] !== "PASS")) {
@@ -55,7 +55,7 @@ export function FinalRepairQcChecklist({ allowRecommendation = false, evidence, 
       return;
     }
     if (recommend && (!finding.trim() || recommendationNote.trim().length < FINAL_REPAIR_QC_NOTE_MIN)) {
-      setError("Identify the finding and describe the recommended next step (at least 10 characters).");
+      setError("Identify the finding and describe the recommended next step.");
       return;
     }
 

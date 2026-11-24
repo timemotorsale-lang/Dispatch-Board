@@ -23,7 +23,7 @@ describe("compact intake contract", () => {
     { expectedUnitVersion: "1" }, { expectedUnitVersion: 0 }, { expectedUnitVersion: -1 },
     { ownershipConfirmed: undefined }, { ownershipConfirmed: "true" }, { action: "DRAFT" },
     { vehicleId: undefined }, { vin: "invalid" }, { year: "2003" },
-    { locationId: "" }, { ownerUserId: "" }, { reason: "short" }, { idempotencyKey: "" },
+    { locationId: "" }, { ownerUserId: "" }, { reason: " " }, { reason: "x".repeat(501) }, { idempotencyKey: "" },
     { action: "SAVE_AND_START_RO", concern: "" },
   ])("rejects invalid command fields %j", override => {
     expect(() => normalizeCompactIntake({ ...input, ...override }, now)).toThrow();
@@ -33,13 +33,16 @@ describe("compact intake contract", () => {
     { source: "" }, { source: "UNKNOWN" }, { acquiredOn: "" }, { acquiredOn: "2026-02-30" },
     { acquiredOn: "2026-10-19" }, { purchaseCents: 0 }, { purchaseCents: -1 },
     { purchaseCents: null }, { priceStatus: "PENDING" },
-    { condition: "ok" }, { whereabouts: "" },
+    { condition: " " }, { whereabouts: "" },
   ])("rejects unsupported or unconfirmed acquisition details %j", override => {
     expect(() => normalizeCompactIntake({ ...input, details: { ...details, ...override } }, now)).toThrow();
   });
 
   it("accepts a purchase without an optional invoice reference", () => {
     expect(normalizeCompactIntake({ ...input, details: { ...details, reference: "" } }, now).details.reference).toBe("");
+  });
+  it("accepts concise condition and reason entries", () => {
+    expect(normalizeCompactIntake({ ...input, reason: " Trade ", details: { ...details, condition: " Runs " } }, now)).toMatchObject({ reason: "Trade", details: { condition: "Runs" } });
   });
   it("retains missing paperwork as pending without mandatory follow-up notes", () => {
     expect(normalizeCompactIntake({ ...input, details: { ...details, seller: "", titleStatus: "PENDING", documents: "", pendingNotes: "" } }, now).details).toMatchObject({ seller: "", titleStatus: "PENDING", documents: "", pendingNotes: "" });

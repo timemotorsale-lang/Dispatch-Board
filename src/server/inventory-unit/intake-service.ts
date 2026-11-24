@@ -51,8 +51,10 @@ export async function getVehicleIntake(actor: AuthenticatedUser | null, vehicleI
 }
 export type VehicleIntakeModel = Awaited<ReturnType<typeof getVehicleIntake>>;
 
-export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
+export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies & { initialReceivingLocationId?: string } = {}) {
   const c = await context(actor, vehicleId, input), data = normalizeIntake(value, c.now);
+  const locationId = c.locationId ?? (data.status === "DRAFT" ? input.initialReceivingLocationId ?? null : null);
+  if (locationId !== c.locationId) assertIntakeAccess({ actor: c.user, grants: c.grants, locationId, now: c.now });
   if (input.undoImportRevisionId) {
     if (data.status !== "DRAFT") throw new Error("Only import drafts can be undone.");
     assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
@@ -60,15 +62,15 @@ export async function saveVehicleIntake(actor: AuthenticatedUser | null, vehicle
   if (data.status === "CONFIRMED") assertVehicleCapability({ actor: c.user, capability: "INVENTORY_ACQUISITION_MANAGE", grants: c.grants, locationId: c.locationId, now: c.now });
   if (input.enforceRollout !== false) {
     const flags = await createEnterpriseCommandRepository(c.database).listFeatureFlags(c.organizationId);
-    const decision = evaluateVehicleOperationsFeature(flags, "INVENTORY_INTAKE", c.user.id, c.locationId);
+    const decision = evaluateVehicleOperationsFeature(flags, "INVENTORY_INTAKE", c.user.id, locationId);
     if (!decision.executable) throw new Error(`Acquisition intake writes are not enabled. ${describeVehicleOperationsBlock(decision.reason)}`);
   }
-  const command = normalizeEnterpriseCommand({ actorUserId: c.user.id, organizationId: c.organizationId, locationId: c.locationId, domain: "RETAIL_INVENTORY", subjectType: "VEHICLE_INTAKE", subjectId: vehicleId, commandType: data.status === "CONFIRMED" ? "CONFIRM_INVENTORY_INTAKE" : "SAVE_INVENTORY_INTAKE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, reason: data.reason, payload: { details: data.details, status: data.status, expectedUnitVersion: data.expectedUnitVersion } });
+  const command = normalizeEnterpriseCommand({ actorUserId: c.user.id, organizationId: c.organizationId, locationId, domain: "RETAIL_INVENTORY", subjectType: "VEHICLE_INTAKE", subjectId: vehicleId, commandType: data.status === "CONFIRMED" ? "CONFIRM_INVENTORY_INTAKE" : "SAVE_INVENTORY_INTAKE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, reason: data.reason, payload: { details: data.details, status: data.status, expectedUnitVersion: data.expectedUnitVersion } });
   return executeInventoryMutation(c.database, command, async (tx, version) => {
     const previous = await tx.inventoryIntakeRevision.findFirst({ where: { organizationId: c.organizationId, vehicleId }, orderBy: { version: "desc" } });
     if ((previous?.version ?? 0) !== data.expectedVersion) throw new EnterpriseCommandConflictError("Intake changed; reload before saving.", "VERSION_CONFLICT");
     const previousDetails = previous && (previous.inventoryUnitId === null || previous.inventoryUnitId === c.unit?.id) ? object(previous.details) : {};
-    if (data.details.proposedPriceCents !== (previousDetails.proposedPriceCents ?? null)) assertPricingAccess({ actor: c.user, grants: c.grants, locationId: c.locationId, now: c.now, amountCents: data.details.proposedPriceCents ?? undefined });
+    if (data.details.proposedPriceCents !== (previousDetails.proposedPriceCents ?? null)) assertPricingAccess({ actor: c.user, grants: c.grants, locationId, now: c.now, amountCents: data.details.proposedPriceCents ?? undefined });
     const activeVehicle = await tx.vehicle.findFirst({ where: { id: vehicleId, organizationId: c.organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, select: { id: true } });
     if (!activeVehicle) throw new Error("Intake vehicle was not found.");
     const scope = JSON.stringify([c.organizationId, "OPEN_INVENTORY_UNIT", vehicleId]);

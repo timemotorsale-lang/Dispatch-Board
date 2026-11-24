@@ -476,9 +476,13 @@ const managerRoles = new Set([
   "Service Department Manager"
 ]);
 
+export function canWorkInsuranceClaims(actor: AuthenticatedUser | null): boolean {
+  return Boolean(actor?.isActive && actor.roles.some(role => allowedRoles.has(role)));
+}
+
 function assertUser(actor: AuthenticatedUser | null): AuthenticatedUser {
   if (!actor) throw new ClaimsWorkspaceError("AUTHENTICATION_REQUIRED", "Sign in before working insurance claims.");
-  if (!actor.roles.some((role) => allowedRoles.has(role))) {
+  if (!canWorkInsuranceClaims(actor)) {
     throw new ClaimsWorkspaceError("CLAIM_INVALID", "This user is not authorized to work insurance claims.");
   }
   return actor;
@@ -894,7 +898,7 @@ export async function getClaimWorkspaceReadModel(
 export async function createInsuranceClaim(
   actor: AuthenticatedUser | null,
   raw: ClaimCreateInput,
-  input: Dependencies = {}
+  input: Dependencies & { rentalIncident?: { id: string; customerId: string; vehicleId: string } } = {}
 ) {
   const user = assertUser(actor);
   const context = deps(input);
@@ -908,6 +912,7 @@ export async function createInsuranceClaim(
 
   const claim: InsuranceClaimRecord = {
     ...normalized,
+    ...(input.rentalIncident && { customerId: input.rentalIncident.customerId, vehicleId: input.rentalIncident.vehicleId }),
     createdByUserId: user.id,
     id: `claim-${randomUUID()}`,
     lastActivityAt: now,
@@ -924,7 +929,7 @@ export async function createInsuranceClaim(
     actorUserId: user.id,
     actorUserName: user.name,
     at: now,
-    detail: "Insurance claim created from Claims Desk intake.",
+    detail: input.rentalIncident ? `Internal intake started from rental incident ${input.rentalIncident.id}.` : "Insurance claim created from Claims Desk intake.",
     id: `claim-activity-${randomUUID()}`
   });
   return { duplicateWarnings, readModel: toClaimReadModel(aggregate, existingClaims) };

@@ -31,7 +31,7 @@ export function evaluateDiagnosticPhase8ReadinessGate(input: DiagnosticPhase8Rea
   const requestedBy = input.requestedBy.trim();
   const evidenceReady = input.phase8Evidence.status === "READY_FOR_PILOT_EVIDENCE_REVIEW" && checksumOk(input.phase8Evidence.packageChecksum) && input.phase8Evidence.authorityBoundary.liveExecutionAuthorized === false && input.phase8Evidence.authorityBoundary.unsafeProbingAuthorized === false && input.phase8Evidence.authorityBoundary.roadTestAuthorized === false && input.phase8Evidence.authorityBoundary.productionAuthorized === false;
   const signaturesReady = new Set(input.acceptanceSignedBy.map((value) => value.trim().toUpperCase()).filter(Boolean)).size >= 2;
-  const risksDisposed = input.unresolvedRisks.every((risk) => risk.riskId.trim() && risk.owner.trim() && risk.note.trim().length >= 10 && risk.disposition !== "OPEN");
+  const risksDisposed = input.unresolvedRisks.every((risk) => risk.riskId.trim() && risk.owner.trim() && risk.note.trim().length > 0 && risk.disposition !== "OPEN");
   const holds = unique([
     requestedBy ? "" : "DGG9_REQUESTER_REQUIRED",
     evidenceReady ? "" : "DGG9_PHASE_8_EVIDENCE_NOT_READY",

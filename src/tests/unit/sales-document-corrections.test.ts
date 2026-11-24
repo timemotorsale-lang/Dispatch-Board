@@ -17,7 +17,7 @@ describe("sales attachment correction and optional audit", () => {
   });
   const exclude = () => ({ action: "EXCLUDE_DOCUMENT", revision: 1, documentId: "proof", note: "Wrong customer's final signed document" });
   it("excludes mistakes from requirements and rejects them as usable evidence without deleting originals", async () => {
-    const result = await updateSalesDocumentJacket(staff, "jacket", exclude());
+    const result = await updateSalesDocumentJacket(staff, "jacket", { ...exclude(), note: " Wrong VIN " });
     expect(result.documents).toEqual([]); expect(result.excludedDocumentCount).toBe(1); expect(result.checklist[0].ready).toBe(false);
     expect(jacket.packet.documents[0].document.status).toBe("REJECTED");
     expect(mocks.document.mock.calls[0][0].data).toMatchObject({ sensitivity: "RESTRICTED", classificationSnapshot: { signed: true, excludedFromDeal: true, excludedBy: staff.id } });
@@ -34,7 +34,7 @@ describe("sales attachment correction and optional audit", () => {
     await updateSalesDocumentJacket(manager, "jacket", exclude()); expect(jacket.versions).toEqual(before);
   });
   it("rejects missing reasons, unrelated attachments, stale revisions and anonymous changes", async () => {
-    for (const change of [{ note: "oops" }, { documentId: "other" }, { revision: 0 }]) await expect(updateSalesDocumentJacket(staff, "jacket", { ...exclude(), ...change })).rejects.toBeDefined();
+    for (const change of [{ note: " " }, { documentId: "other" }, { revision: 0 }]) await expect(updateSalesDocumentJacket(staff, "jacket", { ...exclude(), ...change })).rejects.toBeDefined();
     await expect(updateSalesDocumentJacket(null, "jacket", exclude())).rejects.toMatchObject({ status: 401 });
     expect(mocks.document).not.toHaveBeenCalled(); expect(mocks.audit).not.toHaveBeenCalled();
   });

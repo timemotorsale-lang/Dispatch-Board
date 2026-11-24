@@ -23,7 +23,7 @@ export function normalizeInventoryNumberCorrection(value: unknown) {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,99}$/.test(rawNumber)) throw new InventoryNumberCorrectionError("Inventory number must contain 1–100 ASCII letters, digits, or hyphens and start with a letter or digit.");
   if (typeof data.expectedVersion !== "number" || !Number.isSafeInteger(data.expectedVersion) || data.expectedVersion < 0) throw new InventoryNumberCorrectionError("Expected version must be a non-negative integer.");
   if (typeof data.idempotencyKey !== "string" || !data.idempotencyKey.trim()) throw new InventoryNumberCorrectionError("Idempotency key is required.");
-  if (typeof data.reason !== "string" || data.reason.trim().length < 10) throw new InventoryNumberCorrectionError("Inventory number corrections require a reason of at least 10 characters.");
+  if (typeof data.reason !== "string" || !data.reason.trim()) throw new InventoryNumberCorrectionError("Inventory number corrections require a reason.");
   return { inventoryNumber: rawNumber.toUpperCase(), expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey.trim(), reason: data.reason.trim() };
 }
 

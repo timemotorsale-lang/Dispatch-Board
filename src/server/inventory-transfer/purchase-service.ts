@@ -332,7 +332,7 @@ export async function applyPurchaseDocument(actor: AuthenticatedUser | null, pre
 }
 export async function undoPurchaseImport(actor: AuthenticatedUser | null, readId: string, reason: string) {
   const user = assertAuthenticatedUser(actor);
-  if (!readId || readId.length > 100 || typeof reason !== "string" || reason.trim().length < 10 || reason.length > 1000) throw new Error("Select an import and provide a meaningful undo reason.");
+  if (!readId || readId.length > 100 || typeof reason !== "string" || !reason.trim() || reason.length > 1000) throw new Error("Select an import and provide a meaningful undo reason.");
   const job = await purchaseJobAccess(user, readId);
   const completed = await prisma.enterpriseAuditEvent.findFirst({ where: { organizationId, ...(job ? {} : { actorUserId: user.id }), subjectType: "PURCHASE_IMPORT", subjectId: readId, eventType: "PURCHASE_DOCUMENT_COMPLETED" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   if (!completed?.locationId) throw new Error("Completed import not found for this staff account.");
