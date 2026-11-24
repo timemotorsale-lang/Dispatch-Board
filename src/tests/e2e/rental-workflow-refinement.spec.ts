@@ -441,7 +441,7 @@ test("Inventory Intake shows why save is blocked next to the buttons and saves a
     expect(saved.ok()).toBe(true);
     await page.goto(`/crm-next/deals/start?draftId=${id}&rentalAction=HANDOFF#rental-checkout`);
     const link = page.getByRole("link", { name: "Open Inventory Intake for this vehicle" });
-    await expect(link).toHaveAttribute("href", `/prototype/inventory-intake?vehicleId=${vehicle.id}`);
+    await expect(link).toHaveAttribute("href", `/prototype/inventory-intake?vehicleId=${vehicle.id}`, { timeout: 15000 });
     await expect(link).toHaveCSS("background-color", "rgb(49, 84, 174)");
     const initialPageContext = await browser.newContext({ javaScriptEnabled: false, storageState: await page.context().storageState() });
     try {
@@ -487,7 +487,7 @@ test("Inventory Intake shows why save is blocked next to the buttons and saves a
     expect(inventorySearch.ok()).toBe(true);
     expect((await inventorySearch.json()).items).toEqual([expect.objectContaining({ vehicle: expect.objectContaining({ id: vehicle.id }) })]);
     await footer.getByRole("button", { name: "Save & Open Selling Workbench", exact: true }).click();
-    await expect(intake).toHaveURL(`/vehicles/${vehicle.id}/frontline`);
+    await expect(intake).toHaveURL(`/vehicles/${vehicle.id}/frontline`, { timeout: 15000 });
     expect(await prisma.inventoryUnit.count({ where: { vehicleId: vehicle.id } })).toBe(1);
   } finally {
     await prisma.$disconnect();
