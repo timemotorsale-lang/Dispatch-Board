@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { dealDocumentHref } from "@/lib/deal-dashboard-enterprise";
 import type { SalesDocumentJacketView } from "@/server/sales-documents/service";
 import styles from "./shared-deal-identities.module.css";
 
@@ -28,9 +29,9 @@ export async function finalizeCheckoutReview({ packet, reviews }: CheckoutPacket
   });
 }
 
-export function RentalPacketChecklist({ id, href, busy, canFinalize, onFinalize, onClose, refreshKey, activationFeedback, activationFeedbackId }: {
+export function RentalPacketChecklist({ id, href, busy, canFinalize, onFinalize, onClose, refreshKey, activationFeedback, activationFeedbackId, coverageBlocked }: {
   id: string; href: string; busy: boolean; canFinalize: boolean; onFinalize: (review: CheckoutPacketReview) => void; onClose: () => void; refreshKey: number;
-  activationFeedback: ReactNode; activationFeedbackId: string;
+  activationFeedback: ReactNode; activationFeedbackId: string; coverageBlocked: boolean;
 }) {
   const [state, setState] = useState<{ packet?: SalesDocumentJacketView; error?: string }>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
@@ -64,19 +65,22 @@ export function RentalPacketChecklist({ id, href, busy, canFinalize, onFinalize,
   const complete = Boolean(agreement && insurance && rows.every(row => row.checked));
   return <fieldset id={id} tabIndex={-1} disabled={busy} className={styles.checkoutChecklist}>
     <legend>Checkout checklist</legend>
-    <p>Open and verify each required file, then finalize the packet to continue to handoff.</p>
+    <p>Open each file and confirm it matches its requirement. Replace any incorrect file before checking the item.</p>
     {state.error && <p role="alert">{state.error}</p>}
     {!packet && !state.error && <p role="status">Loading the checkout packet…</p>}
     {packet?.phase === "CHECKOUT" && !rows.length && <p>Open Sales Documents to review this packet’s requirements.</p>}
     {packet?.phase === "CHECKOUT" && <ul>{rows.map(({ item, files, doc, accepted, checked }) => <li key={item.id}>
       <label><input type="checkbox" checked={checked} disabled={accepted || !doc} onChange={event => setVerified(current => ({ ...current, [item.id]: event.target.checked && doc ? doc.id : "" }))} />{item.label}{item.signed && !accepted ? " · signature verified" : ""}</label>
       {files.length > 1 && !item.waiver && <label>{item.label} file<select value={doc?.id ?? ""} onChange={event => setChoices(current => ({ ...current, [item.id]: event.target.value }))}>{files.map(file => <option key={file.id} value={file.id}>{file.fileName}</option>)}</select></label>}
-      {doc ? <a target="_blank" rel="noopener noreferrer" href={`/api/sales-documents/${encodeURIComponent(packet.id)}/documents/${encodeURIComponent(doc.id)}`}>{doc.fileName}</a> : !item.ready && <span> · Upload in Sales Documents</span>}
+      {doc && <a target="_blank" rel="noopener noreferrer" href={`/api/sales-documents/${encodeURIComponent(packet.id)}/documents/${encodeURIComponent(doc.id)}`}>{doc.fileName}</a>}
+      {!item.waiver && <a target="_blank" rel="noopener noreferrer" href={dealDocumentHref(packet.id, item.id)}>{doc ? "Replace" : "Upload"} {item.label.toLowerCase()}</a>}
+      {doc?.checksum && rows.some(other => other.item.id !== item.id && other.doc?.checksum === doc.checksum) &&
+        <small>This file is also attached to another requirement. Check that it contains the right evidence for this item.</small>}
     </li>)}</ul>}
     {activationFeedback}
-    {packet?.phase === "CHECKOUT" && <button className={styles.rentalPrimary} type="button" aria-describedby={activationFeedbackId} disabled={!complete || !canFinalize} onClick={() => onFinalize({
+    {packet?.phase === "CHECKOUT" && <button className={coverageBlocked ? undefined : styles.rentalPrimary} type="button" aria-describedby={activationFeedbackId} disabled={!complete || !canFinalize} onClick={() => onFinalize({
       packet, insuranceId: insurance?.id ?? "", reviews: rows.flatMap(({ item, doc, accepted }) => !accepted && doc ? [{ documentId: doc.id, documentType: item.id, signed: item.signed }] : [])
-    })}>{busy ? "Finalizing packet…" : "Finalize packet & continue to handoff"}</button>}
+    })}>{busy ? "Finalizing packet…" : coverageBlocked ? "Save reviewed paperwork" : "Finalize packet & continue to handoff"}</button>}
     {packet?.phase === "RETURN" && <p>Checkout packet finalized. Use Activate Rental to record handoff.</p>}
     <a href={href} target="_blank" rel="noopener noreferrer">Open Sales Documents</a>
     <button type="button" onClick={() => setReloadKey(current => current + 1)}>Refresh checklist</button>

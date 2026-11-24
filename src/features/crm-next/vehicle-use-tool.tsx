@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { DealWorkspaceSection } from "@/lib/deal-workspace-navigation";
+import { dealDocumentHref } from "@/lib/deal-dashboard-enterprise";
 import { normalizeVehicleUseCommand } from "@/lib/deal-continuity";
 import { RENTAL_TIMEZONE, rentalCheckoutDefaults, rentalLocalTime, rentalTimeChoices, rentalTimeIso } from "@/lib/rental-checkout";
 import { RENTAL_OPERATIONS_CHANGED, rentalOperationsSummary, type RentalBooking } from "@/lib/rental-operations";
@@ -109,6 +110,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
   const checklistId = `${fieldId}-checklist`;
   const handoffStepId = `${fieldId}-handoff-step`;
   const handoffId = `${fieldId}-handoff`;
+  const inputId = (name: string) => `${fieldId}-${name}`;
   const feedbackId = `${fieldId}-activation-feedback`;
   const pending = useRef<{ signature: string; payload: Record<string, unknown> } | null>(null);
   const readSequence = useRef(0);
@@ -179,10 +181,13 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
   const dueTime = dueBackOverride ?? (booking ? rentalLocalTime(booking.expectedReturnAt) : defaults.expectedReturnAt);
   let coverageIssue = "";
   let dueBackAt: Date | undefined;
+  let coverageEndAt: Date | undefined;
   if (handoffForm && dueTime && values.insuranceValidUntil) {
     try {
       dueBackAt = new Date(rentalTimeIso(dueTime, occurrences.expectedReturnAt));
-      validateRentalCoverage({ insuranceValidUntil: rentalTimeIso(values.insuranceValidUntil, occurrences.insuranceValidUntil) }, dueBackAt, dueBackAt);
+      const coverageEnd = rentalTimeIso(values.insuranceValidUntil, occurrences.insuranceValidUntil);
+      coverageEndAt = new Date(coverageEnd);
+      validateRentalCoverage({ insuranceValidUntil: coverageEnd }, dueBackAt, dueBackAt);
     } catch (error) {
       coverageIssue = error instanceof Error ? error.message : "Check the coverage and due-back times.";
     }
@@ -299,18 +304,12 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
   async function finalizePacket(review: CheckoutPacketReview) {
     if (!draftId || !draft || !handoffForm || busy || stale || !model?.vehicleReadiness?.eligible ||
       agreementHref !== `/sales-documents?jacketId=${encodeURIComponent(review.packet.id)}`) return;
-    const blocker = coverageIssue || (!dueTime ? "Enter the due-back time." : !values.insuranceValidUntil ? "Enter the coverage end time shown on the accepted insurance proof." :
-      !values.insuranceVerified ? "Confirm that the accepted insurance covers this driver and vehicle." : "");
-    if (blocker) {
-      setNotice(blocker);
-      window.requestAnimationFrame(() => handoffFeedback.current?.focus());
-      return;
-    }
     setBusy(true);
     setNotice("");
     try {
-      update("insuranceDocumentId", review.insuranceId);
-      if (!await draft.save()) throw new Error(draft.saveError() || "Save the checkout details before finalizing the packet.");
+      const proofChanged = values.insuranceDocumentId !== review.insuranceId;
+      if (proofChanged) update("insuranceDocumentId", review.insuranceId);
+      if ((proofChanged || saveState.dirty) && !await draft.save()) throw new Error(draft.saveError() || "Save the checkout details before finalizing the packet.");
       await finalizeCheckoutReview(review);
       const sequence = ++readSequence.current;
       const result = await loadAssignment(draftId);
@@ -420,21 +419,43 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
   const handoffAvailable = handoffForm && !checkoutBlocked;
   const odometer = values.odometer || defaults.odometer;
   const acceptedProofs = model?.insuranceProofs ?? [];
+  const selectedProof = acceptedProofs.length === 1 ? acceptedProofs[0] : acceptedProofs.find(proof => proof.id === values.insuranceDocumentId);
+  const agreementId = model?.agreements[0]?.id;
+  const coverageProofHref = selectedProof && agreementId ? `/api/sales-documents/${encodeURIComponent(agreementId)}/documents/${encodeURIComponent(selectedProof.id)}` : agreementHref;
+  const checkoutJacketId = new URLSearchParams(agreementHref?.split("?")[1]).get("jacketId");
+  const coverageBlocked = Boolean(coverageIssue || !values.insuranceValidUntil);
+  const openCoverageRequirement = coverageBlocked && !selectedProof && checkoutJacketId;
+  const handoffCorrections = [
+    !dueTime && ["Enter the due-back time", dueBackId],
+    !values.occurredAt && ["Enter the actual checkout time after handoff", checkoutTimeId],
+    (!odometer || !Number.isSafeInteger(Number(odometer)) || Number(odometer) < 0) && ["Enter the odometer reading", inputId("odometer")],
+    !(values.fuel || defaults.fuel).trim() && ["Enter the fuel level", inputId("fuel")],
+    !values.condition.trim() && ["Enter the vehicle condition", inputId("condition")],
+    !values.recipient.trim() && ["Enter the driver receiving the vehicle", inputId("recipient")],
+    !values.keysVerified && ["Verify the keys", inputId("keys")],
+    !values.driverVerified && ["Verify the driver", inputId("driver")],
+    acceptedProofs.length > 1 && !selectedProof && ["Choose the verified insurance proof", inputId("proof")],
+    !values.insuranceVerified && ["Confirm the insurance applies to this renter and vehicle", inputId("insurance-verified")],
+    !values.physicalHandover && ["Confirm the physical handoff after the driver receives the vehicle and keys", handoffId]
+  ].filter((correction): correction is string[] => Array.isArray(correction));
   const readyToHandOff = handoffAvailable && model?.vehicleReadiness?.eligible && !stale && !coverageIssue && !retryAvailable &&
     !needsHistoricalHandoff && dueBackAt && dueBackAt.getTime() > clock &&
     values.insuranceVerified && values.driverVerified && values.keysVerified && odometer && Number.isSafeInteger(Number(odometer)) && Number(odometer) >= 0 &&
-    (values.fuel || defaults.fuel).trim() && values.condition.trim() && values.recipient.trim() &&
-    (acceptedProofs.length === 1 || acceptedProofs.some(proof => proof.id === values.insuranceDocumentId));
+    (values.fuel || defaults.fuel).trim() && values.condition.trim() && values.recipient.trim() && selectedProof;
   const activationFeedback = handoffForm ? <div id={feedbackId} ref={handoffFeedback} tabIndex={-1} className={styles.activationFeedback}>
     {(coverageIssue || notice) ? <div role="alert">
-      <strong>{retryAvailable ? "Checkout status unconfirmed" : `${kind} activation hasn’t been saved`}</strong>
+      <strong>{retryAvailable ? "Checkout status unconfirmed" : coverageIssue ? "Resolve coverage before activation" : handoffAvailable ? `${kind} activation hasn’t been saved` : "Checkout paperwork needs attention"}</strong>
       <p>{retryAvailable ? notice : coverageIssue || notice}</p>
+      {!retryAvailable && coverageIssue && notice && notice !== coverageIssue && <p>{notice}</p>}
     </div> : !handoffAvailable && <p>Finalize the checkout packet to open the physical handoff step.</p>}
     {(coverageIssue || !values.insuranceValidUntil) && <>
-      {coverageIssue && <p>Use the end time on accepted proof that covers the full rental, or correct the due-back time if it was entered incorrectly.</p>}
-      <button type="button" onClick={() => focusCheckoutField(coverageId)}>Review coverage end time</button>
+      {!values.insuranceValidUntil && <p>Enter the coverage end time shown on the insurance proof before activating.</p>}
+      {coverageIssue && coverageEndAt && dueBackAt && Number.isFinite(coverageEndAt.getTime()) && Number.isFinite(dueBackAt.getTime()) && <p>Coverage ends {displayTime(coverageEndAt.toISOString())}. Due back {displayTime(dueBackAt.toISOString())}. Chicago time.</p>}
+      {coverageIssue && <p>Use the end time on proof that covers the full rental, or correct the due-back time if it was entered incorrectly.</p>}
+      {openCoverageRequirement && <a className={styles.rentalPrimary} href={dealDocumentHref(openCoverageRequirement, "insurance-proof")} target="_blank" rel="noopener noreferrer">Open insurance proof requirement</a>}
+      <button type="button" className={!openCoverageRequirement ? styles.rentalPrimary : undefined} onClick={() => focusCheckoutField(coverageId)}>Review coverage end time</button>
       {coverageIssue && <button type="button" onClick={() => focusCheckoutField(dueBackId)}>Review due-back time</button>}
-      {coverageIssue && agreementHref && <a href={agreementHref} target="_blank" rel="noopener noreferrer">Open insurance paperwork</a>}
+      {coverageProofHref && !openCoverageRequirement && <a href={coverageProofHref} target="_blank" rel="noopener noreferrer">{selectedProof ? "Open accepted insurance proof" : "Open insurance paperwork"}</a>}
     </>}
     {retryAvailable && <button type="button" disabled={busy} onClick={() => void save(true)}>Retry previous submission</button>}
   </div> : null;
@@ -449,6 +470,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
       {booking.returnedAt && ` · Returned ${displayTime(booking.returnedAt)}`}
       {" · Chicago time"}
     </p>}
+    {booking?.status === "CHECKED_OUT" && booking.checkedOutAt && <p className={styles.handoffConfirmation}>Activation saved · {displayTime(booking.checkedOutAt)} Chicago time.</p>}
     {!action && canShowActions && actions.includes("HANDOFF") && !model?.agreements.length && <>
       <p>{model ? "Finalize the signed checkout packet before handing over the vehicle." : "Save the shared customer and vehicle to load checkout requirements."}</p>
       {onNavigate && <div className={styles.rentalSteps}>
@@ -471,22 +493,22 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
         {["HANDOFF", "EXTEND", "RESERVE"].includes(action) && timeField("expectedReturnAt", "Due back (Chicago)", dueTime)}
         {(action === "HANDOFF" || action === "RETURN") && <>
           {timeField("occurredAt", action === "HANDOFF" ? "Actual checkout (Chicago)" : "Actual return (Chicago)")}
-          <label>Odometer<input type="number" min="0" value={values.odometer || (action === "HANDOFF" ? defaults.odometer : "")} onChange={event => update("odometer", event.target.value)} /></label>
-          <label>Fuel<input value={values.fuel || (action === "HANDOFF" ? defaults.fuel : "")} onChange={event => update("fuel", event.target.value)} /></label>
-          <label>Condition<textarea value={values.condition} onChange={event => update("condition", event.target.value)} /></label>
-          <label>{action === "HANDOFF" ? "Driver receiving the vehicle" : "Staff member receiving the vehicle"}<input value={values.recipient} onChange={event => update("recipient", event.target.value)} /></label>
+          <label>Odometer<input id={inputId("odometer")} type="number" min="0" value={values.odometer || (action === "HANDOFF" ? defaults.odometer : "")} onChange={event => update("odometer", event.target.value)} /></label>
+          <label>Fuel<input id={inputId("fuel")} value={values.fuel || (action === "HANDOFF" ? defaults.fuel : "")} onChange={event => update("fuel", event.target.value)} /></label>
+          <label>Condition<textarea id={inputId("condition")} value={values.condition} onChange={event => update("condition", event.target.value)} /></label>
+          <label>{action === "HANDOFF" ? "Driver receiving the vehicle" : "Staff member receiving the vehicle"}<input id={inputId("recipient")} value={values.recipient} onChange={event => update("recipient", event.target.value)} /></label>
           {(action === "RETURN" || historicalHandoff) && <label>{historicalHandoff ? "Dated handoff record" : "Return inspection record reference"}<textarea placeholder={historicalHandoff ? "Example: signed pickup record number and date" : "Example: return inspection report number"} value={values.evidence} onChange={event => update("evidence", event.target.value)} /></label>}
-          <label><input type="checkbox" checked={values.keysVerified} onChange={event => update("keysVerified", event.target.checked)} />Keys verified</label>
+          <label><input id={inputId("keys")} type="checkbox" checked={values.keysVerified} onChange={event => update("keysVerified", event.target.checked)} />Keys verified</label>
         </>}
         {action === "HANDOFF" && <>
-          {(model?.insuranceProofs?.length ?? 0) > 1 && <label>Insurance proof verified<select aria-label="Insurance proof verified" value={values.insuranceDocumentId} onChange={event => update("insuranceDocumentId", event.target.value)}>
+          {(model?.insuranceProofs?.length ?? 0) > 1 && <label>Insurance proof verified<select id={inputId("proof")} aria-label="Insurance proof verified" value={values.insuranceDocumentId} onChange={event => update("insuranceDocumentId", event.target.value)}>
             <option value="">Choose the proof you verified</option>
             {model?.insuranceProofs?.map(proof => <option key={proof.id} value={proof.id}>{proof.fileName}</option>)}
           </select></label>}
           {timeField("insuranceValidUntil", "Coverage ends (Chicago)")}
           <p>Use the end time on the accepted insurance proof. It must cover the full rental through the due-back time.</p>
-          <label><input type="checkbox" checked={values.insuranceVerified} onChange={event => update("insuranceVerified", event.target.checked)} />Insurance verified for this customer and vehicle</label>
-          <label><input type="checkbox" checked={values.driverVerified} onChange={event => update("driverVerified", event.target.checked)} />Driver verified</label>
+          <label><input id={inputId("insurance-verified")} type="checkbox" checked={values.insuranceVerified} onChange={event => update("insuranceVerified", event.target.checked)} />Insurance verified for this customer and vehicle</label>
+          <label><input id={inputId("driver")} type="checkbox" checked={values.driverVerified} onChange={event => update("driverVerified", event.target.checked)} />Driver verified</label>
           {needsHistoricalHandoff && (model?.canManageExceptions
             ? <label><input type="checkbox" checked={values.historicalHandoff} onChange={event => update("historicalHandoff", event.target.checked)} />Confirm checkout more than 24 hours ago from a dated record</label>
             : <p>Ask a manager to record checkout from more than 24 hours ago.</p>)}
@@ -515,7 +537,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
       {action === "HANDOFF" && packetChecklist && model?.agreementHref && !model.agreements.length && <RentalPacketChecklist
         id={checklistId} href={model.agreementHref} busy={busy} canFinalize={Boolean(model.vehicleReadiness?.eligible) && !stale && !retryAvailable}
         onFinalize={review => void finalizePacket(review)} onClose={() => setPacketChecklist(false)} refreshKey={packetRefresh}
-        activationFeedback={activationFeedback} activationFeedbackId={feedbackId}
+        activationFeedback={activationFeedback} activationFeedbackId={feedbackId} coverageBlocked={coverageBlocked}
       />}
       {(action === "HANDOFF" || action === "RESERVE") && readinessReview && <fieldset>
         <legend>Ready to rent without repairs</legend>
@@ -531,7 +553,11 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
         <label><input id={handoffId} type="checkbox" checked={values.physicalHandover} onChange={event => update("physicalHandover", event.target.checked)} />Vehicle physically handed over</label>
       </fieldset>}
       {(!packetChecklist || !checkoutBlocked) && activationFeedback}
-      {!checkoutBlocked && <button type="submit" className={styles.rentalPrimary} aria-describedby={handoffForm ? feedbackId : undefined} disabled={busy || !actions.includes(action) || stale || handoffForm && retryAvailable || action === "COMPLETE" && (!model?.packetClosed || !model.settlementReceiptOnFile && !values.settlementException)}>
+      {handoffAvailable && handoffCorrections.length > 0 && <div className={styles.checkoutBlocked}>
+        <strong>To activate</strong>
+        <ul aria-label="Items to complete before activation">{handoffCorrections.map(([message, id]) => <li key={id}><button type="button" onClick={() => focusCheckoutField(id)}>{message}</button></li>)}</ul>
+      </div>}
+      {!checkoutBlocked && <button type="submit" className={handoffForm && coverageBlocked ? undefined : styles.rentalPrimary} aria-describedby={handoffForm ? feedbackId : undefined} disabled={busy || !actions.includes(action) || stale || handoffForm && retryAvailable || action === "COMPLETE" && (!model?.packetClosed || !model.settlementReceiptOnFile && !values.settlementException)}>
         {busy ? "Saving…" : action === "HANDOFF" ? `Activate ${kind}` : action === "EXTEND" ? "Save new due-back time" : action === "CANCEL" ? "Confirm cancellation" : label(action)}
       </button>}
       {handoffForm && <button type="button" disabled={busy || saveState.busy || stale} onClick={() => void saveCheckoutDraft()}>Save checkout draft</button>}
