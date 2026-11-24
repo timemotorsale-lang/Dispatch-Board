@@ -10,7 +10,8 @@ import { normalizeVehicleUseCommand, vehicleUseOverlaps } from "@/lib/deal-conti
 import { createEnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { assertVehicleCapability, evaluateVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { validateRentalHandover } from "@/lib/rental-lifecycle";
-import { rentalOperationsSummary } from "@/lib/rental-operations";
+import { rentalActionHref, rentalOperationsSummary } from "@/lib/rental-operations";
+import { rentalCheckoutDefaults, rentalTimeChoices } from "@/lib/rental-checkout";
 import { legacyRentalReturnWithoutCompletion } from "./custody-selection";
 import { createManualTask } from "@/server/services/task-create-service";
 import { createTaskCreateRepository } from "@/server/repositories/task-create-repository";
@@ -32,16 +33,123 @@ function hasSettlementReceipt(snapshot: unknown) {
   return Array.isArray(documents) && documents.some(document => object(document).type === "return-receipt" && object(document).reviewed === true);
 }
 
-async function assertRentalCancellation(db: Tx, user: AuthenticatedUser, draft: { organizationId: string; pathway: string; dealNumber: number; snapshot: unknown }, noHandoffConfirmed: boolean) {
+type CancellationDraft = { organizationId: string; pathway: string; dealNumber: number; snapshot: unknown };
+
+function signedRentalCheckoutCount(db: Tx, draft: CancellationDraft) {
   const jacketId = text(object(object(draft.snapshot).jackets)[draft.pathway]);
-  const signedCheckout = await db.salesDocumentJacket.count({ where: {
+  return db.salesDocumentJacket.count({ where: {
     organizationId: draft.organizationId, pathway: draft.pathway,
     OR: [...(jacketId ? [{ id: jacketId }] : []), { dealNumber: String(draft.dealNumber) }],
     versions: { some: { phase: "CHECKOUT" } }
   } });
+}
+
+async function assertRentalCancellation(db: Tx, user: AuthenticatedUser, draft: CancellationDraft, noHandoffConfirmed: boolean) {
+  const signedCheckout = await signedRentalCheckoutCount(db, draft);
   if (!signedCheckout) return;
   if (!isManager(user)) throw new SalesDocumentsError("Ask a manager to confirm the vehicle was never handed over before cancelling this signed checkout.", 403);
   if (!noHandoffConfirmed) throw new SalesDocumentsError("Confirm from the custody records that the vehicle was never handed over.", 409);
+}
+
+function canReadContextDraft(user: AuthenticatedUser, draft: { ownerUserId: string }) {
+  return draft.ownerUserId === user.id || isManager(user);
+}
+
+function hasInactiveDraftStatus(status: string) {
+  return ["ARCHIVED", "CANCELLED", "LOST"].includes(status);
+}
+
+type ProposedCheckout = { startsAt: string | null; expectedReturnAt: string | null };
+type ConflictStatus = "RESERVED" | "CHECKED_OUT" | "RETURNED_REVIEW";
+type ConflictingAssignment = { status: ConflictStatus; dealHref: string | null; canCancel: boolean };
+
+function checkoutInstant(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function conflictWindow(context: Awaited<ReturnType<typeof contextFor>>, proposed?: ProposedCheckout) {
+  if (proposed && (proposed.startsAt !== null || proposed.expectedReturnAt !== null)) {
+    const startsAt = checkoutInstant(proposed.startsAt);
+    const dueAt = checkoutInstant(proposed.expectedReturnAt);
+    if (!startsAt || !dueAt || startsAt >= dueAt) throw new SalesDocumentsError("Enter a checkout and due-back time with a valid offset and the due-back after checkout.");
+    return { startsAt, dueAt };
+  }
+  const snapshot = object(context.draft.snapshot), pathway = context.draft.pathway;
+  const booking = rentalOperationsSummary(context.bookings, { pathway }).booking;
+  const scope = JSON.stringify([pathway, context.vehicleId, booking?.id, booking?.version]);
+  const checkout = [snapshot["desk:rentalCheckoutDraft"], snapshot[`${pathway}:rentalCheckoutDraft`]]
+    .map(object).find(saved => saved.scope === scope) ?? {};
+  const fields = object(checkout.fields), occurrences = object(checkout.occurrences);
+  function savedTime(value: unknown, occurrence?: unknown) {
+    const choices = rentalTimeChoices(text(value));
+    return choices.length === 1 ? choices[0] : occurrence === "first" ? choices[0] : occurrence === "second" ? choices[1] : undefined;
+  }
+  const defaults = rentalCheckoutDefaults(key => snapshot[key], pathway);
+  const startsAt = savedTime(fields.occurredAt, occurrences.occurredAt) ?? new Date();
+  const savedDue = checkout.hasDueBackOverride === true ? savedTime(fields.expectedReturnAt, occurrences.expectedReturnAt) : undefined;
+  const dueAt = savedDue ?? booking?.expectedReturnAt ?? savedTime(defaults.expectedReturnAt);
+  return { startsAt, dueAt: dueAt && dueAt > startsAt ? dueAt : new Date(startsAt.getTime() + 1) };
+}
+
+async function readConflictingAssignment(user: AuthenticatedUser, context: Awaited<ReturnType<typeof contextFor>>, vehicle: Awaited<ReturnType<typeof dealVehicle>>, proposed?: ProposedCheckout): Promise<ConflictingAssignment | null> {
+  const { startsAt, dueAt } = conflictWindow(context, proposed);
+  const candidates = await prisma.vehicleUseBooking.findMany({
+    where: {
+      organizationId: context.organizationId, vehicleId: vehicle.id, contextId: { not: context.id },
+      context: { organizationId: context.organizationId },
+      OR: [
+        { status: { in: ["CHECKED_OUT", "RETURNED_REVIEW"] } },
+        legacyRentalReturnWithoutCompletion,
+        { status: "RESERVED", startsAt: { lt: dueAt }, expectedReturnAt: { gt: startsAt } }
+      ]
+    },
+    select: {
+      status: true, checkedOutAt: true, returnedAt: true, agreementJacket: { select: { pathway: true } },
+      context: { select: {
+        customerId: true, vehicleId: true, sourceDraftId: true, sourceJacketId: true,
+        draft: { select: { id: true, organizationId: true, ownerUserId: true, dealNumber: true, pathway: true, status: true, snapshot: true } }
+      } }
+    },
+    orderBy: [{ startsAt: "asc" }, { id: "asc" }]
+  });
+  const rentals = candidates.filter(({ context: { draft }, agreementJacket }) =>
+    isRentalPathway(text(object(draft.snapshot)["desk:assignmentPathway"]) || agreementJacket?.pathway || draft.pathway));
+  const conflict = rentals.find(row => row.status === "CHECKED_OUT")
+    ?? rentals.find(row => row.status === "RETURNED_REVIEW" || row.status === "RETURNED")
+    ?? rentals[0];
+  if (!conflict) return null;
+
+  const status: ConflictStatus = conflict.status === "CHECKED_OUT" || conflict.status === "RESERVED" ? conflict.status : "RETURNED_REVIEW";
+  const hidden = { status, dealHref: null, canCancel: false };
+  const { draft, customerId, vehicleId, sourceDraftId, sourceJacketId } = conflict.context;
+  if (!canReadContextDraft(user, draft) || draft.organizationId !== dealDocumentOrganization() || vehicleId !== vehicle.id) return hidden;
+  // The cross-owner Deals view is available to managers for current rental and loaner pathways.
+  if (draft.ownerUserId !== user.id && !isRentalPathway(draft.pathway)) return hidden;
+  try {
+    await dealCustomer(user, customerId);
+    if (sourceDraftId || sourceJacketId) {
+      await resolveDealSource(user, { sourceDraftId: sourceDraftId ?? undefined, sourceJacketId: sourceJacketId ?? undefined });
+    }
+  } catch (error) {
+    if (error instanceof SalesDocumentsError && [403, 404].includes(error.status)) return hidden;
+    throw error;
+  }
+  let canCancel = false;
+  const actionPathway = text(object(draft.snapshot)["desk:assignmentPathway"]) || draft.pathway;
+  if (status === "RESERVED" && !conflict.checkedOutAt && !conflict.returnedAt && !hasInactiveDraftStatus(draft.status) && isRentalPathway(actionPathway)) {
+    const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, context.organizationId);
+    canCancel = evaluateVehicleCapability({ actor: user, capability: "COMMERCIAL_HANDOFF_MANAGE", grants, locationId: vehicle.locationId }).allowed
+      && (isManager(user) || !await signedRentalCheckoutCount(prisma, { ...draft, pathway: actionPathway }));
+  }
+  const canResolveCustody = isRentalPathway(actionPathway) && (!hasInactiveDraftStatus(draft.status) || isManager(user));
+  const destination = canCancel ? "CANCEL"
+    : canResolveCustody && status === "CHECKED_OUT" && conflict.checkedOutAt ? "RETURN"
+    : canResolveCustody && status === "RETURNED_REVIEW" && conflict.checkedOutAt && conflict.returnedAt ? "COMPLETE"
+    : null;
+  const dealHref = destination ? rentalActionHref(draft.id, destination) : `/crm-next/deals/start?${new URLSearchParams({ draftId: draft.id, rentalAction: "REVIEW" })}`;
+  return { status, dealHref, canCancel };
 }
 
 export async function resolveDealSource(actor: AuthenticatedUser | null, source: { sourceDraftId?: string; sourceJacketId?: string }, db: Tx = prisma) {
@@ -92,11 +200,11 @@ export async function contextFor(actor: AuthenticatedUser | null, id: string, db
   const user = requireOwnDealUser(actor);
   const context = await db.dealWorkflowContext.findFirst({ where: { id, organizationId: dealOrganization() }, include: { draft: true, bookings: { orderBy: { createdAt: "desc" } } } });
   if (!context) throw new SalesDocumentsError("Save a deal with its shared customer and vehicle first.", 404);
-  if (context.draft.ownerUserId !== user.id && !isManager(user)) throw new SalesDocumentsError("This deal is outside your authorized scope.", 403);
+  if (!canReadContextDraft(user, context.draft)) throw new SalesDocumentsError("This deal is outside your authorized scope.", 403);
   await dealCustomer(actor, context.customerId, db);
   return context;
 }
-export async function readDealContinuity(actor: AuthenticatedUser | null, id: string) {
+export async function readDealContinuity(actor: AuthenticatedUser | null, id: string, proposed?: ProposedCheckout) {
   const user = requireOwnDealUser(actor);
   const context = await contextFor(actor, id).catch(error => {
     if (error instanceof SalesDocumentsError && error.status === 404) return null;
@@ -111,7 +219,7 @@ export async function readDealContinuity(actor: AuthenticatedUser | null, id: st
     const events = (Array.isArray(draft.statusHistory) ? draft.statusHistory : []).map(object)
       .filter(event => event.action === "RENTAL_DRAFT_CANCELLED")
       .map(event => ({ id: String(event.operationKey), action: "RENTAL_DRAFT_CANCELLED", occurredAt: String(event.at), actorUserId: String(event.actorId), result: { audit: { reason: String(event.reason) } } }));
-    return { agreements: [], agreementHref: agreementId ? `/sales-documents?jacketId=${encodeURIComponent(agreementId)}` : null, id, customerId: draft.customerId, vehicleId: null, source: null, bookings: [], packetClosed: false, settlementReceiptOnFile: false, canManageExceptions: isManager(user), draftStatus: draft.status, events };
+    return { agreements: [], agreementHref: agreementId ? `/sales-documents?jacketId=${encodeURIComponent(agreementId)}` : null, id, customerId: draft.customerId, vehicleId: null, conflictingAssignment: null, source: null, bookings: [], packetClosed: false, settlementReceiptOnFile: false, canManageExceptions: isManager(user), draftStatus: draft.status, events };
   }
   const source = context.sourceDraftId || context.sourceJacketId ? await resolveDealSource(actor, { sourceDraftId: context.sourceDraftId ?? undefined, sourceJacketId: context.sourceJacketId ?? undefined }) : null;
   const jacketIds = object(context.draft.snapshot).jackets;
@@ -126,19 +234,22 @@ export async function readDealContinuity(actor: AuthenticatedUser | null, id: st
   const latest = rentalOperationsSummary(context.bookings, { pathway: context.draft.pathway }).booking;
   const returnPacket = latest?.agreementJacketId ? await readReturnPacket(prisma, latest.agreementJacketId) : null;
   const linkedJacketId = latest?.agreementJacketId ?? agreementId;
-  const readiness = vehicle && isRentalPathway(context.draft.pathway) ? await readRentalReadiness(prisma, context, vehicle) : null;
+  const [readiness, conflictingAssignment] = vehicle && isRentalPathway(context.draft.pathway) ? await Promise.all([
+    readRentalReadiness(prisma, context, vehicle),
+    readConflictingAssignment(user, context, vehicle, proposed)
+  ]) : [null, null];
   const canConfirmReadiness = readiness?.review && (evaluateVehicleCapability({
     actor: user, capability: "INVENTORY_READINESS_VERIFY", locationId: vehicle!.locationId, now: new Date(),
     grants: await createEnterpriseCommandRepository().listCapabilityGrants(user.id, context.organizationId)
   }).allowed);
-  const isActiveDraft = !["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status);
+  const isActiveDraft = !hasInactiveDraftStatus(context.draft.status);
   const vehicleReadiness = readiness ? {
     ...readiness,
     detail: readiness.review && !canConfirmReadiness ? "Ask someone with inventory readiness permission to confirm the vehicle is ready to rent" : readiness.detail,
     review: canConfirmReadiness && isActiveDraft ? readiness.review : null
   } :
     vehicle && { eligible: vehicle.eligibleForUse, detail: vehicle.availability, inventoryUnitId: vehicle.inventoryUnitId, review: null };
-  return { agreements, insuranceProofs, agreementHref: linkedJacketId ? `/sales-documents?jacketId=${encodeURIComponent(linkedJacketId)}` : null, id: context.id, customerId: context.customerId, vehicleId: context.vehicleId, vehicleReadiness, source, bookings: context.bookings, packetClosed: Boolean(returnPacket), settlementReceiptOnFile: hasSettlementReceipt(returnPacket?.snapshot), canManageExceptions: isManager(actor), draftStatus: context.draft.status, events: await prisma.dealContinuityEvent.findMany({ where: { contextId: id, organizationId: context.organizationId }, orderBy: { occurredAt: "desc" }, take: 30 }) };
+  return { agreements, insuranceProofs, agreementHref: linkedJacketId ? `/sales-documents?jacketId=${encodeURIComponent(linkedJacketId)}` : null, id: context.id, customerId: context.customerId, vehicleId: context.vehicleId, vehicleReadiness, conflictingAssignment, source, bookings: context.bookings, packetClosed: Boolean(returnPacket), settlementReceiptOnFile: hasSettlementReceipt(returnPacket?.snapshot), canManageExceptions: isManager(actor), draftStatus: context.draft.status, events: await prisma.dealContinuityEvent.findMany({ where: { contextId: id, organizationId: context.organizationId }, orderBy: { occurredAt: "desc" }, take: 30 }) };
 }
 
 async function confirmRentalReadiness(user: AuthenticatedUser, id: string, raw: Record<string, unknown>) {
@@ -215,7 +326,7 @@ export async function executeVehicleUse(actor: AuthenticatedUser | null, id: str
     if (prior) { if (prior.requestHash !== requestHash || prior.contextId !== id) throw new SalesDocumentsError("This request reference belongs to different work.", 409); return { duplicate: true, result: prior.result }; }
     const rental = isRentalPathway(workflowPathway);
     const managerRecovery = rental && isManager(user) && ["RETURN", "COMPLETE"].includes(data.action);
-    if (["ARCHIVED", "CANCELLED", "LOST"].includes(context.draft.status) && !managerRecovery) throw new SalesDocumentsError("Ask a manager to reconcile the vehicle custody on this inactive deal.", 409);
+    if (hasInactiveDraftStatus(context.draft.status) && !managerRecovery) throw new SalesDocumentsError("Ask a manager to reconcile the vehicle custody on this inactive deal.", 409);
     if (!["vehicle-loaner", "daily-rental", "test-drive"].includes(workflowPathway)) throw new SalesDocumentsError("Reserve temporary use from a loaner, rental or test-drive path.");
     if (workflowPathway === "test-drive" && data.action === "HANDOFF") throw new SalesDocumentsError("Use the guided Test Drive release checklist to verify the current agreement and evidence.");
     if (!context.vehicleId) throw new SalesDocumentsError("Select the actual temporary vehicle first.");

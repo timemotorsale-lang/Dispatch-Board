@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { DealDraftWorkspace, DealDraftScope, useDealDraft, useDealSaveState, useDealDraftState, useArchivedDealPacket } from "./deal-draft-workspace";
 import { openPrintablePdfDocument } from "@/lib/printable-pdf";
 import { PacketFeedback, goToDealBlocker } from "./deal-packet-feedback";
+import { isTemporaryVehicleConflict, RentalVehicleConflictActions, type ConflictingRentalAssignment } from "./rental-vehicle-conflict";
 import { packetCorrection, requestContractPacket } from "@/lib/deal-packet-feedback";
 import { CrmNextVinDecoder, type VinDecoderHandle } from "./crm-next-vin-decoder";
 import { RentalPhotoCapture } from "./rental-photo-capture";
@@ -1462,6 +1463,7 @@ function DailyRentalExecutionDesk({
   onCustomerNameChange,
   onSaveDraft,
   onChooseVehicle,
+  onChooseDifferentVehicle,
   onVehicleChange,
   statusKind,
   vehicle
@@ -1477,6 +1479,7 @@ function DailyRentalExecutionDesk({
   onCustomerNameChange?: (value: string) => void;
   onSaveDraft: () => void;
   onChooseVehicle: (vehicle: DealVehicleChoice) => void;
+  onChooseDifferentVehicle: () => void;
   onVehicleChange: (value: string) => void;
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
@@ -1496,6 +1499,7 @@ function DailyRentalExecutionDesk({
   const [preparedForms, setPreparedForms] = useDealDraftState<string[]>("preparedForms", []);
   const [contractPacket, setContractPacket] = useArchivedDealPacket<GeneratedContractPacket>();
   const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetConflict, setPacketConflict] = useState<ConflictingRentalAssignment | null>(null);
   const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
@@ -1759,10 +1763,25 @@ function DailyRentalExecutionDesk({
   const identityDraft = useDealDraft();
   async function generateRentalPacket() {
     if (identityDraft && !await identityDraft.save()) return;
+    setPacketConflict(null);
     setPacketStatus({ kind: "generating", message: `Generating and archiving ${workflowNoun} packet...` });
+    const documentContext = getDocumentContext();
+    let packetVehicle = linkedVehicle;
+    if (documentContext.vehicleId && packetVehicle?.id !== documentContext.vehicleId) {
+      try {
+        const selected = await fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(documentContext.vehicleId)}`, { cache: "no-store" });
+        const saved = await selected.json();
+        if (!selected.ok) throw new Error(saved.error || "The saved vehicle could not be opened.");
+        packetVehicle = saved as DealVehicleChoice;
+      } catch (error) {
+        setPacketStatus({ kind: "error", message: error instanceof Error ? error.message : "Open the shared vehicle and try again." });
+        return;
+      }
+    }
     const response = await requestContractPacket({
       body: JSON.stringify({
-        ...getDocumentContext(),
+        ...documentContext,
+        ...(packetVehicle ? { vin: packetVehicle.vin, stockNumber: packetVehicle.stockNumber } : {}),
         customerName,
         dailyRental: {
           ...rentalFacts,
@@ -1782,13 +1801,13 @@ function DailyRentalExecutionDesk({
         preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredRentalForms,
         salePrice: formatCurrency(estimatedRentalCents),
         vehicle: {
-          color: vehicleFacts.color,
-          make: vehicleFacts.make,
-          model: vehicleFacts.model,
-          stockNumber: vehicleFacts.stockNumber,
+          color: packetVehicle?.color || vehicleFacts.color,
+          make: packetVehicle?.make || vehicleFacts.make,
+          model: packetVehicle?.model || vehicleFacts.model,
+          stockNumber: packetVehicle?.stockNumber || vehicleFacts.stockNumber,
           trim: vehicleFacts.trim,
-          vin: vehicleFacts.vin,
-          year: vehicleFacts.year
+          vin: packetVehicle?.vin || vehicleFacts.vin,
+          year: packetVehicle?.year || vehicleFacts.year
         }
       }),
       headers: { "content-type": "application/json" },
@@ -1796,7 +1815,13 @@ function DailyRentalExecutionDesk({
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : `${workflowTitle} packet could not be generated.` });
+      const message = typeof payload.error === "string" ? payload.error : `${workflowTitle} packet could not be generated.`;
+      setPacketStatus({ kind: "error", message });
+      if (identityDraft && isTemporaryVehicleConflict(message)) {
+        const assignment = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(identityDraft.draftId())}`, { cache: "no-store" })
+          .then(async result => result.ok ? await result.json() as { conflictingAssignment?: ConflictingRentalAssignment } : null).catch(() => null);
+        setPacketConflict(assignment?.conflictingAssignment ?? null);
+      }
       return;
     }
     const generatedPacket = payload as GeneratedContractPacket;
@@ -1884,7 +1909,7 @@ function DailyRentalExecutionDesk({
         {registryCheck?.vin === vehicleFacts.vin.toUpperCase() && linkedVehicle?.vin !== registryCheck.vin && <div>
           <p role="status">{registryCheck.status === "checking" ? "Checking the vehicle registry…" : registryCheck.status === "error" ? "The registry could not be checked. Use Find vehicle before adding another record." : registryCheck.status === "found" ? "This VIN is registered. Select the existing vehicle for this rental." : "No active registry vehicle matched this VIN. Register it before assigning it to the rental."}</p>
           {registryCheck.status !== "checking" && <button type="button" onClick={() => setShowRegistryPicker(true)}>{registryCheck.status === "missing" ? "Register this VIN" : "Find vehicle in registry"}</button>}
-          {showRegistryPicker && registryCheck.status !== "checking" && <SharedDealVehiclePicker key={registryCheck.vin} initialQuery={registryCheck.vin} startAdding={registryCheck.status === "missing"} label="Rental vehicle" onSelect={selected => { onChooseVehicle(selected); setShowRegistryPicker(false); }} />}
+          {showRegistryPicker && registryCheck.status !== "checking" && <SharedDealVehiclePicker key={registryCheck.vin} initialQuery={registryCheck.vin} startAdding={registryCheck.status === "missing"} label={isLoaner ? "Loaner vehicle" : "Rental vehicle"} temporaryUse onSelect={selected => { onChooseVehicle(selected); setShowRegistryPicker(false); }} />}
         </div>}
       </section>
 
@@ -2080,6 +2105,10 @@ function DailyRentalExecutionDesk({
                 <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
               </div>
               <PacketFeedback status={packetStatus} closeDrawer={() => setPacketDrawerOpen(false)}><SavedPacketLink packet={contractPacket} /></PacketFeedback>
+              {packetStatus.kind === "error" && isTemporaryVehicleConflict(packetStatus.message) && <RentalVehicleConflictActions conflict={packetConflict} onChooseVehicle={() => {
+                setPacketDrawerOpen(false);
+                onChooseDifferentVehicle();
+              }} />}
               {contractPacket ? (
                 <div className={styles.retailPacketArchive} aria-label="Generated rental packet archive">
                   <div>
@@ -4741,7 +4770,7 @@ function DealStartDesk({
     return () => controller.abort();
   }, [identity.vehicleId, setIdentity, setForm]);
   useEffect(() => {
-    if (workflowId !== "bhph" || !identity.vehicleId) return;
+    if ((workflowId !== "bhph" && workflowId !== "daily-rental" && workflowId !== "vehicle-loaner") || !identity.vehicleId) return;
     const controller = new AbortController(), vehicleId = identity.vehicleId;
     void fetch(`/api/crm/v1/deal-identities?type=vehicle&id=${encodeURIComponent(vehicleId)}`, { signal: controller.signal, cache: "no-store" }).then(async response => {
       const vehicle = await response.json();
@@ -4803,8 +4832,8 @@ function DealStartDesk({
         const response = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(savedDeal.draftId())}`, { cache: "no-store" });
         const result = await response.json();
         if (!response.ok && response.status !== 404) throw new Error(result.error || "Recheck the current assignment before changing vehicle.");
-        if (result.bookings?.some((booking: { status: string }) => ["RESERVED", "CHECKED_OUT"].includes(booking.status))) {
-          setSourceError("Return or cancel the current vehicle assignment before changing its vehicle. Your existing selection is unchanged.");
+        if (result.bookings?.some((booking: { status: string }) => ["RESERVED", "CHECKED_OUT", "RETURNED_REVIEW"].includes(booking.status))) {
+          setSourceError("Cancel the unused reservation or complete the current vehicle return review before choosing another vehicle.");
           return;
         }
       } catch (error) { setSourceError(error instanceof Error ? error.message : "The current assignment could not be checked."); return; }
@@ -5032,7 +5061,7 @@ function DealStartDesk({
     <div ref={identityPanel} role="group" aria-label="Choose customer and vehicle" tabIndex={-1} data-deal-workspace-section="identity" hidden={!testDriveWorkflow && workspaceSection !== "identity"}>
       <div className={identityStyles.identityGrid}>
         <div ref={repairCustomerRef}><SharedDealCustomerPicker initialCustomerList={initialCustomerList} selected={selectedCustomer} initialItems={customerChoices} onSelect={customer => void chooseSharedCustomer(customer)} /></div>
-        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} /></div>
+        <div ref={repairVehicleRef}><SharedDealVehiclePicker selected={identity.vehicle} onSelect={chooseSharedVehicle} label={rentalLikeWorkflow ? "Temporary vehicle" : "Vehicle"} temporaryUse={rentalLikeWorkflow} /></div>
       </div>
     </div>
   );
@@ -5420,6 +5449,7 @@ function DealStartDesk({
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
                 onChooseVehicle={chooseSharedVehicle}
+                onChooseDifferentVehicle={() => navigateWorkspace("identity")}
                 onVehicleChange={(value) => update("vehicle", value)}
                 statusKind={status.kind}
                 vehicle={form.vehicle}

@@ -326,6 +326,35 @@ test("confirms rental readiness without recon, then saves routine handoff", asyn
     await activity.getByText("Connect to Claims Desk", { exact: true }).click();
     await activity.getByRole("button", { name: "Start internal claim intake" }).click();
     await expect(activity.getByRole("link", { name: "Open linked claim" })).toHaveAttribute("href", /^\/vehicles\/claims-workspace\?claimId=/);
+
+    const loanerId = randomUUID();
+    const loaner = await page.request.post("/api/crm/v1/deal-drafts", { data: {
+      id: loanerId, revision: 0, pathway: "vehicle-loaner", customerName: name, customerId: customer.id, vehicleReference: vehicle.vin,
+      snapshot: { ...snapshot, "desk:workflowId": "vehicle-loaner" }
+    } });
+    expect(loaner.ok(), await loaner.text()).toBe(true);
+    await page.goto(`/crm-next/deals/start?draftId=${loanerId}&rentalAction=HANDOFF#rental-checkout`);
+    const loanerCheckout = page.getByRole("region", { name: "Loaner checkout and return" });
+    await loanerCheckout.getByRole("button", { name: "Prepare checkout packet" }).click();
+    const loanerDrawer = page.getByRole("complementary", { name: "Vehicle loaner packet drawer" });
+    const generatedLoaner = page.waitForRequest(request => request.url().endsWith("/contract-packets") && request.method() === "POST");
+    await loanerDrawer.getByRole("button", { name: "Generate loaner packet" }).click();
+    expect((await generatedLoaner).postDataJSON()).toMatchObject({ workflowContextId: loanerId, pathway: "vehicle-loaner", customerId: customer.id, vehicle: { vin: vehicle.vin } });
+    await expect(loanerDrawer.getByRole("alert")).toContainText(/checked out on another assignment/i);
+    await expect(loanerDrawer.getByRole("link", { name: "Open other assignment to review return" })).toHaveAttribute("href", new RegExp(`draftId=${id}.*rentalAction=RETURN`));
+    await expect(loanerDrawer.getByRole("link", { name: "Review and cancel reservation" })).toHaveCount(0);
+    await loanerDrawer.getByRole("button", { name: "Choose a different vehicle" }).click();
+    await expect(loanerDrawer).toHaveCount(0);
+    const picker = page.getByRole("region", { name: "Shared temporary vehicle selector" });
+    const replacementId = randomUUID();
+    const replacementVin = `1${replacementId.replaceAll("-", "").slice(0, 16).toUpperCase()}`;
+    const replacement = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: replacementId, vin: replacementVin, vinState: "VALID", vinValidationSource: "ISOLATED_FIXTURE" } });
+    await picker.getByRole("textbox", { name: "Search shared temporary vehicles" }).fill(replacementVin);
+    await picker.getByRole("button", { name: "Find vehicle", exact: true }).click();
+    page.once("dialog", dialog => dialog.accept());
+    await picker.getByRole("list").getByRole("button", { name: new RegExp(replacementVin) }).click();
+    await expect.poll(async () => (await prisma.dealWorkflowContext.findUnique({ where: { draftId: loanerId } }))?.vehicleId).toBe(replacement.id);
+    expect(await prisma.vehicleUseBooking.count({ where: { contextId: id, status: "CHECKED_OUT" } })).toBe(1);
   } finally {
     await prisma.$disconnect();
   }
@@ -353,7 +382,7 @@ test("Inventory Intake shows why save is blocked next to the buttons and saves a
     const vehicle = await prisma.vehicle.create({ data: { organizationId, vehicleNumber: id, vin, vinState: "VALID", vinValidationSource: "ISOLATED_FIXTURE", year: 2003, make: "Honda", model: "Accord" } });
     const customer = await prisma.customer.create({ data: { organizationId, customerNumber: id, displayName: "Synthetic intake test" } });
     const saved = await page.request.post("/api/crm/v1/deal-drafts", { data: {
-      id, revision: 0, pathway: "daily-rental", customerId: customer.id, customerName: customer.displayName, vehicleReference: vin,
+      id, revision: 0, pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.displayName, vehicleReference: vin,
       snapshot: { "desk:identity": { customerId: customer.id, vehicleId: vehicle.id } }
     } });
     expect(saved.ok()).toBe(true);
@@ -391,6 +420,9 @@ test("Inventory Intake shows why save is blocked next to the buttons and saves a
     const stored = await intake.request.get(`/api/inventory-units/compact-intake?vehicleId=${vehicle.id}`);
     expect(await stored.json()).toMatchObject({ details: { condition: "GOOD", purchaseCents: 1200000 } });
     expect(await prisma.inventoryUnit.count({ where: { vehicleId: vehicle.id } })).toBe(1);
+    const inventorySearch = await intake.request.get(`/api/inventory-units?query=${encodeURIComponent(`2003 Honda Accord ${vin}`)}`);
+    expect(inventorySearch.ok()).toBe(true);
+    expect((await inventorySearch.json()).items).toEqual([expect.objectContaining({ vehicle: expect.objectContaining({ id: vehicle.id }) })]);
     await footer.getByRole("button", { name: "Save & Open Selling Workbench", exact: true }).click();
     await expect(intake).toHaveURL(`/vehicles/${vehicle.id}/frontline`);
     expect(await prisma.inventoryUnit.count({ where: { vehicleId: vehicle.id } })).toBe(1);

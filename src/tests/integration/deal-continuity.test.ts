@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { rentalLocalTime } from "@/lib/rental-checkout";
 import { SALES_DOCUMENT_PATHWAYS } from "@/lib/sales-document-pathways";
 
 describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated shared deal continuity", () => {
@@ -59,6 +60,41 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
       booking = await prisma.vehicleUseBooking.findFirstOrThrow({ where: { contextId: loaner.id, status: "RESERVED" } });
     }
     expect(await executeVehicleUse(actor, loaner.id, reserve)).toMatchObject({ duplicate: true });
+    const proposed = { startsAt, expectedReturnAt };
+    const laterWindow = {
+      startsAt: expectedReturnAt,
+      expectedReturnAt: new Date(Date.parse(expectedReturnAt) + 3600000).toISOString()
+    };
+    const conflictHref = (action: string) => `/crm-next/deals/start?draftId=${loaner.id}&rentalAction=${action}#rental-checkout`;
+    expect((await readDealContinuity(actor, loaner.id, proposed)).conflictingAssignment).toBeNull();
+    expect((await readDealContinuity(actor, competitor.id, proposed)).conflictingAssignment).toEqual({ status: "RESERVED", canCancel: true, dealHref: conflictHref("CANCEL") });
+    expect((await readDealContinuity(actor, competitor.id, laterWindow)).conflictingAssignment).toBeNull();
+    const competitorIdentity = { customerId: customer.id, vehicleId: temporary.id };
+    const [competitorBooking] = (await readDealContinuity(actor, competitor.id)).bookings;
+    const savedCheckout = {
+      scope: JSON.stringify(["daily-rental", temporary.id, competitorBooking?.id, competitorBooking?.version]),
+      hasDueBackOverride: true,
+      fields: {
+        occurredAt: rentalLocalTime(new Date(Date.parse(laterWindow.startsAt) + 1800000)),
+        expectedReturnAt: rentalLocalTime(laterWindow.expectedReturnAt)
+      }
+    };
+    await prisma.dealDeskDraft.update({ where: { id: competitor.id }, data: { snapshot: {
+      "desk:identity": competitorIdentity,
+      "desk:rentalCheckoutDraft": savedCheckout,
+      "daily-rental:rentalCheckoutDraft": {
+        ...savedCheckout, fields: { occurredAt: rentalLocalTime(startsAt), expectedReturnAt: rentalLocalTime(expectedReturnAt) }
+      }
+    } } });
+    expect((await readDealContinuity(actor, competitor.id)).conflictingAssignment).toBeNull();
+    expect((await readDealContinuity(actor, competitor.id, proposed)).conflictingAssignment?.dealHref).toBe(conflictHref("CANCEL"));
+    await expect(readDealContinuity(actor, competitor.id, { startsAt: "2026-11-23T10:00", expectedReturnAt })).rejects.toMatchObject({ status: 400 });
+    const otherStaff: AuthenticatedUser = { ...actor, id: `${prefix}-other`, roles: ["Salesperson"], email: `${prefix}-other@example.test` };
+    await prisma.user.create({ data: { id: otherStaff.id, name: otherStaff.name, email: otherStaff.email, passwordHash: "NON_LOGIN_TEST_FIXTURE" } });
+    await prisma.customer.update({ where: { id: customer.id }, data: { ownerUserId: otherStaff.id } });
+    await prisma.dealDeskDraft.update({ where: { id: competitor.id }, data: { ownerUserId: otherStaff.id } });
+    expect((await readDealContinuity(otherStaff, competitor.id, proposed)).conflictingAssignment).toEqual({ status: "RESERVED", canCancel: false, dealHref: null });
+    await expect(readDealContinuity(otherStaff, loaner.id)).rejects.toMatchObject({ status: 403 });
     await expect(executeVehicleUse(actor, loaner.id, { ...reserve, reason: "Different retry payload" })).rejects.toMatchObject({ status: 409 });
     await expect(saveDealDeskDraft(actor, { id: loaner.id, revision: loaner.revision, pathway: "vehicle-loaner", customerId: customer.id, customerName: customer.name, vehicleReference: original.stockNumber, snapshot: { "desk:identity": { customerId: customer.id, vehicleId: original.id } } })).rejects.toMatchObject({ status: 409 });
     await expect(dealCustomer({ ...actor, roles: ["Salesperson"], id: "unrelated-user" }, customer.id)).rejects.toBeDefined();
@@ -83,15 +119,19 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
     const duplicateHandoffs = await Promise.all([executeVehicleUse(actor, loaner.id, handoff), executeVehicleUse(actor, loaner.id, handoff)]);
     expect(duplicateHandoffs.map(result => result.duplicate).sort()).toEqual([false, true]);
     expect((await dealVehicle(actor, temporary.id)).availability).toContain("Loaner Active");
+    expect((await readDealContinuity(actor, competitor.id, laterWindow)).conflictingAssignment).toEqual({ status: "CHECKED_OUT", canCancel: false, dealHref: conflictHref("RETURN") });
+    expect((await readDealContinuity(otherStaff, competitor.id)).conflictingAssignment).toEqual({ status: "CHECKED_OUT", canCancel: false, dealHref: null });
     await expect(validateDealDocumentContext(actor, { workflowContextId: competitor.id, customerId: customer.id, customerName: customer.name, pathway: "daily-rental", vehicle: { vin: temporary.vin } })).rejects.toThrow("checked out");
     booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
     expect(booking).toMatchObject({ startsAt: new Date(startsAt), checkedOutAt: new Date(handoff.occurredAt), departureSnapshot: { historicalHandoff: true, recordedBy: actor.id } });
+    await expect(executeVehicleUse(actor, loaner.id, { action: "CANCEL", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, reason: "Try to cancel after handoff" })).rejects.toThrow("actual custody");
     await expect(executeVehicleUse(actor, loaner.id, { ...actual, action: "RETURN", operationKey: randomUUID(), expectedVersion: booking.version, odometer: 9000 })).rejects.toThrow("lower");
     await executeVehicleUse(actor, loaner.id, { action: "EXTEND", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, expectedReturnAt: new Date(Date.now() + 2 * 86400000).toISOString(), reason: "Original delivery remains pending" });
     booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
     await executeVehicleUse(actor, loaner.id, { ...actual, action: "RETURN", operationKey: randomUUID(), expectedVersion: booking.version, odometer: 10050, occurredAt: new Date().toISOString() });
     booking = await prisma.vehicleUseBooking.findUniqueOrThrow({ where: { id: booking.id } });
     expect(booking.status).toBe("RETURNED_REVIEW");
+    expect((await readDealContinuity(actor, competitor.id, laterWindow)).conflictingAssignment).toEqual({ status: "RETURNED_REVIEW", canCancel: false, dealHref: conflictHref("COMPLETE") });
     expect((await dealVehicle(actor, temporary.id)).availability).toMatch(/pending|review/i);
     await expect(changeDealPathway(actor, { id: loaner.id, pathway: "retail-sale", revision: loaner.revision })).rejects.toMatchObject({ status: 409 });
     const completion = { action: "COMPLETE", operationKey: randomUUID(), bookingId: booking.id, expectedVersion: booking.version, reason: "Return inspection completed and no charges due", inspected: true, settlementReference: "ISOLATED_NO_CHARGE_RECEIPT" };
@@ -102,12 +142,27 @@ describe.skipIf(process.env.RUN_DEAL_CONTINUITY_INTEGRATION !== "1")("isolated s
       executeVehicleUse(actor, loaner.id, { ...completion, operationKey: randomUUID() })
     ]);
     expect(concurrentCompletions.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect((await readDealContinuity(actor, competitor.id, proposed)).conflictingAssignment).toBeNull();
     expect(await prisma.vehicleUseBooking.findUnique({ where: { id: booking.id } })).toMatchObject({
       status: "RETURNED", returnSnapshot: { odometer: 10050, completion: { settlementReference: completion.settlementReference } }
     });
     expect(await prisma.dealContinuityEvent.count({ where: { bookingId: booking.id, action: "COMPLETE" } })).toBe(1);
     expect(await prisma.vehicleCustodyEvent.count({ where: { vehicleId: temporary.id, sourceReference: booking.id } })).toBe(2);
     expect(await prisma.vehicleOdometerObservation.count({ where: { vehicleId: temporary.id, sourceReference: booking.id } })).toBe(2);
+    const nextRental = await saveDealDeskDraft(actor, { id: randomUUID(), revision: 0, pathway: "daily-rental", customerId: customer.id, customerName: customer.name, vehicleReference: temporary.stockNumber, snapshot: { "desk:identity": competitorIdentity } });
+    await executeVehicleUse(actor, nextRental.id, { ...reserve, operationKey: randomUUID() });
+    const nextReservation = await prisma.vehicleUseBooking.findFirstOrThrow({ where: { contextId: nextRental.id, status: "RESERVED" } });
+    expect((await readDealContinuity(actor, loaner.id, proposed)).conflictingAssignment).toMatchObject({ status: "RESERVED", canCancel: true });
+    await prisma.dealDeskDraft.update({ where: { id: nextRental.id }, data: { ownerUserId: otherStaff.id } });
+    expect((await readDealContinuity(otherStaff, competitor.id, proposed)).conflictingAssignment).toEqual({
+      status: "RESERVED", canCancel: false, dealHref: `/crm-next/deals/start?draftId=${nextRental.id}&rentalAction=REVIEW`
+    });
+    await prisma.vehicleCapabilityGrant.create({ data: { organizationId, locationId: location.id, userId: otherStaff.id, capability: "COMMERCIAL_HANDOFF_MANAGE", constraints: {} } });
+    expect((await readDealContinuity(otherStaff, competitor.id, proposed)).conflictingAssignment).toEqual({
+      status: "RESERVED", canCancel: true, dealHref: `/crm-next/deals/start?draftId=${nextRental.id}&rentalAction=CANCEL#rental-checkout`
+    });
+    await executeVehicleUse(actor, nextRental.id, { action: "CANCEL", operationKey: randomUUID(), bookingId: nextReservation.id, expectedVersion: nextReservation.version, reason: "Cancel the test reservation before handoff" });
+    expect((await readDealContinuity(actor, loaner.id, proposed)).conflictingAssignment).toBeNull();
     expect(JSON.stringify(await prisma.dealDeskDraft.findUnique({ where: { id: originalDraft.id } }))).toBe(originalBefore);
     const converted = await changeDealPathway(actor, { id: loaner.id, pathway: "retail-sale", revision: loaner.revision, reason: "Separate sale after completing vehicle use" });
     expect(converted.pathway).toBe("retail-sale");

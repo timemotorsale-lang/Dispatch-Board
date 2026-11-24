@@ -10,10 +10,12 @@ import { validateRentalCoverage } from "@/lib/rental-lifecycle";
 import { SALES_DOCUMENT_CHECKOUT_FINALIZED } from "@/lib/sales-document-pathways";
 import { useDealDraft, useDealDraftState, useDealSaveState } from "./deal-draft-workspace";
 import { finalizeCheckoutReview, RentalPacketChecklist, type CheckoutPacketReview } from "./rental-packet-checklist";
+import { isTemporaryVehicleConflict, RentalVehicleConflictActions, type ConflictingRentalAssignment } from "./rental-vehicle-conflict";
 import styles from "./shared-deal-identities.module.css";
 
 type RentalAction = "RESERVE" | "HANDOFF" | "RETURN" | "EXTEND" | "COMPLETE" | "CANCEL";
 type Model = {
+  conflictingAssignment?: ConflictingRentalAssignment | null;
   agreements: { id: string; dealNumber: string }[];
   agreementHref: string | null;
   insuranceProofs?: Array<{ id: string; fileName: string }>;
@@ -57,8 +59,9 @@ function availableActions(model: Model | null, returnOnly: boolean): RentalActio
   return summary.actions;
 }
 
-async function loadAssignment(id: string, signal?: AbortSignal): Promise<Model | null> {
-  const response = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(id)}`, { cache: "no-store", signal });
+async function loadAssignment(id: string, signal?: AbortSignal, proposed?: { startsAt: string; expectedReturnAt: string }): Promise<Model | null> {
+  const query = proposed ? `?${new URLSearchParams(proposed)}` : "";
+  const response = await fetch(`/api/crm/v1/deal-continuity/${encodeURIComponent(id)}${query}`, { cache: "no-store", signal });
   const result = await response.json();
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(result.error || "Unable to load the assignment.");
@@ -103,6 +106,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
   const [clock, setClock] = useState(() => Date.now());
   const form = useRef<HTMLFormElement>(null);
   const handoffFeedback = useRef<HTMLDivElement>(null);
+  const focusHandoffAfterPacket = useRef(false);
   const fieldId = useId();
   const coverageId = `${fieldId}-coverage`;
   const dueBackId = `${fieldId}-due-back`;
@@ -239,6 +243,8 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
       : ""
   ].filter(Boolean);
   const checkoutBlocked = action === "HANDOFF" && checkoutBlockers.length > 0;
+  const vehicleConflict = (action === "HANDOFF" || action === "RESERVE") &&
+    (Boolean(model?.conflictingAssignment) || isTemporaryVehicleConflict(`${model?.vehicleReadiness?.detail ?? ""} ${notice}`));
   const readinessReview = model?.vehicleReadiness?.review;
   const readinessKey = readinessReview ? JSON.stringify([draftId, readinessReview.vehicleId, readinessReview.inventoryUnitId, readinessReview.unitVersion, readinessReview.intakeRevisionId]) : "";
   const timeField = (key: "startsAt" | "expectedReturnAt" | "occurredAt" | "insuranceValidUntil", fieldLabel: string, value = values[key] ?? "") =>
@@ -314,9 +320,9 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
       const sequence = ++readSequence.current;
       const result = await loadAssignment(draftId);
       if (!result?.agreements.some(agreement => agreement.id === review.packet.id)) throw new Error("Checkout paperwork was saved. Refresh checkout status to continue to handoff.");
+      focusHandoffAfterPacket.current = true;
       if (sequence === readSequence.current) setModel(result);
       setPacketChecklist(false);
-      window.requestAnimationFrame(() => focusCheckoutField(handoffStepId));
     } catch (error) {
       setPacketRefresh(current => current + 1);
       setNotice(error instanceof Error ? error.message : "Checkout paperwork could not be confirmed. Refresh checkout status and try again.");
@@ -406,6 +412,13 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
       if (outcomeUnknown) setRetryAvailable(true);
       const message = error instanceof Error ? error.message : "The request was interrupted.";
       setNotice(outcomeUnknown && action === "HANDOFF" ? `Retry the previous submission to check whether checkout was saved. ${message}` : message);
+      if (draftId && isTemporaryVehicleConflict(message) && (action === "HANDOFF" || action === "RESERVE")) {
+        const startsAt = pending.current?.payload[action === "RESERVE" ? "startsAt" : "occurredAt"];
+        const expectedReturnAt = pending.current?.payload.expectedReturnAt;
+        const proposed = typeof startsAt === "string" && startsAt && typeof expectedReturnAt === "string" && expectedReturnAt ? { startsAt, expectedReturnAt } : undefined;
+        const sequence = ++readSequence.current;
+        void loadAssignment(draftId, undefined, proposed).then(current => { if (sequence === readSequence.current) setModel(current); }).catch(() => {});
+      }
       if (action === "HANDOFF") window.requestAnimationFrame(() => handoffFeedback.current?.focus());
     } finally {
       setBusy(false);
@@ -417,6 +430,14 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
     : model?.source?.sourceDraftId ? `/crm-next/deals/start?draftId=${encodeURIComponent(model.source.sourceDraftId)}` : null;
   const canShowActions = loaded || !draftId;
   const handoffAvailable = handoffForm && !checkoutBlocked;
+  useEffect(() => {
+    if (!handoffAvailable || busy || !focusHandoffAfterPacket.current) return;
+    const step = document.getElementById(handoffStepId);
+    if (step) {
+      focusHandoffAfterPacket.current = false;
+      step.focus();
+    }
+  }, [handoffAvailable, busy, handoffStepId]);
   const odometer = values.odometer || defaults.odometer;
   const acceptedProofs = model?.insuranceProofs ?? [];
   const selectedProof = acceptedProofs.length === 1 ? acceptedProofs[0] : acceptedProofs.find(proof => proof.id === values.insuranceDocumentId);
@@ -526,7 +547,8 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
       {checkoutBlocked && <div className={styles.checkoutBlocked}>
         <div role="status"><strong>Checkout pending</strong><ul>{checkoutBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul></div>
         {!model?.vehicleId && onNavigate && <button className={styles.rentalPrimary} type="button" onClick={() => onNavigate("identity")}>Review customer and vehicle</button>}
-        {model?.vehicleId && model.vehicleReadiness?.eligible === false && !readinessReview && <p><a className={styles.rentalPrimary} target="_blank" rel="noopener noreferrer" href={model.vehicleReadiness.inventoryUnitId ? `/vehicles/inventory/units?inventoryUnitId=${encodeURIComponent(model.vehicleReadiness.inventoryUnitId)}` : `/prototype/inventory-intake?vehicleId=${encodeURIComponent(model.vehicleId)}`}>{model.vehicleReadiness.inventoryUnitId ? "Review vehicle in Inventory" : "Open Inventory Intake for this vehicle"}</a></p>}
+        {vehicleConflict && onNavigate && <RentalVehicleConflictActions conflict={model?.conflictingAssignment} onChooseVehicle={() => onNavigate("identity")} />}
+        {!vehicleConflict && model?.vehicleId && model.vehicleReadiness?.eligible === false && !readinessReview && <p><a className={styles.rentalPrimary} target="_blank" rel="noopener noreferrer" href={model.vehicleReadiness.inventoryUnitId ? `/vehicles/registry?vehicleId=${encodeURIComponent(model.vehicleId)}` : `/prototype/inventory-intake?vehicleId=${encodeURIComponent(model.vehicleId)}`}>{model.vehicleReadiness.inventoryUnitId ? "Review vehicle in Vehicle Registry" : "Open Inventory Intake for this vehicle"}</a></p>}
         {model?.vehicleId && !model.agreements.length && (model.agreementHref
           ? <button type="button" className={styles.rentalPrimary} aria-expanded={packetChecklist} aria-controls={checklistId} onClick={() => {
             setPacketChecklist(true);
@@ -553,6 +575,7 @@ export function VehicleUseTool({ pathway, onNavigate, onPrepareCheckoutPacket, o
         <label><input id={handoffId} type="checkbox" checked={values.physicalHandover} onChange={event => update("physicalHandover", event.target.checked)} />Vehicle physically handed over</label>
       </fieldset>}
       {(!packetChecklist || !checkoutBlocked) && activationFeedback}
+      {!checkoutBlocked && vehicleConflict && onNavigate && <RentalVehicleConflictActions conflict={model?.conflictingAssignment} onChooseVehicle={() => onNavigate("identity")} />}
       {handoffAvailable && handoffCorrections.length > 0 && <div className={styles.checkoutBlocked}>
         <strong>To activate</strong>
         <ul aria-label="Items to complete before activation">{handoffCorrections.map(([message, id]) => <li key={id}><button type="button" onClick={() => focusCheckoutField(id)}>{message}</button></li>)}</ul>
